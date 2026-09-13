@@ -3,7 +3,6 @@ import type { BudgetAlert, ReportBudgetLine } from "./types";
 import { formatAmount } from "./format";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { Sparkline } from "./charts";
-import { BudgetGroupIcon } from "./icons";
 
 /** A one-line description of a sparkline's trend, for the `<title>` WCAG
  * 1.1.1 requires on non-decorative non-text content — this is what a
@@ -101,14 +100,14 @@ function NewBudgetLineForm({
 
   return (
     <form className="bucket-new-form" onSubmit={handleSubmit}>
-      <select value={category} onChange={(e) => setCategory(e.target.value)}>
+      <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
         {availableCategories.map((c) => (
           <option key={c} value={c}>
             {c}
           </option>
         ))}
       </select>
-      <select value={group} onChange={(e) => setGroup(e.target.value as Group)}>
+      <select aria-label="Budget group" value={group} onChange={(e) => setGroup(e.target.value as Group)}>
         {GROUP_ORDER.map((g) => (
           <option key={g} value={g}>
             {GROUP_LABELS[g]}
@@ -286,6 +285,7 @@ function BudgetRow({
         )}
       </div>
       <select
+        aria-label={`Budget group for ${line.category}`}
         className="cat-row-group"
         value={line.budget_group}
         onChange={(e) => onSetBudget(line.category, line.budgeted, e.target.value)}
@@ -525,10 +525,7 @@ export function BudgetView({
                   : `${pct.toFixed(0)}% ${isIncome ? "received" : "used"}`;
             return (
               <div className="group-card" key={group}>
-                <span className="group-card-title cell-with-icon">
-                  <BudgetGroupIcon group={group} className="category-legend-icon" />
-                  {GROUP_LABELS[group]}
-                </span>
+                <span className="group-card-title">{GROUP_LABELS[group]}</span>
                 <span className="group-card-amt">
                   {formatAmount(groupActual.toFixed(2))} <span className="of">of {formatAmount(groupBudgeted.toFixed(2))}</span>
                 </span>
@@ -545,8 +542,7 @@ export function BudgetView({
       {groupSummaries.map(({ group, groupLines, groupBudgeted, groupActual }) => {
         return (
           <div key={group}>
-            <h2 className="reports-section-title cell-with-icon">
-              <BudgetGroupIcon group={group} className="category-legend-icon" />
+            <h2 className="reports-section-title">
               {GROUP_LABELS[group]}{" "}
               <span className="account-col">
                 {formatAmount(groupActual.toFixed(2))} of {formatAmount(groupBudgeted.toFixed(2))}

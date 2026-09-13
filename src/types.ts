@@ -29,6 +29,7 @@ export type Profile = {
   id: string;
   name: string;
   is_active: boolean;
+  icon_key: string | null;
 };
 
 export type LivePriceProviderId = "alpha_vantage" | "finnhub" | "twelve_data" | "stockdata_org";
@@ -112,6 +113,18 @@ export type Account = {
    * already accounts for everything through this date. `null` if neither
    * has ever happened for this account. */
   checkpoint_date: string | null;
+  /** An explicit icon override (see `AccountTypeIcon`'s `iconKey` prop) —
+   * `null` means "keep guessing an icon from `account_type`." */
+  icon_key: string | null;
+};
+
+/** A registered category name plus its explicit icon override, if any —
+ * returned by `list_categories_with_icons` alongside (not instead of) the
+ * plain `list_categories(): string[]` most of the app still uses for
+ * name-only pickers/autocomplete. */
+export type CategoryIconEntry = {
+  name: string;
+  icon_key: string | null;
 };
 
 export type DebtPayoffLine = {

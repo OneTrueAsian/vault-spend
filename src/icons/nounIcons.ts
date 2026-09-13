@@ -38,7 +38,12 @@ import water from "../assets/icons/water.png";
  * by id rather than importing PNGs themselves — this is the only file in
  * the app that touches `assets/icons/*.png` directly. Adding a new bundled
  * icon means adding one entry here (asset + credit together) and then
- * wiring its id into whichever of those three lookup tables wants it. */
+ * wiring its id into whichever of those three lookup tables wants it.
+ *
+ * These are all monochrome (Noun Project's free CC BY 3.0 tier ships plain
+ * black glyphs, not colored artwork) — see `flatIcons.ts` for the separate,
+ * full-color set used where the user specifically picked icons for their
+ * color. */
 export type NounIconId =
   | "car-insurance"
   | "checking"

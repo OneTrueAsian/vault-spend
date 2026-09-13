@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AppSettings, Backup, LivePriceProviderId, LivePriceSettings, Profile, ThemeStyle } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { CHANGELOG } from "./changelog";
-import { ICON_CREDITS } from "./icons";
+import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -223,6 +224,7 @@ function LivePricesSection({
       ) : (
         <>
           <select
+            aria-label="Live price provider"
             className="row-edit-input"
             value={pickerProvider}
             onChange={(e) => setPickerProvider(e.target.value as LivePriceProviderId)}
@@ -369,12 +371,33 @@ function FeatureTogglesSection({
   );
 }
 
+/** `ManageCategoriesDialog`'s inline `.icon-picker-popover` positions itself
+ * `absolute` against its own row — fine inside a plain `<ul>`, but the
+ * Profiles table below is a `.ledger`, which clips overflow to keep its
+ * corners rounded, so an absolutely-positioned popover taller than one row
+ * gets silently clipped away instead of showing. Portaling it to
+ * `document.body` and positioning it `fixed` against the swatch's own
+ * on-screen rect sidesteps that clipping entirely without touching
+ * `.ledger`'s shared styling (used by every other table in the app). */
+function ProfileIconPopover({ anchorRect, onClose, children }: { anchorRect: DOMRect; onClose: () => void; children: React.ReactNode }) {
+  return createPortal(
+    <>
+      <div className="icon-picker-portal-backdrop" onClick={onClose} />
+      <div className="icon-picker-popover icon-picker-popover-portal" style={{ top: anchorRect.bottom + 4, left: anchorRect.left }}>
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
 function ProfilesSection({
   profiles,
   onCreateProfile,
   onUseExistingDataFile,
   onSwitchProfile,
   onRenameProfile,
+  onSetProfileIcon,
   onDeleteProfile,
 }: {
   profiles: Profile[];
@@ -387,6 +410,7 @@ function ProfilesSection({
   onUseExistingDataFile: () => void;
   onSwitchProfile: (id: string) => void;
   onRenameProfile: (id: string, newName: string) => void;
+  onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
 }) {
   const [newProfileName, setNewProfileName] = useState("");
@@ -394,6 +418,7 @@ function ProfilesSection({
   const [draftName, setDraftName] = useState("");
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
+  const [editingIcon, setEditingIcon] = useState<{ id: string; anchorRect: DOMRect } | null>(null);
 
   function handleCreateSubmit(e: FormEvent) {
     e.preventDefault();
@@ -429,6 +454,7 @@ function ProfilesSection({
       <table className="ledger">
         <thead>
           <tr>
+            <th></th>
             <th>Name</th>
             <th className="actions-col"></th>
           </tr>
@@ -436,6 +462,39 @@ function ProfilesSection({
         <tbody>
           {profiles.map((p) => (
             <tr key={p.id}>
+              <td>
+                <span className="icon-toggle-anchor">
+                  <button
+                    type="button"
+                    className="icon-picker-swatch"
+                    title="Click to change this profile's icon"
+                    aria-label={`Change ${p.name}'s icon`}
+                    onClick={(e) => {
+                      if (editingIcon?.id === p.id) {
+                        setEditingIcon(null);
+                        return;
+                      }
+                      setEditingIcon({ id: p.id, anchorRect: e.currentTarget.getBoundingClientRect() });
+                    }}
+                  >
+                    <ProfileIcon iconKey={p.icon_key} />
+                  </button>
+                  {editingIcon?.id === p.id && (
+                    <ProfileIconPopover anchorRect={editingIcon.anchorRect} onClose={() => setEditingIcon(null)}>
+                      <IconPicker
+                        options={PROFILE_ICON_OPTIONS}
+                        value={p.icon_key && isProfileIconKey(p.icon_key) ? p.icon_key : null}
+                        onChange={(key: ProfileIconKey) => {
+                          onSetProfileIcon(p.id, key);
+                          setEditingIcon(null);
+                        }}
+                        renderIcon={(key) => <ProfileIcon iconKey={key} />}
+                        size="lg"
+                      />
+                    </ProfileIconPopover>
+                  )}
+                </span>
+              </td>
               <td>
                 {editingId === p.id ? (
                   <input
@@ -618,6 +677,7 @@ export function SettingsView({
   onUseExistingDataFile,
   onSwitchProfile,
   onRenameProfile,
+  onSetProfileIcon,
   onDeleteProfile,
   livePriceSettings,
   onSetLivePriceApiKey,
@@ -640,6 +700,7 @@ export function SettingsView({
   onUseExistingDataFile: () => void;
   onSwitchProfile: (id: string) => void;
   onRenameProfile: (id: string, newName: string) => void;
+  onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
   livePriceSettings: LivePriceSettings | null;
   onSetLivePriceApiKey: (provider: LivePriceProviderId, apiKey: string | null) => void;
@@ -666,6 +727,7 @@ export function SettingsView({
         onUseExistingDataFile={onUseExistingDataFile}
         onSwitchProfile={onSwitchProfile}
         onRenameProfile={onRenameProfile}
+        onSetProfileIcon={onSetProfileIcon}
         onDeleteProfile={onDeleteProfile}
       />
       <SettingsSection dataFileLocation={dataFileLocation} onRelocateDataFile={onRelocateDataFile} />

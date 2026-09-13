@@ -4,6 +4,7 @@
 //! real Tauri app context.
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 const DB_FILENAME: &str = "vaultspend.db";
@@ -20,6 +21,30 @@ const DB_FILENAME: &str = "vaultspend.db";
 pub struct AppPaths {
     pub config_path: PathBuf,
     pub db_path: Mutex<PathBuf>,
+    /// Bumped by every command that swaps the live database out from under
+    /// `AppState` (`relocate_data_file`, `restore_backup`, `create_profile`,
+    /// `switch_profile`, `add_existing_profile` — everywhere `db_path` above
+    /// is reassigned). A long-running async command (`refresh_live_prices`
+    /// is the one real example: it makes a network call with no lock held,
+    /// then writes its result back afterward) can capture this value before
+    /// its `.await` and compare against it once the write-back lock is
+    /// re-acquired — a mismatch means the active profile changed while it
+    /// was in flight, so its result belongs to a profile that isn't live
+    /// anymore and must be discarded instead of mutating whatever profile
+    /// happens to be live now.
+    pub generation: AtomicU64,
+}
+
+impl AppPaths {
+    pub fn current_generation(&self) -> u64 {
+        self.generation.load(Ordering::SeqCst)
+    }
+
+    /// Call exactly once, in the same command that reassigns `db_path`,
+    /// right alongside that reassignment.
+    pub fn bump_generation(&self) {
+        self.generation.fetch_add(1, Ordering::SeqCst);
+    }
 }
 
 #[derive(Serialize, Deserialize)]

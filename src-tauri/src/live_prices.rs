@@ -48,8 +48,7 @@ pub async fn fetch_quote(client: &reqwest::Client, api_key: &str, symbol: &str) 
 /// typo'd API key look identical to "this symbol doesn't exist," so they're
 /// checked first and surfaced as distinct, readable errors.
 pub fn parse_global_quote_response(body: &str) -> Result<Option<Decimal>, String> {
-    let value: Value =
-        serde_json::from_str(body).map_err(|e| format!("unexpected response from Alpha Vantage: {e}"))?;
+    let value: Value = serde_json::from_str(body).map_err(|e| format!("unexpected response from Alpha Vantage: {e}"))?;
 
     if let Some(note) = value.get("Note").and_then(Value::as_str) {
         return Err(note.to_string());
@@ -111,40 +110,41 @@ mod tests {
     }
 
     #[test]
-    fn parse_global_quote_response_returns_an_error_for_a_rate_limit_note() {
-        let body =
-            r#"{ "Note": "Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day." }"#;
+    fn parse_global_quote_response_error_matrix() {
+        struct Case {
+            label: &'static str,
+            body: &'static str,
+            expected_substring: Option<&'static str>,
+        }
+        let cases = [
+            Case {
+                label: "rate limit Note field",
+                body: r#"{ "Note": "Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day." }"#,
+                expected_substring: Some("25 requests per day"),
+            },
+            Case {
+                label: "rate limit Information field",
+                body: r#"{ "Information": "Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day." }"#,
+                expected_substring: Some("25 requests per day"),
+            },
+            Case {
+                label: "invalid api key Error Message field",
+                body: r#"{ "Error Message": "the parameter apikey is invalid" }"#,
+                expected_substring: Some("apikey is invalid"),
+            },
+            Case {
+                label: "malformed json",
+                body: "not json at all",
+                expected_substring: None,
+            },
+        ];
 
-        let result = parse_global_quote_response(body);
-
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("25 requests per day"));
-    }
-
-    #[test]
-    fn parse_global_quote_response_returns_an_error_for_a_rate_limit_information_field() {
-        let body = r#"{ "Information": "Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day." }"#;
-
-        let result = parse_global_quote_response(body);
-
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("25 requests per day"));
-    }
-
-    #[test]
-    fn parse_global_quote_response_returns_an_error_for_an_invalid_api_key_error_message() {
-        let body = r#"{ "Error Message": "the parameter apikey is invalid" }"#;
-
-        let result = parse_global_quote_response(body);
-
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("apikey is invalid"));
-    }
-
-    #[test]
-    fn parse_global_quote_response_returns_an_error_for_malformed_json() {
-        let result = parse_global_quote_response("not json at all");
-
-        assert!(result.is_err());
+        for case in cases {
+            let result = parse_global_quote_response(case.body);
+            assert!(result.is_err(), "case: {}", case.label);
+            if let Some(substring) = case.expected_substring {
+                assert!(result.unwrap_err().contains(substring), "case: {}", case.label);
+            }
+        }
     }
 }

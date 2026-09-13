@@ -80,12 +80,7 @@ impl LivePriceProvider {
 /// used by `fetch_live_quote`'s New Holding autofill, which is inherently
 /// one-symbol-at-a-time regardless of what any provider's batch endpoint
 /// can do.
-pub async fn fetch_quote(
-    provider: LivePriceProvider,
-    client: &reqwest::Client,
-    api_key: &str,
-    symbol: &str,
-) -> Result<Option<Decimal>, String> {
+pub async fn fetch_quote(provider: LivePriceProvider, client: &reqwest::Client, api_key: &str, symbol: &str) -> Result<Option<Decimal>, String> {
     match provider {
         LivePriceProvider::AlphaVantage => crate::live_prices::fetch_quote(client, api_key, symbol).await,
         LivePriceProvider::Finnhub => crate::finnhub::fetch_quote(client, api_key, symbol).await,

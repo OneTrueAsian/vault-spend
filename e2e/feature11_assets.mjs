@@ -32,7 +32,15 @@ try {
   const propertySection = await app.browser.$(
     "//h2[contains(., 'Property & Valuables')]/following-sibling::table[1]",
   );
-  await propertySection.waitForExist({ timeout: 10000 });
+  // This table exists (with its header row) even with zero assets — the
+  // empty-state message renders in place of body rows, not instead of the
+  // table — so `waitForExist` above proves nothing about whether the
+  // create actually landed yet. Poll for the asset's own text instead,
+  // same pattern already used below for the edit and delete steps.
+  await app.browser.waitUntil(async () => (await propertySection.getText()).includes("Home"), {
+    timeout: 10000,
+    timeoutMsg: 'expected "Home" to appear in the Property & Valuables table after saving',
+  });
   let sectionText = await propertySection.getText();
   console.log("property section after add:", sectionText);
   if (!sectionText.includes("Home") || !sectionText.includes("$350,000.00")) {
@@ -55,18 +63,38 @@ try {
   // "Home" specifically.
   await reportsNav.click();
   const valueCellXPath = "//tr[.//div[text()='Home']]//span[contains(@class,'amount-editable')]";
-  const valueCell = await app.browser.$(valueCellXPath);
-  await valueCell.waitForExist({ timeout: 5000 });
-  await valueCell.click();
-
-  // setValue()'s internal clear-then-type sequence is unreliable against
-  // this controlled React input in this WebView2/tauri-driver combo (the
-  // element genuinely exists per getPageSource, but setValue reports "not
-  // found") — click to focus, select-all, then type over it instead.
   const editInputXPath = "//tr[.//div[text()='Home']]//input[contains(@class,'amount-edit-input')]";
-  const editInput = await app.browser.$(editInputXPath);
-  await editInput.waitForExist({ timeout: 5000 });
-  await editInput.click();
+
+  // The value cell swaps to an <input autoFocus ... onBlur={commit}> the
+  // instant it's clicked — a real, if narrow, race: clicking that freshly-
+  // mounted, already-focused input (needed because setValue()'s internal
+  // clear-then-type sequence is unreliable against this controlled React
+  // input in this WebView2/tauri-driver combo) can itself dispatch a
+  // spurious blur first, which commits the untouched value and reverts
+  // the cell back to plain text before the click actually lands or before
+  // the keys typed afterward reach anything — leaving nothing at
+  // editInputXPath. Re-clicking the span is a safe, idempotent recovery
+  // (a no-op if it's already mid-edit), so retry the whole "open it,
+  // click into it, confirm it's still there" handshake instead of
+  // gambling on one attempt.
+  let opened = false;
+  for (let attempt = 1; attempt <= 5 && !opened; attempt++) {
+    try {
+      const valueCell = await app.browser.$(valueCellXPath);
+      await valueCell.waitForExist({ timeout: 5000 });
+      await valueCell.click();
+      const editInput = await app.browser.$(editInputXPath);
+      await editInput.waitForExist({ timeout: 1000 });
+      await editInput.click();
+      // Confirm the click itself didn't blur-and-revert it.
+      if (await editInput.isExisting()) opened = true;
+    } catch {
+      // Element vanished mid-handshake (the race this loop exists for) —
+      // fall through and retry from the top.
+    }
+  }
+  if (!opened) throw new Error("expected the amount edit input to appear and stay open after clicking the value cell");
+
   await app.browser.keys(["Control", "a"]);
   await app.browser.keys("400000");
   await app.browser.keys("Enter");

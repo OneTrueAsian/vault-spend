@@ -198,7 +198,11 @@ pub fn list_backups(backups_dir: &Path) -> Result<Vec<BackupInfo>, String> {
             let created_at = parse_backup_timestamp(&filename)
                 .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
                 .unwrap_or_else(|| filename.clone());
-            BackupInfo { filename, created_at, size_bytes }
+            BackupInfo {
+                filename,
+                created_at,
+                size_bytes,
+            }
         })
         .collect())
 }
@@ -233,36 +237,42 @@ pub fn restore_backup(store: &Store, backups_dir: &Path, filename: &str, live_db
     }
 
     let today = chrono::Local::now().date_naive();
-    {
-        let candidate = Store::open(&backup_path).map_err(|e| e.to_string())?;
-        candidate.list_accounts(today).map_err(|e| e.to_string())?;
-    }
-
-    create_backup(store, backups_dir, chrono::Local::now().naive_local())?;
-
     let source = Store::open(&backup_path).map_err(|e| e.to_string())?;
+    source.list_accounts(today).map_err(|e| e.to_string())?;
+
     let restored_dir = live_db_path.parent().unwrap_or(Path::new("."));
     let mut restored_path;
     let mut n = 1;
     loop {
         let suffix = if n == 1 { String::new() } else { format!("-{n}") };
-        restored_path = restored_dir.join(format!(
-            "vaultspend-restored-{}{suffix}.db",
-            chrono::Local::now().format("%Y%m%d-%H%M%S")
-        ));
+        restored_path = restored_dir.join(format!("vaultspend-restored-{}{suffix}.db", chrono::Local::now().format("%Y%m%d-%H%M%S")));
         if !restored_path.exists() {
             break;
         }
         n += 1;
     }
 
+    // Extract the chosen backup's data into its own file *before* taking
+    // the live database's own safety snapshot below. That snapshot's
+    // retention pruning (see `create_backup` -> `prune_to_disk`) can
+    // delete the oldest backup on disk — and if `backup_path` (the file
+    // being restored *from*) happens to be that oldest one, re-opening it
+    // afterward would silently hand back a fresh, empty database instead
+    // of erroring (see `verify_backup`'s doc comment), and this function
+    // would report a successful restore of nothing. Finishing the actual
+    // extraction — reading `source` into `restored_path` — before pruning
+    // ever runs means `backup_path`'s later fate can't affect this restore.
     const MAX_ATTEMPTS: u32 = 3;
     let mut last_error = String::new();
+    let mut restored = false;
     for attempt in 1..=MAX_ATTEMPTS {
         let _ = std::fs::remove_file(&restored_path);
         source.backup_to(&restored_path).map_err(|e| e.to_string())?;
         match verify_backup(&source, &restored_path) {
-            Ok(()) => return Ok(restored_path),
+            Ok(()) => {
+                restored = true;
+                break;
+            }
             Err(e) => {
                 last_error = e;
                 if attempt < MAX_ATTEMPTS {
@@ -271,8 +281,21 @@ pub fn restore_backup(store: &Store, backups_dir: &Path, filename: &str, live_db
             }
         }
     }
-    let _ = std::fs::remove_file(&restored_path);
-    Err(format!("restore did not verify after {MAX_ATTEMPTS} attempts: {last_error}"))
+    if !restored {
+        let _ = std::fs::remove_file(&restored_path);
+        return Err(format!("restore did not verify after {MAX_ATTEMPTS} attempts: {last_error}"));
+    }
+
+    // Now that the restore itself is durably complete, snapshot the
+    // current live data too — so switching to `restored_path` is itself
+    // reversible. A failure here fails the whole operation (the "restore
+    // is reversible" guarantee wasn't met), but `restored_path` is left
+    // in place rather than deleted: it's valid, verified data, and
+    // discarding it on top of a failed safety-backup would be strictly
+    // worse for the user.
+    create_backup(store, backups_dir, chrono::Local::now().naive_local())?;
+
+    Ok(restored_path)
 }
 
 /// Where backups for a given live database path live — a `backups`
@@ -320,20 +343,38 @@ mod tests {
     }
 
     #[test]
-    fn should_create_backup_is_true_with_no_existing_backups() {
-        assert!(should_create_backup(&[], dt("2026-08-30 12:00:00"), 24));
-    }
+    fn should_create_backup_decision_matrix() {
+        struct Case {
+            label: &'static str,
+            existing: Vec<String>,
+            expected: bool,
+        }
+        let cases = [
+            Case {
+                label: "no existing backups",
+                existing: vec![],
+                expected: true,
+            },
+            Case {
+                label: "6 hours old, within the 24h interval",
+                existing: vec!["vaultspend-20260830-060000.db".to_string()],
+                expected: false,
+            },
+            Case {
+                label: "30 hours old, past the 24h interval",
+                existing: vec!["vaultspend-20260829-060000.db".to_string()],
+                expected: true,
+            },
+        ];
 
-    #[test]
-    fn should_create_backup_is_false_within_the_interval() {
-        let existing = vec!["vaultspend-20260830-060000.db".to_string()];
-        assert!(!should_create_backup(&existing, dt("2026-08-30 12:00:00"), 24));
-    }
-
-    #[test]
-    fn should_create_backup_is_true_once_the_interval_has_passed() {
-        let existing = vec!["vaultspend-20260829-060000.db".to_string()];
-        assert!(should_create_backup(&existing, dt("2026-08-30 12:00:00"), 24));
+        for case in cases {
+            assert_eq!(
+                should_create_backup(&case.existing, dt("2026-08-30 12:00:00"), 24),
+                case.expected,
+                "case: {}",
+                case.label
+            );
+        }
     }
 
     #[test]
@@ -351,7 +392,10 @@ mod tests {
 
         let result = verify_backup(&source, &empty_dest_path);
 
-        assert!(result.is_err(), "expected verification to reject a destination missing the source's account");
+        assert!(
+            result.is_err(),
+            "expected verification to reject a destination missing the source's account"
+        );
     }
 
     #[test]
@@ -383,7 +427,7 @@ mod tests {
     }
 
     #[test]
-    fn create_backup_disambiguates_two_calls_within_the_same_second() {
+    fn same_second_backups_get_distinct_filenames_that_still_sort_newest_first() {
         // Reproduces exactly the scenario found in real end-to-end testing:
         // a manual "Back up now" immediately followed by a restore's own
         // safety-snapshot landing in the same wall-clock second. Without
@@ -391,6 +435,14 @@ mod tests {
         // backup file — including, in the restore case, overwriting the
         // very backup about to be restored *from*, with the current
         // (unwanted) live data.
+        //
+        // The disambiguation suffix must also not invert "newest first" —
+        // `list_backups`/`prune_backups` both trust plain string sorting
+        // to match chronological order. A `-N` suffix (`-` is 0x2D, which
+        // sorts *before* `.` at 0x2E) silently broke this: the second
+        // (truly newer) backup sorted as older than the first, which in
+        // practice meant a stale/earlier backup could outrank a just-
+        // created real one in the UI's "Restore" list.
         let dir = temp_dir("same-second-collision");
         let store = Store::open(dir.join("live.db")).unwrap();
         store.get_or_create_account("Checking", AccountType::Checking).unwrap();
@@ -403,25 +455,6 @@ mod tests {
         assert_ne!(first, second, "two backups computed for the same second must not collide");
         assert!(backups_dir.join(&first).exists(), "the first backup must survive the second call");
         assert!(backups_dir.join(&second).exists());
-    }
-
-    #[test]
-    fn a_disambiguated_same_second_backup_still_sorts_as_the_newer_one() {
-        // The disambiguation suffix must not invert "newest first" —
-        // `list_backups`/`prune_backups` both trust plain string sorting
-        // to match chronological order. A `-N` suffix (`-` is 0x2D, which
-        // sorts *before* `.` at 0x2E) silently broke this: the second
-        // (truly newer) backup sorted as older than the first, which in
-        // practice meant a stale/earlier backup could outrank a just-
-        // created real one in the UI's "Restore" list.
-        let dir = temp_dir("disambiguated-sort-order");
-        let store = Store::open(dir.join("live.db")).unwrap();
-        store.get_or_create_account("Checking", AccountType::Checking).unwrap();
-        let backups_dir = dir.join("backups");
-        let same_instant = dt("2026-08-30 19:50:49");
-
-        let first = create_backup(&store, &backups_dir, same_instant).unwrap();
-        let second = create_backup(&store, &backups_dir, same_instant).unwrap();
 
         let listed = list_backups(&backups_dir).unwrap();
         assert_eq!(listed[0].filename, second, "the second (later-created) backup must sort first (newest)");
@@ -508,6 +541,57 @@ mod tests {
         let restored = Store::open(&restored_path).unwrap();
         let transactions = restored.all_transactions().unwrap();
         assert_eq!(transactions.len(), 1, "expected only the pre-backup transaction in the restored file");
+        assert_eq!(transactions[0].transaction.description, "Original");
+    }
+
+    /// Regression test for a real data-loss bug: restoring the *oldest*
+    /// retained backup while already at the retention cap used to delete
+    /// that very file (as part of the safety-backup's own pruning) before
+    /// it had been read, then silently open a fresh empty database in its
+    /// place and "restore" that instead — reporting success while handing
+    /// back zero accounts. Filling retention to the cap and restoring the
+    /// oldest one reproduces exactly that scenario.
+    #[test]
+    fn restoring_the_oldest_backup_at_the_retention_cap_does_not_lose_its_data() {
+        let dir = temp_dir("restore-oldest-at-cap");
+        let live_path = dir.join("live.db");
+        let backups_dir = dir.join("backups");
+
+        let store = Store::open(&live_path).unwrap();
+        let account = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+        store
+            .save_transactions(
+                account,
+                &[budget_core::models::Transaction {
+                    date: "2026-08-01".parse().unwrap(),
+                    description: "Original".to_string(),
+                    amount: "-10.00".parse().unwrap(),
+                    category: None,
+                }],
+            )
+            .unwrap();
+
+        // The oldest backup — the one we're about to restore — carries the
+        // real data above. Every backup after it is a distinct, later
+        // snapshot of the same (by-then-still-one-transaction) store; what
+        // matters is only that DEFAULT_KEEP (15) backups already exist
+        // before the restore, so the safety-backup this restore takes of
+        // the live database is the 16th and prunes the oldest one.
+        let oldest = create_backup(&store, &backups_dir, dt("2026-08-01 00:00:00")).unwrap();
+        for day in 2..=DEFAULT_KEEP {
+            create_backup(&store, &backups_dir, dt(&format!("2026-08-{day:02} 00:00:00"))).unwrap();
+        }
+        assert_eq!(list_backups(&backups_dir).unwrap().len(), DEFAULT_KEEP);
+
+        let restored_path = restore_backup(&store, &backups_dir, &oldest, &live_path).unwrap();
+
+        let restored = Store::open(&restored_path).unwrap();
+        let transactions = restored.all_transactions().unwrap();
+        assert_eq!(
+            transactions.len(),
+            1,
+            "restoring the pruned-during-this-operation backup must still recover its real data, not an empty database"
+        );
         assert_eq!(transactions[0].transaction.description, "Original");
     }
 

@@ -37,6 +37,7 @@ function account(overrides: Partial<Account> = {}): Account {
     member_id: null,
     member_name: null,
     checkpoint_date: null,
+    icon_key: null,
     ...overrides,
   };
 }

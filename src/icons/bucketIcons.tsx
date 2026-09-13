@@ -1,5 +1,5 @@
 import { Flag } from "lucide-react";
-import { nounIconEntry, IconEntryGlyph, type IconEntry } from "./iconEntry";
+import { nounIconEntry, flatIconEntry, IconEntryGlyph, type IconEntry } from "./iconEntry";
 
 /** Keyword → icon, checked in order (first match wins) against a bucket's
  * name — same keyword-matched convention `categoryIcons.tsx` uses for
@@ -10,26 +10,44 @@ import { nounIconEntry, IconEntryGlyph, type IconEntry } from "./iconEntry";
  * user override this guess, but leaves it as the default for anyone who
  * doesn't bother. */
 const BUCKET_ICON_RULES: [RegExp, IconEntry][] = [
-  [/(travel|vacation|trip|holiday)/i, nounIconEntry("travel-goal")],
+  [/mortgage/i, flatIconEntry("mortgage-category")],
+  [/(travel|vacation|trip|holiday)/i, flatIconEntry("travel-category")],
+  [/(housing|household)/i, flatIconEntry("house-category")],
   [/(home|house|renovation)/i, nounIconEntry("home-goal")],
-  [/gift/i, nounIconEntry("gift-goal")],
-  [/(laptop|computer|pc\b)/i, nounIconEntry("laptop-goal")],
+  [/(health|medical|dental)/i, flatIconEntry("health-category")],
+  [/gift/i, flatIconEntry("gifts-category")],
+  [/(laptop|computer|pc\b)/i, flatIconEntry("computer-goal")],
+  [/(beauty|makeup|spa|salon)/i, flatIconEntry("beauty-goal")],
+  [/(car|vehicle|auto\b)/i, flatIconEntry("car-goal")],
 ];
 
 const FALLBACK_ICON: IconEntry = { kind: "lucide", Icon: Flag };
 
-export type BucketIconKey = "flag" | "travel" | "home" | "gift" | "laptop";
+export type BucketIconKey = "flag" | "travel" | "housing" | "mortgage" | "health" | "gift" | "laptop" | "beauty" | "car";
 
 /** Every icon the picker offers, in display order — "flag" first as the
  * explicit "use the generic default" choice, matching the mockup's picker
- * (Flag swatch + the same travel/home/gift/laptop images already bundled
- * for automatic matching, reused rather than adding new image assets). */
+ * (Flag swatch plus every full-color image already bundled — the same
+ * bundled category images `categoryIcons.tsx` uses, reused here rather
+ * than adding new image assets for goals specifically). The older
+ * monochrome Noun Project "home" image is deliberately not offered here —
+ * the user asked for that dropped as a manual pick — but it's kept as the
+ * automatic keyword-guess fallback in `BUCKET_ICON_RULES` above, and the
+ * bundled asset/attribution in `nounIcons.ts` is untouched, so a goal
+ * already carrying it as an explicit `icon_key` simply falls back to that
+ * same keyword guess (see `iconForBucket`) rather than losing its icon.
+ * "laptop" and "beauty" use dedicated full-color goal images rather than
+ * the category ones. */
 export const BUCKET_ICON_OPTIONS: { key: BucketIconKey; entry: IconEntry }[] = [
   { key: "flag", entry: FALLBACK_ICON },
-  { key: "travel", entry: nounIconEntry("travel-goal") },
-  { key: "home", entry: nounIconEntry("home-goal") },
-  { key: "gift", entry: nounIconEntry("gift-goal") },
-  { key: "laptop", entry: nounIconEntry("laptop-goal") },
+  { key: "travel", entry: flatIconEntry("travel-category") },
+  { key: "housing", entry: flatIconEntry("house-category") },
+  { key: "mortgage", entry: flatIconEntry("mortgage-category") },
+  { key: "health", entry: flatIconEntry("health-category") },
+  { key: "gift", entry: flatIconEntry("gifts-category") },
+  { key: "laptop", entry: flatIconEntry("computer-goal") },
+  { key: "beauty", entry: flatIconEntry("beauty-goal") },
+  { key: "car", entry: flatIconEntry("car-goal") },
 ];
 
 const BUCKET_ICON_BY_KEY: Record<BucketIconKey, IconEntry> = Object.fromEntries(

@@ -78,7 +78,11 @@ pub fn run() {
             }
 
             app.manage::<AppStateHandle>(Mutex::new(state));
-            app.manage(config::AppPaths { config_path, db_path: Mutex::new(db_path) });
+            app.manage(config::AppPaths {
+                config_path,
+                db_path: Mutex::new(db_path),
+                generation: std::sync::atomic::AtomicU64::new(0),
+            });
 
             Ok(())
         })
@@ -95,6 +99,7 @@ pub fn run() {
             commands::add_existing_profile,
             commands::switch_profile,
             commands::rename_profile,
+            commands::set_profile_icon,
             commands::delete_profile,
             commands::preview_setup_import,
             commands::commit_setup_import,
@@ -117,13 +122,16 @@ pub fn run() {
             commands::delete_account,
             commands::set_account_details,
             commands::set_account_member,
+            commands::set_account_icon,
             commands::create_family_member,
             commands::list_family_members,
             commands::rename_family_member,
             commands::delete_family_member,
             commands::recategorize_uncategorized,
             commands::list_categories,
+            commands::list_categories_with_icons,
             commands::create_category,
+            commands::set_category_icon,
             commands::rename_category,
             commands::delete_category,
             commands::update_transaction_amount,

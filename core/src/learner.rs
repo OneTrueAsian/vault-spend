@@ -23,10 +23,7 @@ mod tests {
         let mut rules = RuleSet::new(vec![]);
         learn_from_correction(&mut rules, "Ferrywood Coffee", "Dining Out");
 
-        assert_eq!(
-            rules.categorize("Ferrywood Coffee"),
-            Some("Dining Out".to_string())
-        );
+        assert_eq!(rules.categorize("Ferrywood Coffee"), Some("Dining Out".to_string()));
         assert_eq!(rules.categorize("Some Unrelated Store"), None);
     }
 
@@ -37,10 +34,7 @@ mod tests {
         let mut rules = RuleSet::new(vec![]);
         learn_from_correction(&mut rules, "Ferrywood Coffee", "Dining Out");
 
-        assert_eq!(
-            rules.categorize("Ferrywood Coffee #482"),
-            Some("Dining Out".to_string())
-        );
+        assert_eq!(rules.categorize("Ferrywood Coffee #482"), Some("Dining Out".to_string()));
     }
 
     #[test]
@@ -50,10 +44,7 @@ mod tests {
         learn_from_correction(&mut rules, "Ferrywood Coffee", "Coffee & Snacks");
 
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules.categorize("Ferrywood Coffee"),
-            Some("Coffee & Snacks".to_string())
-        );
+        assert_eq!(rules.categorize("Ferrywood Coffee"), Some("Coffee & Snacks".to_string()));
     }
 
     #[test]
@@ -63,14 +54,8 @@ mod tests {
         // the user says this specific coffee shop is actually a work expense
         learn_from_correction(&mut rules, "Ferrywood Coffee", "Business Expense");
 
-        assert_eq!(
-            rules.categorize("Ferrywood Coffee"),
-            Some("Business Expense".to_string())
-        );
+        assert_eq!(rules.categorize("Ferrywood Coffee"), Some("Business Expense".to_string()));
         // the generic rule still applies to any other coffee merchant
-        assert_eq!(
-            rules.categorize("Some Other Coffee Shop"),
-            Some("Dining Out".to_string())
-        );
+        assert_eq!(rules.categorize("Some Other Coffee Shop"), Some("Dining Out".to_string()));
     }
 }

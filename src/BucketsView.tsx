@@ -131,7 +131,7 @@ function NewBucketForm({
       <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. "Emergency Fund"' />
       <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Target amount (optional)" />
       <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} title="Target date" />
-      <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+      <select aria-label="Linked account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
         <option value="">No linked account</option>
         {accounts.map((a) => (
           <option key={a.id} value={a.id}>
@@ -140,7 +140,7 @@ function NewBucketForm({
         ))}
       </select>
       {familyMembers.length > 0 && (
-        <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+        <select aria-label="Family member" value={memberId} onChange={(e) => setMemberId(e.target.value)}>
           <option value="">Unassigned</option>
           {familyMembers.map((m) => (
             <option key={m.id} value={m.id}>
@@ -217,7 +217,7 @@ function EditBucketForm({
         placeholder="Target amount (optional)"
       />
       <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} title="Target date" />
-      <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+      <select aria-label="Linked account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
         <option value="">No linked account</option>
         {accounts.map((a) => (
           <option key={a.id} value={a.id}>

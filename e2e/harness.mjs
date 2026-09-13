@@ -8,9 +8,13 @@
 // matching the installed WebView2 Runtime version, both under
 // C:\Users\<you>\.cargo\bin.
 //
-// Before running a spec: `npm run build && cargo build --workspace` so the
-// binary under target/debug embeds the current frontend (tauri-driver
-// launches the compiled .exe directly, not the vite dev server).
+// Before running a spec: `npx tauri build --debug --no-bundle` so the binary
+// under target/debug embeds the current frontend (tauri-driver launches the
+// compiled .exe directly, not the vite dev server). Not a bare `cargo build`
+// or `cargo build --workspace` — either produces a binary that can't find
+// its own embedded frontend (it renders "asset not found: index.html" and
+// any WebDriver session against it times out waiting for `.brand-word` to
+// exist); only going through the Tauri CLI actually embeds the frontend.
 
 import { spawn } from "node:child_process";
 import net, { Socket } from "node:net";

@@ -78,8 +78,7 @@ mod tests {
 
     #[test]
     fn parse_quote_response_returns_price_from_a_successful_response() {
-        let body =
-            r#"{"c": 261.74, "d": 3.75, "dp": 1.45, "h": 264.89, "l": 260.36, "o": 261.07, "pc": 257.99, "t": 1582641000}"#;
+        let body = r#"{"c": 261.74, "d": 3.75, "dp": 1.45, "h": 264.89, "l": 260.36, "o": 261.07, "pc": 257.99, "t": 1582641000}"#;
 
         let price = parse_quote_response(200, body).unwrap();
 
@@ -106,32 +105,46 @@ mod tests {
     }
 
     #[test]
-    fn parse_quote_response_returns_an_error_for_an_invalid_api_key_status() {
-        let result = parse_quote_response(401, r#"{"error":"API key not valid"}"#);
+    fn parse_quote_response_error_matrix() {
+        struct Case {
+            label: &'static str,
+            status: u16,
+            body: &'static str,
+            expected_substring: Option<&'static str>,
+        }
+        let cases = [
+            Case {
+                label: "invalid api key status",
+                status: 401,
+                body: r#"{"error":"API key not valid"}"#,
+                expected_substring: Some("API key"),
+            },
+            Case {
+                label: "rate limit status",
+                status: 429,
+                body: "",
+                expected_substring: Some("rate limit"),
+            },
+            Case {
+                label: "malformed json",
+                status: 200,
+                body: "not json at all",
+                expected_substring: None,
+            },
+            Case {
+                label: "unexpected status",
+                status: 500,
+                body: "internal server error",
+                expected_substring: None,
+            },
+        ];
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("API key"));
-    }
-
-    #[test]
-    fn parse_quote_response_returns_an_error_for_a_rate_limit_status() {
-        let result = parse_quote_response(429, "");
-
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("rate limit"));
-    }
-
-    #[test]
-    fn parse_quote_response_returns_an_error_for_malformed_json() {
-        let result = parse_quote_response(200, "not json at all");
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn parse_quote_response_returns_an_error_for_an_unexpected_status() {
-        let result = parse_quote_response(500, "internal server error");
-
-        assert!(result.is_err());
+        for case in cases {
+            let result = parse_quote_response(case.status, case.body);
+            assert!(result.is_err(), "case: {}", case.label);
+            if let Some(substring) = case.expected_substring {
+                assert!(result.unwrap_err().contains(substring), "case: {}", case.label);
+            }
+        }
     }
 }

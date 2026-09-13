@@ -88,21 +88,19 @@ fn load_from_reader<R: Read>(reader: R, invert_amounts: bool) -> std::io::Result
     // amount pair; a headerless export's first row always does. A
     // headerless file has no named columns at all, so it can never carry
     // Account/Category/Tags either — those stay None.
-    let (date_col, description_col, amount_source, extra, data_rows, first_row_number) =
-        if first_row_is_plain_data(first_row) {
-            (0, 1, AmountSource::Single(2), ExtraColumns::default(), &rows[..], 1)
-        } else {
-            let date_col = find_date_column(first_row)?;
-            let description_col =
-                find_column_exact(first_row, "description").ok_or_else(|| missing_column("description"))?;
-            let amount_source = find_amount_source(first_row)?;
-            let extra = ExtraColumns {
-                account: find_column_exact(first_row, "account"),
-                category: find_column_exact(first_row, "category"),
-                tags: find_column_exact(first_row, "tags"),
-            };
-            (date_col, description_col, amount_source, extra, &rows[1..], 2)
+    let (date_col, description_col, amount_source, extra, data_rows, first_row_number) = if first_row_is_plain_data(first_row) {
+        (0, 1, AmountSource::Single(2), ExtraColumns::default(), &rows[..], 1)
+    } else {
+        let date_col = find_date_column(first_row)?;
+        let description_col = find_column_exact(first_row, "description").ok_or_else(|| missing_column("description"))?;
+        let amount_source = find_amount_source(first_row)?;
+        let extra = ExtraColumns {
+            account: find_column_exact(first_row, "account"),
+            category: find_column_exact(first_row, "category"),
+            tags: find_column_exact(first_row, "tags"),
         };
+        (date_col, description_col, amount_source, extra, &rows[1..], 2)
+    };
 
     let mut result = LoadResult::default();
     for (idx, record) in data_rows.iter().enumerate() {
@@ -149,10 +147,7 @@ fn first_row_is_plain_data(record: &csv::StringRecord) -> bool {
 }
 
 fn missing_column(name: &str) -> std::io::Error {
-    std::io::Error::new(
-        std::io::ErrorKind::InvalidData,
-        format!("missing required column: {name}"),
-    )
+    std::io::Error::new(std::io::ErrorKind::InvalidData, format!("missing required column: {name}"))
 }
 
 fn find_column_exact(headers: &csv::StringRecord, name: &str) -> Option<usize> {
@@ -181,10 +176,7 @@ fn find_amount_source(headers: &csv::StringRecord) -> std::io::Result<AmountSour
     if let Some(col) = find_column_exact(headers, "amount") {
         return Ok(AmountSource::Single(col));
     }
-    match (
-        find_column_exact(headers, "debit"),
-        find_column_exact(headers, "credit"),
-    ) {
+    match (find_column_exact(headers, "debit"), find_column_exact(headers, "credit")) {
         (Some(debit), Some(credit)) => Ok(AmountSource::DebitCredit { debit, credit }),
         _ => Err(missing_column("amount (or debit/credit)")),
     }
@@ -201,8 +193,7 @@ fn parse_row(
     let date_str = record.get(date_col).ok_or("missing date column")?;
     let raw_description = record.get(description_col).ok_or("missing description column")?;
 
-    let date = parse_date(date_str.trim())
-        .map_err(|_| format!("invalid date '{}'", date_str.trim()))?;
+    let date = parse_date(date_str.trim()).map_err(|_| format!("invalid date '{}'", date_str.trim()))?;
 
     let description = clean_description(raw_description);
     if description.is_empty() {
@@ -434,10 +425,7 @@ mod tests {
              2026-08-25,2026-08-26,2392,SAMS CLUB #6359,Merchandise,167.99,\n",
         );
 
-        assert_eq!(
-            result.transactions[0].date,
-            chrono::NaiveDate::from_ymd_opt(2026, 8, 25).unwrap()
-        );
+        assert_eq!(result.transactions[0].date, chrono::NaiveDate::from_ymd_opt(2026, 8, 25).unwrap());
     }
 
     #[test]
@@ -468,8 +456,11 @@ mod tests {
     // you owe) — versus this crate's negative-means-money-out convention.
 
     #[test]
-    fn invert_amounts_flips_every_parsed_amount() {
-        let result = load_from_reader(
+    fn invert_amounts_option_controls_whether_signs_flip() {
+        // invert_amounts=true: a charge (positive in the file) becomes a
+        // negative expense, a payment (negative in the file) becomes a
+        // positive credit.
+        let inverted = load_from_reader(
             Cursor::new(
                 "Date,Description,Amount\n\
                  08/27/2026,APPLE.COM/BILL,2.99\n\
@@ -478,22 +469,13 @@ mod tests {
             true,
         )
         .unwrap();
+        assert!(inverted.errors.is_empty());
+        assert_eq!(inverted.transactions[0].amount, "-2.99".parse().unwrap());
+        assert_eq!(inverted.transactions[1].amount, "43.08".parse().unwrap());
 
-        assert!(result.errors.is_empty());
-        // a charge (positive in the file) becomes a negative expense
-        assert_eq!(result.transactions[0].amount, "-2.99".parse().unwrap());
-        // a payment (negative in the file) becomes a positive credit
-        assert_eq!(result.transactions[1].amount, "43.08".parse().unwrap());
-    }
-
-    #[test]
-    fn invert_amounts_false_leaves_signs_exactly_as_in_the_file() {
-        let result = load_from_reader(
-            Cursor::new("Date,Description,Amount\n08/27/2026,APPLE.COM/BILL,2.99\n"),
-            false,
-        )
-        .unwrap();
-        assert_eq!(result.transactions[0].amount, "2.99".parse().unwrap());
+        // invert_amounts=false: signs are left exactly as in the file.
+        let not_inverted = load_from_reader(Cursor::new("Date,Description,Amount\n08/27/2026,APPLE.COM/BILL,2.99\n"), false).unwrap();
+        assert_eq!(not_inverted.transactions[0].amount, "2.99".parse().unwrap());
     }
 
     // A fifth real-world shape: no header row at all — every line, including
@@ -509,10 +491,7 @@ mod tests {
 
         assert!(result.errors.is_empty());
         assert_eq!(result.transactions.len(), 3, "the first row must not be mistaken for a header");
-        assert_eq!(
-            result.transactions[0].description,
-            "Internet transfer to LAKE MICHIGAN CREDIT UNION"
-        );
+        assert_eq!(result.transactions[0].description, "Internet transfer to LAKE MICHIGAN CREDIT UNION");
         assert_eq!(result.transactions[0].amount, "-5800.0".parse().unwrap());
         assert_eq!(result.transactions[2].amount, "117.07".parse().unwrap());
     }

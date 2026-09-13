@@ -49,11 +49,7 @@ impl RuleSet {
     pub fn upsert(&mut self, pattern: impl Into<String>, category: impl Into<String>) {
         let pattern = pattern.into();
         let category = category.into();
-        match self
-            .rules
-            .iter_mut()
-            .find(|rule| rule.pattern.eq_ignore_ascii_case(&pattern))
-        {
+        match self.rules.iter_mut().find(|rule| rule.pattern.eq_ignore_ascii_case(&pattern)) {
             Some(existing) => existing.category = category,
             None => self.rules.push(Rule::new(pattern, category)),
         }
@@ -88,19 +84,13 @@ mod tests {
     #[test]
     fn matches_a_known_merchant_keyword() {
         let rules = RuleSet::new(vec![Rule::new("starbucks", "Dining Out")]);
-        assert_eq!(
-            rules.categorize("STARBUCKS #1234 SEATTLE"),
-            Some("Dining Out".to_string())
-        );
+        assert_eq!(rules.categorize("STARBUCKS #1234 SEATTLE"), Some("Dining Out".to_string()));
     }
 
     #[test]
     fn matching_is_case_insensitive_on_both_sides() {
         let rules = RuleSet::new(vec![Rule::new("SHELL", "Transportation")]);
-        assert_eq!(
-            rules.categorize("shell gas station #42"),
-            Some("Transportation".to_string())
-        );
+        assert_eq!(rules.categorize("shell gas station #42"), Some("Transportation".to_string()));
     }
 
     #[test]
@@ -112,30 +102,15 @@ mod tests {
     #[test]
     fn longest_matching_pattern_wins_on_conflict() {
         // "payment" alone would match too, but the more specific rule should win.
-        let rules = RuleSet::new(vec![
-            Rule::new("payment", "Fee"),
-            Rule::new("card payment", "Transfer"),
-        ]);
-        assert_eq!(
-            rules.categorize("Card Payment Received"),
-            Some("Transfer".to_string())
-        );
+        let rules = RuleSet::new(vec![Rule::new("payment", "Fee"), Rule::new("card payment", "Transfer")]);
+        assert_eq!(rules.categorize("Card Payment Received"), Some("Transfer".to_string()));
     }
 
     #[test]
     fn seed_rules_cover_a_few_common_categories() {
         let rules = RuleSet::seeded();
-        assert_eq!(
-            rules.categorize("Green Leaf Grocers"),
-            Some("Groceries".to_string())
-        );
-        assert_eq!(
-            rules.categorize("Ferrywood Coffee"),
-            Some("Dining Out".to_string())
-        );
-        assert_eq!(
-            rules.categorize("Union Realty (Rent)"),
-            Some("Rent".to_string())
-        );
+        assert_eq!(rules.categorize("Green Leaf Grocers"), Some("Groceries".to_string()));
+        assert_eq!(rules.categorize("Ferrywood Coffee"), Some("Dining Out".to_string()));
+        assert_eq!(rules.categorize("Union Realty (Rent)"), Some("Rent".to_string()));
     }
 }

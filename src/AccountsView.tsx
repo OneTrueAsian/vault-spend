@@ -4,9 +4,34 @@ import { StatDetailPanel } from "./StatDetailPanel";
 import { formatAmount } from "./format";
 import { GROUP_LABELS, GROUP_ORDER, groupOf, netWorthContribution } from "./accountGroups";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
-import { AccountTypeIcon } from "./icons";
+import { AccountTypeIcon, ACCOUNT_ICON_OPTIONS, isAccountIconKey, IconPicker, type AccountIconKey } from "./icons";
 
 const ACCOUNT_TYPE_OPTIONS = ["checking", "savings", "credit", "loan", "investment", "other"];
+
+/** Lets a user override the type-guessed icon (`icons/accountIcons.tsx`)
+ * with an explicit choice — floats below the type badge that opens it
+ * rather than pushing the rest of the card down, since a grid of account
+ * cards would otherwise reflow every neighbor open at once. */
+function AccountIconPicker({
+  accountType,
+  value,
+  onChange,
+}: {
+  accountType: string;
+  value: AccountIconKey | null;
+  onChange: (key: AccountIconKey) => void;
+}) {
+  return (
+    <div className="icon-picker-popover">
+      <IconPicker
+        options={ACCOUNT_ICON_OPTIONS}
+        value={value}
+        onChange={onChange}
+        renderIcon={(key) => <AccountTypeIcon accountType={accountType} iconKey={key} />}
+      />
+    </div>
+  );
+}
 
 /** The one balance-ish field currently being edited inline, across every
  * card (only one at a time). `mode` only matters for a credit account,
@@ -41,6 +66,9 @@ function AccountCard({
   onSetAccountDetails,
   familyMembers,
   onSetAccountMember,
+  editingIcon,
+  setEditingIcon,
+  onSetAccountIcon,
   confirmingDeleteId,
   setConfirmingDeleteId,
   onDeleteAccount,
@@ -56,6 +84,9 @@ function AccountCard({
   onSetAccountDetails: (accountId: number, institution: string | null, mask: string | null) => void;
   familyMembers: FamilyMember[];
   onSetAccountMember: (accountId: number, memberId: number | null) => void;
+  editingIcon: number | null;
+  setEditingIcon: (id: number | null) => void;
+  onSetAccountIcon: (accountId: number, iconKey: string | null) => void;
   confirmingDeleteId: number | null;
   setConfirmingDeleteId: (id: number | null) => void;
   onDeleteAccount: (accountId: number) => void;
@@ -105,8 +136,25 @@ function AccountCard({
 
   return (
     <div className="account-card">
-      <span className={isLiability ? "type-badge type-badge-neg" : "type-badge"}>
-        <AccountTypeIcon accountType={a.account_type} />
+      <span className="icon-toggle-anchor">
+        <button
+          type="button"
+          className={isLiability ? "type-badge type-badge-neg" : "type-badge"}
+          title="Click to change this account's icon"
+          onClick={() => setEditingIcon(editingIcon === a.id ? null : a.id)}
+        >
+          <AccountTypeIcon accountType={a.account_type} iconKey={a.icon_key} />
+        </button>
+        {editingIcon === a.id && (
+          <AccountIconPicker
+            accountType={a.account_type}
+            value={a.icon_key && isAccountIconKey(a.icon_key) ? a.icon_key : null}
+            onChange={(key) => {
+              onSetAccountIcon(a.id, key);
+              setEditingIcon(null);
+            }}
+          />
+        )}
       </span>
       <div className="info">
         <div className="account-name-cell">{a.name}</div>
@@ -138,7 +186,11 @@ function AccountCard({
           </span>
         )}
         <div className="account-card-row">
-          <select value={a.account_type} onChange={(e) => onUpdateAccountType(a.id, e.target.value)}>
+          <select
+            aria-label={`Account type for ${a.name}`}
+            value={a.account_type}
+            onChange={(e) => onUpdateAccountType(a.id, e.target.value)}
+          >
             {ACCOUNT_TYPE_OPTIONS.map((t) => (
               <option key={t} value={t}>
                 {t[0].toUpperCase() + t.slice(1)}
@@ -146,6 +198,7 @@ function AccountCard({
             ))}
           </select>
           <select
+            aria-label={`Family member for ${a.name}`}
             className="member-select"
             value={a.member_id ?? ""}
             onChange={(e) => onSetAccountMember(a.id, e.target.value ? Number(e.target.value) : null)}
@@ -241,6 +294,7 @@ export function AccountsView({
   onSetAccountDetails,
   familyMembers,
   onSetAccountMember,
+  onSetAccountIcon,
   onAddAccount,
 }: {
   accounts: Account[];
@@ -261,6 +315,7 @@ export function AccountsView({
   onSetAccountDetails: (accountId: number, institution: string | null, mask: string | null) => void;
   familyMembers: FamilyMember[];
   onSetAccountMember: (accountId: number, memberId: number | null) => void;
+  onSetAccountIcon: (accountId: number, iconKey: string | null) => void;
   onAddAccount: () => void;
 }) {
   const [editing, setEditing] = useState<EditingBalance | null>(null);
@@ -269,6 +324,7 @@ export function AccountsView({
   const [editingDetails, setEditingDetails] = useState<{ id: number; institution: string; mask: string } | null>(
     null,
   );
+  const [editingIcon, setEditingIcon] = useState<number | null>(null);
   const [expandedStat, setExpandedStat] = useState<AccountStatKey | null>(null);
 
   function toggleStat(key: AccountStatKey) {
@@ -327,6 +383,9 @@ export function AccountsView({
     onSetAccountDetails,
     familyMembers,
     onSetAccountMember,
+    editingIcon,
+    setEditingIcon,
+    onSetAccountIcon,
     confirmingDeleteId,
     setConfirmingDeleteId,
     onDeleteAccount,

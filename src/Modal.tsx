@@ -4,6 +4,16 @@ import type { Account, Bucket, CategoryTransaction, FamilyMember, Holding, Month
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { isBeforeAccountCheckpoint } from "./accountGroups";
 import { accountWidgetId, bucketWidgetId, investmentWidgetId, WIDGET_CATALOG, type WidgetId } from "./dashboardLayout";
+import {
+  AccountTypeIcon,
+  ACCOUNT_ICON_OPTIONS,
+  type AccountIconKey,
+  CategoryIcon,
+  CATEGORY_ICON_OPTIONS,
+  isCategoryIconKey,
+  type CategoryIconKey,
+  IconPicker,
+} from "./icons";
 
 /** Shared shell: a dimmed overlay behind a centered panel. Clicking the
  * overlay (not the panel) cancels, matching how a native dialog behaves —
@@ -208,6 +218,7 @@ export function NewAccountDialog({
     institution: string | null,
     mask: string | null,
     memberId: number | null,
+    iconKey: string | null,
   ) => void;
 }) {
   const [name, setName] = useState("");
@@ -216,6 +227,7 @@ export function NewAccountDialog({
   const [institution, setInstitution] = useState("");
   const [mask, setMask] = useState("");
   const [memberId, setMemberId] = useState("");
+  const [iconKey, setIconKey] = useState<AccountIconKey | null>(null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -227,6 +239,7 @@ export function NewAccountDialog({
       institution.trim() ? institution.trim() : null,
       mask.trim() ? mask.trim() : null,
       memberId ? Number(memberId) : null,
+      iconKey,
     );
   }
 
@@ -254,6 +267,15 @@ export function NewAccountDialog({
               </option>
             ))}
           </select>
+        </label>
+        <label className="modal-field">
+          <span>Icon (optional)</span>
+          <IconPicker
+            options={ACCOUNT_ICON_OPTIONS}
+            value={iconKey}
+            onChange={setIconKey}
+            renderIcon={(key) => <AccountTypeIcon accountType={accountType} iconKey={key} />}
+          />
         </label>
         <label className="modal-field">
           <span>{balanceLabel} (optional)</span>
@@ -302,14 +324,15 @@ export function NewCategoryDialog({
   onSubmit,
 }: {
   onCancel: () => void;
-  onSubmit: (name: string) => void;
+  onSubmit: (name: string, iconKey: string | null) => void;
 }) {
   const [name, setName] = useState("");
+  const [iconKey, setIconKey] = useState<CategoryIconKey | null>(null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    onSubmit(name.trim());
+    onSubmit(name.trim(), iconKey);
   }
 
   return (
@@ -322,6 +345,15 @@ export function NewCategoryDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder='e.g. "Pet Care"'
+          />
+        </label>
+        <label className="modal-field">
+          <span>Icon (optional)</span>
+          <IconPicker
+            options={CATEGORY_ICON_OPTIONS}
+            value={iconKey}
+            onChange={setIconKey}
+            renderIcon={(key) => <CategoryIcon category={name} iconKey={key} />}
           />
         </label>
         <div className="modal-actions">
@@ -501,14 +533,20 @@ export function NewTransactionDialog({
 
 export function ManageCategoriesDialog({
   categories,
+  categoryIconMap,
   onCancel,
   onCreate,
+  onSetIcon,
   onRename,
   onDelete,
 }: {
   categories: string[];
+  /** Name → explicit icon override, for the swatch shown on each row — see
+   * App.tsx's `categoryIconMap`. */
+  categoryIconMap: Record<string, string | null>;
   onCancel: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, iconKey: string | null) => void;
+  onSetIcon: (name: string, iconKey: string | null) => void;
   onRename: (oldName: string, newName: string) => void;
   onDelete: (name: string) => void;
 }) {
@@ -517,6 +555,8 @@ export function ManageCategoriesDialog({
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDelete, () => setConfirmingDelete(null));
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState<CategoryIconKey | null>(null);
+  const [editingIcon, setEditingIcon] = useState<string | null>(null);
 
   function startEditing(name: string) {
     setConfirmingDelete(null);
@@ -536,8 +576,9 @@ export function ManageCategoriesDialog({
     e.preventDefault();
     const trimmed = newCategoryName.trim();
     if (!trimmed) return;
-    onCreate(trimmed);
+    onCreate(trimmed, newCategoryIcon);
     setNewCategoryName("");
+    setNewCategoryIcon(null);
   }
 
   return (
@@ -555,12 +596,46 @@ export function ManageCategoriesDialog({
           Add
         </button>
       </form>
+      {newCategoryName.trim() !== "" && (
+        <IconPicker
+          options={CATEGORY_ICON_OPTIONS}
+          value={newCategoryIcon}
+          onChange={setNewCategoryIcon}
+          renderIcon={(key) => <CategoryIcon category={newCategoryName} iconKey={key} />}
+        />
+      )}
       {categories.length === 0 ? (
         <p className="modal-message">No categories in use yet.</p>
       ) : (
         <ul className="category-manage-list">
-          {categories.map((name) => (
+          {categories.map((name) => {
+            const currentIconKey = categoryIconMap[name] ?? null;
+            return (
             <li key={name} className="category-manage-row">
+              <span className="icon-toggle-anchor">
+                <button
+                  type="button"
+                  className="icon-picker-swatch"
+                  title="Click to change this category's icon"
+                  aria-label={`Change ${name}'s icon`}
+                  onClick={() => setEditingIcon(editingIcon === name ? null : name)}
+                >
+                  <CategoryIcon category={name} iconKey={currentIconKey} />
+                </button>
+                {editingIcon === name && (
+                  <div className="icon-picker-popover">
+                    <IconPicker
+                      options={CATEGORY_ICON_OPTIONS}
+                      value={currentIconKey && isCategoryIconKey(currentIconKey) ? currentIconKey : null}
+                      onChange={(key) => {
+                        onSetIcon(name, key);
+                        setEditingIcon(null);
+                      }}
+                      renderIcon={(key) => <CategoryIcon category={name} iconKey={key} />}
+                    />
+                  </div>
+                )}
+              </span>
               {editing === name ? (
                 <input
                   autoFocus
@@ -603,7 +678,8 @@ export function ManageCategoriesDialog({
                 </span>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
       <div className="modal-actions">

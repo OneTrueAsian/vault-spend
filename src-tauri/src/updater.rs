@@ -64,17 +64,14 @@ mod tests {
     #[test]
     fn open_path_permission_grants_a_non_empty_scope() {
         let raw = include_str!("../capabilities/default.json");
-        let parsed: serde_json::Value =
-            serde_json::from_str(raw).expect("capabilities/default.json must be valid JSON");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("capabilities/default.json must be valid JSON");
         let permissions = parsed["permissions"]
             .as_array()
             .expect("capabilities/default.json must have a permissions array");
 
         let entry = permissions
             .iter()
-            .find(|p| {
-                p.as_str() == Some("opener:allow-open-path") || p["identifier"] == "opener:allow-open-path"
-            })
+            .find(|p| p.as_str() == Some("opener:allow-open-path") || p["identifier"] == "opener:allow-open-path")
             .expect("capabilities/default.json is missing the opener:allow-open-path permission entirely");
 
         let scope = entry["allow"].as_array().unwrap_or_else(|| {

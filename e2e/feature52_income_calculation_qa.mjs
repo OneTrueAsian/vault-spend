@@ -167,9 +167,23 @@ try {
 
   const budgetNav = await app.browser.$("button*=Budget");
   await budgetNav.click();
-  const budgetPage = await app.browser.$(".page");
-  await budgetPage.waitForExist({ timeout: 10000 });
-  const budgetText = await budgetPage.getText();
+  // `.page` is the app-wide page wrapper — it already exists from the
+  // previous tab, so waiting on it (as this used to) proves nothing about
+  // whether BudgetView (lazy-loaded behind a `<Suspense fallback={null}>`)
+  // has actually rendered yet. That gap is normally too short to notice,
+  // but with nothing rendered into `.page` yet it briefly holds only the
+  // floating status toast — including, once in a while, the one-time
+  // "Rolled forward this month's starting balance" note `App.tsx`'s
+  // `checkMonthlyRollover` fires on a fresh database — so a `.page` text
+  // read that lands in that gap sees the toast instead of the budget rows
+  // and fails despite nothing actually being wrong. Waiting for `.cat-list`
+  // (BudgetView's own category-rows container) instead — the same "wait
+  // for page-specific content, not just `.page`" pattern every other
+  // section in this file already uses (`.stats`, `.chart-legend`, the
+  // Household cards) — closes the gap this was actually racing against.
+  const catList = await app.browser.$(".cat-list");
+  await catList.waitForExist({ timeout: 10000 });
+  const budgetText = await (await app.browser.$(".page")).getText();
   if (!budgetText.includes("150.00") || !budgetText.includes("400.00")) {
     throw new Error(`expected Groceries actual $150.00 of $400.00 budgeted, got:\n${budgetText}`);
   }

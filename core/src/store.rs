@@ -1,7 +1,7 @@
 use crate::models::{Account, AccountType, Transaction};
 use crate::rules::{Rule, RuleSet};
 use chrono::{Datelike, NaiveDate, NaiveDateTime};
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use rust_decimal::Decimal;
 use std::path::Path;
 use std::str::FromStr;
@@ -141,6 +141,11 @@ pub struct StoredAccount {
     /// `current_balance` (no rollover or manual correction has happened
     /// yet).
     pub checkpoint_date: Option<NaiveDate>,
+    /// An explicit icon choice (one of the keys `accountIcons.tsx`'s picker
+    /// offers, e.g. `"mortgage"`/`"crypto"`/`"joint-account"`) overriding the
+    /// icon otherwise guessed from `account_type` — same convention as
+    /// `StoredBucket::icon_key`. `None` means "keep guessing from the type."
+    pub icon_key: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -164,6 +169,14 @@ pub struct StoredBucket {
     pub member_name: Option<String>,
     pub sinking_amount: Option<Decimal>,
     pub color: Option<String>,
+    pub icon_key: Option<String>,
+}
+
+/// A registered category name plus its explicit icon override, if any — see
+/// `Store::list_categories_with_icons`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredCategory {
+    pub name: String,
     pub icon_key: Option<String>,
 }
 
@@ -456,8 +469,11 @@ pub struct Store {
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> rusqlite::Result<Self> {
         let path = path.as_ref();
-        let activity_log_path =
-            if cfg!(debug_assertions) { path.parent().map(|dir| dir.join("account-changes.log")) } else { None };
+        let activity_log_path = if cfg!(debug_assertions) {
+            path.parent().map(|dir| dir.join("account-changes.log"))
+        } else {
+            None
+        };
         let store = Store {
             conn: Connection::open(path)?,
             activity_log_path,
@@ -515,9 +531,10 @@ impl Store {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .ok()?;
-        let starting_balance =
-            Decimal::from_str(&starting_balance_str).expect("balance stored by this crate must be valid");
-        let current = self.account_balance_as_of(account_id, &account_type, starting_balance, self.today_for_log()).ok()?;
+        let starting_balance = Decimal::from_str(&starting_balance_str).expect("balance stored by this crate must be valid");
+        let current = self
+            .account_balance_as_of(account_id, &account_type, starting_balance, self.today_for_log())
+            .ok()?;
         Some(match account_type.as_str() {
             "loan" => ("owed", current),
             "credit" => ("owed", starting_balance - current),
@@ -717,6 +734,8 @@ impl Store {
         self.migrate_add_bucket_sinking_amount_if_missing()?;
         self.migrate_add_bucket_color_if_missing()?;
         self.migrate_add_bucket_icon_key_if_missing()?;
+        self.migrate_add_account_icon_key_if_missing()?;
+        self.migrate_add_category_icon_key_if_missing()?;
         self.migrate_add_member_id_to_accounts_if_missing()?;
         self.migrate_add_member_id_to_transactions_if_missing()?;
         self.migrate_add_member_id_to_recurring_if_missing()?;
@@ -754,7 +773,14 @@ impl Store {
             "CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions(account_id, date) WHERE deleted_at IS NULL;
              CREATE INDEX IF NOT EXISTS idx_transactions_category_date ON transactions(category, date) WHERE deleted_at IS NULL;
              CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date) WHERE deleted_at IS NULL;
-             CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period);",
+             CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period);
+             -- `debt_payments.source_transaction_id` already has an implicit
+             -- index via its own UNIQUE constraint (see its CREATE TABLE
+             -- above) — only `transaction_tags.transaction_id` was actually
+             -- missing one, forcing `all_transactions`'s LEFT JOIN against it
+             -- to build a temporary index on every call instead of using a
+             -- persistent one.
+             CREATE INDEX IF NOT EXISTS idx_transaction_tags_transaction_id ON transaction_tags(transaction_id);",
         )?;
         self.seed_categories_if_missing()
     }
@@ -782,9 +808,12 @@ impl Store {
             return Ok(());
         }
 
+        self.conn.execute(
+            "ALTER TABLE live_price_settings ADD COLUMN requests_used_today INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
         self.conn
-            .execute("ALTER TABLE live_price_settings ADD COLUMN requests_used_today INTEGER NOT NULL DEFAULT 0", [])?;
-        self.conn.execute("ALTER TABLE live_price_settings ADD COLUMN requests_count_date TEXT", [])?;
+            .execute("ALTER TABLE live_price_settings ADD COLUMN requests_count_date TEXT", [])?;
         Ok(())
     }
 
@@ -812,8 +841,10 @@ impl Store {
             return Ok(());
         }
 
-        self.conn
-            .execute("ALTER TABLE live_price_settings ADD COLUMN provider TEXT NOT NULL DEFAULT 'alpha_vantage'", [])?;
+        self.conn.execute(
+            "ALTER TABLE live_price_settings ADD COLUMN provider TEXT NOT NULL DEFAULT 'alpha_vantage'",
+            [],
+        )?;
         Ok(())
     }
 
@@ -932,6 +963,56 @@ impl Store {
         Ok(())
     }
 
+    /// Same pattern once more, for accounts: an explicit icon choice
+    /// (`accountIcons.tsx`'s picker) overriding the type-guessed default.
+    /// `NULL` for every pre-existing row keeps its current guessed icon.
+    fn migrate_add_account_icon_key_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(accounts)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_column = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            if column_name == "icon_key" {
+                has_column = true;
+                break;
+            }
+        }
+        drop(rows);
+        drop(stmt);
+
+        if has_column {
+            return Ok(());
+        }
+
+        self.conn.execute("ALTER TABLE accounts ADD COLUMN icon_key TEXT", [])?;
+        Ok(())
+    }
+
+    /// Same pattern once more, for categories: an explicit icon choice
+    /// (`categoryIcons.tsx`'s picker) overriding the keyword-guessed default.
+    /// `NULL` for every pre-existing row keeps its current guessed icon.
+    fn migrate_add_category_icon_key_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(categories)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_column = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            if column_name == "icon_key" {
+                has_column = true;
+                break;
+            }
+        }
+        drop(rows);
+        drop(stmt);
+
+        if has_column {
+            return Ok(());
+        }
+
+        self.conn.execute("ALTER TABLE categories ADD COLUMN icon_key TEXT", [])?;
+        Ok(())
+    }
+
     /// Same pattern once more: a database from before grouped budgets
     /// existed has no `budget_group` column. Existing budget lines
     /// backfill to `'flexible'` — the same default a fresh line gets —
@@ -955,10 +1036,8 @@ impl Store {
         }
 
         self.conn.execute("ALTER TABLE budgets ADD COLUMN budget_group TEXT", [])?;
-        self.conn.execute(
-            "UPDATE budgets SET budget_group = 'flexible' WHERE budget_group IS NULL",
-            [],
-        )?;
+        self.conn
+            .execute("UPDATE budgets SET budget_group = 'flexible' WHERE budget_group IS NULL", [])?;
         Ok(())
     }
 
@@ -988,7 +1067,8 @@ impl Store {
             return Ok(());
         }
 
-        self.conn.execute("ALTER TABLE budgets ADD COLUMN cap_enabled INTEGER NOT NULL DEFAULT 0", [])?;
+        self.conn
+            .execute("ALTER TABLE budgets ADD COLUMN cap_enabled INTEGER NOT NULL DEFAULT 0", [])?;
         Ok(())
     }
 
@@ -1064,16 +1144,13 @@ impl Store {
     /// so upgrading an existing database never loses a category someone's
     /// already using.
     fn seed_categories_if_missing(&self) -> rusqlite::Result<()> {
-        let already_seeded: bool =
-            self.conn
-                .query_row("SELECT EXISTS(SELECT 1 FROM categories)", [], |row| row.get(0))?;
+        let already_seeded: bool = self.conn.query_row("SELECT EXISTS(SELECT 1 FROM categories)", [], |row| row.get(0))?;
         if already_seeded {
             return Ok(());
         }
 
         for name in DEFAULT_CATEGORIES {
-            self.conn
-                .execute("INSERT OR IGNORE INTO categories (name) VALUES (?1)", params![name])?;
+            self.conn.execute("INSERT OR IGNORE INTO categories (name) VALUES (?1)", params![name])?;
         }
         self.conn.execute_batch(
             "INSERT OR IGNORE INTO categories (name) SELECT DISTINCT category FROM transactions WHERE category IS NOT NULL AND deleted_at IS NULL;
@@ -1108,10 +1185,8 @@ impl Store {
 
         self.conn.execute("ALTER TABLE transactions ADD COLUMN account_id INTEGER", [])?;
         let fallback_id = self.get_or_create_account("Imported before accounts existed", AccountType::Other)?;
-        self.conn.execute(
-            "UPDATE transactions SET account_id = ?1 WHERE account_id IS NULL",
-            params![fallback_id],
-        )?;
+        self.conn
+            .execute("UPDATE transactions SET account_id = ?1 WHERE account_id IS NULL", params![fallback_id])?;
         Ok(())
     }
 
@@ -1197,15 +1272,21 @@ impl Store {
         let mut stmt = self
             .conn
             .prepare("SELECT id, period FROM balance_resets WHERE period LIKE 'manual:%' AND reset_date = substr(period, 8)")?;
-        let stale: Vec<(i64, String)> =
-            stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        let stale: Vec<(i64, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
         drop(stmt);
 
         for (id, period) in stale {
             let encoded = &period["manual:".len()..];
-            let Ok(encoded_date) = NaiveDate::parse_from_str(encoded, "%Y-%m-%d") else { continue };
+            let Ok(encoded_date) = NaiveDate::parse_from_str(encoded, "%Y-%m-%d") else {
+                continue;
+            };
             let Some(corrected) = encoded_date.pred_opt() else { continue };
-            self.conn.execute("UPDATE balance_resets SET reset_date = ?1 WHERE id = ?2", params![corrected.to_string(), id])?;
+            self.conn.execute(
+                "UPDATE balance_resets SET reset_date = ?1 WHERE id = ?2",
+                params![corrected.to_string(), id],
+            )?;
         }
         Ok(())
     }
@@ -1261,7 +1342,9 @@ impl Store {
     fn migrate_flip_loan_transaction_signs_if_needed(&self) -> rusqlite::Result<()> {
         let already_migrated: bool = self
             .conn
-            .query_row("SELECT loan_sign_convention_migrated FROM app_settings WHERE id = 1", [], |row| row.get(0))
+            .query_row("SELECT loan_sign_convention_migrated FROM app_settings WHERE id = 1", [], |row| {
+                row.get(0)
+            })
             .unwrap_or(false);
         if already_migrated {
             return Ok(());
@@ -1272,13 +1355,15 @@ impl Store {
              JOIN accounts a ON a.id = t.account_id
              WHERE a.account_type = 'loan'",
         )?;
-        let loan_transactions: Vec<(i64, String)> =
-            stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        let loan_transactions: Vec<(i64, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
         drop(stmt);
 
         for (id, amount_str) in loan_transactions {
             let amount = Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
-            self.conn.execute("UPDATE transactions SET amount = ?1 WHERE id = ?2", params![(-amount).to_string(), id])?;
+            self.conn
+                .execute("UPDATE transactions SET amount = ?1 WHERE id = ?2", params![(-amount).to_string(), id])?;
         }
 
         self.conn.execute(
@@ -1340,10 +1425,8 @@ impl Store {
         }
 
         self.conn.execute("ALTER TABLE accounts ADD COLUMN starting_balance TEXT", [])?;
-        self.conn.execute(
-            "UPDATE accounts SET starting_balance = '0' WHERE starting_balance IS NULL",
-            [],
-        )?;
+        self.conn
+            .execute("UPDATE accounts SET starting_balance = '0' WHERE starting_balance IS NULL", [])?;
         Ok(())
     }
 
@@ -1558,7 +1641,8 @@ impl Store {
             return Ok(());
         }
 
-        self.conn.execute("ALTER TABLE recurring ADD COLUMN status TEXT NOT NULL DEFAULT 'keep'", [])?;
+        self.conn
+            .execute("ALTER TABLE recurring ADD COLUMN status TEXT NOT NULL DEFAULT 'keep'", [])?;
         Ok(())
     }
 
@@ -1610,6 +1694,20 @@ impl Store {
         Ok(())
     }
 
+    /// Read-only counterpart to `get_or_create_account` — looks an account
+    /// up by name without ever creating one, for callers (import preview)
+    /// that must have zero side effects.
+    pub fn find_account_by_name(&self, name: &str) -> rusqlite::Result<Option<i64>> {
+        match self
+            .conn
+            .query_row("SELECT id FROM accounts WHERE name = ?1 COLLATE NOCASE", params![name], |row| row.get(0))
+        {
+            Ok(id) => Ok(Some(id)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// Finds an account by name, or creates it — so the UI can let a user
     /// re-type an existing account's name at import time without erroring.
     pub fn get_or_create_account(&self, name: &str, account_type: AccountType) -> rusqlite::Result<i64> {
@@ -1618,11 +1716,8 @@ impl Store {
              ON CONFLICT(name) DO NOTHING",
             params![name, account_type.as_str()],
         )?;
-        self.conn.query_row(
-            "SELECT id FROM accounts WHERE name = ?1 COLLATE NOCASE",
-            params![name],
-            |row| row.get(0),
-        )
+        self.conn
+            .query_row("SELECT id FROM accounts WHERE name = ?1 COLLATE NOCASE", params![name], |row| row.get(0))
     }
 
     /// The most recent `balance_resets` checkpoint for an account at or
@@ -1669,13 +1764,7 @@ impl Store {
     /// point through `as_of` — a reset's own balance already reflects
     /// everything up to its `reset_date`, so those transactions must
     /// never be summed again.
-    fn account_balance_as_of(
-        &self,
-        account_id: i64,
-        account_type: &str,
-        starting_balance: Decimal,
-        as_of: NaiveDate,
-    ) -> rusqlite::Result<Decimal> {
+    fn account_balance_as_of(&self, account_id: i64, account_type: &str, starting_balance: Decimal, as_of: NaiveDate) -> rusqlite::Result<Decimal> {
         let checkpoint = self.latest_checkpoint(account_id, as_of)?;
 
         let (base_value, since_date) = match checkpoint {
@@ -1693,14 +1782,13 @@ impl Store {
                 let mut stmt = self.conn.prepare(
                     "SELECT COALESCE(principal_amount, amount) FROM transactions WHERE account_id = ?1 AND date > ?2 AND date <= ?3 AND deleted_at IS NULL",
                 )?;
-                let rows =
-                    stmt.query_map(params![account_id, since.to_string(), as_of.to_string()], |row| row.get(0))?;
+                let rows = stmt.query_map(params![account_id, since.to_string(), as_of.to_string()], |row| row.get(0))?;
                 rows.collect::<rusqlite::Result<Vec<_>>>()?
             }
             None => {
-                let mut stmt = self
-                    .conn
-                    .prepare("SELECT COALESCE(principal_amount, amount) FROM transactions WHERE account_id = ?1 AND date <= ?2 AND deleted_at IS NULL")?;
+                let mut stmt = self.conn.prepare(
+                    "SELECT COALESCE(principal_amount, amount) FROM transactions WHERE account_id = ?1 AND date <= ?2 AND deleted_at IS NULL",
+                )?;
                 let rows = stmt.query_map(params![account_id, as_of.to_string()], |row| row.get(0))?;
                 rows.collect::<rusqlite::Result<Vec<_>>>()?
             }
@@ -1731,9 +1819,7 @@ impl Store {
     /// zero" (see `list_accounts`/`account_contributions_as_of`).
     fn holdings_value_by_account(&self) -> rusqlite::Result<std::collections::HashMap<i64, Decimal>> {
         let mut stmt = self.conn.prepare("SELECT account_id, shares, price FROM holdings")?;
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
-        })?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))?;
         let mut totals: std::collections::HashMap<i64, Decimal> = std::collections::HashMap::new();
         for row in rows {
             let (account_id, shares_str, price_str) = row?;
@@ -1752,7 +1838,7 @@ impl Store {
         let holdings_value = self.holdings_value_by_account()?;
         let mut stmt = self.conn.prepare(
             "SELECT a.id, a.name, a.account_type, a.starting_balance, a.institution, a.mask, a.interest_rate,
-                    a.excluded_from_debt_payoff, a.member_id, fm.name
+                    a.excluded_from_debt_payoff, a.member_id, fm.name, a.icon_key
              FROM accounts a
              LEFT JOIN family_members fm ON fm.id = a.member_id
              ORDER BY a.name",
@@ -1769,14 +1855,26 @@ impl Store {
                 row.get::<_, bool>(7)?,
                 row.get::<_, Option<i64>>(8)?,
                 row.get::<_, Option<String>>(9)?,
+                row.get::<_, Option<String>>(10)?,
             ))
         })?;
 
         let mut accounts = Vec::new();
         for row in rows {
-            let (id, name, account_type, starting_balance_str, institution, mask, interest_rate_str, excluded_from_debt_payoff, member_id, member_name) = row?;
-            let starting_balance = Decimal::from_str(&starting_balance_str)
-                .expect("starting_balance stored by this crate must be valid");
+            let (
+                id,
+                name,
+                account_type,
+                starting_balance_str,
+                institution,
+                mask,
+                interest_rate_str,
+                excluded_from_debt_payoff,
+                member_id,
+                member_name,
+                icon_key,
+            ) = row?;
+            let starting_balance = Decimal::from_str(&starting_balance_str).expect("starting_balance stored by this crate must be valid");
             let checkpoint_date = self.latest_checkpoint(id, today)?.map(|(date, _)| date);
             let mut current_balance = self.account_balance_as_of(id, &account_type, starting_balance, today)?;
             // An investment account's real worth is what it holds, not
@@ -1790,19 +1888,17 @@ impl Store {
             // (never a matching deposit transaction) showed as $0 in Net
             // Worth, Accounts, and Household everywhere, despite the
             // Investments tab correctly showing its real value.
-            if account_type == "investment" {
-                if let Some(&value) = holdings_value.get(&id) {
-                    current_balance = value;
-                }
+            if account_type == "investment"
+                && let Some(&value) = holdings_value.get(&id)
+            {
+                current_balance = value;
             }
-            let interest_rate = interest_rate_str
-                .map(|s| Decimal::from_str(&s).expect("interest_rate stored by this crate must be valid"));
+            let interest_rate = interest_rate_str.map(|s| Decimal::from_str(&s).expect("interest_rate stored by this crate must be valid"));
             accounts.push(StoredAccount {
                 id,
                 account: Account {
                     name,
-                    account_type: AccountType::parse(&account_type)
-                        .expect("account_type stored by this crate must be valid"),
+                    account_type: AccountType::parse(&account_type).expect("account_type stored by this crate must be valid"),
                 },
                 starting_balance,
                 current_balance,
@@ -1813,6 +1909,7 @@ impl Store {
                 member_id,
                 member_name,
                 checkpoint_date,
+                icon_key,
             });
         }
         Ok(accounts)
@@ -1833,16 +1930,11 @@ impl Store {
     /// A bucket's linked account that matches nothing (not in this file,
     /// not already in the app) is also a skip, not an error — the bucket
     /// itself is still created, just unlinked.
-    pub fn apply_setup_import(
-        &self,
-        data: &crate::setup_import::SetupImportResult,
-        default_period: &str,
-    ) -> rusqlite::Result<SetupImportOutcome> {
+    pub fn apply_setup_import(&self, data: &crate::setup_import::SetupImportResult, default_period: &str) -> rusqlite::Result<SetupImportOutcome> {
         let mut outcome = SetupImportOutcome::default();
 
         for row in &data.accounts {
-            let account_type = AccountType::parse(&row.account_type)
-                .expect("setup_import validated account_type against the known set");
+            let account_type = AccountType::parse(&row.account_type).expect("setup_import validated account_type against the known set");
             let id = self.get_or_create_account(&row.name, account_type)?;
             if let Some(balance) = row.starting_balance {
                 self.set_account_starting_balance(id, balance)?;
@@ -1854,32 +1946,31 @@ impl Store {
         }
 
         for row in &data.categories {
-            self.create_category(&row.name)?;
+            self.create_category(&row.name, None)?;
             outcome.categories_created += 1;
         }
 
         for row in &data.budgets {
             let period = row.period.as_deref().unwrap_or(default_period);
             self.set_budget(&row.category, period, row.monthly_amount, &row.budget_group)?;
-            self.create_category(&row.category)?;
+            self.create_category(&row.category, None)?;
             outcome.budgets_set += 1;
         }
 
         for row in &data.buckets {
             let account_id = match &row.linked_account_name {
                 Some(name) => {
-                    let found = self.conn.query_row(
-                        "SELECT id FROM accounts WHERE name = ?1 COLLATE NOCASE",
-                        params![name],
-                        |r| r.get::<_, i64>(0),
-                    );
+                    let found = self
+                        .conn
+                        .query_row("SELECT id FROM accounts WHERE name = ?1 COLLATE NOCASE", params![name], |r| {
+                            r.get::<_, i64>(0)
+                        });
                     match found {
                         Ok(id) => Some(id),
                         Err(rusqlite::Error::QueryReturnedNoRows) => {
-                            outcome.skipped.push(format!(
-                                "{}: linked account '{name}' not found — bucket created without a link",
-                                row.name
-                            ));
+                            outcome
+                                .skipped
+                                .push(format!("{}: linked account '{name}' not found — bucket created without a link", row.name));
                             None
                         }
                         Err(e) => return Err(e),
@@ -1889,30 +1980,25 @@ impl Store {
             };
             match self.create_bucket(&row.name, row.target_amount, row.target_date, account_id, None, None, None) {
                 Ok(_) => outcome.buckets_created += 1,
-                Err(rusqlite::Error::SqliteFailure(e, _))
-                    if e.code == rusqlite::ErrorCode::ConstraintViolation =>
-                {
-                    outcome
-                        .skipped
-                        .push(format!("{}: a bucket with this name already exists", row.name));
+                Err(rusqlite::Error::SqliteFailure(e, _)) if e.code == rusqlite::ErrorCode::ConstraintViolation => {
+                    outcome.skipped.push(format!("{}: a bucket with this name already exists", row.name));
                 }
                 Err(e) => return Err(e),
             }
         }
 
         for row in &data.holdings {
-            let found = self.conn.query_row(
-                "SELECT id FROM accounts WHERE name = ?1 COLLATE NOCASE",
-                params![row.account_name],
-                |r| r.get::<_, i64>(0),
-            );
+            let found = self
+                .conn
+                .query_row("SELECT id FROM accounts WHERE name = ?1 COLLATE NOCASE", params![row.account_name], |r| {
+                    r.get::<_, i64>(0)
+                });
             let account_id = match found {
                 Ok(id) => id,
                 Err(rusqlite::Error::QueryReturnedNoRows) => {
-                    outcome.skipped.push(format!(
-                        "{}: account '{}' not found — holding not created",
-                        row.symbol, row.account_name
-                    ));
+                    outcome
+                        .skipped
+                        .push(format!("{}: account '{}' not found — holding not created", row.symbol, row.account_name));
                     continue;
                 }
                 Err(e) => return Err(e),
@@ -1924,7 +2010,15 @@ impl Store {
                 continue;
             }
             let name = row.name.as_deref().unwrap_or(&row.symbol);
-            self.create_holding(account_id, &row.symbol, name, row.shares, row.price, row.cost_basis, row.asset_class.as_deref())?;
+            self.create_holding(
+                account_id,
+                &row.symbol,
+                name,
+                row.shares,
+                row.price,
+                row.cost_basis,
+                row.asset_class.as_deref(),
+            )?;
             outcome.holdings_created += 1;
         }
 
@@ -1960,7 +2054,12 @@ impl Store {
         let mut stmt = self.conn.prepare("SELECT id, name, starting_balance, account_type FROM accounts")?;
         let accounts: Vec<(i64, String, String, String)> = stmt
             .query_map([], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?))
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
@@ -1989,8 +2088,7 @@ impl Store {
                 continue;
             }
 
-            let starting_balance = Decimal::from_str(&starting_balance_str)
-                .expect("starting_balance stored by this crate must be valid");
+            let starting_balance = Decimal::from_str(&starting_balance_str).expect("starting_balance stored by this crate must be valid");
             let balance = self.account_balance_as_of(id, &account_type, starting_balance, reset_date)?;
 
             let before = self.displayed_balance_for_log(id);
@@ -1999,7 +2097,9 @@ impl Store {
                 params![id, period, reset_date.to_string(), balance.to_string()],
             )?;
             let snapshot = Self::describe_balance_snapshot(before, self.displayed_balance_for_log(id));
-            self.log_activity(&format!("{name}: monthly rollover — new baseline {balance} as of {reset_date} — {snapshot}"));
+            self.log_activity(&format!(
+                "{name}: monthly rollover — new baseline {balance} as of {reset_date} — {snapshot}"
+            ));
             rolled.push((id, name, balance));
         }
         Ok(rolled)
@@ -2018,11 +2118,11 @@ impl Store {
     /// transactions exist. An unknown id is a harmless no-op, same
     /// convention as `set_category`.
     pub fn set_account_starting_balance(&self, id: i64, balance: Decimal) -> rusqlite::Result<()> {
-        let existing = self.conn.query_row(
-            "SELECT name, starting_balance FROM accounts WHERE id = ?1",
-            params![id],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-        );
+        let existing = self
+            .conn
+            .query_row("SELECT name, starting_balance FROM accounts WHERE id = ?1", params![id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            });
         let before = self.displayed_balance_for_log(id);
         self.conn.execute(
             "UPDATE accounts SET starting_balance = ?1 WHERE id = ?2",
@@ -2082,21 +2182,21 @@ impl Store {
     /// the earlier correction instead of stacking a second one. An unknown
     /// id is a harmless no-op, same convention as `set_account_starting_balance`.
     pub fn set_account_balance_override(&self, id: i64, balance: Decimal, as_of: NaiveDate) -> rusqlite::Result<()> {
-        let account_type: String = match self.conn.query_row(
-            "SELECT account_type FROM accounts WHERE id = ?1",
-            params![id],
-            |row| row.get(0),
-        ) {
+        let account_type: String = match self
+            .conn
+            .query_row("SELECT account_type FROM accounts WHERE id = ?1", params![id], |row| row.get(0))
+        {
             Ok(account_type) => account_type,
             Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(()),
             Err(e) => return Err(e),
         };
 
-        let mut stmt = self.conn.prepare(
-            "SELECT COALESCE(principal_amount, amount) FROM transactions WHERE account_id = ?1 AND date = ?2 AND deleted_at IS NULL",
-        )?;
-        let already_posted_today: Vec<String> =
-            stmt.query_map(params![id, as_of.to_string()], |row| row.get(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT COALESCE(principal_amount, amount) FROM transactions WHERE account_id = ?1 AND date = ?2 AND deleted_at IS NULL")?;
+        let already_posted_today: Vec<String> = stmt
+            .query_map(params![id, as_of.to_string()], |row| row.get(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
         drop(stmt);
         let already_posted_today: Decimal = already_posted_today
             .iter()
@@ -2106,8 +2206,11 @@ impl Store {
         // current_balance is netted by subtracting transactions, so
         // undoing today's already-posted ones ahead of that subtraction
         // means adding them back here instead of subtracting.
-        let checkpoint_balance =
-            if account_type == "loan" { balance + already_posted_today } else { balance - already_posted_today };
+        let checkpoint_balance = if account_type == "loan" {
+            balance + already_posted_today
+        } else {
+            balance - already_posted_today
+        };
 
         let period = format!("manual:{as_of}");
         let reset_date = as_of.pred_opt().expect("NaiveDate::pred_opt only fails at the calendar's minimum date");
@@ -2140,6 +2243,16 @@ impl Store {
         Ok(())
     }
 
+    /// Sets (or clears, with `None`) an account's explicit icon override —
+    /// same "not validated at this layer" convention as
+    /// `Store::create_bucket`'s `icon_key`; the frontend only ever offers a
+    /// fixed set of keys.
+    pub fn set_account_icon(&self, id: i64, icon_key: Option<&str>) -> rusqlite::Result<()> {
+        self.conn
+            .execute("UPDATE accounts SET icon_key = ?1 WHERE id = ?2", params![icon_key, id])?;
+        Ok(())
+    }
+
     /// Sets (or clears, with `None`) an account's annual interest rate —
     /// used only by `debt_payoff_projection`, meaningless for a non-debt
     /// account type but not restricted to one, same "don't over-validate"
@@ -2155,10 +2268,8 @@ impl Store {
     /// Opts a debt account in or out of `debt_payoff_projection` (see
     /// `StoredAccount::excluded_from_debt_payoff`) without deleting it.
     pub fn set_account_excluded_from_debt_payoff(&self, id: i64, excluded: bool) -> rusqlite::Result<()> {
-        self.conn.execute(
-            "UPDATE accounts SET excluded_from_debt_payoff = ?1 WHERE id = ?2",
-            params![excluded, id],
-        )?;
+        self.conn
+            .execute("UPDATE accounts SET excluded_from_debt_payoff = ?1 WHERE id = ?2", params![excluded, id])?;
         Ok(())
     }
 
@@ -2176,10 +2287,8 @@ impl Store {
     /// kind by mistake). An unknown id is a harmless no-op, same
     /// convention as everything else here.
     pub fn update_account_type(&self, id: i64, account_type: AccountType) -> rusqlite::Result<()> {
-        self.conn.execute(
-            "UPDATE accounts SET account_type = ?1 WHERE id = ?2",
-            params![account_type.as_str(), id],
-        )?;
+        self.conn
+            .execute("UPDATE accounts SET account_type = ?1 WHERE id = ?2", params![account_type.as_str(), id])?;
         Ok(())
     }
 
@@ -2207,9 +2316,7 @@ impl Store {
     /// harmless no-op.
     pub fn delete_account(&self, id: i64) -> rusqlite::Result<usize> {
         let mut stmt = self.conn.prepare("SELECT id FROM transactions WHERE account_id = ?1")?;
-        let tx_ids: Vec<i64> = stmt
-            .query_map(params![id], |row| row.get(0))?
-            .collect::<rusqlite::Result<_>>()?;
+        let tx_ids: Vec<i64> = stmt.query_map(params![id], |row| row.get(0))?.collect::<rusqlite::Result<_>>()?;
         drop(stmt);
         for tx_id in &tx_ids {
             self.hard_delete_transaction_row(*tx_id)?;
@@ -2229,8 +2336,7 @@ impl Store {
     /// with that name already exists, same "a duplicate name is a mistake
     /// to surface" convention as `create_bucket`.
     pub fn create_family_member(&self, name: &str) -> rusqlite::Result<i64> {
-        self.conn
-            .execute("INSERT INTO family_members (name) VALUES (?1)", params![name])?;
+        self.conn.execute("INSERT INTO family_members (name) VALUES (?1)", params![name])?;
         Ok(self.conn.last_insert_rowid())
     }
 
@@ -2293,12 +2399,7 @@ impl Store {
     /// fresh store — callers fall back to `RuleSet::seeded()` themselves.
     pub fn load_rules(&self) -> rusqlite::Result<RuleSet> {
         let mut stmt = self.conn.prepare("SELECT pattern, category FROM rules")?;
-        let rows = stmt.query_map([], |row| {
-            Ok(Rule::new(
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-            ))
-        })?;
+        let rows = stmt.query_map([], |row| Ok(Rule::new(row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
 
         let mut rules = Vec::new();
         for row in rows {
@@ -2319,9 +2420,7 @@ impl Store {
             "SELECT description, category FROM transactions
              WHERE category IS NOT NULL AND category_source IN ('rule', 'user') AND deleted_at IS NULL",
         )?;
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
 
         let mut result = Vec::new();
         for row in rows {
@@ -2336,13 +2435,7 @@ impl Store {
     /// correction are both deterministic rather than a probability.
     /// Correcting an id that doesn't exist is a harmless no-op rather than
     /// an error.
-    pub fn set_category(
-        &self,
-        id: i64,
-        category: &str,
-        source: CategorySource,
-        confidence: Option<f64>,
-    ) -> rusqlite::Result<()> {
+    pub fn set_category(&self, id: i64, category: &str, source: CategorySource, confidence: Option<f64>) -> rusqlite::Result<()> {
         self.conn.execute(
             "UPDATE transactions SET category = ?1, category_source = ?2, confidence = ?3 WHERE id = ?4",
             params![category, source.as_str(), confidence, id],
@@ -2355,10 +2448,19 @@ impl Store {
     }
 
     /// Registers a category so it's selectable even before any transaction
-    /// or budget uses it. A name that already exists is a harmless no-op.
-    pub fn create_category(&self, name: &str) -> rusqlite::Result<()> {
-        self.conn
-            .execute("INSERT OR IGNORE INTO categories (name) VALUES (?1)", params![name])?;
+    /// or budget uses it. A name that already exists is a harmless no-op —
+    /// except for `icon_key`: a `Some` choice is applied whether the row is
+    /// brand new or already existed (so picking an icon in the "new
+    /// category" dialog works even though the category itself might already
+    /// be registered from an earlier transaction/budget), but `None` never
+    /// clears an icon an existing row already has — this call just means
+    /// "make sure this category exists," not "reset its icon."
+    pub fn create_category(&self, name: &str, icon_key: Option<&str>) -> rusqlite::Result<()> {
+        self.conn.execute("INSERT OR IGNORE INTO categories (name) VALUES (?1)", params![name])?;
+        if let Some(icon_key) = icon_key {
+            self.conn
+                .execute("UPDATE categories SET icon_key = ?1 WHERE name = ?2", params![icon_key, name])?;
+        }
         Ok(())
     }
 
@@ -2375,6 +2477,36 @@ impl Store {
         Ok(result)
     }
 
+    /// Same as `list_categories`, but with each category's explicit icon
+    /// override alongside its name — kept separate from `list_categories`
+    /// rather than changing that one's return type, since most of its
+    /// callers (autocomplete, category-picker dropdowns) only ever need the
+    /// name.
+    pub fn list_categories_with_icons(&self) -> rusqlite::Result<Vec<StoredCategory>> {
+        let mut stmt = self.conn.prepare("SELECT name, icon_key FROM categories ORDER BY name")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(StoredCategory {
+                name: row.get::<_, String>(0)?,
+                icon_key: row.get::<_, Option<String>>(1)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    /// Sets (or clears, with `None`) an existing category's icon override —
+    /// unconditional, unlike `create_category`'s `icon_key`, since this is
+    /// specifically "change this category's icon," including back to "keep
+    /// guessing from the name."
+    pub fn set_category_icon(&self, name: &str, icon_key: Option<&str>) -> rusqlite::Result<()> {
+        self.conn
+            .execute("UPDATE categories SET icon_key = ?1 WHERE name = ?2", params![icon_key, name])?;
+        Ok(())
+    }
+
     /// Renames every transaction and rule filed under `old` to `new`, and
     /// the category registry entry itself. If `new` already has
     /// transactions of its own, this is how a merge happens — same
@@ -2387,19 +2519,30 @@ impl Store {
     /// the existing target's line wins for that month (same "the thing
     /// you're merging into wins" rule as everywhere else here) and
     /// `old`'s line is dropped instead of silently orphaned.
+    ///
+    /// `old`'s icon (see `set_category_icon`) carries over to `new` the
+    /// same way — but only if `new` doesn't already have one of its own:
+    /// renaming into an existing category is a merge, and the thing being
+    /// merged into keeps its own icon rather than having it silently
+    /// overwritten. Read before `old`'s row is deleted below, since that
+    /// delete would otherwise take the icon down with it.
     pub fn rename_category(&self, old: &str, new: &str) -> rusqlite::Result<usize> {
-        let affected = self.conn.execute(
-            "UPDATE transactions SET category = ?1 WHERE category = ?2",
-            params![new, old],
-        )?;
-        self.conn.execute(
-            "UPDATE transaction_splits SET category = ?1 WHERE category = ?2",
-            params![new, old],
-        )?;
-        self.conn.execute(
-            "UPDATE rules SET category = ?1 WHERE category = ?2",
-            params![new, old],
-        )?;
+        let old_icon_key: Option<String> = match self
+            .conn
+            .query_row("SELECT icon_key FROM categories WHERE name = ?1", params![old], |row| row.get(0))
+        {
+            Ok(icon_key) => icon_key,
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(e) => return Err(e),
+        };
+
+        let affected = self
+            .conn
+            .execute("UPDATE transactions SET category = ?1 WHERE category = ?2", params![new, old])?;
+        self.conn
+            .execute("UPDATE transaction_splits SET category = ?1 WHERE category = ?2", params![new, old])?;
+        self.conn
+            .execute("UPDATE rules SET category = ?1 WHERE category = ?2", params![new, old])?;
         self.conn.execute(
             "UPDATE budgets SET category = ?1
              WHERE category = ?2 AND NOT EXISTS (
@@ -2408,8 +2551,13 @@ impl Store {
             params![new, old],
         )?;
         self.conn.execute("DELETE FROM budgets WHERE category = ?1", params![old])?;
-        self.conn
-            .execute("INSERT OR IGNORE INTO categories (name) VALUES (?1)", params![new])?;
+        self.conn.execute("INSERT OR IGNORE INTO categories (name) VALUES (?1)", params![new])?;
+        if let Some(icon_key) = old_icon_key {
+            self.conn.execute(
+                "UPDATE categories SET icon_key = ?1 WHERE name = ?2 AND icon_key IS NULL",
+                params![icon_key, new],
+            )?;
+        }
         self.conn.execute("DELETE FROM categories WHERE name = ?1", params![old])?;
         Ok(affected)
     }
@@ -2469,12 +2617,22 @@ impl Store {
     /// untouched.
     pub fn save_transactions_with_ids(&self, account_id: i64, txns: &[Transaction]) -> rusqlite::Result<Vec<i64>> {
         let mut ids = Vec::with_capacity(txns.len());
-        let account_name = self.account_name_for_log(account_id);
-        // A chain of before/after snapshots, one per row — each row's
-        // "after" is the next row's "before", so a multi-row import logs
-        // its running balance instead of every line repeating the same
-        // pre-import number.
-        let mut previous_snapshot = self.displayed_balance_for_log(account_id);
+        // The running-balance snapshot chain below (see
+        // `displayed_balance_for_log`'s doc comment: "one per row — each
+        // row's after is the next row's before") costs one full
+        // `account_balance_as_of` scan of this account's transactions per
+        // row inserted. For a big import into an account that already has
+        // many rows, paying that on every single row made the whole import
+        // cost grow *quadratically* with the account's transaction count —
+        // a real bottleneck for the exact "large ledger" scenario this
+        // exists to support, and entirely wasted work whenever there's no
+        // log to write it to, which is every release build (`log_activity`
+        // discards it unread when `activity_log_path` is `None` — see
+        // `Store::open`). Skipped altogether in that case; only debug
+        // builds (and tests that set an activity log path) pay for it.
+        let logging = self.activity_log_path.is_some();
+        let account_name = if logging { self.account_name_for_log(account_id) } else { String::new() };
+        let mut previous_snapshot = if logging { self.displayed_balance_for_log(account_id) } else { None };
         for tx in txns {
             self.conn.execute(
                 "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint, member_id)
@@ -2489,13 +2647,15 @@ impl Store {
                 ],
             )?;
             ids.push(self.conn.last_insert_rowid());
-            let after_snapshot = self.displayed_balance_for_log(account_id);
-            let snapshot = Self::describe_balance_snapshot(previous_snapshot, after_snapshot);
-            previous_snapshot = after_snapshot;
-            self.log_activity(&format!(
-                "{account_name}: transaction added — \"{}\" {} amount={} — {snapshot}",
-                tx.description, tx.date, tx.amount
-            ));
+            if logging {
+                let after_snapshot = self.displayed_balance_for_log(account_id);
+                let snapshot = Self::describe_balance_snapshot(previous_snapshot, after_snapshot);
+                previous_snapshot = after_snapshot;
+                self.log_activity(&format!(
+                    "{account_name}: transaction added — \"{}\" {} amount={} — {snapshot}",
+                    tx.description, tx.date, tx.amount
+                ));
+            }
         }
         Ok(ids)
     }
@@ -2579,26 +2739,18 @@ impl Store {
                 member_name,
                 principal_amount_str,
             ) = row?;
-            let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
-                .expect("date stored by this crate must be valid");
-            let amount =
-                Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
+            let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
+            let amount = Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
             let applied_to_debt = match (debt_account_id, debt_account_name, applied_amount_str) {
-                (Some(debt_account_id), Some(debt_account_name), Some(applied_amount_str)) => {
-                    Some(AppliedDebtPayment {
-                        debt_account_id,
-                        debt_account_name,
-                        amount: Decimal::from_str(&applied_amount_str)
-                            .expect("amount stored by this crate must be valid"),
-                    })
-                }
+                (Some(debt_account_id), Some(debt_account_name), Some(applied_amount_str)) => Some(AppliedDebtPayment {
+                    debt_account_id,
+                    debt_account_name,
+                    amount: Decimal::from_str(&applied_amount_str).expect("amount stored by this crate must be valid"),
+                }),
                 _ => None,
             };
-            let tags = tags_str
-                .map(|s| s.split('\u{1f}').map(str::to_string).collect())
-                .unwrap_or_default();
-            let principal_amount = principal_amount_str
-                .map(|s| Decimal::from_str(&s).expect("amount stored by this crate must be valid"));
+            let tags = tags_str.map(|s| s.split('\u{1f}').map(str::to_string).collect()).unwrap_or_default();
+            let principal_amount = principal_amount_str.map(|s| Decimal::from_str(&s).expect("amount stored by this crate must be valid"));
             result.push(StoredTransaction {
                 id,
                 transaction: Transaction {
@@ -2626,7 +2778,20 @@ impl Store {
     /// misread value shouldn't require re-importing the whole file). The
     /// fingerprint is recomputed so dedup keeps keying off the corrected
     /// value. An unknown id is a harmless no-op, matching `set_category`.
-    pub fn update_transaction_amount(&self, id: i64, amount: Decimal) -> rusqlite::Result<()> {
+    /// Returns whether this transaction's split breakdown (see
+    /// `set_transaction_splits`) was reconciled as a side effect. A split
+    /// is a breakdown of *this* transaction's amount — nothing keeps it in
+    /// sync if the amount changes underneath it, so a stale breakdown
+    /// would silently disagree with the new total (the transaction
+    /// showing one amount, its own splits still summing to the old one).
+    /// Reconciling scales every split by the same ratio the total itself
+    /// changed by, preserving each one's *relative* share of the
+    /// breakdown rather than discarding it — the last split absorbs
+    /// whatever a penny of rounding leaves over, so the splits always sum
+    /// to exactly the new amount, not just approximately. A breakdown that
+    /// summed to zero (no ratio to scale by) splits the new amount evenly
+    /// instead, for the same reason.
+    pub fn update_transaction_amount(&self, id: i64, amount: Decimal) -> rusqlite::Result<bool> {
         let existing = self.conn.query_row(
             "SELECT account_id, date, description, amount FROM transactions WHERE id = ?1",
             params![id],
@@ -2641,18 +2806,64 @@ impl Store {
         );
         let (account_id, date_str, description, old_amount_str) = match existing {
             Ok(v) => v,
-            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(()),
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(false),
             Err(e) => return Err(e),
         };
-        let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
-            .expect("date stored by this crate must be valid");
-        let fp = fingerprint(account_id, &Transaction { date, description: description.clone(), amount, category: None });
+        let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
+        let fp = fingerprint(
+            account_id,
+            &Transaction {
+                date,
+                description: description.clone(),
+                amount,
+                category: None,
+            },
+        );
 
         let before = self.displayed_balance_for_log(account_id);
         self.conn.execute(
             "UPDATE transactions SET amount = ?1, fingerprint = ?2 WHERE id = ?3",
             params![amount.to_string(), fp, id],
         )?;
+
+        let splits: Vec<(i64, String)> = {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT id, amount FROM transaction_splits WHERE transaction_id = ?1 ORDER BY id")?;
+            let rows = stmt.query_map(params![id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        let mut splits_reconciled = false;
+        if !splits.is_empty() {
+            let old_amounts: Vec<Decimal> = splits
+                .iter()
+                .map(|(_, a)| Decimal::from_str(a).expect("split amount stored by this crate must be valid"))
+                .collect();
+            let split_total: Decimal = old_amounts.iter().sum();
+            if split_total != amount {
+                splits_reconciled = true;
+                let last = splits.len() - 1;
+                let mut running = Decimal::ZERO;
+                for (i, (split_id, _)) in splits.iter().enumerate() {
+                    let new_split_amount = if i == last {
+                        // Exact by construction: the new total minus every
+                        // already-assigned split, whatever rounding those
+                        // left over included.
+                        amount - running
+                    } else if split_total.is_zero() {
+                        (amount / Decimal::from(splits.len() as i64)).round_dp(2)
+                    } else {
+                        (old_amounts[i] * amount / split_total).round_dp(2)
+                    };
+                    running += new_split_amount;
+                    self.conn.execute(
+                        "UPDATE transaction_splits SET amount = ?1 WHERE id = ?2",
+                        params![new_split_amount.to_string(), split_id],
+                    )?;
+                }
+            }
+        }
+
         // A real before/after snapshot (rather than computing a delta from
         // `amount`) naturally reports no movement for a transaction whose
         // principal override (see `update_transaction_principal_amount`)
@@ -2662,10 +2873,15 @@ impl Store {
         let after = self.displayed_balance_for_log(account_id);
         let snapshot = Self::describe_balance_snapshot(before, after);
         self.log_activity(&format!(
-            "{}: transaction #{id} \"{description}\" amount corrected: {old_amount_str} -> {amount} — {snapshot}",
-            self.account_name_for_log(account_id)
+            "{}: transaction #{id} \"{description}\" amount corrected: {old_amount_str} -> {amount} — {snapshot}{}",
+            self.account_name_for_log(account_id),
+            if splits_reconciled {
+                " (its splits were rescaled to still sum to the new amount)"
+            } else {
+                ""
+            }
         ));
-        Ok(())
+        Ok(splits_reconciled)
     }
 
     /// Sets (or, with `None`, clears) how much of this transaction counts
@@ -2726,10 +2942,17 @@ impl Store {
             Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(()),
             Err(e) => return Err(e),
         };
-        let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
-            .expect("date stored by this crate must be valid");
+        let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
         let amount = Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
-        let fp = fingerprint(account_id, &Transaction { date, description: description.clone(), amount, category: None });
+        let fp = fingerprint(
+            account_id,
+            &Transaction {
+                date,
+                description: description.clone(),
+                amount,
+                category: None,
+            },
+        );
 
         let before_old = self.displayed_balance_for_log(old_account_id);
         let before_new = self.displayed_balance_for_log(account_id);
@@ -2763,7 +2986,15 @@ impl Store {
             Err(e) => return Err(e),
         };
         let amount = Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
-        let fp = fingerprint(account_id, &Transaction { date, description, amount, category: None });
+        let fp = fingerprint(
+            account_id,
+            &Transaction {
+                date,
+                description,
+                amount,
+                category: None,
+            },
+        );
 
         self.conn.execute(
             "UPDATE transactions SET date = ?1, fingerprint = ?2 WHERE id = ?3",
@@ -2778,11 +3009,11 @@ impl Store {
     /// description. An unknown id is a harmless no-op, same convention as
     /// `update_transaction_amount`.
     pub fn update_transaction_description(&self, id: i64, description: &str) -> rusqlite::Result<()> {
-        let existing = self.conn.query_row(
-            "SELECT account_id, date, amount FROM transactions WHERE id = ?1",
-            params![id],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
-        );
+        let existing = self
+            .conn
+            .query_row("SELECT account_id, date, amount FROM transactions WHERE id = ?1", params![id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            });
         let (account_id, date_str, amount_str) = match existing {
             Ok(v) => v,
             Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(()),
@@ -2790,7 +3021,15 @@ impl Store {
         };
         let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
         let amount = Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
-        let fp = fingerprint(account_id, &Transaction { date, description: description.to_string(), amount, category: None });
+        let fp = fingerprint(
+            account_id,
+            &Transaction {
+                date,
+                description: description.to_string(),
+                amount,
+                category: None,
+            },
+        );
 
         self.conn.execute(
             "UPDATE transactions SET description = ?1, fingerprint = ?2 WHERE id = ?3",
@@ -2826,11 +3065,14 @@ impl Store {
             params![id],
         )?;
         if let Some(generated_id) = generated_transaction_id {
-            self.conn.execute("DELETE FROM transaction_splits WHERE transaction_id = ?1", params![generated_id])?;
-            self.conn.execute("DELETE FROM transaction_tags WHERE transaction_id = ?1", params![generated_id])?;
+            self.conn
+                .execute("DELETE FROM transaction_splits WHERE transaction_id = ?1", params![generated_id])?;
+            self.conn
+                .execute("DELETE FROM transaction_tags WHERE transaction_id = ?1", params![generated_id])?;
             self.conn.execute("DELETE FROM transactions WHERE id = ?1", params![generated_id])?;
         }
-        self.conn.execute("DELETE FROM transaction_splits WHERE transaction_id = ?1", params![id])?;
+        self.conn
+            .execute("DELETE FROM transaction_splits WHERE transaction_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM transaction_tags WHERE transaction_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM transactions WHERE id = ?1", params![id])?;
         Ok(())
@@ -2866,7 +3108,8 @@ impl Store {
         let other_side = self.debt_payment_partner(id)?;
         let summary = self.transaction_summary_for_log(id);
         let before = summary.as_ref().and_then(|s| self.displayed_balance_for_log(s.0));
-        self.conn.execute("UPDATE transactions SET deleted_at = ?1 WHERE id = ?2", params![now, id])?;
+        self.conn
+            .execute("UPDATE transactions SET deleted_at = ?1 WHERE id = ?2", params![now, id])?;
         if let Some((account_id, account, description, amount)) = summary {
             let snapshot = Self::describe_balance_snapshot(before, self.displayed_balance_for_log(account_id));
             self.log_activity(&format!("{account}: transaction #{id} \"{description}\" ({amount}) deleted — {snapshot}"));
@@ -2874,7 +3117,8 @@ impl Store {
         if let Some(other_id) = other_side {
             let other_summary = self.transaction_summary_for_log(other_id);
             let other_before = other_summary.as_ref().and_then(|s| self.displayed_balance_for_log(s.0));
-            self.conn.execute("UPDATE transactions SET deleted_at = ?1 WHERE id = ?2", params![now, other_id])?;
+            self.conn
+                .execute("UPDATE transactions SET deleted_at = ?1 WHERE id = ?2", params![now, other_id])?;
             if let Some((account_id, account, description, amount)) = other_summary {
                 let snapshot = Self::describe_balance_snapshot(other_before, self.displayed_balance_for_log(account_id));
                 self.log_activity(&format!(
@@ -2939,15 +3183,19 @@ impl Store {
         for &id in ids {
             let summary = self.transaction_summary_for_log(id);
             let before = summary.as_ref().and_then(|s| self.displayed_balance_for_log(s.0));
-            self.conn.execute("UPDATE transactions SET deleted_at = NULL WHERE id = ?1", params![id])?;
+            self.conn
+                .execute("UPDATE transactions SET deleted_at = NULL WHERE id = ?1", params![id])?;
             if let Some((account_id, account, description, amount)) = summary {
                 let snapshot = Self::describe_balance_snapshot(before, self.displayed_balance_for_log(account_id));
-                self.log_activity(&format!("{account}: transaction #{id} \"{description}\" ({amount}) restored — {snapshot}"));
+                self.log_activity(&format!(
+                    "{account}: transaction #{id} \"{description}\" ({amount}) restored — {snapshot}"
+                ));
             }
             if let Some(other_id) = self.debt_payment_partner(id)? {
                 let other_summary = self.transaction_summary_for_log(other_id);
                 let other_before = other_summary.as_ref().and_then(|s| self.displayed_balance_for_log(s.0));
-                self.conn.execute("UPDATE transactions SET deleted_at = NULL WHERE id = ?1", params![other_id])?;
+                self.conn
+                    .execute("UPDATE transactions SET deleted_at = NULL WHERE id = ?1", params![other_id])?;
                 if let Some((account_id, account, description, amount)) = other_summary {
                     let snapshot = Self::describe_balance_snapshot(other_before, self.displayed_balance_for_log(account_id));
                     self.log_activity(&format!(
@@ -3024,11 +3272,7 @@ impl Store {
     /// "remaining to allocate" total that must hit exactly $0.00), same
     /// trust-the-UI stance as every other setter in this crate that
     /// doesn't re-validate what the caller already checked.
-    pub fn set_transaction_splits(
-        &self,
-        transaction_id: i64,
-        splits: &[(String, Decimal, Option<String>)],
-    ) -> rusqlite::Result<()> {
+    pub fn set_transaction_splits(&self, transaction_id: i64, splits: &[(String, Decimal, Option<String>)]) -> rusqlite::Result<()> {
         self.conn
             .execute("DELETE FROM transaction_splits WHERE transaction_id = ?1", params![transaction_id])?;
         for (category, amount, note) in splits {
@@ -3043,9 +3287,9 @@ impl Store {
     /// A transaction's split lines, in the order they were saved. Empty
     /// for a transaction that's never been split.
     pub fn list_transaction_splits(&self, transaction_id: i64) -> rusqlite::Result<Vec<TransactionSplit>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, category, amount, note FROM transaction_splits WHERE transaction_id = ?1 ORDER BY id",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, category, amount, note FROM transaction_splits WHERE transaction_id = ?1 ORDER BY id")?;
         let rows = stmt.query_map(params![transaction_id], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
@@ -3090,19 +3334,12 @@ impl Store {
     /// One source transaction can be applied to one debt account at a
     /// time (`UNIQUE(source_transaction_id)`) — call
     /// `unapply_debt_payment` first to change it.
-    pub fn apply_debt_payment(
-        &self,
-        source_transaction_id: i64,
-        debt_account_id: i64,
-        amount: Decimal,
-        date: NaiveDate,
-    ) -> rusqlite::Result<()> {
-        let (source_account_id, source_category, source_description): (i64, Option<String>, String) =
-            self.conn.query_row(
-                "SELECT account_id, category, description FROM transactions WHERE id = ?1",
-                params![source_transaction_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )?;
+    pub fn apply_debt_payment(&self, source_transaction_id: i64, debt_account_id: i64, amount: Decimal, date: NaiveDate) -> rusqlite::Result<()> {
+        let (source_account_id, source_category, source_description): (i64, Option<String>, String) = self.conn.query_row(
+            "SELECT account_id, category, description FROM transactions WHERE id = ?1",
+            params![source_transaction_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
         let signed_amount = amount.abs();
         let before = self.displayed_balance_for_log(debt_account_id);
 
@@ -3167,7 +3404,8 @@ impl Store {
             "DELETE FROM debt_payments WHERE source_transaction_id = ?1",
             params![source_transaction_id],
         )?;
-        self.conn.execute("DELETE FROM transactions WHERE id = ?1", params![generated_transaction_id])?;
+        self.conn
+            .execute("DELETE FROM transactions WHERE id = ?1", params![generated_transaction_id])?;
         if let Some((account_id, account, _, amount)) = summary {
             let snapshot = Self::describe_balance_snapshot(before, self.displayed_balance_for_log(account_id));
             self.log_activity(&format!(
@@ -3181,6 +3419,12 @@ impl Store {
     /// violation) if a bucket with that name already exists — unlike an
     /// account, a duplicate bucket name is a mistake to surface, not a
     /// re-selection to shrug off.
+    // Every param is a distinct, independently-optional bucket field with
+    // its own SQL column — bundling them into a params struct would just
+    // move this same list to a type definition without changing the call
+    // sites' shape, so it's allowed here rather than forced into that
+    // indirection.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_bucket(
         &self,
         name: &str,
@@ -3211,6 +3455,9 @@ impl Store {
     /// optional/nullable — the linked account, color, and icon are purely
     /// informational, none feeds into any balance calculation). An
     /// unknown id is a harmless no-op.
+    // Same reasoning as `create_bucket` above — one independent optional
+    // field per column, not a natural grouping worth its own struct.
+    #[allow(clippy::too_many_arguments)]
     pub fn update_bucket_details(
         &self,
         id: i64,
@@ -3280,7 +3527,20 @@ impl Store {
 
         let mut result = Vec::new();
         for row in rows {
-            let (id, name, target_amount, target_date, account_id, account_name, contributions, member_id, member_name, sinking_amount, color, icon_key) = row?;
+            let (
+                id,
+                name,
+                target_amount,
+                target_date,
+                account_id,
+                account_name,
+                contributions,
+                member_id,
+                member_name,
+                sinking_amount,
+                color,
+                icon_key,
+            ) = row?;
             let saved_amount = contributions
                 .map(|joined| {
                     joined
@@ -3292,18 +3552,14 @@ impl Store {
             result.push(StoredBucket {
                 id,
                 name,
-                target_amount: target_amount
-                    .map(|a| Decimal::from_str(&a).expect("amount stored by this crate must be valid")),
+                target_amount: target_amount.map(|a| Decimal::from_str(&a).expect("amount stored by this crate must be valid")),
                 saved_amount,
-                target_date: target_date.map(|d| {
-                    NaiveDate::parse_from_str(&d, "%Y-%m-%d").expect("date stored by this crate must be valid")
-                }),
+                target_date: target_date.map(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").expect("date stored by this crate must be valid")),
                 account_id,
                 account_name,
                 member_id,
                 member_name,
-                sinking_amount: sinking_amount
-                    .map(|a| Decimal::from_str(&a).expect("amount stored by this crate must be valid")),
+                sinking_amount: sinking_amount.map(|a| Decimal::from_str(&a).expect("amount stored by this crate must be valid")),
                 color,
                 icon_key,
             });
@@ -3314,13 +3570,7 @@ impl Store {
     /// Logs a contribution toward a bucket — a positive amount is a
     /// deposit, a negative amount is a withdrawal. Doesn't touch a stored
     /// total; `list_buckets` sums these fresh every time.
-    pub fn add_bucket_contribution(
-        &self,
-        bucket_id: i64,
-        date: NaiveDate,
-        amount: Decimal,
-        note: Option<&str>,
-    ) -> rusqlite::Result<()> {
+    pub fn add_bucket_contribution(&self, bucket_id: i64, date: NaiveDate, amount: Decimal, note: Option<&str>) -> rusqlite::Result<()> {
         self.conn.execute(
             "INSERT INTO bucket_contributions (bucket_id, date, amount, note) VALUES (?1, ?2, ?3, ?4)",
             params![bucket_id, date.to_string(), amount.to_string(), note],
@@ -3338,7 +3588,8 @@ impl Store {
     /// point at are gone, same reasoning as deleting the contributions
     /// themselves rather than leaving them orphaned.
     pub fn delete_bucket(&self, id: i64) -> rusqlite::Result<()> {
-        self.conn.execute("DELETE FROM bucket_auto_contributions WHERE bucket_id = ?1", params![id])?;
+        self.conn
+            .execute("DELETE FROM bucket_auto_contributions WHERE bucket_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM bucket_contributions WHERE bucket_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM buckets WHERE id = ?1", params![id])?;
         Ok(())
@@ -3400,13 +3651,7 @@ impl Store {
     /// independent of every other month, on purpose: this never touches
     /// a different period's row, so adjusting August never moves
     /// July's or September's numbers.
-    pub fn set_budget(
-        &self,
-        category: &str,
-        period: &str,
-        monthly_amount: Decimal,
-        budget_group: &str,
-    ) -> rusqlite::Result<()> {
+    pub fn set_budget(&self, category: &str, period: &str, monthly_amount: Decimal, budget_group: &str) -> rusqlite::Result<()> {
         self.conn.execute(
             "INSERT INTO budgets (category, period, monthly_amount, budget_group) VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(category, period) DO UPDATE SET monthly_amount = excluded.monthly_amount, budget_group = excluded.budget_group",
@@ -3453,11 +3698,11 @@ impl Store {
     /// materializing real rows is what makes later edits to this period
     /// stay isolated from the one it came from.
     pub fn list_budgets(&self, period: &str) -> rusqlite::Result<Vec<BudgetLine>> {
-        let already_touched: bool = self.conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM budget_periods WHERE period = ?1)",
-            params![period],
-            |row| row.get(0),
-        )?;
+        let already_touched: bool = self
+            .conn
+            .query_row("SELECT EXISTS(SELECT 1 FROM budget_periods WHERE period = ?1)", params![period], |row| {
+                row.get(0)
+            })?;
 
         if !already_touched {
             let source_period: Option<String> = match self.conn.query_row(
@@ -3481,9 +3726,9 @@ impl Store {
                 .execute("INSERT OR IGNORE INTO budget_periods (period) VALUES (?1)", params![period])?;
         }
 
-        let mut stmt = self.conn.prepare(
-            "SELECT category, budget_group, monthly_amount, cap_enabled FROM budgets WHERE period = ?1 ORDER BY category",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT category, budget_group, monthly_amount, cap_enabled FROM budgets WHERE period = ?1 ORDER BY category")?;
         let rows = stmt.query_map(params![period], |row| {
             Ok((
                 row.get::<_, String>(0)?,
@@ -3653,8 +3898,7 @@ impl Store {
     pub fn monthly_budget_actuals_by_member(&self, year: i32, month: u32) -> rusqlite::Result<Vec<MemberBudgetActual>> {
         let month_key = format!("{year:04}-{month:02}");
         let budgets = self.list_budgets(&month_key)?;
-        let member_names: std::collections::HashMap<i64, String> =
-            self.list_family_members()?.into_iter().map(|m| (m.id, m.name)).collect();
+        let member_names: std::collections::HashMap<i64, String> = self.list_family_members()?.into_iter().map(|m| (m.id, m.name)).collect();
 
         let mut stmt = self.conn.prepare(
             "SELECT amount, member_id FROM transactions
@@ -3707,13 +3951,7 @@ impl Store {
     /// month with $0 actual and no budget line still returns a `0.00`
     /// point rather than being skipped, so a sparkline never has to
     /// special-case a missing month.
-    pub fn budget_actuals_trend(
-        &self,
-        category: &str,
-        year: i32,
-        month: u32,
-        months: u32,
-    ) -> rusqlite::Result<Vec<(String, Decimal)>> {
+    pub fn budget_actuals_trend(&self, category: &str, year: i32, month: u32, months: u32) -> rusqlite::Result<Vec<(String, Decimal)>> {
         let mut stmt = self.conn.prepare(
             "SELECT amount FROM transactions
              WHERE category = ?1 AND substr(date, 1, 7) = ?2
@@ -3760,12 +3998,7 @@ impl Store {
     /// excluded the same way too, so the line items shown here sum to
     /// exactly the same "actual" the budget row displays. Sorted oldest
     /// first.
-    pub fn transactions_for_category_in_month(
-        &self,
-        category: &str,
-        year: i32,
-        month: u32,
-    ) -> rusqlite::Result<Vec<CategoryTransaction>> {
+    pub fn transactions_for_category_in_month(&self, category: &str, year: i32, month: u32) -> rusqlite::Result<Vec<CategoryTransaction>> {
         let month_key = format!("{year:04}-{month:02}");
         let mut stmt = self.conn.prepare(
             "SELECT t.id, t.date, t.description, t.amount, a.name, 0, NULL
@@ -3802,8 +4035,7 @@ impl Store {
             let (transaction_id, date, description, amount, account_name, is_split, split_note) = row?;
             result.push(CategoryTransaction {
                 transaction_id,
-                date: NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-                    .expect("date stored by this crate must be valid"),
+                date: NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
                 description,
                 amount: Decimal::from_str(&amount).expect("amount stored by this crate must be valid"),
                 account_name,
@@ -3925,8 +4157,7 @@ impl Store {
             let (id, date_str, description, amount_str, category) = row?;
             all.push(Row {
                 id,
-                date: NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
-                    .expect("date stored by this crate must be valid"),
+                date: NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid"),
                 description,
                 amount: Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid"),
                 category,
@@ -4031,11 +4262,7 @@ impl Store {
     /// powers the cash-flow chart's per-month drill-down ("what drove this
     /// month's expenses"). Deliberately excludes "duplicate" flags: a
     /// repeated charge isn't a single large expense worth calling out here.
-    pub fn large_expenses_in_range(
-        &self,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-    ) -> rusqlite::Result<Vec<LargeExpense>> {
+    pub fn large_expenses_in_range(&self, start_date: NaiveDate, end_date: NaiveDate) -> rusqlite::Result<Vec<LargeExpense>> {
         let flags = self.anomaly_flags()?;
 
         // A lighter, range-scoped query than `all_transactions()` — this
@@ -4060,8 +4287,7 @@ impl Store {
                 row.get::<_, Option<String>>(4)?,
             ))
         })?;
-        let mut by_id: std::collections::HashMap<i64, (NaiveDate, String, Decimal, Option<String>)> =
-            std::collections::HashMap::new();
+        let mut by_id: std::collections::HashMap<i64, (NaiveDate, String, Decimal, Option<String>)> = std::collections::HashMap::new();
         for row in rows {
             let (id, date_str, description, amount_str, category) = row?;
             let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
@@ -4084,7 +4310,7 @@ impl Store {
                 })
             })
             .collect();
-        result.sort_by(|a, b| b.amount.abs().cmp(&a.amount.abs()));
+        result.sort_by_key(|a| std::cmp::Reverse(a.amount.abs()));
         Ok(result)
     }
 
@@ -4167,12 +4393,7 @@ impl Store {
     /// months had any activity, so `dashboard_insights` can fall back to
     /// its own no-history handling instead of treating "no history yet" as
     /// "always a lump sum."
-    fn average_spend_days_per_active_month(
-        &self,
-        category: &str,
-        before: NaiveDate,
-        lookback_months: u32,
-    ) -> rusqlite::Result<Option<f64>> {
+    fn average_spend_days_per_active_month(&self, category: &str, before: NaiveDate, lookback_months: u32) -> rusqlite::Result<Option<f64>> {
         let (mut year, mut month) = (before.year(), before.month());
         let mut active_month_days = Vec::new();
         for _ in 0..lookback_months {
@@ -4257,10 +4478,8 @@ impl Store {
         let current_window_end = first_of_month + chrono::Duration::days(comparable_days - 1);
         let prev_window_end = prev_first + chrono::Duration::days(comparable_days - 1);
         let current_spend = self.spending_by_category(first_of_month, current_window_end)?;
-        let prev_spend: std::collections::HashMap<String, Decimal> =
-            self.spending_by_category(prev_first, prev_window_end)?.into_iter().collect();
-        let current_map: std::collections::HashMap<&str, Decimal> =
-            current_spend.iter().map(|(c, a)| (c.as_str(), *a)).collect();
+        let prev_spend: std::collections::HashMap<String, Decimal> = self.spending_by_category(prev_first, prev_window_end)?.into_iter().collect();
+        let current_map: std::collections::HashMap<&str, Decimal> = current_spend.iter().map(|(c, a)| (c.as_str(), *a)).collect();
         for (category, current_amount) in &current_spend {
             let Some(&previous_amount) = prev_spend.get(category) else { continue };
             if previous_amount <= Decimal::ZERO {
@@ -4272,9 +4491,7 @@ impl Store {
                 insights.push(Insight {
                     severity: "warning".to_string(),
                     kind: "category_jump".to_string(),
-                    message: format!(
-                        "{category} rose {pct:.0}% (${current_amount:.2} vs ${previous_amount:.2}) from last month."
-                    ),
+                    message: format!("{category} rose {pct:.0}% (${current_amount:.2} vs ${previous_amount:.2}) from last month."),
                 });
             }
         }
@@ -4295,9 +4512,7 @@ impl Store {
                 insights.push(Insight {
                     severity: "positive".to_string(),
                     kind: "category_drop".to_string(),
-                    message: format!(
-                        "Nice work: {category} is down {pct:.0}% (${current_amount:.2} vs ${previous_amount:.2}) from last month."
-                    ),
+                    message: format!("Nice work: {category} is down {pct:.0}% (${current_amount:.2} vs ${previous_amount:.2}) from last month."),
                 });
             }
         }
@@ -4340,6 +4555,9 @@ impl Store {
 
     /// Replaces every field of an existing recurring item. An unknown id
     /// is a harmless no-op, same convention as everywhere else here.
+    // Same reasoning as `create_bucket` above — replaces every field of an
+    // existing recurring item, one independent argument per column.
+    #[allow(clippy::too_many_arguments)]
     pub fn update_recurring(
         &self,
         id: i64,
@@ -4396,8 +4614,7 @@ impl Store {
         let mut result = Vec::new();
         for row in rows {
             let (id, merchant, category, amount, cadence, anchor_date_str, account_id, account_name, member_id, member_name, status) = row?;
-            let anchor_date = NaiveDate::parse_from_str(&anchor_date_str, "%Y-%m-%d")
-                .expect("date stored by this crate must be valid");
+            let anchor_date = NaiveDate::parse_from_str(&anchor_date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
             result.push(StoredRecurring {
                 id,
                 merchant,
@@ -4521,9 +4738,7 @@ impl Store {
 
         let mut dismissed: std::collections::HashSet<(String, String, String)> = std::collections::HashSet::new();
         let mut stmt = self.conn.prepare("SELECT merchant, amount, cadence FROM recurring_dismissals")?;
-        for row in stmt.query_map([], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
-        })? {
+        for row in stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)))? {
             dismissed.insert(row?);
         }
 
@@ -4566,7 +4781,7 @@ impl Store {
                 occurrence_count: rows.len(),
             });
         }
-        result.sort_by(|a, b| b.anchor_date.cmp(&a.anchor_date));
+        result.sort_by_key(|a| std::cmp::Reverse(a.anchor_date));
         Ok(result)
     }
 
@@ -4589,6 +4804,9 @@ impl Store {
     /// `get_live_price_settings`). Either way it's just a starting value;
     /// `update_holding_price`/`update_holding_prices_for_symbol` are how it
     /// changes afterward.
+    // Same reasoning as `create_bucket` above — one independent argument
+    // per `holdings` column.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_holding(
         &self,
         account_id: i64,
@@ -4752,7 +4970,11 @@ impl Store {
             "SELECT api_key, provider, last_refreshed_at FROM live_price_settings WHERE id = 1",
             [],
             |row| {
-                Ok((row.get::<_, Option<String>>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
             },
         ) {
             Ok(v) => Some(v),
@@ -4760,10 +4982,13 @@ impl Store {
             Err(e) => return Err(e),
         };
         let (api_key, provider, last_refreshed_at) = row.unwrap_or((None, "alpha_vantage".to_string(), None));
-        let last_refreshed_at = last_refreshed_at.map(|s| {
-            NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S").expect("timestamp stored by this crate must be valid")
-        });
-        Ok(StoredLivePriceSettings { api_key, provider, last_refreshed_at })
+        let last_refreshed_at =
+            last_refreshed_at.map(|s| NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S").expect("timestamp stored by this crate must be valid"));
+        Ok(StoredLivePriceSettings {
+            api_key,
+            provider,
+            last_refreshed_at,
+        })
     }
 
     /// Sets (or, with `api_key: None`, clears/disables) the live-price
@@ -4809,7 +5034,11 @@ impl Store {
             Err(e) => return Err(e),
         };
         let (apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled) = row.unwrap_or((true, true, true));
-        Ok(StoredAppSettings { apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled })
+        Ok(StoredAppSettings {
+            apply_to_debt_enabled,
+            split_purchases_enabled,
+            envelope_caps_enabled,
+        })
     }
 
     pub fn set_apply_to_debt_enabled(&self, enabled: bool) -> rusqlite::Result<()> {
@@ -4884,14 +5113,7 @@ impl Store {
     /// Adds a manually-tracked asset (see `StoredAsset`). `asset_type` is a
     /// free string, same convention as `budget_group` — the UI suggests
     /// "real_estate"/"vehicle"/"other" but nothing here enforces it.
-    pub fn create_asset(
-        &self,
-        name: &str,
-        asset_type: &str,
-        value: Decimal,
-        valued_on: NaiveDate,
-        notes: Option<&str>,
-    ) -> rusqlite::Result<i64> {
+    pub fn create_asset(&self, name: &str, asset_type: &str, value: Decimal, valued_on: NaiveDate, notes: Option<&str>) -> rusqlite::Result<i64> {
         self.conn.execute(
             "INSERT INTO assets (name, asset_type, value, valued_on, notes) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![name, asset_type, value.to_string(), valued_on.to_string(), notes],
@@ -4928,8 +5150,7 @@ impl Store {
                 name,
                 asset_type,
                 value: Decimal::from_str(&value).expect("value stored by this crate must be valid"),
-                valued_on: NaiveDate::parse_from_str(&valued_on, "%Y-%m-%d")
-                    .expect("date stored by this crate must be valid"),
+                valued_on: NaiveDate::parse_from_str(&valued_on, "%Y-%m-%d").expect("date stored by this crate must be valid"),
                 notes,
                 member_id,
                 member_name,
@@ -4988,10 +5209,30 @@ impl Store {
     /// `fs::copy`, which risks copying a half-written page or missing a
     /// `-wal`/`-shm` sidecar file if the database is in WAL mode). Used by
     /// both the "move my data file" flow and automatic local backups.
+    ///
+    /// `pages_per_step` is `i32::MAX` — copy everything in one
+    /// `sqlite3_backup_step` call — not the small, slowly-paced batches
+    /// `run_to_completion`'s own example usage suggests. That pacing
+    /// exists to let a *concurrent* writer on another connection get a
+    /// turn between steps; this app has no such writer to yield to (every
+    /// `Store` method, backups included, only ever runs from behind the
+    /// one app-wide `AppStateHandle` mutex — see `commands.rs`), so it was
+    /// pure overhead: 5 pages/step with a 50ms pause between steps cost
+    /// roughly 10ms of sleep *per page*, measured taking over 20 seconds
+    /// against a real 50,000-transaction database and — since every
+    /// caller here holds that same mutex for the call's whole duration —
+    /// blocking every other command in the app for that entire stretch,
+    /// including the automatic backup this crate's own callers run
+    /// synchronously before the app's very first window can open. A
+    /// single step removes the pacing loop's sleeps entirely (the loop
+    /// exits via `Done` on the first call, before `pause_between_pages` is
+    /// ever reached — see `run_to_completion`'s own source), leaving only
+    /// the real I/O cost, without changing anything about *what* gets
+    /// copied or the destination file's correctness.
     pub fn backup_to(&self, dest_path: impl AsRef<Path>) -> rusqlite::Result<()> {
         let mut dest = Connection::open(dest_path)?;
         let backup = rusqlite::backup::Backup::new(&self.conn, &mut dest)?;
-        backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
+        backup.run_to_completion(i32::MAX, std::time::Duration::ZERO, None)?;
         Ok(())
     }
 
@@ -5087,7 +5328,7 @@ impl Store {
 
             match strategy {
                 "avalanche" => debts.sort_by(|a, b| b.rate.cmp(&a.rate).then_with(|| a.owed.cmp(&b.owed))),
-                _ => debts.sort_by(|a, b| a.owed.cmp(&b.owed)),
+                _ => debts.sort_by_key(|a| a.owed),
             }
 
             for d in debts.iter_mut() {
@@ -5180,7 +5421,9 @@ impl Store {
 
         let earliest_transaction_date: Option<NaiveDate> = self
             .conn
-            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| row.get::<_, Option<String>>(0))?
+            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| {
+                row.get::<_, Option<String>>(0)
+            })?
             .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid"));
 
         let daily_net = match earliest_transaction_date {
@@ -5190,8 +5433,7 @@ impl Store {
                 let days_elapsed = (today - window_start).num_days().max(1);
                 let mut balance_at_window_start = Decimal::ZERO;
                 for a in &cash_accounts {
-                    balance_at_window_start +=
-                        self.account_balance_as_of(a.id, a.account.account_type.as_str(), a.starting_balance, window_start)?;
+                    balance_at_window_start += self.account_balance_as_of(a.id, a.account.account_type.as_str(), a.starting_balance, window_start)?;
                 }
                 (starting_balance - balance_at_window_start) / Decimal::from(days_elapsed)
             }
@@ -5226,7 +5468,9 @@ impl Store {
 
         let earliest_transaction_date: Option<NaiveDate> = self
             .conn
-            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| row.get::<_, Option<String>>(0))?
+            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| {
+                row.get::<_, Option<String>>(0)
+            })?
             .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid"));
 
         let Some(earliest) = earliest_transaction_date else {
@@ -5401,12 +5645,7 @@ impl Store {
     /// `apply_debt_payment`'s generated transactions (its "Payment applied
     /// from: ..." description isn't a merchant) — see `all_transactions`'s
     /// doc comment.
-    pub fn top_merchants(
-        &self,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-        limit: usize,
-    ) -> rusqlite::Result<Vec<(String, Decimal)>> {
+    pub fn top_merchants(&self, start_date: NaiveDate, end_date: NaiveDate, limit: usize) -> rusqlite::Result<Vec<(String, Decimal)>> {
         let mut stmt = self.conn.prepare(
             "SELECT description, amount FROM transactions
              WHERE date >= ?1 AND date <= ?2
@@ -5477,18 +5716,21 @@ impl Store {
         let mut stmt = self.conn.prepare("SELECT id, name, account_type, starting_balance FROM accounts")?;
         let accounts: Vec<(i64, String, String, String)> = stmt
             .query_map([], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?))
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
         let holdings_value = self.holdings_value_by_account()?;
         let mut result = Vec::with_capacity(accounts.len());
         for (id, name, account_type, starting_balance_str) in accounts {
-            let starting_balance = Decimal::from_str(&starting_balance_str)
-                .expect("starting_balance stored by this crate must be valid");
+            let starting_balance = Decimal::from_str(&starting_balance_str).expect("starting_balance stored by this crate must be valid");
             let mut balance = self.account_balance_as_of(id, &account_type, starting_balance, as_of)?;
-            let account_type =
-                AccountType::parse(&account_type).expect("account_type stored by this crate must be valid");
+            let account_type = AccountType::parse(&account_type).expect("account_type stored by this crate must be valid");
             let group = account_type.group();
             // Same holdings-take-priority rule as `list_accounts` — see its
             // comment. Only ever "as of today" in effect: a holding has no
@@ -5497,17 +5739,22 @@ impl Store {
             // uses for Property & Valuables in the Dashboard's own trend
             // chart (a flat approximation is far less misleading than the
             // $0 this used to show throughout).
-            if group == "investment" {
-                if let Some(&value) = holdings_value.get(&id) {
-                    balance = value;
-                }
+            if group == "investment"
+                && let Some(&value) = holdings_value.get(&id)
+            {
+                balance = value;
             }
             let contribution = match group {
                 "credit" => balance - starting_balance,
                 "loan" => -balance,
                 _ => balance,
             };
-            result.push(AccountContribution { account_id: id, name, group: group.to_string(), contribution });
+            result.push(AccountContribution {
+                account_id: id,
+                name,
+                group: group.to_string(),
+                contribution,
+            });
         }
         Ok(result)
     }
@@ -5519,11 +5766,7 @@ impl Store {
     /// leaving the total unexplained. Sorted by the size of the move
     /// (largest absolute delta first); an account with no change between
     /// the two dates is dropped rather than shown as a $0.00 row.
-    pub fn account_contribution_deltas(
-        &self,
-        from: NaiveDate,
-        to: NaiveDate,
-    ) -> rusqlite::Result<Vec<AccountContributionDelta>> {
+    pub fn account_contribution_deltas(&self, from: NaiveDate, to: NaiveDate) -> rusqlite::Result<Vec<AccountContributionDelta>> {
         let from_amounts: std::collections::HashMap<i64, Decimal> = self
             .account_contributions_as_of(from)?
             .into_iter()
@@ -5549,7 +5792,7 @@ impl Store {
                 })
             })
             .collect();
-        result.sort_by(|a, b| b.delta.abs().cmp(&a.delta.abs()));
+        result.sort_by_key(|a| std::cmp::Reverse(a.delta.abs()));
         Ok(result)
     }
 }
@@ -5588,13 +5831,7 @@ pub struct AccountContributionDelta {
 /// transaction's own content plus which account it's in — the same
 /// content in a different account is a coincidence, not a duplicate.
 fn fingerprint(account_id: i64, tx: &Transaction) -> String {
-    format!(
-        "{}|{}|{}|{}",
-        account_id,
-        tx.date,
-        tx.description.trim().to_lowercase(),
-        tx.amount
-    )
+    format!("{}|{}|{}|{}", account_id, tx.date, tx.description.trim().to_lowercase(), tx.amount)
 }
 
 /// Normalizes a description for duplicate-detection comparison (see
@@ -5605,10 +5842,7 @@ fn fingerprint(account_id: i64, tx: &Transaction) -> String {
 fn normalize_description(s: &str) -> String {
     let lower = s.trim().to_lowercase();
     let collapsed = lower.split_whitespace().collect::<Vec<_>>().join(" ");
-    collapsed
-        .trim_end_matches(|c: char| c.is_ascii_digit())
-        .trim_end()
-        .to_string()
+    collapsed.trim_end_matches(|c: char| c.is_ascii_digit()).trim_end().to_string()
 }
 
 /// The four cadences `detect_recurring_candidates` recognizes, as a
@@ -5797,9 +6031,7 @@ mod tests {
     /// Most tests don't care about accounts — just need *an* account id to
     /// save into.
     fn test_account(store: &Store) -> i64 {
-        store
-            .get_or_create_account("Test Checking", AccountType::Checking)
-            .unwrap()
+        store.get_or_create_account("Test Checking", AccountType::Checking).unwrap()
     }
 
     /// `list_accounts` now takes a `today` for reset-awareness; tests that
@@ -5823,7 +6055,9 @@ mod tests {
     fn raw_transaction_member_id(store: &Store, account_id: i64) -> Option<i64> {
         store
             .conn
-            .query_row("SELECT member_id FROM transactions WHERE account_id = ?1", params![account_id], |row| row.get(0))
+            .query_row("SELECT member_id FROM transactions WHERE account_id = ?1", params![account_id], |row| {
+                row.get(0)
+            })
             .unwrap()
     }
 
@@ -5833,8 +6067,11 @@ mod tests {
     fn init_schema_creates_every_performance_index_including_the_ones_added_after_migrations() {
         let store = Store::open_in_memory().unwrap();
         let mut stmt = store.conn.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").unwrap();
-        let names: std::collections::HashSet<String> =
-            stmt.query_map([], |row| row.get::<_, String>(0)).unwrap().collect::<rusqlite::Result<_>>().unwrap();
+        let names: std::collections::HashSet<String> = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
 
         for expected in [
             "idx_transactions_fingerprint",
@@ -5885,6 +6122,34 @@ mod tests {
         assert_eq!(stored.iter().find(|s| s.id == ids[1]).unwrap().transaction.description, "Payroll Deposit");
     }
 
+    // Regression test for a real O(n²) bug: `save_transactions_with_ids`
+    // used to recompute a full `account_balance_as_of` scan of the account
+    // before *and* after every single row it inserted, purely to build a
+    // debug-only log line that's discarded unread whenever there's no
+    // activity log path (every release build, and this in-memory test
+    // store — see `Store::open`/`log_activity`). Importing N transactions
+    // into an account that already has many cost O(N × existing-count),
+    // not O(N) — a large CSV import into a well-used account measurably
+    // took minutes instead of seconds. 2,000 sequential inserts into one
+    // account, even in an unoptimized debug test binary, must stay well
+    // under a second if the per-row cost is genuinely O(1); the generous
+    // 5s ceiling only exists to keep this non-flaky on a loaded CI box —
+    // a reintroduced quadratic scan here would blow far past it, not
+    // brush up against it.
+    #[test]
+    fn saving_many_transactions_into_one_account_does_not_cost_quadratic_time() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let txns: Vec<Transaction> = (0..2000).map(|i| tx("2026-01-01", &format!("Transaction {i}"), "-10.00")).collect();
+
+        let start = std::time::Instant::now();
+        let ids = store.save_transactions_with_ids(account, &txns).unwrap();
+        let elapsed = start.elapsed();
+
+        assert_eq!(ids.len(), 2000);
+        assert!(elapsed.as_secs() < 5, "saving 2000 transactions took {elapsed:?} — looks quadratic again");
+    }
+
     #[test]
     fn check_duplicates_flags_a_transaction_already_saved_in_this_account() {
         let store = Store::open_in_memory().unwrap();
@@ -5901,12 +6166,10 @@ mod tests {
     fn check_duplicates_distinguishes_new_from_already_seen_in_an_overlapping_batch() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-20", "Union Realty", "-1850.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-20", "Union Realty", "-1850.00")]).unwrap();
 
         let second_batch = vec![
-            tx("2026-08-20", "Union Realty", "-1850.00"),   // already saved
+            tx("2026-08-20", "Union Realty", "-1850.00"),     // already saved
             tx("2026-08-21", "Green Leaf Grocers", "-86.42"), // new
         ];
         let flags = store.check_duplicates(account, &second_batch).unwrap();
@@ -5942,9 +6205,7 @@ mod tests {
         {
             let store = Store::open(&db_path).unwrap();
             let account = test_account(&store);
-            store
-                .save_transactions(account, &[tx("2026-08-20", "Union Realty", "-1850.00")])
-                .unwrap();
+            store.save_transactions(account, &[tx("2026-08-20", "Union Realty", "-1850.00")]).unwrap();
         } // store (and its connection) dropped here
 
         let reopened = Store::open(&db_path).unwrap();
@@ -5969,9 +6230,7 @@ mod tests {
         {
             let store = Store::open(&source_path).unwrap();
             let account = test_account(&store);
-            store
-                .save_transactions(account, &[tx("2026-08-20", "Union Realty", "-1850.00")])
-                .unwrap();
+            store.save_transactions(account, &[tx("2026-08-20", "Union Realty", "-1850.00")]).unwrap();
             store.backup_to(&dest_path).unwrap();
         } // source store dropped here
 
@@ -6023,7 +6282,10 @@ mod tests {
 
         assert_eq!(stored.len(), 1, "the pre-existing transaction must survive the migration");
         assert_eq!(stored[0].transaction.description, "Union Realty");
-        assert!(!stored[0].account_name.is_empty(), "it should land in some fallback account, not be orphaned");
+        assert!(
+            !stored[0].account_name.is_empty(),
+            "it should land in some fallback account, not be orphaned"
+        );
 
         drop(store);
         std::fs::remove_file(&db_path).unwrap();
@@ -6038,9 +6300,7 @@ mod tests {
             .unwrap();
         let id = store.all_transactions().unwrap()[0].id;
 
-        store
-            .set_category(id, "Dining Out", CategorySource::User, None)
-            .unwrap();
+        store.set_category(id, "Dining Out", CategorySource::User, None).unwrap();
 
         let stored = store.all_transactions().unwrap();
         assert_eq!(stored[0].transaction.category, Some("Dining Out".to_string()));
@@ -6080,9 +6340,7 @@ mod tests {
             .unwrap();
         let id = store.all_transactions().unwrap()[0].id;
 
-        store
-            .set_category(id, "Groceries", CategorySource::Classifier, Some(0.73))
-            .unwrap();
+        store.set_category(id, "Groceries", CategorySource::Classifier, Some(0.73)).unwrap();
 
         let stored = store.all_transactions().unwrap();
         assert_eq!(stored[0].confidence, Some(0.73));
@@ -6109,10 +6367,7 @@ mod tests {
 
         let rules = store.load_rules().unwrap();
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules.categorize("Local Coffee Shop"),
-            Some("Dining Out".to_string())
-        );
+        assert_eq!(rules.categorize("Local Coffee Shop"), Some("Dining Out".to_string()));
     }
 
     #[test]
@@ -6123,10 +6378,7 @@ mod tests {
 
         let rules = store.load_rules().unwrap();
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules.categorize("Ferrywood Coffee"),
-            Some("Business Expense".to_string())
-        );
+        assert_eq!(rules.categorize("Ferrywood Coffee"), Some("Business Expense".to_string()));
     }
 
     #[test]
@@ -6153,10 +6405,7 @@ mod tests {
         // ids[1] ("Mystery Merchant") is deliberately left uncategorized
 
         let history = store.labeled_history().unwrap();
-        assert_eq!(
-            history,
-            vec![("Ferrywood Coffee".to_string(), "Dining Out".to_string())]
-        );
+        assert_eq!(history, vec![("Ferrywood Coffee".to_string(), "Dining Out".to_string())]);
     }
 
     #[test]
@@ -6207,7 +6456,7 @@ mod tests {
     fn create_category_makes_a_new_category_selectable_before_anything_uses_it() {
         let store = Store::open_in_memory().unwrap();
 
-        store.create_category("Pet Care").unwrap();
+        store.create_category("Pet Care", None).unwrap();
 
         assert!(store.list_categories().unwrap().contains(&"Pet Care".to_string()));
     }
@@ -6215,9 +6464,9 @@ mod tests {
     #[test]
     fn creating_the_same_category_twice_is_a_harmless_no_op() {
         let store = Store::open_in_memory().unwrap();
-        store.create_category("Pet Care").unwrap();
+        store.create_category("Pet Care", None).unwrap();
 
-        store.create_category("Pet Care").unwrap();
+        store.create_category("Pet Care", None).unwrap();
 
         let matches = store.list_categories().unwrap().iter().filter(|c| *c == "Pet Care").count();
         assert_eq!(matches, 1);
@@ -6294,6 +6543,52 @@ mod tests {
         assert_eq!(budgets[0].monthly_amount, "150.00".parse().unwrap());
     }
 
+    /// Regression test for a real bug: renaming a category into a brand
+    /// new name used to lose its icon — `INSERT OR IGNORE` created the new
+    /// registry row bare, and the old (icon-bearing) row was then deleted.
+    #[test]
+    fn rename_category_carries_its_icon_forward_to_a_new_name() {
+        let store = Store::open_in_memory().unwrap();
+        store.create_category("Utilities", Some("utilities")).unwrap();
+
+        store.rename_category("Utilities", "Bills").unwrap();
+
+        let categories = store.list_categories_with_icons().unwrap();
+        let bills = categories.iter().find(|c| c.name == "Bills").unwrap();
+        assert_eq!(bills.icon_key, Some("utilities".to_string()));
+        assert!(categories.iter().all(|c| c.name != "Utilities"));
+    }
+
+    #[test]
+    fn renaming_into_a_category_that_already_has_an_icon_keeps_the_targets_icon() {
+        let store = Store::open_in_memory().unwrap();
+        store.create_category("Coffee", Some("groceries")).unwrap();
+        store.create_category("Dining Out", Some("restaurant")).unwrap();
+
+        store.rename_category("Coffee", "Dining Out").unwrap();
+
+        let categories = store.list_categories_with_icons().unwrap();
+        let dining = categories.iter().find(|c| c.name == "Dining Out").unwrap();
+        assert_eq!(
+            dining.icon_key,
+            Some("restaurant".to_string()),
+            "the existing target's icon should win, not be overwritten by the source's"
+        );
+    }
+
+    #[test]
+    fn renaming_into_an_existing_category_with_no_icon_adopts_the_sources_icon() {
+        let store = Store::open_in_memory().unwrap();
+        store.create_category("Coffee", Some("groceries")).unwrap();
+        store.create_category("Dining Out", None).unwrap();
+
+        store.rename_category("Coffee", "Dining Out").unwrap();
+
+        let categories = store.list_categories_with_icons().unwrap();
+        let dining = categories.iter().find(|c| c.name == "Dining Out").unwrap();
+        assert_eq!(dining.icon_key, Some("groceries".to_string()));
+    }
+
     #[test]
     fn renaming_into_an_existing_category_merges_them() {
         let store = Store::open_in_memory().unwrap();
@@ -6301,10 +6596,7 @@ mod tests {
         store
             .save_transactions(
                 account,
-                &[
-                    tx("2026-08-20", "Ferrywood Coffee", "-6.75"),
-                    tx("2026-08-21", "Downtown Cafe", "-12.00"),
-                ],
+                &[tx("2026-08-20", "Ferrywood Coffee", "-6.75"), tx("2026-08-21", "Downtown Cafe", "-12.00")],
             )
             .unwrap();
         let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
@@ -6330,9 +6622,7 @@ mod tests {
             .save_transactions(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")])
             .unwrap();
         let id = store.all_transactions().unwrap()[0].id;
-        store
-            .set_category(id, "Dining Out", CategorySource::Classifier, Some(0.9))
-            .unwrap();
+        store.set_category(id, "Dining Out", CategorySource::Classifier, Some(0.9)).unwrap();
         store.upsert_rule("coffee", "Dining Out").unwrap();
 
         let affected = store.delete_category("Dining Out").unwrap();
@@ -6377,6 +6667,23 @@ mod tests {
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].account.name, "Everyday Checking");
         assert_eq!(accounts[0].account.account_type, AccountType::Checking);
+    }
+
+    #[test]
+    fn find_account_by_name_never_creates_one() {
+        let store = Store::open_in_memory().unwrap();
+        store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
+
+        assert_eq!(store.find_account_by_name("Nonexistent").unwrap(), None);
+        assert!(
+            store.find_account_by_name("everyday checking").unwrap().is_some(),
+            "lookup should be case-insensitive"
+        );
+        assert_eq!(
+            store.list_accounts(far_future()).unwrap().len(),
+            1,
+            "a missed lookup must not create anything"
+        );
     }
 
     #[test]
@@ -6490,7 +6797,9 @@ mod tests {
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
         store.save_transactions(checking, &[tx("2026-09-05", "Coffee", "-5.00")]).unwrap();
 
-        store.set_account_balance_override(checking, "2000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "2000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-10".parse().unwrap()).unwrap();
         assert_eq!(
@@ -6507,7 +6816,9 @@ mod tests {
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
         store.save_transactions(checking, &[tx("2026-09-01", "Payroll", "500.00")]).unwrap();
 
-        store.set_account_balance_override(checking, "9999.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "9999.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-02".parse().unwrap()).unwrap();
         assert_eq!(
@@ -6523,8 +6834,12 @@ mod tests {
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
 
-        store.set_account_balance_override(checking, "5000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
-        store.set_account_balance_override(checking, "3000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "5000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
+        store
+            .set_account_balance_override(checking, "3000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-04".parse().unwrap()).unwrap();
         assert_eq!(accounts[0].current_balance, "3000.00".parse().unwrap());
@@ -6537,7 +6852,9 @@ mod tests {
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
 
         store.roll_forward_monthly_balances("2026-09-01".parse().unwrap()).unwrap();
-        store.set_account_balance_override(checking, "7500.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "7500.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-04".parse().unwrap()).unwrap();
         assert_eq!(
@@ -6550,7 +6867,9 @@ mod tests {
     #[test]
     fn set_account_balance_override_on_an_unknown_account_id_is_a_harmless_no_op() {
         let store = Store::open_in_memory().unwrap();
-        store.set_account_balance_override(999, "100.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(999, "100.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
     }
 
     #[test]
@@ -6566,7 +6885,9 @@ mod tests {
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
         store.save_transactions(checking, &[tx("2026-09-04", "barbor shop", "-1500.00")]).unwrap();
 
-        store.set_account_balance_override(checking, "20000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "20000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-04".parse().unwrap()).unwrap();
         assert_eq!(
@@ -6583,7 +6904,9 @@ mod tests {
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
         store.save_transactions(checking, &[tx("2026-09-04", "barbor shop", "-1500.00")]).unwrap();
 
-        store.set_account_balance_override(checking, "20000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "20000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
         // A genuinely new transaction, added *after* the correction, dated
         // the same day — must still move the balance from here, exactly
         // like the already-posted one must not.
@@ -6605,7 +6928,9 @@ mod tests {
         store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
         store.save_transactions(loan, &[tx("2026-09-04", "Payment", "500.00")]).unwrap();
 
-        store.set_account_balance_override(loan, "8000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(loan, "8000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-04".parse().unwrap()).unwrap();
         assert_eq!(
@@ -6622,7 +6947,9 @@ mod tests {
         store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
         store.save_transactions(loan, &[tx("2026-09-04", "Payment", "500.00")]).unwrap();
 
-        store.set_account_balance_override(loan, "8000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(loan, "8000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
         // A genuinely new payment, added *after* the correction, dated the
         // same day — must still reduce what's owed from here.
         store.save_transactions(loan, &[tx("2026-09-04", "Extra Payment", "200.00")]).unwrap();
@@ -6642,7 +6969,10 @@ mod tests {
         // a transaction stored under the *old* convention (a loan payment
         // was negative), bypassing save_transactions/apply_debt_payment
         // since both already write under today's flipped convention.
-        store.conn.execute("UPDATE app_settings SET loan_sign_convention_migrated = 0 WHERE id = 1", []).unwrap();
+        store
+            .conn
+            .execute("UPDATE app_settings SET loan_sign_convention_migrated = 0 WHERE id = 1", [])
+            .unwrap();
         store
             .conn
             .execute(
@@ -6662,7 +6992,9 @@ mod tests {
 
         let checking_amount: String = store
             .conn
-            .query_row("SELECT amount FROM transactions WHERE account_id = ?1", params![checking], |row| row.get(0))
+            .query_row("SELECT amount FROM transactions WHERE account_id = ?1", params![checking], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(checking_amount, "-50.00", "a non-loan account's transactions must be untouched");
 
@@ -6688,7 +7020,9 @@ mod tests {
         let card = store.get_or_create_account("Rewards Credit Card", AccountType::Credit).unwrap();
         store.set_account_starting_balance(card, "0.00".parse().unwrap()).unwrap();
 
-        store.set_account_balance_override(card, "0.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(card, "0.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
         store.save_transactions(card, &[tx("2026-09-04", "test500", "-500.00")]).unwrap();
 
         let accounts = store.list_accounts("2026-09-04".parse().unwrap()).unwrap();
@@ -6705,8 +7039,12 @@ mod tests {
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
 
-        store.set_account_balance_override(checking, "2000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
-        let ids = store.save_transactions_with_ids(checking, &[tx("2026-09-05", "Refund", "300.00")]).unwrap();
+        store
+            .set_account_balance_override(checking, "2000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
+        let ids = store
+            .save_transactions_with_ids(checking, &[tx("2026-09-05", "Refund", "300.00")])
+            .unwrap();
         store.delete_transaction(ids[0], "2026-09-05T12:00:00".parse().unwrap()).unwrap();
 
         let accounts = store.list_accounts("2026-09-10".parse().unwrap()).unwrap();
@@ -6769,7 +7107,9 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
-        store.set_account_balance_override(checking, "5000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "5000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         // The migration already ran once as part of opening this store;
         // running it again explicitly must be a genuine no-op against a
@@ -6809,7 +7149,9 @@ mod tests {
         // The user then corrects the balance later the same day — its
         // checkpoint is *also* dated 2026-09-03 under the yesterday-anchor
         // scheme, tying with the rollover's row exactly.
-        store.set_account_balance_override(checking, "2500.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "2500.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-04".parse().unwrap()).unwrap();
         assert_eq!(
@@ -6825,7 +7167,9 @@ mod tests {
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
 
-        store.set_account_balance_override(checking, "5000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "5000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
         store.save_transactions(checking, &[tx("2026-09-10", "Groceries", "-40.00")]).unwrap();
 
         // Next month's automatic rollover has no idea a manual override ever
@@ -6847,13 +7191,20 @@ mod tests {
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
 
-        store.set_account_balance_override(checking, "0.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
-        assert_eq!(store.list_accounts("2026-09-04".parse().unwrap()).unwrap()[0].current_balance, "0.00".parse().unwrap());
+        store
+            .set_account_balance_override(checking, "0.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
+        assert_eq!(
+            store.list_accounts("2026-09-04".parse().unwrap()).unwrap()[0].current_balance,
+            "0.00".parse().unwrap()
+        );
 
         // A negative balance is legitimate (overdraft, or a credit
         // account's "available" going past its limit) — must not be
         // rejected or clamped.
-        store.set_account_balance_override(checking, "-250.00".parse().unwrap(), "2026-09-05".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "-250.00".parse().unwrap(), "2026-09-05".parse().unwrap())
+            .unwrap();
         assert_eq!(
             store.list_accounts("2026-09-05".parse().unwrap()).unwrap()[0].current_balance,
             "-250.00".parse().unwrap()
@@ -6866,7 +7217,9 @@ mod tests {
         let card = store.get_or_create_account("Rewards Credit Card", AccountType::Credit).unwrap();
         store.set_account_starting_balance(card, "3000.00".parse().unwrap()).unwrap(); // credit limit
 
-        store.set_account_balance_override(card, "-1870.96".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(card, "-1870.96".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-04".parse().unwrap()).unwrap();
         assert_eq!(
@@ -6883,9 +7236,13 @@ mod tests {
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
 
-        store.set_account_balance_override(checking, "2000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "2000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
         store.save_transactions(checking, &[tx("2026-09-05", "Coffee", "-5.00")]).unwrap();
-        store.set_account_balance_override(checking, "3000.00".parse().unwrap(), "2026-09-08".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "3000.00".parse().unwrap(), "2026-09-08".parse().unwrap())
+            .unwrap();
         store.save_transactions(checking, &[tx("2026-09-09", "Groceries", "-40.00")]).unwrap();
 
         // A date between the two corrections must still reflect the first
@@ -6916,10 +7273,16 @@ mod tests {
         // Feb 28th. A transaction dated the leap day itself, entered before
         // the override, must be absorbed (not double-counted); one dated
         // the override's own day, entered after, must still count.
-        store.save_transactions(checking, &[tx("2028-02-29", "Leap day charge", "-15.00")]).unwrap();
+        store
+            .save_transactions(checking, &[tx("2028-02-29", "Leap day charge", "-15.00")])
+            .unwrap();
 
-        store.set_account_balance_override(checking, "2000.00".parse().unwrap(), "2028-03-01".parse().unwrap()).unwrap();
-        store.save_transactions(checking, &[tx("2028-03-01", "Same-day charge", "-25.00")]).unwrap();
+        store
+            .set_account_balance_override(checking, "2000.00".parse().unwrap(), "2028-03-01".parse().unwrap())
+            .unwrap();
+        store
+            .save_transactions(checking, &[tx("2028-03-01", "Same-day charge", "-25.00")])
+            .unwrap();
 
         assert_eq!(
             store.list_accounts("2028-03-01".parse().unwrap()).unwrap()[0].current_balance,
@@ -6935,7 +7298,9 @@ mod tests {
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
         store.set_account_starting_balance(savings, "500.00".parse().unwrap()).unwrap();
 
-        store.set_account_balance_override(checking, "9999.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "9999.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-04".parse().unwrap()).unwrap();
         assert_eq!(
@@ -6976,9 +7341,7 @@ mod tests {
                 ],
             )
             .unwrap();
-        store
-            .save_transactions(savings, &[tx("2026-08-01", "Transfer In", "500.00")])
-            .unwrap();
+        store.save_transactions(savings, &[tx("2026-08-01", "Transfer In", "500.00")]).unwrap();
 
         let affected = store.delete_account(checking).unwrap();
 
@@ -7039,7 +7402,14 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store
-            .create_recurring("Netflix", None, "-15.00".parse().unwrap(), "monthly", "2026-08-01".parse().unwrap(), Some(checking))
+            .create_recurring(
+                "Netflix",
+                None,
+                "-15.00".parse().unwrap(),
+                "monthly",
+                "2026-08-01".parse().unwrap(),
+                Some(checking),
+            )
             .unwrap();
 
         store.delete_account(checking).unwrap();
@@ -7055,9 +7425,7 @@ mod tests {
         let checking = test_account(&store);
         let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
         store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")]).unwrap();
         let source_id = store.all_transactions().unwrap()[0].id;
         store
             .apply_debt_payment(source_id, loan, "500.00".parse().unwrap(), "2026-08-20".parse().unwrap())
@@ -7076,7 +7444,13 @@ mod tests {
 
         let members = store.list_family_members().unwrap();
 
-        assert_eq!(members, vec![FamilyMember { id, name: "Alex".to_string() }]);
+        assert_eq!(
+            members,
+            vec![FamilyMember {
+                id,
+                name: "Alex".to_string()
+            }]
+        );
     }
 
     #[test]
@@ -7334,10 +7708,7 @@ mod tests {
         let member = store.create_family_member("Alex").unwrap();
         let checking = test_account(&store);
         store
-            .save_transactions(
-                checking,
-                &[tx("2026-08-01", "Groceries", "-50.00"), tx("2026-08-02", "Gas", "-40.00")],
-            )
+            .save_transactions(checking, &[tx("2026-08-01", "Groceries", "-50.00"), tx("2026-08-02", "Gas", "-40.00")])
             .unwrap();
         let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
 
@@ -7370,10 +7741,26 @@ mod tests {
         let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
         store.set_account_starting_balance(brokerage, "0".parse().unwrap()).unwrap();
         store
-            .create_holding(brokerage, "VTI", "Vanguard Total Stock", "10".parse().unwrap(), "265.00".parse().unwrap(), "2000.00".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "VTI",
+                "Vanguard Total Stock",
+                "10".parse().unwrap(),
+                "265.00".parse().unwrap(),
+                "2000.00".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store
-            .create_holding(brokerage, "BND", "Vanguard Total Bond", "20".parse().unwrap(), "71.50".parse().unwrap(), "1300.00".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "BND",
+                "Vanguard Total Bond",
+                "20".parse().unwrap(),
+                "71.50".parse().unwrap(),
+                "1300.00".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
         let accounts = store.list_accounts(far_future()).unwrap();
@@ -7655,11 +8042,8 @@ mod tests {
                 );",
             )
             .unwrap();
-            conn.execute(
-                "INSERT INTO accounts (name, account_type) VALUES ('Everyday Checking', 'checking')",
-                [],
-            )
-            .unwrap();
+            conn.execute("INSERT INTO accounts (name, account_type) VALUES ('Everyday Checking', 'checking')", [])
+                .unwrap();
         } // old-style connection dropped here
 
         let store = Store::open(&db_path).unwrap();
@@ -7706,11 +8090,8 @@ mod tests {
                 );",
             )
             .unwrap();
-            conn.execute(
-                "INSERT INTO accounts (name, account_type) VALUES ('Everyday Checking', 'checking')",
-                [],
-            )
-            .unwrap();
+            conn.execute("INSERT INTO accounts (name, account_type) VALUES ('Everyday Checking', 'checking')", [])
+                .unwrap();
             conn.execute(
                 "INSERT INTO transactions (account_id, date, description, amount) VALUES (1, '2026-08-05', 'Groceries', '-60.00')",
                 [],
@@ -7754,12 +8135,16 @@ mod tests {
         store.update_transaction_amount(id, "-65.00".parse().unwrap()).unwrap();
         store.save_transactions(loan, &[tx("2026-08-05", "Mortgage Payment", "2500.00")]).unwrap();
         let mortgage_tx_id = store.all_transactions().unwrap().iter().find(|t| t.account_id == loan).unwrap().id;
-        store.update_transaction_principal_amount(mortgage_tx_id, Some("500.00".parse().unwrap())).unwrap();
+        store
+            .update_transaction_principal_amount(mortgage_tx_id, Some("500.00".parse().unwrap()))
+            .unwrap();
         // Correcting the raw `amount` of a transaction whose principal
         // override is still set must report no balance movement at all —
         // the override, not `amount`, is what counts toward the loan.
         store.update_transaction_amount(mortgage_tx_id, "2600.00".parse().unwrap()).unwrap();
-        store.delete_transaction(id, chrono::NaiveDate::from_ymd_opt(2026, 8, 6).unwrap().and_hms_opt(0, 0, 0).unwrap()).unwrap();
+        store
+            .delete_transaction(id, chrono::NaiveDate::from_ymd_opt(2026, 8, 6).unwrap().and_hms_opt(0, 0, 0).unwrap())
+            .unwrap();
         store.restore_transactions(&[id]).unwrap();
         drop(store);
 
@@ -7810,25 +8195,10 @@ mod tests {
     }
 
     #[test]
-    fn check_duplicates_applies_within_the_same_account() {
-        let store = Store::open_in_memory().unwrap();
-        let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
-
-        let same_content = vec![tx("2026-08-20", "Transfer", "-100.00")];
-        store.save_transactions(checking, &same_content).unwrap();
-
-        let flags = store.check_duplicates(checking, &same_content).unwrap();
-
-        assert_eq!(flags, vec![true]);
-    }
-
-    #[test]
     fn all_transactions_reports_which_account_each_row_belongs_to() {
         let store = Store::open_in_memory().unwrap();
         let credit = store.get_or_create_account("Sapphire Rewards", AccountType::Credit).unwrap();
-        store
-            .save_transactions(credit, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")])
-            .unwrap();
+        store.save_transactions(credit, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")]).unwrap();
 
         let stored = store.all_transactions().unwrap();
         assert_eq!(stored[0].account_id, credit);
@@ -7848,10 +8218,131 @@ mod tests {
 
         store.update_transaction_amount(id, "-7.25".parse().unwrap()).unwrap();
 
+        assert_eq!(store.all_transactions().unwrap()[0].transaction.amount, "-7.25".parse().unwrap());
+    }
+
+    /// Regression test for a real reporting-inconsistency bug: editing a
+    /// split transaction's parent amount used to leave its splits summing
+    /// to the *old* amount, so the transaction and its own split
+    /// breakdown silently disagreed with each other. The fix rescales
+    /// every split proportionally so they still sum to exactly the new
+    /// amount, preserving each one's relative share of the total.
+    #[test]
+    fn update_transaction_amount_rescales_splits_that_no_longer_sum_to_the_new_amount() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store.save_transactions(account, &[tx("2026-08-20", "Groceries run", "-100.00")]).unwrap();
+        let id = store.all_transactions().unwrap()[0].id;
+        store
+            .set_transaction_splits(
+                id,
+                &[
+                    ("Groceries".to_string(), "-60.00".parse().unwrap(), None),
+                    ("Household".to_string(), "-40.00".parse().unwrap(), None),
+                ],
+            )
+            .unwrap();
+
+        let splits_reconciled = store.update_transaction_amount(id, "-200.00".parse().unwrap()).unwrap();
+
+        assert!(splits_reconciled, "expected the now-mismatched splits to be reported as reconciled");
+        assert_eq!(store.all_transactions().unwrap()[0].transaction.amount, "-200.00".parse().unwrap());
+        let splits = store.list_transaction_splits(id).unwrap();
+        assert_eq!(splits.len(), 2, "reconciling must not drop either split");
+        // Same 60/40 relative share as before, just doubled along with the total.
+        assert_eq!(splits[0].category.as_deref(), Some("Groceries"));
+        assert_eq!(splits[0].amount, "-120.00".parse().unwrap());
+        assert_eq!(splits[1].category.as_deref(), Some("Household"));
+        assert_eq!(splits[1].amount, "-80.00".parse().unwrap());
+        let total: rust_decimal::Decimal = splits.iter().map(|s| s.amount).sum();
         assert_eq!(
-            store.all_transactions().unwrap()[0].transaction.amount,
-            "-7.25".parse().unwrap()
+            total,
+            "-200.00".parse().unwrap(),
+            "splits must sum to exactly the new amount, not just approximately"
         );
+    }
+
+    #[test]
+    fn update_transaction_amount_splits_a_zero_sum_breakdown_evenly() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store.save_transactions(account, &[tx("2026-08-20", "Wash", "0.00")]).unwrap();
+        let id = store.all_transactions().unwrap()[0].id;
+        store
+            .set_transaction_splits(
+                id,
+                &[
+                    ("Refund".to_string(), "-50.00".parse().unwrap(), None),
+                    ("Fee".to_string(), "50.00".parse().unwrap(), None),
+                ],
+            )
+            .unwrap();
+
+        store.update_transaction_amount(id, "-100.00".parse().unwrap()).unwrap();
+
+        let splits = store.list_transaction_splits(id).unwrap();
+        let total: rust_decimal::Decimal = splits.iter().map(|s| s.amount).sum();
+        assert_eq!(
+            total,
+            "-100.00".parse().unwrap(),
+            "a zero-sum breakdown has no ratio to scale by, so it splits evenly instead"
+        );
+    }
+
+    #[test]
+    fn update_transaction_amount_rescaling_handles_a_remainder_penny_exactly() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(account, &[tx("2026-08-20", "Split three ways", "-100.00")])
+            .unwrap();
+        let id = store.all_transactions().unwrap()[0].id;
+        store
+            .set_transaction_splits(
+                id,
+                &[
+                    ("A".to_string(), "-33.34".parse().unwrap(), None),
+                    ("B".to_string(), "-33.33".parse().unwrap(), None),
+                    ("C".to_string(), "-33.33".parse().unwrap(), None),
+                ],
+            )
+            .unwrap();
+
+        // A ratio that doesn't divide evenly into cents (-10.00 / -100.00 =
+        // 0.1) is exactly the case naive per-split rounding can drift on.
+        store.update_transaction_amount(id, "-10.00".parse().unwrap()).unwrap();
+
+        let splits = store.list_transaction_splits(id).unwrap();
+        let total: rust_decimal::Decimal = splits.iter().map(|s| s.amount).sum();
+        assert_eq!(
+            total,
+            "-10.00".parse().unwrap(),
+            "the last split must absorb any rounding remainder so the total is exact"
+        );
+    }
+
+    #[test]
+    fn update_transaction_amount_keeps_splits_that_still_sum_correctly() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store.save_transactions(account, &[tx("2026-08-20", "Groceries run", "-100.00")]).unwrap();
+        let id = store.all_transactions().unwrap()[0].id;
+        store
+            .set_transaction_splits(
+                id,
+                &[
+                    ("Groceries".to_string(), "-60.00".parse().unwrap(), None),
+                    ("Household".to_string(), "-40.00".parse().unwrap(), None),
+                ],
+            )
+            .unwrap();
+
+        // Same total, just re-entered — a no-op edit shouldn't disturb an
+        // already-consistent split breakdown.
+        let splits_reconciled = store.update_transaction_amount(id, "-100.00".parse().unwrap()).unwrap();
+
+        assert!(!splits_reconciled);
+        assert_eq!(store.list_transaction_splits(id).unwrap().len(), 2);
     }
 
     #[test]
@@ -7866,14 +8357,10 @@ mod tests {
 
         // re-importing the same file (still says -6.75) should look new now,
         // since the stored row's fingerprint moved with the corrected amount
-        let flags = store
-            .check_duplicates(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")])
-            .unwrap();
+        let flags = store.check_duplicates(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")]).unwrap();
         assert_eq!(flags, vec![false]);
 
-        let flags = store
-            .check_duplicates(account, &[tx("2026-08-20", "Ferrywood Coffee", "-7.25")])
-            .unwrap();
+        let flags = store.check_duplicates(account, &[tx("2026-08-20", "Ferrywood Coffee", "-7.25")]).unwrap();
         assert_eq!(flags, vec![true]);
     }
 
@@ -7909,7 +8396,9 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let loan = store.get_or_create_account("Mortgage", AccountType::Loan).unwrap();
         store.set_account_starting_balance(loan, "300000.00".parse().unwrap()).unwrap();
-        store.save_transactions(loan, &[tx("2026-08-05", "Extra Principal Payment", "500.00")]).unwrap();
+        store
+            .save_transactions(loan, &[tx("2026-08-05", "Extra Principal Payment", "500.00")])
+            .unwrap();
 
         let accounts = store.list_accounts(far_future()).unwrap();
         assert_eq!(accounts[0].current_balance, "299500.00".parse().unwrap());
@@ -7954,7 +8443,9 @@ mod tests {
         let id = store.all_transactions().unwrap()[0].id;
         store.update_transaction_principal_amount(id, Some("500.00".parse().unwrap())).unwrap();
 
-        store.set_account_balance_override(loan, "8000.00".parse().unwrap(), "2026-09-04".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(loan, "8000.00".parse().unwrap(), "2026-09-04".parse().unwrap())
+            .unwrap();
 
         let accounts = store.list_accounts("2026-09-04".parse().unwrap()).unwrap();
         assert_eq!(
@@ -7992,24 +8483,35 @@ mod tests {
     fn update_transaction_date_persists_the_new_date() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store.save_transactions(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")]).unwrap();
+        store
+            .save_transactions(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")])
+            .unwrap();
         let id = store.all_transactions().unwrap()[0].id;
 
         store.update_transaction_date(id, "2026-08-21".parse().unwrap()).unwrap();
 
-        assert_eq!(store.all_transactions().unwrap()[0].transaction.date, "2026-08-21".parse::<NaiveDate>().unwrap());
+        assert_eq!(
+            store.all_transactions().unwrap()[0].transaction.date,
+            "2026-08-21".parse::<NaiveDate>().unwrap()
+        );
     }
 
     #[test]
     fn update_transaction_date_keeps_dedup_working_against_the_corrected_value() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store.save_transactions(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")]).unwrap();
+        store
+            .save_transactions(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")])
+            .unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.update_transaction_date(id, "2026-08-21".parse().unwrap()).unwrap();
 
         let flags = store.check_duplicates(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")]).unwrap();
-        assert_eq!(flags, vec![false], "re-importing the original date should look new now that the stored row moved");
+        assert_eq!(
+            flags,
+            vec![false],
+            "re-importing the original date should look new now that the stored row moved"
+        );
 
         let flags = store.check_duplicates(account, &[tx("2026-08-21", "Ferrywood Coffee", "-6.75")]).unwrap();
         assert_eq!(flags, vec![true]);
@@ -8025,7 +8527,9 @@ mod tests {
     fn update_transaction_description_persists_the_new_description() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store.save_transactions(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")]).unwrap();
+        store
+            .save_transactions(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")])
+            .unwrap();
         let id = store.all_transactions().unwrap()[0].id;
 
         store.update_transaction_description(id, "Ferrywood Coffee Co.").unwrap();
@@ -8037,14 +8541,22 @@ mod tests {
     fn update_transaction_description_keeps_dedup_working_against_the_corrected_value() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store.save_transactions(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")]).unwrap();
+        store
+            .save_transactions(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")])
+            .unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.update_transaction_description(id, "Ferrywood Coffee Co.").unwrap();
 
         let flags = store.check_duplicates(account, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")]).unwrap();
-        assert_eq!(flags, vec![false], "re-importing the original description should look new now that the stored row moved");
+        assert_eq!(
+            flags,
+            vec![false],
+            "re-importing the original description should look new now that the stored row moved"
+        );
 
-        let flags = store.check_duplicates(account, &[tx("2026-08-20", "Ferrywood Coffee Co.", "-6.75")]).unwrap();
+        let flags = store
+            .check_duplicates(account, &[tx("2026-08-20", "Ferrywood Coffee Co.", "-6.75")])
+            .unwrap();
         assert_eq!(flags, vec![true]);
     }
 
@@ -8091,7 +8603,11 @@ mod tests {
         store.add_tag(id, "reimbursable").unwrap();
 
         store.delete_transaction(id, test_now()).unwrap();
-        assert_eq!(store.list_all_tags().unwrap(), Vec::<String>::new(), "a deleted transaction's tags don't leak into autocomplete");
+        assert_eq!(
+            store.list_all_tags().unwrap(),
+            Vec::<String>::new(),
+            "a deleted transaction's tags don't leak into autocomplete"
+        );
 
         store.restore_transactions(&[id]).unwrap();
 
@@ -8109,10 +8625,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store
-            .save_transactions(
-                account,
-                &[tx("2026-08-05", "Target", "-50.00"), tx("2026-08-06", "Costco", "-75.00")],
-            )
+            .save_transactions(account, &[tx("2026-08-05", "Target", "-50.00"), tx("2026-08-06", "Costco", "-75.00")])
             .unwrap();
         let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
         for &id in &ids {
@@ -8133,9 +8646,7 @@ mod tests {
         let checking = test_account(&store);
         let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
         store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")]).unwrap();
         let source_id = store.all_transactions().unwrap()[0].id;
 
         store
@@ -8153,9 +8664,7 @@ mod tests {
         let checking = test_account(&store);
         let credit_card = store.get_or_create_account("Visa", AccountType::Credit).unwrap();
         store.set_account_starting_balance(credit_card, "2000.00".parse().unwrap()).unwrap(); // credit limit
-        store
-            .save_transactions(credit_card, &[tx("2026-08-15", "Groceries", "-300.00")])
-            .unwrap();
+        store.save_transactions(credit_card, &[tx("2026-08-15", "Groceries", "-300.00")]).unwrap();
         store
             .save_transactions(checking, &[tx("2026-08-20", "Credit Card Payment", "-200.00")])
             .unwrap();
@@ -8205,9 +8714,7 @@ mod tests {
         let checking = test_account(&store);
         let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
         store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")]).unwrap();
         let source_id = store.all_transactions().unwrap()[0].id;
         store
             .apply_debt_payment(source_id, loan, "500.00".parse().unwrap(), "2026-08-20".parse().unwrap())
@@ -8237,9 +8744,7 @@ mod tests {
         let checking = test_account(&store);
         let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
         store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")]).unwrap();
         let source_id = store.all_transactions().unwrap()[0].id;
         store
             .apply_debt_payment(source_id, loan, "500.00".parse().unwrap(), "2026-08-20".parse().unwrap())
@@ -8262,9 +8767,7 @@ mod tests {
         let checking = test_account(&store);
         let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
         store.set_account_starting_balance(loan, "10000.00".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-20", "Loan Payment", "-500.00")]).unwrap();
         let source_id = store.all_transactions().unwrap()[0].id;
 
         let before = store.all_transactions().unwrap();
@@ -8275,13 +8778,7 @@ mod tests {
             .unwrap();
 
         let after = store.all_transactions().unwrap();
-        let applied = after
-            .iter()
-            .find(|t| t.id == source_id)
-            .unwrap()
-            .applied_to_debt
-            .as_ref()
-            .unwrap();
+        let applied = after.iter().find(|t| t.id == source_id).unwrap().applied_to_debt.as_ref().unwrap();
         assert_eq!(applied.debt_account_id, loan);
         assert_eq!(applied.debt_account_name, "Car Loan");
         assert_eq!(applied.amount, "500.00".parse().unwrap());
@@ -8336,9 +8833,7 @@ mod tests {
     fn setting_splits_replaces_any_previous_set() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
 
         store
@@ -8368,9 +8863,7 @@ mod tests {
     fn all_transactions_reports_split_count() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         assert_eq!(store.all_transactions().unwrap()[0].split_count, 0);
 
@@ -8395,9 +8888,7 @@ mod tests {
         // own doc comment for why.
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store
             .set_transaction_splits(id, &[("Groceries".to_string(), "-100.00".parse().unwrap(), None)])
@@ -8406,7 +8897,10 @@ mod tests {
         store.delete_transaction(id, test_now()).unwrap();
 
         assert_eq!(store.list_transaction_splits(id).unwrap().len(), 1, "splits must survive a soft delete");
-        assert!(store.all_transactions().unwrap().is_empty(), "but the transaction itself must not be listed");
+        assert!(
+            store.all_transactions().unwrap().is_empty(),
+            "but the transaction itself must not be listed"
+        );
 
         store.restore_transactions(&[id]).unwrap();
 
@@ -8420,9 +8914,7 @@ mod tests {
         let account = test_account(&store);
         store.set_budget("Groceries", "0000-01", "200.00".parse().unwrap(), "flexible").unwrap();
         store.set_budget("Household", "0000-01", "100.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
         store
@@ -8450,9 +8942,7 @@ mod tests {
     fn renaming_a_category_updates_it_within_transaction_splits_too() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store
             .set_transaction_splits(id, &[("Groceries".to_string(), "-100.00".parse().unwrap(), None)])
@@ -8467,9 +8957,7 @@ mod tests {
     fn deleting_a_category_nulls_it_out_within_transaction_splits_too() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store
             .set_transaction_splits(id, &[("Groceries".to_string(), "-100.00".parse().unwrap(), None)])
@@ -8486,9 +8974,7 @@ mod tests {
     fn adding_and_removing_tags_on_a_transaction() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
 
         store.add_tag(id, "reimbursable").unwrap();
@@ -8507,9 +8993,7 @@ mod tests {
     fn adding_the_same_tag_twice_is_a_harmless_no_op() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
 
         store.add_tag(id, "reimbursable").unwrap();
@@ -8523,10 +9007,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store
-            .save_transactions(
-                account,
-                &[tx("2026-08-05", "Target", "-100.00"), tx("2026-08-06", "Costco", "-200.00")],
-            )
+            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00"), tx("2026-08-06", "Costco", "-200.00")])
             .unwrap();
         let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
         store.add_tag(ids[0], "reimbursable").unwrap();
@@ -8542,9 +9023,7 @@ mod tests {
     fn deleting_a_transaction_removes_its_tags() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.add_tag(id, "reimbursable").unwrap();
 
@@ -8658,9 +9137,7 @@ mod tests {
     #[test]
     fn a_blank_budget_period_lands_in_the_default_period() {
         let store = Store::open_in_memory().unwrap();
-        let data = setup_data(
-            "Budgets\nCategory,Group,Monthly Amount,Period\nGroceries,flexible,400.00,\n",
-        );
+        let data = setup_data("Budgets\nCategory,Group,Monthly Amount,Period\nGroceries,flexible,400.00,\n");
 
         store.apply_setup_import(&data, "2026-09").unwrap();
 
@@ -8672,9 +9149,7 @@ mod tests {
     #[test]
     fn a_buckets_unknown_linked_account_is_skipped_but_the_bucket_is_still_created() {
         let store = Store::open_in_memory().unwrap();
-        let data = setup_data(
-            "Buckets\nName,Target Amount,Target Date,Linked Account\nVacation,1000.00,,No Such Account\n",
-        );
+        let data = setup_data("Buckets\nName,Target Amount,Target Date,Linked Account\nVacation,1000.00,,No Such Account\n");
 
         let outcome = store.apply_setup_import(&data, "2026-08").unwrap();
 
@@ -8769,9 +9244,7 @@ mod tests {
         // the Categories section must still leave that category selectable
         // everywhere, same as creating a budget line through the UI does.
         let store = Store::open_in_memory().unwrap();
-        let data = setup_data(
-            "Budgets\nCategory,Group,Monthly Amount,Period\nBrand New Category,fixed,100.00,2026-08\n",
-        );
+        let data = setup_data("Budgets\nCategory,Group,Monthly Amount,Period\nBrand New Category,fixed,100.00,2026-08\n");
 
         store.apply_setup_import(&data, "2026-08").unwrap();
 
@@ -8812,7 +9285,15 @@ mod tests {
         let target_date: NaiveDate = "2027-04-15".parse().unwrap();
 
         store
-            .create_bucket("Japan Trip", Some("6000.00".parse().unwrap()), Some(target_date), Some(savings), None, None, None)
+            .create_bucket(
+                "Japan Trip",
+                Some("6000.00".parse().unwrap()),
+                Some(target_date),
+                Some(savings),
+                None,
+                None,
+                None,
+            )
             .unwrap();
 
         let bucket = &store.list_buckets().unwrap()[0];
@@ -8841,7 +9322,9 @@ mod tests {
     #[test]
     fn update_bucket_details_on_an_unknown_id_is_a_harmless_no_op() {
         let store = Store::open_in_memory().unwrap();
-        store.update_bucket_details(999, Some("100.00".parse().unwrap()), None, None, None, None, None).unwrap();
+        store
+            .update_bucket_details(999, Some("100.00".parse().unwrap()), None, None, None, None, None)
+            .unwrap();
     }
 
     #[test]
@@ -8871,21 +9354,13 @@ mod tests {
             .add_bucket_contribution(id, "2026-08-01".parse().unwrap(), "200.00".parse().unwrap(), None)
             .unwrap();
         store
-            .add_bucket_contribution(
-                id,
-                "2026-08-15".parse().unwrap(),
-                "150.00".parse().unwrap(),
-                Some("bonus"),
-            )
+            .add_bucket_contribution(id, "2026-08-15".parse().unwrap(), "150.00".parse().unwrap(), Some("bonus"))
             .unwrap();
         store
             .add_bucket_contribution(id, "2026-08-20".parse().unwrap(), "-50.00".parse().unwrap(), None)
             .unwrap();
 
-        assert_eq!(
-            store.list_buckets().unwrap()[0].saved_amount,
-            "300.00".parse().unwrap()
-        );
+        assert_eq!(store.list_buckets().unwrap()[0].saved_amount, "300.00".parse().unwrap());
     }
 
     #[test]
@@ -9013,23 +9488,51 @@ mod tests {
     }
 
     #[test]
-    fn setting_the_same_category_again_updates_rather_than_duplicates() {
-        let store = Store::open_in_memory().unwrap();
-        store.set_budget("Groceries", "0000-01", "400.00".parse().unwrap(), "flexible").unwrap();
-        store.set_budget("Groceries", "0000-01", "450.00".parse().unwrap(), "flexible").unwrap();
+    fn budget_upsert_field_matrix() {
+        struct Case {
+            label: &'static str,
+            first_amount: &'static str,
+            first_group: &'static str,
+            second_amount: &'static str,
+            second_group: &'static str,
+            expected_amount: &'static str,
+            expected_group: &'static str,
+        }
+        let cases = [
+            Case {
+                label: "re-setting the amount updates rather than duplicates",
+                first_amount: "400.00",
+                first_group: "flexible",
+                second_amount: "450.00",
+                second_group: "flexible",
+                expected_amount: "450.00",
+                expected_group: "flexible",
+            },
+            Case {
+                label: "re-setting the group updates it too",
+                first_amount: "400.00",
+                first_group: "flexible",
+                second_amount: "400.00",
+                second_group: "nonmonthly",
+                expected_amount: "400.00",
+                expected_group: "nonmonthly",
+            },
+        ];
 
-        let budgets = store.list_budgets("0000-01").unwrap();
-        assert_eq!(budgets.len(), 1);
-        assert_eq!(budgets[0].monthly_amount, "450.00".parse().unwrap());
-    }
+        for case in cases {
+            let store = Store::open_in_memory().unwrap();
+            store
+                .set_budget("Groceries", "0000-01", case.first_amount.parse().unwrap(), case.first_group)
+                .unwrap();
+            store
+                .set_budget("Groceries", "0000-01", case.second_amount.parse().unwrap(), case.second_group)
+                .unwrap();
 
-    #[test]
-    fn setting_the_same_category_again_updates_the_group_too() {
-        let store = Store::open_in_memory().unwrap();
-        store.set_budget("Groceries", "0000-01", "400.00".parse().unwrap(), "flexible").unwrap();
-        store.set_budget("Groceries", "0000-01", "400.00".parse().unwrap(), "nonmonthly").unwrap();
-
-        assert_eq!(store.list_budgets("0000-01").unwrap()[0].budget_group, "nonmonthly");
+            let budgets = store.list_budgets("0000-01").unwrap();
+            assert_eq!(budgets.len(), 1, "case: {}", case.label);
+            assert_eq!(budgets[0].monthly_amount, case.expected_amount.parse().unwrap(), "case: {}", case.label);
+            assert_eq!(budgets[0].budget_group, case.expected_group, "case: {}", case.label);
+        }
     }
 
     #[test]
@@ -9077,7 +9580,11 @@ mod tests {
         let august = store.list_budgets("2026-08").unwrap();
         let september = store.list_budgets("2026-09").unwrap();
 
-        assert_eq!(august[0].monthly_amount, "400.00".parse().unwrap(), "editing September must not change August");
+        assert_eq!(
+            august[0].monthly_amount,
+            "400.00".parse().unwrap(),
+            "editing September must not change August"
+        );
         assert_eq!(september[0].monthly_amount, "600.00".parse().unwrap());
     }
 
@@ -9101,7 +9608,11 @@ mod tests {
 
         store.delete_budget("Groceries", "2026-09").unwrap();
 
-        assert_eq!(store.list_budgets("2026-08").unwrap().len(), 1, "August's line must survive deleting September's");
+        assert_eq!(
+            store.list_budgets("2026-08").unwrap().len(),
+            1,
+            "August's line must survive deleting September's"
+        );
         assert_eq!(store.list_budgets("2026-09").unwrap(), vec![]);
     }
 
@@ -9251,7 +9762,10 @@ mod tests {
                 checking,
                 &[
                     tx("2026-08-01", "Payroll Deposit", "3000.00"),
-                    Transaction { category: Some("Transfer".to_string()), ..tx("2026-08-10", "From Savings", "500.00") },
+                    Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx("2026-08-10", "From Savings", "500.00")
+                    },
                 ],
             )
             .unwrap();
@@ -9314,9 +9828,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store.set_budget("Groceries", "0000-01", "400.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2025-03-10", "Old Grocers", "-55.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2025-03-10", "Old Grocers", "-55.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
 
@@ -9335,9 +9847,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store.set_budget("Paycheck", "0000-01", "5000.00".parse().unwrap(), "income").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Employer Inc", "1200.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Employer Inc", "1200.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.set_category(id, "Paycheck", CategorySource::User, None).unwrap();
 
@@ -9375,7 +9885,11 @@ mod tests {
         let alex_row = by_member.iter().find(|m| m.member_id == Some(alex)).unwrap();
         let jordan_row = by_member.iter().find(|m| m.member_id == Some(jordan)).unwrap();
         assert_eq!(alex_row.actual, "60.00".parse().unwrap());
-        assert_eq!(alex_row.budgeted, "300.00".parse().unwrap(), "the shared budget target repeats on every member row");
+        assert_eq!(
+            alex_row.budgeted,
+            "300.00".parse().unwrap(),
+            "the shared budget target repeats on every member row"
+        );
         assert_eq!(jordan_row.actual, "40.00".parse().unwrap());
     }
 
@@ -9386,9 +9900,7 @@ mod tests {
         let alex = store.create_family_member("Alex").unwrap();
         store.set_budget("Groceries", "0000-01", "200.00".parse().unwrap(), "flexible").unwrap();
         store.set_budget("Household", "0000-01", "100.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Target", "-100.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
         store.set_transaction_member(id, Some(alex)).unwrap();
@@ -9406,7 +9918,11 @@ mod tests {
 
         let groceries = by_member.iter().find(|m| m.category == "Groceries").unwrap();
         let household = by_member.iter().find(|m| m.category == "Household").unwrap();
-        assert_eq!(groceries.member_id, Some(alex), "a split line has no member of its own — it's the parent's");
+        assert_eq!(
+            groceries.member_id,
+            Some(alex),
+            "a split line has no member of its own — it's the parent's"
+        );
         assert_eq!(household.member_id, Some(alex));
     }
 
@@ -9451,10 +9967,12 @@ mod tests {
         store.set_transaction_member(ids[0], Some(alex)).unwrap(); // ids[1] left unattributed
 
         let whole_total = store.monthly_budget_actuals(2026, 8).unwrap()[0].actual;
-        let by_member_total: Decimal =
-            store.monthly_budget_actuals_by_member(2026, 8).unwrap().iter().map(|m| m.actual).sum();
+        let by_member_total: Decimal = store.monthly_budget_actuals_by_member(2026, 8).unwrap().iter().map(|m| m.actual).sum();
 
-        assert_eq!(by_member_total, whole_total, "the per-member rows must reconcile with the category's own total");
+        assert_eq!(
+            by_member_total, whole_total,
+            "the per-member rows must reconcile with the category's own total"
+        );
     }
 
     #[test]
@@ -9532,7 +10050,7 @@ mod tests {
                 account,
                 &[
                     tx("2026-08-05", "City Power & Light", "-120.00"),
-                    tx("2026-08-20", "Groceries R Us", "-60.00"), // different category
+                    tx("2026-08-20", "Groceries R Us", "-60.00"),      // different category
                     tx("2025-07-05", "City Power & Light", "-110.00"), // different month
                 ],
             )
@@ -9557,9 +10075,7 @@ mod tests {
     fn transactions_for_category_in_month_includes_a_splits_own_line_instead_of_the_parent() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-08-10", "Costco", "-150.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-10", "Costco", "-150.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.set_category(id, "Shopping", CategorySource::User, None).unwrap();
         store
@@ -9584,7 +10100,10 @@ mod tests {
         let household = store.transactions_for_category_in_month("Household", 2026, 8).unwrap();
         assert_eq!(household[0].split_note.as_deref(), Some("paper towels"));
 
-        assert!(shopping.is_empty(), "a split transaction no longer counts under its own original category");
+        assert!(
+            shopping.is_empty(),
+            "a split transaction no longer counts under its own original category"
+        );
     }
 
     #[test]
@@ -9611,74 +10130,80 @@ mod tests {
     // Budget threshold alerts.
 
     #[test]
-    fn budget_alerts_for_month_is_empty_below_80_percent() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store.set_budget("Groceries", "0000-01", "400.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Green Leaf Grocers", "-100.00")])
-            .unwrap();
-        let id = store.all_transactions().unwrap()[0].id;
-        store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
+    fn budget_alerts_for_month_uncapped_threshold_matrix() {
+        struct Case {
+            label: &'static str,
+            spent: &'static str,
+            expect_alert: bool,
+            expected_category: Option<&'static str>,
+            expected_level: Option<&'static str>,
+            expected_pct: Option<&'static str>,
+        }
+        let cases = [
+            Case {
+                label: "25% spent should not alert",
+                spent: "-100.00",
+                expect_alert: false,
+                expected_category: None,
+                expected_level: None,
+                expected_pct: None,
+            },
+            Case {
+                label: "80% spent is a warning",
+                spent: "-320.00",
+                expect_alert: true,
+                expected_category: Some("Groceries"),
+                expected_level: Some("warning"),
+                expected_pct: None,
+            },
+            // Landing exactly on budget (remaining == $0.00) isn't
+            // overspending — only spending *past* it is. "over" is
+            // reserved for that.
+            Case {
+                label: "spent down to exactly the budget is a warning, not over",
+                spent: "-400.00",
+                expect_alert: true,
+                expected_category: None,
+                expected_level: Some("warning"),
+                expected_pct: Some("100"),
+            },
+            Case {
+                label: "spent past the budget is over",
+                spent: "-450.00",
+                expect_alert: true,
+                expected_category: None,
+                expected_level: Some("over"),
+                expected_pct: None,
+            },
+        ];
 
-        let alerts = store.budget_alerts_for_month(2026, 8).unwrap();
+        for case in cases {
+            let store = Store::open_in_memory().unwrap();
+            let account = test_account(&store);
+            store.set_budget("Groceries", "0000-01", "400.00".parse().unwrap(), "flexible").unwrap();
+            store
+                .save_transactions(account, &[tx("2026-08-05", "Green Leaf Grocers", case.spent)])
+                .unwrap();
+            let id = store.all_transactions().unwrap()[0].id;
+            store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
 
-        assert!(alerts.is_empty(), "25% spent should not alert, got {alerts:?}");
-    }
+            let alerts = store.budget_alerts_for_month(2026, 8).unwrap();
 
-    #[test]
-    fn budget_alerts_for_month_flags_a_category_at_80_percent_as_a_warning() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store.set_budget("Groceries", "0000-01", "400.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Green Leaf Grocers", "-320.00")])
-            .unwrap();
-        let id = store.all_transactions().unwrap()[0].id;
-        store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
-
-        let alerts = store.budget_alerts_for_month(2026, 8).unwrap();
-
-        assert_eq!(alerts.len(), 1);
-        assert_eq!(alerts[0].category, "Groceries");
-        assert_eq!(alerts[0].level, "warning");
-    }
-
-    #[test]
-    fn budget_alerts_for_month_flags_a_category_spent_down_to_exactly_its_budget_as_a_warning_not_over() {
-        // Landing exactly on budget (remaining == $0.00) isn't overspending
-        // — only spending *past* it is. "over" is reserved for that.
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store.set_budget("Groceries", "0000-01", "400.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Green Leaf Grocers", "-400.00")])
-            .unwrap();
-        let id = store.all_transactions().unwrap()[0].id;
-        store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
-
-        let alerts = store.budget_alerts_for_month(2026, 8).unwrap();
-
-        assert_eq!(alerts.len(), 1);
-        assert_eq!(alerts[0].level, "warning");
-        assert_eq!(alerts[0].pct, "100".parse().unwrap());
-    }
-
-    #[test]
-    fn budget_alerts_for_month_flags_a_category_spent_past_its_budget_as_over() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store.set_budget("Groceries", "0000-01", "400.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Green Leaf Grocers", "-450.00")])
-            .unwrap();
-        let id = store.all_transactions().unwrap()[0].id;
-        store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
-
-        let alerts = store.budget_alerts_for_month(2026, 8).unwrap();
-
-        assert_eq!(alerts.len(), 1);
-        assert_eq!(alerts[0].level, "over");
+            if !case.expect_alert {
+                assert!(alerts.is_empty(), "case: {} — got {alerts:?}", case.label);
+                continue;
+            }
+            assert_eq!(alerts.len(), 1, "case: {}", case.label);
+            if let Some(category) = case.expected_category {
+                assert_eq!(alerts[0].category, category, "case: {}", case.label);
+            }
+            if let Some(level) = case.expected_level {
+                assert_eq!(alerts[0].level, level, "case: {}", case.label);
+            }
+            if let Some(pct) = case.expected_pct {
+                assert_eq!(alerts[0].pct, pct.parse().unwrap(), "case: {}", case.label);
+            }
+        }
     }
 
     #[test]
@@ -9686,9 +10211,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store.set_budget("Paycheck", "0000-01", "5000.00".parse().unwrap(), "income").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Employer Inc", "9000.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Employer Inc", "9000.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.set_category(id, "Paycheck", CategorySource::User, None).unwrap();
 
@@ -9740,9 +10263,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store.set_budget("Miscellaneous", "0000-01", "0.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Odds and Ends", "-50.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Odds and Ends", "-50.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.set_category(id, "Miscellaneous", CategorySource::User, None).unwrap();
 
@@ -9752,8 +10273,8 @@ mod tests {
     }
 
     #[test]
-    fn budget_alerts_for_month_does_not_yet_warn_a_capped_category_below_90_percent_even_though_an_uncapped_category_at_the_same_spend_already_would(
-    ) {
+    fn budget_alerts_for_month_does_not_yet_warn_a_capped_category_below_90_percent_even_though_an_uncapped_category_at_the_same_spend_already_would()
+    {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store.set_budget("Dining Out", "0000-01", "100.00".parse().unwrap(), "flexible").unwrap();
@@ -9762,20 +10283,25 @@ mod tests {
         store
             .save_transactions(
                 account,
-                &[
-                    tx("2026-08-01", "Restaurant", "-85.00"),
-                    tx("2026-08-02", "Green Leaf Grocers", "-85.00"),
-                ],
+                &[tx("2026-08-01", "Restaurant", "-85.00"), tx("2026-08-02", "Green Leaf Grocers", "-85.00")],
             )
             .unwrap();
         for t in store.all_transactions().unwrap() {
-            let category = if t.transaction.description == "Restaurant" { "Dining Out" } else { "Groceries" };
+            let category = if t.transaction.description == "Restaurant" {
+                "Dining Out"
+            } else {
+                "Groceries"
+            };
             store.set_category(t.id, category, CategorySource::User, None).unwrap();
         }
 
         let alerts = store.budget_alerts_for_month(2026, 8).unwrap();
 
-        assert_eq!(alerts.len(), 1, "85% clears the uncapped 80% bar but not the capped 90% one, got {alerts:?}");
+        assert_eq!(
+            alerts.len(),
+            1,
+            "85% clears the uncapped 80% bar but not the capped 90% one, got {alerts:?}"
+        );
         assert_eq!(alerts[0].category, "Groceries");
     }
 
@@ -9785,9 +10311,7 @@ mod tests {
         let account = test_account(&store);
         store.set_budget("Dining Out", "0000-01", "100.00".parse().unwrap(), "flexible").unwrap();
         store.set_budget_cap("Dining Out", "0000-01", true).unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-01", "Restaurant", "-92.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-01", "Restaurant", "-92.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.set_category(id, "Dining Out", CategorySource::User, None).unwrap();
 
@@ -9805,9 +10329,7 @@ mod tests {
         let account = test_account(&store);
         store.set_budget("Dining Out", "0000-01", "100.00".parse().unwrap(), "flexible").unwrap();
         store.set_budget_cap("Dining Out", "0000-01", true).unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-01", "Restaurant", "-85.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-01", "Restaurant", "-85.00")]).unwrap();
         let id = store.all_transactions().unwrap()[0].id;
         store.set_category(id, "Dining Out", CategorySource::User, None).unwrap();
 
@@ -9945,12 +10467,8 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let checking = test_account(&store);
         let savings = store.get_or_create_account("Savings", AccountType::Savings).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-08-05", "Netflix 4471", "-15.99")])
-            .unwrap();
-        store
-            .save_transactions(savings, &[tx("2026-08-06", "Netflix 8823", "-15.99")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-05", "Netflix 4471", "-15.99")]).unwrap();
+        store.save_transactions(savings, &[tx("2026-08-06", "Netflix 8823", "-15.99")]).unwrap();
 
         let flags = store.anomaly_flags().unwrap();
 
@@ -9963,10 +10481,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store
-            .save_transactions(
-                account,
-                &[tx("2026-08-05", "Netflix", "-15.99"), tx("2026-08-06", "Spotify", "-15.99")],
-            )
+            .save_transactions(account, &[tx("2026-08-05", "Netflix", "-15.99"), tx("2026-08-06", "Spotify", "-15.99")])
             .unwrap();
 
         let flags = store.anomaly_flags().unwrap();
@@ -9975,19 +10490,52 @@ mod tests {
     }
 
     #[test]
-    fn does_not_flag_matches_more_than_a_few_days_apart() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store
-            .save_transactions(
-                account,
-                &[tx("2026-08-01", "Netflix", "-15.99"), tx("2026-08-20", "Netflix", "-15.99")],
-            )
-            .unwrap();
+    fn duplicate_anomaly_time_window_matrix() {
+        struct Case {
+            label: &'static str,
+            second_date: &'static str,
+            expect_duplicate_flags: bool,
+        }
+        let cases = [
+            Case {
+                label: "exactly 3 days apart must still flag both sides",
+                second_date: "2026-08-04",
+                expect_duplicate_flags: true,
+            },
+            Case {
+                label: "4 days apart is one day past the window",
+                second_date: "2026-08-05",
+                expect_duplicate_flags: false,
+            },
+            Case {
+                label: "19 days apart is a normal monthly bill",
+                second_date: "2026-08-20",
+                expect_duplicate_flags: false,
+            },
+        ];
 
-        let flags = store.anomaly_flags().unwrap();
+        for case in cases {
+            let store = Store::open_in_memory().unwrap();
+            let account = test_account(&store);
+            store
+                .save_transactions(
+                    account,
+                    &[tx("2026-08-01", "Netflix", "-15.99"), tx(case.second_date, "Netflix", "-15.99")],
+                )
+                .unwrap();
 
-        assert!(flags.iter().all(|f| f.kind != "duplicate"), "19 days apart is a normal monthly bill, got {flags:?}");
+            let flags = store.anomaly_flags().unwrap();
+            if case.expect_duplicate_flags {
+                assert_eq!(
+                    flags.iter().filter(|f| f.kind == "duplicate").count(),
+                    2,
+                    "case: {} — got {flags:?}",
+                    case.label
+                );
+            } else {
+                assert!(flags.iter().all(|f| f.kind != "duplicate"), "case: {} — got {flags:?}", case.label);
+            }
+        }
     }
 
     // Boundary cases for the sliding-window/bucketed rewrite of
@@ -9996,152 +10544,132 @@ mod tests {
     // every threshold in its doc comment.
 
     #[test]
-    fn flags_a_transaction_backed_by_history_exactly_180_days_back_but_not_181() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store
-            .save_transactions(
-                account,
-                &[
-                    // Exactly 180 days before 2026-08-01 is 2026-02-02 —
-                    // must still count (the window is `>=`, not `>`).
-                    tx("2026-02-02", "Cafe One", "-20.00"),
-                    tx("2026-03-01", "Cafe Two", "-20.00"),
-                    tx("2026-04-01", "Cafe Three", "-20.00"),
-                    tx("2026-08-01", "Fancy Steakhouse", "-200.00"),
-                ],
-            )
-            .unwrap();
-        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
-        for id in &ids {
-            store.set_category(*id, "Dining Out", CategorySource::User, None).unwrap();
+    fn large_anomaly_history_window_matrix() {
+        struct Case {
+            label: &'static str,
+            // Date of the oldest ("Cafe Zero"/"Cafe One") history row.
+            oldest_history_date: &'static str,
+            expect_large_flag: bool,
         }
+        let cases = [
+            Case {
+                // Exactly 180 days before 2026-08-01 is 2026-02-02 — must
+                // still count (the window is `>=`, not `>`).
+                label: "a history item exactly 180 days back must still count",
+                oldest_history_date: "2026-02-02",
+                expect_large_flag: true,
+            },
+            Case {
+                // 181 days before 2026-08-01 is 2026-02-01 — one day too
+                // old, so only 2 of these 3 fall in-window, leaving too
+                // little history to judge (< 3).
+                label: "181 days back is one day outside the window, too little history to judge",
+                oldest_history_date: "2026-02-01",
+                expect_large_flag: false,
+            },
+        ];
 
-        let flags = store.anomaly_flags().unwrap();
-        assert!(
-            flags.iter().any(|f| f.kind == "large" && f.transaction_id == *ids.last().unwrap()),
-            "a history item exactly 180 days back must still count: {flags:?}"
-        );
+        for case in cases {
+            let store = Store::open_in_memory().unwrap();
+            let account = test_account(&store);
+            store
+                .save_transactions(
+                    account,
+                    &[
+                        tx(case.oldest_history_date, "Cafe One", "-20.00"),
+                        tx("2026-03-01", "Cafe Two", "-20.00"),
+                        tx("2026-04-01", "Cafe Three", "-20.00"),
+                        tx("2026-08-01", "Fancy Steakhouse", "-200.00"),
+                    ],
+                )
+                .unwrap();
+            let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
+            for id in &ids {
+                store.set_category(*id, "Dining Out", CategorySource::User, None).unwrap();
+            }
+
+            let flags = store.anomaly_flags().unwrap();
+            if case.expect_large_flag {
+                assert!(
+                    flags.iter().any(|f| f.kind == "large" && f.transaction_id == *ids.last().unwrap()),
+                    "case: {} — got {flags:?}",
+                    case.label
+                );
+            } else {
+                assert!(
+                    flags.iter().all(|f| f.transaction_id != *ids.last().unwrap()),
+                    "case: {} — got {flags:?}",
+                    case.label
+                );
+            }
+        }
     }
 
     #[test]
-    fn does_not_count_history_181_days_back_toward_the_baseline() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store
-            .save_transactions(
-                account,
-                &[
-                    // 181 days before 2026-08-01 is 2026-02-01 — one day
-                    // too old, so only 2 of these 3 fall in-window,
-                    // leaving too little history to judge (< 3).
-                    tx("2026-02-01", "Cafe Zero", "-20.00"),
-                    tx("2026-03-01", "Cafe Two", "-20.00"),
-                    tx("2026-04-01", "Cafe Three", "-20.00"),
-                    tx("2026-08-01", "Fancy Steakhouse", "-200.00"),
-                ],
-            )
-            .unwrap();
-        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
-        for id in &ids {
-            store.set_category(*id, "Dining Out", CategorySource::User, None).unwrap();
-        }
-
-        let flags = store.anomaly_flags().unwrap();
-        assert!(
-            flags.iter().all(|f| f.transaction_id != *ids.last().unwrap()),
-            "only 2 of the 3 history items are in-window, too little to judge: {flags:?}"
-        );
-    }
-
-    #[test]
-    fn the_50_dollar_floor_is_exclusive_49_dollars_99_never_flags_even_over_the_multiple() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
+    fn large_anomaly_amount_floor_matrix() {
         // Baseline is $10 (2.5x = $25) — small enough that the $50 floor,
-        // not the multiple, is the binding constraint being tested.
-        store
-            .save_transactions(
-                account,
-                &[
-                    tx("2026-07-01", "Cafe One", "-10.00"),
-                    tx("2026-07-10", "Cafe Two", "-10.00"),
-                    tx("2026-07-20", "Cafe Three", "-10.00"),
-                    tx("2026-08-01", "Right At The Floor", "-49.99"),
-                ],
-            )
-            .unwrap();
-        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
-        for id in &ids {
-            store.set_category(*id, "Dining Out", CategorySource::User, None).unwrap();
+        // not the multiple, is the binding constraint being tested. The
+        // floor check is a strict `>` (see anomaly_flags), so exactly
+        // $50.00 must not flag either — only $49.99 and $50.01 were
+        // originally covered here; $50.00 pins that the boundary itself
+        // is excluded, not just "at or below."
+        struct Case {
+            label: &'static str,
+            amount: &'static str,
+            expect_large_flag: bool,
         }
+        let cases = [
+            Case {
+                label: "$49.99 is over the 2.5x multiple but under the $50 floor, must not flag",
+                amount: "-49.99",
+                expect_large_flag: false,
+            },
+            Case {
+                label: "$50.00 exactly is still not over the floor (strict greater-than)",
+                amount: "-50.00",
+                expect_large_flag: false,
+            },
+            Case {
+                label: "$50.01 clears both the multiple and the floor",
+                amount: "-50.01",
+                expect_large_flag: true,
+            },
+        ];
 
-        let flags = store.anomaly_flags().unwrap();
-        assert!(
-            flags.iter().all(|f| f.transaction_id != *ids.last().unwrap()),
-            "$49.99 is over the 2.5x multiple but under the $50 floor, must not flag: {flags:?}"
-        );
-    }
+        for case in cases {
+            let store = Store::open_in_memory().unwrap();
+            let account = test_account(&store);
+            store
+                .save_transactions(
+                    account,
+                    &[
+                        tx("2026-07-01", "Cafe One", "-10.00"),
+                        tx("2026-07-10", "Cafe Two", "-10.00"),
+                        tx("2026-07-20", "Cafe Three", "-10.00"),
+                        tx("2026-08-01", "Boundary Transaction", case.amount),
+                    ],
+                )
+                .unwrap();
+            let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
+            for id in &ids {
+                store.set_category(*id, "Dining Out", CategorySource::User, None).unwrap();
+            }
 
-    #[test]
-    fn just_over_the_50_dollar_floor_does_flag() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store
-            .save_transactions(
-                account,
-                &[
-                    tx("2026-07-01", "Cafe One", "-10.00"),
-                    tx("2026-07-10", "Cafe Two", "-10.00"),
-                    tx("2026-07-20", "Cafe Three", "-10.00"),
-                    tx("2026-08-01", "Just Over The Floor", "-50.01"),
-                ],
-            )
-            .unwrap();
-        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
-        for id in &ids {
-            store.set_category(*id, "Dining Out", CategorySource::User, None).unwrap();
+            let flags = store.anomaly_flags().unwrap();
+            if case.expect_large_flag {
+                assert!(
+                    flags.iter().any(|f| f.kind == "large" && f.transaction_id == *ids.last().unwrap()),
+                    "case: {} — got {flags:?}",
+                    case.label
+                );
+            } else {
+                assert!(
+                    flags.iter().all(|f| f.transaction_id != *ids.last().unwrap()),
+                    "case: {} — got {flags:?}",
+                    case.label
+                );
+            }
         }
-
-        let flags = store.anomaly_flags().unwrap();
-        assert!(
-            flags.iter().any(|f| f.kind == "large" && f.transaction_id == *ids.last().unwrap()),
-            "$50.01 clears both the multiple and the floor: {flags:?}"
-        );
-    }
-
-    #[test]
-    fn flags_duplicates_exactly_3_days_apart_but_not_4() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store
-            .save_transactions(
-                account,
-                &[tx("2026-08-01", "Netflix", "-15.99"), tx("2026-08-04", "Netflix", "-15.99")],
-            )
-            .unwrap();
-
-        let flags = store.anomaly_flags().unwrap();
-        assert_eq!(
-            flags.iter().filter(|f| f.kind == "duplicate").count(),
-            2,
-            "exactly 3 days apart must still flag both sides: {flags:?}"
-        );
-    }
-
-    #[test]
-    fn does_not_flag_duplicates_exactly_4_days_apart() {
-        let store = Store::open_in_memory().unwrap();
-        let account = test_account(&store);
-        store
-            .save_transactions(
-                account,
-                &[tx("2026-08-01", "Netflix", "-15.99"), tx("2026-08-05", "Netflix", "-15.99")],
-            )
-            .unwrap();
-
-        let flags = store.anomaly_flags().unwrap();
-        assert!(flags.iter().all(|f| f.kind != "duplicate"), "4 days apart is one day past the window: {flags:?}");
     }
 
     #[test]
@@ -10159,13 +10687,13 @@ mod tests {
             .save_transactions(
                 account,
                 &[
-                    tx("2026-07-20", "Cafe Three", "-20.00"), // Dining Out, out of date order
-                    tx("2026-07-01", "Gas Station A", "-40.00"), // Transportation
-                    tx("2026-07-01", "Cafe One", "-20.00"),   // Dining Out
-                    tx("2026-07-15", "Gas Station B", "-40.00"), // Transportation
-                    tx("2026-07-10", "Cafe Two", "-20.00"),   // Dining Out
-                    tx("2026-07-25", "Gas Station C", "-40.00"), // Transportation
-                    tx("2026-08-01", "Fancy Steakhouse", "-200.00"), // Dining Out anomaly
+                    tx("2026-07-20", "Cafe Three", "-20.00"),          // Dining Out, out of date order
+                    tx("2026-07-01", "Gas Station A", "-40.00"),       // Transportation
+                    tx("2026-07-01", "Cafe One", "-20.00"),            // Dining Out
+                    tx("2026-07-15", "Gas Station B", "-40.00"),       // Transportation
+                    tx("2026-07-10", "Cafe Two", "-20.00"),            // Dining Out
+                    tx("2026-07-25", "Gas Station C", "-40.00"),       // Transportation
+                    tx("2026-08-01", "Fancy Steakhouse", "-200.00"),   // Dining Out anomaly
                     tx("2026-08-01", "Airport Car Rental", "-400.00"), // Transportation anomaly
                 ],
             )
@@ -10181,8 +10709,7 @@ mod tests {
         }
 
         let flags = store.anomaly_flags().unwrap();
-        let large_flags: std::collections::HashSet<i64> =
-            flags.iter().filter(|f| f.kind == "large").map(|f| f.transaction_id).collect();
+        let large_flags: std::collections::HashSet<i64> = flags.iter().filter(|f| f.kind == "large").map(|f| f.transaction_id).collect();
 
         assert_eq!(
             large_flags,
@@ -10257,12 +10784,8 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let checking = test_account(&store);
         let savings = store.get_or_create_account("Savings", AccountType::Savings).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-08-05", "Netflix 4471", "-15.99")])
-            .unwrap();
-        store
-            .save_transactions(savings, &[tx("2026-08-06", "Netflix 8823", "-15.99")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-05", "Netflix 4471", "-15.99")]).unwrap();
+        store.save_transactions(savings, &[tx("2026-08-06", "Netflix 8823", "-15.99")]).unwrap();
 
         let result = store
             .large_expenses_in_range("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap())
@@ -10317,9 +10840,7 @@ mod tests {
         store.set_budget("Dining Out", "2026-08", "200.00".parse().unwrap(), "flexible").unwrap();
         // $100 spent in the first 10 days of a 31-day August projects to
         // $310 — well past the $200 budget (>1.1x).
-        store
-            .save_transactions(account, &[tx("2026-08-05", "Cafe", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-05", "Cafe", "-100.00")]).unwrap();
         for id in store.all_transactions().unwrap().iter().map(|t| t.id).collect::<Vec<_>>() {
             store.set_category(id, "Dining Out", CategorySource::User, None).unwrap();
         }
@@ -10337,9 +10858,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store.set_budget("Dining Out", "2026-08", "200.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-08-02", "Cafe", "-100.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-08-02", "Cafe", "-100.00")]).unwrap();
         for id in store.all_transactions().unwrap().iter().map(|t| t.id).collect::<Vec<_>>() {
             store.set_category(id, "Dining Out", CategorySource::User, None).unwrap();
         }
@@ -10347,7 +10866,10 @@ mod tests {
         // Only 3 days into the month — too little signal to project from.
         let insights = store.dashboard_insights("2026-08-03".parse().unwrap()).unwrap();
 
-        assert!(!insights.iter().any(|i| i.kind == "pace"), "expected no early-month pace insight: {insights:?}");
+        assert!(
+            !insights.iter().any(|i| i.kind == "pace"),
+            "expected no early-month pace insight: {insights:?}"
+        );
     }
 
     #[test]
@@ -10384,9 +10906,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store.set_budget("Groceries", "2026-09", "300.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-09-01", "Costco", "-250.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-09-01", "Costco", "-250.00")]).unwrap();
         for id in store.all_transactions().unwrap().iter().map(|t| t.id).collect::<Vec<_>>() {
             store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
         }
@@ -10485,9 +11005,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store.set_budget("Household", "2026-09", "100.00".parse().unwrap(), "flexible").unwrap();
-        store
-            .save_transactions(account, &[tx("2026-09-02", "Flooring Co", "-1500.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-09-02", "Flooring Co", "-1500.00")]).unwrap();
         for id in store.all_transactions().unwrap().iter().map(|t| t.id).collect::<Vec<_>>() {
             store.set_category(id, "Household", CategorySource::User, None).unwrap();
         }
@@ -10534,13 +11052,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         store
-            .save_transactions(
-                account,
-                &[
-                    tx("2026-07-05", "Grocer", "-100.00"),
-                    tx("2026-08-05", "Grocer", "-200.00"),
-                ],
-            )
+            .save_transactions(account, &[tx("2026-07-05", "Grocer", "-100.00"), tx("2026-08-05", "Grocer", "-200.00")])
             .unwrap();
         for id in store.all_transactions().unwrap().iter().map(|t| t.id).collect::<Vec<_>>() {
             store.set_category(id, "Groceries", CategorySource::User, None).unwrap();
@@ -10561,10 +11073,7 @@ mod tests {
         store
             .save_transactions(
                 account,
-                &[
-                    tx("2026-07-05", "Boutique", "-200.00"),
-                    tx("2026-08-05", "Boutique", "-50.00"),
-                ],
+                &[tx("2026-07-05", "Boutique", "-200.00"), tx("2026-08-05", "Boutique", "-50.00")],
             )
             .unwrap();
         for id in store.all_transactions().unwrap().iter().map(|t| t.id).collect::<Vec<_>>() {
@@ -10588,9 +11097,7 @@ mod tests {
         // since "stopped spending on it altogether" is the clearest case.
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store
-            .save_transactions(account, &[tx("2026-07-05", "Boutique", "-200.00")])
-            .unwrap();
+        store.save_transactions(account, &[tx("2026-07-05", "Boutique", "-200.00")]).unwrap();
         for id in store.all_transactions().unwrap().iter().map(|t| t.id).collect::<Vec<_>>() {
             store.set_category(id, "Shopping", CategorySource::User, None).unwrap();
         }
@@ -10647,7 +11154,11 @@ mod tests {
             )
             .unwrap();
         for t in store.all_transactions().unwrap() {
-            let category = if t.transaction.description == "Grocer" { "Groceries" } else { "Shopping" };
+            let category = if t.transaction.description == "Grocer" {
+                "Groceries"
+            } else {
+                "Shopping"
+            };
             store.set_category(t.id, category, CategorySource::User, None).unwrap();
         }
 
@@ -10683,7 +11194,9 @@ mod tests {
         let insights = store.dashboard_insights("2026-08-20".parse().unwrap()).unwrap();
 
         assert!(
-            insights.iter().any(|i| i.kind == "large_expense" && i.message.contains("Fancy Steakhouse")),
+            insights
+                .iter()
+                .any(|i| i.kind == "large_expense" && i.message.contains("Fancy Steakhouse")),
             "expected a large-expense insight: {insights:?}"
         );
     }
@@ -10691,55 +11204,38 @@ mod tests {
     // Recurring.
 
     #[test]
-    fn next_occurrence_returns_the_anchor_itself_when_it_is_still_in_the_future() {
-        let anchor: NaiveDate = "2026-09-01".parse().unwrap();
-        let today: NaiveDate = "2026-08-20".parse().unwrap();
-        assert_eq!(next_occurrence(anchor, "monthly", today), anchor);
-    }
+    fn next_occurrence_matches_cadence_and_calendar_cases() {
+        let cases = [
+            ("future anchor", "monthly", "2026-09-01", "2026-08-20", "2026-09-01"),
+            ("weekly", "weekly", "2026-08-01", "2026-08-20", "2026-08-22"),
+            ("biweekly", "biweekly", "2026-08-01", "2026-08-20", "2026-08-29"),
+            ("monthly rollover", "monthly", "2026-06-15", "2026-08-20", "2026-09-15"),
+            // February has no 31st — must clamp, not panic or skip to March.
+            ("short month clamp", "monthly", "2026-01-31", "2026-02-15", "2026-02-28"),
+            ("annual rollover", "annual", "2024-03-01", "2026-08-20", "2027-03-01"),
+        ];
 
-    #[test]
-    fn next_occurrence_rolls_a_weekly_anchor_forward_past_today() {
-        let anchor: NaiveDate = "2026-08-01".parse().unwrap(); // a Saturday
-        let today: NaiveDate = "2026-08-20".parse().unwrap();
-        // 2026-08-01, 08, 15, 22 — first occurrence on/after today
-        assert_eq!(next_occurrence(anchor, "weekly", today), "2026-08-22".parse().unwrap());
-    }
-
-    #[test]
-    fn next_occurrence_rolls_a_biweekly_anchor_forward() {
-        let anchor: NaiveDate = "2026-08-01".parse().unwrap();
-        let today: NaiveDate = "2026-08-20".parse().unwrap();
-        // 08-01, 08-15, 08-29
-        assert_eq!(next_occurrence(anchor, "biweekly", today), "2026-08-29".parse().unwrap());
-    }
-
-    #[test]
-    fn next_occurrence_rolls_a_monthly_anchor_forward_across_months() {
-        let anchor: NaiveDate = "2026-06-15".parse().unwrap();
-        let today: NaiveDate = "2026-08-20".parse().unwrap();
-        assert_eq!(next_occurrence(anchor, "monthly", today), "2026-09-15".parse().unwrap());
-    }
-
-    #[test]
-    fn next_occurrence_clamps_a_monthly_anchor_to_a_shorter_month() {
-        let anchor: NaiveDate = "2026-01-31".parse().unwrap();
-        let today: NaiveDate = "2026-02-15".parse().unwrap();
-        // February has no 31st — must clamp, not panic or skip to March
-        assert_eq!(next_occurrence(anchor, "monthly", today), "2026-02-28".parse().unwrap());
-    }
-
-    #[test]
-    fn next_occurrence_rolls_an_annual_anchor_forward_across_years() {
-        let anchor: NaiveDate = "2024-03-01".parse().unwrap();
-        let today: NaiveDate = "2026-08-20".parse().unwrap();
-        assert_eq!(next_occurrence(anchor, "annual", today), "2027-03-01".parse().unwrap());
+        for (label, cadence, anchor, today, expected) in cases {
+            assert_eq!(
+                next_occurrence(anchor.parse().unwrap(), cadence, today.parse().unwrap()),
+                expected.parse::<NaiveDate>().unwrap(),
+                "case: {label}",
+            );
+        }
     }
 
     #[test]
     fn create_recurring_then_list_recurring_computes_next_date() {
         let store = Store::open_in_memory().unwrap();
         let id = store
-            .create_recurring("Netflix", Some("Subscriptions"), "-15.49".parse().unwrap(), "monthly", "2026-06-04".parse().unwrap(), None)
+            .create_recurring(
+                "Netflix",
+                Some("Subscriptions"),
+                "-15.49".parse().unwrap(),
+                "monthly",
+                "2026-06-04".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
         let today: NaiveDate = "2026-08-20".parse().unwrap();
@@ -10757,7 +11253,14 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store
-            .create_recurring("Rocket Mortgage", None, "-1840.00".parse().unwrap(), "monthly", "2026-08-01".parse().unwrap(), Some(checking))
+            .create_recurring(
+                "Rocket Mortgage",
+                None,
+                "-1840.00".parse().unwrap(),
+                "monthly",
+                "2026-08-01".parse().unwrap(),
+                Some(checking),
+            )
             .unwrap();
 
         let items = store.list_recurring("2026-08-20".parse().unwrap()).unwrap();
@@ -10803,16 +11306,44 @@ mod tests {
         // (monthly), $1200 (annual) — chosen so each cadence's monthly and
         // annual figures are easy to hand-verify.
         store
-            .create_recurring("Weekly Thing", None, "-12.00".parse().unwrap(), "weekly", "2026-06-01".parse().unwrap(), None)
+            .create_recurring(
+                "Weekly Thing",
+                None,
+                "-12.00".parse().unwrap(),
+                "weekly",
+                "2026-06-01".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store
-            .create_recurring("Biweekly Thing", None, "-24.00".parse().unwrap(), "biweekly", "2026-06-01".parse().unwrap(), None)
+            .create_recurring(
+                "Biweekly Thing",
+                None,
+                "-24.00".parse().unwrap(),
+                "biweekly",
+                "2026-06-01".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store
-            .create_recurring("Monthly Thing", None, "-100.00".parse().unwrap(), "monthly", "2026-06-01".parse().unwrap(), None)
+            .create_recurring(
+                "Monthly Thing",
+                None,
+                "-100.00".parse().unwrap(),
+                "monthly",
+                "2026-06-01".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store
-            .create_recurring("Annual Thing", None, "-1200.00".parse().unwrap(), "annual", "2026-06-01".parse().unwrap(), None)
+            .create_recurring(
+                "Annual Thing",
+                None,
+                "-1200.00".parse().unwrap(),
+                "annual",
+                "2026-06-01".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
         let totals = store.recurring_totals().unwrap();
@@ -10835,10 +11366,24 @@ mod tests {
         // monthly figure (just opposite sign/bucket).
         let store = Store::open_in_memory().unwrap();
         store
-            .create_recurring("Weekly Expense", None, "-12.00".parse().unwrap(), "weekly", "2026-06-01".parse().unwrap(), None)
+            .create_recurring(
+                "Weekly Expense",
+                None,
+                "-12.00".parse().unwrap(),
+                "weekly",
+                "2026-06-01".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store
-            .create_recurring("Weekly Income", None, "12.00".parse().unwrap(), "weekly", "2026-06-08".parse().unwrap(), None)
+            .create_recurring(
+                "Weekly Income",
+                None,
+                "12.00".parse().unwrap(),
+                "weekly",
+                "2026-06-08".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
         let totals = store.recurring_totals().unwrap();
@@ -10881,7 +11426,15 @@ mod tests {
     fn update_recurring_on_an_unknown_id_is_a_harmless_no_op() {
         let store = Store::open_in_memory().unwrap();
         store
-            .update_recurring(999, "Ghost", None, "-1.00".parse().unwrap(), "monthly", "2026-08-20".parse().unwrap(), None)
+            .update_recurring(
+                999,
+                "Ghost",
+                None,
+                "-1.00".parse().unwrap(),
+                "monthly",
+                "2026-08-20".parse().unwrap(),
+                None,
+            )
             .unwrap();
     }
 
@@ -10917,13 +11470,7 @@ mod tests {
     fn detect_recurring_candidates_classifies_a_biweekly_pattern() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        seed_txns(
-            &store,
-            account,
-            "Cleaning Service",
-            "-60.00",
-            &["2026-06-05", "2026-06-19", "2026-07-03"],
-        );
+        seed_txns(&store, account, "Cleaning Service", "-60.00", &["2026-06-05", "2026-06-19", "2026-07-03"]);
 
         let candidates = store.detect_recurring_candidates("2026-07-10".parse().unwrap()).unwrap();
 
@@ -10935,13 +11482,7 @@ mod tests {
     fn detect_recurring_candidates_skips_a_pattern_that_looks_stopped() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        seed_txns(
-            &store,
-            account,
-            "Old Gym",
-            "-40.00",
-            &["2026-01-04", "2026-02-04", "2026-03-04"],
-        );
+        seed_txns(&store, account, "Old Gym", "-40.00", &["2026-01-04", "2026-02-04", "2026-03-04"]);
 
         // Monthly cadence, but the most recent charge was ~5.5 months before
         // "today" — well past 2x the ~30-day cadence, so this reads as a
@@ -10955,13 +11496,7 @@ mod tests {
     fn detect_recurring_candidates_ignores_irregular_gaps() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        seed_txns(
-            &store,
-            account,
-            "Random Store",
-            "-20.00",
-            &["2026-01-05", "2026-03-20", "2026-08-01"],
-        );
+        seed_txns(&store, account, "Random Store", "-20.00", &["2026-01-05", "2026-03-20", "2026-08-01"]);
 
         let candidates = store.detect_recurring_candidates("2026-08-20".parse().unwrap()).unwrap();
 
@@ -10983,13 +11518,7 @@ mod tests {
     fn detect_recurring_candidates_excludes_a_merchant_already_tracked_as_recurring() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        seed_txns(
-            &store,
-            account,
-            "Netflix",
-            "-15.49",
-            &["2026-05-04", "2026-06-04", "2026-07-04"],
-        );
+        seed_txns(&store, account, "Netflix", "-15.49", &["2026-05-04", "2026-06-04", "2026-07-04"]);
         store
             .create_recurring("Netflix", None, "-15.49".parse().unwrap(), "monthly", "2026-07-04".parse().unwrap(), None)
             .unwrap();
@@ -11003,18 +11532,10 @@ mod tests {
     fn dismiss_recurring_candidate_excludes_it_from_future_detection() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        seed_txns(
-            &store,
-            account,
-            "Spotify",
-            "-9.99",
-            &["2026-05-04", "2026-06-04", "2026-07-04"],
-        );
+        seed_txns(&store, account, "Spotify", "-9.99", &["2026-05-04", "2026-06-04", "2026-07-04"]);
         assert_eq!(store.detect_recurring_candidates("2026-08-20".parse().unwrap()).unwrap().len(), 1);
 
-        store
-            .dismiss_recurring_candidate("Spotify", "-9.99".parse().unwrap(), "monthly")
-            .unwrap();
+        store.dismiss_recurring_candidate("Spotify", "-9.99".parse().unwrap(), "monthly").unwrap();
 
         assert!(store.detect_recurring_candidates("2026-08-20".parse().unwrap()).unwrap().is_empty());
     }
@@ -11087,7 +11608,7 @@ mod tests {
     }
 
     #[test]
-    fn update_holding_price_recomputes_value_and_gain() {
+    fn update_holding_price_recomputes_value_gain_prev_close_and_day_gain_loss() {
         let store = Store::open_in_memory().unwrap();
         let brokerage = store.get_or_create_account("Individual Brokerage", AccountType::Investment).unwrap();
         let id = store
@@ -11107,6 +11628,8 @@ mod tests {
         let holdings = store.list_holdings(test_now().date()).unwrap();
         assert_eq!(holdings[0].price, "552.10".parse().unwrap());
         assert_eq!(holdings[0].value, "1987.56".parse().unwrap());
+        assert_eq!(holdings[0].prev_close, Some("500.00".parse().unwrap()));
+        assert_eq!(holdings[0].day_gain_loss, Some("187.56".parse().unwrap())); // 3.6 * (552.10 - 500.00)
     }
 
     #[test]
@@ -11116,26 +11639,19 @@ mod tests {
     }
 
     #[test]
-    fn update_holding_price_snapshots_prev_close_from_the_pre_update_price() {
-        let store = Store::open_in_memory().unwrap();
-        let brokerage = store.get_or_create_account("Individual Brokerage", AccountType::Investment).unwrap();
-        let id = store
-            .create_holding(brokerage, "VOO", "Vanguard S&P 500 ETF", "3.6".parse().unwrap(), "500.00".parse().unwrap(), "1780.00".parse().unwrap(), None)
-            .unwrap();
-
-        store.update_holding_price(id, "552.10".parse().unwrap(), test_now().date()).unwrap();
-
-        let holdings = store.list_holdings(test_now().date()).unwrap();
-        assert_eq!(holdings[0].prev_close, Some("500.00".parse().unwrap()));
-        assert_eq!(holdings[0].day_gain_loss, Some("187.56".parse().unwrap())); // 3.6 * (552.10 - 500.00)
-    }
-
-    #[test]
     fn update_holding_price_does_not_move_prev_close_on_a_second_update_the_same_day() {
         let store = Store::open_in_memory().unwrap();
         let brokerage = store.get_or_create_account("Individual Brokerage", AccountType::Investment).unwrap();
         let id = store
-            .create_holding(brokerage, "VOO", "Vanguard S&P 500 ETF", "1".parse().unwrap(), "500.00".parse().unwrap(), "500.00".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "VOO",
+                "Vanguard S&P 500 ETF",
+                "1".parse().unwrap(),
+                "500.00".parse().unwrap(),
+                "500.00".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
         store.update_holding_price(id, "510.00".parse().unwrap(), test_now().date()).unwrap();
@@ -11154,7 +11670,15 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let brokerage = store.get_or_create_account("Individual Brokerage", AccountType::Investment).unwrap();
         let id = store
-            .create_holding(brokerage, "VOO", "Vanguard S&P 500 ETF", "1".parse().unwrap(), "500.00".parse().unwrap(), "500.00".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "VOO",
+                "Vanguard S&P 500 ETF",
+                "1".parse().unwrap(),
+                "500.00".parse().unwrap(),
+                "500.00".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store.update_holding_price(id, "510.00".parse().unwrap(), test_now().date()).unwrap();
 
@@ -11171,7 +11695,15 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let brokerage = store.get_or_create_account("Individual Brokerage", AccountType::Investment).unwrap();
         let id = store
-            .create_holding(brokerage, "VOO", "Vanguard S&P 500 ETF", "1".parse().unwrap(), "500.00".parse().unwrap(), "500.00".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "VOO",
+                "Vanguard S&P 500 ETF",
+                "1".parse().unwrap(),
+                "500.00".parse().unwrap(),
+                "500.00".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store.update_holding_price(id, "510.00".parse().unwrap(), test_now().date()).unwrap();
 
@@ -11194,7 +11726,15 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let brokerage = store.get_or_create_account("Individual Brokerage", AccountType::Investment).unwrap();
         store
-            .create_holding(brokerage, "VOO", "Vanguard S&P 500 ETF", "1".parse().unwrap(), "500.00".parse().unwrap(), "500.00".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "VOO",
+                "Vanguard S&P 500 ETF",
+                "1".parse().unwrap(),
+                "500.00".parse().unwrap(),
+                "500.00".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
         let holdings = store.list_holdings(test_now().date()).unwrap();
@@ -11207,7 +11747,15 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let brokerage = store.get_or_create_account("Individual Brokerage", AccountType::Investment).unwrap();
         let id = store
-            .create_holding(brokerage, "AAPL", "Apple Inc.", "8".parse().unwrap(), "231.20".parse().unwrap(), "1450.00".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "AAPL",
+                "Apple Inc.",
+                "8".parse().unwrap(),
+                "231.20".parse().unwrap(),
+                "1450.00".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
         store.delete_holding(id).unwrap();
@@ -11227,13 +11775,37 @@ mod tests {
         let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
         let ira = store.get_or_create_account("IRA", AccountType::Investment).unwrap();
         store
-            .create_holding(brokerage, "AAPL", "Apple Inc.", "1".parse().unwrap(), "200".parse().unwrap(), "200".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "AAPL",
+                "Apple Inc.",
+                "1".parse().unwrap(),
+                "200".parse().unwrap(),
+                "200".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store
-            .create_holding(ira, "AAPL", "Apple Inc.", "2".parse().unwrap(), "200".parse().unwrap(), "400".parse().unwrap(), None)
+            .create_holding(
+                ira,
+                "AAPL",
+                "Apple Inc.",
+                "2".parse().unwrap(),
+                "200".parse().unwrap(),
+                "400".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store
-            .create_holding(brokerage, "MSFT", "Microsoft Corp.", "1".parse().unwrap(), "300".parse().unwrap(), "300".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "MSFT",
+                "Microsoft Corp.",
+                "1".parse().unwrap(),
+                "300".parse().unwrap(),
+                "300".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
         let symbols = store.list_distinct_holding_symbols().unwrap();
@@ -11247,16 +11819,42 @@ mod tests {
         let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
         let ira = store.get_or_create_account("IRA", AccountType::Investment).unwrap();
         store
-            .create_holding(brokerage, "AAPL", "Apple Inc.", "1".parse().unwrap(), "200".parse().unwrap(), "200".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "AAPL",
+                "Apple Inc.",
+                "1".parse().unwrap(),
+                "200".parse().unwrap(),
+                "200".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store
-            .create_holding(ira, "AAPL", "Apple Inc.", "2".parse().unwrap(), "200".parse().unwrap(), "400".parse().unwrap(), None)
+            .create_holding(
+                ira,
+                "AAPL",
+                "Apple Inc.",
+                "2".parse().unwrap(),
+                "200".parse().unwrap(),
+                "400".parse().unwrap(),
+                None,
+            )
             .unwrap();
         store
-            .create_holding(brokerage, "MSFT", "Microsoft Corp.", "1".parse().unwrap(), "300".parse().unwrap(), "300".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "MSFT",
+                "Microsoft Corp.",
+                "1".parse().unwrap(),
+                "300".parse().unwrap(),
+                "300".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
-        let updated = store.update_holding_prices_for_symbol("AAPL", "250".parse().unwrap(), test_now().date()).unwrap();
+        let updated = store
+            .update_holding_prices_for_symbol("AAPL", "250".parse().unwrap(), test_now().date())
+            .unwrap();
 
         assert_eq!(updated, 2);
         let holdings = store.list_holdings(test_now().date()).unwrap();
@@ -11274,7 +11872,9 @@ mod tests {
     #[test]
     fn update_holding_prices_for_symbol_on_unknown_symbol_is_a_harmless_no_op() {
         let store = Store::open_in_memory().unwrap();
-        let updated = store.update_holding_prices_for_symbol("NOSUCH", "1".parse().unwrap(), test_now().date()).unwrap();
+        let updated = store
+            .update_holding_prices_for_symbol("NOSUCH", "1".parse().unwrap(), test_now().date())
+            .unwrap();
         assert_eq!(updated, 0);
     }
 
@@ -11290,25 +11890,18 @@ mod tests {
     }
 
     #[test]
-    fn set_live_price_settings_then_get_returns_it() {
-        let store = Store::open_in_memory().unwrap();
+    fn set_live_price_settings_then_get_returns_provider_and_key_matrix() {
+        let cases = [("alpha_vantage", "demo-key"), ("finnhub", "fh-key")];
 
-        store.set_live_price_settings("alpha_vantage", Some("demo-key")).unwrap();
+        for (provider, api_key) in cases {
+            let store = Store::open_in_memory().unwrap();
 
-        let settings = store.get_live_price_settings().unwrap();
-        assert_eq!(settings.api_key, Some("demo-key".to_string()));
-        assert_eq!(settings.provider, "alpha_vantage");
-    }
+            store.set_live_price_settings(provider, Some(api_key)).unwrap();
 
-    #[test]
-    fn set_live_price_settings_stores_the_chosen_provider() {
-        let store = Store::open_in_memory().unwrap();
-
-        store.set_live_price_settings("finnhub", Some("fh-key")).unwrap();
-
-        let settings = store.get_live_price_settings().unwrap();
-        assert_eq!(settings.provider, "finnhub");
-        assert_eq!(settings.api_key, Some("fh-key".to_string()));
+            let settings = store.get_live_price_settings().unwrap();
+            assert_eq!(settings.provider, provider, "case: {provider}");
+            assert_eq!(settings.api_key, Some(api_key.to_string()), "case: {provider}");
+        }
     }
 
     #[test]
@@ -11432,7 +12025,11 @@ mod tests {
 
         let store = Store::open(&db_path).unwrap();
         let settings = store.get_live_price_settings().unwrap();
-        assert_eq!(settings.api_key, Some("saved-key".to_string()), "the saved API key must survive the migration");
+        assert_eq!(
+            settings.api_key,
+            Some("saved-key".to_string()),
+            "the saved API key must survive the migration"
+        );
 
         let today = NaiveDate::from_ymd_opt(2026, 8, 30).unwrap();
         assert_eq!(store.live_price_requests_used_today(today).unwrap(), 0);
@@ -11473,7 +12070,11 @@ mod tests {
 
         let store = Store::open(&db_path).unwrap();
         let settings = store.get_live_price_settings().unwrap();
-        assert_eq!(settings.api_key, Some("saved-key".to_string()), "the saved API key must survive the migration");
+        assert_eq!(
+            settings.api_key,
+            Some("saved-key".to_string()),
+            "the saved API key must survive the migration"
+        );
         assert_eq!(settings.provider, "alpha_vantage");
 
         drop(store);
@@ -11513,7 +12114,9 @@ mod tests {
             .create_asset("Car", "vehicle", "20000.00".parse().unwrap(), "2026-01-01".parse().unwrap(), None)
             .unwrap();
 
-        store.update_asset_value(id, "17000.00".parse().unwrap(), "2026-08-01".parse().unwrap()).unwrap();
+        store
+            .update_asset_value(id, "17000.00".parse().unwrap(), "2026-08-01".parse().unwrap())
+            .unwrap();
 
         let assets = store.list_assets().unwrap();
         assert_eq!(assets[0].value, "17000.00".parse().unwrap());
@@ -11606,7 +12209,12 @@ mod tests {
         store.set_account_excluded_from_debt_payoff(card, true).unwrap();
 
         let plan = store
-            .debt_payoff_projection("snowball", Decimal::ZERO, &[(card, "50.00".parse().unwrap())], "2026-08-20".parse().unwrap())
+            .debt_payoff_projection(
+                "snowball",
+                Decimal::ZERO,
+                &[(card, "50.00".parse().unwrap())],
+                "2026-08-20".parse().unwrap(),
+            )
             .unwrap();
 
         assert!(plan.per_account.is_empty());
@@ -11622,7 +12230,12 @@ mod tests {
         store.set_account_excluded_from_debt_payoff(card, false).unwrap();
 
         let plan = store
-            .debt_payoff_projection("snowball", Decimal::ZERO, &[(card, "50.00".parse().unwrap())], "2026-08-20".parse().unwrap())
+            .debt_payoff_projection(
+                "snowball",
+                Decimal::ZERO,
+                &[(card, "50.00".parse().unwrap())],
+                "2026-08-20".parse().unwrap(),
+            )
             .unwrap();
 
         assert_eq!(plan.per_account.len(), 1, "re-including the account should bring it back into the plan");
@@ -11676,7 +12289,10 @@ mod tests {
         // of its own $10 — $110/month clears $1000 in well under the ~100
         // months a flat $10/month alone would take.
         let big_months = plan.total_months.unwrap();
-        assert!(big_months < 20, "expected the rolled-over minimum to accelerate payoff, got {big_months} months");
+        assert!(
+            big_months < 20,
+            "expected the rolled-over minimum to accelerate payoff, got {big_months} months"
+        );
     }
 
     #[test]
@@ -11831,7 +12447,10 @@ mod tests {
         let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
         store.set_account_starting_balance(checking, "0.00".parse().unwrap()).unwrap();
         store
-            .save_transactions(checking, &[tx("2026-08-19", "Opening balance", "100.00"), tx("2026-08-20", "Deposit", "50.00")])
+            .save_transactions(
+                checking,
+                &[tx("2026-08-19", "Opening balance", "100.00"), tx("2026-08-20", "Deposit", "50.00")],
+            )
             .unwrap();
 
         let points = store.cash_flow_forecast("2026-08-20".parse().unwrap(), 1).unwrap();
@@ -11884,10 +12503,7 @@ mod tests {
         store
             .save_transactions(
                 account,
-                &[
-                    tx("2026-07-21", "Rent", "-900.00"),
-                    tx("2026-07-25", "Payroll Deposit", "500.00"),
-                ],
+                &[tx("2026-07-21", "Rent", "-900.00"), tx("2026-07-25", "Payroll Deposit", "500.00")],
             )
             .unwrap();
 
@@ -11946,8 +12562,14 @@ mod tests {
                 &[
                     tx("2026-08-01", "Payroll Deposit", "3000.00"),
                     tx("2026-08-05", "Green Leaf Grocers", "-80.00"),
-                    Transaction { category: Some("Transfer".to_string()), ..tx("2026-08-10", "To Savings", "-6000.00") },
-                    Transaction { category: Some("Transfer".to_string()), ..tx("2026-08-10", "From Checking", "6000.00") },
+                    Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx("2026-08-10", "To Savings", "-6000.00")
+                    },
+                    Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx("2026-08-10", "From Checking", "6000.00")
+                    },
                 ],
             )
             .unwrap();
@@ -11985,7 +12607,10 @@ mod tests {
             let actual = batched.get(&(year, month)).copied().unwrap_or((Decimal::ZERO, Decimal::ZERO));
             assert_eq!(actual, expected, "mismatch for {year}-{month:02}");
         }
-        assert!(!batched.contains_key(&(2026, 8)), "a zero-activity month should have no entry, not a (0,0) row");
+        assert!(
+            !batched.contains_key(&(2026, 8)),
+            "a zero-activity month should have no entry, not a (0,0) row"
+        );
     }
 
     #[test]
@@ -11997,8 +12622,14 @@ mod tests {
                 account,
                 &[
                     tx("2026-06-01", "Payroll Deposit", "3000.00"),
-                    Transaction { category: Some("Transfer".to_string()), ..tx("2026-06-15", "To Savings", "-500.00") },
-                    Transaction { category: Some("Transfer".to_string()), ..tx("2026-06-15", "From Checking", "500.00") },
+                    Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx("2026-06-15", "To Savings", "-500.00")
+                    },
+                    Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx("2026-06-15", "From Checking", "500.00")
+                    },
                 ],
             )
             .unwrap();
@@ -12039,7 +12670,11 @@ mod tests {
         let (income, expense) = store.monthly_totals(2026, 8).unwrap();
 
         assert_eq!(income, Decimal::ZERO);
-        assert_eq!(expense, "80.00".parse().unwrap(), "a charge is still real spending, only positive amounts are excluded");
+        assert_eq!(
+            expense,
+            "80.00".parse().unwrap(),
+            "a charge is still real spending, only positive amounts are excluded"
+        );
     }
 
     #[test]
@@ -12057,7 +12692,9 @@ mod tests {
     fn monthly_totals_for_range_also_never_counts_a_credit_card_payment_as_income() {
         let store = Store::open_in_memory().unwrap();
         let credit_card = store.get_or_create_account("Visa", AccountType::Credit).unwrap();
-        store.save_transactions(credit_card, &[tx("2026-06-10", "VISA ONLINE PYMT", "200.00")]).unwrap();
+        store
+            .save_transactions(credit_card, &[tx("2026-06-10", "VISA ONLINE PYMT", "200.00")])
+            .unwrap();
 
         let batched = store.monthly_totals_for_range(2026, 6, 2026, 6).unwrap();
 
@@ -12076,7 +12713,7 @@ mod tests {
                     tx("2026-08-10", "Fresh Market", "-40.00"),
                     tx("2026-08-12", "Ferrywood Coffee", "-200.00"),
                     tx("2026-08-15", "Payroll Deposit", "3000.00"), // income, excluded
-                    tx("2026-07-01", "Old Grocers", "-999.00"), // outside range, excluded
+                    tx("2026-07-01", "Old Grocers", "-999.00"),     // outside range, excluded
                 ],
             )
             .unwrap();
@@ -12205,7 +12842,15 @@ mod tests {
         let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
         store.set_account_starting_balance(brokerage, "0".parse().unwrap()).unwrap();
         store
-            .create_holding(brokerage, "VTI", "Vanguard Total Stock", "10".parse().unwrap(), "265.00".parse().unwrap(), "2000.00".parse().unwrap(), None)
+            .create_holding(
+                brokerage,
+                "VTI",
+                "Vanguard Total Stock",
+                "10".parse().unwrap(),
+                "265.00".parse().unwrap(),
+                "2000.00".parse().unwrap(),
+                None,
+            )
             .unwrap();
 
         let breakdown = store.net_worth_breakdown_as_of("2026-01-01".parse().unwrap()).unwrap();
@@ -12273,8 +12918,7 @@ mod tests {
         let breakdown_from = store.net_worth_breakdown_as_of(from).unwrap();
         let breakdown_to = store.net_worth_breakdown_as_of(to).unwrap();
 
-        let debt_delta_sum: Decimal =
-            deltas.iter().filter(|d| d.group == "credit" || d.group == "loan").map(|d| d.delta).sum();
+        let debt_delta_sum: Decimal = deltas.iter().filter(|d| d.group == "credit" || d.group == "loan").map(|d| d.delta).sum();
         assert_eq!(debt_delta_sum, breakdown_to.debt - breakdown_from.debt);
     }
 
@@ -12300,9 +12944,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let loan = store.get_or_create_account("Auto Loan", AccountType::Loan).unwrap();
         store.set_account_starting_balance(loan, "15000.00".parse().unwrap()).unwrap();
-        store
-            .save_transactions(loan, &[tx("2026-08-05", "Loan Payment", "500.00")])
-            .unwrap();
+        store.save_transactions(loan, &[tx("2026-08-05", "Loan Payment", "500.00")]).unwrap();
 
         let net_worth = store.net_worth_as_of("2026-08-31".parse().unwrap()).unwrap();
 
@@ -12317,9 +12959,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let loan = store.get_or_create_account("Mortgage", AccountType::Loan).unwrap();
         store.set_account_starting_balance(loan, "300000.00".parse().unwrap()).unwrap();
-        store
-            .save_transactions(loan, &[tx("2026-08-05", "Payment", "1000.00")])
-            .unwrap(); // owed drops to 299000 during August
+        store.save_transactions(loan, &[tx("2026-08-05", "Payment", "1000.00")]).unwrap(); // owed drops to 299000 during August
 
         let rolled = store.roll_forward_monthly_balances("2026-09-01".parse().unwrap()).unwrap();
 
@@ -12347,9 +12987,7 @@ mod tests {
         store.roll_forward_monthly_balances("2026-09-01".parse().unwrap()).unwrap();
 
         // Imported (or applied) after the rollover already ran, but still dated today.
-        store
-            .save_transactions(card, &[tx("2026-09-01", "Payment", "500.00")])
-            .unwrap();
+        store.save_transactions(card, &[tx("2026-09-01", "Payment", "500.00")]).unwrap();
 
         let accounts = store.list_accounts("2026-09-01".parse().unwrap()).unwrap();
         let owed = "5000.00".parse::<Decimal>().unwrap() - accounts[0].current_balance;
@@ -12376,9 +13014,7 @@ mod tests {
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
 
         store.roll_forward_monthly_balances("2026-09-01".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-09-10", "Deposit", "200.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-09-10", "Deposit", "200.00")]).unwrap();
         let october_roll = store.roll_forward_monthly_balances("2026-10-01".parse().unwrap()).unwrap();
 
         assert_eq!(october_roll.len(), 1);
@@ -12393,16 +13029,12 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-08-10", "Deposit", "500.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-10", "Deposit", "500.00")]).unwrap();
         let before_reset = store.net_worth_as_of("2026-08-31".parse().unwrap()).unwrap();
 
         // Roll forward into September, then add a large September transaction.
         store.roll_forward_monthly_balances("2026-09-01".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-09-15", "Big Deposit", "50000.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-09-15", "Big Deposit", "50000.00")]).unwrap();
 
         let after_reset_and_more_activity = store.net_worth_as_of("2026-08-31".parse().unwrap()).unwrap();
 
@@ -12418,14 +13050,10 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-08-10", "Deposit", "500.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-10", "Deposit", "500.00")]).unwrap();
 
         store.roll_forward_monthly_balances("2026-09-01".parse().unwrap()).unwrap();
-        store
-            .save_transactions(checking, &[tx("2026-09-05", "Deposit", "100.00")])
-            .unwrap();
+        store.save_transactions(checking, &[tx("2026-09-05", "Deposit", "100.00")]).unwrap();
 
         let accounts = store.list_accounts("2026-09-30".parse().unwrap()).unwrap();
 
@@ -12455,8 +13083,86 @@ mod tests {
 
         // A later manual correction moves the checkpoint further still —
         // same anchor-to-the-day-before convention.
-        store.set_account_balance_override(checking, "2000.00".parse().unwrap(), "2026-09-15".parse().unwrap()).unwrap();
+        store
+            .set_account_balance_override(checking, "2000.00".parse().unwrap(), "2026-09-15".parse().unwrap())
+            .unwrap();
         let accounts = store.list_accounts("2026-09-30".parse().unwrap()).unwrap();
         assert_eq!(accounts[0].checkpoint_date, Some("2026-09-14".parse().unwrap()));
+    }
+
+    #[test]
+    fn list_accounts_exposes_the_account_s_icon_key_override() {
+        let store = Store::open_in_memory().unwrap();
+        let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
+
+        let accounts = store.list_accounts("2026-08-15".parse().unwrap()).unwrap();
+        assert_eq!(accounts[0].icon_key, None, "no explicit icon chosen yet");
+
+        store.set_account_icon(checking, Some("crypto")).unwrap();
+        let accounts = store.list_accounts("2026-08-15".parse().unwrap()).unwrap();
+        assert_eq!(accounts[0].icon_key, Some("crypto".to_string()));
+
+        store.set_account_icon(checking, None).unwrap();
+        let accounts = store.list_accounts("2026-08-15".parse().unwrap()).unwrap();
+        assert_eq!(
+            accounts[0].icon_key, None,
+            "clearing it back to None goes back to guessing from account_type"
+        );
+    }
+
+    #[test]
+    fn set_account_icon_on_an_unknown_id_is_a_harmless_no_op() {
+        let store = Store::open_in_memory().unwrap();
+        store.set_account_icon(999, Some("mortgage")).unwrap();
+    }
+
+    #[test]
+    fn create_category_applies_an_icon_to_a_brand_new_category() {
+        let store = Store::open_in_memory().unwrap();
+
+        store.create_category("Utilities", Some("utilities")).unwrap();
+
+        let categories = store.list_categories_with_icons().unwrap();
+        let utilities = categories.iter().find(|c| c.name == "Utilities").unwrap();
+        assert_eq!(utilities.icon_key, Some("utilities".to_string()));
+    }
+
+    #[test]
+    fn create_category_with_no_icon_does_not_clobber_an_existing_categorys_icon() {
+        let store = Store::open_in_memory().unwrap();
+        store.create_category("Utilities", Some("utilities")).unwrap();
+
+        // Re-registering the same category (e.g. because a transaction was
+        // filed under it again) without specifying an icon must leave the
+        // one already chosen alone.
+        store.create_category("Utilities", None).unwrap();
+
+        let categories = store.list_categories_with_icons().unwrap();
+        let utilities = categories.iter().find(|c| c.name == "Utilities").unwrap();
+        assert_eq!(utilities.icon_key, Some("utilities".to_string()));
+    }
+
+    #[test]
+    fn set_category_icon_can_clear_an_existing_categorys_icon() {
+        let store = Store::open_in_memory().unwrap();
+        store.create_category("Utilities", Some("utilities")).unwrap();
+
+        store.set_category_icon("Utilities", None).unwrap();
+
+        let categories = store.list_categories_with_icons().unwrap();
+        let utilities = categories.iter().find(|c| c.name == "Utilities").unwrap();
+        assert_eq!(utilities.icon_key, None);
+    }
+
+    #[test]
+    fn list_categories_with_icons_matches_list_categories_by_name() {
+        let store = Store::open_in_memory().unwrap();
+        store.create_category("Pet Care", None).unwrap();
+
+        let names: Vec<String> = store.list_categories().unwrap();
+        let with_icons = store.list_categories_with_icons().unwrap();
+
+        assert_eq!(names, with_icons.iter().map(|c| c.name.clone()).collect::<Vec<_>>());
+        assert!(with_icons.iter().any(|c| c.name == "Pet Care" && c.icon_key.is_none()));
     }
 }

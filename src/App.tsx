@@ -61,6 +61,7 @@ import type {
   BudgetAlert,
   CashFlow,
   CategoryAmount,
+  CategoryIconEntry,
   CategoryTransaction,
   DebtPayoffPlan,
   FamilyMember,
@@ -135,6 +136,7 @@ type NewAccountResult = {
   institution: string | null;
   mask: string | null;
   memberId: number | null;
+  iconKey: string | null;
 };
 
 type PendingDialog =
@@ -593,6 +595,15 @@ function App({
     }
   }
 
+  async function handleSetProfileIcon(id: string, iconKey: string | null) {
+    try {
+      await invoke("set_profile_icon", { id, iconKey });
+      await refreshProfiles();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
   async function handleDeleteProfile(id: string) {
     try {
       await invoke("delete_profile", { id });
@@ -664,6 +675,7 @@ function App({
     }
   }
   const [usedCategories, setUsedCategories] = useState<string[]>([]);
+  const [categoryIcons, setCategoryIcons] = useState<CategoryIconEntry[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -821,6 +833,17 @@ function App({
   // category, and anything created or assigned by hand, so it's the
   // complete, single source of truth for every category picker in the app.
   const categoryOptions = usedCategories;
+
+  // Name → explicit icon override, for the handful of places that render a
+  // `<CategoryIcon>` against a real stored category (not just a name typed
+  // into a picker) — `iconForCategory`'s own keyword guess still applies
+  // for any category missing from this map (not yet fetched, or with no
+  // explicit icon chosen).
+  const categoryIconMap = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    for (const c of categoryIcons) map[c.name] = c.icon_key;
+    return map;
+  }, [categoryIcons]);
 
   // Accounts a payment can be applied toward paying down — loans and
   // credit cards are the two account types that represent debt.
@@ -1028,11 +1051,12 @@ function App({
   const holdingsLoadedRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    const [txns, s, accts, cats, flags, tags, members] = await Promise.all([
+    const [txns, s, accts, cats, catIcons, flags, tags, members] = await Promise.all([
       invoke<Transaction[]>("list_transactions"),
       invoke<Stats>("get_stats"),
       invoke<Account[]>("list_accounts"),
       invoke<string[]>("list_categories"),
+      invoke<CategoryIconEntry[]>("list_categories_with_icons"),
       invoke<AnomalyFlag[]>("list_anomaly_flags"),
       invoke<string[]>("list_all_tags"),
       invoke<FamilyMember[]>("list_family_members"),
@@ -1041,6 +1065,7 @@ function App({
     setStats(s);
     setAccounts(accts);
     setUsedCategories(cats);
+    setCategoryIcons(catIcons);
     setAnomalyFlags(flags);
     setAllTags(tags);
     setFamilyMembers(members);
@@ -1605,6 +1630,15 @@ function App({
     }
   }
 
+  async function handleSetAccountIcon(accountId: number, iconKey: string | null) {
+    try {
+      await invoke("set_account_icon", { id: accountId, iconKey });
+      await refresh();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
   async function handleDeleteAccount(accountId: number) {
     try {
       const removed = await invoke<number>("delete_account", { id: accountId });
@@ -1931,6 +1965,7 @@ function App({
         startingBalance: result.startingBalance,
         institution: result.institution,
         mask: result.mask,
+        iconKey: result.iconKey,
       });
       if (result.memberId !== null) {
         await invoke("set_account_member", { id, memberId: result.memberId });
@@ -2145,9 +2180,18 @@ function App({
     }
   }
 
-  async function handleCreateCategory(name: string) {
+  async function handleCreateCategory(name: string, iconKey: string | null) {
     try {
-      await invoke("create_category", { name });
+      await invoke("create_category", { name, iconKey });
+      await refresh();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetCategoryIcon(name: string, iconKey: string | null) {
+    try {
+      await invoke("set_category_icon", { name, iconKey });
       await refresh();
     } catch (e) {
       setStatus(String(e));
@@ -2195,8 +2239,11 @@ function App({
   async function commitAmountEdit(id: number, value: string) {
     setEditingAmount(null);
     try {
-      await invoke("update_transaction_amount", { id, amount: value.trim() });
+      const splitsReconciled = await invoke<boolean>("update_transaction_amount", { id, amount: value.trim() });
       await refresh();
+      if (splitsReconciled) {
+        setStatus("Amount updated — its splits were rescaled to still add up to the new amount.", "info");
+      }
     } catch (e) {
       setStatus(String(e));
     }
@@ -2381,14 +2428,7 @@ function App({
     if (!path) return;
     const csv = toCsv(
       ["Date", "Description", "Amount", "Account", "Category", "Tags"],
-      sortedTransactions.map((t) => [
-        t.date,
-        t.description,
-        t.amount,
-        t.account_name,
-        t.category ?? "",
-        t.tags.join("; "),
-      ]),
+      sortedTransactions.map((t) => [t.date, t.description, t.amount, t.account_name, t.category ?? "", t.tags.join("; ")]),
     );
     try {
       await invoke("write_text_file", { path, content: csv });
@@ -2766,6 +2806,7 @@ function App({
             {activeTab === "ledger" && (
             <div className="import-controls">
               <select
+                aria-label="Account to import into"
                 className="account-select"
                 value={selectedAccountId ?? ""}
                 onChange={(e) => handleAccountSelectChange(e.target.value)}
@@ -2889,6 +2930,7 @@ function App({
           familyMembers={familyMembers}
           buckets={buckets}
           categories={usedCategories}
+          categoryIconMap={categoryIconMap}
           topCategoriesData={topCategoriesData}
           layoutWidgets={layoutWidgets}
           onSetLayoutWidgets={setLayoutWidgets}
@@ -2966,6 +3008,7 @@ function App({
                     <td className="amount-col">{formatAmount(row.amount)}</td>
                     <td>
                       <select
+                        aria-label={`Account for "${row.description}"`}
                         value={accountOverrides.get(row.index) ?? pendingImport.defaultAccountId}
                         onChange={(e) => setImportRowAccount(row.index, Number(e.target.value))}
                       >
@@ -3023,7 +3066,11 @@ function App({
                     <td>{t.description}</td>
                     <td className="amount-col">{formatAmount(t.amount)}</td>
                     <td>
-                      <select value={t.category ?? ""} onChange={(e) => handleCategoryChange(t.id, e.target.value)}>
+                      <select
+                        aria-label={`Category for "${t.description}"`}
+                        value={t.category ?? ""}
+                        onChange={(e) => handleCategoryChange(t.id, e.target.value)}
+                      >
                         <option value="" disabled>
                           Uncategorized
                         </option>
@@ -3093,7 +3140,7 @@ function App({
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
           />
-          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+          <select aria-label="Filter by category" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
             <option value="all">All categories</option>
             <option value={UNCATEGORIZED_FILTER}>Uncategorized</option>
             {categoryOptions.map((c) => (
@@ -3177,7 +3224,7 @@ function App({
       {activeTab === "ledger" && selectedIds.size > 0 && (
         <div className="bulk-actions-bar">
           <span className="bulk-actions-count">{selectedIds.size} selected</span>
-          <select value="" onChange={(e) => handleBulkCategoryChange(e.target.value)}>
+          <select aria-label="Set category to…" value="" onChange={(e) => handleBulkCategoryChange(e.target.value)}>
             <option value="" disabled>
               Set category to…
             </option>
@@ -3188,7 +3235,7 @@ function App({
             ))}
             <option value="__new__">+ New category…</option>
           </select>
-          <select value="" onChange={(e) => handleAddSelectedToRecurring(e.target.value)}>
+          <select aria-label="Add to Recurring…" value="" onChange={(e) => handleAddSelectedToRecurring(e.target.value)}>
             <option value="" disabled>
               Add to Recurring…
             </option>
@@ -3199,7 +3246,7 @@ function App({
             ))}
           </select>
           {familyMembers.length > 0 && (
-            <select value="" onChange={(e) => handleBulkMemberChange(e.target.value)}>
+            <select aria-label="Set member to…" value="" onChange={(e) => handleBulkMemberChange(e.target.value)}>
               <option value="" disabled>
                 Set member to…
               </option>
@@ -3322,7 +3369,7 @@ function App({
               <td>
                 <span className="cell-with-icon">
                   <span className="row-icon-badge">
-                    <CategoryIcon category={t.category} />
+                    <CategoryIcon category={t.category} iconKey={t.category ? categoryIconMap[t.category] : null} />
                   </span>
                   {editingDescription?.id === t.id ? (
                     <input
@@ -3403,7 +3450,11 @@ function App({
                 )}
               </td>
               <td className="account-col">
-                <select value={t.account_id} onChange={(e) => handleAccountChangeForTransaction(t.id, e.target.value)}>
+                <select
+                  aria-label={`Account for "${t.description}"`}
+                  value={t.account_id}
+                  onChange={(e) => handleAccountChangeForTransaction(t.id, e.target.value)}
+                >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -3413,6 +3464,7 @@ function App({
               </td>
               <td className="member-col">
                 <select
+                  aria-label={`Family member for "${t.description}"`}
                   value={t.member_id ?? ""}
                   onChange={(e) => handleMemberChangeForTransaction(t.id, e.target.value)}
                 >
@@ -3429,6 +3481,7 @@ function App({
                   <span className="split-summary">Split ({t.split_count})</span>
                 ) : (
                   <select
+                    aria-label={`Category for "${t.description}"`}
                     value={t.category ?? ""}
                     onChange={(e) => handleCategoryChange(t.id, e.target.value)}
                   >
@@ -3498,6 +3551,7 @@ function App({
                   ) : applyingDebtId === t.id ? (
                     <span className="debt-apply-form">
                       <select
+                        aria-label={`Debt account to apply "${t.description}" toward`}
                         value={applyDebtForm.accountId}
                         onChange={(e) => setApplyDebtForm({ ...applyDebtForm, accountId: e.target.value })}
                       >
@@ -3562,7 +3616,11 @@ function App({
                   <div className="split-editor">
                     {splitLines.map((line, i) => (
                       <div className="split-editor-line" key={i}>
-                        <select value={line.category} onChange={(e) => updateSplitLine(i, { category: e.target.value })}>
+                        <select
+                          aria-label={`Category for split ${i + 1} of "${t.description}"`}
+                          value={line.category}
+                          onChange={(e) => updateSplitLine(i, { category: e.target.value })}
+                        >
                           {categoryOptions.map((c) => (
                             <option key={c} value={c}>
                               {c}
@@ -3627,7 +3685,7 @@ function App({
         <div className="ledger-pagination">
           <label className="ledger-page-size">
             Show
-            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+            <select aria-label="Rows per page" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
               <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
@@ -3730,6 +3788,7 @@ function App({
           candidates={recurringCandidates}
           accounts={accounts}
           familyMembers={familyMembers}
+          categoryIconMap={categoryIconMap}
           onCreate={handleCreateRecurring}
           onUpdate={handleUpdateRecurring}
           onDelete={handleDeleteRecurring}
@@ -4017,6 +4076,7 @@ function App({
           onSetAccountDetails={handleSetAccountDetails}
           familyMembers={familyMembers}
           onSetAccountMember={handleSetAccountMember}
+          onSetAccountIcon={handleSetAccountIcon}
           onAddAccount={handleNewAccount}
         />
         </Suspense>
@@ -4060,6 +4120,7 @@ function App({
           onUseExistingDataFile={handlePickExistingDataFile}
           onSwitchProfile={handleSwitchProfile}
           onRenameProfile={handleRenameProfile}
+          onSetProfileIcon={handleSetProfileIcon}
           onDeleteProfile={handleDeleteProfile}
           livePriceSettings={livePriceSettings}
           onSetLivePriceApiKey={handleSetLivePriceApiKey}
@@ -4081,8 +4142,8 @@ function App({
             dialog.resolve(null);
             setDialog(null);
           }}
-          onSubmit={(name, accountType, startingBalance, institution, mask, memberId) => {
-            dialog.resolve({ name, accountType, startingBalance, institution, mask, memberId });
+          onSubmit={(name, accountType, startingBalance, institution, mask, memberId, iconKey) => {
+            dialog.resolve({ name, accountType, startingBalance, institution, mask, memberId, iconKey });
             setDialog(null);
           }}
         />
@@ -4093,7 +4154,13 @@ function App({
             dialog.resolve(null);
             setDialog(null);
           }}
-          onSubmit={(name) => {
+          onSubmit={async (name, iconKey) => {
+            try {
+              await invoke("create_category", { name, iconKey });
+              await refresh();
+            } catch (e) {
+              setStatus(String(e));
+            }
             dialog.resolve(name);
             setDialog(null);
           }}
@@ -4124,8 +4191,10 @@ function App({
       {manageCategoriesOpen && (
         <ManageCategoriesDialog
           categories={usedCategories}
+          categoryIconMap={categoryIconMap}
           onCancel={() => setManageCategoriesOpen(false)}
           onCreate={handleCreateCategory}
+          onSetIcon={handleSetCategoryIcon}
           onRename={handleRenameCategory}
           onDelete={handleDeleteCategory}
         />
