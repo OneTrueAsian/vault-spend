@@ -138,5 +138,6 @@ export const CHANGELOG: Record<string, string[]> = {
     "Adding a transaction dated on or before an account's last balance correction or monthly rollover now shows a warning that it won't change today's balance, so it isn't a silent surprise — the transaction still correctly affects past balance history.",
     "\"Ledger\" is now called \"Transactions\" throughout the app.",
     "Accounts and categories now have an icon picker, just like Goals already did — pick an explicit icon when creating one, or change it later (click an account's icon on the Accounts page, or a category's icon in Manage categories). Leaving it unset keeps the automatic guess based on the account type or category name. Also added a set of full-color icons for common categories (groceries, restaurants, shopping, travel, and more), account types, a new \"car\" Goal icon, the Dashboard's Net Worth/Cash/Debt cards, and the warning triangle shown for over-budget alerts.",
+    "Profiles can now have an icon too — pick one of 15 new avatar icons for a profile in Settings' Profiles section, shown there and in the sidebar's profile switcher.",
   ],
 };
