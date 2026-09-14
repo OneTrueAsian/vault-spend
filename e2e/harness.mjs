@@ -74,7 +74,28 @@ function freshTestDbDir() {
   return dir;
 }
 
+// The TCP port opening (waitForPort) doesn't guarantee tauri-driver's
+// WebDriver HTTP endpoint is ready to accept a session request the very
+// next instant — there used to be a flat sleep(500) here as a defensive
+// buffer, paid on every single launch regardless of whether it was needed.
+// Retrying the actual connection is strictly more precise: it waits only
+// as long as reality requires (almost always the first or second attempt)
+// instead of a fixed guess, while still capping the worst case.
+async function connectWithRetries(options, { attempts = 20, delayMs = 100 } = {}) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await remote(options);
+    } catch (e) {
+      lastErr = e;
+      await sleep(delayMs);
+    }
+  }
+  throw lastErr;
+}
+
 export async function launchApp({ dbDir } = {}) {
+  const ownDbDir = dbDir === undefined;
   const testDbDir = dbDir ?? freshTestDbDir();
   const PORT = await getFreePort();
   const NATIVE_PORT = await getFreePort();
@@ -88,12 +109,27 @@ export async function launchApp({ dbDir } = {}) {
   driverProcess.stdout.on("data", (d) => (driverLog += d.toString()));
   driverProcess.stderr.on("data", (d) => (driverLog += d.toString()));
 
+  // Only clean up a throwaway dir this call created itself — never one the
+  // caller passed in (e.g. explore.mjs chaining several launches against
+  // one seeded fixture), and only after a genuinely clean process exit, so
+  // a failed spec's database is still there to debug afterward.
+  if (ownDbDir) {
+    process.on("exit", () => {
+      if ((process.exitCode ?? 0) === 0) {
+        try {
+          fs.rmSync(testDbDir, { recursive: true, force: true });
+        } catch {
+          /* best effort — never fail the run over cleanup */
+        }
+      }
+    });
+  }
+
   await waitForPort(PORT);
-  await sleep(500);
 
   let browser;
   try {
-    browser = await remote({
+    browser = await connectWithRetries({
       hostname: "127.0.0.1",
       port: PORT,
       path: "/",
@@ -146,6 +182,17 @@ export async function launchApp({ dbDir } = {}) {
     async close() {
       try { await browser.deleteSession(); } catch { /* app may already be gone */ }
       driverProcess.kill();
+      // Wait for the actual exit rather than firing kill() and moving on —
+      // bounded so a driver that won't die can't hang the caller, but this
+      // still stops a lingering tauri-driver/msedgedriver from outliving
+      // the spec that started it.
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, 3000);
+        driverProcess.once("exit", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
     },
   };
 }

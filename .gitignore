@@ -52,3 +52,7 @@ db-backups/
 # Local planning/scratch notes from AI-assisted work sessions — useful on
 # this machine, not something other clones of the repo need.
 /Claude outputs/
+
+# Per-machine E2E spec timing history (run-all.mjs's longest-first
+# scheduling) — self-generated, machine-specific, and rebuilds itself.
+/e2e/.e2e-durations.json

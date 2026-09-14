@@ -1,28 +1,45 @@
-// Seeds a throwaway test database with fixture data, using the app's own
-// compiled binary once (headless — no WebDriver) to create the schema,
-// then writing fixture rows directly via Python's sqlite3 module (the same
-// direct-sqlite technique used all session to verify the user's real data).
-// Avoids needing to drive native file-picker dialogs (CSV import) just to
-// get test data into the ledger.
+// Seeds a throwaway test database with fixture data, using a small headless
+// binary (core/src/bin/init_db.rs — the exact same Store::open migration
+// path the real app and every Rust test already use) once to create the
+// schema, then writing fixture rows directly via Python's sqlite3 module
+// (the same direct-sqlite technique used all session to verify the user's
+// real data). Avoids needing to drive native file-picker dialogs (CSV
+// import) just to get test data into the ledger.
+//
+// This used to launch the full Tauri app and sleep 2 seconds (1.5s to let
+// init_schema run, 0.5s after killing it) per seed call — dozens of times
+// across the suite. init_db is synchronous and exits on its own once the
+// schema is ready, so there's nothing to sleep for: ~20-200ms instead of a
+// blind 2000ms, verified via `time ./target/debug/init_db.exe <dir>`.
 
-import { spawn, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const APP_EXE = path.resolve("target/debug/vaultspend.exe");
+const INIT_DB_EXE = path.resolve("target/debug/init_db.exe");
 
+// Cleaned up automatically on a genuinely clean process exit (see the
+// process.on("exit") below) — a nonzero exit code means the spec is
+// reporting a failure, so the fixture is left in place for debugging.
 export function freshTestDbDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-e2e-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-e2e-"));
+  process.on("exit", () => {
+    if ((process.exitCode ?? 0) === 0) {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* best effort — never fail the run over cleanup */
+      }
+    }
+  });
+  return dir;
 }
 
-// Launches the app briefly (non-WebDriver) against `dbDir` so init_schema
-// runs and creates vaultspend.db, then kills it.
+// Runs init_db against `dbDir` so the real migration path creates
+// vaultspend.db, then returns once it has actually exited — no sleeps.
 async function createSchema(dbDir) {
-  const proc = spawn(APP_EXE, [], { env: { ...process.env, VAULTSPEND_DB_DIR: dbDir }, stdio: "ignore" });
-  await new Promise((r) => setTimeout(r, 1500));
-  proc.kill("SIGKILL");
-  await new Promise((r) => setTimeout(r, 500));
+  execFileSync(INIT_DB_EXE, [dbDir], { stdio: "ignore" });
 }
 
 // Runs a python snippet against the db, with `dbPath` available as `DB_PATH`.
@@ -44,11 +61,11 @@ con.close()
  * `con`). Returns the dbDir. Use this for any feature-specific fixture
  * instead of writing a new one-off createSchema+runSqlite pair.
  *
- * Note: `createSchema` briefly runs the real app (to trigger init_schema),
- * which also runs its normal startup fetches — for the *current* calendar
- * month specifically, that already touches `budget_periods` (and
- * materializes an empty budget for it). If your snippet inserts into
- * `budget_periods` for the current month, use `INSERT OR IGNORE`.
+ * Note: `createSchema` only runs migrations (via init_db) — it does not run
+ * the real app's normal startup fetches, so unlike an actual app launch it
+ * does not pre-materialize an empty `budget_periods` row for the current
+ * calendar month. If your snippet inserts into `budget_periods` for the
+ * current month, use `INSERT OR IGNORE` anyway in case that ever changes.
  */
 export async function seedFixture(pySnippet) {
   const dbDir = freshTestDbDir();
