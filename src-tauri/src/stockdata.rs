@@ -70,9 +70,20 @@ pub async fn fetch_quotes_batch(client: &reqwest::Client, api_key: &str, symbols
 /// the response. An invalid key (401) and a rate limit (429) are real HTTP
 /// status codes, same as Finnhub/Twelve Data, with the message nested
 /// under `{"error": {"message": ...}}` rather than a bare string.
+///
+/// 403 (distinct from 401's "your key itself is bad") means the key is
+/// valid but the plan doesn't cover one or more of the requested symbols
+/// — same quirk as Finnhub/Twelve Data (see finnhub.rs's parser for the
+/// real report this pattern was first found from). Since a request here
+/// can batch several symbols at once, this can't point at just one the
+/// way the single-symbol providers can, so the message names the whole
+/// batch rather than guessing which symbol was the actual problem.
 pub fn parse_quotes_response(status: u16, body: &str, requested: &[String]) -> Result<HashMap<String, Option<Decimal>>, String> {
     if status == 401 {
         return Err(format!("StockData.org rejected the API key: {body}"));
+    }
+    if status == 403 {
+        return Err("StockData.org's plan doesn't include one or more of these symbols".to_string());
     }
     if status == 429 {
         return Err(format!("StockData.org's rate limit was hit: {body}"));
@@ -172,6 +183,13 @@ mod tests {
                 case_insensitive: true,
             },
             Case {
+                label: "plan-restricted symbols status",
+                status: 403,
+                body: r#"{"error": {"code": "forbidden", "message": "Your plan does not support this endpoint."}}"#,
+                expected_substring: Some("plan"),
+                case_insensitive: false,
+            },
+            Case {
                 label: "rate limit status",
                 status: 429,
                 body: r#"{"error": {"code": "rate_limit_reached", "message": "Too many requests in the past 60 seconds."}}"#,
@@ -212,5 +230,21 @@ mod tests {
         let result = parse_quotes_response(200, body, &symbols(&["AAPL"]));
 
         assert!(result.is_err());
+    }
+
+    /// Same regression Finnhub's and Twelve Data's parsers guard against: a
+    /// plan-restricted 403 must never echo the raw JSON error body into the
+    /// app's UI.
+    #[test]
+    fn parse_quotes_response_403_never_leaks_the_raw_json_body() {
+        let result = parse_quotes_response(
+            403,
+            r#"{"error": {"code": "forbidden", "message": "Your plan does not support this endpoint."}}"#,
+            &symbols(&["AAPL"]),
+        );
+
+        let message = result.unwrap_err();
+        assert!(!message.contains('{'), "expected no raw JSON in the message, got: {message}");
+        assert!(!message.contains("403"), "expected no raw HTTP status in the message, got: {message}");
     }
 }

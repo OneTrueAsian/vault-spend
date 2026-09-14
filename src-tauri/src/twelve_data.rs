@@ -55,12 +55,22 @@ pub async fn fetch_quote(client: &reqwest::Client, api_key: &str, symbol: &str) 
 /// as Alpha Vantage's empty `Global Quote` and Finnhub's all-zero quote,
 /// not a hard error, since a typo'd symbol shouldn't look identical to a
 /// bad key or a spent quota to the caller.
+///
+/// 403 (distinct from 401's "your key itself is bad") means the key is
+/// valid but this specific symbol isn't included in the current plan —
+/// same idea as Finnhub's identical quirk (see that module's parser for
+/// the real report this pattern was first found from), so it gets the
+/// same plain-English treatment instead of echoing Twelve Data's raw JSON
+/// error body into the UI.
 pub fn parse_quote_response(status: u16, body: &str) -> Result<Option<Decimal>, String> {
     if status == 404 {
         return Ok(None); // recognized "not found" — unknown/unsupported symbol
     }
     if status == 401 {
         return Err(format!("Twelve Data rejected the API key: {body}"));
+    }
+    if status == 403 {
+        return Err("Twelve Data's plan doesn't include this symbol".to_string());
     }
     if status == 429 {
         return Err(format!("Twelve Data's rate limit was hit: {body}"));
@@ -128,6 +138,13 @@ mod tests {
                 case_insensitive: true,
             },
             Case {
+                label: "plan-restricted symbol status",
+                status: 403,
+                body: r#"{"code": 403, "message": "You do not have permission to access this endpoint.", "status": "error"}"#,
+                expected_substring: Some("plan"),
+                case_insensitive: false,
+            },
+            Case {
                 label: "rate limit status",
                 status: 429,
                 body: r#"{"code": 429, "message": "API rate limit reached.", "status": "error"}"#,
@@ -166,5 +183,20 @@ mod tests {
         let result = parse_quote_response(200, r#"{"symbol": "AAPL"}"#);
 
         assert!(result.is_err());
+    }
+
+    /// Same regression this module's Finnhub counterpart guards against: a
+    /// plan-restricted 403 must never echo the raw JSON error body into the
+    /// app's UI.
+    #[test]
+    fn parse_quote_response_403_never_leaks_the_raw_json_body() {
+        let result = parse_quote_response(
+            403,
+            r#"{"code": 403, "message": "You do not have permission to access this endpoint.", "status": "error"}"#,
+        );
+
+        let message = result.unwrap_err();
+        assert!(!message.contains('{'), "expected no raw JSON in the message, got: {message}");
+        assert!(!message.contains("403"), "expected no raw HTTP status in the message, got: {message}");
     }
 }

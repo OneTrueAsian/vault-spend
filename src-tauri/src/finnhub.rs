@@ -35,17 +35,30 @@ pub async fn fetch_quote(client: &reqwest::Client, api_key: &str, symbol: &str) 
 /// `live_prices::parse_global_quote_response`.
 ///
 /// **The quirk this exists to handle**: unlike Alpha Vantage, Finnhub
-/// signals an invalid key (401) and a rate limit (429) as real HTTP
-/// status codes rather than HTTP-200-with-a-JSON-key, so `status` is
-/// checked before the body is treated as a quote at all. A recognized
-/// success response with every price field zeroed out (`c: 0`, etc.) is
-/// Finnhub's "no data for this symbol" shape — mapped to `Ok(None)`, the
-/// same as Alpha Vantage's empty `Global Quote` object. Some unsupported
-/// symbols instead return HTTP 200 with an `{"error": "..."}` body —
-/// surfaced as a real error, the same as Alpha Vantage's `"Error Message"`.
+/// signals an invalid key (401), a plan/entitlement restriction (403), and
+/// a rate limit (429) as real HTTP status codes rather than
+/// HTTP-200-with-a-JSON-key, so `status` is checked before the body is
+/// treated as a quote at all. A recognized success response with every
+/// price field zeroed out (`c: 0`, etc.) is Finnhub's "no data for this
+/// symbol" shape — mapped to `Ok(None)`, the same as Alpha Vantage's empty
+/// `Global Quote` object. Some unsupported symbols instead return HTTP 200
+/// with an `{"error": "..."}` body — surfaced as a real error, the same as
+/// Alpha Vantage's `"Error Message"`.
+///
+/// 403 specifically (distinct from 401's "your key itself is bad") means
+/// the key is valid but Finnhub's free tier doesn't include this
+/// particular symbol (observed in practice for some indices/mutual funds)
+/// — a real report showed this landing in the generic `status != 200`
+/// branch below and dumping Finnhub's raw `{"error":"You don't have
+/// access to this resource."}` body straight into the UI. That's every bit
+/// as recognized and expected as a 401/429, so it gets the same
+/// plain-English treatment instead of a raw JSON echo.
 pub fn parse_quote_response(status: u16, body: &str) -> Result<Option<Decimal>, String> {
     if status == 401 {
         return Err(format!("Finnhub rejected the API key: {body}"));
+    }
+    if status == 403 {
+        return Err("Finnhub's plan doesn't include this symbol".to_string());
     }
     if status == 429 {
         return Err(format!("Finnhub's rate limit was hit: {body}"));
@@ -120,6 +133,12 @@ mod tests {
                 expected_substring: Some("API key"),
             },
             Case {
+                label: "plan-restricted symbol status",
+                status: 403,
+                body: r#"{"error":"You don't have access to this resource."}"#,
+                expected_substring: Some("plan"),
+            },
+            Case {
                 label: "rate limit status",
                 status: 429,
                 body: "",
@@ -146,5 +165,20 @@ mod tests {
                 assert!(result.unwrap_err().contains(substring), "case: {}", case.label);
             }
         }
+    }
+
+    /// Regression test for a real report: a 403 for a plan-restricted
+    /// symbol used to fall into the generic "unexpected response" branch
+    /// and echo Finnhub's raw JSON error body straight into the app's UI
+    /// (`Live prices: ... — PLIDX: unexpected response from Finnhub (HTTP
+    /// 403): {"error":"You don't have access to this resource."}`). The
+    /// message must be plain English with no leaked JSON or HTTP jargon.
+    #[test]
+    fn parse_quote_response_403_never_leaks_the_raw_json_body() {
+        let result = parse_quote_response(403, r#"{"error":"You don't have access to this resource."}"#);
+
+        let message = result.unwrap_err();
+        assert!(!message.contains('{'), "expected no raw JSON in the message, got: {message}");
+        assert!(!message.contains("403"), "expected no raw HTTP status in the message, got: {message}");
     }
 }

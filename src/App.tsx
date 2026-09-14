@@ -49,6 +49,7 @@ import { MoreFiltersPopover } from "./MoreFiltersPopover";
 import { UpdateBanner } from "./UpdateBanner";
 import { NavIcon, CategoryIcon } from "./icons";
 import { formatAmount, toLocalIsoDate } from "./format";
+import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
 import type {
@@ -657,11 +658,8 @@ function App({
     try {
       const summary = await invoke<LivePriceRefreshSummary>("refresh_live_prices");
       await Promise.all([refreshHoldings(), refreshLivePriceSettings()]);
-      let message = `Live prices: updated ${summary.updated.length} symbol(s)`;
-      if (summary.failed.length > 0) {
-        message += ` — ${summary.failed.map((f) => `${f.symbol}: ${f.error}`).join("; ")}`;
-      }
-      setStatus(message, summary.failed.length > 0 ? "error" : "success");
+      const { text, kind } = summarizeLivePriceRefresh(summary);
+      setStatus(text, kind);
     } catch (e) {
       setStatus(String(e));
     }
