@@ -1,10 +1,10 @@
 import { usePopover } from "./usePopover";
 
-/** Collapses the Ledger's less-frequently-used filters (date range, tag)
+/** Collapses the Transactions tab's less-frequently-used filters (date range, tag)
  * behind one toggle — same toggle-button/click-outside/panel shape as
  * `AccountFilterDropdown`, reusing its `.account-filter*` CSS classes
  * outright rather than inventing new ones. Search/Category/Account/Member
- * stay immediately visible in the Ledger toolbar; this just keeps the
+ * stay immediately visible in the Transactions toolbar; this just keeps the
  * occasional ones a click away instead of permanent visual weight. */
 export function MoreFiltersPopover({
   filterFrom,

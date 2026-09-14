@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 
-const DISMISSED_VERSION_KEY = "pennyworth-dismissed-update-version";
-const REPO = "OneTrueAsian/penny-worth";
+const DISMISSED_VERSION_KEY = "vaultspend-dismissed-update-version";
+const REPO = "OneTrueAsian/vault-spend";
 
 type ReleaseAsset = { name: string; browser_download_url: string };
 
@@ -153,7 +153,7 @@ export function UpdateBanner() {
   return (
     <div className="update-banner">
       <span>
-        A new version of Penny Worth ({latest.version}) is available.
+        A new version of Vault Spend ({latest.version}) is available.
         {error && <span className="update-banner-error"> {error}</span>}
       </span>
       <span className="update-banner-actions">

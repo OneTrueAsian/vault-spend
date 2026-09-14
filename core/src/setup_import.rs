@@ -176,30 +176,54 @@ fn parse_section(section: &str, body: &str, first_data_row_number: usize, result
         let record = match record {
             Ok(r) => r,
             Err(e) => {
-                result.errors.push(RowError { section: section.to_string(), row_number, message: e.to_string() });
+                result.errors.push(RowError {
+                    section: section.to_string(),
+                    row_number,
+                    message: e.to_string(),
+                });
                 continue;
             }
         };
         match section {
             "Accounts" => match parse_account_row(&headers, &record) {
                 Ok(row) => result.accounts.push(row),
-                Err(message) => result.errors.push(RowError { section: section.to_string(), row_number, message }),
+                Err(message) => result.errors.push(RowError {
+                    section: section.to_string(),
+                    row_number,
+                    message,
+                }),
             },
             "Categories" => match parse_category_row(&headers, &record) {
                 Ok(row) => result.categories.push(row),
-                Err(message) => result.errors.push(RowError { section: section.to_string(), row_number, message }),
+                Err(message) => result.errors.push(RowError {
+                    section: section.to_string(),
+                    row_number,
+                    message,
+                }),
             },
             "Budgets" => match parse_budget_row(&headers, &record) {
                 Ok(row) => result.budgets.push(row),
-                Err(message) => result.errors.push(RowError { section: section.to_string(), row_number, message }),
+                Err(message) => result.errors.push(RowError {
+                    section: section.to_string(),
+                    row_number,
+                    message,
+                }),
             },
             "Buckets" => match parse_bucket_row(&headers, &record) {
                 Ok(row) => result.buckets.push(row),
-                Err(message) => result.errors.push(RowError { section: section.to_string(), row_number, message }),
+                Err(message) => result.errors.push(RowError {
+                    section: section.to_string(),
+                    row_number,
+                    message,
+                }),
             },
             "Holdings" => match parse_holding_row(&headers, &record) {
                 Ok(row) => result.holdings.push(row),
-                Err(message) => result.errors.push(RowError { section: section.to_string(), row_number, message }),
+                Err(message) => result.errors.push(RowError {
+                    section: section.to_string(),
+                    row_number,
+                    message,
+                }),
             },
             _ => unreachable!("section_kind only ever returns a known section"),
         }
@@ -254,7 +278,12 @@ fn parse_budget_row(headers: &csv::StringRecord, record: &csv::StringRecord) -> 
     let amount_str = non_blank(field(headers, record, "Monthly Amount")).ok_or("missing monthly amount")?;
     let monthly_amount = Decimal::from_str(&amount_str).map_err(|_| format!("invalid monthly amount '{amount_str}'"))?;
     let period = non_blank(field(headers, record, "Period"));
-    Ok(BudgetRow { category, budget_group, monthly_amount, period })
+    Ok(BudgetRow {
+        category,
+        budget_group,
+        monthly_amount,
+        period,
+    })
 }
 
 fn parse_bucket_row(headers: &csv::StringRecord, record: &csv::StringRecord) -> Result<BucketRow, String> {
@@ -324,35 +353,52 @@ mod tests {
         );
 
         assert!(result.errors.is_empty(), "unexpected errors: {:?}", result.errors);
-        assert_eq!(result.accounts, vec![AccountRow {
-            name: "Everyday Checking".to_string(),
-            account_type: "checking".to_string(),
-            starting_balance: Some("1000.00".parse().unwrap()),
-            institution: Some("Ally".to_string()),
-            mask: Some("1234".to_string()),
-        }]);
-        assert_eq!(result.categories, vec![CategoryRow { name: "Groceries".to_string() }]);
-        assert_eq!(result.budgets, vec![BudgetRow {
-            category: "Groceries".to_string(),
-            budget_group: "flexible".to_string(),
-            monthly_amount: "400.00".parse().unwrap(),
-            period: Some("2026-08".to_string()),
-        }]);
-        assert_eq!(result.buckets, vec![BucketRow {
-            name: "Emergency Fund".to_string(),
-            target_amount: Some("5000.00".parse().unwrap()),
-            target_date: Some("2027-01-01".parse().unwrap()),
-            linked_account_name: Some("Everyday Checking".to_string()),
-        }]);
-        assert_eq!(result.holdings, vec![HoldingRow {
-            account_name: "Brokerage".to_string(),
-            symbol: "AAPL".to_string(),
-            name: Some("Apple Inc.".to_string()),
-            shares: "10".parse().unwrap(),
-            price: "231.20".parse().unwrap(),
-            cost_basis: "1450.00".parse().unwrap(),
-            asset_class: Some("US Stocks".to_string()),
-        }]);
+        assert_eq!(
+            result.accounts,
+            vec![AccountRow {
+                name: "Everyday Checking".to_string(),
+                account_type: "checking".to_string(),
+                starting_balance: Some("1000.00".parse().unwrap()),
+                institution: Some("Ally".to_string()),
+                mask: Some("1234".to_string()),
+            }]
+        );
+        assert_eq!(
+            result.categories,
+            vec![CategoryRow {
+                name: "Groceries".to_string()
+            }]
+        );
+        assert_eq!(
+            result.budgets,
+            vec![BudgetRow {
+                category: "Groceries".to_string(),
+                budget_group: "flexible".to_string(),
+                monthly_amount: "400.00".parse().unwrap(),
+                period: Some("2026-08".to_string()),
+            }]
+        );
+        assert_eq!(
+            result.buckets,
+            vec![BucketRow {
+                name: "Emergency Fund".to_string(),
+                target_amount: Some("5000.00".parse().unwrap()),
+                target_date: Some("2027-01-01".parse().unwrap()),
+                linked_account_name: Some("Everyday Checking".to_string()),
+            }]
+        );
+        assert_eq!(
+            result.holdings,
+            vec![HoldingRow {
+                account_name: "Brokerage".to_string(),
+                symbol: "AAPL".to_string(),
+                name: Some("Apple Inc.".to_string()),
+                shares: "10".parse().unwrap(),
+                price: "231.20".parse().unwrap(),
+                cost_basis: "1450.00".parse().unwrap(),
+                asset_class: Some("US Stocks".to_string()),
+            }]
+        );
     }
 
     #[test]
@@ -465,7 +511,7 @@ mod tests {
         // The downloadable template ships with "# ..." explainer lines at
         // the top — anything before the first section title is skipped.
         let result = load_from_str(
-            "# Penny Worth setup template — fill in your own rows.\n\
+            "# Vault Spend setup template — fill in your own rows.\n\
              # Delete the example rows, keep the section titles.\n\
              \n\
              Accounts\n\
@@ -479,9 +525,7 @@ mod tests {
 
     #[test]
     fn blank_holding_name_and_asset_class_parse_as_none() {
-        let result = load_from_str(
-            "Holdings\nAccount,Symbol,Name,Shares,Price,Cost Basis,Asset Class\nBrokerage,VTI,,5,220.00,1000.00,\n",
-        );
+        let result = load_from_str("Holdings\nAccount,Symbol,Name,Shares,Price,Cost Basis,Asset Class\nBrokerage,VTI,,5,220.00,1000.00,\n");
 
         assert!(result.errors.is_empty(), "unexpected errors: {:?}", result.errors);
         assert_eq!(result.holdings[0].name, None);
@@ -490,9 +534,7 @@ mod tests {
 
     #[test]
     fn a_holdings_row_missing_a_required_field_is_a_row_error() {
-        let result = load_from_str(
-            "Holdings\nAccount,Symbol,Name,Shares,Price,Cost Basis,Asset Class\n,VTI,,5,220.00,1000.00,\n",
-        );
+        let result = load_from_str("Holdings\nAccount,Symbol,Name,Shares,Price,Cost Basis,Asset Class\n,VTI,,5,220.00,1000.00,\n");
 
         assert!(result.holdings.is_empty());
         assert_eq!(result.errors.len(), 1);
@@ -502,9 +544,8 @@ mod tests {
 
     #[test]
     fn a_holdings_row_with_an_invalid_number_is_a_row_error() {
-        let result = load_from_str(
-            "Holdings\nAccount,Symbol,Name,Shares,Price,Cost Basis,Asset Class\nBrokerage,VTI,,not-a-number,220.00,1000.00,\n",
-        );
+        let result =
+            load_from_str("Holdings\nAccount,Symbol,Name,Shares,Price,Cost Basis,Asset Class\nBrokerage,VTI,,not-a-number,220.00,1000.00,\n");
 
         assert!(result.holdings.is_empty());
         assert_eq!(result.errors.len(), 1);
@@ -513,9 +554,7 @@ mod tests {
 
     #[test]
     fn holdings_symbol_is_uppercased_on_parse() {
-        let result = load_from_str(
-            "Holdings\nAccount,Symbol,Name,Shares,Price,Cost Basis,Asset Class\nBrokerage,vti,,5,220.00,1000.00,\n",
-        );
+        let result = load_from_str("Holdings\nAccount,Symbol,Name,Shares,Price,Cost Basis,Asset Class\nBrokerage,vti,,5,220.00,1000.00,\n");
 
         assert_eq!(result.holdings[0].symbol, "VTI");
     }
@@ -570,9 +609,7 @@ mod tests {
         // Same tolerance every other section already has — `field()` looks
         // columns up by name, so an extra column (or a different order)
         // never breaks parsing.
-        let result = load_from_str(
-            "Holdings\nNotes,Account,Symbol,Shares,Price,Cost Basis\nignore me,Brokerage,VTI,5,220.00,1000.00\n",
-        );
+        let result = load_from_str("Holdings\nNotes,Account,Symbol,Shares,Price,Cost Basis\nignore me,Brokerage,VTI,5,220.00,1000.00\n");
 
         assert!(result.errors.is_empty(), "unexpected errors: {:?}", result.errors);
         assert_eq!(result.holdings[0].symbol, "VTI");

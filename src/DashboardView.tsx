@@ -1,7 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
-import { AlertTriangle, Check, CreditCard, Info, Landmark, Leaf, LineChart as LineChartIcon, MessageCircleQuestion, Wallet } from "lucide-react";
-import { CategoryIcon } from "./categoryIcons";
-import { BudgetGroupIcon } from "./budgetGroupIcons";
+import { Check, Info, Leaf, LineChart as LineChartIcon, MessageCircleQuestion } from "lucide-react";
+import { CategoryIcon, BudgetGroupIcon, AccountTypeIcon, BucketIcon, IconEntryGlyph, flatIconEntry } from "./icons";
 import type {
   Account,
   AccountContributionDelta,
@@ -24,8 +23,6 @@ import { formatAmount } from "./format";
 import { groupOf, netWorthContribution, owedAmount } from "./accountGroups";
 import { netWorthByMember } from "./memberBreakdowns";
 import { daysLeft } from "./BucketsView";
-import { AccountTypeIcon } from "./accountIcons";
-import { BucketIcon } from "./bucketIcons";
 import {
   LAYOUT_PRESETS,
   LAYOUT_PRESET_LABELS,
@@ -73,7 +70,7 @@ function LedgerQaBox({
       <div className="card-head">
         <span className="reports-section-title cell-with-icon">
           <MessageCircleQuestion className="category-legend-icon" />
-          Ask Pennyworth
+          Ask the Vault
         </span>
         <button type="button" className="modal-secondary" onClick={() => setShowExamples((v) => !v)}>
           {showExamples ? "Hide tips" : "Tips & examples"}
@@ -178,6 +175,7 @@ export function DashboardView({
   familyMembers,
   buckets,
   categories,
+  categoryIconMap,
   topCategoriesData,
   layoutWidgets,
   onSetLayoutWidgets,
@@ -224,13 +222,16 @@ export function DashboardView({
    * request. */
   holdings: Holding[];
   familyMembers: FamilyMember[];
-  /** Only needed for "Ask Pennyworth" (see ledgerQa.ts) — bucket-progress
+  /** Only needed for "Ask the Vault" (see ledgerQa.ts) — bucket-progress
    * questions ("how much have I saved toward vacation"). */
   buckets: Bucket[];
-  /** Only needed for "Ask Pennyworth" (see ledgerQa.ts) — matching a
+  /** Only needed for "Ask the Vault" (see ledgerQa.ts) — matching a
    * question's category phrase against the app's real, user-curated
    * category names. */
   categories: string[];
+  /** Name → explicit icon override, for every `<CategoryIcon>` rendered on
+   * this page — see App.tsx's `categoryIconMap`. */
+  categoryIconMap: Record<string, string | null>;
   /** Only needed for the "Top merchants" pinned-report widget — App.tsx
    * fetches this (for whatever month Cash Flow's own "Top merchants" last
    * looked at, defaulting to the current month) whenever this widget is on
@@ -242,7 +243,7 @@ export function DashboardView({
   layoutWidgets: WidgetId[];
   onSetLayoutWidgets: (widgets: WidgetId[]) => void;
   onOpenAddWidget: () => void;
-  /** "Recent transactions"/"Upcoming bills" rows drill into the Ledger/
+  /** "Recent transactions"/"Upcoming bills" rows drill into the Transactions/
    * Recurring tab — no filter passed along, matching every other tab
    * switch in this app (simplest useful version, not trying to pre-filter
    * the destination tab down to just that one row). */
@@ -254,7 +255,7 @@ export function DashboardView({
   onOpenReports: () => void;
   onOpenAccounts: () => void;
   onOpenBuckets: () => void;
-  /** Quick actions panel — same triggers the Ledger toolbar's "Add
+  /** Quick actions panel — same triggers the Transactions toolbar's "Add
    * transaction…" button and Accounts' "Add account…" button already use. */
   onAddTransaction: () => void;
   onAddAccount: () => void;
@@ -273,7 +274,7 @@ export function DashboardView({
     if (!name) return;
     const snapshot: SavedLayoutPreset = { name, widgets: layoutWidgets };
     // Saving under a name that's already in use replaces it, rather than
-    // accumulating duplicates — same rule as the Ledger's saved filters.
+    // accumulating duplicates — same rule as the Transactions tab's saved filters.
     const next = [...customPresets.filter((p) => p.name !== name), snapshot];
     setCustomPresets(next);
     saveCustomLayoutPresets(next);
@@ -436,7 +437,7 @@ export function DashboardView({
   );
 
   // Sorts the *entire* transaction list just to take the top 8 — the most
-  // expensive of this file's derived values for a multi-year ledger, and
+  // expensive of this file's derived values for a multi-year history, and
   // one with no dependency on which widgets are even on the layout, so
   // memoizing it is a pure win with no tradeoff.
   const recent = useMemo(
@@ -497,8 +498,8 @@ export function DashboardView({
         onClick={() => toggleStat("networth")}
       >
         <div className="stat-top">
-          <span className="mini-ico accent">
-            <Landmark aria-hidden="true" />
+          <span className="mini-ico mini-ico-plain">
+            <IconEntryGlyph entry={flatIconEntry("net-worth-dash")} />
           </span>
           <span className="stat-label">Net Worth</span>
         </div>
@@ -521,8 +522,8 @@ export function DashboardView({
         onClick={() => toggleStat("cash")}
       >
         <div className="stat-top">
-          <span className="mini-ico blue">
-            <Wallet aria-hidden="true" />
+          <span className="mini-ico mini-ico-plain">
+            <IconEntryGlyph entry={flatIconEntry("cash-dash")} />
           </span>
           <span className="stat-label">Cash</span>
         </div>
@@ -545,8 +546,8 @@ export function DashboardView({
         onClick={() => toggleStat("debt")}
       >
         <div className="stat-top">
-          <span className="mini-ico red">
-            {debt !== 0 && !debtTrendingDown ? <AlertTriangle aria-hidden="true" /> : <CreditCard aria-hidden="true" />}
+          <span className="mini-ico mini-ico-plain">
+            <IconEntryGlyph entry={flatIconEntry(debt !== 0 && !debtTrendingDown ? "warning-icon" : "debt-dash")} />
           </span>
           <span className="stat-label">Debt</span>
         </div>
@@ -611,7 +612,7 @@ export function DashboardView({
       <>
         {budgetAlerts.length > 0 && (
           <button type="button" className="budget-alert-banner" onClick={() => setShowBudgetAlerts((v) => !v)}>
-            <AlertTriangle className="budget-alert-icon" aria-hidden="true" />
+            <IconEntryGlyph entry={flatIconEntry("warning-icon")} className="budget-alert-icon" />
             <span>
               {overCount > 0 && `${overCount} categor${overCount === 1 ? "y" : "ies"} over budget`}
               {overCount > 0 && warningCount > 0 && ", "}
@@ -637,17 +638,19 @@ export function DashboardView({
               <span className="reports-section-title">Insights</span>
             </div>
             <ul className="insights-list">
-              {insights.map((insight, i) => {
-                const SeverityIcon =
-                  insight.severity === "warning" ? AlertTriangle : insight.severity === "positive" ? Leaf : Info;
-                return (
-                  <li key={i} className={`insight-row insight-${insight.severity}`}>
-                    <SeverityIcon className="insight-icon" aria-hidden="true" />
-                    <span className={`confidence-badge insight-badge-${insight.severity}`}>{insight.severity}</span>
-                    <span>{insight.message}</span>
-                  </li>
-                );
-              })}
+              {insights.map((insight, i) => (
+                <li key={i} className={`insight-row insight-${insight.severity}`}>
+                  {insight.severity === "warning" ? (
+                    <IconEntryGlyph entry={flatIconEntry("warning-icon")} className="insight-icon" />
+                  ) : insight.severity === "positive" ? (
+                    <Leaf className="insight-icon" aria-hidden="true" />
+                  ) : (
+                    <Info className="insight-icon" aria-hidden="true" />
+                  )}
+                  <span className={`confidence-badge insight-badge-${insight.severity}`}>{insight.severity}</span>
+                  <span>{insight.message}</span>
+                </li>
+              ))}
             </ul>
           </div>
         )}
@@ -688,7 +691,7 @@ export function DashboardView({
               <div>
                 {donutData.map((d) => (
                   <div className="chart-legend-item" key={d.label} style={{ marginBottom: 8 }}>
-                    <CategoryIcon category={d.label} className="category-legend-icon" />
+                    <CategoryIcon category={d.label} iconKey={categoryIconMap[d.label] ?? null} className="category-legend-icon" />
                     <span className="chart-legend-swatch" style={{ background: d.color }}></span>
                     {d.label}
                     <span className="account-col" style={{ marginLeft: "auto" }}>
@@ -759,7 +762,7 @@ export function DashboardView({
                 title="Go to the Recurring tab"
               >
                 <span className="row-icon-badge">
-                  <CategoryIcon category={r.category} />
+                  <CategoryIcon category={r.category} iconKey={r.category ? categoryIconMap[r.category] : null} />
                 </span>
                 <div className="suggested-info">
                   <div className="account-name-cell">{r.merchant}</div>
@@ -791,12 +794,12 @@ export function DashboardView({
           </thead>
           <tbody>
             {recent.map((t) => (
-              <tr key={t.id} className="clickable-row" onClick={onOpenLedger} title="Go to the Ledger tab">
+              <tr key={t.id} className="clickable-row" onClick={onOpenLedger} title="Go to the Transactions tab">
                 <td>{t.date}</td>
                 <td>
                   <span className="cell-with-icon">
                     <span className="row-icon-badge">
-                      <CategoryIcon category={t.category} />
+                      <CategoryIcon category={t.category} iconKey={t.category ? categoryIconMap[t.category] : null} />
                     </span>
                     {t.description}
                   </span>
@@ -967,7 +970,7 @@ export function DashboardView({
       <div className={`stat stat-hero ${tint}`}>
         <div className="stat-top">
           <span className={`mini-ico ${badgeColor}`}>
-            <AccountTypeIcon accountType={account.account_type} />
+            <AccountTypeIcon accountType={account.account_type} iconKey={account.icon_key} />
           </span>
           <span className="stat-label">{account.name}</span>
         </div>
@@ -1144,6 +1147,7 @@ export function DashboardView({
 
       <div className="dashboard-toolbar">
         <select
+          aria-label="Dashboard layout"
           className="month-select"
           value={presetKey}
           title="Layout"

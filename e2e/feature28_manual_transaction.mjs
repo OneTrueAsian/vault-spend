@@ -17,7 +17,7 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 
 const app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
   const addTransactionBtn = await app.browser.$("button*=Add transaction");

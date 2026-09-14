@@ -51,7 +51,10 @@ fn parse_ofx(content: &str, invert_amounts: bool) -> LoadResult {
             if in_txn {
                 match build_transaction(date.take(), amount.take(), name.take(), memo.take(), invert_amounts) {
                     Ok(tx) => transactions.push(tx),
-                    Err(message) => errors.push(RowError { row_number: txn_start_line, message }),
+                    Err(message) => errors.push(RowError {
+                        row_number: txn_start_line,
+                        message,
+                    }),
                 }
             }
             in_txn = false;
@@ -72,7 +75,11 @@ fn parse_ofx(content: &str, invert_amounts: bool) -> LoadResult {
         }
     }
 
-    LoadResult { transactions, errors, ..Default::default() }
+    LoadResult {
+        transactions,
+        errors,
+        ..Default::default()
+    }
 }
 
 /// Parses one `<TAG>value` (or `<TAG>value</TAG>`) SGML/XML line — returns

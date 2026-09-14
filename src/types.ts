@@ -29,6 +29,7 @@ export type Profile = {
   id: string;
   name: string;
   is_active: boolean;
+  icon_key: string | null;
 };
 
 export type LivePriceProviderId = "alpha_vantage" | "finnhub" | "twelve_data" | "stockdata_org";
@@ -81,6 +82,7 @@ export type Transaction = {
   account_id: number;
   account_name: string;
   applied_to_debt: AppliedDebtPayment | null;
+  principal_amount: string | null;
   split_count: number;
   tags: string[];
   member_id: number | null;
@@ -106,6 +108,23 @@ export type Account = {
   excluded_from_debt_payoff: boolean;
   member_id: number | null;
   member_name: string | null;
+  /** A transaction dated on or before this can't move `current_balance` —
+   * the account's last monthly rollover or manual balance correction
+   * already accounts for everything through this date. `null` if neither
+   * has ever happened for this account. */
+  checkpoint_date: string | null;
+  /** An explicit icon override (see `AccountTypeIcon`'s `iconKey` prop) —
+   * `null` means "keep guessing an icon from `account_type`." */
+  icon_key: string | null;
+};
+
+/** A registered category name plus its explicit icon override, if any —
+ * returned by `list_categories_with_icons` alongside (not instead of) the
+ * plain `list_categories(): string[]` most of the app still uses for
+ * name-only pickers/autocomplete. */
+export type CategoryIconEntry = {
+  name: string;
+  icon_key: string | null;
 };
 
 export type DebtPayoffLine = {

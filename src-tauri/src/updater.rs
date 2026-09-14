@@ -25,7 +25,7 @@ fn sanitize_filename(name: &str) -> String {
 pub async fn download_asset(client: &reqwest::Client, url: &str, filename: &str) -> Result<PathBuf, String> {
     let response = client
         .get(url)
-        .header("User-Agent", "PennyWorth-Updater")
+        .header("User-Agent", "VaultSpend-Updater")
         .send()
         .await
         .map_err(|e| format!("Failed to download the update: {e}"))?;
@@ -45,7 +45,7 @@ mod tests {
     #[test]
     fn sanitize_filename_strips_path_separators() {
         assert_eq!(sanitize_filename("../../evil.exe"), "....evil.exe");
-        assert_eq!(sanitize_filename("Penny.Worth_1.1.4_x64-setup.exe"), "Penny.Worth_1.1.4_x64-setup.exe");
+        assert_eq!(sanitize_filename("Vault.Spend_1.1.4_x64-setup.exe"), "Vault.Spend_1.1.4_x64-setup.exe");
         assert_eq!(sanitize_filename("C:\\Windows\\evil.exe"), "CWindowsevil.exe");
     }
 
@@ -64,17 +64,14 @@ mod tests {
     #[test]
     fn open_path_permission_grants_a_non_empty_scope() {
         let raw = include_str!("../capabilities/default.json");
-        let parsed: serde_json::Value =
-            serde_json::from_str(raw).expect("capabilities/default.json must be valid JSON");
+        let parsed: serde_json::Value = serde_json::from_str(raw).expect("capabilities/default.json must be valid JSON");
         let permissions = parsed["permissions"]
             .as_array()
             .expect("capabilities/default.json must have a permissions array");
 
         let entry = permissions
             .iter()
-            .find(|p| {
-                p.as_str() == Some("opener:allow-open-path") || p["identifier"] == "opener:allow-open-path"
-            })
+            .find(|p| p.as_str() == Some("opener:allow-open-path") || p["identifier"] == "opener:allow-open-path")
             .expect("capabilities/default.json is missing the opener:allow-open-path permission entirely");
 
         let scope = entry["allow"].as_array().unwrap_or_else(|| {

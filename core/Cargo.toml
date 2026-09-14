@@ -5,6 +5,6 @@ edition = "2024"
 
 [dependencies]
 csv = "1"
-chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 rust_decimal = "1"
 rusqlite = { version = "0.32", features = ["bundled", "backup"] }

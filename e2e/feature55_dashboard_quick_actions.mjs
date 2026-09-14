@@ -13,12 +13,19 @@ try {
   const quickActions = await app.browser.$(".quick-actions");
   await quickActions.waitForExist({ timeout: 10000 });
 
+  // `.modal-overlay` fades in over 160ms (see App.css's `overlay-in`
+  // animation) — `.modal-title` exists in the DOM the instant the dialog
+  // mounts, before that fade finishes, so a `getText()` read timed to
+  // land mid-animation can come back empty even though `waitForExist`
+  // already succeeded. Poll for the actual expected title instead of
+  // reading it once right after existence is confirmed.
   const addTransactionBtn = await quickActions.$("button*=Add transaction");
   await addTransactionBtn.click();
   let modalTitle = await app.browser.$(".modal-title");
-  await modalTitle.waitForExist({ timeout: 5000 });
-  let titleText = await modalTitle.getText();
-  if (!titleText.includes("Add transaction")) throw new Error(`expected the "Add transaction" dialog, got "${titleText}"`);
+  await app.browser.waitUntil(async () => (await modalTitle.getText()).includes("Add transaction"), {
+    timeout: 5000,
+    timeoutMsg: 'expected the "Add transaction" dialog',
+  });
   await app.browser.keys(["Escape"]);
   await modalTitle.waitForExist({ timeout: 5000, reverse: true });
   console.log("+ Add transaction -> opened the Add transaction dialog - OK");
@@ -26,9 +33,10 @@ try {
   const addAccountBtn = await quickActions.$("button*=Add account");
   await addAccountBtn.click();
   modalTitle = await app.browser.$(".modal-title");
-  await modalTitle.waitForExist({ timeout: 5000 });
-  titleText = await modalTitle.getText();
-  if (!titleText.includes("New account")) throw new Error(`expected the "New account" dialog, got "${titleText}"`);
+  await app.browser.waitUntil(async () => (await modalTitle.getText()).includes("New account"), {
+    timeout: 5000,
+    timeoutMsg: 'expected the "New account" dialog',
+  });
   await app.browser.keys(["Escape"]);
   await modalTitle.waitForExist({ timeout: 5000, reverse: true });
   console.log("+ Add account -> opened the New account dialog - OK");

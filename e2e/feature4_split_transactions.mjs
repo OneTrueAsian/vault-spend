@@ -11,7 +11,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 function query(dbDir, sql) {
-  const dbPath = path.join(dbDir, "pennyworth.db");
+  const dbPath = path.join(dbDir, "vaultspend.db");
   const out = execFileSync("python", [
     "-c",
     `
@@ -38,7 +38,7 @@ cur.execute(
 
 const app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
   const splitToggle = await app.browser.$(".split-toggle");

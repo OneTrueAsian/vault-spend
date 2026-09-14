@@ -2,7 +2,18 @@ import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { formatAmount, isValidDecimalString, toLocalIsoDate } from "./format";
 import type { Account, Bucket, CategoryTransaction, FamilyMember, Holding, MonthExpenseDetail, ReportBudgetLine } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
+import { isBeforeAccountCheckpoint } from "./accountGroups";
 import { accountWidgetId, bucketWidgetId, investmentWidgetId, WIDGET_CATALOG, type WidgetId } from "./dashboardLayout";
+import {
+  AccountTypeIcon,
+  ACCOUNT_ICON_OPTIONS,
+  type AccountIconKey,
+  CategoryIcon,
+  CATEGORY_ICON_OPTIONS,
+  isCategoryIconKey,
+  type CategoryIconKey,
+  IconPicker,
+} from "./icons";
 
 /** Shared shell: a dimmed overlay behind a centered panel. Clicking the
  * overlay (not the panel) cancels, matching how a native dialog behaves —
@@ -146,9 +157,9 @@ export function WelcomeDialog({
   onGetStarted: () => void;
 }) {
   return (
-    <ModalShell title="Welcome to Penny Worth" onCancel={onGetStarted}>
+    <ModalShell title="Welcome to Vault Spend" onCancel={onGetStarted}>
       <p className="modal-message">
-        Get your penny's worth. Before you dive in, would you like a quick
+        Own your Data, Own your Money! Before you dive in, would you like a quick
         tour of how everything works?
       </p>
       <p className="modal-message modal-message-secondary">
@@ -207,6 +218,7 @@ export function NewAccountDialog({
     institution: string | null,
     mask: string | null,
     memberId: number | null,
+    iconKey: string | null,
   ) => void;
 }) {
   const [name, setName] = useState("");
@@ -215,6 +227,7 @@ export function NewAccountDialog({
   const [institution, setInstitution] = useState("");
   const [mask, setMask] = useState("");
   const [memberId, setMemberId] = useState("");
+  const [iconKey, setIconKey] = useState<AccountIconKey | null>(null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -226,6 +239,7 @@ export function NewAccountDialog({
       institution.trim() ? institution.trim() : null,
       mask.trim() ? mask.trim() : null,
       memberId ? Number(memberId) : null,
+      iconKey,
     );
   }
 
@@ -253,6 +267,15 @@ export function NewAccountDialog({
               </option>
             ))}
           </select>
+        </label>
+        <label className="modal-field">
+          <span>Icon (optional)</span>
+          <IconPicker
+            options={ACCOUNT_ICON_OPTIONS}
+            value={iconKey}
+            onChange={setIconKey}
+            renderIcon={(key) => <AccountTypeIcon accountType={accountType} iconKey={key} />}
+          />
         </label>
         <label className="modal-field">
           <span>{balanceLabel} (optional)</span>
@@ -301,14 +324,15 @@ export function NewCategoryDialog({
   onSubmit,
 }: {
   onCancel: () => void;
-  onSubmit: (name: string) => void;
+  onSubmit: (name: string, iconKey: string | null) => void;
 }) {
   const [name, setName] = useState("");
+  const [iconKey, setIconKey] = useState<CategoryIconKey | null>(null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    onSubmit(name.trim());
+    onSubmit(name.trim(), iconKey);
   }
 
   return (
@@ -321,6 +345,15 @@ export function NewCategoryDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder='e.g. "Pet Care"'
+          />
+        </label>
+        <label className="modal-field">
+          <span>Icon (optional)</span>
+          <IconPicker
+            options={CATEGORY_ICON_OPTIONS}
+            value={iconKey}
+            onChange={setIconKey}
+            renderIcon={(key) => <CategoryIcon category={name} iconKey={key} />}
           />
         </label>
         <div className="modal-actions">
@@ -336,12 +369,12 @@ export function NewCategoryDialog({
   );
 }
 
-/** The Ledger's "Add transaction…" — the one way to get a single
+/** The Transactions tab's "Add transaction…" — the one way to get a single
  * transaction in without a file import (see `App.tsx`'s
  * `handleCreateManualTransaction`). Leaving Category on "Auto-categorize"
  * runs it through the same categorization pass an import row gets; picking
  * one explicitly skips that. There's no inline "+ New category…" here
- * (unlike the Ledger's own row-level category dropdown) — every other
+ * (unlike the Transactions tab's own row-level category dropdown) — every other
  * `askX()` dialog in this app is top-level, never nested inside another
  * modal, and leaving Category blank plus correcting it afterward via that
  * existing per-row dropdown already covers "I want a brand-new category"
@@ -393,6 +426,8 @@ export function NewTransactionDialog({
   const valid = accountId !== "" && description.trim() !== "" && amountIsNumeric && date !== "";
 
   const budgetImpact = budgetActuals.find((b) => b.category === category);
+  const selectedAccount = accounts.find((a) => String(a.id) === accountId);
+  const backdated = selectedAccount ? isBeforeAccountCheckpoint(selectedAccount, date) : false;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -418,6 +453,13 @@ export function NewTransactionDialog({
         <label className="modal-field">
           <span>Date</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          {backdated && selectedAccount && (
+            <span className="field-hint field-warning">
+              {selectedAccount.name}'s balance was last locked in as of {selectedAccount.checkpoint_date} — this
+              transaction won't change today's balance shown on the Accounts page (it still counts in past balance
+              history).
+            </span>
+          )}
         </label>
         <label className="modal-field">
           <span>Description</span>
@@ -491,14 +533,20 @@ export function NewTransactionDialog({
 
 export function ManageCategoriesDialog({
   categories,
+  categoryIconMap,
   onCancel,
   onCreate,
+  onSetIcon,
   onRename,
   onDelete,
 }: {
   categories: string[];
+  /** Name → explicit icon override, for the swatch shown on each row — see
+   * App.tsx's `categoryIconMap`. */
+  categoryIconMap: Record<string, string | null>;
   onCancel: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, iconKey: string | null) => void;
+  onSetIcon: (name: string, iconKey: string | null) => void;
   onRename: (oldName: string, newName: string) => void;
   onDelete: (name: string) => void;
 }) {
@@ -507,6 +555,8 @@ export function ManageCategoriesDialog({
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDelete, () => setConfirmingDelete(null));
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState<CategoryIconKey | null>(null);
+  const [editingIcon, setEditingIcon] = useState<string | null>(null);
 
   function startEditing(name: string) {
     setConfirmingDelete(null);
@@ -526,8 +576,9 @@ export function ManageCategoriesDialog({
     e.preventDefault();
     const trimmed = newCategoryName.trim();
     if (!trimmed) return;
-    onCreate(trimmed);
+    onCreate(trimmed, newCategoryIcon);
     setNewCategoryName("");
+    setNewCategoryIcon(null);
   }
 
   return (
@@ -545,12 +596,46 @@ export function ManageCategoriesDialog({
           Add
         </button>
       </form>
+      {newCategoryName.trim() !== "" && (
+        <IconPicker
+          options={CATEGORY_ICON_OPTIONS}
+          value={newCategoryIcon}
+          onChange={setNewCategoryIcon}
+          renderIcon={(key) => <CategoryIcon category={newCategoryName} iconKey={key} />}
+        />
+      )}
       {categories.length === 0 ? (
         <p className="modal-message">No categories in use yet.</p>
       ) : (
         <ul className="category-manage-list">
-          {categories.map((name) => (
+          {categories.map((name) => {
+            const currentIconKey = categoryIconMap[name] ?? null;
+            return (
             <li key={name} className="category-manage-row">
+              <span className="icon-toggle-anchor">
+                <button
+                  type="button"
+                  className="icon-picker-swatch"
+                  title="Click to change this category's icon"
+                  aria-label={`Change ${name}'s icon`}
+                  onClick={() => setEditingIcon(editingIcon === name ? null : name)}
+                >
+                  <CategoryIcon category={name} iconKey={currentIconKey} />
+                </button>
+                {editingIcon === name && (
+                  <div className="icon-picker-popover">
+                    <IconPicker
+                      options={CATEGORY_ICON_OPTIONS}
+                      value={currentIconKey && isCategoryIconKey(currentIconKey) ? currentIconKey : null}
+                      onChange={(key) => {
+                        onSetIcon(name, key);
+                        setEditingIcon(null);
+                      }}
+                      renderIcon={(key) => <CategoryIcon category={name} iconKey={key} />}
+                    />
+                  </div>
+                )}
+              </span>
               {editing === name ? (
                 <input
                   autoFocus
@@ -593,7 +678,8 @@ export function ManageCategoriesDialog({
                 </span>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
       <div className="modal-actions">
@@ -806,12 +892,12 @@ export function CategoryTransactionsDialog({
   categoryOptions: string[];
   /** Reconciles a miscategorized whole transaction — not offered for a
    * split line (`is_split`), since a split's category lives on its own
-   * split row, edited via the Ledger's "Edit splits" flow instead. */
+   * split row, edited via the Transactions tab's "Edit splits" flow instead. */
   onCorrectCategory: (transactionId: number, category: string) => void;
   /** Resolves once the change has actually been applied (or `false` if
    * the user backed out of an in-flight "+ New category…" prompt, or the
    * call failed) — the selection only clears on a real success, same as
-   * the Ledger's own bulk bar. */
+   * the Transactions tab's own bulk bar. */
   onBulkCorrectCategory: (transactionIds: number[], category: string) => Promise<boolean>;
   onClose: () => void;
 }) {
@@ -919,7 +1005,7 @@ export function CategoryTransactionsDialog({
                     <td className="amount-col">{formatAmount(t.amount)}</td>
                     <td>
                       {t.is_split ? (
-                        <span className="modal-message-secondary" title="Edit a split's category from the Ledger's Edit splits screen">
+                        <span className="modal-message-secondary" title="Edit a split's category from the Transactions tab's Edit splits screen">
                           {category}
                         </span>
                       ) : (
@@ -980,7 +1066,7 @@ export function UseExistingDataFileDialog({
         {path}
       </p>
       <p className="modal-message modal-message-secondary">
-        Penny Worth will start using this file right away, registered as a new profile you can switch away from
+        Vault Spend will start using this file right away, registered as a new profile you can switch away from
         anytime. The file stays exactly where it is — nothing is copied or moved.
       </p>
       <form onSubmit={handleSubmit}>
@@ -1020,7 +1106,7 @@ export function ConfirmInvertDialog({
         statement (with payments shown as negative)?
       </p>
       <p className="modal-message modal-message-secondary">
-        Choose "Flip the signs" to match the rest of your ledger (negative =
+        Choose "Flip the signs" to match the rest of your transactions (negative =
         money out). Choose "Keep as-is" if it already uses that convention —
         most bank/checking exports do.
       </p>

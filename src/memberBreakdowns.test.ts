@@ -14,6 +14,7 @@ function tx(overrides: Partial<Transaction> = {}): Transaction {
     account_id: 1,
     account_name: "Everyday Checking",
     applied_to_debt: null,
+    principal_amount: null,
     split_count: 0,
     tags: [],
     member_id: 3,
@@ -35,6 +36,8 @@ function account(overrides: Partial<Account> = {}): Account {
     excluded_from_debt_payoff: false,
     member_id: null,
     member_name: null,
+    checkpoint_date: null,
+    icon_key: null,
     ...overrides,
   };
 }

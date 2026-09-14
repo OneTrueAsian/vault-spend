@@ -1,7 +1,7 @@
-/* Slate — Penny Worth's default look (internal theme id stays "classic",
+/* Slate — Vault Spend's default look (internal theme id stays "classic",
    see SettingsView.tsx's THEME_STYLE_OPTIONS — only the label changed, so
    an existing user's saved `meadow-theme-style` value keeps working with
-   no migration). Palette/type ported from the "Penny Worth Slate" design
+   no migration). Palette/type ported from the "Vault Spend Slate" design
    mockup. The sidebar now matches the current light/dark mode instead of
    staying permanently dark — --sidebar-* below are close to but distinct
    from the main --surface-* tokens, same relationship the mockup uses.
@@ -26,13 +26,13 @@
   --sidebar-bg-hover: #eef1f7;
   --sidebar-bg-active: linear-gradient(135deg, #1f3568, #2f4f96);
   --sidebar-text: #5c6885;
-  --sidebar-text-dim: #a2aabf;
+  --sidebar-text-dim: #697392;
   --sidebar-text-active: #1c2740;
   --sidebar-border: #e8ebf3;
 
   --text: #1c2740;
-  --text-muted: #7c879f;
-  --text-faint: #a2aabf;
+  --text-muted: #616b84;
+  --text-faint: #697392;
   --border: #e8ebf3;
   --border-strong: #d8deeb;
 
@@ -84,13 +84,13 @@
     --sidebar-bg-hover: #0a111f;
     --sidebar-bg-active: linear-gradient(135deg, #3457a0, #4d6fc4);
     --sidebar-text: #93a0c2;
-    --sidebar-text-dim: #5e6a8c;
+    --sidebar-text-dim: #7a86ab;
     --sidebar-text-active: #eef1fb;
     --sidebar-border: #233257;
 
     --text: #eef1fb;
     --text-muted: #93a0c2;
-    --text-faint: #5e6a8c;
+    --text-faint: #7a86ab;
     --border: #233257;
     --border-strong: #304674;
 
@@ -124,13 +124,13 @@
   --sidebar-bg-hover: #0a111f;
   --sidebar-bg-active: linear-gradient(135deg, #3457a0, #4d6fc4);
   --sidebar-text: #93a0c2;
-  --sidebar-text-dim: #5e6a8c;
+  --sidebar-text-dim: #7a86ab;
   --sidebar-text-active: #eef1fb;
   --sidebar-border: #233257;
 
   --text: #eef1fb;
   --text-muted: #93a0c2;
-  --text-faint: #5e6a8c;
+  --text-faint: #7a86ab;
   --border: #233257;
   --border-strong: #304674;
 
@@ -174,13 +174,13 @@
   --sidebar-bg-hover: #0d1420;
   --sidebar-bg-active: #142132;
   --sidebar-text: #8fb8c9;
-  --sidebar-text-dim: #587885;
+  --sidebar-text-dim: #6c92a1;
   --sidebar-text-active: #e4faff;
   --sidebar-border: #101c2c;
 
   --text: #0b1220;
   --text-muted: #51607a;
-  --text-faint: #6b7c94;
+  --text-faint: #5a6b81;
   --border: #d7dfec;
   --border-strong: #b9c4d6;
 
@@ -220,13 +220,13 @@
     --sidebar-bg-hover: #0d1420;
     --sidebar-bg-active: #142132;
     --sidebar-text: #8fb8c9;
-    --sidebar-text-dim: #587885;
+    --sidebar-text-dim: #6c92a1;
     --sidebar-text-active: #e4faff;
     --sidebar-border: #101c2c;
 
     --text: #e4faff;
     --text-muted: #8fb8c9;
-    --text-faint: #587885;
+    --text-faint: #6c92a1;
     --border: #16273a;
     --border-strong: #223a52;
 
@@ -262,13 +262,13 @@
   --sidebar-bg-hover: #0d1420;
   --sidebar-bg-active: #142132;
   --sidebar-text: #8fb8c9;
-  --sidebar-text-dim: #587885;
+  --sidebar-text-dim: #6c92a1;
   --sidebar-text-active: #e4faff;
   --sidebar-border: #101c2c;
 
   --text: #e4faff;
   --text-muted: #8fb8c9;
-  --text-faint: #587885;
+  --text-faint: #6c92a1;
   --border: #16273a;
   --border-strong: #223a52;
 
@@ -523,6 +523,7 @@ body {
 .profile-switcher-toggle {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   width: 100%;
   font-family: inherit;
@@ -536,11 +537,21 @@ body {
   cursor: pointer;
 }
 
-.profile-switcher-toggle .ico {
+.profile-switcher-icon {
   width: 18px;
   height: 18px;
   flex: 0 0 18px;
-  opacity: 0.9;
+  border-radius: 50%;
+}
+
+/* The Lucide fallback (no avatar picked yet) renders as a bare <svg>, not
+   an <img> like the bundled avatar pictures — give it a filled circle so
+   it doesn't float as an unstyled outline next to the colorful ones. */
+svg.profile-switcher-icon {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  padding: 3px;
+  box-sizing: border-box;
 }
 
 .profile-switcher-name {
@@ -569,7 +580,10 @@ body {
 }
 
 .profile-switcher-option {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
   width: 100%;
   text-align: left;
   background: none;
@@ -626,6 +640,7 @@ body {
   top: 0;
   z-index: 5;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -748,6 +763,7 @@ body {
    you're on. */
 .page-top {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
@@ -773,7 +789,7 @@ body {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  flex: none;
+  flex: 0 1 auto;
 }
 
 .quick-actions {
@@ -1199,6 +1215,11 @@ button:disabled {
   gap: 14px;
 }
 
+.icon-toggle-anchor {
+  position: relative;
+  flex: none;
+}
+
 .account-card .type-badge {
   width: 42px;
   height: 42px;
@@ -1212,6 +1233,42 @@ button:disabled {
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 14px;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.icon-picker-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: var(--shadow-md);
+}
+
+/* Portaled to document.body (see SettingsView.tsx's ProfileIconPopover) so
+   a clipping ancestor (e.g. `.ledger`'s `overflow: hidden`, used to keep
+   its own corners rounded) can't hide it — positioned `fixed` against the
+   swatch's own on-screen rect instead of relying on a positioned parent. */
+.icon-picker-popover-portal {
+  position: fixed;
+  top: auto;
+  z-index: 60;
+  /* Wider than the default 220px to fit a row of 4 `.icon-picker-swatch-lg`
+     (52px) swatches plus gaps — the only current user of this class is
+     the profile-avatar picker, which always renders at "lg" size. */
+  width: 260px;
+}
+
+.icon-picker-portal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
 }
 
 .account-card .type-badge-neg {
@@ -1693,6 +1750,15 @@ button:disabled {
   filter: brightness(0) invert(1);
 }
 
+/* Bundled full-color icons (src/assets/icons/*-category.svg etc., see
+   flatIcons.ts) — genuine multi-color artwork the user hand-picked
+   specifically for its color, so unlike `.icon-img` this applies no
+   filter in either theme; the icon's own palette already has enough
+   internal contrast to read on both a light and dark ground. */
+.icon-img-color {
+  display: block;
+}
+
 .cell-with-icon {
   display: flex;
   align-items: center;
@@ -2018,6 +2084,22 @@ button:disabled {
   color: var(--accent-soft-text);
 }
 
+/* A detailed illustrated face (the profile-avatar set) needs meaningfully
+   more pixels than a simple flat-color glyph to actually read — bumping
+   both the button and the image inside it, not just one, since a bigger
+   button around an unchanged tiny image would just add padding. */
+.icon-picker-swatch-lg {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+}
+
+.icon-picker-swatch-lg svg,
+.icon-picker-swatch-lg img {
+  width: 44px;
+  height: 44px;
+}
+
 .bucket-new-form input,
 .bucket-contribution-form input,
 .bucket-new-form select,
@@ -2332,6 +2414,19 @@ button:disabled {
   width: 20px;
   height: 20px;
   filter: brightness(0) invert(1);
+}
+
+/* A full-color icon (flatIcons.ts) inside a stat badge keeps its own
+   colors — no forced-white filter — and sits on a neutral card instead of
+   the saturated gradient below, which would otherwise fight the icon's
+   own palette for attention at this size. */
+.stat-hero .mini-ico-plain {
+  background: var(--surface);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.stat-hero .mini-ico img.icon-img-color {
+  filter: none;
 }
 
 .stat-hero .mini-ico.accent {
@@ -3811,6 +3906,10 @@ button:disabled {
    alone, so this wins regardless of which order they're declared in. */
 .field-hint.report-over-budget {
   color: var(--negative);
+}
+
+.field-hint.field-warning {
+  color: var(--warning);
 }
 
 .modal-actions {

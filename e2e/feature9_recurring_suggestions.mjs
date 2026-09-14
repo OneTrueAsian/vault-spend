@@ -10,15 +10,24 @@
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
+// Dates are anchored to "today" (computed at seed time), not fixed
+// calendar dates — detect_recurring_candidates excludes any pattern whose
+// most recent occurrence is more than 2 cadence periods old (60 days for
+// "monthly", see core/src/store.rs), so a fixed-date fixture silently
+// drifts out of that window and starts failing months after it's written.
 const dbDir = await seedFixture(`
+import datetime
+today = datetime.date.today()
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
 checking_id = cur.lastrowid
-for date in ("2026-05-04", "2026-06-04", "2026-07-04", "2026-08-04"):
+for i in range(4):
+    date = (today - datetime.timedelta(days=30 * i)).isoformat()
     cur.execute(
         "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
         (checking_id, date, "Netflix", "-15.49", "Subscriptions", f"{checking_id}|{date}|netflix|-15.49"),
     )
-for date in ("2026-05-10", "2026-06-10", "2026-07-10"):
+for i in range(3):
+    date = (today - datetime.timedelta(days=6 + 30 * i)).isoformat()
     cur.execute(
         "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
         (checking_id, date, "Spotify", "-9.99", "Subscriptions", f"{checking_id}|{date}|spotify|-9.99"),

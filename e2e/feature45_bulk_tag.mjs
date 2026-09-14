@@ -20,7 +20,7 @@ for date, desc, amount in [("2026-08-10", "Hotel Booking", "-220.00"), ("2026-08
 
 const app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
   for (const desc of ["Hotel Booking", "Airport Parking"]) {

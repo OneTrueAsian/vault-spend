@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
-import pennyWorthIcon from "./assets/penny-worth-icon-1024.png";
+import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
 import { toCsv } from "./csv";
 import { buildSetupTemplate } from "./setupTemplate";
 import { CHANGELOG } from "./changelog";
@@ -23,7 +23,7 @@ import {
 } from "./Modal";
 import { loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
-// `CADENCE_OPTIONS` is used synchronously in the Ledger's own (always-
+// `CADENCE_OPTIONS` is used synchronously in the Transactions tab's own (always-
 // rendered, not tab-gated) bulk "Add to Recurring" control, so
 // `RecurringView`'s module can't be deferred behind `lazy()` the way the
 // other tab views below are — a static import here would force the whole
@@ -47,9 +47,9 @@ import { AccountFilterDropdown, type AccountFilterValue } from "./AccountFilterD
 import { MemberFilterDropdown, type MemberFilterValue } from "./MemberFilterDropdown";
 import { MoreFiltersPopover } from "./MoreFiltersPopover";
 import { UpdateBanner } from "./UpdateBanner";
-import { NavIcon } from "./icons";
-import { CategoryIcon } from "./categoryIcons";
+import { NavIcon, CategoryIcon } from "./icons";
 import { formatAmount, toLocalIsoDate } from "./format";
+import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
 import type {
@@ -62,6 +62,7 @@ import type {
   BudgetAlert,
   CashFlow,
   CategoryAmount,
+  CategoryIconEntry,
   CategoryTransaction,
   DebtPayoffPlan,
   FamilyMember,
@@ -104,7 +105,7 @@ type ImportRow = {
   amount: string;
   is_duplicate: boolean;
   /** The row's own Account column, when the file has one — this app's own
-   * Ledger CSV export does. `commit_import` routes the row there by
+   * Transactions CSV export does. `commit_import` routes the row there by
    * default (creating that account if none matches by name) unless the
    * row's dropdown is changed. */
   account_name: string | null;
@@ -136,6 +137,7 @@ type NewAccountResult = {
   institution: string | null;
   mask: string | null;
   memberId: number | null;
+  iconKey: string | null;
 };
 
 type PendingDialog =
@@ -198,12 +200,15 @@ function compareTransactionsBy(a: Transaction, b: Transaction, column: LedgerSor
 /** What deleting a transaction will do to its account's number, worded to
  * match what that account actually displays — "balance" for cash/other
  * accounts, "amount owed" for credit/loan (see AccountsView's identical
- * framing). A credit account's tracked value is *available* credit, not
- * owed (owed = limit − available), so removing a negative (spending)
- * transaction there raises available and therefore *lowers* what's owed —
- * the opposite direction from every other account type, where the tracked
- * value and "owed" move together. Returns `null` for a zero amount (no
- * impact to explain) or an unknown account. */
+ * framing). Credit and loan both track "amount owed" in a way that moves
+ * opposite a plain balance: a credit account's tracked value is
+ * *available* credit (owed = limit − available), and a loan's
+ * `current_balance` is owed directly but a positive (payment) transaction
+ * *reduces* it (see `account_balance_as_of` on the Rust side) — so for
+ * both, removing a negative transaction raises the tracked number and
+ * therefore *lowers* what's owed, the opposite direction from every other
+ * account type, where the tracked value and "owed" move together. Returns
+ * `null` for a zero amount (no impact to explain) or an unknown account. */
 function describeDeleteImpact(amount: string, account: Account | undefined): string | null {
   if (!account) return null;
   const parsed = parseFloat(amount);
@@ -213,7 +218,7 @@ function describeDeleteImpact(amount: string, account: Account | undefined): str
   const isLoan = account.account_type === "loan";
   const label = isCredit || isLoan ? "amount owed" : "balance";
   const trackedValueGoesUp = parsed < 0; // removing a negative (expense) frees up that much
-  const displayedNumberGoesUp = isCredit ? !trackedValueGoesUp : trackedValueGoesUp;
+  const displayedNumberGoesUp = isCredit || isLoan ? !trackedValueGoesUp : trackedValueGoesUp;
   const direction = displayedNumberGoesUp ? "increase" : "decrease";
   return `Deleting this will ${direction} ${account.name}'s ${label} by ${formatAmount(Math.abs(parsed).toFixed(2))}.`;
 }
@@ -229,7 +234,7 @@ function describeDeleteImpact(amount: string, account: Account | undefined): str
 const NAV_ITEMS: { id: Tab; label: string; icon: string; group: NavGroup }[] = [
   { id: "dashboard", label: "Dashboard", icon: "home", group: "overview" },
   { id: "accounts", label: "Accounts", icon: "bank", group: "money" },
-  { id: "ledger", label: "Ledger", icon: "swap", group: "money" },
+  { id: "ledger", label: "Transactions", icon: "swap", group: "money" },
   { id: "recurring", label: "Recurring", icon: "repeat", group: "money" },
   { id: "budget", label: "Budget", icon: "pie", group: "planning" },
   { id: "buckets", label: "Goals", icon: "flag", group: "planning" },
@@ -255,7 +260,7 @@ const SAVED_FILTERS_STORAGE_KEY = "meadow-saved-ledger-filters";
  * `<select>`s already use `"__new__"` for "+ New category…". */
 const UNCATEGORIZED_FILTER = "__uncategorized__";
 
-/** A named snapshot of the Ledger's filter bar — a per-viewer shortcut,
+/** A named snapshot of the Transactions tab's filter bar — a per-viewer shortcut,
  * same localStorage tier as theme/nav order. `filterAccountIds`/
  * `filterMemberIds` are stored as plain arrays (`Set` doesn't survive
  * `JSON.stringify`) and rehydrated back to `Set`s on apply — see
@@ -333,7 +338,7 @@ function StatusBanner({
   kind: StatusKind;
   /** An optional extra button (e.g. "Undo") next to the dismiss ×, as a
    * sibling — not nested inside it, so it's independently clickable/
-   * focusable. Used by the Ledger's bulk-delete undo toast, which is its
+   * focusable. Used by the Transactions tab's bulk-delete undo toast, which is its
    * own independent piece of state from `status` (see `undoToast` below)
    * precisely so a routine confirmation elsewhere can't clobber an active
    * undo window — both just render through this one shared component. */
@@ -557,7 +562,7 @@ function App({
    * split the same way `handleRelocateDataFile` splits picking a folder
    * from the backend call, except a name has to come from the user first. */
   async function handlePickExistingDataFile() {
-    const path = await open({ multiple: false, filters: [{ name: "Penny Worth Database", extensions: ["db"] }] });
+    const path = await open({ multiple: false, filters: [{ name: "Vault Spend Database", extensions: ["db"] }] });
     if (!path || Array.isArray(path)) return;
     setPendingExistingDbPath(path);
   }
@@ -585,6 +590,15 @@ function App({
   async function handleRenameProfile(id: string, newName: string) {
     try {
       await invoke("rename_profile", { id, newName });
+      await refreshProfiles();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetProfileIcon(id: string, iconKey: string | null) {
+    try {
+      await invoke("set_profile_icon", { id, iconKey });
       await refreshProfiles();
     } catch (e) {
       setStatus(String(e));
@@ -644,11 +658,8 @@ function App({
     try {
       const summary = await invoke<LivePriceRefreshSummary>("refresh_live_prices");
       await Promise.all([refreshHoldings(), refreshLivePriceSettings()]);
-      let message = `Live prices: updated ${summary.updated.length} symbol(s)`;
-      if (summary.failed.length > 0) {
-        message += ` — ${summary.failed.map((f) => `${f.symbol}: ${f.error}`).join("; ")}`;
-      }
-      setStatus(message, summary.failed.length > 0 ? "error" : "success");
+      const { text, kind } = summarizeLivePriceRefresh(summary);
+      setStatus(text, kind);
     } catch (e) {
       setStatus(String(e));
     }
@@ -662,6 +673,7 @@ function App({
     }
   }
   const [usedCategories, setUsedCategories] = useState<string[]>([]);
+  const [categoryIcons, setCategoryIcons] = useState<CategoryIconEntry[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -690,7 +702,7 @@ function App({
   // or someone else's computer) has never set this, so it always appears
   // there; dismissing it either way (including clicking outside the
   // dialog) marks it seen so it never comes back on this machine.
-  const WELCOME_SEEN_STORAGE_KEY = "pennyworth-welcome-seen";
+  const WELCOME_SEEN_STORAGE_KEY = "vaultspend-welcome-seen";
   const [showWelcome, setShowWelcome] = useState(() => {
     try {
       return localStorage.getItem(WELCOME_SEEN_STORAGE_KEY) !== "1";
@@ -719,7 +731,7 @@ function App({
   // tauri.conf.json), not the frontend bundle's own notion of its version,
   // so it reflects what's really running. Nothing shows if this version
   // has no CHANGELOG entry yet.
-  const LAST_SEEN_VERSION_KEY = "pennyworth-last-seen-version";
+  const LAST_SEEN_VERSION_KEY = "vaultspend-last-seen-version";
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [whatsNewVersion, setWhatsNewVersion] = useState<string | null>(null);
 
@@ -771,7 +783,7 @@ function App({
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const { shouldRender: moreMenuShouldRender, closing: moreMenuClosing } = useDelayedVisibility(moreMenuOpen);
 
-  // Closes the Ledger toolbar's "More" menu on an outside click — same
+  // Closes the Transactions toolbar's "More" menu on an outside click — same
   // pattern as MoreFiltersPopover/AccountFilterDropdown.
   useEffect(() => {
     if (!moreMenuOpen) return;
@@ -793,6 +805,8 @@ function App({
     accountId: "",
     amount: "",
   });
+  const [editingPrincipalId, setEditingPrincipalId] = useState<number | null>(null);
+  const [principalDraft, setPrincipalDraft] = useState("");
   const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
   const [splitLines, setSplitLines] = useState<{ category: string; amount: string; note: string }[]>([]);
   const [reviewIds, setReviewIds] = useState<Set<number> | null>(null);
@@ -813,10 +827,21 @@ function App({
 
   // `usedCategories` now comes straight from the backend's category
   // registry (`list_categories`, refetched alongside the rest of the
-  // ledger) — it already includes the standard suggestions, every budgeted
+  // transaction data) — it already includes the standard suggestions, every budgeted
   // category, and anything created or assigned by hand, so it's the
   // complete, single source of truth for every category picker in the app.
   const categoryOptions = usedCategories;
+
+  // Name → explicit icon override, for the handful of places that render a
+  // `<CategoryIcon>` against a real stored category (not just a name typed
+  // into a picker) — `iconForCategory`'s own keyword guess still applies
+  // for any category missing from this map (not yet fetched, or with no
+  // explicit icon chosen).
+  const categoryIconMap = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    for (const c of categoryIcons) map[c.name] = c.icon_key;
+    return map;
+  }, [categoryIcons]);
 
   // Accounts a payment can be applied toward paying down — loans and
   // credit cards are the two account types that represent debt.
@@ -827,7 +852,7 @@ function App({
   // rerun on *every* render regardless of cause: a single keystroke into
   // an unrelated inline edit (a tag, a date) would re-filter and re-sort
   // the full transaction array for no reason. Real cost for a multi-year
-  // ledger with thousands of rows.
+  // history with thousands of rows.
   const anomalyFlagsByTransaction = useMemo(() => {
     const map = new Map<number, AnomalyFlag[]>();
     for (const flag of anomalyFlags) {
@@ -838,7 +863,7 @@ function App({
     return map;
   }, [anomalyFlags]);
 
-  // Filtering is client-side over the already-loaded ledger — personal-scale
+  // Filtering is client-side over the already-loaded transactions — personal-scale
   // data, no need for a backend query just to search/filter it.
   const filteredTransactions = useMemo(
     () =>
@@ -884,12 +909,12 @@ function App({
   const totalPages = Math.max(1, Math.ceil(sortedTransactions.length / pageSize));
   const pagedTransactions = sortedTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   // The Debt column is the only one of the three feature toggles that's a
-  // whole dedicated ledger column — Split lives inside the Category cell,
+  // whole dedicated table column — Split lives inside the Category cell,
   // so hiding it doesn't change the column count.
   const ledgerColumnCount = appSettings.apply_to_debt_enabled ? 10 : 9;
 
   // a filter/page-size change can leave `currentPage` pointing past the end
-  // (or the ledger can shrink out from under it) — snap back rather than
+  // (or the transaction list can shrink out from under it) — snap back rather than
   // showing an empty page the user didn't ask for
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -1024,11 +1049,12 @@ function App({
   const holdingsLoadedRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    const [txns, s, accts, cats, flags, tags, members] = await Promise.all([
+    const [txns, s, accts, cats, catIcons, flags, tags, members] = await Promise.all([
       invoke<Transaction[]>("list_transactions"),
       invoke<Stats>("get_stats"),
       invoke<Account[]>("list_accounts"),
       invoke<string[]>("list_categories"),
+      invoke<CategoryIconEntry[]>("list_categories_with_icons"),
       invoke<AnomalyFlag[]>("list_anomaly_flags"),
       invoke<string[]>("list_all_tags"),
       invoke<FamilyMember[]>("list_family_members"),
@@ -1037,6 +1063,7 @@ function App({
     setStats(s);
     setAccounts(accts);
     setUsedCategories(cats);
+    setCategoryIcons(catIcons);
     setAnomalyFlags(flags);
     setAllTags(tags);
     setFamilyMembers(members);
@@ -1305,7 +1332,7 @@ function App({
   // so a bill isn't re-notified every single launch on the same day.
   useEffect(() => {
     if (recurring.length === 0) return;
-    const NOTIFIED_KEY = "pennyworth-notified-bills";
+    const NOTIFIED_KEY = "vaultspend-notified-bills";
     const DUE_SOON_DAYS = 3;
 
     (async () => {
@@ -1424,7 +1451,7 @@ function App({
   ]);
 
   useEffect(() => {
-    // the report aggregates ledger/bucket/budget data, so refetch it fresh
+    // the report aggregates transaction/bucket/budget data, so refetch it fresh
     // whenever the user actually looks at that tab, rather than tracking
     // every mutation that could affect one of its numbers
     if (activeTab === "reports") {
@@ -1524,7 +1551,7 @@ function App({
   }
 
   // Reconciling a miscategorized transaction from the drill-down dialog —
-  // same command the Ledger's own category dropdown uses. Refreshes the
+  // same command the Transactions tab's own category dropdown uses. Refreshes the
   // dialog's own list too (the corrected transaction no longer belongs to
   // the category being viewed, so it should drop out immediately) as well
   // as everywhere else a category total is shown, same as renaming/
@@ -1595,6 +1622,15 @@ function App({
   async function handleUpdateAccountType(accountId: number, accountType: string) {
     try {
       await invoke("update_account_type", { id: accountId, accountType });
+      await refresh();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetAccountIcon(accountId: number, iconKey: string | null) {
+    try {
+      await invoke("set_account_icon", { id: accountId, iconKey });
       await refresh();
     } catch (e) {
       setStatus(String(e));
@@ -1927,6 +1963,7 @@ function App({
         startingBalance: result.startingBalance,
         institution: result.institution,
         mask: result.mask,
+        iconKey: result.iconKey,
       });
       if (result.memberId !== null) {
         await invoke("set_account_member", { id, memberId: result.memberId });
@@ -1975,7 +2012,7 @@ function App({
       // else defaults to included; the user can flip any row either way
       setIncludedIndices(new Set(preview.rows.filter((r) => !r.is_duplicate).map((r) => r.index)));
       // A row whose file said which account it belongs to (this app's own
-      // Ledger CSV export does) pre-selects that account in its dropdown
+      // Transactions CSV export does) pre-selects that account in its dropdown
       // when it matches one that already exists, rather than defaulting
       // every row to the account picked before the file was chosen — the
       // user still sees exactly what will happen and can change it.
@@ -2141,9 +2178,18 @@ function App({
     }
   }
 
-  async function handleCreateCategory(name: string) {
+  async function handleCreateCategory(name: string, iconKey: string | null) {
     try {
-      await invoke("create_category", { name });
+      await invoke("create_category", { name, iconKey });
+      await refresh();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetCategoryIcon(name: string, iconKey: string | null) {
+    try {
+      await invoke("set_category_icon", { name, iconKey });
       await refresh();
     } catch (e) {
       setStatus(String(e));
@@ -2191,8 +2237,11 @@ function App({
   async function commitAmountEdit(id: number, value: string) {
     setEditingAmount(null);
     try {
-      await invoke("update_transaction_amount", { id, amount: value.trim() });
+      const splitsReconciled = await invoke<boolean>("update_transaction_amount", { id, amount: value.trim() });
       await refresh();
+      if (splitsReconciled) {
+        setStatus("Amount updated — its splits were rescaled to still add up to the new amount.", "info");
+      }
     } catch (e) {
       setStatus(String(e));
     }
@@ -2250,7 +2299,7 @@ function App({
 
   async function handleDownloadSetupTemplate() {
     const path = await save({
-      defaultPath: "pennyworth-setup-template.csv",
+      defaultPath: "vaultspend-setup-template.csv",
       filters: [{ name: "CSV", extensions: ["csv"] }],
     });
     if (!path) return;
@@ -2371,20 +2420,13 @@ function App({
 
   async function handleExportLedgerCsv() {
     const path = await save({
-      defaultPath: `ledger-export-${toLocalIsoDate()}.csv`,
+      defaultPath: `transactions-export-${toLocalIsoDate()}.csv`,
       filters: [{ name: "CSV", extensions: ["csv"] }],
     });
     if (!path) return;
     const csv = toCsv(
       ["Date", "Description", "Amount", "Account", "Category", "Tags"],
-      sortedTransactions.map((t) => [
-        t.date,
-        t.description,
-        t.amount,
-        t.account_name,
-        t.category ?? "",
-        t.tags.join("; "),
-      ]),
+      sortedTransactions.map((t) => [t.date, t.description, t.amount, t.account_name, t.category ?? "", t.tags.join("; ")]),
     );
     try {
       await invoke("write_text_file", { path, content: csv });
@@ -2431,6 +2473,31 @@ function App({
   async function handleUnapplyDebtPayment(sourceTransactionId: number) {
     try {
       await invoke("unapply_debt_payment", { sourceTransactionId });
+      await refresh();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  function startEditingPrincipal(t: Transaction) {
+    setEditingPrincipalId(t.id);
+    setPrincipalDraft(t.principal_amount ?? t.amount);
+  }
+
+  async function handleSetPrincipalAmount(id: number) {
+    if (!principalDraft.trim()) return;
+    try {
+      await invoke("update_transaction_principal_amount", { id, principalAmount: principalDraft.trim() });
+      setEditingPrincipalId(null);
+      await refresh();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleResetPrincipalAmount(id: number) {
+    try {
+      await invoke("update_transaction_principal_amount", { id, principalAmount: null });
       await refresh();
     } catch (e) {
       setStatus(String(e));
@@ -2638,8 +2705,8 @@ function App({
       )}
       <aside className="sidebar">
         <div className="brand">
-          <img className="brand-mark" src={pennyWorthIcon} alt="" />
-          <span className="brand-word">Penny Worth</span>
+          <img className="brand-mark" src={vaultSpendIcon} alt="" />
+          <span className="brand-word">Vault Spend</span>
         </div>
         <ProfileSwitcher
           profiles={profiles}
@@ -2723,8 +2790,8 @@ function App({
       <div className="main">
         <header className="topbar">
           <div>
-            <h1>Penny Worth</h1>
-            <p className="subtitle">Get your penny's worth.</p>
+            <h1>Vault Spend</h1>
+            <p className="subtitle">Own your Data, Own your Money!</p>
           </div>
           <div className="topbar-actions">
             <div className="theme-toggle" role="group" aria-label="Theme">
@@ -2737,6 +2804,7 @@ function App({
             {activeTab === "ledger" && (
             <div className="import-controls">
               <select
+                aria-label="Account to import into"
                 className="account-select"
                 value={selectedAccountId ?? ""}
                 onChange={(e) => handleAccountSelectChange(e.target.value)}
@@ -2860,6 +2928,7 @@ function App({
           familyMembers={familyMembers}
           buckets={buckets}
           categories={usedCategories}
+          categoryIconMap={categoryIconMap}
           topCategoriesData={topCategoriesData}
           layoutWidgets={layoutWidgets}
           onSetLayoutWidgets={setLayoutWidgets}
@@ -2881,7 +2950,7 @@ function App({
       {activeTab === "ledger" && (
         <div className="page-top">
           <div>
-            <h1 className="view-title">Ledger</h1>
+            <h1 className="view-title">Transactions</h1>
             <p className="view-sub">
               {transactions.length} transaction{transactions.length === 1 ? "" : "s"} across {accounts.length} account
               {accounts.length === 1 ? "" : "s"}.
@@ -2937,6 +3006,7 @@ function App({
                     <td className="amount-col">{formatAmount(row.amount)}</td>
                     <td>
                       <select
+                        aria-label={`Account for "${row.description}"`}
                         value={accountOverrides.get(row.index) ?? pendingImport.defaultAccountId}
                         onChange={(e) => setImportRowAccount(row.index, Number(e.target.value))}
                       >
@@ -2953,7 +3023,7 @@ function App({
                           </div>
                         )}
                     </td>
-                    <td className="source-col">{row.is_duplicate ? "Already in ledger" : "New"}</td>
+                    <td className="source-col">{row.is_duplicate ? "Already added" : "New"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2994,7 +3064,11 @@ function App({
                     <td>{t.description}</td>
                     <td className="amount-col">{formatAmount(t.amount)}</td>
                     <td>
-                      <select value={t.category ?? ""} onChange={(e) => handleCategoryChange(t.id, e.target.value)}>
+                      <select
+                        aria-label={`Category for "${t.description}"`}
+                        value={t.category ?? ""}
+                        onChange={(e) => handleCategoryChange(t.id, e.target.value)}
+                      >
                         <option value="" disabled>
                           Uncategorized
                         </option>
@@ -3047,7 +3121,7 @@ function App({
                 : "stat tint-red stat-clickable"
             }
             onClick={() => setFilterCategory((c) => (c === UNCATEGORIZED_FILTER ? "all" : UNCATEGORIZED_FILTER))}
-            title="Filter the ledger to only transactions that need a category"
+            title="Show only transactions that need a category"
           >
             <span className="stat-value">{stats.uncategorized}</span>
             <span className="stat-label">Needs a category</span>
@@ -3064,7 +3138,7 @@ function App({
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
           />
-          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+          <select aria-label="Filter by category" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
             <option value="all">All categories</option>
             <option value={UNCATEGORIZED_FILTER}>Uncategorized</option>
             {categoryOptions.map((c) => (
@@ -3148,7 +3222,7 @@ function App({
       {activeTab === "ledger" && selectedIds.size > 0 && (
         <div className="bulk-actions-bar">
           <span className="bulk-actions-count">{selectedIds.size} selected</span>
-          <select value="" onChange={(e) => handleBulkCategoryChange(e.target.value)}>
+          <select aria-label="Set category to…" value="" onChange={(e) => handleBulkCategoryChange(e.target.value)}>
             <option value="" disabled>
               Set category to…
             </option>
@@ -3159,7 +3233,7 @@ function App({
             ))}
             <option value="__new__">+ New category…</option>
           </select>
-          <select value="" onChange={(e) => handleAddSelectedToRecurring(e.target.value)}>
+          <select aria-label="Add to Recurring…" value="" onChange={(e) => handleAddSelectedToRecurring(e.target.value)}>
             <option value="" disabled>
               Add to Recurring…
             </option>
@@ -3170,7 +3244,7 @@ function App({
             ))}
           </select>
           {familyMembers.length > 0 && (
-            <select value="" onChange={(e) => handleBulkMemberChange(e.target.value)}>
+            <select aria-label="Set member to…" value="" onChange={(e) => handleBulkMemberChange(e.target.value)}>
               <option value="" disabled>
                 Set member to…
               </option>
@@ -3293,7 +3367,7 @@ function App({
               <td>
                 <span className="cell-with-icon">
                   <span className="row-icon-badge">
-                    <CategoryIcon category={t.category} />
+                    <CategoryIcon category={t.category} iconKey={t.category ? categoryIconMap[t.category] : null} />
                   </span>
                   {editingDescription?.id === t.id ? (
                     <input
@@ -3374,7 +3448,11 @@ function App({
                 )}
               </td>
               <td className="account-col">
-                <select value={t.account_id} onChange={(e) => handleAccountChangeForTransaction(t.id, e.target.value)}>
+                <select
+                  aria-label={`Account for "${t.description}"`}
+                  value={t.account_id}
+                  onChange={(e) => handleAccountChangeForTransaction(t.id, e.target.value)}
+                >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -3384,6 +3462,7 @@ function App({
               </td>
               <td className="member-col">
                 <select
+                  aria-label={`Family member for "${t.description}"`}
                   value={t.member_id ?? ""}
                   onChange={(e) => handleMemberChangeForTransaction(t.id, e.target.value)}
                 >
@@ -3400,6 +3479,7 @@ function App({
                   <span className="split-summary">Split ({t.split_count})</span>
                 ) : (
                   <select
+                    aria-label={`Category for "${t.description}"`}
                     value={t.category ?? ""}
                     onChange={(e) => handleCategoryChange(t.id, e.target.value)}
                   >
@@ -3431,7 +3511,35 @@ function App({
               </td>
               {appSettings.apply_to_debt_enabled && (
                 <td className="debt-col">
-                  {t.applied_to_debt ? (
+                  {accounts.find((a) => a.id === t.account_id)?.account_type === "loan" ? (
+                    editingPrincipalId === t.id ? (
+                      <span className="debt-apply-form">
+                        <input
+                          className="debt-apply-amount"
+                          value={principalDraft}
+                          onChange={(e) => setPrincipalDraft(e.target.value)}
+                          title="How much of this transaction counts toward what's owed (e.g. just the principal on a mortgage payment)"
+                        />
+                        <button type="button" className="debt-apply-confirm" onClick={() => handleSetPrincipalAmount(t.id)}>
+                          Save
+                        </button>
+                        <button type="button" className="modal-secondary" onClick={() => setEditingPrincipalId(null)}>
+                          Cancel
+                        </button>
+                      </span>
+                    ) : t.principal_amount !== null ? (
+                      <span className="debt-applied-badge">
+                        Principal: {formatAmount(t.principal_amount)}
+                        <button type="button" className="modal-secondary" onClick={() => handleResetPrincipalAmount(t.id)}>
+                          Reset
+                        </button>
+                      </span>
+                    ) : (
+                      <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startEditingPrincipal(t)}>
+                        Split principal →
+                      </button>
+                    )
+                  ) : t.applied_to_debt ? (
                     <span className="debt-applied-badge">
                       → {t.applied_to_debt.debt_account_name} ({formatAmount(t.applied_to_debt.amount)})
                       <button type="button" className="modal-secondary" onClick={() => handleUnapplyDebtPayment(t.id)}>
@@ -3441,6 +3549,7 @@ function App({
                   ) : applyingDebtId === t.id ? (
                     <span className="debt-apply-form">
                       <select
+                        aria-label={`Debt account to apply "${t.description}" toward`}
                         value={applyDebtForm.accountId}
                         onChange={(e) => setApplyDebtForm({ ...applyDebtForm, accountId: e.target.value })}
                       >
@@ -3464,8 +3573,10 @@ function App({
                       </button>
                     </span>
                   ) : (
+                    // The loan case is already handled above — only credit
+                    // (excluded, a payment there needs no principal split)
+                    // and every non-debt account reach here.
                     debtAccounts.length > 0 &&
-                    accounts.find((a) => a.id === t.account_id)?.account_type !== "loan" &&
                     accounts.find((a) => a.id === t.account_id)?.account_type !== "credit" && (
                       <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startApplyingDebtPayment(t)}>
                         Apply to a debt →
@@ -3503,7 +3614,11 @@ function App({
                   <div className="split-editor">
                     {splitLines.map((line, i) => (
                       <div className="split-editor-line" key={i}>
-                        <select value={line.category} onChange={(e) => updateSplitLine(i, { category: e.target.value })}>
+                        <select
+                          aria-label={`Category for split ${i + 1} of "${t.description}"`}
+                          value={line.category}
+                          onChange={(e) => updateSplitLine(i, { category: e.target.value })}
+                        >
                           {categoryOptions.map((c) => (
                             <option key={c} value={c}>
                               {c}
@@ -3568,7 +3683,7 @@ function App({
         <div className="ledger-pagination">
           <label className="ledger-page-size">
             Show
-            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+            <select aria-label="Rows per page" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
               <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
@@ -3671,6 +3786,7 @@ function App({
           candidates={recurringCandidates}
           accounts={accounts}
           familyMembers={familyMembers}
+          categoryIconMap={categoryIconMap}
           onCreate={handleCreateRecurring}
           onUpdate={handleUpdateRecurring}
           onDelete={handleDeleteRecurring}
@@ -3958,6 +4074,7 @@ function App({
           onSetAccountDetails={handleSetAccountDetails}
           familyMembers={familyMembers}
           onSetAccountMember={handleSetAccountMember}
+          onSetAccountIcon={handleSetAccountIcon}
           onAddAccount={handleNewAccount}
         />
         </Suspense>
@@ -4001,6 +4118,7 @@ function App({
           onUseExistingDataFile={handlePickExistingDataFile}
           onSwitchProfile={handleSwitchProfile}
           onRenameProfile={handleRenameProfile}
+          onSetProfileIcon={handleSetProfileIcon}
           onDeleteProfile={handleDeleteProfile}
           livePriceSettings={livePriceSettings}
           onSetLivePriceApiKey={handleSetLivePriceApiKey}
@@ -4022,8 +4140,8 @@ function App({
             dialog.resolve(null);
             setDialog(null);
           }}
-          onSubmit={(name, accountType, startingBalance, institution, mask, memberId) => {
-            dialog.resolve({ name, accountType, startingBalance, institution, mask, memberId });
+          onSubmit={(name, accountType, startingBalance, institution, mask, memberId, iconKey) => {
+            dialog.resolve({ name, accountType, startingBalance, institution, mask, memberId, iconKey });
             setDialog(null);
           }}
         />
@@ -4034,7 +4152,13 @@ function App({
             dialog.resolve(null);
             setDialog(null);
           }}
-          onSubmit={(name) => {
+          onSubmit={async (name, iconKey) => {
+            try {
+              await invoke("create_category", { name, iconKey });
+              await refresh();
+            } catch (e) {
+              setStatus(String(e));
+            }
             dialog.resolve(name);
             setDialog(null);
           }}
@@ -4065,8 +4189,10 @@ function App({
       {manageCategoriesOpen && (
         <ManageCategoriesDialog
           categories={usedCategories}
+          categoryIconMap={categoryIconMap}
           onCancel={() => setManageCategoriesOpen(false)}
           onCreate={handleCreateCategory}
+          onSetIcon={handleSetCategoryIcon}
           onRename={handleRenameCategory}
           onDelete={handleDeleteCategory}
         />
@@ -4112,7 +4238,7 @@ function App({
  * tried first and dropped: on Windows it occasionally raced the outgoing
  * WebView2 instance's teardown against the new one's startup, leaving the
  * relaunched window stuck on a native "can't reach this page" error. */
-function PennyWorthApp() {
+function VaultSpendApp() {
   const [reloadKey, setReloadKey] = useState(0);
   const [initialStatus, setInitialStatus] = useState("");
 
@@ -4128,4 +4254,4 @@ function PennyWorthApp() {
   );
 }
 
-export default PennyWorthApp;
+export default VaultSpendApp;

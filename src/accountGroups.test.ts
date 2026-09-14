@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isIncomeTransaction } from "./accountGroups";
+import { isBeforeAccountCheckpoint, isIncomeTransaction } from "./accountGroups";
 import type { Account, Transaction } from "./types";
 
 function account(overrides: Partial<Account> = {}): Account {
@@ -15,6 +15,8 @@ function account(overrides: Partial<Account> = {}): Account {
     excluded_from_debt_payoff: false,
     member_id: null,
     member_name: null,
+    checkpoint_date: null,
+    icon_key: null,
     ...overrides,
   };
 }
@@ -31,6 +33,7 @@ function tx(overrides: Partial<Transaction> = {}): Transaction {
     category_source: "user",
     confidence: null,
     applied_to_debt: null,
+    principal_amount: null,
     split_count: 0,
     tags: [],
     member_id: null,
@@ -41,7 +44,7 @@ function tx(overrides: Partial<Transaction> = {}): Transaction {
 
 // The single definition of "income," mirrored exactly from
 // Store::monthly_totals on the backend (see core/src/store.rs) — Reports'
-// "Income (all-time)" stat and Savings Rate Trend, Ask Pennyworth's
+// "Income (all-time)" stat and Savings Rate Trend, Ask the Vault's
 // "income" queries, and Household's income-by-member all route through
 // this one function so they can never disagree with Cash Flow, which is
 // driven by the backend rule directly.
@@ -82,7 +85,7 @@ describe("isIncomeTransaction", () => {
     );
   });
 
-  it("excludes a positive amount on a loan account — an escrow refund isn't income", () => {
+  it("excludes a positive amount on a loan account — a payment isn't income", () => {
     expect(isIncomeTransaction(tx({ amount: "75.00", account_id: 3, account_name: "Car Loan" }), accounts)).toBe(false);
   });
 
@@ -96,5 +99,31 @@ describe("isIncomeTransaction", () => {
 
   it("still counts income when no accounts are supplied at all", () => {
     expect(isIncomeTransaction(tx({ amount: "4000.00", category: "Salary" }), [])).toBe(true);
+  });
+});
+
+// A transaction dated on or before an account's last checkpoint can't move
+// its current_balance (see Store::account_balance_as_of's `since_date` on
+// the backend) — NewTransactionDialog uses this to warn before that's a
+// silent surprise.
+describe("isBeforeAccountCheckpoint", () => {
+  it("is true for a date exactly on the checkpoint", () => {
+    expect(isBeforeAccountCheckpoint(account({ checkpoint_date: "2026-09-09" }), "2026-09-09")).toBe(true);
+  });
+
+  it("is true for a date before the checkpoint", () => {
+    expect(isBeforeAccountCheckpoint(account({ checkpoint_date: "2026-09-09" }), "2026-09-02")).toBe(true);
+  });
+
+  it("is false for a date after the checkpoint", () => {
+    expect(isBeforeAccountCheckpoint(account({ checkpoint_date: "2026-09-09" }), "2026-09-10")).toBe(false);
+  });
+
+  it("is false when the account has no checkpoint yet", () => {
+    expect(isBeforeAccountCheckpoint(account({ checkpoint_date: null }), "2020-01-01")).toBe(false);
+  });
+
+  it("is false for an empty date (nothing picked yet)", () => {
+    expect(isBeforeAccountCheckpoint(account({ checkpoint_date: "2026-09-09" }), "")).toBe(false);
   });
 });

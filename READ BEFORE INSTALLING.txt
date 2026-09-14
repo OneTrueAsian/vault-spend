@@ -1,4 +1,4 @@
-Penny Worth — before you install
+Vault Spend — before you install
 =================================
 
 When you run this installer, Windows will likely show a blue screen
@@ -6,7 +6,7 @@ that says "Windows protected your PC."
 
 This is expected, and nothing is wrong — it just means this installer
 isn't digitally signed with a certificate Windows already recognizes.
-Penny Worth is not registered with Microsoft as a publisher.
+Vault Spend is not registered with Microsoft as a publisher.
 
 To continue:
 
@@ -15,7 +15,11 @@ To continue:
 
 That's it — install and open the app as normal from there.
 
-One more thing worth knowing: Penny Worth runs entirely on your own
+One more thing worth knowing: Vault Spend runs entirely on your own
 computer. There's no account, no cloud sync, and nothing is ever sent
 anywhere else — your financial data stays on your machine, in a single
 file, for as long as you have the app installed.
+
+Vault Spend is an independent open-source project and is not
+affiliated with, endorsed by, or partnered with any external
+financial services or wallet providers.

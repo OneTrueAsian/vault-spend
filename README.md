@@ -1,18 +1,22 @@
-# Penny Worth
+# Vault Spend
 
-*Get your penny's worth.*
+*Own your Data, Own your Money!*
 
 A local, private budgeting and transaction ledger for Windows. There's no
 account, no cloud sync, and no subscription — everything lives in a single
 file on your own computer, and nothing is ever sent anywhere else.
 
+Vault Spend is an independent open-source project and is not affiliated
+with, endorsed by, or partnered with any external financial services or
+wallet providers.
+
 ## Installing
 
-1. Run the installer you were given (`Penny Worth_x.x.x_x64-setup.exe`, or
+1. Run the installer you were given (`Vault Spend_x.x.x_x64-setup.exe`, or
    the `.msi` if you were sent that instead).
 2. Windows may show a **"Windows protected your PC"** SmartScreen warning —
    see the FAQ below for why, and how to get past it.
-3. Launch Penny Worth from the Start Menu. It starts completely empty — no
+3. Launch Vault Spend from the Start Menu. It starts completely empty — no
    sample data, nothing pre-loaded — ready for your own accounts and
    transactions.
 
@@ -119,10 +123,14 @@ From the **Ledger** tab, click **"Import transactions…"**:
    spot).
 2. Choose the file exported from your bank or credit card — CSV, OFX/QFX,
    or QIF are all supported.
-3. Confirm which way the amounts go. Penny Worth's convention is
-   *negative = money out*; if your file shows charges as positive numbers
-   (common for credit card exports), choose "Flip the signs" — otherwise
-   "Keep as-is."
+3. Confirm which way the amounts go. Vault Spend's convention is
+   *negative = money out* for a checking/savings/investment account; if
+   your file shows charges as positive numbers (common for credit card
+   exports), choose "Flip the signs" — otherwise "Keep as-is." For a
+   credit card or loan account specifically, it's the other way around —
+   a payment is *positive* (it reduces what's owed) and a charge or new
+   debt is negative — so check a payment row's sign in the preview before
+   confirming.
 4. You'll see a preview of every row before anything is saved. Rows that
    look like duplicates of something already in your ledger are
    unchecked by default (see the FAQ on duplicates) — check or uncheck
@@ -163,7 +171,7 @@ the two buttons on the **Reports** tab:
 
 **Is my data private?**
 Yes. Everything is stored in one SQLite file on your own computer
-(`%APPDATA%\com.<user>.pennyworth\pennyworth.db`), created fresh the first
+(`%APPDATA%\com.joeyf.vaultspend\vaultspend.db`), created fresh the first
 time you launch the app. There's no account, no server, and nothing is
 ever uploaded — a fresh install on someone else's computer starts
 completely empty, never with your data.
@@ -178,7 +186,7 @@ On versions 1.1.5 and 1.1.6 specifically, "Update now" downloads the new
 installer correctly but has a bug that blocks it from opening the file
 afterward — you'll see an error, and it falls back to opening the GitHub
 release page instead. That's expected on those two versions only, and
-there's no way for it to fix itself: Penny Worth has no silent
+there's no way for it to fix itself: Vault Spend has no silent
 auto-updater (a deliberate choice — that needs a signing certificate and
 CI infrastructure this project doesn't have), so a version's own copy of
 this logic can't be patched after it's installed. Just download and run
@@ -186,7 +194,7 @@ the installer from the release page it opens, same as any manual update —
 "Update now" works correctly on 1.1.7 and every version after it.
 
 **Will I get a reminder before a bill is due?**
-If a recurring bill (Recurring tab) is due within 3 days, Penny Worth
+If a recurring bill (Recurring tab) is due within 3 days, Vault Spend
 shows a native Windows notification — but only when you actually open the
 app. This isn't a background reminder service; it doesn't run, and can't
 notify you, while the app is closed.
@@ -200,13 +208,13 @@ back in.
 
 **How does auto-categorization work?**
 New transactions are matched against rules first — an exact merchant
-match, or a pattern Penny Worth has learned from a category you've
+match, or a pattern Vault Spend has learned from a category you've
 corrected before. Once you've made at least 10 corrections, a lightweight
 classifier also kicks in for transactions the rules don't cover. Anything
 neither can confidently place is left **Uncategorized** rather than
 guessing — setting it yourself teaches the app for next time.
 
-**How does Penny Worth suggest recurring items?**
+**How does Vault Spend suggest recurring items?**
 The Recurring tab's "Suggested" section looks for a merchant and amount
 that's repeated at least 3 times on a roughly consistent schedule (weekly,
 biweekly, monthly, or annual) but isn't tracked yet. Add it with one click
@@ -235,7 +243,7 @@ first, then move forward.
 It turns the goal into a sinking fund for an irregular annual cost —
 insurance, gifts, an annual subscription — that's easier to save for a
 little at a time than all at once. The next time you open the app after a
-new calendar month starts, Penny Worth logs that amount as a contribution
+new calendar month starts, Vault Spend logs that amount as a contribution
 automatically (you'll see a one-time notice naming which goal(s) it
 applied to) — at most once per goal per month, and independently of any
 manual contribution you also log that month, so the two never skip or
@@ -260,7 +268,10 @@ note.
 Yes — each account type tracks its balance the way that type actually
 works: a credit card's balance is available credit, a loan's is what's
 still owed, and a checking/savings/investment/other account's is a
-literal balance.
+literal balance. For both credit and loan accounts, a payment is entered
+as a *positive* amount and reduces what's owed; a charge or new borrowing
+is negative and increases it — the same convention for both account
+types.
 
 **How is the cash-flow forecast calculated?**
 It's based on your actual history, not your listed recurring bills: it
@@ -283,13 +294,13 @@ apply today's value throughout rather than tracking what it was actually
 worth back then.
 
 **How do automatic backups work, and can I restore one?**
-Penny Worth backs up your data file automatically once a day when you
+Vault Spend backs up your data file automatically once a day when you
 open it, keeping the most recent 15 (Settings tab — also has a manual
 "Back up now"). Restoring one first backs up your current data (so
 restoring is itself reversible), then loads the restored data immediately
 — no restart needed.
 
-**Can I change how Penny Worth looks?**
+**Can I change how Vault Spend looks?**
 Yes — the Settings tab has an Appearance section with a Light/Dark/System
 toggle (in the header) plus two visual styles: **Slate** (the default
 look) and **Futuristic** (a neon style with its own type and sidebar
@@ -302,10 +313,10 @@ a new folder you pick and starts using it right away. The old file is
 left behind untouched, in case you want it back.
 
 **Where's my data if I want to back it up myself?**
-`%APPDATA%\com.<user>.pennyworth\pennyworth.db` is the entire ledger — copy
+`%APPDATA%\com.joeyf.vaultspend\vaultspend.db` is the entire ledger — copy
 that one file to back it up or move it to another computer.
 
-**Can Penny Worth track spending for multiple people?**
+**Can Vault Spend track spending for multiple people?**
 Two different ways, depending on what you actually want:
 
 - **Family members** — tag any account, transaction, goal, asset, or
@@ -336,7 +347,7 @@ requests/day for a larger portfolio; Finnhub's free tier allows 60
 requests/minute instead, so there's no daily limit to track at all.
 
 **Can I ask questions about my spending in plain English?**
-Yes — the "Ask Pennyworth" box at the top of the Dashboard answers
+Yes — the "Ask the Vault" box at the top of the Dashboard answers
 questions like "how much did I spend on dining out in July" or "what's my
 net worth" directly from your own data, with no internet connection or
 account required. It matches a set of question shapes rather than truly

@@ -7,7 +7,7 @@
 // Like restoring a backup or relocating the data file, creating/switching
 // a profile hot-swaps the app's live database connection in place and the
 // frontend remounts itself to re-fetch everything (see App.tsx's
-// `PennyWorthApp` wrapper and commands.rs's `create_profile`/
+// `VaultSpendApp` wrapper and commands.rs's `create_profile`/
 // `switch_profile`) — no window close/reopen, all within one still-running
 // session.
 //
@@ -27,7 +27,7 @@ cur.execute(
 
 const app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
   const seededLedgerText = await (await app.browser.$(".page")).getText();
   if (!seededLedgerText.includes("Default Profile Groceries")) {
@@ -57,10 +57,10 @@ try {
   );
   console.log("status after creating Alex:", await (await app.browser.$(".status")).getText());
 
-  // The whole tree remounts right after (see PennyWorthApp) — re-query
+  // The whole tree remounts right after (see VaultSpendApp) — re-query
   // fresh — and the new profile must start completely empty, not a
   // filtered view of Default's data.
-  const ledgerNavAfterCreate = await app.browser.$("button*=Ledger");
+  const ledgerNavAfterCreate = await app.browser.$("button*=Transactions");
   await ledgerNavAfterCreate.waitForExist({ timeout: 10000 });
   await ledgerNavAfterCreate.click();
   await app.browser.waitUntil(
@@ -92,7 +92,7 @@ try {
   );
   console.log("status after switching back to Default:", await (await app.browser.$(".status")).getText());
 
-  const ledgerNavAfterSwitch = await app.browser.$("button*=Ledger");
+  const ledgerNavAfterSwitch = await app.browser.$("button*=Transactions");
   await ledgerNavAfterSwitch.waitForExist({ timeout: 10000 });
   await ledgerNavAfterSwitch.click();
   await app.browser.waitUntil(
@@ -116,16 +116,34 @@ try {
   }
   console.log("active profile correctly offers no Delete option");
 
-  // Rename Alex. Click the resulting input explicitly (not just wait for
-  // it) before typing — matching feature18_recurring_edit.mjs's proven
-  // pattern for this WebView, where relying on `autoFocus` alone plus an
-  // immediate `setValue()` raced a re-render and lost the element.
-  const alexRenameBtn = await profilesCardAgain.$("//tr[td[contains(.,'Alex')]]//button[text()='Rename']");
-  await alexRenameBtn.waitForExist({ timeout: 5000 });
-  await alexRenameBtn.click();
-  const renameInput = await profilesCardAgain.$(".row-edit-input");
-  await renameInput.waitForExist({ timeout: 5000 });
-  await renameInput.click();
+  // Rename Alex. The row swaps to an <input autoFocus ... onBlur={commit}>
+  // the instant "Rename" is clicked — clicking that freshly-mounted,
+  // already-focused input (needed because setValue() races a re-render
+  // and loses the element, per feature18_recurring_edit.mjs) can itself
+  // dispatch a spurious blur first, committing the untouched name and
+  // reverting the row before the click lands or the keys typed after it
+  // reach anything. Re-clicking "Rename" is a safe, idempotent recovery
+  // (a no-op if already mid-edit), so retry the whole handshake — same
+  // fix as feature11_assets.mjs's identical race on its own onBlur-commit
+  // amount editor.
+  const renameBtnXPath = "//tr[td[contains(.,'Alex')]]//button[text()='Rename']";
+  let renameOpened = false;
+  for (let attempt = 1; attempt <= 5 && !renameOpened; attempt++) {
+    try {
+      const alexRenameBtn = await profilesCardAgain.$(renameBtnXPath);
+      await alexRenameBtn.waitForExist({ timeout: 5000 });
+      await alexRenameBtn.click();
+      const renameInput = await profilesCardAgain.$(".row-edit-input");
+      await renameInput.waitForExist({ timeout: 1000 });
+      await renameInput.click();
+      if (await renameInput.isExisting()) renameOpened = true;
+    } catch {
+      // Element vanished mid-handshake (the race this loop exists for) —
+      // fall through and retry from the top.
+    }
+  }
+  if (!renameOpened) throw new Error('expected the rename input to appear and stay open after clicking "Rename"');
+
   await app.browser.keys(["Control", "a"]);
   await app.browser.keys("Alexandra");
   await app.browser.keys("Enter");

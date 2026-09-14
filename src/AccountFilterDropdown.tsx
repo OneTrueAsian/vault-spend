@@ -14,7 +14,7 @@ function isSelected(value: AccountFilterValue, accountId: number): boolean {
 
 /** A button that opens a checkbox list of every account, grouped the same
  * way the Reports tab groups them (Cash / Credit Cards / Loans /
- * Investments / Other Assets) — lets the user filter the Ledger down to
+ * Investments / Other Assets) — lets the user filter the Transactions tab down to
  * several accounts at once instead of picking exactly one. */
 export function AccountFilterDropdown({
   accounts,

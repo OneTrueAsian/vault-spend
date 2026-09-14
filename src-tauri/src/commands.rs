@@ -38,7 +38,7 @@ pub fn get_data_file_location(paths: tauri::State<crate::config::AppPaths>) -> S
     current_db_path(&paths).to_string_lossy().to_string()
 }
 
-/// Copies the live database to `new_dir/pennyworth.db` (via `Store::backup_to`,
+/// Copies the live database to `new_dir/vaultspend.db` (via `Store::backup_to`,
 /// safe against a live connection), points `config.json` at it, then swaps
 /// this session's live connection over to the new file in place. The old
 /// file is deliberately left behind, untouched.
@@ -60,12 +60,9 @@ pub fn relocate_data_file(
     let old_live_path = current_db_path(&paths);
     let new_dir = std::path::PathBuf::from(new_dir);
     std::fs::create_dir_all(&new_dir).map_err(|e| e.to_string())?;
-    let new_db_path = new_dir.join("pennyworth.db");
+    let new_db_path = new_dir.join("vaultspend.db");
     if new_db_path.exists() {
-        return Err(format!(
-            "{} already has a pennyworth.db — pick an empty folder.",
-            new_dir.display()
-        ));
+        return Err(format!("{} already has a vaultspend.db — pick an empty folder.", new_dir.display()));
     }
 
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
@@ -73,6 +70,7 @@ pub fn relocate_data_file(
     crate::config::write_db_location_config(&paths.config_path, &new_db_path).map_err(|e| e.to_string())?;
     *state = AppState::open(&new_db_path)?;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = new_db_path.clone();
+    paths.bump_generation();
     // If the profile that was just live is a registered profile (not the
     // plain, never-used-profiles Default), keep its registry entry pointing
     // at the moved file — otherwise switching away and back later would
@@ -106,10 +104,7 @@ pub fn list_backups(paths: tauri::State<crate::config::AppPaths>) -> Result<Vec<
 /// Manual "Back up now" — always creates one, bypassing the 24h automatic
 /// throttle (`backups::create_backup_if_due`, called only at launch).
 #[tauri::command]
-pub fn create_backup_now(
-    paths: tauri::State<crate::config::AppPaths>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<String, String> {
+pub fn create_backup_now(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<String, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
     crate::backups::create_backup(&state.store, &backups_dir, chrono::Local::now().naive_local())
@@ -121,11 +116,7 @@ pub fn create_backup_now(
 /// — same in-place hot-swap as `relocate_data_file`, and for the same
 /// reason (see its doc comment).
 #[tauri::command]
-pub fn restore_backup(
-    filename: String,
-    paths: tauri::State<crate::config::AppPaths>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn restore_backup(filename: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let live_db_path = current_db_path(&paths);
     let backups_dir = crate::backups::backups_dir_for(&live_db_path);
@@ -136,6 +127,7 @@ pub fn restore_backup(
     // `restored_path` is moved into `paths.db_path` below.
     crate::profiles::update_active_db_path(&paths.config_path, &live_db_path, &restored_path)?;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = restored_path;
+    paths.bump_generation();
     Ok(())
 }
 
@@ -144,31 +136,39 @@ pub struct ProfileDto {
     pub id: String,
     pub name: String,
     pub is_active: bool,
+    pub icon_key: Option<String>,
 }
 
 #[tauri::command]
 pub fn list_profiles(paths: tauri::State<crate::config::AppPaths>) -> Vec<ProfileDto> {
     crate::profiles::list_profiles(&paths.config_path, &current_db_path(&paths))
         .into_iter()
-        .map(|p| ProfileDto { id: p.id, name: p.name, is_active: p.is_active })
+        .map(|p| ProfileDto {
+            id: p.id,
+            name: p.name,
+            is_active: p.is_active,
+            icon_key: p.icon_key,
+        })
         .collect()
 }
 
+/// Sets (or clears, with `None`) a profile's icon — see
+/// `profiles::set_profile_icon`.
+#[tauri::command]
+pub fn set_profile_icon(id: String, icon_key: Option<String>, paths: tauri::State<crate::config::AppPaths>) -> Result<(), String> {
+    crate::profiles::set_profile_icon(&paths.config_path, &current_db_path(&paths), &id, icon_key.as_deref())
+}
+
 /// Registers a brand-new, completely independent profile (its own
-/// directory, its own `pennyworth.db`, its own isolated `backups/`
+/// directory, its own `vaultspend.db`, its own isolated `backups/`
 /// subfolder — see `profiles::create_profile`) and hot-swaps to it
 /// immediately, same in-place mechanism as `relocate_data_file`/
 /// `restore_backup` — creating a profile means "start using it now."
 #[tauri::command]
-pub fn create_profile(
-    name: String,
-    paths: tauri::State<crate::config::AppPaths>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<String, String> {
+pub fn create_profile(name: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<String, String> {
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let live_db_path = current_db_path(&paths);
-    let profile =
-        crate::profiles::create_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
+    let profile = crate::profiles::create_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
 
     let profile_dir = profile.db_path.parent().ok_or_else(|| "invalid profile path".to_string())?;
     std::fs::create_dir_all(profile_dir).map_err(|e| e.to_string())?;
@@ -179,14 +179,14 @@ pub fn create_profile(
     crate::config::write_db_location_config(&paths.config_path, &profile.db_path).map_err(|e| e.to_string())?;
     *state = AppState::open(&profile.db_path)?;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = profile.db_path.clone();
+    paths.bump_generation();
 
     // Best-effort, matching `setup()`'s own treatment — a profile left
     // untouched for a long time and then switched into mid-session should
     // still get automatic backup coverage without waiting for a full
     // restart, but a failure here must never block using the app.
     let backups_dir = crate::backups::backups_dir_for(&profile.db_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local())
-    {
+    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
         eprintln!("automatic backup failed (continuing anyway): {e}");
     }
 
@@ -201,11 +201,7 @@ pub fn create_profile(
 /// `backups::verify_backup`'s doc comment for why that's a real risk in
 /// this codebase, not a hypothetical one.
 #[tauri::command]
-pub fn switch_profile(
-    id: String,
-    paths: tauri::State<crate::config::AppPaths>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<String, String> {
+pub fn switch_profile(id: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<String, String> {
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let live_db_path = current_db_path(&paths);
     let target = crate::profiles::list_profiles(&paths.config_path, &live_db_path)
@@ -221,15 +217,24 @@ pub fn switch_profile(
         ));
     }
 
-    // Config written before the live-state swap — see `create_profile`'s
-    // comment on the same ordering.
+    // Unlike `create_profile` (whose target is a file this app just
+    // created, so opening it can't meaningfully fail), `target.db_path`
+    // here is an existing file that could be corrupt — so it's opened
+    // *before* config.json is touched. Config written first and this
+    // failing would leave config.json pointed at a database this app
+    // can't use while the live connection quietly stayed on the old
+    // profile: the two would disagree about which profile is active, and
+    // the next launch would try (and fail) to open the broken one.
+    // Validating first means a bad target fails here with config.json,
+    // the live connection, and `paths.db_path` all left untouched.
+    let new_state = AppState::open(&target.db_path)?;
     crate::config::write_db_location_config(&paths.config_path, &target.db_path).map_err(|e| e.to_string())?;
-    *state = AppState::open(&target.db_path)?;
+    *state = new_state;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = target.db_path.clone();
+    paths.bump_generation();
 
     let backups_dir = crate::backups::backups_dir_for(&target.db_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local())
-    {
+    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
         eprintln!("automatic backup failed (continuing anyway): {e}");
     }
 
@@ -242,7 +247,7 @@ pub fn switch_profile(
 /// always starts one empty. Opens `db_path` *before* touching the registry
 /// or the live connection, so a bad pick (wrong file type, a corrupt file)
 /// fails with a clear error and leaves everything exactly as it was; only a
-/// file that actually opens as a Penny Worth database gets registered and
+/// file that actually opens as a Vault Spend database gets registered and
 /// hot-swapped to, same "creating/adding a profile means start using it
 /// now" convention as `create_profile`. The file itself is never copied or
 /// moved — it stays wherever the user pointed at it.
@@ -257,18 +262,11 @@ pub fn add_existing_profile(
     if !picked_path.exists() {
         return Err(format!("{} doesn't exist.", picked_path.display()));
     }
-    let new_state = AppState::open(&picked_path)
-        .map_err(|e| format!("Couldn't open {} as a Penny Worth data file: {e}", picked_path.display()))?;
+    let new_state = AppState::open(&picked_path).map_err(|e| format!("Couldn't open {} as a Vault Spend data file: {e}", picked_path.display()))?;
 
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let live_db_path = current_db_path(&paths);
-    let profile = crate::profiles::add_existing_profile(
-        &paths.config_path,
-        &live_db_path,
-        &name,
-        &picked_path,
-        chrono::Local::now().naive_local(),
-    )?;
+    let profile = crate::profiles::add_existing_profile(&paths.config_path, &live_db_path, &name, &picked_path, chrono::Local::now().naive_local())?;
 
     // Config written before the live-state swap — see `create_profile`'s
     // comment on the same ordering. `new_state` was already proven openable
@@ -276,14 +274,14 @@ pub fn add_existing_profile(
     crate::config::write_db_location_config(&paths.config_path, &picked_path).map_err(|e| e.to_string())?;
     *state = new_state;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
+    paths.bump_generation();
 
     // Best-effort, matching `create_profile`'s/`switch_profile`'s own
     // treatment — a file that hasn't been backed up in a while should still
     // get automatic coverage right away, but this must never block using
     // the app.
     let backups_dir = crate::backups::backups_dir_for(&picked_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local())
-    {
+    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
         eprintln!("automatic backup failed (continuing anyway): {e}");
     }
 
@@ -291,11 +289,7 @@ pub fn add_existing_profile(
 }
 
 #[tauri::command]
-pub fn rename_profile(
-    id: String,
-    new_name: String,
-    paths: tauri::State<crate::config::AppPaths>,
-) -> Result<(), String> {
+pub fn rename_profile(id: String, new_name: String, paths: tauri::State<crate::config::AppPaths>) -> Result<(), String> {
     crate::profiles::rename_profile(&paths.config_path, &current_db_path(&paths), &id, &new_name)
 }
 
@@ -369,6 +363,7 @@ pub struct TransactionDto {
     pub account_id: i64,
     pub account_name: String,
     pub applied_to_debt: Option<AppliedDebtPaymentDto>,
+    pub principal_amount: Option<String>,
     pub split_count: i64,
     pub tags: Vec<String>,
     pub member_id: Option<i64>,
@@ -403,6 +398,19 @@ pub struct AccountDto {
     pub excluded_from_debt_payoff: bool,
     pub member_id: Option<i64>,
     pub member_name: Option<String>,
+    /// A transaction dated on or before this can't move `current_balance`
+    /// (see `StoredAccount::checkpoint_date`) — `None` if the account has
+    /// never had a monthly rollover or manual balance correction.
+    pub checkpoint_date: Option<String>,
+    /// An explicit icon override (see `StoredAccount::icon_key`) — `None`
+    /// means "keep guessing an icon from `account_type`."
+    pub icon_key: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct CategoryDto {
+    pub name: String,
+    pub icon_key: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -428,7 +436,7 @@ pub struct ImportRow {
     pub amount: String,
     pub is_duplicate: bool,
     /// The row's own Account column, when the source file has one (this
-    /// app's own Ledger CSV export does; a real bank export never does) —
+    /// app's own Transactions CSV export does; a real bank export never does) —
     /// `commit_import` routes the row there by default (creating that
     /// account if it doesn't exist yet) unless the user picks a different
     /// one for it on the review screen.
@@ -544,7 +552,7 @@ fn build_classifier(state: &AppState) -> Result<Classifier, String> {
 /// else that adds uncategorized rows.
 /// Returns the ids of every row it actually assigned a category to, so
 /// callers that need to show the user exactly what changed (see
-/// `recategorize_uncategorized`) don't have to separately diff the ledger.
+/// `recategorize_uncategorized`) don't have to separately diff the transactions.
 fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
     let classifier = build_classifier(state)?;
     let all = state.store.all_transactions().map_err(|e| e.to_string())?;
@@ -553,9 +561,7 @@ fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
         if stored.transaction.category.is_some() {
             continue;
         }
-        if let Some((category, source, confidence)) =
-            categorizer::categorize(&stored.transaction.description, &state.rules, Some(&classifier))
-        {
+        if let Some((category, source, confidence)) = categorizer::categorize(&stored.transaction.description, &state.rules, Some(&classifier)) {
             state
                 .store
                 .set_category(stored.id, &category, source, confidence)
@@ -567,7 +573,7 @@ fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
 }
 
 /// Re-runs categorization over whatever's still Uncategorized right now —
-/// the manual "try again" for the ledger's "Categorize uncategorized"
+/// the manual "try again" for the Transactions tab's "Categorize uncategorized"
 /// button, using whatever rules/classifier training exist at this moment
 /// (which may have improved since these rows were first imported, e.g.
 /// after the user has corrected enough similar transactions by hand).
@@ -579,26 +585,50 @@ pub fn recategorize_uncategorized(state: tauri::State<AppStateHandle>) -> Result
     categorize_uncategorized(&mut state)
 }
 
-/// Parses the file and flags which rows already exist in `account_id`
-/// (the account picked before choosing the file) — every row is returned,
-/// not just duplicates, so the review screen can show the whole import
-/// and let the user decide, row by row, what to include and which
-/// account it actually belongs to.
+/// Parses the file and flags which rows already exist in whichever account
+/// each row will actually land in — every row is returned, not just
+/// duplicates, so the review screen can show the whole import and let the
+/// user decide, row by row, what to include and which account it actually
+/// belongs to.
+///
+/// Each row's account is resolved the same way `commit_import` resolves it
+/// (its own Account column, looked up by name — read-only here, via
+/// `find_account_by_name`, since a preview must never create an account as
+/// a side effect — else `account_id`, the one picked before the file was
+/// chosen) *before* checking duplicates, so a row destined for account B
+/// is checked against B's own history, not whatever `account_id` happens
+/// to be. Checking every row against a single fixed account regardless of
+/// its file-specified destination previously meant a genuine duplicate in
+/// a different account came back `is_duplicate: false` here — silently
+/// contradicting what committing that same row actually does.
 #[tauri::command]
-pub fn preview_import(
-    path: String,
-    invert_amounts: bool,
-    account_id: i64,
-    state: tauri::State<AppStateHandle>,
-) -> Result<ImportPreview, String> {
+pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<ImportPreview, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
 
     let loaded = importer::load_transactions(&path, invert_amounts).map_err(|e| e.to_string())?;
     let row_errors = loaded.errors.len();
-    let flags = state
-        .store
-        .check_duplicates(account_id, &loaded.transactions)
-        .map_err(|e| e.to_string())?;
+
+    let mut resolved_accounts = Vec::with_capacity(loaded.transactions.len());
+    for index in 0..loaded.transactions.len() {
+        let resolved = match loaded.account_names.get(index).and_then(|o| o.as_deref()) {
+            Some(name) => state.store.find_account_by_name(name).map_err(|e| e.to_string())?.unwrap_or(account_id),
+            None => account_id,
+        };
+        resolved_accounts.push(resolved);
+    }
+
+    let mut flags = vec![false; loaded.transactions.len()];
+    let mut by_account: std::collections::HashMap<i64, Vec<usize>> = std::collections::HashMap::new();
+    for (index, &acct) in resolved_accounts.iter().enumerate() {
+        by_account.entry(acct).or_default().push(index);
+    }
+    for (acct, indices) in by_account {
+        let group_txns: Vec<_> = indices.iter().map(|&i| loaded.transactions[i].clone()).collect();
+        let group_flags = state.store.check_duplicates(acct, &group_txns).map_err(|e| e.to_string())?;
+        for (i, flag) in indices.into_iter().zip(group_flags) {
+            flags[i] = flag;
+        }
+    }
 
     let rows = loaded
         .transactions
@@ -623,7 +653,7 @@ pub fn preview_import(
 /// the review screen, if anything; else the row's own Account column from
 /// the file, resolved by name — case-insensitively, auto-creating a new
 /// account if nothing matches, same as picking a never-before-seen name
-/// when creating one by hand — so a full multi-account Ledger export
+/// when creating one by hand — so a full multi-account Transactions export
 /// re-imports into the right accounts with zero manual setup; else
 /// `default_account_id` (the one picked before the file was chosen), for
 /// a real bank export with no Account column at all. Tags parsed from the
@@ -646,8 +676,7 @@ pub fn commit_import(
     let row_errors = loaded.errors.len();
 
     let included: std::collections::HashSet<usize> = included_indices.into_iter().collect();
-    let mut by_account: std::collections::HashMap<i64, Vec<(budget_core::models::Transaction, Vec<String>)>> =
-        std::collections::HashMap::new();
+    let mut by_account: std::collections::HashMap<i64, Vec<(budget_core::models::Transaction, Vec<String>)>> = std::collections::HashMap::new();
     for (index, tx) in loaded.transactions.into_iter().enumerate() {
         if !included.contains(&index) {
             continue;
@@ -655,7 +684,10 @@ pub fn commit_import(
         let account_id = if let Some(explicit) = account_overrides.get(&index).copied() {
             explicit
         } else if let Some(name) = loaded.account_names.get(index).and_then(|o| o.as_deref()) {
-            state.store.get_or_create_account(name, AccountType::Checking).map_err(|e| e.to_string())?
+            state
+                .store
+                .get_or_create_account(name, AccountType::Checking)
+                .map_err(|e| e.to_string())?
         } else {
             default_account_id
         };
@@ -680,8 +712,8 @@ pub fn commit_import(
     Ok(ImportSummary { inserted, row_errors })
 }
 
-/// Adds one transaction directly, without a file import — the Ledger's
-/// "Add transaction…" form. Uses `Store::create_transaction` (which reuses
+/// Adds one transaction directly, without a file import — the Transactions
+/// tab's "Add transaction…" form. Uses `Store::create_transaction` (which reuses
 /// `save_transactions`' own insert path), so fingerprinting and the
 /// account's default-member assignment stay identical to an imported row.
 /// Leaving `category` empty runs it through the same
@@ -703,7 +735,12 @@ pub fn create_manual_transaction(
     let amount = parse_amount(&amount)?;
     let category = category.filter(|c| !c.trim().is_empty());
     let has_category = category.is_some();
-    let tx = budget_core::models::Transaction { date, description: description.trim().to_string(), amount, category };
+    let tx = budget_core::models::Transaction {
+        date,
+        description: description.trim().to_string(),
+        amount,
+        category,
+    };
     let id = state.store.create_transaction(account_id, &tx).map_err(|e| e.to_string())?;
     if !has_category {
         categorize_uncategorized(&mut state)?;
@@ -802,10 +839,7 @@ fn current_month_key() -> String {
 /// so the review screen can show what an import would do before anything
 /// is written. Same convention as `preview_import`'s duplicate flags.
 #[tauri::command]
-pub fn preview_setup_import(
-    path: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<SetupImportPreviewDto, String> {
+pub fn preview_setup_import(path: String, state: tauri::State<AppStateHandle>) -> Result<SetupImportPreviewDto, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let data = budget_core::setup_import::load_setup_csv(&path).map_err(|e| e.to_string())?;
 
@@ -826,9 +860,7 @@ pub fn preview_setup_import(
             starting_balance: row.starting_balance.map(|a| a.to_string()),
             institution: row.institution.clone(),
             mask: row.mask.clone(),
-            already_exists: existing_accounts
-                .iter()
-                .any(|a| a.account.name.eq_ignore_ascii_case(&row.name)),
+            already_exists: existing_accounts.iter().any(|a| a.account.name.eq_ignore_ascii_case(&row.name)),
         })
         .collect();
 
@@ -884,9 +916,7 @@ pub fn preview_setup_import(
             price: row.price.to_string(),
             cost_basis: row.cost_basis.to_string(),
             asset_class: row.asset_class.clone(),
-            account_found: existing_accounts
-                .iter()
-                .any(|a| a.account.name.eq_ignore_ascii_case(&row.account_name)),
+            account_found: existing_accounts.iter().any(|a| a.account.name.eq_ignore_ascii_case(&row.account_name)),
         })
         .collect();
 
@@ -931,10 +961,7 @@ pub fn commit_setup_import(
     data.buckets = keep(data.buckets, &included_buckets);
     data.holdings = keep(data.holdings, &included_holdings);
 
-    let outcome = state
-        .store
-        .apply_setup_import(&data, &current_month_key())
-        .map_err(|e| e.to_string())?;
+    let outcome = state.store.apply_setup_import(&data, &current_month_key()).map_err(|e| e.to_string())?;
 
     Ok(SetupImportSummaryDto {
         accounts_created: outcome.accounts_created,
@@ -954,26 +981,28 @@ pub fn create_account(
     starting_balance: Option<String>,
     institution: Option<String>,
     mask: Option<String>,
+    icon_key: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let account_type = AccountType::parse(&account_type).unwrap_or(AccountType::Other);
-    let id = state
-        .store
-        .get_or_create_account(&name, account_type)
-        .map_err(|e| e.to_string())?;
+    // Validated *before* the account is created — an invalid balance must
+    // fail cleanly with nothing written, not leave a zero-balance orphan
+    // account behind because validation happened after the first write in
+    // this sequence of otherwise-separate calls.
+    let starting_balance = starting_balance.map(|b| parse_amount(&b)).transpose()?;
+    let id = state.store.get_or_create_account(&name, account_type).map_err(|e| e.to_string())?;
     if let Some(balance) = starting_balance {
-        let balance = parse_amount(&balance)?;
-        state
-            .store
-            .set_account_starting_balance(id, balance)
-            .map_err(|e| e.to_string())?;
+        state.store.set_account_starting_balance(id, balance).map_err(|e| e.to_string())?;
     }
     if institution.is_some() || mask.is_some() {
         state
             .store
             .set_account_details(id, institution.as_deref(), mask.as_deref())
             .map_err(|e| e.to_string())?;
+    }
+    if let Some(icon_key) = icon_key {
+        state.store.set_account_icon(id, Some(&icon_key)).map_err(|e| e.to_string())?;
     }
     Ok(id)
 }
@@ -998,38 +1027,27 @@ pub fn list_accounts(state: tauri::State<AppStateHandle>) -> Result<Vec<AccountD
             excluded_from_debt_payoff: a.excluded_from_debt_payoff,
             member_id: a.member_id,
             member_name: a.member_name,
+            checkpoint_date: a.checkpoint_date.map(|d| d.to_string()),
+            icon_key: a.icon_key,
         })
         .collect())
 }
 
 #[tauri::command]
-pub fn set_account_interest_rate(
-    id: i64,
-    rate: Option<String>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_account_interest_rate(id: i64, rate: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let rate = rate.map(|r| parse_amount(&r)).transpose()?;
     state.store.set_account_interest_rate(id, rate).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn set_account_excluded_from_debt_payoff(
-    id: i64,
-    excluded: bool,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_account_excluded_from_debt_payoff(id: i64, excluded: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_account_excluded_from_debt_payoff(id, excluded).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn set_account_details(
-    id: i64,
-    institution: Option<String>,
-    mask: Option<String>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_account_details(id: i64, institution: Option<String>, mask: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state
         .store
@@ -1038,45 +1056,33 @@ pub fn set_account_details(
 }
 
 #[tauri::command]
-pub fn set_account_starting_balance(
-    id: i64,
-    balance: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_account_starting_balance(id: i64, balance: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let balance = parse_amount(&balance)?;
-    state
-        .store
-        .set_account_starting_balance(id, balance)
-        .map_err(|e| e.to_string())
+    state.store.set_account_starting_balance(id, balance).map_err(|e| e.to_string())
 }
 
 /// Corrects an account's current balance as of today, without touching any
 /// existing transaction — see `Store::set_account_balance_override`.
 #[tauri::command]
-pub fn set_account_balance_override(
-    id: i64,
-    balance: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_account_balance_override(id: i64, balance: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let balance = parse_amount(&balance)?;
     let today = chrono::Local::now().date_naive();
-    state
-        .store
-        .set_account_balance_override(id, balance, today)
-        .map_err(|e| e.to_string())
+    state.store.set_account_balance_override(id, balance, today).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn update_account_type(
-    id: i64,
-    account_type: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn update_account_type(id: i64, account_type: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let account_type = AccountType::parse(&account_type).unwrap_or(AccountType::Other);
     state.store.update_account_type(id, account_type).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_account_icon(id: i64, icon_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.set_account_icon(id, icon_key.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1086,11 +1092,7 @@ pub fn delete_account(id: i64, state: tauri::State<AppStateHandle>) -> Result<us
 }
 
 #[tauri::command]
-pub fn set_account_member(
-    id: i64,
-    member_id: Option<i64>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_account_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_account_member(id, member_id).map_err(|e| e.to_string())
 }
@@ -1116,11 +1118,7 @@ pub fn list_family_members(state: tauri::State<AppStateHandle>) -> Result<Vec<Fa
 }
 
 #[tauri::command]
-pub fn rename_family_member(
-    id: i64,
-    new_name: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn rename_family_member(id: i64, new_name: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.rename_family_member(id, &new_name).map_err(|e| e.to_string())
 }
@@ -1153,6 +1151,7 @@ pub fn list_transactions(state: tauri::State<AppStateHandle>) -> Result<Vec<Tran
                 debt_account_name: d.debt_account_name,
                 amount: d.amount.to_string(),
             }),
+            principal_amount: s.principal_amount.map(|a| a.to_string()),
             split_count: s.split_count,
             tags: s.tags,
             member_id: s.member_id,
@@ -1180,30 +1179,19 @@ pub fn list_all_tags(state: tauri::State<AppStateHandle>) -> Result<Vec<String>,
 }
 
 #[tauri::command]
-pub fn set_transaction_member(
-    id: i64,
-    member_id: Option<i64>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_transaction_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_transaction_member(id, member_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn bulk_set_transaction_member(
-    ids: Vec<i64>,
-    member_id: Option<i64>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn bulk_set_transaction_member(ids: Vec<i64>, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.bulk_set_transaction_member(&ids, member_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_transaction_splits(
-    transaction_id: i64,
-    state: tauri::State<AppStateHandle>,
-) -> Result<Vec<TransactionSplitDto>, String> {
+pub fn get_transaction_splits(transaction_id: i64, state: tauri::State<AppStateHandle>) -> Result<Vec<TransactionSplitDto>, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let splits = state.store.list_transaction_splits(transaction_id).map_err(|e| e.to_string())?;
     Ok(splits
@@ -1232,11 +1220,7 @@ pub fn set_transaction_splits(
 }
 
 #[tauri::command]
-pub fn correct_category(
-    id: i64,
-    category: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn correct_category(id: i64, category: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
 
     let description = state
@@ -1255,35 +1239,24 @@ pub fn correct_category(
 
     // teach the rule engine — and persist the rule so it survives a restart
     learner::learn_from_correction(&mut state.rules, &description, &category);
-    state
-        .store
-        .upsert_rule(description.trim(), &category)
-        .map_err(|e| e.to_string())?;
+    state.store.upsert_rule(description.trim(), &category).map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 /// Same as `correct_category`, applied to every id in one call — used by
-/// the ledger's multi-select bulk-edit action so N selected rows cost one
+/// the Transactions tab's multi-select bulk-edit action so N selected rows cost one
 /// round trip instead of N. Each transaction still teaches the rule
 /// learner from its own description, same as if you'd corrected it one
 /// at a time; an id that no longer exists is skipped rather than erroring,
 /// same "harmless no-op" convention as the rest of this file.
 #[tauri::command]
-pub fn bulk_correct_category(
-    ids: Vec<i64>,
-    category: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn bulk_correct_category(ids: Vec<i64>, category: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
 
     let transactions = state.store.all_transactions().map_err(|e| e.to_string())?;
     for id in ids {
-        let Some(description) = transactions
-            .iter()
-            .find(|t| t.id == id)
-            .map(|t| t.transaction.description.clone())
-        else {
+        let Some(description) = transactions.iter().find(|t| t.id == id).map(|t| t.transaction.description.clone()) else {
             continue;
         };
 
@@ -1293,17 +1266,14 @@ pub fn bulk_correct_category(
             .map_err(|e| e.to_string())?;
 
         learner::learn_from_correction(&mut state.rules, &description, &category);
-        state
-            .store
-            .upsert_rule(description.trim(), &category)
-            .map_err(|e| e.to_string())?;
+        state.store.upsert_rule(description.trim(), &category).map_err(|e| e.to_string())?;
     }
 
     Ok(())
 }
 
 /// Same as `delete_transaction`, applied to every id in one call — used by
-/// the ledger's multi-select bulk-delete action. Echoes `ids` back on
+/// the Transactions tab's multi-select bulk-delete action. Echoes `ids` back on
 /// success so the frontend's undo toast can call `restore_transactions`
 /// with exactly what was deleted, without tracking that set itself.
 #[tauri::command]
@@ -1318,7 +1288,7 @@ pub fn bulk_delete_transactions(ids: Vec<i64>, state: tauri::State<AppStateHandl
 
 /// Seeds a recurring item from each selected transaction — merchant,
 /// category, amount, and account carried over as-is from the transaction
-/// itself, `cadence` applied to every one (the Ledger's bulk-actions bar
+/// itself, `cadence` applied to every one (the Transactions tab's bulk-actions bar
 /// offers a single cadence picker for the whole selection, same as its
 /// "Set category to…" applies one category to every selected row). The
 /// transaction's own date becomes the recurring item's anchor date —
@@ -1327,11 +1297,7 @@ pub fn bulk_delete_transactions(ids: Vec<i64>, state: tauri::State<AppStateHandl
 /// matches any transaction is skipped rather than failing the whole batch.
 /// Returns how many were created, for the confirmation message.
 #[tauri::command]
-pub fn bulk_create_recurring_from_transactions(
-    ids: Vec<i64>,
-    cadence: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<usize, String> {
+pub fn bulk_create_recurring_from_transactions(ids: Vec<i64>, cadence: String, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let transactions = state.store.all_transactions().map_err(|e| e.to_string())?;
 
@@ -1376,22 +1342,34 @@ pub fn list_categories(state: tauri::State<AppStateHandle>) -> Result<Vec<String
 }
 
 #[tauri::command]
-pub fn create_category(name: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn list_categories_with_icons(state: tauri::State<AppStateHandle>) -> Result<Vec<CategoryDto>, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    state.store.create_category(&name).map_err(|e| e.to_string())
+    let categories = state.store.list_categories_with_icons().map_err(|e| e.to_string())?;
+    Ok(categories
+        .into_iter()
+        .map(|c| CategoryDto {
+            name: c.name,
+            icon_key: c.icon_key,
+        })
+        .collect())
 }
 
 #[tauri::command]
-pub fn rename_category(
-    old_name: String,
-    new_name: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<usize, String> {
+pub fn create_category(name: String, icon_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.create_category(&name, icon_key.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_category_icon(name: String, icon_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.set_category_icon(&name, icon_key.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn rename_category(old_name: String, new_name: String, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let affected = state
-        .store
-        .rename_category(&old_name, &new_name)
-        .map_err(|e| e.to_string())?;
+    let affected = state.store.rename_category(&old_name, &new_name).map_err(|e| e.to_string())?;
     reload_rules(&mut state)?;
     Ok(affected)
 }
@@ -1405,49 +1383,37 @@ pub fn delete_category(name: String, state: tauri::State<AppStateHandle>) -> Res
 }
 
 #[tauri::command]
-pub fn update_transaction_amount(
-    id: i64,
-    amount: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn update_transaction_amount(id: i64, amount: String, state: tauri::State<AppStateHandle>) -> Result<bool, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let amount = parse_amount(&amount)?;
-    state
-        .store
-        .update_transaction_amount(id, amount)
-        .map_err(|e| e.to_string())
+    state.store.update_transaction_amount(id, amount).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn update_transaction_account(
-    id: i64,
-    account_id: i64,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn update_transaction_principal_amount(id: i64, principal_amount: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let principal_amount = principal_amount.map(|a| parse_amount(&a)).transpose()?;
     state
         .store
-        .update_transaction_account(id, account_id)
+        .update_transaction_principal_amount(id, principal_amount)
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn update_transaction_date(
-    id: i64,
-    date: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn update_transaction_account(id: i64, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.update_transaction_account(id, account_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_transaction_date(id: i64, date: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let date = parse_date(&date)?;
     state.store.update_transaction_date(id, date).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn update_transaction_description(
-    id: i64,
-    description: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn update_transaction_description(id: i64, description: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     if description.trim().is_empty() {
         return Err("Description can't be empty.".to_string());
@@ -1465,8 +1431,8 @@ pub fn delete_transaction(id: i64, state: tauri::State<AppStateHandle>) -> Resul
     state.store.delete_transaction(id, now).map_err(|e| e.to_string())
 }
 
-/// Undoes `delete_transaction`/`bulk_delete_transactions` — the Ledger's
-/// bulk-delete "Undo" toast calls this with exactly the ids it was told
+/// Undoes `delete_transaction`/`bulk_delete_transactions` — the Transactions
+/// tab's bulk-delete "Undo" toast calls this with exactly the ids it was told
 /// were deleted.
 #[tauri::command]
 pub fn restore_transactions(ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
@@ -1498,6 +1464,10 @@ pub fn unapply_debt_payment(source_transaction_id: i64, state: tauri::State<AppS
 }
 
 #[tauri::command]
+// One independent optional field per `buckets` column, mirroring
+// `Store::create_bucket` (see its own `#[allow]` for why this isn't
+// bundled into a params struct).
+#[allow(clippy::too_many_arguments)]
 pub fn create_bucket(
     name: String,
     target_amount: Option<String>,
@@ -1550,6 +1520,8 @@ pub fn list_buckets(state: tauri::State<AppStateHandle>) -> Result<Vec<BucketDto
 }
 
 #[tauri::command]
+// Same reasoning as `create_bucket` above.
+#[allow(clippy::too_many_arguments)]
 pub fn update_bucket_details(
     id: i64,
     target_amount: Option<String>,
@@ -1583,9 +1555,7 @@ pub fn update_bucket_details(
 /// `Store::apply_sinking_fund_contributions`. Safe to call on every app
 /// launch, same convention as `check_monthly_rollover`.
 #[tauri::command]
-pub fn check_sinking_fund_contributions(
-    state: tauri::State<AppStateHandle>,
-) -> Result<Vec<SinkingFundContributionDto>, String> {
+pub fn check_sinking_fund_contributions(state: tauri::State<AppStateHandle>) -> Result<Vec<SinkingFundContributionDto>, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let today = chrono::Local::now().date_naive();
     let applied = state.store.apply_sinking_fund_contributions(today).map_err(|e| e.to_string())?;
@@ -1607,11 +1577,7 @@ pub struct SinkingFundContributionDto {
 }
 
 #[tauri::command]
-pub fn set_bucket_member(
-    id: i64,
-    member_id: Option<i64>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_bucket_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_bucket_member(id, member_id).map_err(|e| e.to_string())
 }
@@ -1703,16 +1669,9 @@ pub fn get_report(state: tauri::State<AppStateHandle>) -> Result<ReportDto, Stri
 /// prev/next month navigation — `get_report` above is deliberately
 /// pinned to the current month for the Reports dashboard.
 #[tauri::command]
-pub fn budget_actuals_for_month(
-    year: i32,
-    month: u32,
-    state: tauri::State<AppStateHandle>,
-) -> Result<Vec<ReportBudgetLineDto>, String> {
+pub fn budget_actuals_for_month(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<ReportBudgetLineDto>, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let actuals = state
-        .store
-        .monthly_budget_actuals(year, month)
-        .map_err(|e| e.to_string())?;
+    let actuals = state.store.monthly_budget_actuals(year, month).map_err(|e| e.to_string())?;
     Ok(actuals
         .into_iter()
         .map(|a| ReportBudgetLineDto {
@@ -1738,11 +1697,7 @@ pub struct MemberBudgetActualDto {
 /// Budget-vs-actual for one month, split by family member — see
 /// `Store::monthly_budget_actuals_by_member`.
 #[tauri::command]
-pub fn monthly_budget_actuals_by_member(
-    year: i32,
-    month: u32,
-    state: tauri::State<AppStateHandle>,
-) -> Result<Vec<MemberBudgetActualDto>, String> {
+pub fn monthly_budget_actuals_by_member(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<MemberBudgetActualDto>, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let actuals = state.store.monthly_budget_actuals_by_member(year, month).map_err(|e| e.to_string())?;
     Ok(actuals
@@ -1761,12 +1716,7 @@ pub fn monthly_budget_actuals_by_member(
 /// Opts a category's specific month in or out of the stricter 90% warning
 /// threshold — see `Store::set_budget_cap`.
 #[tauri::command]
-pub fn set_budget_cap(
-    category: String,
-    period: String,
-    cap_enabled: bool,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_budget_cap(category: String, period: String, cap_enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_budget_cap(&category, &period, cap_enabled).map_err(|e| e.to_string())
 }
@@ -1797,7 +1747,10 @@ pub fn budget_actuals_trend(
         .map_err(|e| e.to_string())?;
     Ok(trend
         .into_iter()
-        .map(|(month, actual)| BudgetTrendPointDto { month, actual: actual.to_string() })
+        .map(|(month, actual)| BudgetTrendPointDto {
+            month,
+            actual: actual.to_string(),
+        })
         .collect())
 }
 
@@ -1853,11 +1806,7 @@ pub struct BudgetAlertDto {
 }
 
 #[tauri::command]
-pub fn budget_alerts_for_month(
-    year: i32,
-    month: u32,
-    state: tauri::State<AppStateHandle>,
-) -> Result<Vec<BudgetAlertDto>, String> {
+pub fn budget_alerts_for_month(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<BudgetAlertDto>, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let alerts = state.store.budget_alerts_for_month(year, month).map_err(|e| e.to_string())?;
     Ok(alerts
@@ -1993,7 +1942,7 @@ pub fn get_stats(state: tauri::State<AppStateHandle>) -> Result<Stats, String> {
         // a real `category` but no `category_source`, since it was never
         // run through this app's own rule/classifier/user-confirm path;
         // counting it as "uncategorized" anyway (as this used to) made the
-        // Ledger's "Needs a category" stat overcount, disagreeing with its
+        // Transactions tab's "Needs a category" stat overcount, disagreeing with its
         // own "Uncategorized" filter, which correctly checks `category`.
         if t.transaction.category.is_none() {
             stats.uncategorized += 1;
@@ -2074,6 +2023,8 @@ pub fn recurring_totals(state: tauri::State<AppStateHandle>) -> Result<Recurring
 }
 
 #[tauri::command]
+// Same reasoning as `create_bucket` above — mirrors `Store::update_recurring`.
+#[allow(clippy::too_many_arguments)]
 pub fn update_recurring(
     id: i64,
     merchant: String,
@@ -2094,11 +2045,7 @@ pub fn update_recurring(
 }
 
 #[tauri::command]
-pub fn set_recurring_member(
-    id: i64,
-    member_id: Option<i64>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_recurring_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_recurring_member(id, member_id).map_err(|e| e.to_string())
 }
@@ -2122,12 +2069,7 @@ pub fn list_recurring_candidates(state: tauri::State<AppStateHandle>) -> Result<
 }
 
 #[tauri::command]
-pub fn dismiss_recurring_candidate(
-    merchant: String,
-    amount: String,
-    cadence: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn dismiss_recurring_candidate(merchant: String, amount: String, cadence: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let amount = parse_amount(&amount)?;
     state
@@ -2137,6 +2079,8 @@ pub fn dismiss_recurring_candidate(
 }
 
 #[tauri::command]
+// Same reasoning as `create_bucket` above — mirrors `Store::create_holding`.
+#[allow(clippy::too_many_arguments)]
 pub fn create_holding(
     account_id: i64,
     symbol: String,
@@ -2248,16 +2192,15 @@ pub fn get_live_price_settings(state: tauri::State<AppStateHandle>) -> Result<Li
 /// Settings tab is what actually exercises it and would surface the
 /// provider's own error message.
 #[tauri::command]
-pub fn set_live_price_settings(
-    provider: String,
-    api_key: Option<String>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_live_price_settings(provider: String, api_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let provider = crate::live_price_provider::LivePriceProvider::parse(&provider)
-        .ok_or_else(|| format!("unknown live-price provider: {provider}"))?;
+    let provider =
+        crate::live_price_provider::LivePriceProvider::parse(&provider).ok_or_else(|| format!("unknown live-price provider: {provider}"))?;
     let api_key = api_key.filter(|k| !k.trim().is_empty());
-    state.store.set_live_price_settings(provider.as_str(), api_key.as_deref()).map_err(|e| e.to_string())
+    state
+        .store
+        .set_live_price_settings(provider.as_str(), api_key.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 /// Global feature toggles shown as switches under Settings — see
@@ -2314,8 +2257,13 @@ pub fn set_envelope_caps_enabled(enabled: bool, state: tauri::State<AppStateHand
 /// so holding it across an await point would fail to compile against
 /// Tauri's multi-threaded async runtime.
 #[tauri::command]
-pub async fn fetch_live_quote(symbol: String, state: tauri::State<'_, AppStateHandle>) -> Result<Option<String>, String> {
+pub async fn fetch_live_quote(
+    symbol: String,
+    state: tauri::State<'_, AppStateHandle>,
+    paths: tauri::State<'_, crate::config::AppPaths>,
+) -> Result<Option<String>, String> {
     let today = chrono::Local::now().date_naive();
+    let generation = paths.current_generation();
     let (api_key, provider, used_today) = {
         let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
         let settings = state.store.get_live_price_settings().map_err(|e| e.to_string())?;
@@ -2325,8 +2273,8 @@ pub async fn fetch_live_quote(symbol: String, state: tauri::State<'_, AppStateHa
     let Some(api_key) = api_key else {
         return Ok(None);
     };
-    let provider = crate::live_price_provider::LivePriceProvider::parse(&provider)
-        .unwrap_or(crate::live_price_provider::LivePriceProvider::AlphaVantage);
+    let provider =
+        crate::live_price_provider::LivePriceProvider::parse(&provider).unwrap_or(crate::live_price_provider::LivePriceProvider::AlphaVantage);
 
     if let Some(limit) = provider.daily_limit() {
         if used_today >= limit {
@@ -2339,8 +2287,23 @@ pub async fn fetch_live_quote(symbol: String, state: tauri::State<'_, AppStateHa
 
     let client = reqwest::Client::new();
     let result = crate::live_price_provider::fetch_quote(provider, &client, &api_key, &symbol).await;
+    // Same generation guard as `refresh_live_prices` — the profile that
+    // was live when this request started may not be the one live now.
+    // Checked here first as a cheap early-out, then checked *again* just
+    // below once the lock is actually held — a profile switch can acquire
+    // the lock and bump the generation in the gap between this check
+    // passing and `state.lock()` below actually returning (that lock call
+    // blocks, uncontended-or-not, and a switch can run to completion
+    // during the wait), so only the check taken while holding the same
+    // lock the switch uses is actually atomic with it.
+    if paths.current_generation() != generation {
+        return Ok(None);
+    }
     {
         let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+        if paths.current_generation() != generation {
+            return Ok(None);
+        }
         // Recorded unconditionally for every provider — for one with no
         // daily_limit() (Finnhub) this is an informational-only "requests
         // used today" count with no limit attached, not a budget check.
@@ -2392,8 +2355,12 @@ pub struct LivePriceRefreshSummary {
 /// count as it happens, unconditionally for both providers), then one
 /// more at the end for the price/timestamp writes.
 #[tauri::command]
-pub async fn refresh_live_prices(state: tauri::State<'_, AppStateHandle>) -> Result<LivePriceRefreshSummary, String> {
+pub async fn refresh_live_prices(
+    state: tauri::State<'_, AppStateHandle>,
+    paths: tauri::State<'_, crate::config::AppPaths>,
+) -> Result<LivePriceRefreshSummary, String> {
     let today = chrono::Local::now().date_naive();
+    let generation = paths.current_generation();
     let (api_key, provider, symbols, used_today) = {
         let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
         let settings = state.store.get_live_price_settings().map_err(|e| e.to_string())?;
@@ -2401,17 +2368,20 @@ pub async fn refresh_live_prices(state: tauri::State<'_, AppStateHandle>) -> Res
         let used_today = state.store.live_price_requests_used_today(today).map_err(|e| e.to_string())?;
         (settings.api_key, settings.provider, symbols, used_today)
     };
-    let provider = crate::live_price_provider::LivePriceProvider::parse(&provider)
-        .unwrap_or(crate::live_price_provider::LivePriceProvider::AlphaVantage);
-    let api_key = api_key
-        .ok_or_else(|| format!("Live prices aren't enabled — add a {} API key in Settings.", provider.label()))?;
+    let provider =
+        crate::live_price_provider::LivePriceProvider::parse(&provider).unwrap_or(crate::live_price_provider::LivePriceProvider::AlphaVantage);
+    let api_key = api_key.ok_or_else(|| format!("Live prices aren't enabled — add a {} API key in Settings.", provider.label()))?;
 
     let limit = provider.daily_limit();
     let mut symbols = symbols;
     let skipped = match limit {
         Some(limit) => {
             let remaining = (limit - used_today).max(0) as usize;
-            if symbols.len() > remaining { symbols.split_off(remaining) } else { Vec::new() }
+            if symbols.len() > remaining {
+                symbols.split_off(remaining)
+            } else {
+                Vec::new()
+            }
         }
         None => Vec::new(),
     };
@@ -2446,14 +2416,47 @@ pub async fn refresh_live_prices(state: tauri::State<'_, AppStateHandle>) -> Res
     for (symbol, result) in results {
         match result {
             Ok(Some(price)) => quotes.push((symbol, price)),
-            Ok(None) => failed.push(FailedQuote { symbol, error: "no data returned for this symbol".to_string() }),
+            Ok(None) => failed.push(FailedQuote {
+                symbol,
+                error: "no data returned for this symbol".to_string(),
+            }),
             Err(error) => failed.push(FailedQuote { symbol, error }),
         }
+    }
+
+    // The network calls above ran with no lock held (see this function's
+    // own doc comment) and could take long enough for the user to switch,
+    // restore, or relocate to a different profile in the meantime — in
+    // which case `state` below is now some other database entirely. Their
+    // results belong to the profile this refresh *started* against, not
+    // whatever's live now, so a generation mismatch here discards them
+    // rather than recording a request/price update against the wrong
+    // profile's data (the concrete bug this guards against: a refresh
+    // that failed against profile A recording as if it happened, or an
+    // A-only price update landing on profile B's holdings).
+    //
+    // Checked here first as a cheap early-out, then checked *again* just
+    // below once the lock is actually held — a profile switch can acquire
+    // the lock, swap `state`, and bump the generation in the gap between
+    // this check passing and `state.lock()` below actually returning, so
+    // only the check taken while holding the same lock the switch uses is
+    // actually atomic with it.
+    if paths.current_generation() != generation {
+        return Ok(LivePriceRefreshSummary {
+            updated: Vec::new(),
+            failed: Vec::new(),
+        });
     }
 
     let mut updated = Vec::new();
     {
         let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+        if paths.current_generation() != generation {
+            return Ok(LivePriceRefreshSummary {
+                updated: Vec::new(),
+                failed: Vec::new(),
+            });
+        }
         for _ in 0..request_count {
             // Recorded unconditionally for every provider — informational
             // only for Finnhub (and, above its daily cap, StockData.org's
@@ -2461,7 +2464,10 @@ pub async fn refresh_live_prices(state: tauri::State<'_, AppStateHandle>) -> Res
             state.store.record_live_price_request(today).map_err(|e| e.to_string())?;
         }
         for (symbol, price) in quotes {
-            state.store.update_holding_prices_for_symbol(&symbol, price, today).map_err(|e| e.to_string())?;
+            state
+                .store
+                .update_holding_prices_for_symbol(&symbol, price, today)
+                .map_err(|e| e.to_string())?;
             updated.push(symbol);
         }
         // Only bump "last refreshed" if a request actually went out — a
@@ -2531,12 +2537,7 @@ pub fn list_assets(state: tauri::State<AppStateHandle>) -> Result<Vec<AssetDto>,
 }
 
 #[tauri::command]
-pub fn update_asset_value(
-    id: i64,
-    value: String,
-    valued_on: String,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn update_asset_value(id: i64, value: String, valued_on: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let value = parse_amount(&value)?;
     if value < Decimal::ZERO {
@@ -2547,11 +2548,7 @@ pub fn update_asset_value(
 }
 
 #[tauri::command]
-pub fn set_asset_member(
-    id: i64,
-    member_id: Option<i64>,
-    state: tauri::State<AppStateHandle>,
-) -> Result<(), String> {
+pub fn set_asset_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_asset_member(id, member_id).map_err(|e| e.to_string())
 }
@@ -2643,8 +2640,7 @@ pub fn get_cash_flow(months: u32, state: tauri::State<AppStateHandle>) -> Result
     }
 
     let (start_year, start_month) = year_months[0];
-    let start_date = chrono::NaiveDate::from_ymd_opt(start_year, start_month, 1)
-        .expect("the first generated year/month must be valid");
+    let start_date = chrono::NaiveDate::from_ymd_opt(start_year, start_month, 1).expect("the first generated year/month must be valid");
 
     let top_categories = state
         .store
@@ -2750,8 +2746,8 @@ pub fn cash_flow_for_range(
         total_expense += Decimal::from_str(&line.expense).map_err(|_| "invalid expense total".to_string())?;
     }
 
-    let start_date = chrono::NaiveDate::from_ymd_opt(from_year, from_month, 1)
-        .ok_or_else(|| format!("invalid start month: {from_year:04}-{from_month:02}"))?;
+    let start_date =
+        chrono::NaiveDate::from_ymd_opt(from_year, from_month, 1).ok_or_else(|| format!("invalid start month: {from_year:04}-{from_month:02}"))?;
     let end_date = last_day_of_month(to_year, to_month);
 
     let top_categories = state
@@ -2760,14 +2756,20 @@ pub fn cash_flow_for_range(
         .map_err(|e| e.to_string())?
         .into_iter()
         .take(6)
-        .map(|(category, amount)| CategoryAmountDto { category, amount: amount.to_string() })
+        .map(|(category, amount)| CategoryAmountDto {
+            category,
+            amount: amount.to_string(),
+        })
         .collect();
     let top_merchants = state
         .store
         .top_merchants(start_date, end_date, 8)
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(|(description, amount)| MerchantAmountDto { description, amount: amount.to_string() })
+        .map(|(description, amount)| MerchantAmountDto {
+            description,
+            amount: amount.to_string(),
+        })
         .collect();
 
     Ok(CashFlowDto {
@@ -2786,21 +2788,19 @@ pub fn cash_flow_for_range(
 /// even if that category wouldn't itself have made the prior month's
 /// top-6 cut.
 #[tauri::command]
-pub fn category_spending_for_month(
-    year: i32,
-    month: u32,
-    state: tauri::State<AppStateHandle>,
-) -> Result<Vec<CategoryAmountDto>, String> {
+pub fn category_spending_for_month(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<CategoryAmountDto>, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
-        .ok_or_else(|| format!("invalid month: {year:04}-{month:02}"))?;
+    let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(|| format!("invalid month: {year:04}-{month:02}"))?;
     let end_date = last_day_of_month(year, month);
     Ok(state
         .store
         .spending_by_category(start_date, end_date)
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(|(category, amount)| CategoryAmountDto { category, amount: amount.to_string() })
+        .map(|(category, amount)| CategoryAmountDto {
+            category,
+            amount: amount.to_string(),
+        })
         .collect())
 }
 
@@ -2826,14 +2826,9 @@ pub struct MonthExpenseDetailDto {
 /// occurred (see `Store::large_expenses_in_range`) — clicking a bar opens
 /// this to answer "what drove this month's number."
 #[tauri::command]
-pub fn month_expense_detail(
-    year: i32,
-    month: u32,
-    state: tauri::State<AppStateHandle>,
-) -> Result<MonthExpenseDetailDto, String> {
+pub fn month_expense_detail(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<MonthExpenseDetailDto, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
-        .ok_or_else(|| format!("invalid month: {year:04}-{month:02}"))?;
+    let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(|| format!("invalid month: {year:04}-{month:02}"))?;
     let end_date = last_day_of_month(year, month);
 
     let categories = state
@@ -2841,7 +2836,10 @@ pub fn month_expense_detail(
         .spending_by_category(start_date, end_date)
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(|(category, amount)| CategoryAmountDto { category, amount: amount.to_string() })
+        .map(|(category, amount)| CategoryAmountDto {
+            category,
+            amount: amount.to_string(),
+        })
         .collect();
 
     let large_expenses = state
@@ -2861,7 +2859,11 @@ pub fn month_expense_detail(
 
     let month_label = start_date.format("%B %Y").to_string();
 
-    Ok(MonthExpenseDetailDto { month_label, categories, large_expenses })
+    Ok(MonthExpenseDetailDto {
+        month_label,
+        categories,
+        large_expenses,
+    })
 }
 
 #[derive(Serialize)]
@@ -2884,8 +2886,7 @@ pub fn year_over_year_cash_flow(
 ) -> Result<YoyCashFlowDto, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let current = month_totals_for_range(&state.store, from_year, from_month, to_year, to_month, "%b")?;
-    let prior_year =
-        month_totals_for_range(&state.store, from_year - 1, from_month, to_year - 1, to_month, "%b")?;
+    let prior_year = month_totals_for_range(&state.store, from_year - 1, from_month, to_year - 1, to_month, "%b")?;
     Ok(YoyCashFlowDto { current, prior_year })
 }
 
@@ -3033,8 +3034,7 @@ pub fn spending_this_month(state: tauri::State<AppStateHandle>) -> Result<Vec<Ca
 
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let today = chrono::Local::now().date_naive();
-    let start_of_month = chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1)
-        .expect("the 1st of the current month must be valid");
+    let start_of_month = chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("the 1st of the current month must be valid");
 
     Ok(state
         .store

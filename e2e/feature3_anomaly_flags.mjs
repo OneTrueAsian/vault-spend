@@ -24,7 +24,7 @@ cur.execute(
 
 const app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
   const badge = await app.browser.$(".anomaly-duplicate");

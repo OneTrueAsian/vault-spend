@@ -45,17 +45,26 @@ try {
   await card.waitForExist({ timeout: 10000 });
 
   // A regex-guessed icon for "Widget Fund" would be the Flag <svg>; an
-  // explicit "gift" pick renders the bundled gift-goal.png <img> instead.
+  // explicit "gift" pick renders a bundled <img> instead. Not checking the
+  // <img src> for a filename substring — the bundled gift icon is small
+  // enough that Vite inlines it as a base64 data URI rather than emitting
+  // a named file (see feature59's own note on this) — so instead reopen
+  // the bucket's edit form and confirm "gift" round-tripped through
+  // create_bucket + list_buckets as the active swatch, same pattern
+  // feature59 uses for accounts/categories.
   const icoImg = await card.$(".bucket-ico img");
   if (!(await icoImg.isExisting())) {
     throw new Error('expected "Widget Fund" to render an <img> icon (explicit pick), found none — did the picker fall through to the Flag guess?');
   }
-  const src = await icoImg.getAttribute("src");
-  if (!src.includes("gift-goal")) {
-    throw new Error(`expected the gift-goal.png asset, got icon src "${src}"`);
-  }
 
-  console.log("goal icon src:", src);
+  const editBtn = await card.$("button=Edit");
+  await editBtn.click();
+  const activeEditSwatch = await card.$(".icon-picker-swatch-active");
+  await activeEditSwatch.waitForExist({ timeout: 5000 });
+  const persistedTitle = await activeEditSwatch.getAttribute("title");
+  if (persistedTitle !== "gift") throw new Error(`expected "gift" to be the active swatch after creation, got "${persistedTitle}"`);
+
+  console.log("goal's active icon after creation:", persistedTitle);
   console.log("FEATURE 54 E2E TEST PASSED");
 } finally {
   await app.close();

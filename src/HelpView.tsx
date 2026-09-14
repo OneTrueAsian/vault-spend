@@ -34,8 +34,8 @@ const GETTING_STARTED: HelpEntry = {
       </li>
       <li>
         <strong>Get your transactions in</strong>, either by importing a
-        CSV from your bank (see below) or entering them by hand in the
-        Ledger.
+        CSV from your bank (see below) or entering them by hand in
+        Transactions.
       </li>
       <li>
         <strong>Set up your budget</strong> in the Budget tab — add a
@@ -74,7 +74,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "quick actions",
       "get started",
       "checklist",
-      "ask pennyworth",
+      "ask the vault",
     ],
     node: (
       <li>
@@ -97,7 +97,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         your own arrangement right alongside them — switch back to it any
         time from the same dropdown, or delete it when you no longer need
         it. New here also see a <strong>Get started</strong> checklist and
-        the <strong>Ask Pennyworth</strong> question box (see FAQ below).
+        the <strong>Ask the Vault</strong> question box (see FAQ below).
       </li>
     ),
   },
@@ -129,7 +129,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
     tags: ["ledger", "transactions", "filter", "split", "tag", "bulk tag", "debt payment", "family member", "manage family members"],
     node: (
       <li>
-        <strong>Ledger</strong> — every transaction, filterable by
+        <strong>Transactions</strong> — every transaction, filterable by
         account/category/tag/family member, with inline category
         correction and tagging — either one at a time or, after selecting
         several rows, in bulk — splitting a transaction across multiple
@@ -200,7 +200,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         <strong>Recurring</strong> — a maintained list of recurring
         bills/income, each showing its next expected date and editable in
         place. A <strong>Suggested</strong> section above it auto-detects
-        merchant/amount pairs in your ledger that look recurring but aren't
+        merchant/amount pairs in your transactions that look recurring but aren't
         tracked yet, so you can add them with one click instead of typing
         them in by hand.
       </li>
@@ -253,7 +253,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         person (always as of today — it isn't a monthly figure the way the
         cards above it are), and a budget grid split by category and
         person. Anything not assigned to a specific person lands under
-        "Unassigned" — see the Ledger's <strong>"Manage family
+        "Unassigned" — see the Transactions tab's <strong>"Manage family
         members…"</strong> to start attributing accounts and transactions.
       </li>
     ),
@@ -307,7 +307,7 @@ const IMPORTING_ENTRY: HelpEntry = {
   node: (
     <>
       <p>
-        From the <strong>Ledger</strong> tab, click <strong>"Import
+        From the <strong>Transactions</strong> tab, click <strong>"Import
         transactions…"</strong>:
       </p>
       <ol>
@@ -320,14 +320,19 @@ const IMPORTING_ENTRY: HelpEntry = {
           OFX/QFX, or QIF are all supported.
         </li>
         <li>
-          Confirm which way the amounts go. Penny Worth's convention is
-          <em> negative = money out</em>; if your file shows charges as
-          positive numbers (common for credit card exports), choose "Flip
-          the signs" — otherwise "Keep as-is."
+          Confirm which way the amounts go. Vault Spend's convention is
+          <em> negative = money out</em> for a checking/savings/investment
+          account; if your file shows charges as positive numbers (common
+          for credit card exports), choose "Flip the signs" — otherwise
+          "Keep as-is." For a credit card or loan account specifically,
+          the convention is the other way around — a payment is
+          <em> positive</em> (it reduces what's owed) and a charge or new
+          debt is negative — so check a payment row's sign in the preview
+          before confirming.
         </li>
         <li>
           You'll see a preview of every row before anything is saved. Rows
-          that look like duplicates of something already in your ledger are
+          that look like duplicates of something already in your transactions are
           unchecked by default (see the FAQ below) — check or uncheck any
           row, or override which account a specific row should land in.
         </li>
@@ -448,8 +453,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["reminder", "notification", "bill", "recurring", "due date", "alert"],
     answer: (
       <p>
-        If a recurring bill (Recurring tab) is due within 3 days, Penny
-        Worth shows a native Windows notification — but only when you
+        If a recurring bill (Recurring tab) is due within 3 days, Vault
+        Spend shows a native Windows notification — but only when you
         actually open the app. This isn't a background reminder service; it
         doesn't run, and can't notify you, while the app is closed.
       </p>
@@ -474,7 +479,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     answer: (
       <p>
         New transactions are matched against rules first — an exact
-        merchant match, or a pattern Penny Worth has learned from a category
+        merchant match, or a pattern Vault Spend has learned from a category
         you've corrected before. Once you've made at least 10 corrections, a
         lightweight classifier also kicks in for transactions the rules
         don't cover. Anything neither can confidently place is left
@@ -484,7 +489,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
-    question: "How does Penny Worth suggest recurring items?",
+    question: "How does Vault Spend suggest recurring items?",
     tags: ["recurring", "suggested", "bills", "subscriptions", "auto-detect"],
     answer: (
       <p>
@@ -501,8 +506,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["category", "correct", "fix", "recategorize", "bulk edit"],
     answer: (
       <p>
-        Yes, several ways: the category dropdown on any Ledger row;
-        selecting several rows and using the Ledger's bulk-edit bar to
+        Yes, several ways: the category dropdown on any Transactions row;
+        selecting several rows and using the Transactions tab's bulk-edit bar to
         recategorize them all at once; or, from the Budget page, clicking a
         category name to see every transaction behind that month's number
         and fixing any of them right there (individually or in bulk).
@@ -534,7 +539,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         It turns the goal into a sinking fund for an irregular annual cost —
         insurance, gifts, an annual subscription — that's easier to save for
         a little at a time than all at once. The next time you open the app
-        after a new calendar month starts, Penny Worth logs that amount as a
+        after a new calendar month starts, Vault Spend logs that amount as a
         contribution automatically (you'll see a one-time notice naming
         which goal(s) it applied to) — at most once per goal per month, and
         independently of any manual contribution you also log that month,
@@ -547,7 +552,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["split", "transaction", "categories"],
     answer: (
       <p>
-        Yes — the Ledger's "Split →" control on any transaction lets you
+        Yes — the Transactions tab's "Split →" control on any transaction lets you
         divide it into as many category/amount lines as you need, each with
         an optional note.
       </p>
@@ -561,7 +566,10 @@ const FAQ_ENTRIES: FaqEntry[] = [
         Yes — each account type tracks its balance the way that type
         actually works: a credit card's balance is available credit, a
         loan's is what's still owed, and a checking/savings/investment/other
-        account's is a literal balance.
+        account's is a literal balance. For both credit and loan accounts,
+        a payment is entered as a <em>positive</em> amount and reduces what's
+        owed; a charge or new borrowing is negative and increases it — the
+        same convention for both account types.
       </p>
     ),
   },
@@ -625,7 +633,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["backup", "restore", "automatic", "data safety"],
     answer: (
       <p>
-        Penny Worth backs up your data file automatically once a day when
+        Vault Spend backs up your data file automatically once a day when
         you open it, keeping the most recent 15 (Settings tab — also has a
         manual "Back up now"). Restoring one first backs up your current
         data (so restoring is itself reversible), then loads the restored
@@ -634,7 +642,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
-    question: "Can I change how Penny Worth looks?",
+    question: "Can I change how Vault Spend looks?",
     tags: ["appearance", "theme", "dark mode", "light mode", "slate", "futuristic", "style", "color"],
     answer: (
       <p>
@@ -659,7 +667,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
-    question: "Can Penny Worth track spending for multiple people?",
+    question: "Can Vault Spend track spending for multiple people?",
     tags: ["family", "family members", "profiles", "household", "multiple people", "multi-user", "shared"],
     answer: (
       <>
@@ -670,7 +678,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
             goal, asset, or recurring item with who it belongs to, then
             filter down to just one person wherever a member filter appears.
             Everyone still shares the same file and sees the same data;
-            it's attribution, not separation. Manage them from the Ledger
+            it's attribution, not separation. Manage them from the Transactions
             tab's "Manage family members…" button.
           </li>
           <li>
@@ -720,10 +728,10 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "Can I ask questions about my spending in plain English?",
-    tags: ["ask pennyworth", "question", "search", "natural language", "query", "dashboard"],
+    tags: ["ask the vault", "question", "search", "natural language", "query", "dashboard"],
     answer: (
       <p>
-        Yes — the "Ask Pennyworth" box at the top of the Dashboard answers
+        Yes — the "Ask the Vault" box at the top of the Dashboard answers
         questions like "how much did I spend on dining out in July" or
         "what's my net worth" directly from your own data, with no internet
         connection or account required. It matches a set of question shapes

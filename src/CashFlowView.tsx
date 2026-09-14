@@ -301,6 +301,7 @@ export function CashFlowView({
                 <span className="reports-section-title">Top merchants</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <select
+                    aria-label="Month for top merchants and categories"
                     className="month-select"
                     value={topCategoriesMonth.month}
                     onChange={(e) => onSetTopCategoriesMonth(topCategoriesMonth.year, Number(e.target.value))}

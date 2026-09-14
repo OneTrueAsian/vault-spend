@@ -30,7 +30,7 @@ try {
   await settingsCard.waitForExist({ timeout: 10000 });
 
   await app.browser.waitUntil(
-    async () => (await settingsCard.getText()).includes("pennyworth.db"),
+    async () => (await settingsCard.getText()).includes("vaultspend.db"),
     { timeout: 10000, timeoutMsg: "expected the data file location to finish loading" },
   );
 

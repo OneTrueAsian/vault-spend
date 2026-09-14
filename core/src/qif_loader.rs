@@ -47,7 +47,10 @@ fn parse_qif(content: &str, invert_amounts: bool) -> LoadResult {
             if has_any_field {
                 match build_transaction(date.take(), amount.take(), payee.take(), memo.take(), invert_amounts) {
                     Ok(tx) => transactions.push(tx),
-                    Err(message) => errors.push(RowError { row_number: record_start_line, message }),
+                    Err(message) => errors.push(RowError {
+                        row_number: record_start_line,
+                        message,
+                    }),
                 }
             }
             has_any_field = false;
@@ -72,11 +75,18 @@ fn parse_qif(content: &str, invert_amounts: bool) -> LoadResult {
     if has_any_field {
         match build_transaction(date, amount, payee, memo, invert_amounts) {
             Ok(tx) => transactions.push(tx),
-            Err(message) => errors.push(RowError { row_number: record_start_line, message }),
+            Err(message) => errors.push(RowError {
+                row_number: record_start_line,
+                message,
+            }),
         }
     }
 
-    LoadResult { transactions, errors, ..Default::default() }
+    LoadResult {
+        transactions,
+        errors,
+        ..Default::default()
+    }
 }
 
 fn build_transaction(
@@ -98,10 +108,7 @@ fn build_transaction(
         return Err("empty description".to_string());
     }
     let date = parse_qif_date(&date_str)?;
-    let mut amount: Decimal = amount_str
-        .replace(',', "")
-        .parse()
-        .map_err(|_| format!("invalid amount: {amount_str}"))?;
+    let mut amount: Decimal = amount_str.replace(',', "").parse().map_err(|_| format!("invalid amount: {amount_str}"))?;
     if invert_amounts {
         amount = -amount;
     }
@@ -128,7 +135,11 @@ fn parse_qif_date(s: &str) -> Result<NaiveDate, String> {
     };
     let full_year = if year.len() <= 2 {
         let two_digit_year: u32 = year.parse().map_err(|_| format!("invalid date: {s}"))?;
-        if two_digit_year <= 68 { 2000 + two_digit_year } else { 1900 + two_digit_year }
+        if two_digit_year <= 68 {
+            2000 + two_digit_year
+        } else {
+            1900 + two_digit_year
+        }
     } else {
         year.parse().map_err(|_| format!("invalid date: {s}"))?
     };

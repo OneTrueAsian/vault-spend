@@ -65,10 +65,7 @@ impl Classifier {
     /// categories), so this normalizes them with softmax first.
     pub fn predict_with_confidence(&self, description: &str) -> Option<(String, f64)> {
         let scores = self.category_log_scores(description);
-        let (winner, winner_score) = scores
-            .iter()
-            .max_by(|(_, a), (_, b)| a.total_cmp(b))
-            .map(|(c, s)| (c.clone(), *s))?;
+        let (winner, winner_score) = scores.iter().max_by(|(_, a), (_, b)| a.total_cmp(b)).map(|(c, s)| (c.clone(), *s))?;
 
         // softmax, shifted by the max score for numerical stability — the
         // shift cancels out in the ratio, so the result is unaffected.
@@ -144,14 +141,8 @@ mod tests {
     fn predicts_a_category_for_a_description_never_seen_before() {
         let classifier = Classifier::train(&training_set());
 
-        assert_eq!(
-            classifier.predict("Sunny Grocery Store"),
-            Some("Groceries".to_string())
-        );
-        assert_eq!(
-            classifier.predict("Corner Coffee House"),
-            Some("Dining Out".to_string())
-        );
+        assert_eq!(classifier.predict("Sunny Grocery Store"), Some("Groceries".to_string()));
+        assert_eq!(classifier.predict("Corner Coffee House"), Some("Dining Out".to_string()));
     }
 
     #[test]
@@ -160,10 +151,7 @@ mod tests {
         examples.push(("STARBUCKS #1001", "Dining Out"));
         let classifier = Classifier::train(&examples);
 
-        assert_eq!(
-            classifier.predict("starbucks #2002"),
-            Some("Dining Out".to_string())
-        );
+        assert_eq!(classifier.predict("starbucks #2002"), Some("Dining Out".to_string()));
     }
 
     #[test]
@@ -178,25 +166,21 @@ mod tests {
         ];
         let classifier = Classifier::train(&examples);
 
-        assert_eq!(
-            classifier.predict("Xyzzy Quux Foobar"),
-            Some("Groceries".to_string())
-        );
+        assert_eq!(classifier.predict("Xyzzy Quux Foobar"), Some("Groceries".to_string()));
     }
 
     #[test]
-    fn untrained_classifier_predicts_nothing() {
+    fn untrained_classifier_predicts_nothing_and_has_no_confidence() {
         let classifier = Classifier::train(&[]);
         assert_eq!(classifier.predict("anything at all"), None);
+        assert_eq!(classifier.predict_with_confidence("anything at all"), None);
     }
 
     #[test]
     fn predict_with_confidence_agrees_with_predict_on_the_winning_category() {
         let classifier = Classifier::train(&training_set());
 
-        let (category, confidence) = classifier
-            .predict_with_confidence("Sunny Grocery Store")
-            .unwrap();
+        let (category, confidence) = classifier.predict_with_confidence("Sunny Grocery Store").unwrap();
 
         assert_eq!(category, "Groceries");
         assert_eq!(classifier.predict("Sunny Grocery Store"), Some(category));
@@ -212,9 +196,7 @@ mod tests {
 
         // "Grocery" and "Market" both appear heavily in the Groceries
         // training set with no Dining Out overlap — a clean match.
-        let (_, clear_confidence) = classifier
-            .predict_with_confidence("Sunny Grocery Market")
-            .unwrap();
+        let (_, clear_confidence) = classifier.predict_with_confidence("Sunny Grocery Market").unwrap();
         // A word salad with no vocabulary overlap at all is won only by
         // the category prior — the weakest possible win.
         let (_, ambiguous_confidence) = classifier.predict_with_confidence("Xyzzy Quux Foobar").unwrap();
@@ -224,11 +206,5 @@ mod tests {
             "a description with unambiguous keyword overlap should be more confident \
              ({clear_confidence}) than one decided purely by the category prior ({ambiguous_confidence})"
         );
-    }
-
-    #[test]
-    fn untrained_classifier_has_no_confidence_either() {
-        let classifier = Classifier::train(&[]);
-        assert_eq!(classifier.predict_with_confidence("anything at all"), None);
     }
 }

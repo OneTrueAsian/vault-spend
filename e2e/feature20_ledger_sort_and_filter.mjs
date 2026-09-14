@@ -36,7 +36,7 @@ cur.execute("INSERT INTO transaction_tags (transaction_id, tag) VALUES (?, ?)", 
 
 const app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
   const dateHeader = await app.browser.$("//th[contains(@class,'sortable-col')][contains(.,'Date')]");

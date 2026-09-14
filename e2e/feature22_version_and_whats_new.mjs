@@ -28,7 +28,7 @@ try {
   // saw an old version, then reload so the app remounts and re-runs its
   // version check against that stale localStorage value.
   await app.browser.execute(() => {
-    localStorage.setItem("pennyworth-last-seen-version", "0.0.1");
+    localStorage.setItem("vaultspend-last-seen-version", "0.0.1");
   });
   await app.browser.url("http://tauri.localhost/index.html");
 

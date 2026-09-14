@@ -6,7 +6,7 @@
 //
 // Restoring hot-swaps the app's live database connection in place and the
 // frontend remounts itself to re-fetch everything (see App.tsx's
-// `PennyWorthApp` wrapper and commands.rs's `restore_backup`) — no window
+// `VaultSpendApp` wrapper and commands.rs's `restore_backup`) — no window
 // close/reopen, so this all happens within a single still-running session.
 // A real OS-level relaunch was tried first and dropped: on Windows it
 // occasionally raced the outgoing WebView2 instance's teardown against the
@@ -40,7 +40,7 @@ cur.execute(
     (checking_id, "2026-08-01", "Original", "-10.00", None, f"{checking_id}|2026-08-01|original|-10.00"),
 )
 `);
-const dbPath = path.join(dbDir, "pennyworth.db");
+const dbPath = path.join(dbDir, "vaultspend.db");
 
 // Session 1: create a manual backup of the seeded (pre-mutation) state.
 let app = await launchApp({ dbDir });
@@ -92,7 +92,7 @@ cur.execute(
 // restored (pre-mutation) data is what's there now.
 app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
   const ledgerText = await (await app.browser.$(".page")).getText();
   if (!ledgerText.includes("Added After Backup")) {
@@ -115,10 +115,10 @@ try {
   );
   console.log("status after restore:", await (await app.browser.$(".status")).getText());
 
-  // The whole component tree remounts right after (see PennyWorthApp) —
+  // The whole component tree remounts right after (see VaultSpendApp) —
   // the old nav button handle is gone, so re-query it fresh — and confirm
   // the restored data is what's there, live.
-  const ledgerNavAfter = await app.browser.$("button*=Ledger");
+  const ledgerNavAfter = await app.browser.$("button*=Transactions");
   await ledgerNavAfter.waitForExist({ timeout: 10000 });
   await ledgerNavAfter.click();
 

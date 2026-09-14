@@ -15,11 +15,7 @@ pub const MIN_TRAINING_EXAMPLES_FOR_CLASSIFIER: usize = 10;
 /// produced the answer, for display and for later corrections. The
 /// confidence is only ever populated for a classifier guess — a rule match
 /// is a deterministic decision, not a probability.
-pub fn categorize(
-    description: &str,
-    rules: &RuleSet,
-    classifier: Option<&Classifier>,
-) -> Option<(String, CategorySource, Option<f64>)> {
+pub fn categorize(description: &str, rules: &RuleSet, classifier: Option<&Classifier>) -> Option<(String, CategorySource, Option<f64>)> {
     if let Some(category) = rules.categorize(description) {
         return Some((category, CategorySource::Rule, None));
     }
@@ -65,10 +61,7 @@ mod tests {
 
         let result = categorize("Ferrywood Coffee Shop", &rules, Some(&classifier));
 
-        assert_eq!(
-            result,
-            Some(("Business Expense".to_string(), CategorySource::Rule, None))
-        );
+        assert_eq!(result, Some(("Business Expense".to_string(), CategorySource::Rule, None)));
     }
 
     #[test]
@@ -76,8 +69,7 @@ mod tests {
         let rules = RuleSet::new(vec![]); // no rule matches anything
         let classifier = well_trained_classifier();
 
-        let (category, source, confidence) =
-            categorize("Sunny Grocery Store", &rules, Some(&classifier)).unwrap();
+        let (category, source, confidence) = categorize("Sunny Grocery Store", &rules, Some(&classifier)).unwrap();
 
         assert_eq!(category, "Groceries");
         assert_eq!(source, CategorySource::Classifier);
@@ -89,10 +81,7 @@ mod tests {
     fn does_not_trust_a_classifier_trained_on_too_little_data() {
         let rules = RuleSet::new(vec![]);
         // just 2 examples — nowhere near enough to trust a guess from
-        let classifier = Classifier::train(&[
-            ("Green Leaf Grocers", "Groceries"),
-            ("Ferrywood Coffee Shop", "Dining Out"),
-        ]);
+        let classifier = Classifier::train(&[("Green Leaf Grocers", "Groceries"), ("Ferrywood Coffee Shop", "Dining Out")]);
 
         let result = categorize("Sunny Grocery Store", &rules, Some(&classifier));
 

@@ -3,7 +3,7 @@ import type { Account, FamilyMember, Recurring, RecurringCandidate, RecurringTot
 import { formatAmount, toLocalIsoDate } from "./format";
 import { fmtMoneyShort } from "./charts";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
-import { CategoryIcon } from "./categoryIcons";
+import { CategoryIcon } from "./icons";
 
 export const CADENCE_OPTIONS = ["weekly", "biweekly", "monthly", "annual"];
 
@@ -86,10 +86,12 @@ export function projectOccurrencesInMonth(item: { anchor_date: string; cadence: 
 
 function SuggestedRecurringSection({
   candidates,
+  categoryIconMap,
   onAdd,
   onDismiss,
 }: {
   candidates: RecurringCandidate[];
+  categoryIconMap: Record<string, string | null>;
   onAdd: (candidate: RecurringCandidate) => void;
   onDismiss: (candidate: RecurringCandidate) => void;
 }) {
@@ -101,13 +103,13 @@ function SuggestedRecurringSection({
         <span className="reports-section-title">Suggested</span>
       </div>
       <p className="modal-message-secondary">
-        Detected from your ledger — a merchant and amount that's repeated on a consistent schedule but isn't tracked
+        Detected from your transactions — a merchant and amount that's repeated on a consistent schedule but isn't tracked
         here yet.
       </p>
       {candidates.map((c) => (
         <div className="suggested-row" key={`${c.merchant}|${c.amount}|${c.cadence}`}>
           <span className="row-icon-badge">
-            <CategoryIcon category={c.category} />
+            <CategoryIcon category={c.category} iconKey={c.category ? categoryIconMap[c.category] : null} />
           </span>
           <div className="suggested-info">
             <div className="suggested-name">{c.merchant}</div>
@@ -374,6 +376,7 @@ export function RecurringView({
   candidates,
   accounts,
   familyMembers,
+  categoryIconMap,
   onCreate,
   onUpdate,
   onDelete,
@@ -386,6 +389,9 @@ export function RecurringView({
   candidates: RecurringCandidate[];
   accounts: Account[];
   familyMembers: FamilyMember[];
+  /** Name → explicit icon override, for every `<CategoryIcon>` rendered on
+   * this page — see App.tsx's `categoryIconMap`. */
+  categoryIconMap: Record<string, string | null>;
   onCreate: (
     merchant: string,
     category: string | null,
@@ -510,7 +516,12 @@ export function RecurringView({
         </div>
       </div>
 
-      <SuggestedRecurringSection candidates={candidates} onAdd={onAddCandidate} onDismiss={onDismissCandidate} />
+      <SuggestedRecurringSection
+        candidates={candidates}
+        categoryIconMap={categoryIconMap}
+        onAdd={onAddCandidate}
+        onDismiss={onDismissCandidate}
+      />
 
       <div className="view-toggle" role="group" aria-label="List or calendar view">
         <button type="button" className={view === "list" ? "view-toggle-active" : ""} onClick={() => setView("list")}>
@@ -605,7 +616,7 @@ export function RecurringView({
                 <td>
                   <div className="cell-with-icon">
                     <span className="row-icon-badge">
-                      <CategoryIcon category={r.category} />
+                      <CategoryIcon category={r.category} iconKey={r.category ? categoryIconMap[r.category] : null} />
                     </span>
                     <div>
                       <div className="account-name-cell">{r.merchant}</div>
@@ -678,7 +689,7 @@ export function RecurringView({
                   <td>
                     <div className="cell-with-icon">
                       <span className="row-icon-badge">
-                        <CategoryIcon category={r.category} />
+                        <CategoryIcon category={r.category} iconKey={r.category ? categoryIconMap[r.category] : null} />
                       </span>
                       <div className="account-name-cell">{r.merchant}</div>
                     </div>

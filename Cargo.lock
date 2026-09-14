@@ -2692,23 +2692,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pennyworth"
-version = "1.2.4"
-dependencies = [
- "budget_core",
- "chrono",
- "reqwest 0.12.28",
- "rust_decimal",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
-]
-
-[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4869,6 +4852,23 @@ dependencies = [
  "js-sys",
  "serde_core",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "vaultspend"
+version = "1.2.5"
+dependencies = [
+ "budget_core",
+ "chrono",
+ "reqwest 0.12.28",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
 ]
 
 [[package]]

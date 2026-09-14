@@ -1,5 +1,5 @@
 {
-  "name": "penny-worth",
+  "name": "vault-spend",
   "private": true,
   "version": "1.2.4",
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "vitest run",
     "e2e": "node e2e/run-all.mjs",
     "tauri": "tauri",
-    "tauri:dev:sandbox": "cross-env PENNYWORTH_DB_DIR=$INIT_CWD/.dev-sandbox tauri dev"
+    "tauri:dev:sandbox": "cross-env VAULTSPEND_DB_DIR=$INIT_CWD/.dev-sandbox tauri dev"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

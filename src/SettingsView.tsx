@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AppSettings, Backup, LivePriceProviderId, LivePriceSettings, Profile, ThemeStyle } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { CHANGELOG } from "./changelog";
-import { ICON_CREDITS } from "./iconCredits";
+import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -89,7 +90,7 @@ function BackupsSection({
         </button>
       </div>
       <p className="modal-message-secondary">
-        Penny Worth backs up automatically once a day when you open it, keeping the most recent 15. Restoring backs
+        Vault Spend backs up automatically once a day when you open it, keeping the most recent 15. Restoring backs
         up your current data first, then reloads it — no restart needed.
       </p>
       <table className="ledger">
@@ -223,6 +224,7 @@ function LivePricesSection({
       ) : (
         <>
           <select
+            aria-label="Live price provider"
             className="row-edit-input"
             value={pickerProvider}
             onChange={(e) => setPickerProvider(e.target.value as LivePriceProviderId)}
@@ -267,7 +269,7 @@ const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string 
   {
     id: "classic",
     label: "Slate",
-    description: "Penny Worth's default look, following the header's Light/Dark/System toggle.",
+    description: "Vault Spend's default look, following the header's Light/Dark/System toggle.",
   },
   {
     id: "futuristic",
@@ -290,7 +292,7 @@ function AppearanceSection({
         <span className="reports-section-title">Appearance</span>
       </div>
       <p className="modal-message-secondary">
-        Choose Penny Worth's visual theme. This only changes colors, fonts, and shapes — nothing about how the app
+        Choose Vault Spend's visual theme. This only changes colors, fonts, and shapes — nothing about how the app
         works.
       </p>
       <div className="feature-toggle-list" role="radiogroup" aria-label="Theme">
@@ -328,13 +330,13 @@ function FeatureTogglesSection({
     {
       key: "apply_to_debt_enabled",
       label: "Apply to Debt",
-      description: 'Shows "Apply to a debt →" on Ledger transactions, so a payment can also reduce a loan or credit card balance.',
+      description: 'Shows "Apply to a debt →" on each transaction, so a payment can also reduce a loan or credit card balance.',
       onChange: onSetApplyToDebtEnabled,
     },
     {
       key: "split_purchases_enabled",
       label: "Split purchases",
-      description: "Shows the Split control on Ledger transactions, for dividing one purchase across multiple categories.",
+      description: "Shows the Split control on each transaction, for dividing one purchase across multiple categories.",
       onChange: onSetSplitPurchasesEnabled,
     },
     {
@@ -369,12 +371,33 @@ function FeatureTogglesSection({
   );
 }
 
+/** `ManageCategoriesDialog`'s inline `.icon-picker-popover` positions itself
+ * `absolute` against its own row — fine inside a plain `<ul>`, but the
+ * Profiles table below is a `.ledger`, which clips overflow to keep its
+ * corners rounded, so an absolutely-positioned popover taller than one row
+ * gets silently clipped away instead of showing. Portaling it to
+ * `document.body` and positioning it `fixed` against the swatch's own
+ * on-screen rect sidesteps that clipping entirely without touching
+ * `.ledger`'s shared styling (used by every other table in the app). */
+function ProfileIconPopover({ anchorRect, onClose, children }: { anchorRect: DOMRect; onClose: () => void; children: React.ReactNode }) {
+  return createPortal(
+    <>
+      <div className="icon-picker-portal-backdrop" onClick={onClose} />
+      <div className="icon-picker-popover icon-picker-popover-portal" style={{ top: anchorRect.bottom + 4, left: anchorRect.left }}>
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
 function ProfilesSection({
   profiles,
   onCreateProfile,
   onUseExistingDataFile,
   onSwitchProfile,
   onRenameProfile,
+  onSetProfileIcon,
   onDeleteProfile,
 }: {
   profiles: Profile[];
@@ -387,6 +410,7 @@ function ProfilesSection({
   onUseExistingDataFile: () => void;
   onSwitchProfile: (id: string) => void;
   onRenameProfile: (id: string, newName: string) => void;
+  onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
 }) {
   const [newProfileName, setNewProfileName] = useState("");
@@ -394,6 +418,7 @@ function ProfilesSection({
   const [draftName, setDraftName] = useState("");
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
+  const [editingIcon, setEditingIcon] = useState<{ id: string; anchorRect: DOMRect } | null>(null);
 
   function handleCreateSubmit(e: FormEvent) {
     e.preventDefault();
@@ -429,6 +454,7 @@ function ProfilesSection({
       <table className="ledger">
         <thead>
           <tr>
+            <th></th>
             <th>Name</th>
             <th className="actions-col"></th>
           </tr>
@@ -436,6 +462,39 @@ function ProfilesSection({
         <tbody>
           {profiles.map((p) => (
             <tr key={p.id}>
+              <td>
+                <span className="icon-toggle-anchor">
+                  <button
+                    type="button"
+                    className="icon-picker-swatch"
+                    title="Click to change this profile's icon"
+                    aria-label={`Change ${p.name}'s icon`}
+                    onClick={(e) => {
+                      if (editingIcon?.id === p.id) {
+                        setEditingIcon(null);
+                        return;
+                      }
+                      setEditingIcon({ id: p.id, anchorRect: e.currentTarget.getBoundingClientRect() });
+                    }}
+                  >
+                    <ProfileIcon iconKey={p.icon_key} />
+                  </button>
+                  {editingIcon?.id === p.id && (
+                    <ProfileIconPopover anchorRect={editingIcon.anchorRect} onClose={() => setEditingIcon(null)}>
+                      <IconPicker
+                        options={PROFILE_ICON_OPTIONS}
+                        value={p.icon_key && isProfileIconKey(p.icon_key) ? p.icon_key : null}
+                        onChange={(key: ProfileIconKey) => {
+                          onSetProfileIcon(p.id, key);
+                          setEditingIcon(null);
+                        }}
+                        renderIcon={(key) => <ProfileIcon iconKey={key} />}
+                        size="lg"
+                      />
+                    </ProfileIconPopover>
+                  )}
+                </span>
+              </td>
               <td>
                 {editingId === p.id ? (
                   <input
@@ -506,7 +565,7 @@ function ProfilesSection({
         </button>
       </form>
       <p className="modal-message-secondary">
-        Moving to a new computer? "Use existing file…" points Penny Worth at a <code>pennyworth.db</code> you've
+        Moving to a new computer? "Use existing file…" points Vault Spend at a <code>vaultspend.db</code> you've
         already copied over, instead of starting empty.
       </p>
     </div>
@@ -550,7 +609,7 @@ function ReleaseNotesSection({ currentVersion }: { currentVersion: string | null
 }
 
 /** Attribution for the bundled Noun Project icons (src/assets/icons/,
- * see iconCredits.ts) used for several account, category, and bucket
+ * see icons/nounIcons.ts) used for several account, category, and bucket
  * icons — each one is licensed CC BY 3.0, which requires crediting the
  * work and its creator. */
 function IconCreditsSection() {
@@ -584,6 +643,24 @@ function IconCreditsSection() {
   );
 }
 
+/** Non-affiliation disclaimer — Vault Spend is an independent, unaffiliated
+ * project, and given the crowded "vault"-themed naming space in personal
+ * finance software, saying so plainly heads off any appearance of trading
+ * on someone else's brand. */
+function AboutSection() {
+  return (
+    <div className="card">
+      <div className="card-head">
+        <span className="reports-section-title">About</span>
+      </div>
+      <p className="modal-message-secondary">
+        Vault Spend is an independent open-source project and is not affiliated with, endorsed by, or partnered with
+        any external financial services or wallet providers.
+      </p>
+    </div>
+  );
+}
+
 export function SettingsView({
   appVersion,
   dataFileLocation,
@@ -596,6 +673,7 @@ export function SettingsView({
   onUseExistingDataFile,
   onSwitchProfile,
   onRenameProfile,
+  onSetProfileIcon,
   onDeleteProfile,
   livePriceSettings,
   onSetLivePriceApiKey,
@@ -618,6 +696,7 @@ export function SettingsView({
   onUseExistingDataFile: () => void;
   onSwitchProfile: (id: string) => void;
   onRenameProfile: (id: string, newName: string) => void;
+  onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
   livePriceSettings: LivePriceSettings | null;
   onSetLivePriceApiKey: (provider: LivePriceProviderId, apiKey: string | null) => void;
@@ -644,6 +723,7 @@ export function SettingsView({
         onUseExistingDataFile={onUseExistingDataFile}
         onSwitchProfile={onSwitchProfile}
         onRenameProfile={onRenameProfile}
+        onSetProfileIcon={onSetProfileIcon}
         onDeleteProfile={onDeleteProfile}
       />
       <SettingsSection dataFileLocation={dataFileLocation} onRelocateDataFile={onRelocateDataFile} />
@@ -661,6 +741,7 @@ export function SettingsView({
       />
       <ReleaseNotesSection currentVersion={appVersion} />
       <IconCreditsSection />
+      <AboutSection />
     </div>
   );
 }

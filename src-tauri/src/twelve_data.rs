@@ -55,12 +55,22 @@ pub async fn fetch_quote(client: &reqwest::Client, api_key: &str, symbol: &str) 
 /// as Alpha Vantage's empty `Global Quote` and Finnhub's all-zero quote,
 /// not a hard error, since a typo'd symbol shouldn't look identical to a
 /// bad key or a spent quota to the caller.
+///
+/// 403 (distinct from 401's "your key itself is bad") means the key is
+/// valid but this specific symbol isn't included in the current plan —
+/// same idea as Finnhub's identical quirk (see that module's parser for
+/// the real report this pattern was first found from), so it gets the
+/// same plain-English treatment instead of echoing Twelve Data's raw JSON
+/// error body into the UI.
 pub fn parse_quote_response(status: u16, body: &str) -> Result<Option<Decimal>, String> {
     if status == 404 {
         return Ok(None); // recognized "not found" — unknown/unsupported symbol
     }
     if status == 401 {
         return Err(format!("Twelve Data rejected the API key: {body}"));
+    }
+    if status == 403 {
+        return Err("Twelve Data's plan doesn't include this symbol".to_string());
     }
     if status == 429 {
         return Err(format!("Twelve Data's rate limit was hit: {body}"));
@@ -111,33 +121,61 @@ mod tests {
     }
 
     #[test]
-    fn parse_quote_response_returns_an_error_for_an_invalid_api_key_status() {
-        let result = parse_quote_response(401, r#"{"code": 401, "message": "Invalid apikey.", "status": "error"}"#);
+    fn parse_quote_response_error_matrix() {
+        struct Case {
+            label: &'static str,
+            status: u16,
+            body: &'static str,
+            expected_substring: Option<&'static str>,
+            case_insensitive: bool,
+        }
+        let cases = [
+            Case {
+                label: "invalid api key status",
+                status: 401,
+                body: r#"{"code": 401, "message": "Invalid apikey.", "status": "error"}"#,
+                expected_substring: Some("apikey"),
+                case_insensitive: true,
+            },
+            Case {
+                label: "plan-restricted symbol status",
+                status: 403,
+                body: r#"{"code": 403, "message": "You do not have permission to access this endpoint.", "status": "error"}"#,
+                expected_substring: Some("plan"),
+                case_insensitive: false,
+            },
+            Case {
+                label: "rate limit status",
+                status: 429,
+                body: r#"{"code": 429, "message": "API rate limit reached.", "status": "error"}"#,
+                expected_substring: Some("rate limit"),
+                case_insensitive: false,
+            },
+            Case {
+                label: "malformed json",
+                status: 200,
+                body: "not json at all",
+                expected_substring: None,
+                case_insensitive: false,
+            },
+            Case {
+                label: "unexpected status",
+                status: 500,
+                body: r#"{"code": 500, "message": "internal error", "status": "error"}"#,
+                expected_substring: None,
+                case_insensitive: false,
+            },
+        ];
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_lowercase().contains("apikey"));
-    }
-
-    #[test]
-    fn parse_quote_response_returns_an_error_for_a_rate_limit_status() {
-        let result = parse_quote_response(429, r#"{"code": 429, "message": "API rate limit reached.", "status": "error"}"#);
-
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("rate limit"));
-    }
-
-    #[test]
-    fn parse_quote_response_returns_an_error_for_malformed_json() {
-        let result = parse_quote_response(200, "not json at all");
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn parse_quote_response_returns_an_error_for_an_unexpected_status() {
-        let result = parse_quote_response(500, r#"{"code": 500, "message": "internal error", "status": "error"}"#);
-
-        assert!(result.is_err());
+        for case in cases {
+            let result = parse_quote_response(case.status, case.body);
+            assert!(result.is_err(), "case: {}", case.label);
+            if let Some(substring) = case.expected_substring {
+                let err = result.unwrap_err();
+                let err = if case.case_insensitive { err.to_lowercase() } else { err };
+                assert!(err.contains(substring), "case: {}", case.label);
+            }
+        }
     }
 
     #[test]
@@ -145,5 +183,20 @@ mod tests {
         let result = parse_quote_response(200, r#"{"symbol": "AAPL"}"#);
 
         assert!(result.is_err());
+    }
+
+    /// Same regression this module's Finnhub counterpart guards against: a
+    /// plan-restricted 403 must never echo the raw JSON error body into the
+    /// app's UI.
+    #[test]
+    fn parse_quote_response_403_never_leaks_the_raw_json_body() {
+        let result = parse_quote_response(
+            403,
+            r#"{"code": 403, "message": "You do not have permission to access this endpoint.", "status": "error"}"#,
+        );
+
+        let message = result.unwrap_err();
+        assert!(!message.contains('{'), "expected no raw JSON in the message, got: {message}");
+        assert!(!message.contains("403"), "expected no raw HTTP status in the message, got: {message}");
     }
 }

@@ -1,6 +1,6 @@
 # E2E testing (WebDriver, real compiled app)
 
-Real UI automation for PennyWorth, driven through Tauri's official WebDriver
+Real UI automation for Vault Spend, driven through Tauri's official WebDriver
 support (`tauri-driver` + Microsoft Edge WebDriver, since the app uses
 WebView2 on Windows). No headless-browser stand-in — this drives the actual
 compiled `.exe`, IPC included.
@@ -37,7 +37,7 @@ Re-run this after any frontend or backend change before running a spec.
 ## Data safety
 
 Every `launchApp()` call generates a fresh, throwaway SQLite database in a
-temp directory (via `PENNYWORTH_DB_DIR`, read in `src-tauri/src/lib.rs`'s
+temp directory (via `VAULTSPEND_DB_DIR`, read in `src-tauri/src/lib.rs`'s
 `setup()`) — **tests never touch the user's real AppData database.** This
 is a one-line env-var escape hatch with zero effect on normal launches
 (unset in every real use of the app).
@@ -76,4 +76,4 @@ that's a real isolation bug worth fixing, not a race to paper over —
 re-run it alone (or at `--concurrency=1`) first to confirm it's not simply
 a flaky assertion, then look for accidental shared state (a hardcoded port,
 a fixed temp path, anything read from the real AppData folder instead of
-`PENNYWORTH_DB_DIR`).
+`VAULTSPEND_DB_DIR`).

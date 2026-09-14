@@ -1,4 +1,4 @@
-//! Core categorization/learning engine for Penny Worth. No Tauri/webview
+//! Core categorization/learning engine for Vault Spend. No Tauri/webview
 //! dependencies here on purpose, so `cargo test -p budget_core` stays fast.
 
 pub mod categorizer;

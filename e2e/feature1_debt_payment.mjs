@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 function query(dbDir, sql) {
-  const dbPath = path.join(dbDir, "pennyworth.db");
+  const dbPath = path.join(dbDir, "vaultspend.db");
   const out = execFileSync("python", [
     "-c",
     `
@@ -29,7 +29,7 @@ print(json.dumps(cur.fetchall()))
 const dbDir = await seedDebtPaymentFixture();
 const app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
   const applyButton = await app.browser.$(".debt-apply-trigger");
@@ -55,8 +55,8 @@ try {
 
 // Verify directly in the database: two transactions now exist (the source
 // payment plus the generated one on the loan account), one debt_payments
-// link row, and the loan's generated transaction is -500.00 (reduces what's
-// owed).
+// link row, and the loan's generated transaction is 500.00 (positive — a
+// payment reduces what's owed, same sign convention as a credit payment).
 const txCount = query(dbDir, "SELECT COUNT(*) FROM transactions");
 const linkCount = query(dbDir, "SELECT COUNT(*) FROM debt_payments");
 const loanTx = query(
@@ -68,8 +68,8 @@ console.log("transaction count:", txCount, "debt_payments rows:", linkCount, "lo
 
 if (txCount[0][0] !== 2) throw new Error(`expected 2 transactions, got ${txCount[0][0]}`);
 if (linkCount[0][0] !== 1) throw new Error(`expected 1 debt_payments row, got ${linkCount[0][0]}`);
-if (loanTx.length !== 1 || loanTx[0][0] !== "-500.00") {
-  throw new Error(`expected the loan account to have one -500.00 transaction, got ${JSON.stringify(loanTx)}`);
+if (loanTx.length !== 1 || loanTx[0][0] !== "500.00") {
+  throw new Error(`expected the loan account to have one 500.00 transaction, got ${JSON.stringify(loanTx)}`);
 }
 
 console.log("FEATURE 1 E2E TEST PASSED");

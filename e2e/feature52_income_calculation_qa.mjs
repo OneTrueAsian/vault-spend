@@ -16,7 +16,7 @@ import { seedFixture } from "./lib/seed.mjs";
 //   Checking (checking) start 5000.00: +4000 -150 -60 -1000 -500 -300 = 1990 -> current 6990.00
 //   HYSA     (savings)  start 0.00:    +1000                          -> current 1000.00
 //   Capital One (credit) start 2000.00 (limit): -600 +500 = -100      -> current 1900.00 (owed 100.00)
-//   Car Loan (loan) start 10000.00 (owed): -300 (generated payment)   -> current 9700.00 (owed 9700.00)
+//   Car Loan (loan) start 10000.00 (owed): +300 (generated payment)   -> current 9700.00 (owed 9700.00)
 //
 //   monthly income  = 4000.00 (Paycheck only; the $1,000 transfer-in and
 //                      the $500 credit card payment are both excluded)
@@ -75,7 +75,7 @@ txn(credit_id, today, "Amazon Purchase", "-600.00", "Shopping", joint_id, "fp6")
 txn(checking_id, today, "WITHDRAWAL CAPITAL ONE", "-500.00", "Credit Card Payment", joint_id, "fp7")
 txn(credit_id, today, "CAPITAL ONE ONLINE PYMT", "500.00", "Credit Card Payment", joint_id, "fp8")
 txn(checking_id, today, "Auto Loan Payment", "-300.00", "Auto Loan", alex_id, "fp9")
-txn(loan_id, today, "Payment applied from: Auto Loan Payment", "-300.00", "Auto Loan", alex_id, "fp10")
+txn(loan_id, today, "Payment applied from: Auto Loan Payment", "300.00", "Auto Loan", alex_id, "fp10")
 
 # Link fp9 (source) -> fp10 (generated) as a proper debt payment, the same
 # shape apply_debt_payment itself produces.
@@ -107,7 +107,7 @@ async function statValue(app, label) {
 
 const app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
   await (await app.browser.$(".stats")).waitForExist({ timeout: 10000 });
 
@@ -167,9 +167,23 @@ try {
 
   const budgetNav = await app.browser.$("button*=Budget");
   await budgetNav.click();
-  const budgetPage = await app.browser.$(".page");
-  await budgetPage.waitForExist({ timeout: 10000 });
-  const budgetText = await budgetPage.getText();
+  // `.page` is the app-wide page wrapper — it already exists from the
+  // previous tab, so waiting on it (as this used to) proves nothing about
+  // whether BudgetView (lazy-loaded behind a `<Suspense fallback={null}>`)
+  // has actually rendered yet. That gap is normally too short to notice,
+  // but with nothing rendered into `.page` yet it briefly holds only the
+  // floating status toast — including, once in a while, the one-time
+  // "Rolled forward this month's starting balance" note `App.tsx`'s
+  // `checkMonthlyRollover` fires on a fresh database — so a `.page` text
+  // read that lands in that gap sees the toast instead of the budget rows
+  // and fails despite nothing actually being wrong. Waiting for `.cat-list`
+  // (BudgetView's own category-rows container) instead — the same "wait
+  // for page-specific content, not just `.page`" pattern every other
+  // section in this file already uses (`.stats`, `.chart-legend`, the
+  // Household cards) — closes the gap this was actually racing against.
+  const catList = await app.browser.$(".cat-list");
+  await catList.waitForExist({ timeout: 10000 });
+  const budgetText = await (await app.browser.$(".page")).getText();
   if (!budgetText.includes("150.00") || !budgetText.includes("400.00")) {
     throw new Error(`expected Groceries actual $150.00 of $400.00 budgeted, got:\n${budgetText}`);
   }

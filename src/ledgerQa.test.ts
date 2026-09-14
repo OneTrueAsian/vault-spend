@@ -17,6 +17,8 @@ function account(overrides: Partial<Account> = {}): Account {
     excluded_from_debt_payoff: false,
     member_id: null,
     member_name: null,
+    checkpoint_date: null,
+    icon_key: null,
     ...overrides,
   };
 }
@@ -33,6 +35,7 @@ function tx(overrides: Partial<Transaction> = {}): Transaction {
     category_source: "user",
     confidence: null,
     applied_to_debt: null,
+    principal_amount: null,
     split_count: 0,
     tags: [],
     member_id: null,
@@ -597,7 +600,7 @@ describe("unmatched questions", () => {
   });
 });
 
-// The Dashboard's "Ask Pennyworth" box surfaces `LEDGER_QA_EXAMPLES`
+// The Dashboard's "Ask the Vault" box surfaces `LEDGER_QA_EXAMPLES`
 // verbatim as clickable suggestions (DashboardView.tsx's `LedgerQaBox`) —
 // a shipped example that fails to match (as "what's my savings rate this
 // month" once did: its pattern only accepted a period phrase after "in/

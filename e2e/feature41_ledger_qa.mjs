@@ -1,4 +1,4 @@
-// E2E test for the Dashboard's "Ask Pennyworth" box: template-matched
+// E2E test for the Dashboard's "Ask the Vault" box: template-matched
 // natural-language questions answered entirely from local data (no hosted
 // LLM call — see src/ledgerQa.ts). The bulk of the engine's logic (period
 // parsing, fuzzy matching, every intent) has its own fast unit tests in

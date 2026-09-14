@@ -49,7 +49,7 @@ export function HouseholdView({
         </div>
         <div className="card">
           <p className="modal-message-secondary">
-            Add a family member (Ledger tab → "Manage family members…") to see spending and budgets broken down by
+            Add a family member (Transactions tab → "Manage family members…") to see spending and budgets broken down by
             person.
           </p>
         </div>

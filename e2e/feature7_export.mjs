@@ -21,7 +21,7 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 
 const app = await launchApp({ dbDir });
 try {
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
   // Export CSV lives behind the toolbar's "More" menu now (Phase 3
   // decluttering) — open it first.

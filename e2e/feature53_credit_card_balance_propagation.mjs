@@ -86,7 +86,7 @@ try {
   console.log("Baseline correct: unused credit card owes $0 and contributes nothing to net worth");
 
   // --- Action A: add a $300 charge on Visa ---
-  const ledgerNav = await app.browser.$("button*=Ledger");
+  const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
   await addTransaction(app, { accountName: "Visa", description: "Grocery Charge", amount: "-300.00" });
   await (await app.browser.$(".page")).waitForExist({ timeout: 5000 });

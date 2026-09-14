@@ -1,4 +1,4 @@
-// Ad-hoc driver for poking at the real compiled Penny Worth app from the
+// Ad-hoc driver for poking at the real compiled Vault Spend app from the
 // command line, on top of e2e/harness.mjs (the same launcher the 30+
 // e2e/feature*.mjs specs use). Use this for one-off exploration/screenshots
 // without writing a throwaway spec file; use e2e/harness.mjs directly (see
@@ -6,7 +6,7 @@
 // a few steps or needs assertions.
 //
 // Usage:
-//   node .claude/skills/run-penny-worth/explore.mjs [--db <dir>] <command> [<args...>] [<command> [<args...>] ...]
+//   node .claude/skills/run-vault-spend/explore.mjs [--db <dir>] <command> [<args...>] [<command> [<args...>] ...]
 //
 // Commands (each consumes the next N argv entries as its args):
 //   nav <label>              click the sidebar nav button with this exact text
@@ -25,7 +25,7 @@
 // (see e2e/lib/seed.mjs to seed one first).
 //
 // Example:
-//   node .claude/skills/run-penny-worth/explore.mjs nav Budget screenshot out.png
+//   node .claude/skills/run-vault-spend/explore.mjs nav Budget screenshot out.png
 //
 // Gotcha this script exists partly to paper over: webdriverio's `tag*=text`
 // / `tag=text` shorthand selectors only match a BARE "tag*=text" pattern —

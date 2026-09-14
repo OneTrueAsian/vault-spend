@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Profile } from "./types";
-import { NavIcon } from "./icons";
+import { ProfileIcon } from "./icons";
 
 /** Always-visible sidebar widget showing which profile is currently active
  * and letting the user jump straight to another one — same click-outside-
@@ -41,7 +41,7 @@ export function ProfileSwitcher({
         aria-haspopup="true"
         aria-expanded={open}
       >
-        <NavIcon name="profile" />
+        <ProfileIcon iconKey={current?.icon_key} className="profile-switcher-icon" />
         <span className="profile-switcher-name">{current?.name ?? "Profile"}</span>
         <span className="account-filter-caret">▾</span>
       </button>
@@ -59,6 +59,7 @@ export function ProfileSwitcher({
                 setOpen(false);
               }}
             >
+              <ProfileIcon iconKey={p.icon_key} className="profile-switcher-icon" />
               {p.name}
               {p.is_active && " (current)"}
             </button>

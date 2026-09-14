@@ -7,7 +7,7 @@ import { toCsv } from "./csv";
  * exact names (case-insensitively). */
 export function buildSetupTemplate(): string {
   const intro =
-    "# Penny Worth setup template - fill in your own rows under each section.\r\n" +
+    "# Vault Spend setup template - fill in your own rows under each section.\r\n" +
     "# Delete the example rows, keep the section titles and header rows.\r\n" +
     "# Account types: checking, savings, credit, loan, investment, other.\r\n" +
     "# Budget groups: income, fixed, flexible, nonmonthly. A blank budget Period means the current month.\r\n" +

@@ -12,7 +12,7 @@ try {
 
   const navButtons = await app.browser.$$("nav button");
 
-  if (brandText !== "Penny Worth") throw new Error(`expected brand "Penny Worth", got "${brandText}"`);
+  if (brandText !== "Vault Spend") throw new Error(`expected brand "Vault Spend", got "${brandText}"`);
   if (navButtons.length < 1) throw new Error("expected at least one nav button");
 
   console.log("SMOKE TEST PASSED —", navButtons.length, "nav buttons found, brand:", brandText);

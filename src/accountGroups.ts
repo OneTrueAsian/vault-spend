@@ -2,7 +2,7 @@ import type { Account, Transaction } from "./types";
 
 /** Shared account-type grouping — used anywhere accounts are organized by
  * kind (Accounts/Reports tabs' account sections, the debt payoff planner,
- * the Ledger's account filter), so "what counts as Cash vs. Credit vs.
+ * the Transactions tab's account filter), so "what counts as Cash vs. Credit vs.
  * Loan" lives in exactly one place. */
 export const GROUP_ORDER = ["cash", "credit", "loan", "investment", "other"] as const;
 export type AccountGroup = (typeof GROUP_ORDER)[number];
@@ -57,7 +57,7 @@ export function owedAmount(a: Account): number {
  * reduces what's owed; it was never earned). Mirrors `Store::monthly_totals`
  * on the backend exactly (Cash Flow's own income figure), so every other
  * income figure in the app — Reports' "Income (all-time)" stat and Savings
- * Rate Trend, Ask Pennyworth's "income" queries — agrees with what Cash
+ * Rate Trend, Ask the Vault's "income" queries — agrees with what Cash
  * Flow shows instead of quietly re-deriving its own answer. Deliberately
  * does *not* require the category be literally "Income": a paycheck
  * categorized "Salary," "Paycheck," or anything else still counts, since
@@ -76,4 +76,17 @@ export function isIncomeTransaction(t: Pick<Transaction, "amount" | "category" |
   if (!account) return true;
   const group = groupOf(account.account_type);
   return group !== "credit" && group !== "loan";
+}
+
+/** Whether a transaction dated `date` on `account` is at or before that
+ * account's last balance checkpoint — a monthly rollover or a manual
+ * "correct balance" (see `Store::account_balance_as_of` on the backend,
+ * which reads `checkpoint_date` as `since_date`). A checkpoint's own value
+ * already accounts for everything through its date, so a transaction dated
+ * on or before it can't move `current_balance` — it still correctly
+ * affects past "balance as of" lookups (sparklines, net worth history),
+ * just not today's live number. Used by `NewTransactionDialog` to warn
+ * before that's a silent surprise. */
+export function isBeforeAccountCheckpoint(account: Pick<Account, "checkpoint_date">, date: string): boolean {
+  return account.checkpoint_date !== null && date !== "" && date <= account.checkpoint_date;
 }

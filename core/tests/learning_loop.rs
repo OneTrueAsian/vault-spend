@@ -66,9 +66,7 @@ fn categorization_gets_more_efficient_after_learning_from_corrections() {
                     other => panic!("unexpected uncategorized transaction: {other}"),
                 };
                 learner::learn_from_correction(&mut rules, &description, corrected_category);
-                store
-                    .set_category(stored.id, corrected_category, CategorySource::User, None)
-                    .unwrap();
+                store.set_category(stored.id, corrected_category, CategorySource::User, None).unwrap();
                 labeled_history.push((description, corrected_category.to_string()));
             }
         }
@@ -82,10 +80,7 @@ fn categorization_gets_more_efficient_after_learning_from_corrections() {
     assert!(labeled_history.len() >= MIN_TRAINING_EXAMPLES_FOR_CLASSIFIER);
 
     // Train the classifier from everything labeled so far (auto + corrected).
-    let training_examples: Vec<(&str, &str)> = labeled_history
-        .iter()
-        .map(|(d, c)| (d.as_str(), c.as_str()))
-        .collect();
+    let training_examples: Vec<(&str, &str)> = labeled_history.iter().map(|(d, c)| (d.as_str(), c.as_str())).collect();
     let classifier = Classifier::train(&training_examples);
 
     // ---- Month 2: repeat merchants + one brand-new-but-similar merchant ----
@@ -137,10 +132,7 @@ fn categorization_gets_more_efficient_after_learning_from_corrections() {
     );
 
     // Seed rules still work, unaffected by everything learned.
-    assert_eq!(
-        month2_results.get("Union Realty Rent"),
-        Some(&("Rent".to_string(), CategorySource::Rule))
-    );
+    assert_eq!(month2_results.get("Union Realty Rent"), Some(&("Rent".to_string(), CategorySource::Rule)));
     assert_eq!(
         month2_results.get("Harbor Cinema"),
         Some(&("Entertainment".to_string(), CategorySource::Rule))

@@ -562,7 +562,7 @@ export function ReportsView({
   }
   const incomeBreakdown = Array.from(incomeByAccount, ([name, amount]) => ({ name, amount }));
 
-  // All-time spending grouped by tag (freeform, set from the Ledger) —
+  // All-time spending grouped by tag (freeform, set from the Transactions tab) —
   // only outflows count, same "spent" convention as everywhere else spend
   // is summed. A transaction with more than one tag counts under each.
   const tagTotals = new Map<string, number>();
@@ -660,7 +660,7 @@ export function ReportsView({
             : expandedStat === "income"
               ? "No income recorded yet."
               : expandedStat === "byTag"
-                ? "No tags used yet — add some from the Ledger."
+                ? "No tags used yet — add some from Transactions."
                 : "No spending attributed to a family member yet."
         }
         onClose={() => expandedStat && toggleStat(expandedStat)}

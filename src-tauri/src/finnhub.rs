@@ -35,17 +35,30 @@ pub async fn fetch_quote(client: &reqwest::Client, api_key: &str, symbol: &str) 
 /// `live_prices::parse_global_quote_response`.
 ///
 /// **The quirk this exists to handle**: unlike Alpha Vantage, Finnhub
-/// signals an invalid key (401) and a rate limit (429) as real HTTP
-/// status codes rather than HTTP-200-with-a-JSON-key, so `status` is
-/// checked before the body is treated as a quote at all. A recognized
-/// success response with every price field zeroed out (`c: 0`, etc.) is
-/// Finnhub's "no data for this symbol" shape — mapped to `Ok(None)`, the
-/// same as Alpha Vantage's empty `Global Quote` object. Some unsupported
-/// symbols instead return HTTP 200 with an `{"error": "..."}` body —
-/// surfaced as a real error, the same as Alpha Vantage's `"Error Message"`.
+/// signals an invalid key (401), a plan/entitlement restriction (403), and
+/// a rate limit (429) as real HTTP status codes rather than
+/// HTTP-200-with-a-JSON-key, so `status` is checked before the body is
+/// treated as a quote at all. A recognized success response with every
+/// price field zeroed out (`c: 0`, etc.) is Finnhub's "no data for this
+/// symbol" shape — mapped to `Ok(None)`, the same as Alpha Vantage's empty
+/// `Global Quote` object. Some unsupported symbols instead return HTTP 200
+/// with an `{"error": "..."}` body — surfaced as a real error, the same as
+/// Alpha Vantage's `"Error Message"`.
+///
+/// 403 specifically (distinct from 401's "your key itself is bad") means
+/// the key is valid but Finnhub's free tier doesn't include this
+/// particular symbol (observed in practice for some indices/mutual funds)
+/// — a real report showed this landing in the generic `status != 200`
+/// branch below and dumping Finnhub's raw `{"error":"You don't have
+/// access to this resource."}` body straight into the UI. That's every bit
+/// as recognized and expected as a 401/429, so it gets the same
+/// plain-English treatment instead of a raw JSON echo.
 pub fn parse_quote_response(status: u16, body: &str) -> Result<Option<Decimal>, String> {
     if status == 401 {
         return Err(format!("Finnhub rejected the API key: {body}"));
+    }
+    if status == 403 {
+        return Err("Finnhub's plan doesn't include this symbol".to_string());
     }
     if status == 429 {
         return Err(format!("Finnhub's rate limit was hit: {body}"));
@@ -78,8 +91,7 @@ mod tests {
 
     #[test]
     fn parse_quote_response_returns_price_from_a_successful_response() {
-        let body =
-            r#"{"c": 261.74, "d": 3.75, "dp": 1.45, "h": 264.89, "l": 260.36, "o": 261.07, "pc": 257.99, "t": 1582641000}"#;
+        let body = r#"{"c": 261.74, "d": 3.75, "dp": 1.45, "h": 264.89, "l": 260.36, "o": 261.07, "pc": 257.99, "t": 1582641000}"#;
 
         let price = parse_quote_response(200, body).unwrap();
 
@@ -106,32 +118,67 @@ mod tests {
     }
 
     #[test]
-    fn parse_quote_response_returns_an_error_for_an_invalid_api_key_status() {
-        let result = parse_quote_response(401, r#"{"error":"API key not valid"}"#);
+    fn parse_quote_response_error_matrix() {
+        struct Case {
+            label: &'static str,
+            status: u16,
+            body: &'static str,
+            expected_substring: Option<&'static str>,
+        }
+        let cases = [
+            Case {
+                label: "invalid api key status",
+                status: 401,
+                body: r#"{"error":"API key not valid"}"#,
+                expected_substring: Some("API key"),
+            },
+            Case {
+                label: "plan-restricted symbol status",
+                status: 403,
+                body: r#"{"error":"You don't have access to this resource."}"#,
+                expected_substring: Some("plan"),
+            },
+            Case {
+                label: "rate limit status",
+                status: 429,
+                body: "",
+                expected_substring: Some("rate limit"),
+            },
+            Case {
+                label: "malformed json",
+                status: 200,
+                body: "not json at all",
+                expected_substring: None,
+            },
+            Case {
+                label: "unexpected status",
+                status: 500,
+                body: "internal server error",
+                expected_substring: None,
+            },
+        ];
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("API key"));
+        for case in cases {
+            let result = parse_quote_response(case.status, case.body);
+            assert!(result.is_err(), "case: {}", case.label);
+            if let Some(substring) = case.expected_substring {
+                assert!(result.unwrap_err().contains(substring), "case: {}", case.label);
+            }
+        }
     }
 
+    /// Regression test for a real report: a 403 for a plan-restricted
+    /// symbol used to fall into the generic "unexpected response" branch
+    /// and echo Finnhub's raw JSON error body straight into the app's UI
+    /// (`Live prices: ... — PLIDX: unexpected response from Finnhub (HTTP
+    /// 403): {"error":"You don't have access to this resource."}`). The
+    /// message must be plain English with no leaked JSON or HTTP jargon.
     #[test]
-    fn parse_quote_response_returns_an_error_for_a_rate_limit_status() {
-        let result = parse_quote_response(429, "");
+    fn parse_quote_response_403_never_leaks_the_raw_json_body() {
+        let result = parse_quote_response(403, r#"{"error":"You don't have access to this resource."}"#);
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("rate limit"));
-    }
-
-    #[test]
-    fn parse_quote_response_returns_an_error_for_malformed_json() {
-        let result = parse_quote_response(200, "not json at all");
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn parse_quote_response_returns_an_error_for_an_unexpected_status() {
-        let result = parse_quote_response(500, "internal server error");
-
-        assert!(result.is_err());
+        let message = result.unwrap_err();
+        assert!(!message.contains('{'), "expected no raw JSON in the message, got: {message}");
+        assert!(!message.contains("403"), "expected no raw HTTP status in the message, got: {message}");
     }
 }
