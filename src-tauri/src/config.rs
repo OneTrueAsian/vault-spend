@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
-const DB_FILENAME: &str = "vaultspend.db";
+pub(crate) const DB_FILENAME: &str = "vaultspend.db";
 
 /// Tauri-managed — the paths `get_data_file_location`, `relocate_data_file`,
 /// and the backup commands (commands.rs) need but `AppState` doesn't

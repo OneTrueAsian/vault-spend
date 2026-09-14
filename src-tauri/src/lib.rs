@@ -2,6 +2,7 @@ mod backups;
 mod commands;
 mod config;
 mod finnhub;
+mod legacy_migration;
 mod live_price_provider;
 mod live_prices;
 mod profiles;
@@ -58,12 +59,25 @@ pub fn run() {
             // to an actual user — release builds still resolve to the
             // real AppData folder exactly as before. Explicitly setting
             // VAULTSPEND_DB_DIR (E2E tests do) still wins over this.
+            let is_real_installation = std::env::var_os("VAULTSPEND_DB_DIR").is_none() && !cfg!(debug_assertions);
             let default_dir = match std::env::var_os("VAULTSPEND_DB_DIR") {
                 Some(dir) => std::path::PathBuf::from(dir),
                 None if cfg!(debug_assertions) => std::env::temp_dir().join("vaultspend-dev-data"),
                 None => app.path().app_data_dir()?,
             };
             std::fs::create_dir_all(&default_dir)?;
+            // Only against a real install's real AppData folder — never a
+            // throwaway test/dev directory, which wouldn't have a genuine
+            // sibling legacy-identifier folder to find anyway. A failure
+            // here must never block launching the app (same "never let
+            // this stop the user" treatment as the automatic backup just
+            // below): worst case, nothing gets migrated and the app starts
+            // exactly as it would have before this existed.
+            if is_real_installation {
+                if let Err(e) = legacy_migration::migrate_if_needed(&default_dir, config::DB_FILENAME) {
+                    eprintln!("legacy install migration failed (continuing anyway): {e}");
+                }
+            }
             let config_path = default_dir.join("config.json");
             let db_path = config::resolve_db_path(&config_path, &default_dir);
 
@@ -91,6 +105,7 @@ pub fn run() {
             commands::download_update_asset,
             commands::get_data_file_location,
             commands::relocate_data_file,
+            commands::export_database,
             commands::list_backups,
             commands::create_backup_now,
             commands::restore_backup,

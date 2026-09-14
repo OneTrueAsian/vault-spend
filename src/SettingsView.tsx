@@ -50,9 +50,11 @@ const LIVE_PRICE_PROVIDERS: Record<
 function SettingsSection({
   dataFileLocation,
   onRelocateDataFile,
+  onExportDatabase,
 }: {
   dataFileLocation: string | null;
   onRelocateDataFile: () => void;
+  onExportDatabase: () => void;
 }) {
   return (
     <div className="card">
@@ -66,6 +68,13 @@ function SettingsSection({
       <button type="button" className="modal-secondary" onClick={onRelocateDataFile}>
         Move data file…
       </button>
+      <button type="button" className="modal-secondary" onClick={onExportDatabase}>
+        Export a copy…
+      </button>
+      <p className="modal-message-secondary">
+        Saves a full copy of your data to a file you choose — for a backup on another drive, or to bring to another
+        computer. Doesn't change what Vault Spend is using now.
+      </p>
     </div>
   );
 }
@@ -565,8 +574,10 @@ function ProfilesSection({
         </button>
       </form>
       <p className="modal-message-secondary">
-        Moving to a new computer? "Use existing file…" points Vault Spend at a <code>vaultspend.db</code> you've
-        already copied over, instead of starting empty.
+        Moving to a new computer, or upgrading from an older version that used a different data file name? "Use
+        existing file…" points Vault Spend at a data file you've already got, instead of starting empty. It's
+        checked for real account/transaction data before being adopted — a file that isn't actually a Vault Spend
+        database is rejected with a clear reason.
       </p>
     </div>
   );
@@ -665,6 +676,7 @@ export function SettingsView({
   appVersion,
   dataFileLocation,
   onRelocateDataFile,
+  onExportDatabase,
   backups,
   onCreateBackupNow,
   onRestoreBackup,
@@ -688,6 +700,7 @@ export function SettingsView({
   appVersion: string | null;
   dataFileLocation: string | null;
   onRelocateDataFile: () => void;
+  onExportDatabase: () => void;
   backups: Backup[];
   onCreateBackupNow: () => void;
   onRestoreBackup: (filename: string) => void;
@@ -726,7 +739,7 @@ export function SettingsView({
         onSetProfileIcon={onSetProfileIcon}
         onDeleteProfile={onDeleteProfile}
       />
-      <SettingsSection dataFileLocation={dataFileLocation} onRelocateDataFile={onRelocateDataFile} />
+      <SettingsSection dataFileLocation={dataFileLocation} onRelocateDataFile={onRelocateDataFile} onExportDatabase={onExportDatabase} />
       <BackupsSection backups={backups} onCreateBackupNow={onCreateBackupNow} onRestoreBackup={onRestoreBackup} />
       <LivePricesSection
         settings={livePriceSettings}

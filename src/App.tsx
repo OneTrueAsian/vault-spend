@@ -548,6 +548,20 @@ function App({
     }
   }
 
+  async function handleExportDatabase() {
+    const path = await save({
+      defaultPath: `vaultspend-export-${toLocalIsoDate(new Date())}.db`,
+      filters: [{ name: "Vault Spend Database", extensions: ["db"] }],
+    });
+    if (!path) return;
+    try {
+      await invoke("export_database", { destination: path });
+      setStatus(`Exported a copy to ${path}.`, "success");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
   async function handleCreateProfile(name: string) {
     try {
       const created = await invoke<string>("create_profile", { name });
@@ -4110,6 +4124,7 @@ function App({
           appVersion={appVersion}
           dataFileLocation={dataFileLocation}
           onRelocateDataFile={handleRelocateDataFile}
+          onExportDatabase={handleExportDatabase}
           backups={backups}
           onCreateBackupNow={handleCreateBackupNow}
           onRestoreBackup={handleRestoreBackup}

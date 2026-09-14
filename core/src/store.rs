@@ -455,6 +455,61 @@ pub struct FamilyMember {
     pub name: String,
 }
 
+/// Tables that have existed since this database's very first schema
+/// version — present in literally every real Vault Spend/Penny
+/// Worth/Pennywise/Meadow database ever created, unlike a table added by
+/// a later migration a very old real file might predate (opening it
+/// through `Store::open` would still add those transparently, same as any
+/// other migration).
+const CORE_TABLE_NAMES: [&str; 7] = [
+    "accounts",
+    "transactions",
+    "budgets",
+    "buckets",
+    "recurring",
+    "assets",
+    "live_price_settings",
+];
+
+/// Checks whether `path` already looks like a genuine, previously-
+/// initialized budgeting database, *without* opening it through
+/// `Store::open` first — that constructor's migrations create any table
+/// found missing, so by the time it returns successfully even a garbage,
+/// corrupted, or completely unrelated (but validly-formed) SQLite file
+/// would look identical to real data. This reads `sqlite_master` on the
+/// file exactly as found on disk, before anything has a chance to "heal"
+/// it, so a user importing the wrong file gets a clear rejection instead
+/// of silently adopting an empty profile that looks fine until they
+/// notice their data isn't there.
+///
+/// Deliberately not filename- or extension-based: this app's own database
+/// filename has changed with every product rename (meadow.db ->
+/// pennywise.db -> pennyworth.db -> vaultspend.db), and a future rename
+/// will change it again, so "does this look right" has to come from the
+/// file's actual structure, not what it's called.
+pub fn looks_like_a_vault_spend_database(path: impl AsRef<Path>) -> Result<(), String> {
+    let path = path.as_ref();
+    let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| format!("{} doesn't look like a valid SQLite database: {e}", path.display()))?;
+    let mut stmt = conn
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .map_err(|e| format!("{} doesn't look like a valid SQLite database: {e}", path.display()))?;
+    let existing: std::collections::HashSet<String> = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| format!("{} doesn't look like a valid SQLite database: {e}", path.display()))?
+        .collect::<rusqlite::Result<_>>()
+        .map_err(|e| format!("{} doesn't look like a valid SQLite database: {e}", path.display()))?;
+    let missing: Vec<&str> = CORE_TABLE_NAMES.iter().filter(|t| !existing.contains(**t)).copied().collect();
+    if !missing.is_empty() {
+        return Err(format!(
+            "{} doesn't look like a budgeting data file (missing table(s): {}).",
+            path.display(),
+            missing.join(", ")
+        ));
+    }
+    Ok(())
+}
+
 pub struct Store {
     conn: Connection,
     /// Where to append a human-readable line for every account-affecting
@@ -6242,6 +6297,64 @@ mod tests {
 
         std::fs::remove_file(&source_path).unwrap();
         std::fs::remove_file(&dest_path).unwrap();
+    }
+
+    #[test]
+    fn looks_like_a_vault_spend_database_accepts_a_real_database_file() {
+        let dir = std::env::temp_dir().join(format!("vaultspend-validate-real-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("real.db");
+        if path.exists() {
+            std::fs::remove_file(&path).unwrap();
+        }
+        drop(Store::open(&path).unwrap()); // close it before re-opening read-only below
+
+        assert!(looks_like_a_vault_spend_database(&path).is_ok());
+
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    /// Regression test for the real bug this function exists to prevent:
+    /// `Store::open` migrates a missing table into existence rather than
+    /// rejecting the file, so an empty or unrelated SQLite file would look
+    /// identical to real data *after* being opened that way. This must be
+    /// caught by inspecting the file exactly as found, before that healing
+    /// has a chance to run.
+    #[test]
+    fn looks_like_a_vault_spend_database_rejects_a_file_with_no_matching_tables() {
+        let dir = std::env::temp_dir().join(format!("vaultspend-validate-unrelated-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("unrelated.db");
+        if path.exists() {
+            std::fs::remove_file(&path).unwrap();
+        }
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch("CREATE TABLE some_other_apps_table (id INTEGER PRIMARY KEY);")
+                .unwrap();
+        }
+
+        let result = looks_like_a_vault_spend_database(&path);
+
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().contains("accounts"),
+            "expected the message to name a missing core table"
+        );
+
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn looks_like_a_vault_spend_database_rejects_a_file_that_isnt_sqlite_at_all() {
+        let dir = std::env::temp_dir().join(format!("vaultspend-validate-not-sqlite-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("not-a-database.txt");
+        std::fs::write(&path, b"this is plainly not a SQLite file").unwrap();
+
+        assert!(looks_like_a_vault_spend_database(&path).is_err());
+
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]

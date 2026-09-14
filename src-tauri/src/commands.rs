@@ -81,6 +81,18 @@ pub fn relocate_data_file(
     Ok(new_db_path.to_string_lossy().to_string())
 }
 
+/// Copies the live database to an exact file path the user picked via a
+/// native save dialog — unlike `relocate_data_file`, this never changes
+/// what the app is actively using; it's a one-off copy for backing up to
+/// a USB drive, a cloud-synced folder, or bringing to another computer.
+/// Safe against the live connection (`Store::backup_to`'s SQLite online
+/// backup API), so nothing needs to pause or lock while this runs.
+#[tauri::command]
+pub fn export_database(destination: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.backup_to(&destination).map_err(|e| e.to_string())
+}
+
 #[derive(Serialize)]
 pub struct BackupDto {
     pub filename: String,
@@ -262,6 +274,14 @@ pub fn add_existing_profile(
     if !picked_path.exists() {
         return Err(format!("{} doesn't exist.", picked_path.display()));
     }
+    // Checked *before* AppState::open, which runs schema migrations that
+    // create any table found missing — by the time it succeeds, even an
+    // empty or completely unrelated SQLite file would look identical to
+    // real data. This inspects the file exactly as picked, so the wrong
+    // file is rejected with a clear reason instead of silently adopted as
+    // a blank profile. Not filename-based on purpose — see
+    // `looks_like_a_vault_spend_database`'s own doc comment.
+    budget_core::store::looks_like_a_vault_spend_database(&picked_path)?;
     let new_state = AppState::open(&picked_path).map_err(|e| format!("Couldn't open {} as a Vault Spend data file: {e}", picked_path.display()))?;
 
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;

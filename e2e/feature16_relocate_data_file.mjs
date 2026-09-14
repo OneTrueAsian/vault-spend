@@ -1,14 +1,18 @@
 // E2E smoke test for the Settings tab's data-file section: confirms the
 // current data file location renders correctly, end to end through the
-// real `get_data_file_location` command.
+// real `get_data_file_location` command, and that "Export a copy…" is
+// wired up alongside "Move data file…".
 //
-// The "Move data file…" action itself opens a native OS folder picker,
-// which — same as the CSV/OFX/QIF import file picker — WebDriver can't
-// drive (see e2e/lib/seed.mjs's docstring on why CSV import fixtures are
-// seeded directly rather than through the UI). That side of this feature
-// is covered instead by core/src/store.rs's `backup_to_copies_every_row_to_a_new_file`
-// and src-tauri/src/config.rs's `resolve_db_path`/`write_db_location_config`
-// unit tests.
+// Both actions open a native OS dialog (a folder picker, a save-file
+// dialog), which — same as the CSV/OFX/QIF import file picker — WebDriver
+// can't drive (see e2e/lib/seed.mjs's docstring on why CSV import fixtures
+// are seeded directly rather than through the UI). That side of each
+// feature is covered instead by unit tests: `backup_to_copies_every_row_to_a_new_file`
+// and `config.rs`'s `resolve_db_path`/`write_db_location_config` for
+// relocating, the same `backup_to` test for exporting (`export_database`
+// is a thin passthrough to it), and `looks_like_a_vault_spend_database`'s
+// own tests for the "Use existing file…" validation this card's sibling
+// Profiles card also relies on (see feature34_use_existing_data_file.mjs).
 //
 // Run with: node e2e/feature16_relocate_data_file.mjs
 
@@ -42,6 +46,13 @@ try {
   if (!cardText.includes("Move data file")) {
     throw new Error(`expected a "Move data file…" action, got:\n${cardText}`);
   }
+  if (!cardText.includes("Export a copy")) {
+    throw new Error(`expected an "Export a copy…" action, got:\n${cardText}`);
+  }
+  if (!cardText.toLowerCase().includes("doesn't change what vault spend is using now")) {
+    throw new Error(`expected explainer copy distinguishing export from relocate, got:\n${cardText}`);
+  }
+  console.log('"Export a copy…" renders alongside "Move data file…" with its own explainer');
 
   console.log("FEATURE 16 E2E TEST PASSED");
 } finally {
