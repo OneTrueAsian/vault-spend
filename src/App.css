@@ -3849,6 +3849,20 @@ button:disabled {
   transform: rotate(90deg);
 }
 
+/* Explicit, rather than relying on the browser's own
+   `details:not([open]) > *:not(summary) { display: none }` UA-stylesheet
+   default — confirmed not to reliably apply in this app's WebView2
+   runtime, meaning every version's changelog has been rendering in full
+   regardless of the "collapsed" arrow state (only the first, meant-to-be-
+   open entry was ever supposed to show its list). */
+.release-note-entry > .modal-changelog-list {
+  display: none;
+}
+
+.release-note-entry[open] > .modal-changelog-list {
+  display: block;
+}
+
 .release-note-entry .modal-changelog-list {
   margin-top: 10px;
   margin-bottom: 0;
@@ -3862,6 +3876,46 @@ button:disabled {
   font-weight: 700;
   background: var(--accent-soft);
   color: var(--accent-soft-text);
+}
+
+.icon-credits-disclosure summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13.5px;
+  list-style: none;
+}
+
+.icon-credits-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.icon-credits-disclosure summary::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+
+.icon-credits-disclosure[open] summary::before {
+  transform: rotate(90deg);
+}
+
+/* Explicit, rather than relying on the browser's own
+   `details:not([open]) > *:not(summary) { display: none }` UA-stylesheet
+   default — that default doesn't reliably apply in this app's WebView2
+   runtime (confirmed: a closed <details> here still renders its child at
+   full height), so state has to be driven from the `[open]` attribute
+   directly instead of assumed. */
+.icon-credits-disclosure > ul {
+  display: none;
+}
+
+.icon-credits-disclosure[open] > ul {
+  display: block;
 }
 
 .modal-field {

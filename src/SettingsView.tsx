@@ -51,10 +51,12 @@ function SettingsSection({
   dataFileLocation,
   onRelocateDataFile,
   onExportDatabase,
+  onUseExistingDataFile,
 }: {
   dataFileLocation: string | null;
   onRelocateDataFile: () => void;
   onExportDatabase: () => void;
+  onUseExistingDataFile: () => void;
 }) {
   return (
     <div className="card">
@@ -74,6 +76,15 @@ function SettingsSection({
       <p className="modal-message-secondary">
         Saves a full copy of your data to a file you choose — for a backup on another drive, or to bring to another
         computer. Doesn't change what Vault Spend is using now.
+      </p>
+      <button type="button" className="modal-secondary" onClick={onUseExistingDataFile}>
+        Use existing file…
+      </button>
+      <p className="modal-message-secondary">
+        Point Vault Spend at a data file you already have — moving to a new computer, upgrading from an older version
+        that used a different file name, or switching back to a file you exported earlier. Checked for real
+        account/transaction data before being adopted; opens as a new profile alongside your current one (same as
+        Settings → Profiles' own "Use existing file…").
       </p>
     </div>
   );
@@ -640,16 +651,19 @@ function IconCreditsSection() {
       >
         View CC BY 3.0 license →
       </button>
-      <ul className="category-manage-list" style={{ marginTop: 12 }}>
-        {ICON_CREDITS.map((c) => (
-          <li key={c.name} className="category-manage-row">
-            <span className="category-manage-name">
-              {c.description} <span className="modal-message-secondary">(Noun Project ID {c.nounProjectId})</span>
-            </span>
-            <span className="account-col">{c.author}</span>
-          </li>
-        ))}
-      </ul>
+      <details className="icon-credits-disclosure" style={{ marginTop: 12 }}>
+        <summary>Show all {ICON_CREDITS.length} credits</summary>
+        <ul className="category-manage-list" style={{ marginTop: 12 }}>
+          {ICON_CREDITS.map((c) => (
+            <li key={c.name} className="category-manage-row">
+              <span className="category-manage-name">
+                {c.description} <span className="modal-message-secondary">(Noun Project ID {c.nounProjectId})</span>
+              </span>
+              <span className="account-col">{c.author}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
     </div>
   );
 }
@@ -739,7 +753,12 @@ export function SettingsView({
         onSetProfileIcon={onSetProfileIcon}
         onDeleteProfile={onDeleteProfile}
       />
-      <SettingsSection dataFileLocation={dataFileLocation} onRelocateDataFile={onRelocateDataFile} onExportDatabase={onExportDatabase} />
+      <SettingsSection
+        dataFileLocation={dataFileLocation}
+        onRelocateDataFile={onRelocateDataFile}
+        onExportDatabase={onExportDatabase}
+        onUseExistingDataFile={onUseExistingDataFile}
+      />
       <BackupsSection backups={backups} onCreateBackupNow={onCreateBackupNow} onRestoreBackup={onRestoreBackup} />
       <LivePricesSection
         settings={livePriceSettings}
