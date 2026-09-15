@@ -2320,6 +2320,13 @@ button:disabled {
   font-family: var(--font-mono);
   font-size: 22px;
   font-weight: 600;
+  /* 220px cards (see the .stats gridTemplateColumns call sites) comfortably
+     fit up to a 7-figure negative amount, measured against this exact
+     font/weight/size. Wrapping (rather than clipping or overflowing into a
+     neighboring card) is the fallback for whatever's still bigger than
+     that — an 8-figure net worth should still read correctly, just on two
+     lines, never as truncated or overlapping digits. */
+  overflow-wrap: anywhere;
 }
 
 .stat-value-muted {
