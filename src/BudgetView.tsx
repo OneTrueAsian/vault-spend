@@ -477,7 +477,7 @@ export function BudgetView({
       </div>
 
       {expenseSummaries.length > 0 && (
-        <div className="stats" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+        <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
           <div className="stat tint-accent">
             <span className="stat-value">{formatAmount(totalBudgeted.toFixed(2))}</span>
             <span className="stat-label">Budgeted</span>

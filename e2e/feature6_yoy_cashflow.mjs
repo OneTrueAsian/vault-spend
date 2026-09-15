@@ -34,6 +34,15 @@ try {
   await title.waitForExist({ timeout: 10000 });
   console.log("initial title:", await title.getText());
 
+  // Defaults to the shorter 3-month preset — a newer account's chart
+  // shouldn't open to mostly-empty months out of the box (6 is still one
+  // click away for anyone with a longer history).
+  const threeMonthsBtn = await app.browser.$("button=3 months");
+  if (!(await threeMonthsBtn.getAttribute("class")).includes("tab-btn-active")) {
+    throw new Error("expected Cash Flow to default to the 3-month range");
+  }
+  console.log("Cash Flow defaults to the 3-month range");
+
   const checkbox = await app.browser.$(".compare-last-year-toggle input");
   await checkbox.click();
 
