@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 /// The starter categories offered before the user has created or used any
 /// of their own — seeded once into the `categories` table on a fresh
-/// database (see `Store::seed_categories_if_missing`).
+/// database (see `Store::seed_default_categories_if_missing`).
 const DEFAULT_CATEGORIES: [&str; 10] = [
     "Rent",
     "Groceries",
@@ -837,7 +837,8 @@ impl Store {
              -- persistent one.
              CREATE INDEX IF NOT EXISTS idx_transaction_tags_transaction_id ON transaction_tags(transaction_id);",
         )?;
-        self.seed_categories_if_missing()
+        self.seed_default_categories_if_missing()?;
+        self.backfill_categories_from_usage()
     }
 
     /// `live_price_settings` originally shipped with just `api_key`/
@@ -1189,29 +1190,51 @@ impl Store {
         Ok(())
     }
 
-    /// A category used to be purely implicit — whatever string happened to
-    /// sit in `transactions.category` or `budgets.category` — which meant a
-    /// suggested-but-unused category (like "Business Expense") had nowhere
-    /// to live, and a brand-new category typed for one transaction wasn't
-    /// selectable for any other until this table existed. Seeded once, the
-    /// first time this table is empty, with the standard suggestions plus
-    /// (for a database that already has data) whatever's already in use —
-    /// so upgrading an existing database never loses a category someone's
-    /// already using.
-    fn seed_categories_if_missing(&self) -> rusqlite::Result<()> {
+    /// The standard suggestions ("Rent", "Groceries", ...) — seeded once,
+    /// the first time the `categories` table is empty. Gated so a category
+    /// someone has deliberately deleted (`delete_category`) never comes
+    /// back on a later launch; this only ever fires for a database that has
+    /// never had any category registered at all.
+    fn seed_default_categories_if_missing(&self) -> rusqlite::Result<()> {
         let already_seeded: bool = self.conn.query_row("SELECT EXISTS(SELECT 1 FROM categories)", [], |row| row.get(0))?;
         if already_seeded {
             return Ok(());
         }
-
         for name in DEFAULT_CATEGORIES {
             self.conn.execute("INSERT OR IGNORE INTO categories (name) VALUES (?1)", params![name])?;
         }
+        Ok(())
+    }
+
+    /// A category used to be purely implicit — whatever string happened to
+    /// sit in `transactions.category` or `budgets.category` — which meant a
+    /// suggested-but-unused category (like "Business Expense") had nowhere
+    /// to live, and a brand-new category typed for one transaction wasn't
+    /// selectable for any other until the `categories` registry table
+    /// existed. Every path that assigns a category *through the app*
+    /// (`set_category`, `create_category`, `rename_category`) registers the
+    /// name as it goes — but a file import carries its own category column
+    /// straight from the bank (a Capital One export's "Category" column,
+    /// say) and writes it directly onto the transaction via
+    /// `save_transactions`, bypassing all of those. That left an imported
+    /// category fully visible on the transaction row (which just renders
+    /// whatever string is there) while being invisible to anything that
+    /// reads the registry — the "All categories" filter and Manage
+    /// Categories both come up short a category real transactions use.
+    ///
+    /// Run unconditionally on every launch — same "safe and cheap `INSERT
+    /// OR IGNORE`" treatment as `backfill_budget_periods_if_missing` — so a
+    /// category that reached `transactions`/`budgets` through any bypass,
+    /// present or future, self-heals on the next launch instead of staying
+    /// permanently invisible. Never resurrects a deliberately deleted
+    /// category: `delete_category` nulls out every transaction (and
+    /// removes every budget line) that referenced it in the same
+    /// operation, so there's nothing left here to re-seed from.
+    fn backfill_categories_from_usage(&self) -> rusqlite::Result<()> {
         self.conn.execute_batch(
             "INSERT OR IGNORE INTO categories (name) SELECT DISTINCT category FROM transactions WHERE category IS NOT NULL AND deleted_at IS NULL;
-             INSERT OR IGNORE INTO categories (name) SELECT category FROM budgets;",
-        )?;
-        Ok(())
+             INSERT OR IGNORE INTO categories (name) SELECT DISTINCT category FROM budgets;",
+        )
     }
 
     /// `CREATE TABLE IF NOT EXISTS` above only creates a fresh table — it
@@ -2702,6 +2725,19 @@ impl Store {
                 ],
             )?;
             ids.push(self.conn.last_insert_rowid());
+            // A file import (or a backup restore) can carry its own
+            // category straight from the source — a bank's CSV export
+            // column, say — never going through `set_category`/
+            // `create_category`. Register it here too, the same "must be
+            // immediately selectable everywhere, not just on this row"
+            // guarantee `set_category` already gives a categorizer/manual
+            // correction, so it doesn't take an app restart (and the
+            // `backfill_categories_from_usage` launch backfill) to show up
+            // in "All categories"/Manage categories.
+            if let Some(category) = &tx.category {
+                self.conn
+                    .execute("INSERT OR IGNORE INTO categories (name) VALUES (?1)", params![category])?;
+            }
             if logging {
                 let after_snapshot = self.displayed_balance_for_log(account_id);
                 let snapshot = Self::describe_balance_snapshot(previous_snapshot, after_snapshot);
@@ -6563,6 +6599,89 @@ mod tests {
         assert!(categories.contains(&"Business Expense".to_string()));
         assert!(categories.contains(&"Rent".to_string()));
         assert_eq!(categories.len(), DEFAULT_CATEGORIES.len(), "no transactions yet, so only the defaults");
+    }
+
+    #[test]
+    fn a_transactions_own_category_column_is_registered_immediately_on_import() {
+        // Simulates a file import: the bank's own "Category" column (e.g.
+        // Capital One's CSV export) lands straight on the transaction via
+        // `save_transactions`, the same insert path `commit_import` uses,
+        // never going through `set_category`/`create_category` directly —
+        // this must still make it selectable right away, no restart needed.
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let mut imported = tx("2026-09-02", "HOMEDEPOT.COM", "-1056.37");
+        imported.category = Some("Merchandise".to_string());
+
+        store.save_transactions(account, &[imported]).unwrap();
+
+        assert!(store.list_categories().unwrap().contains(&"Merchandise".to_string()));
+    }
+
+    #[test]
+    fn a_category_only_a_transaction_still_remembers_is_registered_on_next_launch() {
+        // Simulates data that predates this fix (or reached the
+        // `transactions` table through some other bypass): the category
+        // sits on the row but was never added to the registry.
+        let dir = std::env::temp_dir().join(format!("vaultspend-category-backfill-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        if db_path.exists() {
+            std::fs::remove_file(&db_path).unwrap();
+        }
+
+        {
+            let store = Store::open(&db_path).unwrap();
+            let account = test_account(&store);
+            let mut imported = tx("2026-09-02", "HOMEDEPOT.COM", "-1056.37");
+            imported.category = Some("Merchandise".to_string());
+            store.save_transactions(account, &[imported]).unwrap();
+
+            // Strip the registry entry back out to reproduce the pre-fix state.
+            store
+                .conn
+                .execute("DELETE FROM categories WHERE name = ?1", params!["Merchandise"])
+                .unwrap();
+            assert!(!store.list_categories().unwrap().contains(&"Merchandise".to_string()));
+        } // store (and its connection) dropped here
+
+        let reopened = Store::open(&db_path).unwrap(); // the next real launch, running the fixed code
+        assert!(
+            reopened.list_categories().unwrap().contains(&"Merchandise".to_string()),
+            "a category only ever seen on a transaction must self-heal into the registry on the next launch"
+        );
+        drop(reopened); // release the file handle before cleanup — Windows can't delete an open file
+
+        std::fs::remove_file(&db_path).unwrap();
+    }
+
+    #[test]
+    fn the_launch_backfill_never_resurrects_a_deliberately_deleted_category() {
+        let dir = std::env::temp_dir().join(format!("vaultspend-category-backfill-delete-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        if db_path.exists() {
+            std::fs::remove_file(&db_path).unwrap();
+        }
+
+        {
+            let store = Store::open(&db_path).unwrap();
+            let account = test_account(&store);
+            let ids = store
+                .save_transactions_with_ids(account, &[tx("2026-09-02", "Old Merchant", "-10.00")])
+                .unwrap();
+            store.set_category(ids[0], "Junk", CategorySource::User, None).unwrap();
+            store.delete_category("Junk").unwrap(); // nulls the transaction's category too
+        }
+
+        let reopened = Store::open(&db_path).unwrap();
+        assert!(
+            !reopened.list_categories().unwrap().contains(&"Junk".to_string()),
+            "a deliberately deleted category must not come back just because the launch backfill ran again"
+        );
+        drop(reopened);
+
+        std::fs::remove_file(&db_path).unwrap();
     }
 
     #[test]
