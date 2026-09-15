@@ -140,4 +140,8 @@ export const CHANGELOG: Record<string, string[]> = {
     "Accounts and categories now have an icon picker, just like Goals already did — pick an explicit icon when creating one, or change it later (click an account's icon on the Accounts page, or a category's icon in Manage categories). Leaving it unset keeps the automatic guess based on the account type or category name. Also added a set of full-color icons for common categories (groceries, restaurants, shopping, travel, and more), account types, a new \"car\" Goal icon, the Dashboard's Net Worth/Cash/Debt cards, and the warning triangle shown for over-budget alerts.",
     "Profiles can now have an icon too — pick one of 15 new avatar icons for a profile in Settings' Profiles section, shown there and in the sidebar's profile switcher.",
   ],
+  "1.2.6": [
+    "Fixed a white box behind the app icon — its rounded corners had an opaque near-white fill instead of transparency, so a light square showed through around it on dark backgrounds like the Windows taskbar.",
+    "Fixed: a category that arrived only through a file import's own \"Category\" column (a bank's CSV export, say) could show up on the transaction itself but never appear in the \"All categories\" filter or Manage categories. It's now registered the moment it's imported, and any category already stuck in this state from an earlier import is picked up automatically the next time you open the app.",
+  ],
 };
