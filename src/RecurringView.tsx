@@ -493,7 +493,7 @@ export function RecurringView({
           </p>
         </div>
       </div>
-      <div className="stats" style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}>
+      <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
         <div className="stat tint-red">
           <span className="stat-value">{formatAmount(totals.monthly_expense)}</span>
           <span className="stat-label">Monthly recurring expenses</span>

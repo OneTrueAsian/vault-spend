@@ -1991,6 +1991,43 @@ button:disabled {
   justify-self: end;
 }
 
+/* `.cat-row`'s grid template has ~1000px of fixed-width columns before any
+   gap/padding — comfortably wider than the app's own 800px default window,
+   which is why `.cat-list`'s `overflow-x: auto` was doing real work (one
+   horizontal scrollbar per budget-group section, just to reach the amount
+   columns or Delete button). Below that width, wrap instead of scroll: the
+   category name/trend/badges keep their own full-width line, everything
+   else reflows beneath it. */
+@media (max-width: 1100px) {
+  .cat-row {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .cat-row-name {
+    flex: 1 1 100%;
+  }
+
+  .cat-row-group {
+    flex: 0 1 140px;
+    width: auto;
+  }
+
+  .cat-row-bar {
+    flex: 1 1 120px;
+  }
+
+  .cat-amt {
+    flex: 0 1 auto;
+  }
+
+  .cat-row-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+}
+
 /* Column, not a wrapping row — same reasoning as `.bucket-new-form` below:
    inside a `.bucket-card` (~260px wide), two `flex:1; min-width:100px`
    inputs plus the Add button fit on one line only by each shrinking to
@@ -2862,6 +2899,17 @@ button:disabled {
 
 .ledger-row-selected td {
   background: var(--accent-soft);
+}
+
+/* Without this, the table (many columns, each with real padding) overflows
+   wider than the window at the app's own 800px default size, and — since
+   nothing here previously scoped that overflow to just the table — it drags
+   the whole page horizontally scrollable with it, taking the filter
+   toolbar above (which already wraps fine on its own) along for the ride.
+   Scoping the scroll to the table alone keeps the rest of the page put. */
+.ledger-table-scroll {
+  overflow-x: auto;
+  border-radius: 16px;
 }
 
 .ledger {

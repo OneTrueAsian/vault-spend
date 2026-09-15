@@ -15,6 +15,7 @@ import { seedFixture } from "./lib/seed.mjs";
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '5000.00')")
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Visa', 'credit', '2000.00')")
+cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('New Card', 'credit', '0.00')")
 `);
 
 // Word-boundary match on class "stat" — a naive contains(@class,'stat')
@@ -26,11 +27,23 @@ async function statValue(app, label) {
   return (await stat.$(".stat-value")).getText();
 }
 
+// Word-boundary match on class "account-card" — a naive contains(@class,
+// 'account-card') also matches the outer .account-cards *group* wrapper
+// (same trap statValue above works around for "stat"/".stats").
+function accountCardXPath(accountName) {
+  return `//div[contains(concat(' ', normalize-space(@class), ' '), ' account-card ')][.//div[contains(@class,'account-name-cell')][text()='${accountName}']]`;
+}
+
 async function visaOwedAndAvailable(app) {
-  const card = await app.browser.$("//div[contains(@class,'account-card')][.//div[contains(@class,'account-name-cell')][text()='Visa']]");
+  const card = await app.browser.$(accountCardXPath("Visa"));
   const owed = await (await card.$(".bal")).getText();
   const available = await (await card.$(".sub.amount-editable")).getText();
   return { owed, available };
+}
+
+async function availableText(app, accountName) {
+  const card = await app.browser.$(accountCardXPath(accountName));
+  return (await card.$(".sub.amount-editable")).getText();
 }
 
 async function addTransaction(app, { accountName, description, amount }) {
@@ -84,6 +97,16 @@ try {
   let netWorth = await statValue(app, "Net Worth");
   if (netWorth !== "$5,000.00") throw new Error(`expected baseline Net Worth $5,000.00 (unused credit contributes $0), got ${netWorth}`);
   console.log("Baseline correct: unused credit card owes $0 and contributes nothing to net worth");
+
+  // A credit card whose limit was never set (starting_balance defaults to
+  // "0") must never show a confusing negative "Available -$X" — that's just
+  // -owed restated with no limit behind it. It should read as an explicit
+  // call to action instead.
+  const newCardAvailable = await availableText(app, "New Card");
+  if (newCardAvailable !== "Set credit limit…") {
+    throw new Error(`expected an unset-limit card to prompt for a limit instead of a confusing negative, got "${newCardAvailable}"`);
+  }
+  console.log('A credit card with no limit set shows "Set credit limit…" instead of a negative Available figure');
 
   // --- Action A: add a $300 charge on Visa ---
   const ledgerNav = await app.browser.$("button*=Transactions");

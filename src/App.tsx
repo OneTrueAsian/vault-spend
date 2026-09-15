@@ -1162,7 +1162,10 @@ function App({
   }, [accounts, buckets, holdings, layoutWidgets]);
 
   const [cashFlow, setCashFlow] = useState<CashFlow | null>(null);
-  const [cashFlowRange, setCashFlowRange] = useState(6);
+  // Defaults to the shorter preset so a newer account (with only a month or
+  // two of real history) doesn't open Cash Flow to a chart that's mostly
+  // empty months — a user with a longer history can still switch to 6.
+  const [cashFlowRange, setCashFlowRange] = useState(3);
   const [compareLastYear, setCompareLastYear] = useState(false);
   const [yoyCashFlow, setYoyCashFlow] = useState<YoyCashFlow | null>(null);
 
@@ -3308,6 +3311,7 @@ function App({
       )}
 
       {activeTab === "ledger" && (
+      <div className="ledger-table-scroll">
       <table className="ledger">
         <thead>
           <tr>
@@ -3691,6 +3695,7 @@ function App({
           )}
         </tbody>
       </table>
+      </div>
       )}
 
       {activeTab === "ledger" && filteredTransactions.length > 0 && (

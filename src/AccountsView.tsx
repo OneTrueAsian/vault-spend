@@ -260,7 +260,7 @@ function AccountCard({
               title="Click to set the credit limit"
               onClick={() => setEditing({ id: a.id, value: a.starting_balance, mode: "limit" })}
             >
-              Available {formatAmount(a.current_balance)}
+              {parseFloat(a.starting_balance) > 0 ? `Available ${formatAmount(a.current_balance)}` : "Set credit limit…"}
             </span>
           ))}
         {confirmingDeleteId === a.id ? (
@@ -405,7 +405,7 @@ export function AccountsView({
         </div>
       </div>
 
-      <div className="stats" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+      <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
         <button
           type="button"
           className={
