@@ -405,7 +405,7 @@ export function AccountsView({
         </div>
       </div>
 
-      <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+      <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
         <button
           type="button"
           className={
