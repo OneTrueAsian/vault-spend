@@ -676,6 +676,12 @@ svg.profile-switcher-icon {
   justify-content: flex-end;
 }
 
+.import-controls-label {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .btn-icon {
   padding: 0.55em 0.7em;
 }

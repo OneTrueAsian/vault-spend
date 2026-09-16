@@ -4,8 +4,7 @@ import { formatAmount, toLocalIsoDate } from "./format";
 import { fmtMoneyShort } from "./charts";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { CategoryIcon } from "./icons";
-
-export const CADENCE_OPTIONS = ["weekly", "biweekly", "monthly", "annual"];
+import { CADENCE_OPTIONS } from "./cadence";
 
 /** One calendar month forward, clamping the day-of-month into range (Jan
  * 31 + 1 month -> Feb 28/29, not Mar 3) — same reasoning as the backend's

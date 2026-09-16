@@ -143,5 +143,9 @@ export const CHANGELOG: Record<string, string[]> = {
   "1.2.6": [
     "Fixed a white box behind the app icon — its rounded corners had an opaque near-white fill instead of transparency, so a light square showed through around it on dark backgrounds like the Windows taskbar.",
     "Fixed: a category that arrived only through a file import's own \"Category\" column (a bank's CSV export, say) could show up on the transaction itself but never appear in the \"All categories\" filter or Manage categories. It's now registered the moment it's imported, and any category already stuck in this state from an earlier import is picked up automatically the next time you open the app.",
+    "Fixed a credit card with no limit set showing a confusing negative \"Available\" figure — it now prompts you to set a credit limit instead.",
+    "Fixed stat cards on Recurring, Budget, and Accounts clipping large dollar amounts (a six- or seven-figure balance, say) instead of fitting or wrapping onto a second line.",
+    "Cash Flow now opens to a 3-month view by default instead of 6, so a newer account isn't greeted with a mostly-empty chart.",
+    "Fixed the Transactions table — and Budget's category rows — dragging the whole page sideways when a column ran wide; scrolling now stays scoped to just the table or row that needs it.",
   ],
 };
