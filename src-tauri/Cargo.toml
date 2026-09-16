@@ -1,6 +1,6 @@
 [package]
 name = "vaultspend"
-version = "1.2.5"
+version = "1.2.6"
 description = "Vault Spend — a local budgeting app with learning transaction categorization"
 authors = ["OneTrueAsian"]
 license = "MIT"

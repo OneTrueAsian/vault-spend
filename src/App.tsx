@@ -23,17 +23,17 @@ import {
 } from "./Modal";
 import { loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
-// `CADENCE_OPTIONS` is used synchronously in the Transactions tab's own (always-
-// rendered, not tab-gated) bulk "Add to Recurring" control, so
-// `RecurringView`'s module can't be deferred behind `lazy()` the way the
-// other tab views below are — a static import here would force the whole
-// module into the main bundle regardless, making a lazy wrapper around
-// the component alone pointless.
-import { CADENCE_OPTIONS, RecurringView } from "./RecurringView";
+// `CADENCE_OPTIONS` is used synchronously in the Transactions tab's own
+// (always-rendered, not tab-gated) bulk "Add to Recurring" control, so it
+// lives in its own tiny module — importing it here can't drag the rest of
+// `RecurringView` into the main bundle the way importing it from
+// `RecurringView` itself would.
+import { CADENCE_OPTIONS } from "./cadence";
 // Each tab view is its own chunk, loaded only the first time its tab is
 // actually opened, instead of every tab's code shipping in the one
 // startup bundle regardless of whether the user ever visits it.
 const AccountsView = lazy(() => import("./AccountsView").then((m) => ({ default: m.AccountsView })));
+const RecurringView = lazy(() => import("./RecurringView").then((m) => ({ default: m.RecurringView })));
 const BucketsView = lazy(() => import("./BucketsView").then((m) => ({ default: m.BucketsView })));
 const BudgetView = lazy(() => import("./BudgetView").then((m) => ({ default: m.BudgetView })));
 const ReportsView = lazy(() => import("./ReportsView").then((m) => ({ default: m.ReportsView })));
@@ -255,6 +255,31 @@ const THEME_STORAGE_KEY = "meadow-theme";
 const THEME_STYLE_STORAGE_KEY = "meadow-theme-style";
 const NAV_ORDER_STORAGE_KEY = "meadow-nav-order";
 const SAVED_FILTERS_STORAGE_KEY = "meadow-saved-ledger-filters";
+// Which account a fresh import/manual transaction defaults to. Without
+// this, the default falls back to whichever account sorts first
+// alphabetically (list_accounts orders by name) — for most households
+// that's not their everyday checking account, so a CSV import or quick
+// add could silently land in the wrong place. Global rather than
+// per-profile, same as theme/nav-order above; a stale id from another
+// profile (or a deleted account) is harmless since callers only ever use
+// this as a first guess and fall back to accounts[0] when it doesn't
+// match a real, current account.
+const LAST_USED_ACCOUNT_STORAGE_KEY = "vaultspend-last-used-account-id";
+function getLastUsedAccountId(): number | null {
+  try {
+    const raw = localStorage.getItem(LAST_USED_ACCOUNT_STORAGE_KEY);
+    return raw ? Number(raw) : null;
+  } catch {
+    return null; // private window, blocked site data, etc. — just skip the preference
+  }
+}
+function setLastUsedAccountId(id: number) {
+  try {
+    localStorage.setItem(LAST_USED_ACCOUNT_STORAGE_KEY, String(id));
+  } catch {
+    // best effort, same as every other localStorage write in this file
+  }
+}
 /** Sentinel `filterCategory` value meaning "no category assigned" — kept
  * distinct from any real category name the same way the per-row category
  * `<select>`s already use `"__new__"` for "+ New category…". */
@@ -1963,9 +1988,15 @@ function App({
   }
 
   useEffect(() => {
-    // keep the selection valid as accounts come and go; default to the first one
+    // Keep the selection valid as accounts come and go. Prefer whichever
+    // account was last actually used (see LAST_USED_ACCOUNT_STORAGE_KEY);
+    // only fall back to accounts[0] — alphabetically first, not
+    // necessarily the household's everyday account — when there's no
+    // remembered account or it no longer exists.
     if (selectedAccountId === null || !accounts.some((a) => a.id === selectedAccountId)) {
-      setSelectedAccountId(accounts.length > 0 ? accounts[0].id : null);
+      const lastUsed = getLastUsedAccountId();
+      const stillExists = lastUsed !== null && accounts.some((a) => a.id === lastUsed);
+      setSelectedAccountId(stillExists ? lastUsed : accounts.length > 0 ? accounts[0].id : null);
     }
   }, [accounts, selectedAccountId]);
 
@@ -1999,7 +2030,9 @@ function App({
       handleNewAccount();
       return;
     }
-    setSelectedAccountId(Number(value));
+    const id = Number(value);
+    setSelectedAccountId(id);
+    setLastUsedAccountId(id);
   }
 
   async function handleImport() {
@@ -2160,6 +2193,7 @@ function App({
   ) {
     try {
       await invoke("create_manual_transaction", { accountId, date, description, amount, category, memberId });
+      setLastUsedAccountId(accountId);
       await refresh();
       setNewTransactionOpen(false);
       setStatus(`Added "${description}".`, "success");
@@ -2820,8 +2854,11 @@ function App({
             </div>
             {activeTab === "ledger" && (
             <div className="import-controls">
+              <label className="import-controls-label" htmlFor="ledger-account-select">
+                Account
+              </label>
               <select
-                aria-label="Account to import into"
+                id="ledger-account-select"
                 className="account-select"
                 value={selectedAccountId ?? ""}
                 onChange={(e) => handleAccountSelectChange(e.target.value)}
@@ -3799,6 +3836,7 @@ function App({
       )}
 
       {activeTab === "recurring" && (
+        <Suspense fallback={null}>
         <RecurringView
           recurring={recurring}
           totals={recurringTotals}
@@ -3813,6 +3851,7 @@ function App({
           onAddCandidate={handleAddRecurringCandidate}
           onDismissCandidate={handleDismissRecurringCandidate}
         />
+        </Suspense>
       )}
 
       {activeTab === "investments" && (

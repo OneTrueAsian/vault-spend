@@ -297,6 +297,12 @@ const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string 
     description:
       "A neon cyberpunk reskin — electric cyan, violet, and magenta-red accents, plus Orbitron and Share Tech Mono type, and its own angular sidebar icon set. Also follows the header's Light/Dark/System toggle.",
   },
+  {
+    id: "transparent",
+    label: "Transparent",
+    description:
+      "A frosted-glass reskin — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Also follows the header's Light/Dark/System toggle.",
+  },
 ];
 
 function AppearanceSection({

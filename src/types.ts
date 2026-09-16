@@ -54,10 +54,9 @@ export type AppSettings = {
 };
 
 /** Purely a per-viewer display preference (like `Theme` in App.tsx) — stored
- * in localStorage, never sent to the backend. Every style but "classic" is
- * dark-only by design, so it ignores the sidebar's separate Light/Dark/
- * System toggle. */
-export type ThemeStyle = "classic" | "futuristic";
+ * in localStorage, never sent to the backend. All three styles follow the
+ * header's separate Light/Dark/System toggle — none of them is dark-only. */
+export type ThemeStyle = "classic" | "futuristic" | "transparent";
 
 export type Insight = {
   severity: "warning" | "info" | "positive";

@@ -9,6 +9,7 @@ mod profiles;
 mod stockdata;
 mod twelve_data;
 mod updater;
+mod window_state;
 
 use commands::{AppState, AppStateHandle};
 use std::sync::Mutex;
@@ -97,6 +98,18 @@ pub fn run() {
                 db_path: Mutex::new(db_path),
                 generation: std::sync::atomic::AtomicU64::new(0),
             });
+
+            // Restores the window to whatever size (never position — a
+            // saved position could sit on a monitor that's no longer
+            // connected, leaving the window unreachable) it was last
+            // closed at, instead of always reopening at the 800x600
+            // default. Written into `default_dir`, the same directory as
+            // config.json/the database, so it automatically gets the same
+            // debug/E2E isolation the VAULTSPEND_DB_DIR handling above
+            // already established — a plugin resolving its own path via
+            // `app.path().app_data_dir()` would bypass that and reintroduce
+            // the exact real-AppData leak that handling was written to fix.
+            window_state::restore_and_track(app.handle(), &default_dir);
 
             Ok(())
         })
