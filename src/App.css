@@ -303,6 +303,310 @@
   filter: drop-shadow(0 0 4px var(--accent));
 }
 
+/* Transparent — the third optional reskin: Apple's own system colors
+   (systemBlue/-Green/-Red/-Orange/-Indigo, as documented in Apple's HIG)
+   on a frosted-glass surface treatment instead of Slate's solid cards.
+   --accent/--positive/--negative/--warning below are darkened from
+   Apple's raw system colors in light mode only, the same WCAG 4.5:1
+   remediation Slate's own header comment describes (Apple's own
+   systemGreen/-Red/-Orange fail 4.5:1 as text against white — verified
+   directly, not eyeballed); dark mode uses Apple's raw values as-is since
+   they already clear 4.5:1 against a near-black surface. Reuses the
+   default (non-Futuristic) icon set — its rounded caps/joins already read
+   as SF-Symbols-ish, so no third icon variant is needed. */
+:root[data-palette="transparent"] {
+  --bg: #eaebef;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-2: rgba(255, 255, 255, 0.55);
+  --surface-hover: rgba(120, 120, 128, 0.14);
+  --sidebar-bg: rgba(255, 255, 255, 0.55);
+  --sidebar-bg-hover: rgba(120, 120, 128, 0.14);
+  --sidebar-bg-active: rgba(0, 122, 255, 0.16);
+  --sidebar-text: #3a3a3c;
+  --sidebar-text-dim: rgba(60, 60, 67, 0.5);
+  --sidebar-text-active: #1d1d1f;
+  --sidebar-border: rgba(255, 255, 255, 0.4);
+
+  --text: #1d1d1f;
+  --text-muted: rgba(60, 60, 67, 0.6);
+  --text-faint: rgba(60, 60, 67, 0.4);
+  --border: rgba(60, 60, 67, 0.16);
+  --border-strong: rgba(60, 60, 67, 0.28);
+
+  --accent: #007aff;
+  --accent-strong: #0064d6;
+  --accent-soft: rgba(0, 122, 255, 0.14);
+  --accent-soft-text: #0058b8;
+  --on-accent: #ffffff;
+
+  --positive: #1e8e3e;
+  --positive-soft: rgba(52, 199, 89, 0.16);
+  --negative: #d70015;
+  --negative-soft: rgba(255, 59, 48, 0.14);
+  --warning: #b25000;
+  --warning-soft: rgba(255, 149, 0, 0.16);
+  --info: #4a48b8;
+  --info-soft: rgba(88, 86, 214, 0.14);
+
+  --nav-active-shadow: 0 8px 20px rgba(0, 122, 255, 0.18);
+
+  --shadow-sm: 0 1px 2px rgba(30, 30, 60, 0.05);
+  --shadow-md: 0 8px 24px rgba(30, 30, 60, 0.08);
+  --shadow-lg: 0 20px 50px rgba(30, 30, 60, 0.14);
+
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+
+  /* The color wash the floating glass panels refract against — see the
+     `.app-shell::before` rule below. Blur over a flat single-tone
+     background barely reads as "glass" at all; this gives it something
+     to visibly show through. */
+  --wash-a: rgba(0, 122, 255, 0.22);
+  --wash-b: rgba(175, 82, 222, 0.18);
+  --wash-c: rgba(90, 200, 250, 0.2);
+
+  /* Near-opaque on purpose, unlike --surface/--surface-2: the sticky
+     topbar sits over previously-scrolled content *within the same scroll
+     container* (`.main`), not against the wash behind the panel, so it
+     needs to actually mask whatever's behind it rather than stay lightly
+     translucent — see the `.topbar` rule's comment below. */
+  --topbar-glass-bg: rgba(255, 255, 255, 0.88);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="transparent"]:not([data-theme="light"]) {
+    --bg: #0a0a0c;
+    --surface: rgba(28, 28, 30, 0.68);
+    --surface-2: rgba(28, 28, 30, 0.5);
+    --surface-hover: rgba(120, 120, 128, 0.24);
+    --sidebar-bg: rgba(30, 30, 34, 0.5);
+    --sidebar-bg-hover: rgba(120, 120, 128, 0.22);
+    --sidebar-bg-active: rgba(10, 132, 255, 0.22);
+    --sidebar-text: rgba(235, 235, 245, 0.65);
+    --sidebar-text-dim: rgba(235, 235, 245, 0.45);
+    --sidebar-text-active: #ffffff;
+    --sidebar-border: rgba(255, 255, 255, 0.1);
+
+    --text: #ffffff;
+    --text-muted: rgba(235, 235, 245, 0.6);
+    --text-faint: rgba(235, 235, 245, 0.38);
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.18);
+
+    --accent: #0a84ff;
+    --accent-strong: #409cff;
+    --accent-soft: rgba(10, 132, 255, 0.22);
+    --accent-soft-text: #6fb4ff;
+    --on-accent: #ffffff;
+
+    --positive: #30d158;
+    --positive-soft: rgba(48, 209, 88, 0.18);
+    --negative: #ff453a;
+    --negative-soft: rgba(255, 69, 58, 0.18);
+    --warning: #ff9f0a;
+    --warning-soft: rgba(255, 159, 10, 0.18);
+    --info: #5e5ce6;
+    --info-soft: rgba(94, 92, 230, 0.2);
+
+    --nav-active-shadow: 0 8px 26px rgba(10, 132, 255, 0.32);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
+
+    --wash-a: rgba(10, 132, 255, 0.32);
+    --wash-b: rgba(191, 90, 242, 0.28);
+    --wash-c: rgba(100, 210, 255, 0.26);
+
+    --topbar-glass-bg: rgba(30, 30, 34, 0.88);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-palette="transparent"][data-theme="dark"] {
+  --bg: #0a0a0c;
+  --surface: rgba(28, 28, 30, 0.68);
+  --surface-2: rgba(28, 28, 30, 0.5);
+  --surface-hover: rgba(120, 120, 128, 0.24);
+  --sidebar-bg: rgba(30, 30, 34, 0.5);
+  --sidebar-bg-hover: rgba(120, 120, 128, 0.22);
+  --sidebar-bg-active: rgba(10, 132, 255, 0.22);
+  --sidebar-text: rgba(235, 235, 245, 0.65);
+  --sidebar-text-dim: rgba(235, 235, 245, 0.45);
+  --sidebar-text-active: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+
+  --text: #ffffff;
+  --text-muted: rgba(235, 235, 245, 0.6);
+  --text-faint: rgba(235, 235, 245, 0.38);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --accent: #0a84ff;
+  --accent-strong: #409cff;
+  --accent-soft: rgba(10, 132, 255, 0.22);
+  --accent-soft-text: #6fb4ff;
+  --on-accent: #ffffff;
+
+  --positive: #30d158;
+  --positive-soft: rgba(48, 209, 88, 0.18);
+  --negative: #ff453a;
+  --negative-soft: rgba(255, 69, 58, 0.18);
+  --warning: #ff9f0a;
+  --warning-soft: rgba(255, 159, 10, 0.18);
+  --info: #5e5ce6;
+  --info-soft: rgba(94, 92, 230, 0.2);
+
+  --nav-active-shadow: 0 8px 26px rgba(10, 132, 255, 0.32);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
+
+  --wash-a: rgba(10, 132, 255, 0.32);
+  --wash-b: rgba(191, 90, 242, 0.28);
+  --wash-c: rgba(100, 210, 255, 0.26);
+
+  --topbar-glass-bg: rgba(30, 30, 34, 0.88);
+
+  color-scheme: dark;
+}
+
+/* Transparent's structural glass touches: everything above this point is a
+   pure color/font token swap that the rest of this file's existing rules
+   already consume via var(...), same as Slate/Futuristic. These few rules
+   are the only ones that add a property Slate/Futuristic don't use
+   (backdrop-filter, a bumped border-radius) — all scoped to the palette
+   attribute, so Slate and Futuristic are byte-for-byte unaffected. */
+/* Floating panels, not flush: real Liquid Glass insets the sidebar and
+   toolbar from the window edge with a visible gap, rather than sitting
+   edge-to-edge the way Slate/Futuristic's shared `.app-shell` layout does.
+   `.app-shell` itself has no background (see the plain `:root` rule far
+   above) and no positioning context of its own, so adding padding/a
+   `position` here is additive — Slate/Futuristic never reference this
+   selector and are laid out exactly as before. */
+[data-palette="transparent"] .app-shell {
+  padding: 14px;
+  gap: 14px;
+  position: relative;
+  isolation: isolate;
+}
+
+/* The color wash the floating panels refract against (see --wash-a/b/c
+   above) — a fixed, decorative layer behind the sidebar/main panels.
+   `position: fixed` escapes `.app-shell`'s own `overflow: hidden` (that
+   only clips descendants that establish no containing block of their own,
+   which a plain `position: relative` doesn't), so it correctly covers the
+   whole window rather than just `.app-shell`'s box. */
+[data-palette="transparent"] .app-shell::before {
+  content: "";
+  position: fixed;
+  inset: -10%;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 12% 15%, var(--wash-a) 0%, transparent 42%),
+    radial-gradient(circle at 88% 20%, var(--wash-c) 0%, transparent 40%),
+    radial-gradient(circle at 70% 88%, var(--wash-b) 0%, transparent 46%);
+  filter: blur(60px);
+}
+
+[data-palette="transparent"] .sidebar {
+  position: relative;
+  z-index: 1;
+  border-radius: 22px;
+  border-right: none;
+  border: 1px solid var(--sidebar-border);
+  backdrop-filter: blur(24px) saturate(1.7);
+  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+}
+
+/* `.main` is only ever the scroll container now — no background/radius of
+   its own — so the sticky topbar and the scrolling `.page` beneath it can
+   be two genuinely separate floating panels (matching the demo) with the
+   wash showing through the gap between them, rather than one shape with
+   the topbar fused to its top edge. */
+[data-palette="transparent"] .main {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+/* The topbar is its own floating glass panel: inset from the top/sides
+   with a real margin (not flush, not fused to `.page` below it) and fully
+   rounded on all four corners, the same way the demo's toolbar is a
+   distinct panel from its content area rather than a bar glued to the top
+   of one shared shape. `position: sticky` plus `margin-top` sticks it 14px
+   from `.main`'s scrolled-to top, not flush at 0 — the gap persists while
+   scrolling, not just at rest.
+   `background` still needs to be near-opaque (--topbar-glass-bg, not a
+   lightly-translucent --surface-*) — Apple's own "Clear" glass variant
+   needs its own dimming layer for legibility, and this matters even more
+   now that `.page` scrolls directly underneath it: `.main` never resets
+   scroll position on tab switches (true for every theme, just invisible
+   elsewhere because their topbar is fully opaque), so whatever `.page`
+   content the sticky header is currently sitting over needs to actually
+   be masked, not just dimmed, or it shows through half-legible and
+   overlapping the topbar's own title. */
+[data-palette="transparent"] .topbar {
+  margin: 14px 14px 0;
+  border-radius: 22px;
+  background: var(--topbar-glass-bg);
+  border-bottom: none;
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+}
+
+/* `.page` is every view's own top-level wrapper (Dashboard/Accounts/
+   Ledger/etc. each render one) — giving it the floating-panel treatment
+   here, rather than `.main`, is what makes it a second panel distinct
+   from the topbar above, with the wash visible in the 14px gap between
+   them. Its existing `max-width: 1180px; margin: 0 auto` (unchanged,
+   defined once further down) still centers it — the 3-value margin below
+   only adds top/bottom spacing on top of that auto-centering, it doesn't
+   replace it. */
+[data-palette="transparent"] .page {
+  margin: 14px auto;
+  border-radius: 22px;
+  background: var(--surface-2);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+}
+
+[data-palette="transparent"] .card,
+[data-palette="transparent"] .modal-panel {
+  border-radius: 20px;
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+}
+
+[data-palette="transparent"] .modal-overlay {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* `:where()` contributes zero specificity, so this only pill-shapes a
+   *plain* button — any class-based override (`.stat`/`.stat-hero`'s own
+   `border-radius: 18px` included) still wins exactly the way it already
+   beats the base (unscoped) `button { border-radius: 9px }` rule elsewhere
+   in this file. A bare `button` selector here instead clobbered every
+   `.stat`/`.stat-hero` tile app-wide — those render as a real <button> for
+   their expand/collapse behavior, not because they're meant to look like
+   one, and a 999px radius on a near-square 194×164 card turns it into a
+   circle. */
+[data-palette="transparent"] :where(button) {
+  border-radius: 999px;
+}
+
+/* Transparent's active-nav-item color/icon/glass rules live further down,
+   alongside Slate's and Futuristic's own (see `.nav-item.nav-item-active`
+   near `.sidebar`/`.nav-item`) rather than here — that positioning is load-
+   bearing for a specificity tie against `.nav-item:hover`, not cosmetic. */
+
 * {
   box-sizing: border-box;
 }
@@ -414,7 +718,15 @@ body {
   color: var(--sidebar-text-active);
 }
 
-.nav-item-active {
+/* `.nav-item` (one class) beats nothing; `.nav-item:hover` (class +
+   pseudo-class) outranks a plain `.nav-item-active` (one class) by CSS
+   specificity regardless of source order, so hovering the already-active
+   item was falling back to the hover background/text color instead of
+   staying on the active styling — true for all three themes, since all of
+   them share this one rule. Matching the compound class the DOM actually
+   has (`nav-item nav-item-active`) ties hover's specificity, and this
+   rule's later position in the file wins that tie. */
+.nav-item.nav-item-active {
   background: var(--sidebar-bg-active);
   color: #ffffff;
   box-shadow: var(--nav-active-shadow, none);
@@ -425,18 +737,38 @@ body {
    than the mode-following --sidebar-text-active (which is dark in light
    mode, sized for the light --sidebar-bg-hover surface, not this gradient —
    that mismatch was unreadable dark-on-dark text in Slate light mode).
-   Futuristic keeps its existing flat, always-dark active background where
-   --sidebar-text-active is already correct, overridden back below. */
+   Futuristic and Transparent keep their own flat/translucent active
+   backgrounds where --sidebar-text-active or --accent reads correctly,
+   overridden back below. */
 .nav-item-active .ico {
   color: #ffffff;
 }
 
-[data-palette="futuristic"] .nav-item-active {
+[data-palette="futuristic"] .nav-item.nav-item-active {
   color: var(--sidebar-text-active);
 }
 
 [data-palette="futuristic"] .nav-item-active .ico {
   color: var(--accent-strong);
+}
+
+/* Transparent's active nav item sits on a soft translucent tint
+   (--sidebar-bg-active above), not Slate's bold gradient or Futuristic's
+   flat dark fill, so it needs its own readable text/icon color — same
+   pattern as Futuristic just above, including the same `.nav-item.` prefix
+   so it also beats `.nav-item:hover`. (Previously this lived up in the
+   palette-definition block above `.sidebar`/`.nav-item`'s own rules, which
+   put it *before* `.nav-item:hover` in source order — losing the same
+   specificity tie `.nav-item.nav-item-active` above just fixed for Slate
+   and Futuristic use position to win, not just specificity.) */
+[data-palette="transparent"] .nav-item.nav-item-active {
+  color: var(--accent);
+  backdrop-filter: blur(12px) saturate(1.6);
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
+}
+
+[data-palette="transparent"] .nav-item-active .ico {
+  color: var(--accent);
 }
 
 .nav-item-dragging {

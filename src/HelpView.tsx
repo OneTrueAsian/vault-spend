@@ -287,6 +287,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "light mode",
       "slate",
       "futuristic",
+      "transparent",
     ],
     node: (
       <li>
@@ -296,7 +297,8 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         your backup history with a manual "Back up now" and per-backup
         restore, an optional live stock-price integration for the
         Investments tab, and <strong>appearance</strong>: Light/Dark/System
-        plus two visual styles — Slate and Futuristic (see FAQ).
+        plus three visual styles — Slate, Futuristic, and Transparent (see
+        FAQ).
       </li>
     ),
   },
@@ -643,15 +645,17 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "Can I change how Vault Spend looks?",
-    tags: ["appearance", "theme", "dark mode", "light mode", "slate", "futuristic", "style", "color"],
+    tags: ["appearance", "theme", "dark mode", "light mode", "slate", "futuristic", "transparent", "glass", "style", "color"],
     answer: (
       <p>
         Yes — the Settings tab has an Appearance section with a Light/Dark/
-        System toggle (now in the header) plus two visual styles:{" "}
-        <strong>Slate</strong> (the default look) and{" "}
-        <strong>Futuristic</strong> (a neon style with its own type and
-        sidebar icons). Both follow the Light/Dark/System toggle. Switching
-        is instant and purely visual — nothing about your data changes.
+        System toggle (now in the header) plus three visual styles:{" "}
+        <strong>Slate</strong> (the default look), <strong>Futuristic</strong>{" "}
+        (a neon style with its own type and sidebar icons), and{" "}
+        <strong>Transparent</strong> (a frosted-glass style with a
+        translucent, blurred sidebar and cards). All three follow the
+        Light/Dark/System toggle. Switching is instant and purely visual —
+        nothing about your data changes.
       </p>
     ),
   },
