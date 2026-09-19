@@ -2628,6 +2628,37 @@ pub fn category_spending_by_month(
 }
 
 #[derive(Serialize)]
+pub struct DailySpendAmountDto {
+    /// "YYYY-MM-DD"
+    pub date: String,
+    pub amount: String,
+}
+
+/// Total spend per calendar day across a date range — the Reports page's
+/// daily-spend heatmap. See `Store::daily_spending`.
+#[tauri::command]
+pub fn daily_spending(
+    from_year: i32,
+    from_month: u32,
+    to_year: i32,
+    to_month: u32,
+    state: tauri::State<AppStateHandle>,
+) -> Result<Vec<DailySpendAmountDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let rows = state
+        .store
+        .daily_spending(from_year, from_month, to_year, to_month)
+        .map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|r| DailySpendAmountDto {
+            date: r.date,
+            amount: r.amount.to_string(),
+        })
+        .collect())
+}
+
+#[derive(Serialize)]
 pub struct BalancePointDto {
     pub date: String,
     pub balance: String,

@@ -251,6 +251,7 @@ pub fn run() {
             commands::portfolio_history,
             commands::account_balance_history,
             commands::category_spending_by_month,
+            commands::daily_spending,
             commands::list_account_transactions,
             commands::reconcile_candidates,
             commands::set_transactions_cleared,
