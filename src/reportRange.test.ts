@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCategoryTable, inMonthRange, monthHeading, monthKeys, presetRange, yearlySummary } from "./reportRange";
+import { buildCategoryTable, inMonthRange, monthEndDate, monthHeading, monthKeys, monthStartDate, presetRange, yearlySummary } from "./reportRange";
 
 const TODAY = new Date(2026, 8, 18); // 2026-09-18
 
@@ -42,6 +42,22 @@ describe("monthHeading", () => {
   it("is the short month name, with the year when it isn't the range's first month's year", () => {
     expect(monthHeading("2026-07")).toBe("Jul");
     expect(monthHeading("2026-01", true)).toBe("Jan ’26");
+  });
+});
+
+describe("monthStartDate / monthEndDate", () => {
+  it("is the first and last calendar day of the month", () => {
+    expect(monthStartDate({ year: 2026, month: 9 })).toBe("2026-09-01");
+    expect(monthEndDate({ year: 2026, month: 9 })).toBe("2026-09-30");
+  });
+
+  it("handles February, including a leap year", () => {
+    expect(monthEndDate({ year: 2026, month: 2 })).toBe("2026-02-28");
+    expect(monthEndDate({ year: 2028, month: 2 })).toBe("2028-02-29");
+  });
+
+  it("handles December rolling into the next year", () => {
+    expect(monthEndDate({ year: 2026, month: 12 })).toBe("2026-12-31");
   });
 });
 
