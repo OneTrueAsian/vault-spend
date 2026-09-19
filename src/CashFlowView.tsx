@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { Account, CashFlow, CategoryAmount, DebtPayoffPlan, ForecastPoint, YoyCashFlow } from "./types";
+import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPlan, YoyCashFlow } from "./types";
+import { lowestPoint } from "./safeToSpend";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "./charts";
 import { formatAmount } from "./format";
 import { DebtPayoffPlannerSection } from "./ReportsView";
@@ -53,7 +54,7 @@ export function CashFlowView({
   /** Projected daily cash balance for the next `forecastDays` days, based
    * on recurring items only — a separate what-if view, independent of the
    * bar chart's historical window above. */
-  forecastData: ForecastPoint[] | null;
+  forecastData: BillAwareForecast | null;
   forecastDays: number;
   onSetForecastDays: (days: number) => void;
   accounts: Account[];
@@ -358,24 +359,53 @@ export function CashFlowView({
             </div>
           </div>
           {forecastData ? (
+            <>
             <LineChart
               // LineChart renders one axis label per point with no built-in
               // thinning — fine for the ~6-month net-worth trend elsewhere,
               // but 30-90 daily points would overlap into an unreadable mess.
               // Only label roughly every 8th point; every point still
               // contributes to the line/tooltip itself.
-              points={forecastData.map((p, i) => ({
-                label: i % Math.max(1, Math.ceil(forecastData.length / 8)) === 0 ? p.date.slice(5) : "",
+              points={forecastData.points.map((p, i) => ({
+                label: i % Math.max(1, Math.ceil(forecastData.points.length / 8)) === 0 ? p.date.slice(5) : "",
                 value: parseFloat(p.balance),
               }))}
               height={200}
             />
+            {forecastData.uses_recurring && (() => {
+              const low = lowestPoint(forecastData.points);
+              return low ? (
+                <p className="forecast-lowest" data-forecast-lowest>
+                  Lowest balance: <strong>{formatAmount(low.balance.toFixed(2))}</strong> on {low.date}
+                </p>
+              ) : null;
+            })()}
+            {forecastData.events.length > 0 && (
+              <div className="forecast-events">
+                <span className="reports-section-title">Coming up</span>
+                <ul>
+                  {forecastData.events.slice(0, 10).map((ev, i) => (
+                    <li key={`${ev.date}-${ev.label}-${i}`}>
+                      <span className="forecast-event-date">{ev.date}</span>
+                      <span className="forecast-event-label">{ev.label}</span>
+                      <span className={parseFloat(ev.amount) < 0 ? "forecast-event-amount neg" : "forecast-event-amount"}>
+                        {formatAmount(ev.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            </>
           ) : (
             <p className="empty-state">Loading…</p>
           )}
           <p className="chart-hint">
-            Projects your cash balance (checking/savings) forward as a smooth trend, based on your actual net cash
-            flow (income minus spending) over roughly the last 90 days — not specific upcoming bills.
+            {forecastData?.uses_recurring
+              ? `Every bill and paycheck on your Recurring list lands on the day it's due. Everyday spending carries on at your recent average (${formatAmount(
+                  Math.abs(parseFloat(forecastData.daily_baseline)).toFixed(2),
+                )} a day ${parseFloat(forecastData.daily_baseline) <= 0 ? "out" : "in"}, with recurring items and transfers left out so nothing is counted twice).`
+              : "Projects your cash balance (checking/savings) forward as a smooth trend, based on your actual net cash flow (income minus spending) over roughly the last 90 days. Add your bills and paycheck to Recurring for a forecast that shows each one landing on its due date."}
           </p>
         </div>
       )}

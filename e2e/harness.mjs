@@ -26,7 +26,8 @@ import os from "node:os";
 const CARGO_BIN = "C:\\Users\\joeyf\\.cargo\\bin";
 const TAURI_DRIVER = path.join(CARGO_BIN, "tauri-driver.exe");
 const MSEDGEDRIVER = path.join(CARGO_BIN, "msedgedriver.exe");
-const APP_EXE = path.resolve("target/debug/vaultspend.exe");
+// VAULTSPEND_EXE points the suite at a build in another target directory (a running copy locks the default one).
+const APP_EXE = path.resolve(process.env.VAULTSPEND_EXE ?? "target/debug/vaultspend.exe");
 
 // Asks the OS for a free ephemeral port (bind to :0, read what it picked,
 // release it) rather than a hardcoded one — lets multiple specs run

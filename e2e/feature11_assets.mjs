@@ -1,5 +1,5 @@
 // E2E smoke test for manual asset tracking ("Property & Valuables"):
-// creates a real estate asset from the Reports tab, confirms it's listed
+// creates a real estate asset from the Accounts tab, confirms it's listed
 // with its value folded into the Total Assets / Net Worth stats, edits its
 // value, then deletes it and confirms the stats settle back down.
 //
@@ -14,8 +14,8 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 
 const app = await launchApp({ dbDir });
 try {
-  const reportsNav = await app.browser.$("button*=Reports");
-  await reportsNav.click();
+  const accountsNav = await app.browser.$("button*=Accounts");
+  await accountsNav.click();
 
   const addAssetBtn = await app.browser.$("button*=Add property or valuable");
   await addAssetBtn.waitForExist({ timeout: 10000 });
@@ -30,7 +30,7 @@ try {
   await saveBtn.click();
 
   const propertySection = await app.browser.$(
-    "//h2[contains(., 'Property & Valuables')]/following-sibling::table[1]",
+    "//h2[contains(., 'Property & Valuables')]/following-sibling::div[contains(@class,'table-scroll')][1]/table",
   );
   // This table exists (with its header row) even with zero assets — the
   // empty-state message renders in place of body rows, not instead of the
@@ -47,10 +47,8 @@ try {
     throw new Error(`expected Home at $350,000.00, got:\n${sectionText}`);
   }
 
-  // Total Assets / Net Worth stats live on the Accounts tab now (1000
-  // checking + 350000 home = 351000 net worth).
-  const accountsNav = await app.browser.$("button*=Accounts");
-  await accountsNav.click();
+  // Property & Valuables sits on the Accounts tab beside the Total Assets /
+  // Net Worth stats (1000 checking + 350000 home = 351000 net worth).
   const netWorthStat = await app.browser.$("//span[text()='Net Worth']/parent::button");
   await netWorthStat.waitForExist({ timeout: 5000 });
   let netWorthText = await netWorthStat.getText();
@@ -59,9 +57,7 @@ try {
     throw new Error(`expected Net Worth to include the $350,000 asset, got:\n${netWorthText}`);
   }
 
-  // Back to Reports to edit the value — scoped to the table row containing
-  // "Home" specifically.
-  await reportsNav.click();
+  // Edit the value — scoped to the table row containing "Home" specifically.
   const valueCellXPath = "//tr[.//div[text()='Home']]//span[contains(@class,'amount-editable')]";
   const editInputXPath = "//tr[.//div[text()='Home']]//input[contains(@class,'amount-edit-input')]";
 

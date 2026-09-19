@@ -5,6 +5,7 @@ import type { Account, Transaction } from "./types";
 function tx(overrides: Partial<Transaction> = {}): Transaction {
   return {
     id: Math.floor(Math.random() * 1e9),
+    transfer_counterpart_id: null,
     date: "2026-09-05",
     description: "Test transaction",
     amount: "-60.00",

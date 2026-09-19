@@ -2160,10 +2160,101 @@ button:disabled {
 }
 
 .progress-track {
+  position: relative;
   height: 8px;
   border-radius: 999px;
   background: var(--surface-2);
   overflow: hidden;
+}
+
+/* "You are here in the month" tick — see PaceMarker in BudgetView. Sits
+   over the fill; a contrasting hairline reads on the fill and the track. */
+.progress-pace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+  opacity: 0.7;
+  pointer-events: auto;
+}
+
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.todo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.todo-list li:last-child .todo-row {
+  border-bottom: none;
+}
+
+.todo-row:hover .todo-text {
+  text-decoration: underline;
+}
+
+.todo-count {
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning-soft, var(--surface-2));
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.todo-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-detail {
+  color: var(--text-muted);
+}
+
+.todo-chevron {
+  color: var(--text-muted);
+  font-size: 18px;
+}
+
+.budget-allocation {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.budget-allocation-balanced {
+  color: var(--positive);
+}
+
+.budget-allocation-over {
+  color: var(--negative);
+  font-weight: 600;
 }
 
 .progress-fill {
@@ -2294,6 +2385,16 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Sparkline / alert badge / "Warn at 90%" toggle — sits under the name so
+   none of them compete with it for width. */
+.cat-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
 }
 
 .cat-row-group {
@@ -2532,6 +2633,28 @@ button:disabled {
   color: inherit;
 }
 
+/* The app's standard entry field — the same look as the Transactions search box —
+   for a field that isn't already inside one of the form containers above
+   (.labeled-field, .ledger-filters, .modal-field, …). */
+.text-input {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.text-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.text-input[aria-invalid="true"] {
+  border-color: var(--negative);
+}
+
 .account-select {
   font-family: inherit;
   font-size: 13.5px;
@@ -2561,6 +2684,23 @@ button:disabled {
 
 .account-name-cell {
   font-weight: 600;
+}
+
+.account-name-detail-static {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.modal-actions.modal-actions-split {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modal-actions-end {
+  display: inline-flex;
+  gap: 8px;
 }
 
 .account-name-detail {
@@ -3185,8 +3325,9 @@ button:disabled {
 
 .bulk-actions-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px 10px;
   padding: 10px 14px;
   margin-bottom: 14px;
   background: var(--accent-soft);
@@ -3273,6 +3414,859 @@ button:disabled {
   text-align: left;
   font-size: 13.5px;
   border-bottom: 1px solid var(--border);
+}
+
+/* Compact density (the default): one-line rows. The tag box and Split button
+   flow inline after their cell's main content instead of stacking under it,
+   and padding/controls shrink. Comfortable is the layout above, untouched. */
+.ledger-compact th,
+.ledger-compact td {
+  padding: 5px 10px;
+}
+
+.ledger-compact .cell-with-icon {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.ledger-compact .row-icon-badge {
+  width: 24px;
+  height: 24px;
+}
+
+.ledger-compact .row-icon-badge svg,
+.ledger-compact .row-icon-badge img {
+  width: 15px;
+  height: 15px;
+}
+
+.ledger-compact .tag-pills {
+  display: inline-flex;
+  margin: 0 0 0 8px;
+  vertical-align: middle;
+}
+
+.ledger-compact select {
+  padding: 2px 4px;
+  font-size: 12.5px;
+}
+
+/* The three per-row dropdowns are what made rows wrap: at full width they
+   left the description and category cells too narrow for their tag box and
+   Split button to sit beside them. */
+.ledger-compact .account-col select {
+  width: 118px;
+}
+
+.ledger-compact .member-col select {
+  width: 108px;
+}
+
+.ledger-compact td:has(> select[aria-label^="Category for"]) {
+  white-space: nowrap;
+}
+
+.ledger-compact td:has(> select[aria-label^="Category for"]) select {
+  width: 118px;
+}
+
+.ledger-compact .tag-input {
+  width: 46px;
+}
+
+.ledger-compact .tag-pills {
+  flex-wrap: nowrap;
+}
+
+.ledger-compact .source-col {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.ledger-compact td .modal-secondary {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.ledger-compact .split-toggle {
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.safe-amount {
+  margin: 4px 0 2px;
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.safe-amount-negative {
+  color: var(--negative);
+}
+
+.safe-buffer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.safe-buffer input {
+  width: 84px;
+}
+
+.forecast-lowest {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.forecast-events {
+  margin-top: 14px;
+}
+
+.forecast-events ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.forecast-events li {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.forecast-event-date {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.forecast-event-amount {
+  font-family: var(--font-mono);
+}
+
+.forecast-event-amount.neg {
+  color: var(--negative);
+}
+
+.transfer-suggestion {
+  margin-left: auto;
+}
+
+.transfer-suggestion + .density-toggle {
+  margin-left: 8px;
+}
+
+.transfer-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.transfer-badge-button {
+  border: none;
+  margin-left: 6px;
+  cursor: pointer;
+}
+
+.transfer-amount,
+.transfer-accounts {
+  color: var(--text-muted);
+}
+
+.ledger-row-transfer td {
+  background: var(--surface-muted, transparent);
+}
+
+.transfer-review-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.transfer-review-row {
+  display: grid;
+  grid-template-columns: auto 92px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.transfer-review-amount {
+  font-family: var(--font-mono);
+}
+
+.transfer-review-note {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.budget-suggest-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.budget-suggest-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto 92px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.budget-suggest-current {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.budget-suggest-amount {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.goal-plan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.goal-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.goal-badge-good {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.goal-badge-warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.bucket-track-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bucket-contribute {
+  position: relative;
+  margin-top: 10px;
+}
+
+.bucket-contribute-panel {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  bottom: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(280px, 80vw);
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+}
+
+.backup-copy {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.backup-copy-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* The blocks inside Settings' single "Data" card: data file, backups, setup data. */
+.data-block {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.card-head + .data-block {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.data-subhead {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.data-subhead-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.data-subhead-row .data-subhead {
+  margin: 0;
+}
+
+.backup-copy-form,
+.backup-copy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.backup-copy-form input {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.review-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.review-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.review-step-active {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.review-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  font-size: 11px;
+}
+
+.review-step-active .review-step-num {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.review-body {
+  min-height: 150px;
+  margin-bottom: 14px;
+}
+
+.review-figures {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.review-figures dt {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.review-figures dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 2px 0 0;
+}
+
+.review-figure {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.review-figure-bad {
+  color: var(--negative);
+}
+
+.review-delta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.review-delta-good {
+  color: var(--positive);
+}
+
+.review-delta-bad {
+  color: var(--negative);
+}
+
+.review-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.review-list li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.review-list-note {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.review-list-amount {
+  font-family: var(--font-mono);
+}
+
+.match-note {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.match-note-paid {
+  color: var(--positive);
+}
+
+.match-note-pending {
+  color: var(--warning);
+}
+
+.match-note-missed {
+  color: var(--negative);
+}
+
+.price-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.price-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: 8px;
+  background: var(--warning-soft);
+  font-size: 13px;
+}
+
+/* A wide table scrolls inside its own frame instead of pushing the whole page
+   sideways in a narrow window. */
+.table-scroll,
+.report-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.report-table th,
+.report-table td {
+  white-space: nowrap;
+}
+
+.report-table-total {
+  font-weight: 600;
+}
+
+.report-table-foot td {
+  font-weight: 600;
+  border-top: 2px solid var(--border-strong);
+}
+
+.report-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.reconcile-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.reconcile-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin-bottom: 14px;
+}
+
+.reconcile-summary > div {
+  display: grid;
+}
+
+.reconcile-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reconcile-figure {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.reconcile-balanced {
+  color: var(--positive);
+}
+
+.reconcile-off {
+  color: var(--warning);
+}
+
+.target-input {
+  width: 72px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+}
+
+.target-input-wide {
+  width: 100%;
+  min-width: 140px;
+  text-align: left;
+  font-family: inherit;
+}
+
+.target-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+.drift-ok {
+  color: var(--positive);
+}
+
+.drift-over,
+.drift-under {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.projection-goal-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+.rollover-note {
+  color: var(--positive);
+  font-size: 12px;
+}
+
+.palette-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+  font-size: 15px;
+}
+
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.palette-option {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.palette-option:last-child {
+  border-bottom: 0;
+}
+
+.palette-option-active {
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.palette-kind {
+  color: var(--text-faint);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.palette-label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.palette-foot {
+  margin: 8px 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.shortcut-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.shortcut-list > div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.shortcut-list dt,
+.shortcut-list dd {
+  margin: 0;
+}
+
+.shortcut-list kbd {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.inbox-keys {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.inbox-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 52vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+
+.inbox-list:focus-visible {
+  outline: 2px solid var(--accent-strong);
+}
+
+.inbox-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.inbox-row:last-child {
+  border-bottom: 0;
+}
+
+.inbox-row-active {
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.inbox-row-done {
+  opacity: 0.6;
+}
+
+.inbox-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+
+.inbox-date,
+.inbox-account {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.inbox-desc {
+  font-weight: 600;
+}
+
+.inbox-amount {
+  margin-left: auto;
+  font-family: var(--font-mono);
+}
+
+.inbox-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 12px;
+}
+
+.inbox-reason {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.inbox-reason-duplicate {
+  background: var(--negative-soft);
+  color: var(--negative);
+}
+
+.inbox-reason-detail {
+  color: var(--text-muted);
+}
+
+.inbox-suggestion {
+  color: var(--accent-strong);
+}
+
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inbox-actions select {
+  min-width: 180px;
+  max-width: 100%;
+}
+
+.inbox-done {
+  font-size: 12px;
+  color: var(--positive);
+}
+
+.privacy-toggle {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.privacy-toggle-on {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.density-toggle {
+  display: inline-flex;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.density-toggle button {
+  padding: 3px 10px;
+  font-size: 12px;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.density-toggle .density-toggle-active {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .ledger th {
@@ -3384,6 +4378,11 @@ button:disabled {
 
 .budget-row-dragging {
   opacity: 0.4;
+}
+
+/* A YYYY-MM-DD date must never wrap at its hyphens ("2026-" / "09-18"). */
+.date-cell {
+  white-space: nowrap;
 }
 
 .amount-editable {
@@ -3651,7 +4650,6 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: 8px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
@@ -4175,6 +5173,56 @@ button:disabled {
   font-weight: 600;
 }
 
+/* A header row with something (a Close button) at the top right. */
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.modal-header .modal-title {
+  margin: 0;
+  min-width: 0;
+}
+
+.modal-header button {
+  flex: 0 0 auto;
+}
+
+/* Header and footer stay put; only the body between them scrolls — so the title,
+   Close and the navigation buttons are always reachable, in any window size. */
+.modal-panel-fixed-chrome {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-panel-fixed-chrome .modal-header {
+  flex: 0 0 auto;
+}
+
+.modal-panel-fixed-chrome .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+
+.modal-panel-fixed-chrome .modal-footer {
+  flex: 0 0 auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.modal-panel-fixed-chrome .modal-footer .modal-actions {
+  margin-top: 0;
+}
+
 .modal-message {
   margin: 0 0 12px 0;
   font-size: 13.5px;
@@ -4335,6 +5383,19 @@ button:disabled {
 
 .modal-field input[aria-invalid="true"] {
   border-color: var(--negative);
+}
+
+/* A checkbox + its sentence on one line, inside a dialog. */
+.modal-field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.modal-field-inline input {
+  padding: 0;
 }
 
 .field-error {
@@ -4553,4 +5614,107 @@ button:disabled {
   .topbar {
     padding: 14px 16px;
   }
+}
+
+/* --------------------------- Phase 3 / 11: Sankey + daily heatmap --------------------------- */
+
+/* Visually hidden but still in the accessibility tree and in real DOM text
+   (so Privacy mode's text-node mask still finds dollar amounts in it) — the
+   standard "sr-only" pattern. Used for the Sankey/heatmap's exact-figures
+   tables, which stand in for the SVG's decorative, aria-hidden shapes. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sankey-svg {
+  display: block;
+  margin-top: 4px;
+}
+
+.sankey-node-amount {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+.heatmap-grid {
+  display: flex;
+  gap: 3px;
+  padding: 4px 0 2px;
+  width: max-content;
+}
+
+.heatmap-weekday-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-right: 4px;
+  flex: none;
+}
+
+.heatmap-weekday-label {
+  width: 30px;
+  height: 15px;
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.heatmap-week-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: none;
+}
+
+.heatmap-cell {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+}
+
+.heatmap-cell:disabled {
+  border-color: transparent;
+  cursor: default;
+  visibility: hidden;
+}
+
+.heatmap-cell:hover:not(:disabled),
+.heatmap-cell:focus-visible:not(:disabled) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.heatmap-status {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  min-height: 18px;
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.heatmap-legend-swatch {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
 }

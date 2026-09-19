@@ -9,6 +9,7 @@ export type CoreWidgetId =
   | "stat_debt"
   | "stat_investments"
   | "runway"
+  | "safe_to_spend"
   | "needs_a_look"
   | "trend_spending"
   | "budget_bills"
@@ -66,6 +67,7 @@ export const WIDGET_CATALOG: { id: FixedWidgetId; label: string; group: "core" |
   { id: "stat_debt", label: "Debt", group: "core" },
   { id: "stat_investments", label: "Investments", group: "core" },
   { id: "runway", label: "Runway", group: "core" },
+  { id: "safe_to_spend", label: "Safe to spend", group: "core" },
   { id: "needs_a_look", label: "Needs a look", group: "core" },
   { id: "trend_spending", label: "Trend & spending", group: "core" },
   { id: "budget_bills", label: "Budget & bills", group: "core" },
@@ -98,6 +100,7 @@ export const DEFAULT_LAYOUT: WidgetId[] = [
   "stat_debt",
   "stat_investments",
   "runway",
+  "safe_to_spend",
   "needs_a_look",
   "trend_spending",
   "budget_bills",
@@ -111,6 +114,7 @@ export const LAYOUT_PRESETS = {
     "stat_cash",
     "stat_debt",
     "stat_investments",
+    "safe_to_spend",
     "needs_a_look",
     "budget_bills",
     "debt_payoff",

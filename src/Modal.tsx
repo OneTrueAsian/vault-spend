@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatAmount, isValidDecimalString, toLocalIsoDate } from "./format";
-import type { Account, Bucket, CategoryTransaction, FamilyMember, Holding, MonthExpenseDetail, ReportBudgetLine } from "./types";
+import type { Account, Bucket, CategoryTransaction, FamilyMember, Holding, MonthExpenseDetail, ReportBudgetLine, Transaction } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { isBeforeAccountCheckpoint } from "./accountGroups";
+import { effectiveBudget } from "./budgetPlan";
 import { accountWidgetId, bucketWidgetId, investmentWidgetId, WIDGET_CATALOG, type WidgetId } from "./dashboardLayout";
 import {
   AccountTypeIcon,
@@ -24,11 +26,13 @@ import {
  * restored to whatever had it beforehand once the dialog closes — without
  * this, a keyboard or screen-reader user could Tab straight out of any
  * dialog into the sidebar behind the overlay. */
-function ModalShell({
+export function ModalShell({
   title,
   onCancel,
   children,
   wide,
+  headerAction,
+  footer,
 }: {
   title: string;
   onCancel: () => void;
@@ -36,6 +40,11 @@ function ModalShell({
   /** Content-heavy dialogs (a scrollable list, a table) need more room than
    * a plain form does — pass `wide` rather than growing every modal. */
   wide?: boolean;
+  /** Something for the top right of the header row (a Close button). */
+  headerAction?: React.ReactNode;
+  /** Pins these controls below a body that scrolls on its own: the header and
+   * the footer stay on screen however small the window or long the content. */
+  footer?: React.ReactNode;
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -129,23 +138,44 @@ function ModalShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
+  // Rendered into <body>, not where it's used: a dialog is `position: fixed`,
+  // and any filtered ancestor (the Transparent style's `backdrop-filter` on
+  // `.page`) becomes its containing block — laying it out against the whole
+  // scrolled page instead of the window, so it could sit mostly off-screen.
+  return createPortal(
     <div className="modal-overlay" onClick={onCancel}>
       <div
         ref={panelRef}
-        className={wide ? "modal-panel modal-panel-wide" : "modal-panel"}
+        className={["modal-panel", wide ? "modal-panel-wide" : "", footer ? "modal-panel-fixed-chrome" : ""].filter(Boolean).join(" ")}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
       >
-        <h2 className="modal-title" id={titleId}>
-          {title}
-        </h2>
-        {children}
+        {headerAction ? (
+          <div className="modal-header">
+            <h2 className="modal-title" id={titleId}>
+              {title}
+            </h2>
+            {headerAction}
+          </div>
+        ) : (
+          <h2 className="modal-title" id={titleId}>
+            {title}
+          </h2>
+        )}
+        {footer ? (
+          <>
+            <div className="modal-body">{children}</div>
+            <div className="modal-footer">{footer}</div>
+          </>
+        ) : (
+          children
+        )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -494,12 +524,12 @@ export function NewTransactionDialog({
           </select>
           {budgetImpact &&
             (() => {
-              const budgeted = parseFloat(budgetImpact.budgeted);
+              const budgeted = effectiveBudget(budgetImpact);
               const actual = parseFloat(budgetImpact.actual);
               const remaining = budgeted - actual;
               return (
                 <span className={remaining < 0 ? "field-hint report-over-budget" : "field-hint"}>
-                  {formatAmount(budgetImpact.actual)} of {formatAmount(budgetImpact.budgeted)} used this month —{" "}
+                  {formatAmount(budgetImpact.actual)} of {formatAmount(budgeted.toFixed(2))} used this month —{" "}
                   {remaining < 0 ? `${formatAmount((-remaining).toFixed(2))} over budget` : `${formatAmount(remaining.toFixed(2))} left`}
                 </span>
               );
@@ -1259,6 +1289,294 @@ export function AddWidgetDialog({
       <div className="modal-actions">
         <button type="button" onClick={onCancel}>
           Done
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+export type RulePreview = { matching: number; would_change: number };
+
+/** Create or edit one categorization rule: "when a description contains X,
+ * make it category Y". Shows — live, before anything is saved — how many
+ * transactions already on the books that would re-categorize, and offers to
+ * do it in the same step. Transactions you categorized yourself are never
+ * touched (the backend excludes them from the count too). */
+export function RuleEditorDialog({
+  categories,
+  initial,
+  onPreview,
+  onSubmit,
+  onCancel,
+}: {
+  categories: string[];
+  /** The rule being edited, or `null` for a brand-new one. */
+  initial: { pattern: string; category: string } | null;
+  onPreview: (pattern: string, category: string) => Promise<RulePreview>;
+  onSubmit: (pattern: string, category: string, applyToExisting: boolean) => void;
+  onCancel: () => void;
+}) {
+  const [pattern, setPattern] = useState(initial?.pattern ?? "");
+  const [category, setCategory] = useState(initial?.category ?? "");
+  const [preview, setPreview] = useState<RulePreview | null>(null);
+  const [applyToExisting, setApplyToExisting] = useState(true);
+  const datalistId = useId();
+
+  // Latest `onPreview` without making it an effect dependency — the parent
+  // hands in a fresh closure every render, and re-running the debounce on
+  // each one would mean the preview never settles.
+  const onPreviewRef = useRef(onPreview);
+  onPreviewRef.current = onPreview;
+
+  useEffect(() => {
+    if (!pattern.trim() || !category.trim()) {
+      setPreview(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      onPreviewRef
+        .current(pattern, category)
+        .then((p) => {
+          if (!cancelled) setPreview(p);
+        })
+        .catch(() => {
+          if (!cancelled) setPreview(null);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [pattern, category]);
+
+  const wouldChange = preview?.would_change ?? 0;
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!pattern.trim() || !category.trim()) return;
+    onSubmit(pattern.trim(), category.trim(), applyToExisting && wouldChange > 0);
+  }
+
+  return (
+    <ModalShell title={initial ? "Edit rule" : "New rule"} onCancel={onCancel}>
+      <form onSubmit={handleSubmit}>
+        <label className="modal-field">
+          <span>When a transaction's description contains</span>
+          <input
+            autoFocus
+            value={pattern}
+            onChange={(e) => setPattern(e.target.value)}
+            placeholder='e.g. "Ferrywood Coffee"'
+          />
+        </label>
+        <label className="modal-field">
+          <span>Give it this category</span>
+          <input
+            list={datalistId}
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="Pick one, or type a new one"
+          />
+          <datalist id={datalistId}>
+            {categories.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        </label>
+        <p className="modal-message modal-message-secondary" data-rule-preview={preview ? "ready" : "none"}>
+          {preview === null
+            ? "Matching is not case-sensitive, and the longest matching text wins when two rules overlap."
+            : preview.matching === 0
+              ? "No existing transactions contain this text — it will apply to future imports."
+              : `${preview.matching} existing transaction${preview.matching === 1 ? " contains" : "s contain"} this text; ${
+                  wouldChange === 0 ? "none need changing" : `${wouldChange} would be re-categorized`
+                }. Ones you categorized yourself are never changed.`}
+        </p>
+        {wouldChange > 0 && (
+          <label className="modal-field modal-field-inline">
+            <input type="checkbox" checked={applyToExisting} onChange={(e) => setApplyToExisting(e.target.checked)} />
+            <span>
+              Also re-categorize those {wouldChange} transaction{wouldChange === 1 ? "" : "s"} now
+            </span>
+          </label>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="modal-secondary" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="submit" disabled={!pattern.trim() || !category.trim()}>
+            Save rule
+          </button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+/** The Accounts page's "Edit" — everything about an account that isn't its
+ * balance, in one place: type, which family member it belongs to, institution
+ * and last four digits, and (behind an explicit second step) deleting it.
+ * These used to be a permanently visible pair of dropdowns and a Delete
+ * button on every account card. Nothing is saved until "Save changes", and
+ * only what actually changed is sent. */
+export function AccountEditDialog({
+  account,
+  familyMembers,
+  onSave,
+  onDelete,
+  onCancel,
+}: {
+  account: Account;
+  familyMembers: FamilyMember[];
+  onSave: (changes: { accountType?: string; memberId?: number | null; institution?: string | null; mask?: string | null }) => void;
+  onDelete: () => void;
+  onCancel: () => void;
+}) {
+  const [accountType, setAccountType] = useState(account.account_type);
+  const [memberId, setMemberId] = useState<number | null>(account.member_id);
+  const [institution, setInstitution] = useState(account.institution ?? "");
+  const [mask, setMask] = useState(account.mask ?? "");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  useAutoCancelDelete(confirmingDelete ? "delete" : null, () => setConfirmingDelete(false));
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const changes: Parameters<typeof onSave>[0] = {};
+    if (accountType !== account.account_type) changes.accountType = accountType;
+    if (memberId !== account.member_id) changes.memberId = memberId;
+    const nextInstitution = institution.trim() || null;
+    const nextMask = mask.trim() || null;
+    if (nextInstitution !== (account.institution ?? null) || nextMask !== (account.mask ?? null)) {
+      changes.institution = nextInstitution;
+      changes.mask = nextMask;
+    }
+    onSave(changes);
+  }
+
+  return (
+    <ModalShell title={`Edit ${account.name}`} onCancel={onCancel} wide>
+      <form onSubmit={handleSubmit}>
+        <label className="modal-field">
+          <span>Account type</span>
+          <select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
+            {ACCOUNT_TYPE_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {t[0].toUpperCase() + t.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {familyMembers.length > 0 && (
+          <label className="modal-field">
+            <span>Family member</span>
+            <select value={memberId ?? ""} onChange={(e) => setMemberId(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">Unassigned</option>
+              {familyMembers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="modal-field">
+          <span>Institution (optional)</span>
+          <input value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder='e.g. "Chase"' />
+        </label>
+        <label className="modal-field">
+          <span>Last 4 digits (optional)</span>
+          <input value={mask} maxLength={4} onChange={(e) => setMask(e.target.value)} placeholder="1234" />
+        </label>
+        <div className="modal-actions modal-actions-split">
+          {confirmingDelete ? (
+            <span className="row-delete-confirm">
+              <span className="modal-message-secondary">Delete this account and its transactions?</span>
+              <button type="button" className="modal-secondary" onClick={() => setConfirmingDelete(false)}>
+                Keep it
+              </button>
+              <button type="button" className="btn-danger" onClick={onDelete}>
+                Delete account
+              </button>
+            </span>
+          ) : (
+            <button type="button" className="modal-secondary" onClick={() => setConfirmingDelete(true)}>
+              Delete account…
+            </button>
+          )}
+          <span className="modal-actions-end">
+            <button type="button" className="modal-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+            <button type="submit">Save changes</button>
+          </span>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+/** "Review possible transfers" — pairs of transactions that look like the two
+ * legs of one move of money between the user's own accounts (equal amounts,
+ * opposite directions, different accounts, within a few days). Each starts
+ * ticked; unticking one leaves it as ordinary spending/income (and it'll be
+ * suggested again next time — nothing here is remembered until you link). */
+export function TransferReviewDialog({
+  pairs,
+  onLink,
+  onCancel,
+}: {
+  pairs: { out: Transaction; in: Transaction }[];
+  onLink: (pairs: { out_id: number; in_id: number }[]) => void;
+  onCancel: () => void;
+}) {
+  const [checked, setChecked] = useState<Set<number>>(() => new Set(pairs.map((p) => p.out.id)));
+
+  function toggle(outId: number) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(outId)) next.delete(outId);
+      else next.add(outId);
+      return next;
+    });
+  }
+
+  const chosen = pairs.filter((p) => checked.has(p.out.id));
+
+  return (
+    <ModalShell title="Possible transfers" onCancel={onCancel} wide>
+      <p className="modal-message modal-message-secondary">
+        These look like money moving between your own accounts. Linking a pair keeps both sides out of your income and
+        spending totals, and shows them as one row in Transactions. You can unlink any time.
+      </p>
+      <ul className="transfer-review-list">
+        {pairs.map((p) => {
+          const days = Math.abs(Math.round((Date.parse(p.out.date) - Date.parse(p.in.date)) / 86_400_000));
+          return (
+            <li key={p.out.id}>
+              <label className="transfer-review-row">
+                <input type="checkbox" checked={checked.has(p.out.id)} onChange={() => toggle(p.out.id)} />
+                <span className="transfer-review-when">{p.out.date}</span>
+                <span className="transfer-review-what">
+                  {p.out.account_name} → {p.in.account_name}
+                </span>
+                <span className="transfer-review-amount">{formatAmount(p.in.amount)}</span>
+                <span className="transfer-review-note">{days === 0 ? "same day" : `${days} day${days === 1 ? "" : "s"} apart`}</span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="modal-actions">
+        <button type="button" className="modal-secondary" onClick={onCancel}>
+          Not now
+        </button>
+        <button
+          type="button"
+          disabled={chosen.length === 0}
+          onClick={() => onLink(chosen.map((p) => ({ out_id: p.out.id, in_id: p.in.id })))}
+        >
+          Link {chosen.length} as {chosen.length === 1 ? "a transfer" : "transfers"}
         </button>
       </div>
     </ModalShell>

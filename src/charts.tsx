@@ -310,11 +310,15 @@ export function LineChart({
   height = 200,
   color = "var(--accent)",
   formatValue = fmtMoneyShort,
+  maxLabels,
 }: {
   points: { label: string; value: number }[];
   width?: number;
   height?: number;
   color?: string;
+  /** Draw at most about this many x-axis labels (evenly spaced) — for a series
+   * with too many points to label every one. Hovering still names any point. */
+  maxLabels?: number;
   /** Axis/tooltip value formatter — defaults to money since every point on
    * this chart has been a dollar amount so far, but a non-currency trend
    * (e.g. a percentage) needs its own. */
@@ -400,11 +404,18 @@ export function LineChart({
       {points.length > 0 && hoveredIndex === null && (
         <circle cx={lastX} cy={lastY} r={4} fill={color} stroke="var(--surface)" strokeWidth={2} />
       )}
-      {points.map((p, i) => (
-        <text key={i} x={x(i)} y={height - 6} textAnchor="middle" className="axis-label">
-          {p.label}
-        </text>
-      ))}
+      {points.map((p, i) => {
+        const step = maxLabels && points.length > maxLabels ? Math.ceil((points.length - 1) / (maxLabels - 1)) : 1;
+        const last = points.length - 1;
+        // Every `step`th label, plus the newest — dropping a regular one that would sit on top of it.
+        const show = i === last || (i % step === 0 && last - i >= step * 0.6);
+        if (!show) return null;
+        return (
+          <text key={i} x={x(i)} y={height - 6} textAnchor="middle" className="axis-label">
+            {p.label}
+          </text>
+        );
+      })}
       {hoveredIndex !== null && (
         <g style={{ pointerEvents: "none" }}>
           <line

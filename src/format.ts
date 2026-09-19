@@ -34,3 +34,13 @@ const DECIMAL_PATTERN = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 export function isValidDecimalString(s: string): boolean {
   return DECIMAL_PATTERN.test(s.trim());
 }
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-09-18" as "Sep 18" — a compact chart-axis label. Anything that isn't a
+ * stored date comes back unchanged. */
+export function shortMonthDay(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  return `${MONTH_ABBR[Number(match[2]) - 1]} ${Number(match[3])}`;
+}

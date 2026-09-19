@@ -48,45 +48,73 @@ wallet providers.
   from the Layout dropdown, or, once you've customized the layout
   yourself, **"+ Save as…"** to name and keep your own arrangement right
   alongside them — switch back to it any time from the same dropdown, or
-  delete it when you no longer need it.
+  delete it when you no longer need it. **Needs a look** opens with a
+  **To do** list that now also calls out Recurring bills that look missed
+  or changed price, and a finished month waiting for its **month-end
+  review**. The header's **Hide amounts** button covers every dollar figure
+  with •••• for when someone's looking over your shoulder, and **Ctrl+K**
+  opens a command palette that jumps to any tab, account, goal, or
+  transaction (press **?** for the shortcut list).
 - **Accounts** — every account grouped by type (cash, credit, loan,
   investment, other), with running totals for Total Assets, Total
   Liabilities, and Net Worth — click any of those for a breakdown of what
   changed and which accounts drove it. Add, edit, or delete an account
   here, including its institution, last-4 digits, and which family member
-  it belongs to.
+  it belongs to. **Details** on a card opens that account's own page: a
+  balance-history chart, its transactions, and — for checking and savings
+  accounts — **Reconcile**, which checks your records against a
+  statement's ending balance (see FAQ). **Property & Valuables** (a home
+  or a vehicle, counted in your net worth) are at the bottom of this tab.
 - **Ledger** — every transaction, filterable by account/category/tag/family
   member, with inline category correction and tagging — either one at a
   time or, after selecting several rows, in bulk — splitting a transaction
   across multiple categories, applying a payment toward a debt account,
   and — for households tracking more than one person — assigning any
   account, transaction, goal, asset, or recurring item to a family member
-  via **"Manage family members…"**.
+  via **"Manage family members…"**. After an import (and any time from
+  **Review inbox**), a review dialog lists the transactions worth a second
+  look — uncategorized, a low-confidence guess, a possible duplicate, or
+  an unusually large charge — with a suggested category to accept, change,
+  or skip.
 - **Budget** — this month's budgeted vs. actual per category, with
   prev/next month navigation and reordering (drag a row, or use the ↑/↓
   buttons next to it). Click any category name to see every transaction
   behind that number and fix any that are miscategorized, right from that
-  screen.
+  screen. **"Suggest from 3-month average"** proposes an amount per
+  category from your recent spending, which you accept line by line. Tick
+  **"Roll over unspent"** on a category to carry what's left into next
+  month's budget (see FAQ), and **"Month-end review"** walks through a
+  finished month — what ran over, what's still uncategorized, and how
+  your goals moved.
 - **Goals** — savings goals with a target amount/date, optionally linked
   to an account and, for households, a family member, with a running
   total and contribution history. Pick a custom icon and color for each
   one, and set an optional **"Auto-contribute monthly"** amount for
   something like insurance or gifts that only comes due once a year (see
-  FAQ).
+  FAQ). A goal with a target date shows its **monthly pace** — what
+  you've actually been adding over the last three months — and whether
+  that gets it there on time. A goal linked to an account can follow that
+  account's balance so its progress updates by itself, and **"+ Add"** on
+  a card logs a contribution without leaving the page.
 - **Cash Flow** — income vs. expenses over a 3 or 6 month window (with an
   optional year-over-year comparison); click a bar to see that month's
   spending by category and any unusually large charges. The "Top
   categories"/"Top merchants" cards below are scoped to a single month
   (defaulting to the current one, with a picker to look back further) and
   show a month-over-month trend per category. Further down, a **Forecast**
-  projects your checking/savings balance 30, 60, or 90 days out, and the
+  projects your checking/savings balance 30, 60, or 90 days out — each
+  Recurring bill and paycheck lands on its due date, the lowest balance is
+  called out, and a "Coming up" list shows what's next — and the
   **Debt Payoff Planner** shows how fast your credit cards and loans clear
   under a snowball or avalanche strategy.
 - **Recurring** — a maintained list of recurring bills/income, each
   showing its next expected date and editable in place. A **Suggested**
   section above it auto-detects merchant/amount pairs in your ledger that
   look recurring but aren't tracked yet, so you can add them with one
-  click instead of typing them in by hand.
+  click instead of typing them in by hand. Each bill is also checked
+  against your transactions: it shows when a matching charge has posted,
+  flags a bill that looks **missed**, and calls out a **price change**
+  (see FAQ).
 - **Investments** — holdings per account (shares, price, cost basis) with
   computed value and gain/loss. Click **"Total gain/loss"** or **"Today's
   gain/loss"** to see which holdings are driving it. Also includes a
@@ -94,26 +122,41 @@ wallet providers.
   starting amount, a monthly contribution, and an assumed annual return.
   Prices are manual by default; optionally turn on live pricing (Settings
   tab) to auto-fill a new holding's price by symbol and keep existing ones
-  current automatically.
+  current automatically. Your portfolio's value is recorded each day you
+  open the app or refresh prices, so a **history chart** builds up over
+  time; a **Target allocation** by asset class shows how far each has
+  drifted; and **"Save as goal…"** turns a goal projection into a real
+  goal.
 - **Household** — spending and income broken down by family member for
   whichever month you're viewing, net worth by person (always as of
   today — it isn't a monthly figure the way the cards above it are), and
   a budget grid split by category and person. Anything not assigned to a
   specific person lands under "Unassigned" — see the Ledger's "Manage
   family members…" to start attributing accounts and transactions.
-- **Reports** — total saved, all-time income, spending by tag, a
-  savings-rate trend, **Property & Valuables** (manually tracked assets
-  like a home or a vehicle, folded into your net worth), net worth by
-  family member, quick summaries linking back to Goals and Budget, and
-  the CSV/PDF export and setup-data import/export tools described below.
-  Account balances and net worth by *account* live on the Accounts tab
-  instead.
+- **Reports** — pick a range (Year to date, Last 12 months, Last 6
+  months, or Last month) and see income, spending, net, and savings rate
+  for it, a Sankey diagram of income flowing to your biggest spending
+  categories (with a "Left over" or "Shortfall" flow depending on which
+  side won), a table of where the money went by category and month, a
+  daily-spending heatmap, spending by family member and by tag, a
+  year-by-year comparison, a savings-rate trend, and net worth by family
+  member — with the CSV/PDF export described below. Account balances and
+  net worth by *account*, and Property & Valuables, live on the Accounts
+  tab; the setup-data import/export is in Settings.
 - **Settings** — separate profiles (completely independent data files you
-  can create, switch, rename, and delete — see FAQ), where your data file
-  lives (and a button to move it), your backup history with a manual
-  "Back up now" and per-backup restore, an optional live stock-price
-  integration for the Investments tab, and appearance: Light/Dark/System
-  plus two visual styles — Slate and Futuristic (see FAQ).
+  can create, switch, rename, and delete — see FAQ), an optional live
+  stock-price integration for the Investments tab, and appearance:
+  Light/Dark/System plus two visual styles — Slate and Futuristic (see
+  FAQ). **Privacy** can also hide your amounts whenever the window loses
+  focus, and **Background reminders** keeps Vault Spend in the system tray
+  (optionally starting when you sign in) so bill reminders arrive with the
+  window closed. One **Data** section holds everything about your data:
+  where your data file lives (and a button to move it), your backup
+  history with a manual "Back up now", per-backup restore and an optional
+  second copy of every backup in another folder, and the bulk setup-data
+  template download and import. **Feature toggles** can hide Apply to
+  Debt, Split, Envelope Caps and **Rollover unspent** (see FAQ) everywhere
+  they appear.
 
 ## Importing transactions
 
@@ -138,12 +181,17 @@ From the **Ledger** tab, click **"Import transactions…"**:
 5. Confirm the import. Each new transaction is auto-categorized where
    possible; anything it can't confidently place is left Uncategorized
    for you to set yourself.
+6. A **Review transactions** dialog then lists the ones worth a look —
+   uncategorized, a low-confidence guess, a possible duplicate, or an
+   unusually large charge — with a suggested category to accept, change,
+   or skip. Close it any time; it's one click away under **Review
+   inbox** on the Ledger tab.
 
 ## Bulk setup-data import/export
 
 If you'd rather set up accounts, categories, budgets, goals, and
 investment holdings in bulk instead of one at a time through the UI, use
-the two buttons on the **Reports** tab:
+the two buttons in **Settings → Data → Setup data**:
 
 - **"Download setup template…"** saves one CSV file with a section for
   each of Accounts / Categories / Budgets / Goals / Holdings, with one
@@ -195,9 +243,13 @@ the installer from the release page it opens, same as any manual update —
 
 **Will I get a reminder before a bill is due?**
 If a recurring bill (Recurring tab) is due within 3 days, Vault Spend
-shows a native Windows notification — but only when you actually open the
-app. This isn't a background reminder service; it doesn't run, and can't
-notify you, while the app is closed.
+shows a native Windows notification when you open the app. To get them
+while the window is closed, turn on **Settings → Background reminders →
+"Keep Vault Spend running in the tray"**: closing the window then hides
+it to the system tray instead of quitting (the tray icon's menu opens it
+again or quits for real), and you can also have it start hidden when you
+sign in to Windows. It's off by default, and with it off nothing runs —
+or can notify you — while the app is closed.
 
 **What happens if I import the same file twice?**
 Every transaction is fingerprinted from its date, description, amount,
@@ -259,6 +311,56 @@ switch back, or select it and click **"Delete"** to remove it. Saving
 under a name you've already used replaces that layout rather than
 creating a second copy.
 
+**What does "Roll over unspent" do on a budget line?**
+Tick it on a category and whatever you don't spend there in a month is
+added to that category's budget the next month — a $400 grocery line with
+$100 left over gives you $500 to spend the month after, and the row shows
+"+ $100.00 rolled in". Going over doesn't carry a debt forward; the carry
+is never below zero. Turning it on starts fresh from the current month
+rather than reaching back into old ones, and Budget alerts and the
+month-end review count the rolled-in amount as part of the budget.
+Settings → Feature toggles has a master **Rollover unspent** switch, on by
+default: turn it off and nothing carries into a later month — the
+per-category checkboxes and "rolled in" notes disappear from Budget, while
+every budget and earlier month stays exactly as it was. Each category's own
+tick is remembered, so turning the switch back on picks up where you left
+off.
+
+**How does Vault Spend know a recurring bill was paid?**
+It looks for a charge dated from a few days before to about ten days after
+the bill's due date whose description contains the bill's merchant name —
+so name the bill the way it appears on your statement (a bill called
+"Water" won't match a charge that only says "CITY BILLING"). A matching
+charge marks the bill paid; a bill with no matching charge once that
+window has passed is flagged as missed; and a charge that comes in at a
+different amount after a steady run of identical ones is called out as a
+price change, on the Recurring tab and in your Dashboard To do. The
+cash-flow forecast doesn't count a bill that has already posted.
+
+**How do I reconcile an account against a statement?**
+On Accounts, click **Details** on a checking or savings account, enter
+the statement's ending balance, and start. Tick each transaction that
+appears on the statement; the page shows the difference between your
+cleared balance and the statement, and once it reaches $0.00 you can
+finish and Vault Spend records the reconciliation. Ticked rows stay marked
+as cleared, and a difference that won't close usually means a missing,
+mistyped, or wrongly dated transaction.
+
+**What does "Hide amounts" do?**
+The header's button covers every dollar figure in the app with •••• until
+you press it again, so you can open Vault Spend with someone next to you.
+It hides the numbers, not the shapes of charts or what a hover tooltip
+says. In Settings → Privacy you can also have the amounts hidden
+automatically whenever the window isn't in front. It's a screen privacy
+aid — your data file itself isn't encrypted or changed.
+
+**Are there keyboard shortcuts?**
+**Ctrl+K** opens a command palette: type to jump to any tab, account,
+goal, or transaction, or to run an action like adding a transaction.
+Outside a text box, **N** adds a transaction, **/** searches
+transactions, **?** shows the list, and **Esc** closes a dialog or the
+palette.
+
 **Can I split one transaction across multiple categories?**
 Yes — the Ledger's "Split →" control on any transaction lets you divide
 it into as many category/amount lines as you need, each with an optional
@@ -274,11 +376,41 @@ is negative and increases it — the same convention for both account
 types.
 
 **How is the cash-flow forecast calculated?**
-It's based on your actual history, not your listed recurring bills: it
-takes your average daily net cash flow (income minus spending) over
-roughly the last 90 days and projects that trend forward from your current
-checking/savings balance. It's meant to answer "am I trending up or down,"
-not to predict any specific upcoming bill.
+It starts from the cash in your checking and savings accounts and places
+every active bill and paycheck on your Recurring list on the day it's due,
+so a big bill shows up as a dip on its due date. Your everyday spending
+carries on at your recent average (roughly the last 90 days, leaving out
+anything already on your Recurring list and transfers between your own
+accounts, so nothing is counted twice). A canceled Recurring item is
+skipped. With nothing active in Recurring, it falls back to a smooth trend
+of your net cash flow instead.
+
+**What does "Safe to spend" mean?**
+It's your checking and savings balance, minus every Recurring bill due
+between now and your next Recurring paycheck (a bill due today or on
+payday counts), minus an optional buffer you choose to keep. It needs your
+bills and paycheck on the Recurring tab — without a paycheck it counts
+every bill in the next 45 days instead. It's a planning guide, not a
+guarantee: it doesn't know about a one-off expense that isn't on your
+Recurring list.
+
+**What is a linked transfer, and why link one?**
+Moving $500 from checking to savings creates two transactions — one out,
+one in. Left alone they'd count as $500 of spending *and* $500 of income.
+Linking them tells Vault Spend they're one move between your own accounts,
+so neither counts (whatever category they carry), and they show as a
+single "A → B" row. Vault Spend suggests pairs with equal amounts,
+opposite directions, in different accounts, within 3 days of each other;
+you can also tick any two rows and choose "Link as transfer", and unlink
+from the row at any time. Anything categorized "Transfer" is treated the
+same way.
+
+**Where can I see and change the auto-categorization rules?**
+Settings → Categorization rules lists every rule (the built-in starters and
+the ones learned from your corrections), with how many transactions each
+touches. Add, edit, or delete them there; before a rule is saved you'll see
+how many existing transactions it would change and can apply it to them in
+the same step. A rule never overrides a category you set yourself.
 
 **Can I exclude a debt from the payoff planner?**
 Yes — uncheck "Include" on that debt's row. It's meant for something like
@@ -286,7 +418,7 @@ a credit card you pay off in full every month, which isn't really debt to
 pay down and would otherwise distort the plan.
 
 **Does net worth include my property and valuables?**
-Yes — whatever you've entered under Property & Valuables (Reports tab) is
+Yes — whatever you've entered under Property & Valuables (Accounts tab) is
 included in the current net worth figure everywhere it's shown. One
 caveat on the Dashboard's net worth *trend* chart specifically: since a
 manual asset only carries a value as of today, past points on that chart
@@ -298,7 +430,12 @@ Vault Spend backs up your data file automatically once a day when you
 open it, keeping the most recent 15 (Settings tab — also has a manual
 "Back up now"). Restoring one first backs up your current data (so
 restoring is itself reversible), then loads the restored data immediately
-— no restart needed.
+— no restart needed. Under Settings → Data → Backups you can also choose a **second
+folder** — one that syncs to OneDrive or Dropbox, or a USB drive, and
+that already exists (Vault Spend won't create one from a typed path) — and
+every backup is copied there too, so one failed disk can't take your data
+and its backups together. If that folder isn't reachable, the main backup
+still happens and you're told the copy didn't.
 
 **Can I change how Vault Spend looks?**
 Yes — the Settings tab has an Appearance section with a Light/Dark/System

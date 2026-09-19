@@ -52,9 +52,17 @@ try {
   );
   console.log("YoY title:", await app.browser.$(".reports-section-title").getText());
 
-  const legendItems = await app.browser.$$(".chart-legend-item");
-  const legendTexts = [];
-  for (const el of legendItems) legendTexts.push(await el.getText());
+  // Read the legend in one go: walking a live element list while the chart re-renders threw
+  // "Index out of bounds" in a busy run.
+  const readLegend = () =>
+    app.browser.execute(() => [...document.querySelectorAll(".chart-legend-item")].map((el) => el.textContent.trim()));
+  await app.browser
+    .waitUntil(async () => {
+      const texts = await readLegend();
+      return texts.includes("This year") && texts.includes("Last year");
+    }, { timeout: 10000 })
+    .catch(() => {});
+  const legendTexts = await readLegend();
   console.log("legend:", legendTexts);
   if (!legendTexts.includes("This year") || !legendTexts.includes("Last year")) {
     throw new Error(`expected "This year"/"Last year" legend, got ${JSON.stringify(legendTexts)}`);

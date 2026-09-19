@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import type { Account, FamilyMember, Recurring, RecurringCandidate, RecurringTotals } from "./types";
+import type { Account, FamilyMember, Recurring, RecurringCandidate, RecurringMatch, RecurringTotals } from "./types";
 import { formatAmount, toLocalIsoDate } from "./format";
 import { fmtMoneyShort } from "./charts";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
@@ -22,6 +22,27 @@ function addOneYearClamped(d: Date): Date {
   const targetYear = d.getFullYear() + 1;
   const daysInTargetMonth = new Date(targetYear, d.getMonth() + 1, 0).getDate();
   return new Date(targetYear, d.getMonth(), Math.min(d.getDate(), daysInTargetMonth));
+}
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Sep 3" from a stored "YYYY-MM-DD". */
+function monthDay(iso: string): string {
+  const [, m, d] = iso.split("-").map(Number);
+  return `${MONTH_ABBR[m - 1]} ${d}`;
+}
+
+/** The one-line "did the last one actually happen?" note under a due date. */
+function matchNote(item: Recurring, match: RecurringMatch | undefined): { text: string; state: string } | null {
+  if (!match || match.state === "unmatched" || match.state === "upcoming" || !match.last_due) return null;
+  const isIncome = parseFloat(item.amount) >= 0;
+  if (match.state === "paid") {
+    return { state: "paid", text: `${isIncome ? "Received" : "Paid"} ${monthDay(match.last_paid_date ?? match.last_due)}` };
+  }
+  if (match.state === "pending") {
+    return { state: "pending", text: `Due ${monthDay(match.last_due)} — not posted yet` };
+  }
+  return { state: "missed", text: `No charge for ${monthDay(match.last_due)}` };
 }
 
 function stepDate(d: Date, cadence: string): Date {
@@ -371,6 +392,7 @@ function StatusPill({ status, onSetStatus }: { status: Recurring["status"]; onSe
 
 export function RecurringView({
   recurring,
+  matches,
   totals,
   candidates,
   accounts,
@@ -384,6 +406,8 @@ export function RecurringView({
   onDismissCandidate,
 }: {
   recurring: Recurring[];
+  /** Each item lined up against the charges actually posted. */
+  matches: RecurringMatch[];
   totals: RecurringTotals;
   candidates: RecurringCandidate[];
   accounts: Account[];
@@ -418,6 +442,13 @@ export function RecurringView({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  const matchById = new Map(matches.map((m) => [m.recurring_id, m]));
+  // A price change the amount on file already reflects has been dealt with.
+  const priceAlerts = recurring.filter((r) => {
+    const change = matchById.get(r.id)?.price_change;
+    return r.status !== "canceled" && change != null && Math.abs(parseFloat(r.amount) - parseFloat(change.to)) >= 0.005;
+  });
 
   // `recurring` already arrives sorted by next-due date — see
   // `Store::list_recurring`'s own doc comment — so no client-side sort is
@@ -509,10 +540,6 @@ export function RecurringView({
           <span className="stat-value">{formatAmount(totals.annual_income)}</span>
           <span className="stat-label">Annual recurring income (est.)</span>
         </div>
-        <div className="stat tint-accent">
-          <span className="stat-value">{recurring.length}</span>
-          <span className="stat-label">Active items</span>
-        </div>
       </div>
 
       <SuggestedRecurringSection
@@ -521,6 +548,30 @@ export function RecurringView({
         onAdd={onAddCandidate}
         onDismiss={onDismissCandidate}
       />
+
+      {priceAlerts.length > 0 && (
+        <div className="price-alerts" data-price-alerts>
+          {priceAlerts.map((r) => {
+            const change = matchById.get(r.id)!.price_change!;
+            const from = formatAmount(Math.abs(parseFloat(change.from)));
+            const to = formatAmount(Math.abs(parseFloat(change.to)));
+            return (
+              <div className="price-alert" key={r.id} data-price-alert={r.merchant}>
+                <span>
+                  <strong>{r.merchant}</strong> went from {from} to {to}.
+                </span>
+                <button
+                  type="button"
+                  className="modal-secondary"
+                  onClick={() => onUpdate(r.id, r.merchant, r.category, change.to, r.cadence, r.anchor_date, r.account_id, r.member_id)}
+                >
+                  Update to {to}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="view-toggle" role="group" aria-label="List or calendar view">
         <button type="button" className={view === "list" ? "view-toggle-active" : ""} onClick={() => setView("list")}>
@@ -584,6 +635,7 @@ export function RecurringView({
       )}
 
       {view === "list" && (
+      <div className="table-scroll">
       <table className="ledger">
         <thead>
           <tr>
@@ -630,6 +682,14 @@ export function RecurringView({
                 <td>
                   {r.next_date}
                   {isDueSoon(r.next_date) && <span className="budget-alert-badge budget-alert-warning">Due soon</span>}
+                  {(() => {
+                    const note = matchNote(r, matchById.get(r.id));
+                    return note ? (
+                      <div className={`match-note match-note-${note.state}`} data-match-state={note.state}>
+                        {note.text}
+                      </div>
+                    ) : null;
+                  })()}
                 </td>
                 <td className="amount-col">{formatAmount(r.amount)}</td>
                 <td>
@@ -668,9 +728,11 @@ export function RecurringView({
           )}
         </tbody>
       </table>
+      </div>
       )}
 
       {view === "audit" && (
+        <div className="table-scroll">
         <table className="ledger">
           <thead>
             <tr>
@@ -711,6 +773,7 @@ export function RecurringView({
             )}
           </tbody>
         </table>
+        </div>
       )}
 
       <NewRecurringForm accounts={accounts} familyMembers={familyMembers} onCreate={onCreate} />

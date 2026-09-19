@@ -22,6 +22,7 @@ export function HouseholdView({
   month,
   onPrevMonth,
   onNextMonth,
+  onManageMembers,
 }: {
   transactions: Transaction[];
   accounts: Account[];
@@ -37,6 +38,10 @@ export function HouseholdView({
   month: number;
   onPrevMonth: () => void;
   onNextMonth: () => void;
+  /** Opens the same "Manage family members" dialog the Transactions tab's
+   * "⋯" menu does, so the empty state below is one click from fixed
+   * instead of a scavenger hunt through another tab. */
+  onManageMembers: () => void;
 }) {
   if (familyMembers.length === 0) {
     return (
@@ -49,9 +54,11 @@ export function HouseholdView({
         </div>
         <div className="card">
           <p className="modal-message-secondary">
-            Add a family member (Transactions tab → "Manage family members…") to see spending and budgets broken down by
-            person.
+            Add a family member to see spending and budgets broken down by person.
           </p>
+          <button type="button" onClick={onManageMembers}>
+            Add family member…
+          </button>
         </div>
       </div>
     );
