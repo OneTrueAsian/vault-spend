@@ -28,12 +28,24 @@ impl RuleSet {
     }
 
     pub fn categorize(&self, description: &str) -> Option<String> {
+        self.best_match(description).map(|rule| rule.category.clone())
+    }
+
+    /// The rule that would categorize `description` — the same
+    /// longest-pattern-wins pick `categorize` makes, but returning the rule
+    /// itself so a caller can tell *which* rule owns a description (the
+    /// rules manager needs that to avoid a broad new rule stealing
+    /// transactions that a more specific one already claims).
+    pub fn best_match(&self, description: &str) -> Option<&Rule> {
         let description = description.to_lowercase();
         self.rules
             .iter()
             .filter(|rule| description.contains(&rule.pattern.to_lowercase()))
             .max_by_key(|rule| rule.pattern.len())
-            .map(|rule| rule.category.clone())
+    }
+
+    pub fn rules(&self) -> &[Rule] {
+        &self.rules
     }
 
     pub fn len(&self) -> usize {

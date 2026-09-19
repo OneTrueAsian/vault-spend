@@ -1,4 +1,5 @@
 import type { Account, Asset, Transaction } from "./types";
+import { isTransferTransaction } from "./transfers";
 import { isIncomeTransaction, netWorthContribution } from "./accountGroups";
 
 /** A name→amount row for a "by family member" breakdown table. */
@@ -16,7 +17,7 @@ export function spendingByMember(transactions: Transaction[]): MemberAmount[] {
   const totals = new Map<string, number>();
   for (const t of transactions) {
     const amount = parseFloat(t.amount);
-    if (amount >= 0 || !t.member_name || t.category === "Transfer") continue;
+    if (amount >= 0 || !t.member_name || isTransferTransaction(t)) continue;
     totals.set(t.member_name, (totals.get(t.member_name) ?? 0) + Math.abs(amount));
   }
   return Array.from(totals, ([name, amount]) => ({ name, amount }));

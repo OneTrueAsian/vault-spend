@@ -26,6 +26,7 @@ function account(overrides: Partial<Account> = {}): Account {
 function tx(overrides: Partial<Transaction> = {}): Transaction {
   return {
     id: Math.floor(Math.random() * 1e9),
+    transfer_counterpart_id: null,
     account_id: 1,
     account_name: "Everyday Checking",
     date: "2026-07-05",

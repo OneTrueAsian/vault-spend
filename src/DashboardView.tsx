@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { Check, Info, Leaf, LineChart as LineChartIcon, MessageCircleQuestion } from "lucide-react";
 import { CategoryIcon, BudgetGroupIcon, AccountTypeIcon, BucketIcon, IconEntryGlyph, flatIconEntry } from "./icons";
 import type {
+  BillAwareForecast,
   Account,
   AccountContributionDelta,
   Asset,
@@ -14,6 +15,7 @@ import type {
   Insight,
   NetWorthPoint,
   Recurring,
+  RecurringMatch,
   Report,
   Transaction,
 } from "./types";
@@ -36,6 +38,9 @@ import {
   type WidgetId,
 } from "./dashboardLayout";
 import { answerLedgerQuestion, LEDGER_QA_EXAMPLES, type QaResult } from "./ledgerQa";
+import { attentionItems, type AttentionKind } from "./needsAttention";
+import { effectiveBudget } from "./budgetPlan";
+import { SafeToSpendCard } from "./SafeToSpendCard";
 
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
@@ -165,6 +170,9 @@ export function DashboardView({
   spendingThisMonth,
   report,
   recurring,
+  recurringMatches,
+  monthReviewOffer,
+  onOpenMonthReview,
   transactions,
   budgetAlerts,
   insights,
@@ -188,6 +196,8 @@ export function DashboardView({
   onOpenReports,
   onOpenAccounts,
   onOpenBuckets,
+  onOpenUncategorized,
+  safeToSpendForecast,
   onAddTransaction,
   onAddAccount,
 }: {
@@ -201,6 +211,11 @@ export function DashboardView({
   spendingThisMonth: CategoryAmount[];
   report: Report | null;
   recurring: Recurring[];
+  /** How each recurring item lines up with real charges (paid / missed / price change). */
+  recurringMatches: RecurringMatch[];
+  /** Last month, while its end-of-month review is still on offer (see `monthReviewDue`). */
+  monthReviewOffer: { year: number; month: number; label: string } | null;
+  onOpenMonthReview: (year: number, month: number) => void;
   transactions: Transaction[];
   budgetAlerts: BudgetAlert[];
   insights: Insight[];
@@ -255,6 +270,11 @@ export function DashboardView({
   onOpenReports: () => void;
   onOpenAccounts: () => void;
   onOpenBuckets: () => void;
+  /** Opens Transactions already filtered to just the uncategorized ones. */
+  onOpenUncategorized: () => void;
+  /** The bill-aware forecast the "Safe to spend" widget counts down with —
+   * `null` until it loads. */
+  safeToSpendForecast: BillAwareForecast | null;
   /** Quick actions panel — same triggers the Transactions toolbar's "Add
    * transaction…" button and Accounts' "Add account…" button already use. */
   onAddTransaction: () => void;
@@ -486,6 +506,17 @@ export function DashboardView({
   // existing section here (unchanged) rather than restructuring them is
   // deliberate: the customization system should only ever reorder/hide
   // widgets, never change what's inside one.
+  // The card's rows are actions, not just facts — each one lands on the
+  // screen where the thing can actually be fixed.
+  const attention = attentionItems({ transactions, recurring, accounts, today: new Date(), recurringMatches, monthReview: monthReviewOffer });
+  function openAttention(kind: AttentionKind) {
+    if (kind === "month_review") {
+      if (monthReviewOffer) onOpenMonthReview(monthReviewOffer.year, monthReviewOffer.month);
+    } else if (kind === "uncategorized") onOpenUncategorized();
+    else if (kind === "bills_due" || kind === "bills_missed" || kind === "price_changes") onOpenRecurring();
+    else onOpenAccounts();
+  }
+
   const widgetContent: Record<FixedWidgetId, React.ReactNode> = {
     stat_net_worth: (
       <button
@@ -608,8 +639,33 @@ export function DashboardView({
       </div>
     ),
 
+    safe_to_spend: safeToSpendForecast && <SafeToSpendCard forecast={safeToSpendForecast} onOpenRecurring={onOpenRecurring} />,
+
     needs_a_look: (
       <>
+        {attention.length > 0 && (
+          <div className="card">
+            <div className="card-head">
+              <span className="reports-section-title">To do</span>
+            </div>
+            <ul className="todo-list">
+              {attention.map((item) => (
+                <li key={item.kind}>
+                  <button type="button" className="todo-row" onClick={() => openAttention(item.kind)}>
+                    <span className="todo-count">{item.count}</span>
+                    <span className="todo-text">
+                      {item.label}
+                      {item.detail && <span className="todo-detail"> — {item.detail}</span>}
+                    </span>
+                    <span className="todo-chevron" aria-hidden="true">
+                      ›
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {budgetAlerts.length > 0 && (
           <button type="button" className="budget-alert-banner" onClick={() => setShowBudgetAlerts((v) => !v)}>
             <IconEntryGlyph entry={flatIconEntry("warning-icon")} className="budget-alert-icon" />
@@ -717,7 +773,7 @@ export function DashboardView({
           {GROUP_ORDER.map((group) => {
             const lines = (report?.budget_actuals ?? []).filter((b) => b.budget_group === group);
             if (lines.length === 0) return null;
-            const budgeted = lines.reduce((s, b) => s + parseFloat(b.budgeted), 0);
+            const budgeted = lines.reduce((s, b) => s + effectiveBudget(b), 0);
             const actual = lines.reduce((s, b) => s + parseFloat(b.actual), 0);
             const pct = budgeted ? Math.min(100, (actual / budgeted) * 100) : 0;
             const over = group === "income" ? actual < budgeted : actual > budgeted;
@@ -942,7 +998,7 @@ export function DashboardView({
             </tbody>
           </table>
         ) : (
-          <p className="empty-state">Add a family member in Settings to see this breakdown.</p>
+          <p className="empty-state">Add a family member from the Household tab to see this breakdown.</p>
         )}
         <div className="clickable-row" onClick={onOpenReports} title="Go to the Reports tab" style={{ marginTop: 4 }}>
           <span className="category-link">View Reports →</span>

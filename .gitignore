@@ -43,6 +43,9 @@ db-backups/
 # AppData file, safe to test against freely.
 .dev-sandbox/
 
+# Rebuilt from scratch by `npm run demo` (e2e/demo.mjs) on every launch.
+.demo-data/
+
 # Code-signing material — never commit a private key/certificate
 *.pfx
 *.p12

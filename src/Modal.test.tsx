@@ -64,7 +64,7 @@ describe("NewAccountDialog's autoFocus survives StrictMode's dev-only double-inv
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
 
-    const input = container.querySelector('input[placeholder*="Everyday Checking"]');
+    const input = document.querySelector('input[placeholder*="Everyday Checking"]');
     expect(input).not.toBeNull();
     expect(document.activeElement).toBe(input);
   });

@@ -10,11 +10,13 @@ import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
+import datetime
+recent = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
 checking_id = cur.lastrowid
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-05", "Grocery Run", "-50.00", "Groceries", f"{checking_id}|2026-08-05|grocery run|-50.00"),
+    (checking_id, recent, "Grocery Run", "-50.00", "Groceries", f"{checking_id}|{recent}|grocery run|-50.00"),
 )
 `);
 
@@ -88,28 +90,36 @@ try {
   const accountsNav = await app.browser.$("button*=Accounts");
   await accountsNav.click();
 
-  const accountMemberSelect = await app.browser.$(".member-select");
+  // Member assignment lives in the account's Edit dialog now (it used to be
+  // an always-visible dropdown on every card).
+  const editButton = await app.browser.$("//div[contains(@class,'account-card')]//button[normalize-space()='Edit']");
+  await editButton.waitForExist({ timeout: 10000 });
+  await editButton.click();
+  const editDialog = await app.browser.$("[role='dialog']");
+  await editDialog.waitForExist({ timeout: 10000 });
+  const accountMemberSelect = await editDialog.$("//label[contains(.,'Family member')]//select");
   await accountMemberSelect.waitForExist({ timeout: 10000 });
   await accountMemberSelect.selectByVisibleText("Alex");
-  await app.browser.waitUntil(async () => (await accountMemberSelect.getValue()) !== "", {
+  await (await editDialog.$("button=Save changes")).click();
+  await app.browser.waitUntil(async () => (await (await app.browser.$(".account-card")).getText()).includes("Alex"), {
     timeout: 10000,
-    timeoutMsg: "expected the Checking account's member select to hold Alex's id after assignment",
+    timeoutMsg: "expected the Checking account card to show Alex after assignment",
   });
   console.log("Checking account assigned to Alex");
 
   const reportsNav = await app.browser.$("button*=Reports");
   await reportsNav.click();
 
-  const spendingStat = await app.browser.$("button*=Members with spending");
-  await spendingStat.waitForExist({ timeout: 10000 });
-  await spendingStat.click();
-
-  const panel = await app.browser.$(".stat-detail-panel");
-  await panel.waitForExist({ timeout: 5000 });
-  const panelText = await panel.getText();
-  console.log("reports spending-by-member panel:", panelText);
+  const membersTable = await app.browser.$("[data-report-members]");
+  await membersTable.waitForExist({ timeout: 10000 });
+  await app.browser.waitUntil(async () => (await membersTable.getText()).includes("Alex"), {
+    timeout: 10000,
+    timeoutMsg: "expected the by-member table to list Alex",
+  });
+  const panelText = await membersTable.getText();
+  console.log("reports spending-by-member table:", panelText.replace(/\s+/g, " "));
   if (!panelText.includes("Alex") || !panelText.includes("50.00")) {
-    throw new Error(`expected the panel to show Alex with $50.00, got:\n${panelText}`);
+    throw new Error(`expected the table to show Alex with $50.00, got:\n${panelText}`);
   }
 
   // The heading now sits inside its own .card-head row (alongside a "Pin

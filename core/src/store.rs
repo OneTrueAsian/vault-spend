@@ -55,6 +55,9 @@ impl CategorySource {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StoredTransaction {
     pub id: i64,
+    /// The other leg's id when this transaction is one half of a linked
+    /// transfer whose other half is also live (see `Store::link_transfer`).
+    pub transfer_counterpart_id: Option<i64>,
     pub transaction: Transaction,
     pub category_source: Option<CategorySource>,
     pub confidence: Option<f64>,
@@ -170,6 +173,14 @@ pub struct StoredBucket {
     pub sinking_amount: Option<Decimal>,
     pub color: Option<String>,
     pub icon_key: Option<String>,
+    /// Progress follows the linked account's balance instead of manual
+    /// contributions (see `Store::list_buckets_as_of`). Only takes effect
+    /// while `account_id` is set.
+    pub tracks_account: bool,
+    /// Net dollars per month the goal has been gaining over the trailing 90
+    /// days — the pace `Store::list_buckets_as_of` fills in so the UI can
+    /// project a finish date. Always zero from plain `list_buckets`.
+    pub monthly_pace: Decimal,
 }
 
 /// A registered category name plus its explicit icon override, if any — see
@@ -180,6 +191,60 @@ pub struct StoredCategory {
     pub icon_key: Option<String>,
 }
 
+/// SQL yielding the id of every transaction that is a leg of a *linked
+/// transfer* (see `Store::link_transfer`) whose two legs are both still live.
+///
+/// A linked pair is money moving between the user's own accounts — neither
+/// income nor spending, whatever category either leg carries — so every
+/// spend/income-shaped query excludes these ids exactly as it excludes the
+/// "Transfer" category. Requiring *both* legs to be live means deleting one
+/// leg (and later undoing that) never leaves its orphaned partner silently
+/// vanishing from totals: the surviving leg counts again until it's restored.
+const LIVE_TRANSFER_LEG_IDS_SQL: &str = "SELECT l.out_transaction_id FROM transfer_links l
+         JOIN transactions o ON o.id = l.out_transaction_id
+         JOIN transactions i ON i.id = l.in_transaction_id
+         WHERE o.deleted_at IS NULL AND i.deleted_at IS NULL
+     UNION
+     SELECT l.in_transaction_id FROM transfer_links l
+         JOIN transactions o ON o.id = l.out_transaction_id
+         JOIN transactions i ON i.id = l.in_transaction_id
+         WHERE o.deleted_at IS NULL AND i.deleted_at IS NULL";
+
+/// Two unlinked transactions that look like the two legs of one transfer —
+/// see `Store::transfer_candidates`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TransferCandidate {
+    /// The outgoing leg (negative amount).
+    pub out_id: i64,
+    /// The incoming leg (positive amount).
+    pub in_id: i64,
+}
+
+/// One persisted categorization rule (see `rules::Rule`) plus how many
+/// current transactions its pattern matches — what Settings' rules manager
+/// lists. `match_count` counts every live transaction whose description
+/// contains the pattern, including ones a longer, more specific rule
+/// actually wins, so read it as "how much this pattern touches", not "how
+/// many transactions it categorized".
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredRule {
+    pub pattern: String,
+    pub category: String,
+    pub match_count: usize,
+}
+
+/// What saving a rule would do to transactions already on the books — see
+/// `Store::preview_rule`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RulePreview {
+    /// Live transactions whose description contains the pattern.
+    pub matching: usize,
+    /// The subset that would actually be re-categorized: never one you
+    /// categorized yourself, never a split purchase, never one a more
+    /// specific rule owns, and not one already in the target category.
+    pub would_change: usize,
+}
+
 /// A budgeted category's monthly target and which group it's organized
 /// under (Income/Fixed/Flexible/Non-monthly).
 #[derive(Debug, Clone, PartialEq)]
@@ -188,6 +253,32 @@ pub struct BudgetLine {
     pub budget_group: String,
     pub monthly_amount: Decimal,
     pub cap_enabled: bool,
+    /// Unspent budget carries into the next month — see
+    /// `Store::monthly_budget_actuals`.
+    pub rollover_enabled: bool,
+}
+
+/// One row of the Budget page's "suggest from my recent average" preview
+/// — see `Store::suggest_budgets_from_average`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BudgetSuggestion {
+    pub category: String,
+    /// The group the line would land in: the one it already has for the
+    /// month being budgeted, otherwise Flexible.
+    pub budget_group: String,
+    /// What the month already budgets for it, if anything.
+    pub current: Option<Decimal>,
+    /// Average monthly spend over the window, rounded to a whole dollar.
+    pub suggested: Decimal,
+}
+
+/// The suggestions plus how much history they rest on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BudgetSuggestions {
+    /// How many whole months the averages cover — fewer than asked for when
+    /// the history is short, 0 when there is nothing before the month.
+    pub months_used: u32,
+    pub lines: Vec<BudgetSuggestion>,
 }
 
 /// A budgeted category's target vs. actual spend for one specific
@@ -199,6 +290,11 @@ pub struct BudgetActual {
     pub budgeted: Decimal,
     pub actual: Decimal,
     pub cap_enabled: bool,
+    pub rollover_enabled: bool,
+    /// Unspent budget carried in from earlier months (zero unless
+    /// `rollover_enabled`). What the month has to spend is `budgeted +
+    /// rollover`; `budgeted` itself stays the amount that was planned.
+    pub rollover: Decimal,
 }
 
 /// One category's target vs. one family member's share of the actual
@@ -320,6 +416,119 @@ pub struct StoredRecurring {
     pub status: String,
 }
 
+/// A recurring item's amount moving from one price to another — see
+/// `RecurringMatch::price_change`. Both are signed like the item itself
+/// (a bill is negative).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PriceChange {
+    pub from: Decimal,
+    pub to: Decimal,
+}
+
+/// How one recurring item lines up with the transactions actually posted —
+/// see `Store::recurring_matches`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RecurringMatch {
+    pub recurring_id: i64,
+    /// `"paid"` (the latest due date has a matching charge), `"pending"`
+    /// (due, nothing posted yet, still inside the grace period), `"missed"`
+    /// (past the grace period with no charge, though earlier ones exist),
+    /// `"unmatched"` (no matching charge in recent history at all — nothing
+    /// to judge by, so never called missed), `"upcoming"` (hasn't started).
+    pub state: String,
+    /// The latest due date on or before today; `None` while `"upcoming"`.
+    pub last_due: Option<NaiveDate>,
+    pub last_paid_date: Option<NaiveDate>,
+    pub last_paid_amount: Option<Decimal>,
+    /// The latest charge differs from what came before it (or from the amount
+    /// on file when there is only one) — subscription creep. Never set for a
+    /// bill that varies month to month.
+    pub price_change: Option<PriceChange>,
+}
+
+/// The opt-in "keep running in the tray" behaviour — see `src-tauri`'s
+/// tray and reminder code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BackgroundSettings {
+    /// Closing the window hides it to the tray, and bills due soon are
+    /// reminded about even while the window is closed.
+    pub tray_enabled: bool,
+    /// Vault Spend starts (hidden, in the tray) when the user signs in.
+    pub autostart_enabled: bool,
+}
+
+/// A bill that's due soon and hasn't been reminded about yet — see
+/// `Store::reminders_to_send`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BillReminder {
+    pub recurring_id: i64,
+    pub merchant: String,
+    /// Negative, like the bill itself.
+    pub amount: Decimal,
+    pub due_date: NaiveDate,
+}
+
+/// One cell of the Reports page's category-by-month table — see
+/// `Store::category_spending_by_month`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CategoryMonthAmount {
+    /// "YYYY-MM".
+    pub month: String,
+    pub category: String,
+    /// Spending as a positive number.
+    pub amount: Decimal,
+}
+
+/// Where an account's reconciliation stands against a statement — see
+/// `Store::reconciliation_status`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReconciliationStatus {
+    /// The account's opening balance plus every transaction marked cleared.
+    pub cleared_balance: Decimal,
+    /// Statement balance minus `cleared_balance`; zero means it reconciles.
+    pub difference: Decimal,
+    pub cleared_count: usize,
+}
+
+/// One transaction as the account detail page and the reconcile list show it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AccountTransaction {
+    pub id: i64,
+    pub date: NaiveDate,
+    pub description: String,
+    pub amount: Decimal,
+    pub category: Option<String>,
+    pub cleared: bool,
+}
+
+/// One budgeted expense category that overspent its month — see
+/// `Store::month_review`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OverBudgetLine {
+    pub category: String,
+    pub budgeted: Decimal,
+    pub actual: Decimal,
+}
+
+/// What the month-end review walks through for one month — see
+/// `Store::month_review`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MonthReview {
+    pub year: i32,
+    pub month: u32,
+    pub income: Decimal,
+    /// Spending as a positive number.
+    pub expenses: Decimal,
+    pub prev_income: Decimal,
+    pub prev_expenses: Decimal,
+    /// Biggest overage first.
+    pub over_budget: Vec<OverBudgetLine>,
+    pub uncategorized_count: usize,
+    /// Sum of the uncategorized transactions' absolute amounts.
+    pub uncategorized_total: Decimal,
+    pub reviewed: bool,
+}
+
 /// A pattern detected in transaction history that looks recurring but isn't yet
 /// tracked in `recurring` — see `Store::detect_recurring_candidates`.
 #[derive(Debug, Clone, PartialEq)]
@@ -385,18 +594,22 @@ pub struct StoredLivePriceSettings {
 }
 
 /// Global per-profile feature toggles, shown as switches under Settings.
-/// All three default to *on* — this table only ever hides a feature that
+/// All default to *on* — this table only ever hides a feature that
 /// otherwise already ships enabled, so an existing profile that's never
 /// touched Settings sees no behavior change. `envelope_caps_enabled: false`
 /// doesn't erase any category's stored `cap_enabled` flag (see
 /// `Store::set_budget_cap`) — it just suspends that flag's effect on the
 /// 90% threshold in `budget_alerts_for_month`, so re-enabling the feature
-/// later restores exactly what was capped before.
+/// later restores exactly what was capped before. `rollover_enabled: false`
+/// works the same way for unspent-budget rollover: each category's own
+/// `budgets.rollover_enabled` choice is left alone, but no unspent amount is
+/// carried into the next month (see `monthly_budget_actuals`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StoredAppSettings {
     pub apply_to_debt_enabled: bool,
     pub split_purchases_enabled: bool,
     pub envelope_caps_enabled: bool,
+    pub rollover_enabled: bool,
 }
 
 /// A manually-tracked asset outside the accounts model — real estate, a
@@ -444,6 +657,34 @@ pub struct DebtPayoffPlan {
 pub struct ForecastPoint {
     pub date: NaiveDate,
     pub balance: Decimal,
+}
+
+/// One dated bill or paycheck from the Recurring list that the bill-aware
+/// forecast places on its due date. `amount` is signed like a transaction:
+/// negative is money out.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ForecastEvent {
+    pub date: NaiveDate,
+    pub label: String,
+    pub amount: Decimal,
+}
+
+/// See `Store::bill_aware_forecast`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BillAwareForecast {
+    /// `false` when there was nothing active in Recurring to place on the
+    /// calendar, so `points` is just the plain trend forecast.
+    pub uses_recurring: bool,
+    /// Cash (checking + savings) in the accounts right now.
+    pub start_balance: Decimal,
+    /// End-of-day balance for today (index 0) and each day after it.
+    pub points: Vec<ForecastPoint>,
+    /// Every recurring occurrence in the window, in date order.
+    pub events: Vec<ForecastEvent>,
+    /// Net everyday cash flow per day from history *other than* the
+    /// recurring items and transfers — usually negative (groceries, gas,
+    /// dining out), applied to every projected day.
+    pub daily_baseline: Decimal,
 }
 
 /// A household member a piece of data can be attributed to (see
@@ -759,6 +1000,34 @@ impl Store {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE COLLATE NOCASE
             );
+            CREATE TABLE IF NOT EXISTS reconciliations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                statement_date TEXT NOT NULL,
+                statement_balance TEXT NOT NULL,
+                finished_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                date TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS allocation_targets (
+                asset_class TEXT PRIMARY KEY,
+                percent TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS anomaly_dismissals (
+                transaction_id INTEGER NOT NULL,
+                kind TEXT NOT NULL,
+                PRIMARY KEY (transaction_id, kind)
+            );
+            CREATE TABLE IF NOT EXISTS month_reviews (
+                period TEXT PRIMARY KEY
+            );
+            CREATE TABLE IF NOT EXISTS transfer_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                out_transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id),
+                in_transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id)
+            );
             CREATE TABLE IF NOT EXISTS live_price_settings (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 api_key TEXT,
@@ -772,7 +1041,18 @@ impl Store {
                 apply_to_debt_enabled INTEGER NOT NULL DEFAULT 1,
                 split_purchases_enabled INTEGER NOT NULL DEFAULT 1,
                 envelope_caps_enabled INTEGER NOT NULL DEFAULT 1,
-                loan_sign_convention_migrated INTEGER NOT NULL DEFAULT 0
+                loan_sign_convention_migrated INTEGER NOT NULL DEFAULT 0,
+                default_rules_seeded INTEGER NOT NULL DEFAULT 0,
+                backup_copy_dir TEXT,
+                tray_enabled INTEGER NOT NULL DEFAULT 0,
+                autostart_enabled INTEGER NOT NULL DEFAULT 0,
+                rollover_enabled INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS reminders_sent (
+                recurring_id INTEGER NOT NULL,
+                due_date TEXT NOT NULL,
+                sent_on TEXT NOT NULL,
+                PRIMARY KEY (recurring_id, due_date)
             );",
         )?;
         self.migrate_add_account_id_if_missing()?;
@@ -788,6 +1068,12 @@ impl Store {
         self.migrate_add_bucket_extras_if_missing()?;
         self.migrate_add_bucket_sinking_amount_if_missing()?;
         self.migrate_add_bucket_color_if_missing()?;
+        self.migrate_add_bucket_tracks_account_if_missing()?;
+        self.migrate_add_backup_copy_dir_if_missing()?;
+        self.migrate_add_rollover_to_budgets_if_missing()?;
+        self.migrate_add_cleared_to_transactions_if_missing()?;
+        self.migrate_add_background_settings_if_missing()?;
+        self.migrate_add_rollover_setting_if_missing()?;
         self.migrate_add_bucket_icon_key_if_missing()?;
         self.migrate_add_account_icon_key_if_missing()?;
         self.migrate_add_category_icon_key_if_missing()?;
@@ -803,6 +1089,7 @@ impl Store {
         self.migrate_add_holdings_prev_close_if_missing()?;
         self.migrate_fix_stale_manual_balance_override_reset_dates()?;
         self.migrate_add_loan_sign_convention_migrated_if_missing()?;
+        self.migrate_add_default_rules_seeded_if_missing()?;
         self.migrate_flip_loan_transaction_signs_if_needed()?;
         self.migrate_add_principal_amount_if_missing()?;
         // These reference columns only guaranteed to exist once every
@@ -956,6 +1243,33 @@ impl Store {
         }
 
         self.conn.execute("ALTER TABLE buckets ADD COLUMN sinking_amount TEXT", [])?;
+        Ok(())
+    }
+
+    /// Same pattern once more: `tracks_account` makes a goal's progress follow
+    /// its linked account's balance rather than logged contributions. `0`
+    /// (the default for every pre-existing row) keeps the old behavior — the
+    /// linked account stays purely informational until the user opts in.
+    fn migrate_add_bucket_tracks_account_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(buckets)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_column = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            if column_name == "tracks_account" {
+                has_column = true;
+                break;
+            }
+        }
+        drop(rows);
+        drop(stmt);
+
+        if has_column {
+            return Ok(());
+        }
+
+        self.conn
+            .execute("ALTER TABLE buckets ADD COLUMN tracks_account INTEGER NOT NULL DEFAULT 0", [])?;
         Ok(())
     }
 
@@ -1397,6 +1711,158 @@ impl Store {
             "ALTER TABLE app_settings ADD COLUMN loan_sign_convention_migrated INTEGER NOT NULL DEFAULT 0",
             [],
         )?;
+        Ok(())
+    }
+
+    /// Same missing-column pattern as the migration just above: a database
+    /// from before the rules manager has no `default_rules_seeded` column on
+    /// `app_settings`. `0` (not yet seeded) is the right backfill —
+    /// `seed_default_rules_once` is what acts on it, and it leaves a
+    /// database that already has rules alone.
+    fn migrate_add_default_rules_seeded_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(app_settings)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_column = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            if column_name == "default_rules_seeded" {
+                has_column = true;
+                break;
+            }
+        }
+        drop(rows);
+        drop(stmt);
+
+        if has_column {
+            return Ok(());
+        }
+
+        self.conn
+            .execute("ALTER TABLE app_settings ADD COLUMN default_rules_seeded INTEGER NOT NULL DEFAULT 0", [])?;
+        Ok(())
+    }
+
+    /// The global "Rollover unspent" switch. On (`1`) for every pre-existing
+    /// database, so nobody's budgets change until they turn it off themselves.
+    fn migrate_add_rollover_setting_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(app_settings)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_column = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            has_column |= column_name == "rollover_enabled";
+        }
+        drop(rows);
+        drop(stmt);
+
+        if !has_column {
+            self.conn
+                .execute("ALTER TABLE app_settings ADD COLUMN rollover_enabled INTEGER NOT NULL DEFAULT 1", [])?;
+        }
+        Ok(())
+    }
+
+    /// Same pattern once more: the opt-in "run in the tray and remind me about
+    /// bills" setting and its "start when I sign in" companion. Both off (`0`)
+    /// for every pre-existing database.
+    fn migrate_add_background_settings_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(app_settings)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_tray = false;
+        let mut has_autostart = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            has_tray |= column_name == "tray_enabled";
+            has_autostart |= column_name == "autostart_enabled";
+        }
+        drop(rows);
+        drop(stmt);
+
+        if !has_tray {
+            self.conn
+                .execute("ALTER TABLE app_settings ADD COLUMN tray_enabled INTEGER NOT NULL DEFAULT 0", [])?;
+        }
+        if !has_autostart {
+            self.conn
+                .execute("ALTER TABLE app_settings ADD COLUMN autostart_enabled INTEGER NOT NULL DEFAULT 0", [])?;
+        }
+        Ok(())
+    }
+
+    /// Same pattern once more: `cleared` marks a transaction as having shown up
+    /// on a bank statement — what reconciliation ticks off. `0` for every
+    /// pre-existing row; nothing else in the app reads it.
+    fn migrate_add_cleared_to_transactions_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(transactions)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_column = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            if column_name == "cleared" {
+                has_column = true;
+                break;
+            }
+        }
+        drop(rows);
+        drop(stmt);
+
+        if has_column {
+            return Ok(());
+        }
+
+        self.conn
+            .execute("ALTER TABLE transactions ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0", [])?;
+        Ok(())
+    }
+
+    /// Same pattern once more: `rollover_enabled` lets a budget line carry its
+    /// unspent money into the next month. Off (`0`) for every pre-existing
+    /// row, so no budget changes until the user opts a category in.
+    fn migrate_add_rollover_to_budgets_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(budgets)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_column = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            if column_name == "rollover_enabled" {
+                has_column = true;
+                break;
+            }
+        }
+        drop(rows);
+        drop(stmt);
+
+        if has_column {
+            return Ok(());
+        }
+
+        self.conn
+            .execute("ALTER TABLE budgets ADD COLUMN rollover_enabled INTEGER NOT NULL DEFAULT 0", [])?;
+        Ok(())
+    }
+
+    /// Same pattern once more: an optional second folder every backup is also
+    /// copied to (see `src-tauri/src/backups.rs`). `NULL` — the default for
+    /// every pre-existing database — means the feature is off.
+    fn migrate_add_backup_copy_dir_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(app_settings)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_column = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            if column_name == "backup_copy_dir" {
+                has_column = true;
+                break;
+            }
+        }
+        drop(rows);
+        drop(stmt);
+
+        if has_column {
+            return Ok(());
+        }
+
+        self.conn.execute("ALTER TABLE app_settings ADD COLUMN backup_copy_dir TEXT", [])?;
         Ok(())
     }
 
@@ -1888,6 +2354,174 @@ impl Store {
         } else {
             Ok(base_value + total)
         }
+    }
+
+    /// Marks transactions as cleared (they appeared on a statement) or not.
+    pub fn set_transactions_cleared(&self, ids: &[i64], cleared: bool) -> rusqlite::Result<()> {
+        for id in ids {
+            self.conn
+                .execute("UPDATE transactions SET cleared = ?1 WHERE id = ?2", params![cleared, id])?;
+        }
+        Ok(())
+    }
+
+    /// The cleared balance (opening balance plus every cleared, non-deleted
+    /// transaction) against a statement's ending balance. Deliberately built
+    /// from the account's opening balance and the ticked transactions alone,
+    /// not from `current_balance` — that one moves with every uncleared
+    /// transaction and any balance correction, and a reconciliation is only
+    /// asking whether the *statement's* transactions add up.
+    pub fn reconciliation_status(&self, account_id: i64, statement_balance: Decimal) -> rusqlite::Result<ReconciliationStatus> {
+        let starting: String = self
+            .conn
+            .query_row("SELECT starting_balance FROM accounts WHERE id = ?1", params![account_id], |row| {
+                row.get(0)
+            })?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT amount FROM transactions WHERE account_id = ?1 AND cleared = 1 AND deleted_at IS NULL")?;
+        let amounts = stmt
+            .query_map(params![account_id], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let cleared_sum: Decimal = amounts
+            .iter()
+            .map(|a| Decimal::from_str(a).expect("amount stored by this crate must be valid"))
+            .sum();
+        let cleared_balance = Decimal::from_str(&starting).expect("starting_balance stored by this crate must be valid") + cleared_sum;
+        Ok(ReconciliationStatus {
+            cleared_balance,
+            difference: statement_balance - cleared_balance,
+            cleared_count: amounts.len(),
+        })
+    }
+
+    /// Records a finished reconciliation — but only when the difference is
+    /// exactly zero. Returns whether it was recorded; a non-zero difference
+    /// records nothing.
+    pub fn finish_reconciliation(
+        &self,
+        account_id: i64,
+        statement_date: NaiveDate,
+        statement_balance: Decimal,
+        now: NaiveDateTime,
+    ) -> rusqlite::Result<bool> {
+        if self.reconciliation_status(account_id, statement_balance)?.difference != Decimal::ZERO {
+            return Ok(false);
+        }
+        self.conn.execute(
+            "INSERT INTO reconciliations (account_id, statement_date, statement_balance, finished_at) VALUES (?1, ?2, ?3, ?4)",
+            params![account_id, statement_date.to_string(), statement_balance.to_string(), now.to_string()],
+        )?;
+        Ok(true)
+    }
+
+    /// The statement date and balance of the account's most recent finished
+    /// reconciliation, if it has had one.
+    pub fn last_reconciliation(&self, account_id: i64) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
+        match self.conn.query_row(
+            "SELECT statement_date, statement_balance FROM reconciliations
+             WHERE account_id = ?1 ORDER BY statement_date DESC, id DESC LIMIT 1",
+            params![account_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        ) {
+            Ok((date, balance)) => Ok(Some((
+                NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
+                Decimal::from_str(&balance).expect("balance stored by this crate must be valid"),
+            ))),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn account_transactions_where(
+        &self,
+        account_id: i64,
+        extra: &str,
+        limit: i64,
+        statement_date: Option<NaiveDate>,
+    ) -> rusqlite::Result<Vec<AccountTransaction>> {
+        let sql = format!(
+            "SELECT id, date, description, amount, category, cleared FROM transactions
+             WHERE account_id = ?1 AND deleted_at IS NULL {extra}
+             ORDER BY date DESC, id DESC LIMIT ?2"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let map_row = |row: &rusqlite::Row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, bool>(5)?,
+            ))
+        };
+        let rows = match statement_date {
+            Some(date) => stmt
+                .query_map(params![account_id, limit, date.to_string()], map_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+            None => stmt
+                .query_map(params![account_id, limit], map_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+        };
+        Ok(rows
+            .into_iter()
+            .map(|(id, date, description, amount, category, cleared)| AccountTransaction {
+                id,
+                date: NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
+                description,
+                amount: Decimal::from_str(&amount).expect("amount stored by this crate must be valid"),
+                category,
+                cleared,
+            })
+            .collect())
+    }
+
+    /// An account's most recent transactions, newest first, each with its
+    /// cleared flag.
+    pub fn list_account_transactions(&self, account_id: i64, limit: usize) -> rusqlite::Result<Vec<AccountTransaction>> {
+        self.account_transactions_where(account_id, "", limit as i64, None)
+    }
+
+    /// The transactions to tick through for a statement ending on
+    /// `statement_date`: everything dated on or before it that hasn't been
+    /// cleared yet, plus what was cleared since the last finished
+    /// reconciliation (so an earlier tick can still be undone). Anything
+    /// cleared before that reconciliation is settled and stays out of the way.
+    pub fn reconcile_candidates(&self, account_id: i64, statement_date: NaiveDate) -> rusqlite::Result<Vec<AccountTransaction>> {
+        let settled_through = self.last_reconciliation(account_id)?.map(|(date, _)| date);
+        let extra = match settled_through {
+            Some(date) => format!("AND date <= ?3 AND (cleared = 0 OR date > '{date}')"),
+            None => "AND date <= ?3".to_string(),
+        };
+        self.account_transactions_where(account_id, &extra, i64::MAX, Some(statement_date))
+    }
+
+    /// An account's balance at the end of each of the last `months` months,
+    /// the final point being `today` itself — the account detail page's
+    /// balance chart. Built from the account's transactions, the same as
+    /// `list_accounts`'s balance for it; an investment account's holdings
+    /// aren't tracked historically, so its history shows only its cash side.
+    pub fn account_balance_history(&self, account_id: i64, today: NaiveDate, months: u32) -> rusqlite::Result<Vec<(NaiveDate, Decimal)>> {
+        let (account_type, starting): (String, String) = self.conn.query_row(
+            "SELECT account_type, starting_balance FROM accounts WHERE id = ?1",
+            params![account_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        let starting = Decimal::from_str(&starting).expect("starting_balance stored by this crate must be valid");
+
+        let mut history = Vec::with_capacity(months as usize);
+        for back in (0..months).rev() {
+            let as_of = if back == 0 {
+                today
+            } else {
+                let index = i64::from(today.year()) * 12 + i64::from(today.month()) - 1 - i64::from(back);
+                let (y, m) = (index.div_euclid(12) as i32, (index.rem_euclid(12) + 1) as u32);
+                month_bounds(y, m).1.pred_opt().expect("a month's last day exists")
+            };
+            history.push((as_of, self.account_balance_as_of(account_id, &account_type, starting, as_of)?));
+        }
+        Ok(history)
     }
 
     /// Every investment account's total holdings value (`SUM(shares *
@@ -2486,6 +3120,352 @@ impl Store {
         Ok(RuleSet::new(rules))
     }
 
+    /// Persists the built-in starter rules (`RuleSet::seeded`) the first
+    /// time it's called on a database that has none, then never again.
+    ///
+    /// The starter set used to live only in memory, as a fallback for an
+    /// *empty* rules table — so the moment a user's first correction saved
+    /// one learned rule, the starters silently vanished on the next launch.
+    /// Persisting them makes every rule visible and deletable in the rules
+    /// manager, and the one-time flag (`app_settings.default_rules_seeded`)
+    /// is what lets "delete every rule" actually stick instead of
+    /// re-seeding an empty table each launch. A database that already has
+    /// rules gets the flag set without any defaults added — it's had its
+    /// own history with them. Returns whether defaults were inserted.
+    pub fn seed_default_rules_once(&self) -> rusqlite::Result<bool> {
+        let already_seeded: bool = self
+            .conn
+            .query_row("SELECT default_rules_seeded FROM app_settings WHERE id = 1", [], |row| row.get(0))
+            .unwrap_or(false);
+        if already_seeded {
+            return Ok(false);
+        }
+
+        let has_rules: bool = self.conn.query_row("SELECT EXISTS(SELECT 1 FROM rules)", [], |row| row.get(0))?;
+        let mut inserted = false;
+        if !has_rules {
+            for rule in RuleSet::seeded().rules() {
+                self.upsert_rule(&rule.pattern, &rule.category)?;
+            }
+            inserted = true;
+        }
+        self.conn.execute(
+            "INSERT INTO app_settings (id, default_rules_seeded) VALUES (1, 1)
+             ON CONFLICT(id) DO UPDATE SET default_rules_seeded = 1",
+            [],
+        )?;
+        Ok(inserted)
+    }
+
+    /// Descriptions of every live transaction, lowercased — what a rule's
+    /// pattern is matched against. Excludes `apply_debt_payment`'s generated
+    /// transactions, same as `all_transactions`.
+    fn live_descriptions_lowercased(&self) -> rusqlite::Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT description FROM transactions
+             WHERE deleted_at IS NULL AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)",
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?.to_lowercase());
+        }
+        Ok(result)
+    }
+
+    /// Every persisted rule with how many transactions its pattern matches,
+    /// grouped by category (then pattern) — the rules manager's list.
+    pub fn list_rules(&self) -> rusqlite::Result<Vec<StoredRule>> {
+        let rules = self.load_rules()?;
+        let descriptions = self.live_descriptions_lowercased()?;
+        let mut result: Vec<StoredRule> = rules
+            .rules()
+            .iter()
+            .map(|rule| {
+                let needle = rule.pattern.trim().to_lowercase();
+                let match_count = if needle.is_empty() {
+                    0
+                } else {
+                    descriptions.iter().filter(|d| d.contains(&needle)).count()
+                };
+                StoredRule {
+                    pattern: rule.pattern.clone(),
+                    category: rule.category.clone(),
+                    match_count,
+                }
+            })
+            .collect();
+        result.sort_by(|a, b| {
+            a.category
+                .to_lowercase()
+                .cmp(&b.category.to_lowercase())
+                .then_with(|| a.pattern.to_lowercase().cmp(&b.pattern.to_lowercase()))
+        });
+        Ok(result)
+    }
+
+    /// Removes a rule. Never touches a transaction it already categorized —
+    /// deleting a rule only stops it applying from now on. An unknown
+    /// pattern is a harmless no-op.
+    pub fn delete_rule(&self, pattern: &str) -> rusqlite::Result<()> {
+        self.conn.execute("DELETE FROM rules WHERE pattern = ?1", params![pattern])?;
+        Ok(())
+    }
+
+    /// Edits a rule in place: drops `old_pattern` and saves `new_pattern` →
+    /// `category` (which may be the same pattern with a different category,
+    /// or a reworded pattern).
+    pub fn rename_rule(&self, old_pattern: &str, new_pattern: &str, category: &str) -> rusqlite::Result<()> {
+        self.delete_rule(old_pattern)?;
+        self.upsert_rule(new_pattern, category)
+    }
+
+    /// The transactions saving `pattern` → `category` would re-categorize,
+    /// and how many the pattern touches at all. `replacing` names an
+    /// existing rule the new one is standing in for (an edit), so a
+    /// longer old pattern can't shadow the edited one in the preview.
+    ///
+    /// A transaction is only changed if the rule would genuinely own it
+    /// (longest matching pattern wins, exactly as at import time) and it
+    /// isn't one the user categorized by hand, a split purchase, or already
+    /// in the target category.
+    fn rule_candidates(&self, pattern: &str, category: &str, replacing: Option<&str>) -> rusqlite::Result<(usize, Vec<i64>)> {
+        let pattern = pattern.trim();
+        if pattern.is_empty() {
+            return Ok((0, Vec::new()));
+        }
+
+        let mut rules = RuleSet::new(
+            self.load_rules()?
+                .rules()
+                .iter()
+                .filter(|r| replacing.is_none_or(|old| !r.pattern.eq_ignore_ascii_case(old)))
+                .cloned()
+                .collect(),
+        );
+        rules.upsert(pattern, category);
+        let needle = pattern.to_lowercase();
+
+        let split_parents: std::collections::HashSet<i64> = {
+            let mut stmt = self.conn.prepare("SELECT DISTINCT transaction_id FROM transaction_splits")?;
+            let rows = stmt.query_map([], |row| row.get::<_, i64>(0))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+
+        let mut stmt = self.conn.prepare(
+            "SELECT id, description, category, category_source FROM transactions
+             WHERE deleted_at IS NULL AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        })?;
+
+        let mut matching = 0;
+        let mut ids = Vec::new();
+        for row in rows {
+            let (id, description, current_category, source) = row?;
+            if !description.to_lowercase().contains(&needle) {
+                continue;
+            }
+            matching += 1;
+            if source.as_deref() == Some("user") || split_parents.contains(&id) {
+                continue;
+            }
+            if current_category.as_deref() == Some(category) {
+                continue;
+            }
+            let owned_by_this_rule = rules
+                .best_match(&description)
+                .is_some_and(|winner| winner.pattern.eq_ignore_ascii_case(pattern));
+            if owned_by_this_rule {
+                ids.push(id);
+            }
+        }
+        Ok((matching, ids))
+    }
+
+    /// See `rule_candidates` — the read-only "here's what saving this would
+    /// do" the rules manager shows before you commit.
+    pub fn preview_rule(&self, pattern: &str, category: &str, replacing: Option<&str>) -> rusqlite::Result<RulePreview> {
+        let (matching, ids) = self.rule_candidates(pattern, category, replacing)?;
+        Ok(RulePreview {
+            matching,
+            would_change: ids.len(),
+        })
+    }
+
+    /// Re-categorizes exactly the transactions `preview_rule` counts, as
+    /// rule-sourced (so a later user correction still outranks it). Returns
+    /// how many changed.
+    pub fn apply_rule_to_existing(&self, pattern: &str, category: &str) -> rusqlite::Result<usize> {
+        let (_, ids) = self.rule_candidates(pattern, category, None)?;
+        for id in &ids {
+            self.set_category(*id, category, CategorySource::Rule, None)?;
+        }
+        Ok(ids.len())
+    }
+
+    /// Links two transactions as the two legs of one transfer between the
+    /// user's own accounts, so neither counts as income or spending (see
+    /// `LIVE_TRANSFER_LEG_IDS_SQL`). The ids can come in either order — the
+    /// negative one is recorded as the outgoing leg.
+    ///
+    /// Returns `false` (and links nothing) when the pair can't be a
+    /// transfer: either transaction is missing or deleted, they're in the
+    /// same account, they don't go in opposite directions, or either is
+    /// already half of another link. Amounts are *not* required to match —
+    /// a transfer with a fee legitimately leaves the legs a few dollars
+    /// apart; `transfer_candidates` only *suggests* exact matches.
+    pub fn link_transfer(&self, a: i64, b: i64) -> rusqlite::Result<bool> {
+        let leg = |id: i64| -> rusqlite::Result<Option<(i64, Decimal)>> {
+            match self.conn.query_row(
+                "SELECT account_id, amount FROM transactions WHERE id = ?1 AND deleted_at IS NULL",
+                params![id],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+            ) {
+                Ok((account_id, amount)) => Ok(Some((
+                    account_id,
+                    Decimal::from_str(&amount).expect("amount stored by this crate must be valid"),
+                ))),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e),
+            }
+        };
+        let (Some((account_a, amount_a)), Some((account_b, amount_b))) = (leg(a)?, leg(b)?) else {
+            return Ok(false);
+        };
+        if a == b || account_a == account_b {
+            return Ok(false);
+        }
+        let (out_id, in_id) = match (
+            amount_a < Decimal::ZERO,
+            amount_b < Decimal::ZERO,
+            amount_a > Decimal::ZERO,
+            amount_b > Decimal::ZERO,
+        ) {
+            (true, _, _, true) => (a, b),
+            (_, true, true, _) => (b, a),
+            _ => return Ok(false),
+        };
+        let already_linked: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM transfer_links
+                           WHERE out_transaction_id IN (?1, ?2) OR in_transaction_id IN (?1, ?2))",
+            params![out_id, in_id],
+            |row| row.get(0),
+        )?;
+        if already_linked {
+            return Ok(false);
+        }
+        self.conn.execute(
+            "INSERT INTO transfer_links (out_transaction_id, in_transaction_id) VALUES (?1, ?2)",
+            params![out_id, in_id],
+        )?;
+        Ok(true)
+    }
+
+    /// Removes the link a transaction is part of, from either leg. A no-op
+    /// when it isn't linked. The transactions themselves are untouched —
+    /// they simply count as ordinary income/spending again.
+    pub fn unlink_transfer(&self, transaction_id: i64) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "DELETE FROM transfer_links WHERE out_transaction_id = ?1 OR in_transaction_id = ?1",
+            params![transaction_id],
+        )?;
+        Ok(())
+    }
+
+    /// Unlinked pairs that look like the two legs of one transfer: opposite
+    /// signs, exactly equal amounts, different accounts, dated within 3 days
+    /// of each other. Each transaction appears in at most one suggestion —
+    /// candidate pairs are taken closest-date-first (then by id), so when a
+    /// $500 out could match two $500 ins, the nearer one wins. Never
+    /// includes `apply_debt_payment`'s generated bookkeeping rows or deleted
+    /// transactions.
+    pub fn transfer_candidates(&self) -> rusqlite::Result<Vec<TransferCandidate>> {
+        struct Leg {
+            id: i64,
+            account_id: i64,
+            date: NaiveDate,
+            amount: Decimal,
+        }
+        let mut stmt = self.conn.prepare(
+            "SELECT id, account_id, date, amount FROM transactions
+             WHERE deleted_at IS NULL
+                   AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND id NOT IN (SELECT out_transaction_id FROM transfer_links)
+                   AND id NOT IN (SELECT in_transaction_id FROM transfer_links)
+             ORDER BY id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })?;
+        let mut outs = Vec::new();
+        let mut ins = Vec::new();
+        for row in rows {
+            let (id, account_id, date, amount) = row?;
+            let leg = Leg {
+                id,
+                account_id,
+                date: NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
+                amount: Decimal::from_str(&amount).expect("amount stored by this crate must be valid"),
+            };
+            if leg.amount < Decimal::ZERO {
+                outs.push(leg);
+            } else if leg.amount > Decimal::ZERO {
+                ins.push(leg);
+            }
+        }
+
+        // Bucket the incoming legs by amount so each outgoing leg only looks at
+        // same-amount candidates — comparing every out against every in is
+        // quadratic, which is seconds of work on a few thousand transactions.
+        // Keyed by the normalized decimal string so "500.0" and "500.00" meet.
+        let mut ins_by_amount: std::collections::HashMap<String, Vec<&Leg>> = std::collections::HashMap::new();
+        for inn in &ins {
+            ins_by_amount.entry(inn.amount.normalize().to_string()).or_default().push(inn);
+        }
+
+        let mut pairs: Vec<(i64, i64, i64)> = Vec::new(); // (days apart, out id, in id)
+        for out in &outs {
+            let Some(same_amount) = ins_by_amount.get(&out.amount.abs().normalize().to_string()) else {
+                continue;
+            };
+            for inn in same_amount {
+                if out.account_id == inn.account_id {
+                    continue;
+                }
+                let days = (out.date - inn.date).num_days().abs();
+                if days <= 3 {
+                    pairs.push((days, out.id, inn.id));
+                }
+            }
+        }
+        pairs.sort();
+
+        let mut used = std::collections::HashSet::new();
+        let mut result = Vec::new();
+        for (_, out_id, in_id) in pairs {
+            if used.contains(&out_id) || used.contains(&in_id) {
+                continue;
+            }
+            used.insert(out_id);
+            used.insert(in_id);
+            result.push(TransferCandidate { out_id, in_id });
+        }
+        result.sort_by_key(|c| c.out_id);
+        Ok(result)
+    }
+
     /// (description, category) for every transaction categorized by a rule
     /// or confirmed by the user — the training corpus for
     /// `Classifier::train`. Deliberately excludes the classifier's own past
@@ -2776,7 +3756,15 @@ impl Store {
                     dp.debt_account_id, da.name, dp.amount,
                     (SELECT COUNT(*) FROM transaction_splits ts WHERE ts.transaction_id = t.id),
                     GROUP_CONCAT(tt.tag, char(31)),
-                    t.member_id, fm.name, t.principal_amount
+                    t.member_id, fm.name, t.principal_amount,
+                    COALESCE(
+                        (SELECT l.in_transaction_id FROM transfer_links l
+                         JOIN transactions o ON o.id = l.in_transaction_id
+                         WHERE l.out_transaction_id = t.id AND o.deleted_at IS NULL),
+                        (SELECT l.out_transaction_id FROM transfer_links l
+                         JOIN transactions o ON o.id = l.out_transaction_id
+                         WHERE l.in_transaction_id = t.id AND o.deleted_at IS NULL)
+                    )
              FROM transactions t
              JOIN accounts a ON a.id = t.account_id
              LEFT JOIN debt_payments dp ON dp.source_transaction_id = t.id
@@ -2806,6 +3794,7 @@ impl Store {
                 row.get::<_, Option<i64>>(14)?,
                 row.get::<_, Option<String>>(15)?,
                 row.get::<_, Option<String>>(16)?,
+                row.get::<_, Option<i64>>(17)?,
             ))
         })?;
 
@@ -2829,6 +3818,7 @@ impl Store {
                 member_id,
                 member_name,
                 principal_amount_str,
+                transfer_counterpart_id,
             ) = row?;
             let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
             let amount = Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
@@ -2844,6 +3834,7 @@ impl Store {
             let principal_amount = principal_amount_str.map(|s| Decimal::from_str(&s).expect("amount stored by this crate must be valid"));
             result.push(StoredTransaction {
                 id,
+                transfer_counterpart_id,
                 transaction: Transaction {
                     date,
                     description,
@@ -3582,6 +4573,16 @@ impl Store {
         Ok(())
     }
 
+    /// Turns "progress follows the linked account's balance" on or off for a
+    /// goal — a dedicated single-field setter, same convention as
+    /// `set_bucket_member`, so `create_bucket`/`update_bucket_details` never
+    /// change shape. An unknown id is a harmless no-op.
+    pub fn set_bucket_tracks_account(&self, id: i64, tracks_account: bool) -> rusqlite::Result<()> {
+        self.conn
+            .execute("UPDATE buckets SET tracks_account = ?1 WHERE id = ?2", params![tracks_account, id])?;
+        Ok(())
+    }
+
     /// Every bucket, each with its saved amount computed fresh from its
     /// contributions (0 for a bucket with none yet) rather than trusted
     /// from a stored running total. The sum is done in Rust with `Decimal`,
@@ -3591,7 +4592,8 @@ impl Store {
     pub fn list_buckets(&self) -> rusqlite::Result<Vec<StoredBucket>> {
         let mut stmt = self.conn.prepare(
             "SELECT b.id, b.name, b.target_amount, b.target_date, b.account_id, a.name,
-                    GROUP_CONCAT(c.amount, '|'), b.member_id, fm.name, b.sinking_amount, b.color, b.icon_key
+                    GROUP_CONCAT(c.amount, '|'), b.member_id, fm.name, b.sinking_amount, b.color, b.icon_key,
+                    b.tracks_account
              FROM buckets b
              LEFT JOIN accounts a ON a.id = b.account_id
              LEFT JOIN bucket_contributions c ON c.bucket_id = b.id
@@ -3613,6 +4615,7 @@ impl Store {
                 row.get::<_, Option<String>>(9)?,
                 row.get::<_, Option<String>>(10)?,
                 row.get::<_, Option<String>>(11)?,
+                row.get::<_, bool>(12)?,
             ))
         })?;
 
@@ -3631,6 +4634,7 @@ impl Store {
                 sinking_amount,
                 color,
                 icon_key,
+                tracks_account,
             ) = row?;
             let saved_amount = contributions
                 .map(|joined| {
@@ -3653,9 +4657,66 @@ impl Store {
                 sinking_amount: sinking_amount.map(|a| Decimal::from_str(&a).expect("amount stored by this crate must be valid")),
                 color,
                 icon_key,
+                tracks_account,
+                monthly_pace: Decimal::ZERO,
             });
         }
         Ok(result)
+    }
+
+    /// `list_buckets` plus what needs a date: a goal that tracks its linked
+    /// account reports that account's current balance (never below zero) as
+    /// `saved_amount`, and every goal gets its trailing-90-day
+    /// `monthly_pace` — for a tracking goal the account's net transaction
+    /// change, otherwise the net of its logged contributions.
+    pub fn list_buckets_as_of(&self, today: NaiveDate) -> rusqlite::Result<Vec<StoredBucket>> {
+        let mut buckets = self.list_buckets()?;
+        let balances: std::collections::HashMap<i64, Decimal> = if buckets.iter().any(|b| b.tracks_account && b.account_id.is_some()) {
+            self.list_accounts(today)?.into_iter().map(|a| (a.id, a.current_balance)).collect()
+        } else {
+            std::collections::HashMap::new()
+        };
+        let window_start = today - chrono::Duration::days(90);
+
+        for bucket in &mut buckets {
+            let tracked_account = if bucket.tracks_account { bucket.account_id } else { None };
+            let net: Decimal = match tracked_account {
+                Some(account_id) => {
+                    if let Some(balance) = balances.get(&account_id) {
+                        bucket.saved_amount = (*balance).max(Decimal::ZERO);
+                    }
+                    let mut stmt = self.conn.prepare(
+                        "SELECT COALESCE(principal_amount, amount) FROM transactions
+                         WHERE account_id = ?1 AND date > ?2 AND date <= ?3 AND deleted_at IS NULL",
+                    )?;
+                    let amounts = stmt
+                        .query_map(params![account_id, window_start.to_string(), today.to_string()], |row| {
+                            row.get::<_, String>(0)
+                        })?
+                        .collect::<rusqlite::Result<Vec<_>>>()?;
+                    amounts
+                        .iter()
+                        .map(|a| Decimal::from_str(a).expect("amount stored by this crate must be valid"))
+                        .sum()
+                }
+                None => {
+                    let mut stmt = self
+                        .conn
+                        .prepare("SELECT amount FROM bucket_contributions WHERE bucket_id = ?1 AND date > ?2 AND date <= ?3")?;
+                    let amounts = stmt
+                        .query_map(params![bucket.id, window_start.to_string(), today.to_string()], |row| {
+                            row.get::<_, String>(0)
+                        })?
+                        .collect::<rusqlite::Result<Vec<_>>>()?;
+                    amounts
+                        .iter()
+                        .map(|a| Decimal::from_str(a).expect("amount stored by this crate must be valid"))
+                        .sum()
+                }
+            };
+            bucket.monthly_pace = net / Decimal::from(3);
+        }
+        Ok(buckets)
     }
 
     /// Logs a contribution toward a bucket — a positive amount is a
@@ -3770,6 +4831,19 @@ impl Store {
         Ok(())
     }
 
+    /// Opts a category's specific month in or out of carrying its unspent
+    /// budget forward — a dedicated single-field setter, same convention as
+    /// `set_budget_cap`. A (category, period) pair with no line is a harmless
+    /// no-op. Like every other per-line setting the choice is copied into
+    /// each month that materializes from this one.
+    pub fn set_budget_rollover(&self, category: &str, period: &str, rollover_enabled: bool) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "UPDATE budgets SET rollover_enabled = ?1 WHERE category = ?2 AND period = ?3",
+            params![rollover_enabled, category, period],
+        )?;
+        Ok(())
+    }
+
     /// Every budgeted category for `period` ("YYYY-MM"), its group, and
     /// its monthly target — fully independent of every other period.
     /// The first time a period that's never been touched is requested,
@@ -3808,8 +4882,8 @@ impl Store {
 
             if let Some(source_period) = source_period {
                 self.conn.execute(
-                    "INSERT INTO budgets (category, period, monthly_amount, budget_group, cap_enabled)
-                     SELECT category, ?1, monthly_amount, budget_group, cap_enabled FROM budgets WHERE period = ?2",
+                    "INSERT INTO budgets (category, period, monthly_amount, budget_group, cap_enabled, rollover_enabled)
+                     SELECT category, ?1, monthly_amount, budget_group, cap_enabled, rollover_enabled FROM budgets WHERE period = ?2",
                     params![period, source_period],
                 )?;
             }
@@ -3817,29 +4891,183 @@ impl Store {
                 .execute("INSERT OR IGNORE INTO budget_periods (period) VALUES (?1)", params![period])?;
         }
 
-        let mut stmt = self
-            .conn
-            .prepare("SELECT category, budget_group, monthly_amount, cap_enabled FROM budgets WHERE period = ?1 ORDER BY category")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT category, budget_group, monthly_amount, cap_enabled, rollover_enabled FROM budgets WHERE period = ?1 ORDER BY category",
+        )?;
         let rows = stmt.query_map(params![period], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, bool>(3)?,
+                row.get::<_, bool>(4)?,
             ))
         })?;
 
         let mut result = Vec::new();
         for row in rows {
-            let (category, budget_group, amount, cap_enabled) = row?;
+            let (category, budget_group, amount, cap_enabled, rollover_enabled) = row?;
             result.push(BudgetLine {
                 category,
                 budget_group,
                 monthly_amount: Decimal::from_str(&amount).expect("amount stored by this crate must be valid"),
                 cap_enabled,
+                rollover_enabled,
             });
         }
         Ok(result)
+    }
+
+    /// What each category would be budgeted at if the month being planned
+    /// (`year`/`month`) simply repeated the average of the `months` whole
+    /// months before it. Built on `spending_by_category`, so transfers,
+    /// income and debt-payment rows never show up. A month counts only if it
+    /// ended after the very first transaction on the books — a user with
+    /// two months of history gets a two-month average, not one diluted by an
+    /// empty third — and a month with no spend in a category still counts
+    /// as $0 for it. Averages round to a whole dollar and anything that
+    /// rounds to $0 is dropped. Biggest first.
+    ///
+    /// Like `list_budgets`, this can materialize the month's budget rows
+    /// (it reads what the month already budgets so the preview can show
+    /// "current"), which is harmless: the month is being viewed anyway.
+    pub fn suggest_budgets_from_average(&self, year: i32, month: u32, months: u32) -> rusqlite::Result<BudgetSuggestions> {
+        let empty = BudgetSuggestions {
+            months_used: 0,
+            lines: Vec::new(),
+        };
+        let earliest: Option<String> = self
+            .conn
+            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| row.get(0))?;
+        let Some(earliest) = earliest.and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()) else {
+            return Ok(empty);
+        };
+
+        let mut totals: std::collections::BTreeMap<String, Decimal> = std::collections::BTreeMap::new();
+        let mut months_used = 0u32;
+        for back in (1..=months).rev() {
+            let index = i64::from(year) * 12 + i64::from(month) - 1 - i64::from(back);
+            let (y, m) = (index.div_euclid(12) as i32, (index.rem_euclid(12) + 1) as u32);
+            let (first, next_first) = month_bounds(y, m);
+            if next_first <= earliest {
+                continue; // that month ended before any history began
+            }
+            months_used += 1;
+            let last = next_first.pred_opt().expect("a month's last day exists");
+            for (category, spent) in self.spending_by_category(first, last)? {
+                *totals.entry(category).or_insert(Decimal::ZERO) += spent;
+            }
+        }
+        if months_used == 0 {
+            return Ok(empty);
+        }
+
+        let budgeted: std::collections::HashMap<String, BudgetLine> = self
+            .list_budgets(&format!("{year:04}-{month:02}"))?
+            .into_iter()
+            .map(|b| (b.category.clone(), b))
+            .collect();
+
+        let divisor = Decimal::from(months_used);
+        let mut lines: Vec<BudgetSuggestion> = totals
+            .into_iter()
+            .filter_map(|(category, total)| {
+                let suggested = (total / divisor).round_dp_with_strategy(0, rust_decimal::RoundingStrategy::MidpointAwayFromZero);
+                if suggested < Decimal::ONE {
+                    return None;
+                }
+                let existing = budgeted.get(&category);
+                Some(BudgetSuggestion {
+                    budget_group: existing.map(|b| b.budget_group.clone()).unwrap_or_else(|| "flexible".to_string()),
+                    current: existing.map(|b| b.monthly_amount),
+                    category,
+                    suggested,
+                })
+            })
+            .collect();
+        lines.sort_by(|a, b| b.suggested.cmp(&a.suggested).then_with(|| a.category.cmp(&b.category)));
+        Ok(BudgetSuggestions { months_used, lines })
+    }
+
+    /// Everything the month-end review shows for `year`/`month`: income and
+    /// spending beside the month before (transfers and debt-payment rows are
+    /// out of both, same as `monthly_totals`), the budgeted expense
+    /// categories that overspent (income lines never count as over), how
+    /// many transactions still lack a category and what they add up to (a
+    /// split purchase, a transfer, a debt-payment row or a deleted
+    /// transaction never counts as one), and whether the review was already
+    /// finished.
+    pub fn month_review(&self, year: i32, month: u32) -> rusqlite::Result<MonthReview> {
+        let (income, expenses) = self.monthly_totals(year, month)?;
+        let (prev_year, prev_month) = if month == 1 { (year - 1, 12) } else { (year, month - 1) };
+        let (prev_income, prev_expenses) = self.monthly_totals(prev_year, prev_month)?;
+
+        let mut over_budget: Vec<OverBudgetLine> = self
+            .monthly_budget_actuals(year, month)?
+            .into_iter()
+            .filter(|b| b.budget_group != "income" && b.actual > b.budgeted + b.rollover)
+            .map(|b| OverBudgetLine {
+                category: b.category,
+                budgeted: b.budgeted + b.rollover,
+                actual: b.actual,
+            })
+            .collect();
+        over_budget.sort_by(|a, b| {
+            (b.actual - b.budgeted)
+                .cmp(&(a.actual - a.budgeted))
+                .then_with(|| a.category.cmp(&b.category))
+        });
+
+        let (first, next_first) = month_bounds(year, month);
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT amount FROM transactions
+             WHERE category IS NULL AND date >= ?1 AND date < ?2 AND deleted_at IS NULL
+                   AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
+                   AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})"
+        ))?;
+        let amounts = stmt
+            .query_map(params![first.to_string(), next_first.to_string()], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let uncategorized_total: Decimal = amounts
+            .iter()
+            .map(|a| Decimal::from_str(a).expect("amount stored by this crate must be valid").abs())
+            .sum();
+
+        let reviewed = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM month_reviews WHERE period = ?1)",
+            params![format!("{year:04}-{month:02}")],
+            |row| row.get(0),
+        )?;
+
+        Ok(MonthReview {
+            year,
+            month,
+            income,
+            expenses,
+            prev_income,
+            prev_expenses,
+            over_budget,
+            uncategorized_count: amounts.len(),
+            uncategorized_total,
+            reviewed,
+        })
+    }
+
+    /// Marks a month's review as finished. Marking one twice is harmless.
+    pub fn set_month_reviewed(&self, year: i32, month: u32) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO month_reviews (period) VALUES (?1)",
+            params![format!("{year:04}-{month:02}")],
+        )?;
+        Ok(())
+    }
+
+    /// Every finished month, as "YYYY-MM", oldest first.
+    pub fn list_reviewed_months(&self) -> rusqlite::Result<Vec<String>> {
+        let mut stmt = self.conn.prepare("SELECT period FROM month_reviews ORDER BY period")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        rows.collect()
     }
 
     /// Removes one category's budget line for one specific month only —
@@ -3878,13 +5106,14 @@ impl Store {
     /// is guaranteed to carry. Excludes `apply_debt_payment`'s generated
     /// transactions, same as `all_transactions` — see its doc comment.
     pub fn income_total(&self) -> rusqlite::Result<Decimal> {
-        let mut stmt = self.conn.prepare(
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT t.amount, a.account_type FROM transactions t
              JOIN accounts a ON a.id = t.account_id
              WHERE t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
                    AND (t.category IS NULL OR t.category <> 'Transfer')
-                   AND t.deleted_at IS NULL",
-        )?;
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND t.deleted_at IS NULL"
+        ))?;
         let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
         let mut total = Decimal::ZERO;
         for row in rows {
@@ -3948,6 +5177,9 @@ impl Store {
             *raw_by_category.entry(category).or_insert(Decimal::ZERO) += amount;
         }
 
+        // The global switch: with it off nothing is carried in, whatever each
+        // category has chosen (the choices themselves are never rewritten).
+        let rollover_feature_on = self.get_app_settings()?.rollover_enabled;
         let mut result = Vec::with_capacity(budgets.len());
         for line in budgets {
             let raw = raw_by_category.get(&line.category).copied().unwrap_or(Decimal::ZERO);
@@ -3956,15 +5188,99 @@ impl Store {
             // are stored positive already and must not be flipped, or a
             // real deposit reads as negative "actual".
             let spent = if line.budget_group == "income" { raw } else { -raw };
+            let rollover = if rollover_feature_on && line.rollover_enabled && line.budget_group != "income" {
+                self.rollover_carry(&line.category, year, month)?
+            } else {
+                Decimal::ZERO
+            };
             result.push(BudgetActual {
                 category: line.category,
                 budget_group: line.budget_group,
                 budgeted: line.monthly_amount,
                 actual: spent,
                 cap_enabled: line.cap_enabled,
+                rollover_enabled: line.rollover_enabled,
+                rollover,
             });
         }
         Ok(result)
+    }
+
+    /// What a category with rollover on brings into `year`/`month` from the
+    /// months before it: each earlier month's unspent budget (its budget plus
+    /// whatever it carried in, minus what was spent, never below zero),
+    /// chained month to month. The chain starts at the first month of an
+    /// unbroken run of months that all have this category's line with
+    /// rollover on — switching it on starts fresh, and a month where the line
+    /// is missing or rollover is off breaks the run. A month is read as the
+    /// budget it actually had: one never opened has its most recent earlier
+    /// month's line (the same rule `list_budgets` materializes by), without
+    /// writing anything.
+    fn rollover_carry(&self, category: &str, year: i32, month: u32) -> rusqlite::Result<Decimal> {
+        const MAX_MONTHS_BACK: u32 = 36;
+
+        // (base budget, month key), newest first, for the unbroken run.
+        let mut run: Vec<(Decimal, String)> = Vec::new();
+        for back in 0..MAX_MONTHS_BACK {
+            let key = month_key_back(year, month, back);
+            let touched: Option<String> = match self.conn.query_row(
+                "SELECT period FROM budget_periods WHERE period <= ?1 ORDER BY period DESC LIMIT 1",
+                params![key],
+                |row| row.get(0),
+            ) {
+                Ok(p) => Some(p),
+                Err(rusqlite::Error::QueryReturnedNoRows) => None,
+                Err(e) => return Err(e),
+            };
+            let Some(source_period) = touched else { break };
+            let line = match self.conn.query_row(
+                "SELECT monthly_amount, rollover_enabled FROM budgets WHERE category = ?1 AND period = ?2",
+                params![category, source_period],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, bool>(1)?)),
+            ) {
+                Ok(l) => Some(l),
+                Err(rusqlite::Error::QueryReturnedNoRows) => None,
+                Err(e) => return Err(e),
+            };
+            match line {
+                Some((amount, true)) => run.push((Decimal::from_str(&amount).expect("amount stored by this crate must be valid"), key)),
+                _ => break,
+            }
+        }
+
+        // The run is newest first; the target month is its head and only
+        // needs what the months before it leave behind.
+        let mut carry = Decimal::ZERO;
+        for (base, key) in run.iter().skip(1).rev() {
+            let unspent = *base + carry - self.expense_spent_in_month(category, key)?;
+            carry = unspent.max(Decimal::ZERO);
+        }
+        Ok(carry)
+    }
+
+    /// What one expense category spent in one "YYYY-MM" month, as a positive
+    /// number — the same split-aware, debt-payment-exclusion-aware sum
+    /// `monthly_budget_actuals` uses, for a single category.
+    fn expense_spent_in_month(&self, category: &str, month_key: &str) -> rusqlite::Result<Decimal> {
+        let mut stmt = self.conn.prepare(
+            "SELECT amount FROM transactions
+             WHERE category = ?1 AND substr(date, 1, 7) = ?2
+                   AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
+                   AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND deleted_at IS NULL
+             UNION ALL
+             SELECT ts.amount FROM transaction_splits ts
+             JOIN transactions t ON t.id = ts.transaction_id
+             WHERE ts.category = ?1 AND substr(t.date, 1, 7) = ?2
+                   AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND t.deleted_at IS NULL",
+        )?;
+        let rows = stmt.query_map(params![category, month_key], |row| row.get::<_, String>(0))?;
+        let mut raw = Decimal::ZERO;
+        for row in rows {
+            raw += Decimal::from_str(&row?).expect("amount stored by this crate must be valid");
+        }
+        Ok(-raw)
     }
 
     /// Same as `monthly_budget_actuals`, further split by which family
@@ -4156,10 +5472,13 @@ impl Store {
         let caps_feature_enabled = self.get_app_settings()?.envelope_caps_enabled;
         let mut result = Vec::new();
         for line in self.monthly_budget_actuals(year, month)? {
-            if line.budget_group == "income" || line.budgeted <= Decimal::ZERO {
+            // What the month actually has to spend: the budget plus anything
+            // rolled in from earlier months.
+            let available = line.budgeted + line.rollover;
+            if line.budget_group == "income" || available <= Decimal::ZERO {
                 continue;
             }
-            let pct = (line.actual / line.budgeted) * hundred;
+            let pct = (line.actual / available) * hundred;
             // A category that's opted into a cap (`cap_enabled`) warns
             // earlier — at 90% instead of the default 80% — replacing that
             // category's threshold rather than adding a third tier on top.
@@ -4178,7 +5497,7 @@ impl Store {
             result.push(BudgetAlert {
                 category: line.category,
                 budget_group: line.budget_group,
-                budgeted: line.budgeted,
+                budgeted: available,
                 actual: line.actual,
                 pct,
                 level: level.to_string(),
@@ -4230,6 +5549,12 @@ impl Store {
             category: Option<String>,
         }
 
+        let linked_transfer_legs: std::collections::HashSet<i64> = {
+            let mut stmt = self.conn.prepare(LIVE_TRANSFER_LEG_IDS_SQL)?;
+            let rows = stmt.query_map([], |row| row.get::<_, i64>(0))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+
         let mut stmt = self
             .conn
             .prepare("SELECT id, date, description, amount, category FROM transactions WHERE deleted_at IS NULL ORDER BY id")?;
@@ -4270,7 +5595,13 @@ impl Store {
         // O(n log n) overall instead of O(n²).
         let mut by_category: std::collections::HashMap<&str, Vec<&Row>> = std::collections::HashMap::new();
         for row in &all {
-            if let Some(category) = &row.category {
+            // A big move between the user's own accounts is a transfer,
+            // not an unusually large expense — whether it's categorized
+            // "Transfer" or is a linked pair under any other category.
+            if linked_transfer_legs.contains(&row.id) {
+                continue;
+            }
+            if let Some(category) = row.category.as_ref().filter(|c| c.as_str() != "Transfer") {
                 by_category.entry(category.as_str()).or_default().push(row);
             }
         }
@@ -4346,6 +5677,36 @@ impl Store {
         }
 
         Ok(result)
+    }
+
+    /// Records that the user looked at one flag (`kind` is `"large"` or
+    /// `"duplicate"`) on one transaction and said it's fine. Only affects
+    /// `open_anomaly_flags`; the flag itself is still raised by
+    /// `anomaly_flags`. Dismissing the same one twice is harmless.
+    pub fn dismiss_anomaly(&self, transaction_id: i64, kind: &str) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO anomaly_dismissals (transaction_id, kind) VALUES (?1, ?2)",
+            params![transaction_id, kind],
+        )?;
+        Ok(())
+    }
+
+    /// `anomaly_flags` minus the ones the user has dismissed — what the
+    /// Transactions page and the review inbox show. Other features that
+    /// build on the full scan (the cash-flow "large expenses" drill-down)
+    /// deliberately keep using `anomaly_flags`: dismissing a flag means "not
+    /// worth a warning", not "hide this expense everywhere".
+    pub fn open_anomaly_flags(&self) -> rusqlite::Result<Vec<AnomalyFlag>> {
+        let dismissed: std::collections::HashSet<(i64, String)> = {
+            let mut stmt = self.conn.prepare("SELECT transaction_id, kind FROM anomaly_dismissals")?;
+            let rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+        Ok(self
+            .anomaly_flags()?
+            .into_iter()
+            .filter(|f| !dismissed.contains(&(f.transaction_id, f.kind.clone())))
+            .collect())
     }
 
     /// The "large" anomalies (see `anomaly_flags`) dated within
@@ -4725,6 +6086,115 @@ impl Store {
         Ok(result)
     }
 
+    /// Lines every recurring item up against the transactions actually
+    /// posted, for the Recurring tab's paid / pending / missed marks and
+    /// price-change alerts.
+    ///
+    /// A charge belongs to a due date when its description contains the
+    /// item's merchant (either case) and it has the same sign, within a
+    /// window around the date: up to 3 days early, up to 10 late (fewer for
+    /// weekly and biweekly items, so two due dates never share a charge).
+    /// Each charge is used for at most one due date. The last 6 due dates
+    /// are considered. Transfers, debt-payment bookkeeping rows and deleted
+    /// transactions never match.
+    ///
+    /// The latest due date decides the state — see `RecurringMatch::state`.
+    /// A price change needs the recent charges to have been steady: the
+    /// latest one is compared with the one before it (or the amount on file
+    /// when it is the only one), and only flagged when the two before it were
+    /// the same price — so an electric bill that moves every month is never
+    /// called out.
+    pub fn recurring_matches(&self, today: NaiveDate) -> rusqlite::Result<Vec<RecurringMatch>> {
+        const CYCLES: usize = 6;
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT t.date, t.amount FROM transactions t
+             WHERE t.deleted_at IS NULL AND t.date >= ?2 AND t.date <= ?3
+                   AND instr(lower(t.description), lower(?1)) > 0
+                   AND (t.category IS NULL OR t.category <> 'Transfer')
+                   AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})"
+        ))?;
+
+        let mut result = Vec::new();
+        for item in self.list_recurring(today)? {
+            let merchant = item.merchant.trim();
+            let occurrences = recent_occurrences(item.anchor_date, &item.cadence, today, CYCLES);
+            let Some(&last_due) = occurrences.last() else {
+                result.push(RecurringMatch {
+                    recurring_id: item.id,
+                    state: "upcoming".to_string(),
+                    last_due: None,
+                    last_paid_date: None,
+                    last_paid_amount: None,
+                    price_change: None,
+                });
+                continue;
+            };
+
+            let cycle_days = match item.cadence.as_str() {
+                "weekly" => 7,
+                "biweekly" => 14,
+                "annual" => 365,
+                _ => 30,
+            };
+            let before = (cycle_days / 3).min(3);
+            let after = (cycle_days / 2).min(10);
+
+            let mut candidates: Vec<(NaiveDate, Decimal)> = Vec::new();
+            if !merchant.is_empty() {
+                let window_start = occurrences[0] - chrono::Duration::days(before);
+                let rows = stmt.query_map(params![merchant, window_start.to_string(), today.to_string()], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })?;
+                for row in rows {
+                    let (date, amount) = row?;
+                    let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid");
+                    let amount = Decimal::from_str(&amount).expect("amount stored by this crate must be valid");
+                    if (amount < Decimal::ZERO) == (item.amount < Decimal::ZERO) {
+                        candidates.push((date, amount));
+                    }
+                }
+            }
+
+            // Newest due date first, each taking its closest unused charge.
+            let mut matched: Vec<(NaiveDate, NaiveDate, Decimal)> = Vec::new(); // (due, posted, amount)
+            for &due in occurrences.iter().rev() {
+                let best = candidates
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, (date, _))| *date >= due - chrono::Duration::days(before) && *date <= due + chrono::Duration::days(after))
+                    .min_by_key(|(_, (date, _))| ((*date - due).num_days().abs(), std::cmp::Reverse(*date)))
+                    .map(|(i, _)| i);
+                if let Some(i) = best {
+                    let (posted, amount) = candidates.remove(i);
+                    matched.push((due, posted, amount));
+                }
+            }
+            matched.sort_by_key(|(due, _, _)| *due);
+
+            let state = if matched.iter().any(|(due, _, _)| *due == last_due) {
+                "paid"
+            } else if matched.is_empty() {
+                "unmatched"
+            } else if (today - last_due).num_days() <= after {
+                "pending"
+            } else {
+                "missed"
+            };
+
+            let amounts: Vec<Decimal> = matched.iter().map(|(_, _, a)| *a).collect();
+            result.push(RecurringMatch {
+                recurring_id: item.id,
+                state: state.to_string(),
+                last_due: Some(last_due),
+                last_paid_date: matched.last().map(|(_, posted, _)| *posted),
+                last_paid_amount: amounts.last().copied(),
+                price_change: detect_price_change(&amounts, item.amount),
+            });
+        }
+        Ok(result)
+    }
+
     /// Removes a recurring item. An unknown id is a harmless no-op.
     pub fn delete_recurring(&self, id: i64) -> rusqlite::Result<()> {
         self.conn.execute("DELETE FROM recurring WHERE id = ?1", params![id])?;
@@ -4796,9 +6266,11 @@ impl Store {
             category: Option<String>,
         }
 
-        let mut stmt = self
-            .conn
-            .prepare("SELECT date, description, amount, category FROM transactions WHERE deleted_at IS NULL ORDER BY date")?;
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT date, description, amount, category FROM transactions
+                 WHERE deleted_at IS NULL AND (category IS NULL OR category <> 'Transfer')
+                       AND id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) ORDER BY date"
+        ))?;
         let rows = stmt.query_map([], |row| {
             Ok((
                 row.get::<_, String>(0)?,
@@ -4821,9 +6293,17 @@ impl Store {
         }
 
         let mut existing_recurring: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+        // Lower-cased merchant + direction of every tracked item: a statement
+        // line that contains it ("HULU 877-8244858" for "Hulu") is that bill
+        // under its bank name, the same rule `recurring_matches` pairs by.
+        let mut tracked_merchants: Vec<(String, bool)> = Vec::new();
         let mut stmt = self.conn.prepare("SELECT merchant, amount FROM recurring")?;
         for row in stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))? {
             let (merchant, amount) = row?;
+            let named = merchant.trim().to_lowercase();
+            if !named.is_empty() {
+                tracked_merchants.push((named, amount.starts_with('-')));
+            }
             existing_recurring.insert((normalize_description(&merchant), amount));
         }
 
@@ -4850,6 +6330,14 @@ impl Store {
                 continue;
             }
             if existing_recurring.contains(&(norm_desc.clone(), amount_str.clone())) {
+                continue;
+            }
+            let statement_line = rows.last().expect("checked len >= 3 above").description.to_lowercase();
+            let is_expense = amount_str.starts_with('-');
+            if tracked_merchants
+                .iter()
+                .any(|(merchant, expense)| *expense == is_expense && statement_line.contains(merchant.as_str()))
+            {
                 continue;
             }
             if dismissed.contains(&(norm_desc, amount_str.clone(), cadence.to_string())) {
@@ -5007,6 +6495,76 @@ impl Store {
         Ok(())
     }
 
+    /// Records what every holding is worth in total on `date` (shares times
+    /// price, summed), replacing an earlier snapshot of the same day so the
+    /// last price of the day wins. Called after each price refresh and
+    /// holding change, it builds the portfolio's value history. Returns
+    /// whether anything was written — with no holdings there's nothing worth
+    /// recording, and a run of zeros would only distort the chart.
+    pub fn record_portfolio_snapshot(&self, date: NaiveDate) -> rusqlite::Result<bool> {
+        let holdings = self.list_holdings(date)?;
+        if holdings.is_empty() {
+            return Ok(false);
+        }
+        let total: Decimal = holdings.iter().map(|h| h.value).sum();
+        self.conn.execute(
+            "INSERT INTO portfolio_snapshots (date, value) VALUES (?1, ?2)
+             ON CONFLICT(date) DO UPDATE SET value = excluded.value",
+            params![date.to_string(), total.to_string()],
+        )?;
+        Ok(true)
+    }
+
+    /// The recorded portfolio values, oldest first.
+    pub fn portfolio_history(&self) -> rusqlite::Result<Vec<(NaiveDate, Decimal)>> {
+        let mut stmt = self.conn.prepare("SELECT date, value FROM portfolio_snapshots ORDER BY date")?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+        let mut history = Vec::new();
+        for row in rows {
+            let (date, value) = row?;
+            history.push((
+                NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
+                Decimal::from_str(&value).expect("value stored by this crate must be valid"),
+            ));
+        }
+        Ok(history)
+    }
+
+    /// Sets the share of the portfolio the user wants in an asset class
+    /// (a percentage, capped at 100). Zero or less removes the target, since
+    /// "no target" and "0%" would only differ by an empty row nobody asked for.
+    pub fn set_allocation_target(&self, asset_class: &str, percent: Decimal) -> rusqlite::Result<()> {
+        if percent <= Decimal::ZERO {
+            self.conn
+                .execute("DELETE FROM allocation_targets WHERE asset_class = ?1", params![asset_class])?;
+            return Ok(());
+        }
+        let percent = percent.min(Decimal::from(100));
+        self.conn.execute(
+            "INSERT INTO allocation_targets (asset_class, percent) VALUES (?1, ?2)
+             ON CONFLICT(asset_class) DO UPDATE SET percent = excluded.percent",
+            params![asset_class, percent.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Every asset class with a target, alphabetical.
+    pub fn list_allocation_targets(&self) -> rusqlite::Result<Vec<(String, Decimal)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT asset_class, percent FROM allocation_targets ORDER BY asset_class")?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+        let mut targets = Vec::new();
+        for row in rows {
+            let (asset_class, percent) = row?;
+            targets.push((
+                asset_class,
+                Decimal::from_str(&percent).expect("percent stored by this crate must be valid"),
+            ));
+        }
+        Ok(targets)
+    }
+
     /// Removes a holding. An unknown id is a harmless no-op.
     pub fn delete_holding(&self, id: i64) -> rusqlite::Result<()> {
         self.conn.execute("DELETE FROM holdings WHERE id = ?1", params![id])?;
@@ -5116,20 +6674,40 @@ impl Store {
     /// before this setting existed.
     pub fn get_app_settings(&self) -> rusqlite::Result<StoredAppSettings> {
         let row = match self.conn.query_row(
-            "SELECT apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled FROM app_settings WHERE id = 1",
+            "SELECT apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled FROM app_settings WHERE id = 1",
             [],
-            |row| Ok((row.get::<_, bool>(0)?, row.get::<_, bool>(1)?, row.get::<_, bool>(2)?)),
+            |row| {
+                Ok((
+                    row.get::<_, bool>(0)?,
+                    row.get::<_, bool>(1)?,
+                    row.get::<_, bool>(2)?,
+                    row.get::<_, bool>(3)?,
+                ))
+            },
         ) {
             Ok(v) => Some(v),
             Err(rusqlite::Error::QueryReturnedNoRows) => None,
             Err(e) => return Err(e),
         };
-        let (apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled) = row.unwrap_or((true, true, true));
+        let (apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled) = row.unwrap_or((true, true, true, true));
         Ok(StoredAppSettings {
             apply_to_debt_enabled,
             split_purchases_enabled,
             envelope_caps_enabled,
+            rollover_enabled,
         })
+    }
+
+    /// See the doc comment on `StoredAppSettings` — off means no unspent
+    /// budget is carried into a later month; every category's stored
+    /// rollover choice and every budget row stays exactly as it was.
+    pub fn set_rollover_enabled(&self, enabled: bool) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT INTO app_settings (id, rollover_enabled) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET rollover_enabled = ?1",
+            params![enabled],
+        )?;
+        Ok(())
     }
 
     pub fn set_apply_to_debt_enabled(&self, enabled: bool) -> rusqlite::Result<()> {
@@ -5158,6 +6736,117 @@ impl Store {
             "INSERT INTO app_settings (id, envelope_caps_enabled) VALUES (1, ?1)
              ON CONFLICT(id) DO UPDATE SET envelope_caps_enabled = ?1",
             params![enabled],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_background_settings(&self) -> rusqlite::Result<BackgroundSettings> {
+        match self
+            .conn
+            .query_row("SELECT tray_enabled, autostart_enabled FROM app_settings WHERE id = 1", [], |row| {
+                Ok((row.get::<_, bool>(0)?, row.get::<_, bool>(1)?))
+            }) {
+            Ok((tray_enabled, autostart_enabled)) => Ok(BackgroundSettings {
+                tray_enabled,
+                autostart_enabled,
+            }),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(BackgroundSettings {
+                tray_enabled: false,
+                autostart_enabled: false,
+            }),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn set_tray_enabled(&self, enabled: bool) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT INTO app_settings (id, tray_enabled) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET tray_enabled = ?1",
+            params![enabled],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_autostart_enabled(&self, enabled: bool) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT INTO app_settings (id, autostart_enabled) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET autostart_enabled = ?1",
+            params![enabled],
+        )?;
+        Ok(())
+    }
+
+    /// Bills that fall due within `window_days` of `today` (a zero window is
+    /// just today) and haven't been reminded about for that due date: only
+    /// active bills (money out, not canceled), and never one due today whose
+    /// charge has already posted. Soonest first. Each is sent once per due
+    /// date — `mark_reminder_sent` records it, and the bill's next cycle is a
+    /// new due date and a new reminder.
+    pub fn reminders_to_send(&self, today: NaiveDate, window_days: i64) -> rusqlite::Result<Vec<BillReminder>> {
+        let horizon = today + chrono::Duration::days(window_days);
+        let already_posted_today: std::collections::HashSet<i64> = self
+            .recurring_matches(today)?
+            .into_iter()
+            .filter(|m| m.state == "paid" && m.last_due == Some(today))
+            .map(|m| m.recurring_id)
+            .collect();
+        let mut sent: std::collections::HashSet<(i64, String)> = std::collections::HashSet::new();
+        {
+            let mut stmt = self.conn.prepare("SELECT recurring_id, due_date FROM reminders_sent")?;
+            let rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
+            for row in rows {
+                sent.insert(row?);
+            }
+        }
+
+        Ok(self
+            .list_recurring(today)?
+            .into_iter()
+            .filter(|r| r.status != "canceled" && r.amount < Decimal::ZERO)
+            .filter(|r| r.next_date >= today && r.next_date <= horizon)
+            .filter(|r| !(r.next_date == today && already_posted_today.contains(&r.id)))
+            .filter(|r| !sent.contains(&(r.id, r.next_date.to_string())))
+            .map(|r| BillReminder {
+                recurring_id: r.id,
+                merchant: r.merchant,
+                amount: r.amount,
+                due_date: r.next_date,
+            })
+            .collect())
+    }
+
+    /// Records that the reminder for this bill and due date went out, so it
+    /// isn't sent again. Recording twice is harmless.
+    pub fn mark_reminder_sent(&self, recurring_id: i64, due_date: NaiveDate, today: NaiveDate) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO reminders_sent (recurring_id, due_date, sent_on) VALUES (?1, ?2, ?3)",
+            params![recurring_id, due_date.to_string(), today.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// The second folder backups are also copied to, if the user chose one.
+    /// A separate getter/setter rather than a field on `StoredAppSettings`,
+    /// so that struct's many existing constructors and call sites stay put.
+    pub fn get_backup_copy_dir(&self) -> rusqlite::Result<Option<String>> {
+        match self.conn.query_row("SELECT backup_copy_dir FROM app_settings WHERE id = 1", [], |row| {
+            row.get::<_, Option<String>>(0)
+        }) {
+            Ok(dir) => Ok(dir.filter(|d| !d.trim().is_empty())),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Sets (or, with `None` or a blank string, clears) the second backup
+    /// folder. Only stores the choice — `backups::mirror_backup` is what
+    /// checks the folder is actually usable.
+    pub fn set_backup_copy_dir(&self, dir: Option<&str>) -> rusqlite::Result<()> {
+        let dir = dir.map(str::trim).filter(|d| !d.is_empty());
+        self.conn.execute(
+            "INSERT INTO app_settings (id, backup_copy_dir) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET backup_copy_dir = ?1",
+            params![dir],
         )?;
         Ok(())
     }
@@ -5542,6 +7231,152 @@ impl Store {
         Ok(points)
     }
 
+    /// A cash forecast that puts every active Recurring bill and paycheck on
+    /// the day it's actually due, instead of smoothing everything into a
+    /// straight line the way `cash_flow_forecast` does — so a big bill
+    /// shows up as a dip on its due date, and the lowest point before the
+    /// next payday is visible.
+    ///
+    /// Day by day: cash today, plus every recurring occurrence dated on or
+    /// before that day, plus the "everyday" baseline — the average daily net
+    /// of the trailing ~90 days' *other* activity (see `daily_baseline`):
+    /// anything already accounted for as a recurring item (matched by
+    /// merchant name, the same normalization `detect_recurring_candidates`
+    /// uses), a transfer (category or linked pair), or a debt-payment
+    /// bookkeeping row is left out so it isn't counted twice. Credit-card
+    /// charges count as spending on the day they happen; loan and
+    /// investment accounts are ignored.
+    ///
+    /// A bill due *today* is taken out of today's point (it hasn't
+    /// necessarily hit the account yet), though `start_balance` stays what's
+    /// in the accounts right now. Canceled recurring items are skipped.
+    /// With nothing active in Recurring the result is exactly
+    /// `cash_flow_forecast`'s trend, flagged `uses_recurring: false`.
+    pub fn bill_aware_forecast(&self, today: NaiveDate, days: i64) -> rusqlite::Result<BillAwareForecast> {
+        const TRAILING_WINDOW_DAYS: i64 = 90;
+
+        let start_balance: Decimal = self
+            .list_accounts(today)?
+            .into_iter()
+            .filter(|a| a.account.account_type.group() == "cash")
+            .map(|a| a.current_balance)
+            .sum();
+
+        let recurring: Vec<StoredRecurring> = self.list_recurring(today)?.into_iter().filter(|r| r.status != "canceled").collect();
+        if recurring.is_empty() {
+            return Ok(BillAwareForecast {
+                uses_recurring: false,
+                start_balance,
+                points: self.cash_flow_forecast(today, days)?,
+                events: Vec::new(),
+                daily_baseline: Decimal::ZERO,
+            });
+        }
+
+        let end = today + chrono::Duration::days(days);
+        // A bill due today whose charge has already posted is in the balance
+        // already — counting it again would double it.
+        let already_posted_today: std::collections::HashSet<i64> = self
+            .recurring_matches(today)?
+            .into_iter()
+            .filter(|m| m.state == "paid" && m.last_due == Some(today))
+            .map(|m| m.recurring_id)
+            .collect();
+        let mut events = Vec::new();
+        for r in &recurring {
+            let mut date = next_occurrence(r.anchor_date, &r.cadence, today);
+            if date == today && already_posted_today.contains(&r.id) {
+                date = next_occurrence(r.anchor_date, &r.cadence, today + chrono::Duration::days(1));
+            }
+            while date <= end {
+                events.push(ForecastEvent {
+                    date,
+                    label: r.merchant.clone(),
+                    amount: r.amount,
+                });
+                date = next_occurrence(r.anchor_date, &r.cadence, date + chrono::Duration::days(1));
+            }
+        }
+        events.sort_by(|a, b| a.date.cmp(&b.date).then_with(|| a.label.cmp(&b.label)));
+
+        let daily_baseline = self.everyday_daily_net(today, TRAILING_WINDOW_DAYS, &recurring)?;
+
+        let mut points = Vec::with_capacity((days + 1).max(1) as usize);
+        let mut running_events = Decimal::ZERO;
+        let mut next_event = 0;
+        for day in 0..=days {
+            let date = today + chrono::Duration::days(day);
+            while next_event < events.len() && events[next_event].date <= date {
+                running_events += events[next_event].amount;
+                next_event += 1;
+            }
+            points.push(ForecastPoint {
+                date,
+                balance: start_balance + running_events + daily_baseline * Decimal::from(day),
+            });
+        }
+
+        Ok(BillAwareForecast {
+            uses_recurring: true,
+            start_balance,
+            points,
+            events,
+            daily_baseline,
+        })
+    }
+
+    /// Average daily net (income minus spending) of the trailing window
+    /// ending `today`, counting only activity that *isn't* already a
+    /// recurring item — see `bill_aware_forecast`. The window shrinks to
+    /// however much history exists, same as `average_monthly_spend`, and is
+    /// zero with none.
+    fn everyday_daily_net(&self, today: NaiveDate, window_days: i64, recurring: &[StoredRecurring]) -> rusqlite::Result<Decimal> {
+        let earliest_transaction_date: Option<NaiveDate> = self
+            .conn
+            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| {
+                row.get::<_, Option<String>>(0)
+            })?
+            .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid"));
+        let Some(earliest) = earliest_transaction_date else {
+            return Ok(Decimal::ZERO);
+        };
+        let window_start = earliest.max(today - chrono::Duration::days(window_days));
+        let days_elapsed = (today - window_start).num_days().max(1);
+
+        let recurring_merchants: std::collections::HashSet<String> = recurring.iter().map(|r| normalize_description(&r.merchant)).collect();
+
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT t.description, t.amount, a.account_type FROM transactions t
+             JOIN accounts a ON a.id = t.account_id
+             WHERE t.date >= ?1 AND t.date <= ?2
+                   AND t.deleted_at IS NULL
+                   AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND (t.category IS NULL OR t.category <> 'Transfer')
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})"
+        ))?;
+        let rows = stmt.query_map(params![window_start.to_string(), today.to_string()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+        })?;
+
+        let mut net = Decimal::ZERO;
+        for row in rows {
+            let (description, amount, account_type) = row?;
+            if recurring_merchants.contains(&normalize_description(&description)) {
+                continue;
+            }
+            let amount = Decimal::from_str(&amount).expect("amount stored by this crate must be valid");
+            let group = AccountType::parse(&account_type).map(|t| t.group());
+            match group {
+                Some("cash") => net += amount,
+                // A charge on a card is spending on the day it happens; a
+                // positive amount on a card is a payment or refund, not income.
+                Some("credit") if amount < Decimal::ZERO => net += amount,
+                _ => {}
+            }
+        }
+        Ok(net / Decimal::from(days_elapsed))
+    }
+
     /// Average monthly spend (money out only, as a positive number) over
     /// the trailing ~90 days ending `today` — same window-sizing as
     /// `cash_flow_forecast` just above (clamped to however much
@@ -5570,12 +7405,14 @@ impl Store {
         let window_start = earliest.max(today - chrono::Duration::days(TRAILING_WINDOW_DAYS));
         let days_elapsed = (today - window_start).num_days().max(1);
 
-        let mut stmt = self.conn.prepare(
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT amount FROM transactions
              WHERE date >= ?1 AND date <= ?2
                    AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND deleted_at IS NULL",
-        )?;
+                   AND (category IS NULL OR category <> 'Transfer')
+                   AND id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND deleted_at IS NULL"
+        ))?;
         let rows = stmt.query_map(params![window_start.to_string(), today.to_string()], |row| row.get::<_, String>(0))?;
         let mut expense = Decimal::ZERO;
         for row in rows {
@@ -5616,14 +7453,15 @@ impl Store {
     /// only the positive side is excluded here.
     pub fn monthly_totals(&self, year: i32, month: u32) -> rusqlite::Result<(Decimal, Decimal)> {
         let (first, next_first) = month_bounds(year, month);
-        let mut stmt = self.conn.prepare(
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT t.amount, a.account_type FROM transactions t
              JOIN accounts a ON a.id = t.account_id
              WHERE t.date >= ?1 AND t.date < ?2
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
                    AND (t.category IS NULL OR t.category <> 'Transfer')
-                   AND t.deleted_at IS NULL",
-        )?;
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND t.deleted_at IS NULL"
+        ))?;
         let rows = stmt.query_map(params![first.to_string(), next_first.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
@@ -5662,14 +7500,15 @@ impl Store {
     ) -> rusqlite::Result<std::collections::HashMap<(i32, u32), (Decimal, Decimal)>> {
         let (range_start, _) = month_bounds(from_year, from_month);
         let (_, range_end) = month_bounds(to_year, to_month);
-        let mut stmt = self.conn.prepare(
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT t.date, t.amount, a.account_type FROM transactions t
              JOIN accounts a ON a.id = t.account_id
              WHERE t.date >= ?1 AND t.date < ?2
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
                    AND (t.category IS NULL OR t.category <> 'Transfer')
-                   AND t.deleted_at IS NULL",
-        )?;
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND t.deleted_at IS NULL"
+        ))?;
         let rows = stmt.query_map(params![range_start.to_string(), range_end.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
         })?;
@@ -5696,21 +7535,25 @@ impl Store {
     /// transaction dated within `[start_date, end_date]`, sorted highest
     /// spend first. Uncategorized transactions and income are excluded, as
     /// are `apply_debt_payment`'s generated transactions — see
-    /// `all_transactions`'s doc comment.
+    /// `all_transactions`'s doc comment — and anything categorized
+    /// "Transfer" (a split line included): money moving between the user's
+    /// own accounts isn't spending, same as `monthly_totals`.
     pub fn spending_by_category(&self, start_date: NaiveDate, end_date: NaiveDate) -> rusqlite::Result<Vec<(String, Decimal)>> {
-        let mut stmt = self.conn.prepare(
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT category, amount FROM transactions
-             WHERE category IS NOT NULL AND date >= ?1 AND date <= ?2
+             WHERE category IS NOT NULL AND category <> 'Transfer' AND date >= ?1 AND date <= ?2
                    AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
                    AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
                    AND deleted_at IS NULL
              UNION ALL
              SELECT ts.category, ts.amount FROM transaction_splits ts
              JOIN transactions t ON t.id = ts.transaction_id
-             WHERE ts.category IS NOT NULL AND t.date >= ?1 AND t.date <= ?2
+             WHERE ts.category IS NOT NULL AND ts.category <> 'Transfer' AND t.date >= ?1 AND t.date <= ?2
                    AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND t.deleted_at IS NULL",
-        )?;
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND t.deleted_at IS NULL"
+        ))?;
         let rows = stmt.query_map(params![start_date.to_string(), end_date.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
@@ -5728,6 +7571,58 @@ impl Store {
         Ok(result)
     }
 
+    /// What was spent in each category in each month of
+    /// `[from_year/from_month, to_year/to_month]` (inclusive): the Reports
+    /// page's category-by-month table. Expenses only, as positive numbers;
+    /// income, transfers (by category or as a linked pair), debt-payment
+    /// bookkeeping rows and deleted transactions are left out, and a split
+    /// purchase counts through its lines' own categories — the same rules as
+    /// `spending_by_category`. Unlike it, spending with no category shows up
+    /// as "Uncategorized", since a table meant to account for the money
+    /// shouldn't quietly drop some of it. A month/category with no spend has
+    /// no row. Sorted by month, then category.
+    pub fn category_spending_by_month(
+        &self,
+        from_year: i32,
+        from_month: u32,
+        to_year: i32,
+        to_month: u32,
+    ) -> rusqlite::Result<Vec<CategoryMonthAmount>> {
+        let (range_start, _) = month_bounds(from_year, from_month);
+        let (_, range_end) = month_bounds(to_year, to_month);
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT substr(date, 1, 7), COALESCE(category, 'Uncategorized'), amount FROM transactions
+             WHERE (category IS NULL OR category <> 'Transfer') AND date >= ?1 AND date < ?2
+                   AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
+                   AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND deleted_at IS NULL
+             UNION ALL
+             SELECT substr(t.date, 1, 7), COALESCE(ts.category, 'Uncategorized'), ts.amount FROM transaction_splits ts
+             JOIN transactions t ON t.id = ts.transaction_id
+             WHERE (ts.category IS NULL OR ts.category <> 'Transfer') AND t.date >= ?1 AND t.date < ?2
+                   AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND t.deleted_at IS NULL"
+        ))?;
+        let rows = stmt.query_map(params![range_start.to_string(), range_end.to_string()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+        })?;
+
+        let mut totals: std::collections::BTreeMap<(String, String), Decimal> = std::collections::BTreeMap::new();
+        for row in rows {
+            let (month, category, amount) = row?;
+            let amount = Decimal::from_str(&amount).expect("amount stored by this crate must be valid");
+            if amount < Decimal::ZERO {
+                *totals.entry((month, category)).or_insert(Decimal::ZERO) -= amount;
+            }
+        }
+        Ok(totals
+            .into_iter()
+            .map(|((month, category), amount)| CategoryMonthAmount { month, category, amount })
+            .collect())
+    }
+
     /// The top `limit` merchants by total spend within
     /// `[start_date, end_date]` — "merchant" here is just the raw
     /// transaction description, since this app has no separate normalized
@@ -5737,12 +7632,14 @@ impl Store {
     /// from: ..." description isn't a merchant) — see `all_transactions`'s
     /// doc comment.
     pub fn top_merchants(&self, start_date: NaiveDate, end_date: NaiveDate, limit: usize) -> rusqlite::Result<Vec<(String, Decimal)>> {
-        let mut stmt = self.conn.prepare(
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT description, amount FROM transactions
              WHERE date >= ?1 AND date <= ?2
                    AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-                   AND deleted_at IS NULL",
-        )?;
+                   AND (category IS NULL OR category <> 'Transfer')
+                   AND id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND deleted_at IS NULL"
+        ))?;
         let rows = stmt.query_map(params![start_date.to_string(), end_date.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
@@ -5999,6 +7896,52 @@ fn next_occurrence(anchor: NaiveDate, cadence: &str, today: NaiveDate) -> NaiveD
         }
     }
     next
+}
+
+/// The due dates of a recurring item on or before `today`, oldest first,
+/// keeping only the last `max` — stepped the same way `next_occurrence`
+/// steps, so the two never disagree about a date. Empty while the anchor is
+/// still in the future.
+fn recent_occurrences(anchor: NaiveDate, cadence: &str, today: NaiveDate, max: usize) -> Vec<NaiveDate> {
+    let mut dates = Vec::new();
+    let mut next = anchor;
+    while next <= today {
+        dates.push(next);
+        next = match cadence {
+            "weekly" => next + chrono::Duration::days(7),
+            "biweekly" => next + chrono::Duration::days(14),
+            "annual" => add_one_year(next),
+            _ => add_one_month(next),
+        };
+    }
+    let skip = dates.len().saturating_sub(max);
+    dates.split_off(skip)
+}
+
+/// Two charges count as different prices when they differ by at least 50
+/// cents *and* at least 1% — a one-cent rounding wobble isn't a price change.
+fn prices_differ(a: Decimal, b: Decimal) -> bool {
+    let gap = (a - b).abs();
+    let base = b.abs();
+    gap >= Decimal::new(50, 2) && base > Decimal::ZERO && gap / base >= Decimal::new(1, 2)
+}
+
+/// See `RecurringMatch::price_change`. `amounts` are the matched charges,
+/// oldest first; `on_file` is the recurring item's own amount.
+fn detect_price_change(amounts: &[Decimal], on_file: Decimal) -> Option<PriceChange> {
+    let (&latest, earlier) = amounts.split_last()?;
+    let baseline = match earlier.last() {
+        Some(&previous) => {
+            // With at least two earlier charges, they must agree — otherwise
+            // this bill simply varies and there's no "old price" to compare to.
+            if earlier.len() >= 2 && prices_differ(earlier[earlier.len() - 2], previous) {
+                return None;
+            }
+            previous
+        }
+        None => on_file,
+    };
+    prices_differ(latest, baseline).then_some(PriceChange { from: baseline, to: latest })
 }
 
 /// Normalizes one cadence's amount onto a common monthly footing —
@@ -11761,6 +13704,47 @@ mod tests {
     }
 
     #[test]
+    fn detect_recurring_candidates_excludes_charges_a_tracked_merchant_already_covers() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        // Tracked as "Hulu"; the statement says "HULU 877-8244858" — the same bill
+        // (recurring_matches pairs them), so it isn't offered a second time.
+        seed_txns(&store, account, "HULU 877-8244858", "-14.99", &["2026-05-04", "2026-06-04", "2026-07-04"]);
+        seed_txns(&store, account, "Spotify Premium", "-9.99", &["2026-05-06", "2026-06-06", "2026-07-06"]);
+        store
+            .create_recurring("Hulu", None, "-14.99".parse().unwrap(), "monthly", "2026-07-04".parse().unwrap(), None)
+            .unwrap();
+
+        let candidates = store.detect_recurring_candidates("2026-08-20".parse().unwrap()).unwrap();
+
+        assert_eq!(
+            candidates.iter().map(|c| c.merchant.as_str()).collect::<Vec<_>>(),
+            vec!["Spotify Premium"]
+        );
+    }
+
+    #[test]
+    fn detect_recurring_candidates_keeps_income_when_only_an_expense_merchant_is_tracked() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        // Same name, opposite direction: a refund pattern isn't the tracked bill.
+        seed_txns(
+            &store,
+            account,
+            "Hulu Refund Credit",
+            "14.99",
+            &["2026-05-04", "2026-06-04", "2026-07-04"],
+        );
+        store
+            .create_recurring("Hulu", None, "-14.99".parse().unwrap(), "monthly", "2026-07-04".parse().unwrap(), None)
+            .unwrap();
+
+        let candidates = store.detect_recurring_candidates("2026-08-20".parse().unwrap()).unwrap();
+
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
     fn dismiss_recurring_candidate_excludes_it_from_future_detection() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
@@ -12997,6 +14981,905 @@ mod tests {
         );
     }
 
+    // Transfers between the user's own accounts are neither spending nor
+    // income -- `monthly_totals` already excluded them, but every other
+    // spend-shaped query below (category breakdown, top merchants,
+    // recurring suggestions, runway's average spend, "unusually large"
+    // flags) counted them as ordinary spending, so a monthly savings
+    // transfer showed up as a $500 "Transfer" slice of the spending donut,
+    // ranked as a "merchant", and got suggested as a recurring bill.
+
+    #[test]
+    fn spending_by_category_excludes_the_transfer_category() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-05", "Green Leaf Grocers", "-80.00"),
+                    Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx("2026-08-10", "To Savings", "-500.00")
+                    },
+                ],
+            )
+            .unwrap();
+        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
+        store.set_category(ids[0], "Groceries", CategorySource::User, None).unwrap();
+
+        let spend = store
+            .spending_by_category("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap())
+            .unwrap();
+
+        assert_eq!(spend, vec![("Groceries".to_string(), "80.00".parse().unwrap())]);
+    }
+
+    #[test]
+    fn spending_by_category_excludes_a_transfer_split_line_but_keeps_the_rest_of_the_split() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(account, &[tx("2026-08-05", "Warehouse Club", "-100.00")])
+            .unwrap();
+        let id = store.all_transactions().unwrap()[0].id;
+        store
+            .set_transaction_splits(
+                id,
+                &[
+                    ("Transfer".to_string(), "-60.00".parse().unwrap(), None),
+                    ("Groceries".to_string(), "-40.00".parse().unwrap(), None),
+                ],
+            )
+            .unwrap();
+
+        let spend = store
+            .spending_by_category("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap())
+            .unwrap();
+
+        assert_eq!(spend, vec![("Groceries".to_string(), "40.00".parse().unwrap())]);
+    }
+
+    #[test]
+    fn top_merchants_excludes_transactions_categorized_transfer() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-05", "Green Leaf Grocers", "-80.00"),
+                    Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx("2026-08-10", "Transfer to Savings", "-500.00")
+                    },
+                ],
+            )
+            .unwrap();
+
+        let top = store
+            .top_merchants("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap(), 5)
+            .unwrap();
+
+        assert_eq!(top, vec![("Green Leaf Grocers".to_string(), "80.00".parse().unwrap())]);
+    }
+
+    #[test]
+    fn detect_recurring_candidates_skips_a_transfer_pattern() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        for date in ["2026-05-02", "2026-06-02", "2026-07-02", "2026-08-02"] {
+            store
+                .save_transactions(
+                    account,
+                    &[Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx(date, "Transfer to Savings", "-500.00")
+                    }],
+                )
+                .unwrap();
+        }
+        seed_txns(
+            &store,
+            account,
+            "Netflix",
+            "-15.49",
+            &["2026-05-04", "2026-06-04", "2026-07-04", "2026-08-04"],
+        );
+
+        let candidates = store.detect_recurring_candidates("2026-08-20".parse().unwrap()).unwrap();
+
+        assert_eq!(candidates.len(), 1, "only Netflix -- moving money between your own accounts isn't a bill");
+        assert_eq!(candidates[0].merchant, "Netflix");
+    }
+
+    #[test]
+    fn average_monthly_spend_excludes_transfers() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-07-21", "Rent", "-900.00"),
+                    Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx("2026-07-25", "To Savings", "-2000.00")
+                    },
+                ],
+            )
+            .unwrap();
+
+        let avg = store.average_monthly_spend("2026-08-20".parse().unwrap()).unwrap();
+
+        assert_eq!(avg, "900.00".parse().unwrap(), "a $2,000 move to savings is not $2,000 of spending");
+    }
+
+    #[test]
+    fn anomaly_flags_do_not_flag_an_unusually_large_transfer() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let mut rows: Vec<Transaction> = ["2026-06-02", "2026-07-02", "2026-08-02"]
+            .iter()
+            .map(|d| Transaction {
+                category: Some("Transfer".to_string()),
+                ..tx(d, "Transfer to Savings", "-100.00")
+            })
+            .collect();
+        rows.push(Transaction {
+            category: Some("Transfer".to_string()),
+            ..tx("2026-08-20", "Transfer to Savings", "-5000.00")
+        });
+        store.save_transactions(account, &rows).unwrap();
+
+        let flags = store.anomaly_flags().unwrap();
+
+        assert!(
+            flags.iter().all(|f| f.kind != "large"),
+            "moving a big sum between your own accounts isn't an unusually large expense: {flags:?}"
+        );
+    }
+
+    // Categorization rules manager.
+
+    fn rule_patterns(store: &Store) -> Vec<String> {
+        store.list_rules().unwrap().into_iter().map(|r| r.pattern).collect()
+    }
+
+    #[test]
+    fn seed_default_rules_once_seeds_a_fresh_store_exactly_once() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(store.list_rules().unwrap().is_empty(), "a brand-new store starts with no rules");
+
+        assert!(store.seed_default_rules_once().unwrap(), "first call seeds");
+        let seeded = store.list_rules().unwrap().len();
+        assert_eq!(seeded, RuleSet::seeded().len());
+
+        assert!(!store.seed_default_rules_once().unwrap(), "second call is a no-op");
+        assert_eq!(store.list_rules().unwrap().len(), seeded);
+    }
+
+    #[test]
+    fn seed_default_rules_once_does_not_bring_defaults_back_after_the_user_deletes_them_all() {
+        let store = Store::open_in_memory().unwrap();
+        store.seed_default_rules_once().unwrap();
+        for pattern in rule_patterns(&store) {
+            store.delete_rule(&pattern).unwrap();
+        }
+
+        assert!(!store.seed_default_rules_once().unwrap());
+
+        assert!(store.list_rules().unwrap().is_empty(), "deleting every rule must stick");
+    }
+
+    #[test]
+    fn seed_default_rules_once_leaves_a_store_that_already_has_rules_alone() {
+        // An existing database from before this flag existed: it already has
+        // learned rules (and lost the in-memory starter set the moment its
+        // first rule was saved). Seeding defaults now would surprise it.
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_rule("Ferrywood Coffee", "Dining Out").unwrap();
+
+        assert!(!store.seed_default_rules_once().unwrap());
+
+        assert_eq!(rule_patterns(&store), vec!["Ferrywood Coffee".to_string()]);
+    }
+
+    #[test]
+    fn list_rules_reports_how_many_transactions_each_pattern_matches() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-01", "Ferrywood Coffee #12", "-4.00"),
+                    tx("2026-08-02", "FERRYWOOD COFFEE #40", "-5.00"),
+                    tx("2026-08-03", "Green Leaf Grocers", "-30.00"),
+                ],
+            )
+            .unwrap();
+        store.upsert_rule("ferrywood coffee", "Dining Out").unwrap();
+        store.upsert_rule("payroll", "Income").unwrap();
+
+        let rules = store.list_rules().unwrap();
+
+        let coffee = rules.iter().find(|r| r.pattern == "ferrywood coffee").unwrap();
+        assert_eq!(coffee.match_count, 2, "matching is case-insensitive substring, like RuleSet::categorize");
+        assert_eq!(rules.iter().find(|r| r.pattern == "payroll").unwrap().match_count, 0);
+    }
+
+    #[test]
+    fn delete_rule_removes_it_case_insensitively_and_leaves_the_others() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_rule("Ferrywood Coffee", "Dining Out").unwrap();
+        store.upsert_rule("payroll", "Income").unwrap();
+
+        store.delete_rule("ferrywood COFFEE").unwrap();
+
+        assert_eq!(rule_patterns(&store), vec!["payroll".to_string()]);
+        store.delete_rule("never existed").unwrap(); // harmless no-op
+    }
+
+    #[test]
+    fn rename_rule_can_change_both_the_pattern_and_the_category_in_one_step() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_rule("ferrywood", "Dining Out").unwrap();
+
+        store.rename_rule("ferrywood", "ferrywood coffee", "Coffee").unwrap();
+
+        let rules = store.list_rules().unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].pattern, "ferrywood coffee");
+        assert_eq!(rules[0].category, "Coffee");
+    }
+
+    #[test]
+    fn preview_rule_counts_only_transactions_the_rule_would_actually_change() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-01", "Ferrywood Coffee #1", "-4.00"), // uncategorized -> would change
+                    tx("2026-08-02", "Ferrywood Coffee #2", "-4.00"), // guessed by the classifier -> would change
+                    tx("2026-08-03", "Ferrywood Coffee #3", "-4.00"), // you set it yourself -> never touched
+                    tx("2026-08-04", "Ferrywood Coffee #4", "-4.00"), // already Dining Out -> nothing to change
+                    tx("2026-08-05", "Green Leaf Grocers", "-30.00"), // doesn't match
+                ],
+            )
+            .unwrap();
+        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
+        store.set_category(ids[1], "Groceries", CategorySource::Classifier, Some(0.6)).unwrap();
+        store.set_category(ids[2], "Groceries", CategorySource::User, None).unwrap();
+        store.set_category(ids[3], "Dining Out", CategorySource::Rule, None).unwrap();
+
+        let preview = store.preview_rule("ferrywood coffee", "Dining Out", None).unwrap();
+
+        assert_eq!(preview.matching, 4);
+        assert_eq!(preview.would_change, 2);
+    }
+
+    #[test]
+    fn preview_rule_leaves_transactions_a_more_specific_rule_already_owns() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-01", "Ferrywood Coffee", "-4.00"),
+                    tx("2026-08-02", "Corner Coffee Cart", "-3.00"),
+                ],
+            )
+            .unwrap();
+        store.upsert_rule("ferrywood coffee", "Groceries").unwrap(); // longer = wins for the first row
+
+        let preview = store.preview_rule("coffee", "Dining Out", None).unwrap();
+
+        assert_eq!(preview.matching, 2);
+        assert_eq!(preview.would_change, 1, "the Ferrywood row belongs to its own, more specific rule");
+    }
+
+    #[test]
+    fn preview_rule_ignores_deleted_transactions_and_an_empty_pattern() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(account, &[tx("2026-08-01", "Ferrywood Coffee", "-4.00")])
+            .unwrap();
+        let id = store.all_transactions().unwrap()[0].id;
+        store.delete_transaction(id, "2026-08-02T00:00:00".parse().unwrap()).unwrap();
+
+        assert_eq!(store.preview_rule("ferrywood", "Dining Out", None).unwrap().would_change, 0);
+        let empty = store.preview_rule("   ", "Dining Out", None).unwrap();
+        assert_eq!(
+            (empty.matching, empty.would_change),
+            (0, 0),
+            "a blank pattern would match everything -- treat it as nothing"
+        );
+    }
+
+    #[test]
+    fn preview_rule_when_editing_ignores_the_rule_being_replaced() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(account, &[tx("2026-08-01", "Ferrywood Coffee", "-4.00")])
+            .unwrap();
+        // The old rule is *longer*, so left in place it would shadow the edited one.
+        store.upsert_rule("ferrywood coffee", "Groceries").unwrap();
+
+        let preview = store.preview_rule("ferrywood", "Dining Out", Some("ferrywood coffee")).unwrap();
+
+        assert_eq!(preview.would_change, 1);
+    }
+
+    #[test]
+    fn apply_rule_to_existing_recategorizes_the_previewed_transactions_as_rule_sourced() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-01", "Ferrywood Coffee #1", "-4.00"),
+                    tx("2026-08-02", "Ferrywood Coffee #2", "-4.00"),
+                    tx("2026-08-03", "Ferrywood Coffee #3", "-4.00"),
+                ],
+            )
+            .unwrap();
+        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
+        store.set_category(ids[2], "Groceries", CategorySource::User, None).unwrap();
+        store.upsert_rule("ferrywood coffee", "Dining Out").unwrap();
+
+        let changed = store.apply_rule_to_existing("ferrywood coffee", "Dining Out").unwrap();
+
+        assert_eq!(changed, 2);
+        let all = store.all_transactions().unwrap();
+        let by_id = |id: i64| all.iter().find(|t| t.id == id).unwrap();
+        assert_eq!(by_id(ids[0]).transaction.category.as_deref(), Some("Dining Out"));
+        assert_eq!(by_id(ids[0]).category_source, Some(CategorySource::Rule));
+        assert_eq!(
+            by_id(ids[2]).transaction.category.as_deref(),
+            Some("Groceries"),
+            "your own choice is never overwritten"
+        );
+    }
+
+    #[test]
+    fn apply_rule_to_existing_skips_a_split_transaction() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(account, &[tx("2026-08-01", "Warehouse Club", "-100.00")])
+            .unwrap();
+        let id = store.all_transactions().unwrap()[0].id;
+        store
+            .set_transaction_splits(
+                id,
+                &[
+                    ("Groceries".to_string(), "-60.00".parse().unwrap(), None),
+                    ("Household".to_string(), "-40.00".parse().unwrap(), None),
+                ],
+            )
+            .unwrap();
+
+        let changed = store.apply_rule_to_existing("warehouse", "Shopping").unwrap();
+
+        assert_eq!(changed, 0, "a split purchase is categorized line by line, not as one lump");
+    }
+
+    // Linked transfers: two transactions in different accounts that are the
+    // two legs of one move of money between the user's own accounts.
+
+    fn checking_and_savings(store: &Store) -> (i64, i64) {
+        (
+            store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap(),
+            store.get_or_create_account("High-Yield Savings", AccountType::Savings).unwrap(),
+        )
+    }
+
+    /// The id of the live transaction with this description on this date.
+    /// (Not `last_insert_rowid()`: saving a transaction also registers its
+    /// category, and that insert is the *last* one.)
+    fn id_of(store: &Store, description: &str, date: &str) -> i64 {
+        store
+            .all_transactions()
+            .unwrap()
+            .into_iter()
+            .find(|t| t.transaction.description == description && t.transaction.date.to_string() == date)
+            .unwrap_or_else(|| panic!("no transaction {description:?} on {date}"))
+            .id
+    }
+
+    /// Checking -500 on `out_date`, Savings +500 on `in_date`, both under an
+    /// ordinary (non-"Transfer") category so only the *link* can exclude them.
+    fn seed_transfer_pair(store: &Store, out_date: &str, in_date: &str) -> (i64, i64) {
+        let (checking, savings) = checking_and_savings(store);
+        store
+            .save_transactions(
+                checking,
+                &[Transaction {
+                    category: Some("Savings Goal".to_string()),
+                    ..tx(out_date, "Move to savings", "-500.00")
+                }],
+            )
+            .unwrap();
+        store
+            .save_transactions(
+                savings,
+                &[Transaction {
+                    category: Some("Savings Goal".to_string()),
+                    ..tx(in_date, "Deposit from checking", "500.00")
+                }],
+            )
+            .unwrap();
+        (id_of(store, "Move to savings", out_date), id_of(store, "Deposit from checking", in_date))
+    }
+
+    fn counterpart_of(store: &Store, id: i64) -> Option<i64> {
+        store
+            .all_transactions()
+            .unwrap()
+            .into_iter()
+            .find(|t| t.id == id)
+            .and_then(|t| t.transfer_counterpart_id)
+    }
+
+    #[test]
+    fn link_transfer_records_each_leg_as_the_others_counterpart() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
+        assert_eq!(counterpart_of(&store, out_id), None);
+
+        assert!(store.link_transfer(out_id, in_id).unwrap());
+
+        assert_eq!(counterpart_of(&store, out_id), Some(in_id));
+        assert_eq!(counterpart_of(&store, in_id), Some(out_id));
+    }
+
+    #[test]
+    fn link_transfer_accepts_the_ids_in_either_order() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+
+        assert!(store.link_transfer(in_id, out_id).unwrap());
+
+        assert_eq!(counterpart_of(&store, out_id), Some(in_id));
+    }
+
+    #[test]
+    fn link_transfer_refuses_two_legs_in_the_same_account() {
+        let store = Store::open_in_memory().unwrap();
+        let (checking, _) = checking_and_savings(&store);
+        store
+            .save_transactions(checking, &[tx("2026-08-10", "Out", "-500.00"), tx("2026-08-10", "In", "500.00")])
+            .unwrap();
+        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
+
+        assert!(
+            !store.link_transfer(ids[0], ids[1]).unwrap(),
+            "moving money to the same account isn't a transfer"
+        );
+    }
+
+    #[test]
+    fn link_transfer_refuses_two_legs_that_both_go_the_same_direction() {
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        store.save_transactions(checking, &[tx("2026-08-10", "One", "-500.00")]).unwrap();
+        store.save_transactions(savings, &[tx("2026-08-10", "Two", "-500.00")]).unwrap();
+        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
+
+        assert!(!store.link_transfer(ids[0], ids[1]).unwrap());
+    }
+
+    #[test]
+    fn link_transfer_refuses_a_leg_that_is_already_linked_or_gone() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        assert!(store.link_transfer(out_id, in_id).unwrap());
+
+        assert!(!store.link_transfer(out_id, in_id).unwrap(), "already linked");
+        assert!(!store.link_transfer(out_id, 9999).unwrap(), "no such transaction");
+    }
+
+    #[test]
+    fn unlink_transfer_works_from_either_leg_and_is_a_no_op_when_not_linked() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        store.link_transfer(out_id, in_id).unwrap();
+
+        store.unlink_transfer(in_id).unwrap();
+
+        assert_eq!(counterpart_of(&store, out_id), None);
+        assert_eq!(counterpart_of(&store, in_id), None);
+        store.unlink_transfer(in_id).unwrap(); // harmless
+    }
+
+    #[test]
+    fn a_linked_pair_is_neither_income_nor_spending_whatever_its_category() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        let (checking, _) = checking_and_savings(&store);
+        store
+            .save_transactions(checking, &[tx("2026-08-01", "Payroll Deposit", "3000.00")])
+            .unwrap();
+
+        // Before linking, the pair counts as $500 of spending and $500 of income.
+        let (income, expense) = store.monthly_totals(2026, 8).unwrap();
+        assert_eq!((income, expense), ("3500.00".parse().unwrap(), "500.00".parse().unwrap()));
+
+        store.link_transfer(out_id, in_id).unwrap();
+
+        let (income, expense) = store.monthly_totals(2026, 8).unwrap();
+        assert_eq!(income, "3000.00".parse().unwrap());
+        assert_eq!(expense, Decimal::ZERO);
+        let ranged = store.monthly_totals_for_range(2026, 8, 2026, 8).unwrap();
+        assert_eq!(ranged[&(2026, 8)], ("3000.00".parse().unwrap(), Decimal::ZERO));
+        assert_eq!(store.income_total().unwrap(), "3000.00".parse().unwrap());
+        let (first, last) = ("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap());
+        assert!(store.spending_by_category(first, last).unwrap().is_empty());
+        assert!(store.top_merchants(first, last, 5).unwrap().is_empty());
+        assert_eq!(store.average_monthly_spend("2026-08-31".parse().unwrap()).unwrap(), Decimal::ZERO);
+    }
+
+    #[test]
+    fn a_link_only_excludes_while_both_legs_are_still_live() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        store.link_transfer(out_id, in_id).unwrap();
+
+        // Delete just the outgoing leg: the surviving deposit is real money in again.
+        store.delete_transaction(out_id, "2026-08-12T00:00:00".parse().unwrap()).unwrap();
+        let (income, _) = store.monthly_totals(2026, 8).unwrap();
+        assert_eq!(income, "500.00".parse().unwrap());
+        assert_eq!(counterpart_of(&store, in_id), None, "a deleted leg isn't a counterpart");
+
+        // Undo restores the link's effect.
+        store.restore_transactions(&[out_id]).unwrap();
+        let (income, expense) = store.monthly_totals(2026, 8).unwrap();
+        assert_eq!((income, expense), (Decimal::ZERO, Decimal::ZERO));
+        assert_eq!(counterpart_of(&store, in_id), Some(out_id));
+    }
+
+    #[test]
+    fn a_linked_pair_is_not_suggested_as_a_recurring_bill_or_flagged_as_unusually_large() {
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        let mut ids = Vec::new();
+        for date in ["2026-05-02", "2026-06-02", "2026-07-02", "2026-08-02"] {
+            store.save_transactions(checking, &[tx(date, "Auto Savings Move", "-250.00")]).unwrap();
+            store.save_transactions(savings, &[tx(date, "Incoming Move", "250.00")]).unwrap();
+            ids.push((id_of(&store, "Auto Savings Move", date), id_of(&store, "Incoming Move", date)));
+        }
+        assert!(
+            !store.detect_recurring_candidates("2026-08-20".parse().unwrap()).unwrap().is_empty(),
+            "unlinked, the repeating move looks like a bill"
+        );
+
+        for (out_id, in_id) in ids {
+            store.link_transfer(out_id, in_id).unwrap();
+        }
+
+        assert!(store.detect_recurring_candidates("2026-08-20".parse().unwrap()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn transfer_candidates_pairs_opposite_equal_amounts_in_different_accounts_within_three_days() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-13"); // 3 days apart: ok
+
+        let candidates = store.transfer_candidates().unwrap();
+
+        assert_eq!(candidates, vec![TransferCandidate { out_id, in_id }]);
+    }
+
+    #[test]
+    fn transfer_candidates_ignores_far_apart_already_linked_and_unequal_pairs() {
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        store
+            .save_transactions(
+                checking,
+                &[
+                    tx("2026-08-01", "Far", "-100.00"),
+                    tx("2026-08-10", "Linked out", "-200.00"),
+                    tx("2026-08-20", "Unequal", "-300.00"),
+                ],
+            )
+            .unwrap();
+        store
+            .save_transactions(
+                savings,
+                &[
+                    tx("2026-08-09", "Far in", "100.00"), // 8 days from "Far"
+                    tx("2026-08-10", "Linked in", "200.00"),
+                    tx("2026-08-20", "Unequal in", "299.00"),
+                ],
+            )
+            .unwrap();
+        let ids: Vec<i64> = store.all_transactions().unwrap().iter().map(|t| t.id).collect();
+        store.link_transfer(ids[1], ids[4]).unwrap();
+
+        assert!(store.transfer_candidates().unwrap().is_empty());
+    }
+
+    #[test]
+    fn transfer_candidates_uses_each_transaction_at_most_once_preferring_the_closest_date() {
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        store.save_transactions(checking, &[tx("2026-08-10", "Out", "-500.00")]).unwrap();
+        store
+            .save_transactions(savings, &[tx("2026-08-12", "In two days later", "500.00")])
+            .unwrap();
+        store.save_transactions(savings, &[tx("2026-08-10", "In same day", "500.00")]).unwrap();
+        let out_id = id_of(&store, "Out", "2026-08-10");
+        let same_day_in = id_of(&store, "In same day", "2026-08-10");
+
+        let candidates = store.transfer_candidates().unwrap();
+
+        assert_eq!(candidates, vec![TransferCandidate { out_id, in_id: same_day_in }]);
+    }
+
+    // Bill-aware forecast.
+
+    fn forecast_today() -> NaiveDate {
+        "2026-09-18".parse().unwrap()
+    }
+
+    fn checking_with_balance(store: &Store, balance: &str) -> i64 {
+        let id = test_account(store);
+        store.set_account_starting_balance(id, balance.parse().unwrap()).unwrap();
+        id
+    }
+
+    fn balance_on(forecast: &BillAwareForecast, date: &str) -> Decimal {
+        let date: NaiveDate = date.parse().unwrap();
+        forecast
+            .points
+            .iter()
+            .find(|p| p.date == date)
+            .unwrap_or_else(|| panic!("no forecast point for {date}"))
+            .balance
+    }
+
+    #[test]
+    fn bill_aware_forecast_falls_back_to_the_trend_forecast_when_there_are_no_recurring_items() {
+        let store = Store::open_in_memory().unwrap();
+        let account = checking_with_balance(&store, "1000.00");
+        store
+            .save_transactions(account, &[tx("2026-08-25", "Payroll Deposit", "600.00")])
+            .unwrap();
+
+        let forecast = store.bill_aware_forecast(forecast_today(), 30).unwrap();
+
+        assert!(!forecast.uses_recurring);
+        assert!(forecast.events.is_empty());
+        assert_eq!(forecast.points, store.cash_flow_forecast(forecast_today(), 30).unwrap());
+    }
+
+    #[test]
+    fn a_recurring_bill_lands_on_its_due_date_and_not_before() {
+        let store = Store::open_in_memory().unwrap();
+        let account = checking_with_balance(&store, "3000.00");
+        store
+            .create_recurring(
+                "Union Realty",
+                Some("Rent"),
+                "-1000.00".parse().unwrap(),
+                "monthly",
+                "2026-09-28".parse().unwrap(),
+                Some(account),
+            )
+            .unwrap();
+
+        let forecast = store.bill_aware_forecast(forecast_today(), 30).unwrap();
+
+        assert!(forecast.uses_recurring);
+        assert_eq!(forecast.start_balance, "3000.00".parse().unwrap());
+        assert_eq!(balance_on(&forecast, "2026-09-18"), "3000.00".parse().unwrap());
+        assert_eq!(balance_on(&forecast, "2026-09-27"), "3000.00".parse().unwrap());
+        assert_eq!(balance_on(&forecast, "2026-09-28"), "2000.00".parse().unwrap());
+        assert_eq!(
+            balance_on(&forecast, "2026-10-18"),
+            "2000.00".parse().unwrap(),
+            "next month's rent is past the 30-day horizon"
+        );
+        assert_eq!(forecast.points.len(), 31, "today plus one point per day");
+        assert_eq!(
+            forecast.events,
+            vec![ForecastEvent {
+                date: "2026-09-28".parse().unwrap(),
+                label: "Union Realty".to_string(),
+                amount: "-1000.00".parse().unwrap()
+            }]
+        );
+    }
+
+    #[test]
+    fn a_repeating_paycheck_lifts_the_balance_each_time_it_lands_in_the_horizon() {
+        let store = Store::open_in_memory().unwrap();
+        let account = checking_with_balance(&store, "3000.00");
+        store
+            .create_recurring(
+                "Payroll Deposit",
+                Some("Income"),
+                "2000.00".parse().unwrap(),
+                "biweekly",
+                "2026-09-23".parse().unwrap(),
+                Some(account),
+            )
+            .unwrap();
+
+        let forecast = store.bill_aware_forecast(forecast_today(), 30).unwrap();
+
+        assert_eq!(balance_on(&forecast, "2026-09-22"), "3000.00".parse().unwrap());
+        assert_eq!(balance_on(&forecast, "2026-09-23"), "5000.00".parse().unwrap());
+        assert_eq!(balance_on(&forecast, "2026-10-07"), "7000.00".parse().unwrap());
+        assert_eq!(forecast.events.len(), 2, "09-23 and 10-07; the next one (10-21) is past the horizon");
+    }
+
+    #[test]
+    fn a_canceled_recurring_item_is_left_out_of_the_forecast() {
+        let store = Store::open_in_memory().unwrap();
+        let account = checking_with_balance(&store, "3000.00");
+        let id = store
+            .create_recurring(
+                "Old Gym",
+                None,
+                "-50.00".parse().unwrap(),
+                "monthly",
+                "2026-09-25".parse().unwrap(),
+                Some(account),
+            )
+            .unwrap();
+        store.set_recurring_status(id, "canceled").unwrap();
+
+        let forecast = store.bill_aware_forecast(forecast_today(), 30).unwrap();
+
+        assert!(!forecast.uses_recurring, "nothing active left, so it falls back to the trend");
+        assert!(forecast.events.is_empty());
+    }
+
+    #[test]
+    fn a_bill_due_today_is_taken_out_of_todays_balance() {
+        let store = Store::open_in_memory().unwrap();
+        let account = checking_with_balance(&store, "3000.00");
+        store
+            .create_recurring(
+                "Union Realty",
+                Some("Rent"),
+                "-1000.00".parse().unwrap(),
+                "monthly",
+                forecast_today(),
+                Some(account),
+            )
+            .unwrap();
+
+        let forecast = store.bill_aware_forecast(forecast_today(), 7).unwrap();
+
+        assert_eq!(forecast.points[0].balance, "2000.00".parse().unwrap());
+        assert_eq!(
+            forecast.start_balance,
+            "3000.00".parse().unwrap(),
+            "the start is what's in the accounts right now"
+        );
+    }
+
+    #[test]
+    fn everyday_spending_is_projected_from_history_but_ignores_recurring_merchants_and_transfers() {
+        let store = Store::open_in_memory().unwrap();
+        let account = checking_with_balance(&store, "5000.00");
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-19", "Payroll Deposit", "2000.00"), // a recurring paycheck: not baseline
+                    tx("2026-08-29", "Grocery Run", "-900.00"),     // genuine everyday spending
+                    Transaction {
+                        category: Some("Transfer".to_string()),
+                        ..tx("2026-09-08", "Move to savings", "-500.00")
+                    },
+                ],
+            )
+            .unwrap();
+        // Recurring paycheck lands well outside the horizon, so only its
+        // *matching* effect on the baseline is under test here.
+        store
+            .create_recurring(
+                "Payroll Deposit",
+                Some("Income"),
+                "2000.00".parse().unwrap(),
+                "monthly",
+                "2026-12-01".parse().unwrap(),
+                Some(account),
+            )
+            .unwrap();
+
+        let forecast = store.bill_aware_forecast(forecast_today(), 10).unwrap();
+
+        // 30 days of history (earliest transaction 2026-08-19): -900 / 30 = -30 a day.
+        assert_eq!(forecast.daily_baseline, "-30".parse().unwrap());
+        let start = forecast.start_balance;
+        assert_eq!(start, "5600.00".parse().unwrap()); // 5000 + 2000 - 900 - 500
+        assert_eq!(balance_on(&forecast, "2026-09-28"), start - Decimal::from(300));
+    }
+
+    #[test]
+    fn linked_transfers_are_not_everyday_spending() {
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        store.set_account_starting_balance(checking, "5000.00".parse().unwrap()).unwrap();
+        store
+            .save_transactions(checking, &[tx("2026-08-19", "Move to savings", "-500.00")])
+            .unwrap();
+        store
+            .save_transactions(savings, &[tx("2026-08-19", "Deposit from checking", "500.00")])
+            .unwrap();
+        store
+            .create_recurring(
+                "Netflix",
+                None,
+                "-15.00".parse().unwrap(),
+                "monthly",
+                "2026-12-01".parse().unwrap(),
+                Some(checking),
+            )
+            .unwrap();
+        let out_id = id_of(&store, "Move to savings", "2026-08-19");
+        let in_id = id_of(&store, "Deposit from checking", "2026-08-19");
+        store.link_transfer(out_id, in_id).unwrap();
+
+        let forecast = store.bill_aware_forecast(forecast_today(), 10).unwrap();
+
+        assert_eq!(forecast.daily_baseline, Decimal::ZERO);
+    }
+
+    #[test]
+    fn events_are_listed_in_date_order() {
+        let store = Store::open_in_memory().unwrap();
+        let account = checking_with_balance(&store, "1000.00");
+        store
+            .create_recurring(
+                "Payroll Deposit",
+                None,
+                "2000.00".parse().unwrap(),
+                "monthly",
+                "2026-10-01".parse().unwrap(),
+                Some(account),
+            )
+            .unwrap();
+        store
+            .create_recurring(
+                "Union Realty",
+                None,
+                "-1000.00".parse().unwrap(),
+                "monthly",
+                "2026-09-28".parse().unwrap(),
+                Some(account),
+            )
+            .unwrap();
+        store
+            .create_recurring(
+                "Geico Auto",
+                None,
+                "-175.00".parse().unwrap(),
+                "monthly",
+                "2026-09-20".parse().unwrap(),
+                Some(account),
+            )
+            .unwrap();
+
+        let forecast = store.bill_aware_forecast(forecast_today(), 30).unwrap();
+
+        let labels: Vec<&str> = forecast.events.iter().map(|e| e.label.as_str()).collect();
+        // Geico's next one (10-20) is past the 10-18 horizon.
+        assert_eq!(labels, vec!["Geico Auto", "Union Realty", "Payroll Deposit"]);
+    }
+
     // Net worth history.
 
     #[test]
@@ -13396,5 +16279,1524 @@ mod tests {
 
         assert_eq!(names, with_icons.iter().map(|c| c.name.clone()).collect::<Vec<_>>());
         assert!(with_icons.iter().any(|c| c.name == "Pet Care" && c.icon_key.is_none()));
+    }
+
+    // ---- Phase 2 / 7b: suggest budgets from a trailing average ----
+
+    /// One categorized expense — `amount` is the positive dollars spent.
+    fn spend_on(store: &Store, account: i64, date: &str, description: &str, amount: &str, category: &str) {
+        store.save_transactions(account, &[tx(date, description, &format!("-{amount}"))]).unwrap();
+        let id = id_of(store, description, date);
+        store.set_category(id, category, CategorySource::User, None).unwrap();
+    }
+
+    fn suggested(suggestions: &BudgetSuggestions, category: &str) -> Option<Decimal> {
+        suggestions.lines.iter().find(|l| l.category == category).map(|l| l.suggested)
+    }
+
+    #[test]
+    fn suggest_budgets_averages_the_three_full_months_before_the_period() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2026-05-10", "Grocers May", "300.00", "Groceries");
+        spend_on(&store, account, "2026-06-10", "Grocers Jun", "450.00", "Groceries");
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "600.00", "Groceries");
+        // The month being budgeted isn't part of its own average.
+        spend_on(&store, account, "2026-08-02", "Grocers Aug", "9999.00", "Groceries");
+
+        let s = store.suggest_budgets_from_average(2026, 8, 3).unwrap();
+
+        assert_eq!(s.months_used, 3);
+        assert_eq!(suggested(&s, "Groceries"), Some("450".parse().unwrap()));
+    }
+
+    #[test]
+    fn suggest_budgets_rounds_to_a_whole_dollar() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2026-05-10", "Cafe May", "10.00", "Dining Out");
+        spend_on(&store, account, "2026-06-10", "Cafe Jun", "10.00", "Dining Out");
+        spend_on(&store, account, "2026-07-10", "Cafe Jul", "11.00", "Dining Out");
+
+        let s = store.suggest_budgets_from_average(2026, 8, 3).unwrap();
+
+        // 31 / 3 = 10.33...
+        assert_eq!(suggested(&s, "Dining Out"), Some("10".parse().unwrap()));
+    }
+
+    #[test]
+    fn suggest_budgets_counts_a_month_with_no_spend_as_zero() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2026-05-10", "Dentist", "60.00", "Health");
+        // Give the account history in June and July so all three months count.
+        spend_on(&store, account, "2026-06-10", "Grocers Jun", "10.00", "Groceries");
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "10.00", "Groceries");
+
+        let s = store.suggest_budgets_from_average(2026, 8, 3).unwrap();
+
+        assert_eq!(suggested(&s, "Health"), Some("20".parse().unwrap()));
+    }
+
+    #[test]
+    fn suggest_budgets_ignores_transfers_and_income() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2026-06-10", "To Savings", "500.00", "Transfer");
+        store.save_transactions(account, &[tx("2026-06-15", "Paycheck", "2000.00")]).unwrap();
+        let pay = id_of(&store, "Paycheck", "2026-06-15");
+        store.set_category(pay, "Income", CategorySource::User, None).unwrap();
+        spend_on(&store, account, "2026-06-20", "Grocers", "90.00", "Groceries");
+
+        let s = store.suggest_budgets_from_average(2026, 8, 3).unwrap();
+
+        assert_eq!(suggested(&s, "Transfer"), None);
+        assert_eq!(suggested(&s, "Income"), None);
+        assert!(suggested(&s, "Groceries").is_some());
+    }
+
+    #[test]
+    fn suggest_budgets_reports_the_current_budget_and_group_of_a_budgeted_category() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store.set_budget("Rent", "2026-08", "1500.00".parse().unwrap(), "fixed").unwrap();
+        spend_on(&store, account, "2026-06-01", "Landlord Jun", "1500.00", "Rent");
+        spend_on(&store, account, "2026-07-01", "Landlord Jul", "1500.00", "Rent");
+        spend_on(&store, account, "2026-07-12", "Grocers", "300.00", "Groceries");
+
+        let s = store.suggest_budgets_from_average(2026, 8, 3).unwrap();
+
+        let rent = s.lines.iter().find(|l| l.category == "Rent").unwrap();
+        assert_eq!(rent.current, Some("1500.00".parse().unwrap()));
+        assert_eq!(rent.budget_group, "fixed");
+        let groceries = s.lines.iter().find(|l| l.category == "Groceries").unwrap();
+        assert_eq!(groceries.current, None);
+        assert_eq!(groceries.budget_group, "flexible");
+    }
+
+    #[test]
+    fn suggest_budgets_uses_only_the_months_that_have_history() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        // The first-ever transaction is in June, so May doesn't dilute the average.
+        spend_on(&store, account, "2026-06-10", "Grocers Jun", "200.00", "Groceries");
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "300.00", "Groceries");
+
+        let s = store.suggest_budgets_from_average(2026, 8, 3).unwrap();
+
+        assert_eq!(s.months_used, 2);
+        assert_eq!(suggested(&s, "Groceries"), Some("250".parse().unwrap()));
+    }
+
+    #[test]
+    fn suggest_budgets_is_empty_when_there_is_no_history_before_the_period() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2026-08-05", "Grocers", "80.00", "Groceries");
+
+        let s = store.suggest_budgets_from_average(2026, 8, 3).unwrap();
+
+        assert_eq!(s.months_used, 0);
+        assert!(s.lines.is_empty());
+    }
+
+    #[test]
+    fn suggest_budgets_window_crosses_a_year_boundary() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2025-11-10", "Grocers Nov", "100.00", "Groceries");
+        spend_on(&store, account, "2025-12-10", "Grocers Dec", "200.00", "Groceries");
+        spend_on(&store, account, "2026-01-10", "Grocers Jan", "300.00", "Groceries");
+
+        // Budgeting February looks back at Nov, Dec, Jan.
+        let s = store.suggest_budgets_from_average(2026, 2, 3).unwrap();
+
+        assert_eq!(s.months_used, 3);
+        assert_eq!(suggested(&s, "Groceries"), Some("200".parse().unwrap()));
+    }
+
+    #[test]
+    fn suggest_budgets_lists_the_biggest_average_first_and_drops_sub_dollar_noise() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2026-07-01", "Grocers", "300.00", "Groceries");
+        spend_on(&store, account, "2026-07-02", "Cafe", "90.00", "Dining Out");
+        spend_on(&store, account, "2026-07-03", "Gum", "0.40", "Candy");
+
+        let s = store.suggest_budgets_from_average(2026, 8, 3).unwrap();
+
+        let names: Vec<&str> = s.lines.iter().map(|l| l.category.as_str()).collect();
+        assert_eq!(names, vec!["Groceries", "Dining Out"]);
+    }
+
+    // ---- Phase 2 / 8a + 8b: goal pace and goals that track an account ----
+
+    fn day(s: &str) -> NaiveDate {
+        s.parse().unwrap()
+    }
+
+    fn goal(store: &Store, today: &str, name: &str) -> StoredBucket {
+        store
+            .list_buckets_as_of(day(today))
+            .unwrap()
+            .into_iter()
+            .find(|b| b.name == name)
+            .unwrap_or_else(|| panic!("no goal {name:?}"))
+    }
+
+    fn savings_with_start(store: &Store, name: &str, start: &str) -> i64 {
+        let id = store.get_or_create_account(name, AccountType::Savings).unwrap();
+        store
+            .conn
+            .execute("UPDATE accounts SET starting_balance = ?1 WHERE id = ?2", params![start, id])
+            .unwrap();
+        id
+    }
+
+    #[test]
+    fn goal_pace_is_the_last_90_days_of_contributions_per_month() {
+        let store = Store::open_in_memory().unwrap();
+        let id = store
+            .create_bucket("Trip", Some("3000".parse().unwrap()), None, None, None, None, None)
+            .unwrap();
+        store
+            .add_bucket_contribution(id, day("2026-09-08"), "300".parse().unwrap(), None)
+            .unwrap();
+        store
+            .add_bucket_contribution(id, day("2026-08-09"), "300".parse().unwrap(), None)
+            .unwrap();
+        // 100 days back: outside the window.
+        store
+            .add_bucket_contribution(id, day("2026-06-10"), "300".parse().unwrap(), None)
+            .unwrap();
+
+        assert_eq!(goal(&store, "2026-09-18", "Trip").monthly_pace, "200".parse().unwrap());
+    }
+
+    #[test]
+    fn goal_pace_counts_withdrawals_against_it() {
+        let store = Store::open_in_memory().unwrap();
+        let id = store.create_bucket("Trip", None, None, None, None, None, None).unwrap();
+        store
+            .add_bucket_contribution(id, day("2026-09-01"), "300".parse().unwrap(), None)
+            .unwrap();
+        store
+            .add_bucket_contribution(id, day("2026-09-05"), "-90".parse().unwrap(), None)
+            .unwrap();
+
+        assert_eq!(goal(&store, "2026-09-18", "Trip").monthly_pace, "70".parse().unwrap());
+    }
+
+    #[test]
+    fn goal_pace_is_zero_without_recent_contributions() {
+        let store = Store::open_in_memory().unwrap();
+        let id = store.create_bucket("Trip", None, None, None, None, None, None).unwrap();
+        store
+            .add_bucket_contribution(id, day("2026-01-01"), "500".parse().unwrap(), None)
+            .unwrap();
+
+        let g = goal(&store, "2026-09-18", "Trip");
+        assert_eq!(g.monthly_pace, Decimal::ZERO);
+        assert_eq!(g.saved_amount, "500".parse().unwrap());
+    }
+
+    #[test]
+    fn a_goal_tracking_an_account_reports_that_balance_as_saved() {
+        let store = Store::open_in_memory().unwrap();
+        let savings = savings_with_start(&store, "High-Yield Savings", "1000.00");
+        store.save_transactions(savings, &[tx("2026-08-01", "Deposit", "200.00")]).unwrap();
+        let id = store
+            .create_bucket("Emergency Fund", Some("5000".parse().unwrap()), None, Some(savings), None, None, None)
+            .unwrap();
+        store.set_bucket_tracks_account(id, true).unwrap();
+        // A manual contribution no longer counts: the balance is the truth.
+        store.add_bucket_contribution(id, day("2026-09-01"), "50".parse().unwrap(), None).unwrap();
+
+        let g = goal(&store, "2026-09-18", "Emergency Fund");
+
+        assert!(g.tracks_account);
+        assert_eq!(g.saved_amount, "1200".parse().unwrap());
+    }
+
+    #[test]
+    fn a_linked_goal_that_is_not_tracking_keeps_its_contribution_total() {
+        let store = Store::open_in_memory().unwrap();
+        let savings = savings_with_start(&store, "High-Yield Savings", "1000.00");
+        let id = store.create_bucket("Trip", None, None, Some(savings), None, None, None).unwrap();
+        store.add_bucket_contribution(id, day("2026-09-01"), "75".parse().unwrap(), None).unwrap();
+
+        let g = goal(&store, "2026-09-18", "Trip");
+
+        assert!(!g.tracks_account);
+        assert_eq!(g.saved_amount, "75".parse().unwrap());
+    }
+
+    #[test]
+    fn tracking_with_no_linked_account_falls_back_to_contributions() {
+        let store = Store::open_in_memory().unwrap();
+        let id = store.create_bucket("Trip", None, None, None, None, None, None).unwrap();
+        store.set_bucket_tracks_account(id, true).unwrap();
+        store.add_bucket_contribution(id, day("2026-09-01"), "75".parse().unwrap(), None).unwrap();
+
+        assert_eq!(goal(&store, "2026-09-18", "Trip").saved_amount, "75".parse().unwrap());
+    }
+
+    #[test]
+    fn a_tracked_balance_never_reports_below_zero() {
+        let store = Store::open_in_memory().unwrap();
+        let savings = savings_with_start(&store, "Overdrawn", "0.00");
+        store.save_transactions(savings, &[tx("2026-08-01", "Withdrawal", "-500.00")]).unwrap();
+        let id = store.create_bucket("Fund", None, None, Some(savings), None, None, None).unwrap();
+        store.set_bucket_tracks_account(id, true).unwrap();
+
+        assert_eq!(goal(&store, "2026-09-18", "Fund").saved_amount, Decimal::ZERO);
+    }
+
+    #[test]
+    fn a_tracking_goals_pace_is_its_accounts_net_change_per_month() {
+        let store = Store::open_in_memory().unwrap();
+        let savings = savings_with_start(&store, "High-Yield Savings", "1000.00");
+        store
+            .save_transactions(
+                savings,
+                &[
+                    tx("2026-09-03", "Deposit A", "300.00"),
+                    tx("2026-08-01", "Deposit B", "300.00"),
+                    tx("2026-03-01", "Deposit C", "5000.00"),
+                ],
+            )
+            .unwrap();
+        let id = store
+            .create_bucket("Emergency Fund", None, None, Some(savings), None, None, None)
+            .unwrap();
+        store.set_bucket_tracks_account(id, true).unwrap();
+
+        assert_eq!(goal(&store, "2026-09-18", "Emergency Fund").monthly_pace, "200".parse().unwrap());
+    }
+
+    #[test]
+    fn set_bucket_tracks_account_can_be_turned_back_off() {
+        let store = Store::open_in_memory().unwrap();
+        let savings = savings_with_start(&store, "High-Yield Savings", "1000.00");
+        let id = store.create_bucket("Fund", None, None, Some(savings), None, None, None).unwrap();
+        store.set_bucket_tracks_account(id, true).unwrap();
+        store.set_bucket_tracks_account(id, false).unwrap();
+
+        assert!(!goal(&store, "2026-09-18", "Fund").tracks_account);
+        // An unknown id is a harmless no-op.
+        store.set_bucket_tracks_account(9999, true).unwrap();
+    }
+
+    // ---- Phase 2 / 17: second backup destination (the setting) ----
+
+    #[test]
+    fn backup_copy_dir_starts_unset_and_can_be_set_and_cleared() {
+        let store = Store::open_in_memory().unwrap();
+        assert_eq!(store.get_backup_copy_dir().unwrap(), None);
+
+        store.set_backup_copy_dir(Some("D:\\OneDrive\\Backups")).unwrap();
+        assert_eq!(store.get_backup_copy_dir().unwrap(), Some("D:\\OneDrive\\Backups".to_string()));
+
+        store.set_backup_copy_dir(None).unwrap();
+        assert_eq!(store.get_backup_copy_dir().unwrap(), None);
+    }
+
+    #[test]
+    fn a_blank_backup_copy_dir_counts_as_unset() {
+        let store = Store::open_in_memory().unwrap();
+        store.set_backup_copy_dir(Some("   ")).unwrap();
+
+        assert_eq!(store.get_backup_copy_dir().unwrap(), None);
+    }
+
+    #[test]
+    fn setting_the_backup_copy_dir_leaves_the_feature_toggles_alone() {
+        let store = Store::open_in_memory().unwrap();
+        store.set_envelope_caps_enabled(false).unwrap();
+        store.set_backup_copy_dir(Some("E:\\Backups")).unwrap();
+
+        let settings = store.get_app_settings().unwrap();
+        assert!(!settings.envelope_caps_enabled, "an earlier toggle must survive");
+        assert!(
+            settings.apply_to_debt_enabled && settings.split_purchases_enabled,
+            "untouched toggles keep their default"
+        );
+    }
+
+    #[test]
+    fn opening_a_database_from_before_the_backup_copy_dir_existed_adds_the_column() {
+        let dir = std::env::temp_dir().join(format!("meadow-backup-copy-dir-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("pre_backup_copy_dir.db");
+        let _ = std::fs::remove_file(&db_path);
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE app_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    apply_to_debt_enabled INTEGER NOT NULL DEFAULT 1,
+                    split_purchases_enabled INTEGER NOT NULL DEFAULT 1,
+                    envelope_caps_enabled INTEGER NOT NULL DEFAULT 1,
+                    loan_sign_convention_migrated INTEGER NOT NULL DEFAULT 0,
+                    default_rules_seeded INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO app_settings (id, envelope_caps_enabled) VALUES (1, 0);",
+            )
+            .unwrap();
+        }
+
+        let store = Store::open(&db_path).unwrap();
+
+        assert_eq!(store.get_backup_copy_dir().unwrap(), None);
+        store.set_backup_copy_dir(Some("F:\\Safe")).unwrap();
+        assert_eq!(store.get_backup_copy_dir().unwrap(), Some("F:\\Safe".to_string()));
+        assert!(!store.get_app_settings().unwrap().envelope_caps_enabled, "the existing row must survive");
+    }
+
+    // ---- Phase 2 / 6: match recurring items to real transactions ----
+
+    fn dec(s: &str) -> Decimal {
+        s.parse().unwrap()
+    }
+
+    /// A monthly bill on the 3rd, first due 2026-06-03, plus the charges the
+    /// bank actually posted — `(date, amount)` pairs on `desc`.
+    fn netflix_with(store: &Store, account: i64, stored_amount: &str, posted: &[(&str, &str)]) -> i64 {
+        let id = store
+            .create_recurring("Netflix", Some("Subscriptions"), dec(stored_amount), "monthly", day("2026-06-03"), None)
+            .unwrap();
+        for (date, amount) in posted {
+            store.save_transactions(account, &[tx(date, "NETFLIX.COM 866-579", amount)]).unwrap();
+        }
+        id
+    }
+
+    fn match_for(store: &Store, today: &str, recurring_id: i64) -> RecurringMatch {
+        store
+            .recurring_matches(day(today))
+            .unwrap()
+            .into_iter()
+            .find(|m| m.recurring_id == recurring_id)
+            .expect("a match row for the recurring item")
+    }
+
+    #[test]
+    fn a_bill_with_a_charge_near_its_due_date_is_paid() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(
+            &store,
+            account,
+            "-15.49",
+            &[("2026-07-03", "-15.49"), ("2026-08-03", "-15.49"), ("2026-09-03", "-15.49")],
+        );
+
+        let m = match_for(&store, "2026-09-05", id);
+
+        assert_eq!(m.state, "paid");
+        assert_eq!(m.last_due, Some(day("2026-09-03")));
+        assert_eq!(m.last_paid_date, Some(day("2026-09-03")));
+        assert_eq!(m.last_paid_amount, Some(dec("-15.49")));
+    }
+
+    #[test]
+    fn a_charge_that_posts_a_few_days_late_still_counts() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[("2026-08-03", "-15.49"), ("2026-09-06", "-15.49")]);
+
+        assert_eq!(match_for(&store, "2026-09-10", id).state, "paid");
+    }
+
+    #[test]
+    fn a_bill_past_due_with_no_charge_yet_is_pending_inside_the_grace_period() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[("2026-07-03", "-15.49"), ("2026-08-03", "-15.49")]);
+
+        let m = match_for(&store, "2026-09-05", id);
+
+        assert_eq!(m.state, "pending");
+        assert_eq!(m.last_due, Some(day("2026-09-03")));
+        assert_eq!(m.last_paid_date, Some(day("2026-08-03")));
+    }
+
+    #[test]
+    fn a_bill_well_past_due_with_no_charge_is_missed() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[("2026-07-03", "-15.49"), ("2026-08-03", "-15.49")]);
+
+        assert_eq!(match_for(&store, "2026-09-20", id).state, "missed");
+    }
+
+    #[test]
+    fn an_item_with_no_matching_charge_ever_is_unmatched_not_missed() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[]);
+        store.save_transactions(account, &[tx("2026-08-03", "Kroger", "-40.00")]).unwrap();
+
+        let m = match_for(&store, "2026-09-20", id);
+
+        assert_eq!(m.state, "unmatched");
+        assert_eq!(m.last_paid_date, None);
+    }
+
+    #[test]
+    fn an_item_that_has_not_started_yet_is_upcoming() {
+        let store = Store::open_in_memory().unwrap();
+        let id = store
+            .create_recurring("Gym", None, dec("-30"), "monthly", day("2026-10-01"), None)
+            .unwrap();
+
+        let m = match_for(&store, "2026-09-18", id);
+
+        assert_eq!(m.state, "upcoming");
+        assert_eq!(m.last_due, None);
+    }
+
+    #[test]
+    fn income_with_the_same_name_does_not_match_a_bill() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[]);
+        store
+            .save_transactions(account, &[tx("2026-09-03", "NETFLIX.COM refund", "15.49")])
+            .unwrap();
+
+        assert_eq!(match_for(&store, "2026-09-05", id).state, "unmatched");
+    }
+
+    #[test]
+    fn a_deleted_charge_does_not_count_as_paid() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[("2026-08-03", "-15.49"), ("2026-09-03", "-15.49")]);
+        let tx_id = id_of(&store, "NETFLIX.COM 866-579", "2026-09-03");
+        store.delete_transaction(tx_id, test_now()).unwrap();
+
+        assert_eq!(match_for(&store, "2026-09-05", id).state, "pending");
+    }
+
+    #[test]
+    fn a_price_increase_after_a_steady_run_is_flagged() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(
+            &store,
+            account,
+            "-15.49",
+            &[
+                ("2026-06-03", "-15.49"),
+                ("2026-07-03", "-15.49"),
+                ("2026-08-03", "-15.49"),
+                ("2026-09-03", "-17.99"),
+            ],
+        );
+
+        let change = match_for(&store, "2026-09-05", id).price_change.expect("a price change");
+
+        assert_eq!(change.from, dec("-15.49"));
+        assert_eq!(change.to, dec("-17.99"));
+    }
+
+    #[test]
+    fn a_steady_price_is_not_flagged() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(
+            &store,
+            account,
+            "-15.49",
+            &[("2026-07-03", "-15.49"), ("2026-08-03", "-15.49"), ("2026-09-03", "-15.49")],
+        );
+
+        assert!(match_for(&store, "2026-09-05", id).price_change.is_none());
+    }
+
+    #[test]
+    fn a_bill_that_varies_every_month_is_never_flagged() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = store
+            .create_recurring("City Power", None, dec("-90"), "monthly", day("2026-06-03"), None)
+            .unwrap();
+        for (date, amount) in [
+            ("2026-06-03", "-80.00"),
+            ("2026-07-03", "-95.00"),
+            ("2026-08-03", "-70.00"),
+            ("2026-09-03", "-88.00"),
+        ] {
+            store.save_transactions(account, &[tx(date, "CITY POWER & LIGHT", amount)]).unwrap();
+        }
+
+        assert!(match_for(&store, "2026-09-05", id).price_change.is_none());
+    }
+
+    #[test]
+    fn a_single_charge_is_compared_against_the_amount_on_file() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[("2026-09-03", "-17.99")]);
+
+        let change = match_for(&store, "2026-09-05", id).price_change.expect("a price change");
+
+        assert_eq!((change.from, change.to), (dec("-15.49"), dec("-17.99")));
+    }
+
+    #[test]
+    fn a_trivial_difference_is_not_a_price_change() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[("2026-08-03", "-15.49"), ("2026-09-03", "-15.50")]);
+
+        assert!(match_for(&store, "2026-09-05", id).price_change.is_none());
+    }
+
+    #[test]
+    fn a_blank_merchant_never_matches_everything() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = store.create_recurring("", None, dec("-10"), "monthly", day("2026-06-03"), None).unwrap();
+        store
+            .save_transactions(account, &[tx("2026-09-03", "Anything at all", "-10.00")])
+            .unwrap();
+
+        assert_eq!(match_for(&store, "2026-09-05", id).state, "unmatched");
+    }
+
+    #[test]
+    fn the_forecast_skips_a_bill_due_today_that_has_already_posted() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        netflix_with(&store, account, "-15.49", &[("2026-08-03", "-15.49"), ("2026-09-03", "-15.49")]);
+
+        let forecast = store.bill_aware_forecast(day("2026-09-03"), 10).unwrap();
+
+        assert!(
+            !forecast.events.iter().any(|e| e.label == "Netflix" && e.date == day("2026-09-03")),
+            "a charge that already hit the account must not be counted again: {:?}",
+            forecast.events
+        );
+    }
+
+    #[test]
+    fn the_forecast_still_counts_a_bill_due_today_that_has_not_posted() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        netflix_with(&store, account, "-15.49", &[("2026-08-03", "-15.49")]);
+
+        let forecast = store.bill_aware_forecast(day("2026-09-03"), 10).unwrap();
+
+        assert!(forecast.events.iter().any(|e| e.label == "Netflix" && e.date == day("2026-09-03")));
+    }
+
+    // ---- Phase 2 / 9: month-end review ----
+
+    #[test]
+    fn month_review_reports_the_months_income_and_spending_beside_the_month_before() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-07-05", "Paycheck", "3000.00"),
+                    tx("2026-07-10", "Rent", "-1200.00"),
+                    tx("2026-08-05", "Paycheck", "3200.00"),
+                    tx("2026-08-10", "Rent", "-1200.00"),
+                    tx("2026-08-15", "Kroger", "-300.00"),
+                ],
+            )
+            .unwrap();
+
+        let r = store.month_review(2026, 8).unwrap();
+
+        assert_eq!((r.income, r.expenses), (dec("3200.00"), dec("1500.00")));
+        assert_eq!((r.prev_income, r.prev_expenses), (dec("3000.00"), dec("1200.00")));
+    }
+
+    #[test]
+    fn month_review_of_january_compares_with_the_previous_december() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(account, &[tx("2025-12-20", "Gifts", "-250.00"), tx("2026-01-05", "Kroger", "-100.00")])
+            .unwrap();
+
+        let r = store.month_review(2026, 1).unwrap();
+
+        assert_eq!(r.prev_expenses, dec("250.00"));
+        assert_eq!(r.expenses, dec("100.00"));
+    }
+
+    #[test]
+    fn month_review_lists_only_expense_categories_that_went_over_budget_biggest_overage_first() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store.set_budget("Dining Out", "2026-08", dec("100"), "flexible").unwrap();
+        store.set_budget("Groceries", "2026-08", dec("400"), "flexible").unwrap();
+        store.set_budget("Gas", "2026-08", dec("150"), "flexible").unwrap();
+        store.set_budget("Paycheck", "2026-08", dec("3000"), "income").unwrap();
+        spend_on(&store, account, "2026-08-03", "Cafe", "260.00", "Dining Out");
+        spend_on(&store, account, "2026-08-04", "Kroger", "430.00", "Groceries");
+        spend_on(&store, account, "2026-08-05", "Shell", "90.00", "Gas");
+
+        let r = store.month_review(2026, 8).unwrap();
+
+        let over: Vec<(&str, Decimal, Decimal)> = r.over_budget.iter().map(|l| (l.category.as_str(), l.budgeted, l.actual)).collect();
+        assert_eq!(
+            over,
+            vec![("Dining Out", dec("100"), dec("260.00")), ("Groceries", dec("400"), dec("430.00"))]
+        );
+    }
+
+    #[test]
+    fn month_review_counts_the_months_uncategorized_transactions_and_their_total() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-02", "Mystery Vendor", "-40.00"),
+                    tx("2026-08-20", "Deposit", "25.00"),
+                    tx("2026-07-30", "Last Month Mystery", "-99.00"),
+                    tx("2026-09-01", "Next Month Mystery", "-77.00"),
+                ],
+            )
+            .unwrap();
+
+        let r = store.month_review(2026, 8).unwrap();
+
+        assert_eq!(r.uncategorized_count, 2);
+        assert_eq!(r.uncategorized_total, dec("65.00"));
+    }
+
+    #[test]
+    fn month_review_ignores_categorized_deleted_and_split_transactions_when_counting_uncategorized() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-02", "Kroger", "-40.00"),
+                    tx("2026-08-03", "Gone", "-10.00"),
+                    tx("2026-08-04", "Costco", "-100.00"),
+                ],
+            )
+            .unwrap();
+        store
+            .set_category(id_of(&store, "Kroger", "2026-08-02"), "Groceries", CategorySource::User, None)
+            .unwrap();
+        store.delete_transaction(id_of(&store, "Gone", "2026-08-03"), test_now()).unwrap();
+        let costco = id_of(&store, "Costco", "2026-08-04");
+        store
+            .set_transaction_splits(
+                costco,
+                &[
+                    ("Groceries".to_string(), dec("-60.00"), None),
+                    ("Household".to_string(), dec("-40.00"), None),
+                ],
+            )
+            .unwrap();
+
+        let r = store.month_review(2026, 8).unwrap();
+
+        assert_eq!(r.uncategorized_count, 0);
+    }
+
+    #[test]
+    fn a_month_is_reviewed_only_once_marked_and_marking_twice_is_harmless() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(!store.month_review(2026, 8).unwrap().reviewed);
+
+        store.set_month_reviewed(2026, 8).unwrap();
+        store.set_month_reviewed(2026, 8).unwrap();
+
+        assert!(store.month_review(2026, 8).unwrap().reviewed);
+        assert!(!store.month_review(2026, 7).unwrap().reviewed);
+        assert_eq!(store.list_reviewed_months().unwrap(), vec!["2026-08".to_string()]);
+    }
+
+    // ---- Phase 2 / 3: dismissing an anomaly flag ("looks right") ----
+
+    fn duplicate_pair(store: &Store) -> (i64, i64) {
+        let account = test_account(store);
+        store
+            .save_transactions(account, &[tx("2026-09-10", "Netflix", "-15.49"), tx("2026-09-12", "Netflix", "-15.49")])
+            .unwrap();
+        (id_of(store, "Netflix", "2026-09-10"), id_of(store, "Netflix", "2026-09-12"))
+    }
+
+    #[test]
+    fn a_dismissed_flag_leaves_the_open_list_but_not_the_full_anomaly_scan() {
+        let store = Store::open_in_memory().unwrap();
+        let (first, second) = duplicate_pair(&store);
+        assert_eq!(store.open_anomaly_flags().unwrap().len(), 2, "both rows of a duplicate pair are flagged");
+
+        store.dismiss_anomaly(first, "duplicate").unwrap();
+
+        let open = store.open_anomaly_flags().unwrap();
+        assert_eq!(open.len(), 1);
+        assert_eq!(open[0].transaction_id, second);
+        assert_eq!(store.anomaly_flags().unwrap().len(), 2, "other features still see every anomaly");
+    }
+
+    #[test]
+    fn dismissing_one_kind_leaves_the_other_kinds_on_that_transaction() {
+        let store = Store::open_in_memory().unwrap();
+        let (first, _) = duplicate_pair(&store);
+
+        // "large" was never raised for this row, so dismissing it changes nothing.
+        store.dismiss_anomaly(first, "large").unwrap();
+
+        assert_eq!(store.open_anomaly_flags().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn dismissing_twice_is_harmless() {
+        let store = Store::open_in_memory().unwrap();
+        let (first, _) = duplicate_pair(&store);
+
+        store.dismiss_anomaly(first, "duplicate").unwrap();
+        store.dismiss_anomaly(first, "duplicate").unwrap();
+
+        assert_eq!(store.open_anomaly_flags().unwrap().len(), 1);
+    }
+
+    // ---- Phase 2 / 7c: optional unspent rollover per budget category ----
+
+    /// Groceries budgeted `amount` in each of `months`, with rollover switched
+    /// on for the ones in `rolling`.
+    fn budget_groceries(store: &Store, months: &[&str], amount: &str, rolling: &[&str]) {
+        for m in months {
+            store.set_budget("Groceries", m, dec(amount), "flexible").unwrap();
+        }
+        for m in rolling {
+            store.set_budget_rollover("Groceries", m, true).unwrap();
+        }
+    }
+
+    fn groceries_line(store: &Store, year: i32, month: u32) -> BudgetActual {
+        store
+            .monthly_budget_actuals(year, month)
+            .unwrap()
+            .into_iter()
+            .find(|l| l.category == "Groceries")
+            .expect("a Groceries budget line")
+    }
+
+    #[test]
+    fn unspent_budget_rolls_into_the_next_month_when_rollover_is_on() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-07", "2026-08"], "400", &["2026-07", "2026-08"]);
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "300.00", "Groceries");
+
+        let aug = groceries_line(&store, 2026, 8);
+
+        assert_eq!(aug.rollover, dec("100"));
+        assert_eq!(aug.budgeted, dec("400"), "the budget itself is unchanged");
+        assert!(aug.rollover_enabled);
+    }
+
+    #[test]
+    fn the_rollover_feature_is_on_by_default_and_its_setting_persists() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(
+            store.get_app_settings().unwrap().rollover_enabled,
+            "existing users keep today's behaviour until they choose otherwise"
+        );
+
+        store.set_rollover_enabled(false).unwrap();
+        let settings = store.get_app_settings().unwrap();
+        assert!(!settings.rollover_enabled);
+        assert!(
+            settings.envelope_caps_enabled && settings.apply_to_debt_enabled,
+            "other toggles are untouched"
+        );
+
+        store.set_rollover_enabled(true).unwrap();
+        assert!(store.get_app_settings().unwrap().rollover_enabled);
+    }
+
+    #[test]
+    fn turning_the_rollover_feature_off_stops_money_carrying_and_touches_no_stored_choice() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-07", "2026-08"], "400", &["2026-07", "2026-08"]);
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "300.00", "Groceries");
+        let budgets_before = store.list_budgets("2026-08").unwrap();
+        assert_eq!(groceries_line(&store, 2026, 8).rollover, dec("100"));
+
+        store.set_rollover_enabled(false).unwrap();
+
+        let aug = groceries_line(&store, 2026, 8);
+        assert_eq!(aug.rollover, Decimal::ZERO, "nothing rolls in while the feature is off");
+        assert_eq!(aug.budgeted, dec("400"));
+        assert!(aug.rollover_enabled, "the category's own choice is remembered, not cleared");
+        assert_eq!(store.list_budgets("2026-08").unwrap(), budgets_before, "toggling rewrites no budget row");
+        assert_eq!(store.list_budgets("2026-07").unwrap().len(), 1, "earlier months keep their rows too");
+
+        store.set_rollover_enabled(true).unwrap();
+        assert_eq!(
+            groceries_line(&store, 2026, 8).rollover,
+            dec("100"),
+            "turning it back on restores what was carried"
+        );
+    }
+
+    #[test]
+    fn with_the_rollover_feature_off_alerts_and_the_month_review_use_the_plain_budget() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-07", "2026-08"], "400", &["2026-07", "2026-08"]);
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "300.00", "Groceries");
+        // August spending of 450 is over 400 but inside 400 + the 100 carried in.
+        spend_on(&store, account, "2026-08-10", "Grocers Aug", "450.00", "Groceries");
+        assert!(
+            store.month_review(2026, 8).unwrap().over_budget.is_empty(),
+            "the carried-in 100 covers it"
+        );
+
+        store.set_rollover_enabled(false).unwrap();
+
+        let over = store.month_review(2026, 8).unwrap().over_budget;
+        assert_eq!(over.len(), 1, "without the carry, August is over budget");
+        assert_eq!(over[0].category, "Groceries");
+        assert_eq!(over[0].budgeted, dec("400"));
+    }
+
+    #[test]
+    fn opening_a_database_from_before_the_rollover_setting_existed_keeps_rollover_on() {
+        let dir = std::env::temp_dir().join(format!("meadow-rollover-setting-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("pre_rollover_setting.db");
+        let _ = std::fs::remove_file(&db_path);
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE app_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    apply_to_debt_enabled INTEGER NOT NULL DEFAULT 1,
+                    split_purchases_enabled INTEGER NOT NULL DEFAULT 1,
+                    envelope_caps_enabled INTEGER NOT NULL DEFAULT 1,
+                    loan_sign_convention_migrated INTEGER NOT NULL DEFAULT 0,
+                    default_rules_seeded INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO app_settings (id, envelope_caps_enabled) VALUES (1, 0);",
+            )
+            .unwrap();
+        }
+
+        let store = Store::open(&db_path).unwrap();
+
+        let settings = store.get_app_settings().unwrap();
+        assert!(settings.rollover_enabled, "an upgraded profile behaves exactly as before");
+        assert!(!settings.envelope_caps_enabled, "the existing row's choices survive");
+    }
+
+    #[test]
+    fn an_overspent_month_carries_nothing_forward() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-07", "2026-08"], "400", &["2026-07", "2026-08"]);
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "450.00", "Groceries");
+
+        assert_eq!(groceries_line(&store, 2026, 8).rollover, Decimal::ZERO);
+    }
+
+    #[test]
+    fn without_rollover_nothing_carries_even_when_money_was_left() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-07", "2026-08"], "400", &[]);
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "300.00", "Groceries");
+
+        let aug = groceries_line(&store, 2026, 8);
+
+        assert_eq!(aug.rollover, Decimal::ZERO);
+        assert!(!aug.rollover_enabled);
+    }
+
+    #[test]
+    fn switching_rollover_on_starts_fresh_last_months_leftover_does_not_come_along() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-07", "2026-08"], "400", &["2026-08"]);
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "300.00", "Groceries");
+
+        assert_eq!(groceries_line(&store, 2026, 8).rollover, Decimal::ZERO);
+    }
+
+    #[test]
+    fn rollover_chains_across_several_months_counting_what_was_carried_in() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-06", "2026-07", "2026-08"], "400", &["2026-06", "2026-07", "2026-08"]);
+        spend_on(&store, account, "2026-06-10", "Grocers Jun", "300.00", "Groceries"); // 100 left
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "350.00", "Groceries"); // 400 + 100 - 350 = 150 left
+
+        assert_eq!(groceries_line(&store, 2026, 7).rollover, dec("100"));
+        assert_eq!(groceries_line(&store, 2026, 8).rollover, dec("150"));
+    }
+
+    #[test]
+    fn a_gap_in_the_budget_breaks_the_chain() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-06", "2026-08"], "400", &["2026-06", "2026-08"]);
+        // July was touched but Groceries was deleted from it.
+        store.set_budget("Rent", "2026-07", dec("1000"), "fixed").unwrap();
+        spend_on(&store, account, "2026-06-10", "Grocers Jun", "100.00", "Groceries");
+
+        assert_eq!(groceries_line(&store, 2026, 8).rollover, Decimal::ZERO);
+    }
+
+    #[test]
+    fn income_lines_never_roll_over() {
+        let store = Store::open_in_memory().unwrap();
+        for m in ["2026-07", "2026-08"] {
+            store.set_budget("Paycheck", m, dec("3000"), "income").unwrap();
+            store.set_budget_rollover("Paycheck", m, true).unwrap();
+        }
+
+        let aug = store
+            .monthly_budget_actuals(2026, 8)
+            .unwrap()
+            .into_iter()
+            .find(|l| l.category == "Paycheck")
+            .unwrap();
+
+        assert_eq!(aug.rollover, Decimal::ZERO);
+    }
+
+    #[test]
+    fn a_new_month_inherits_the_rollover_setting() {
+        let store = Store::open_in_memory().unwrap();
+        budget_groceries(&store, &["2026-08"], "400", &["2026-08"]);
+
+        let september = store.list_budgets("2026-09").unwrap();
+
+        assert!(september.iter().find(|b| b.category == "Groceries").unwrap().rollover_enabled);
+    }
+
+    #[test]
+    fn alerts_measure_spending_against_the_budget_plus_what_rolled_in() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-07", "2026-08"], "400", &["2026-07", "2026-08"]);
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "300.00", "Groceries");
+        spend_on(&store, account, "2026-08-10", "Grocers Aug", "450.00", "Groceries");
+
+        let alerts = store.budget_alerts_for_month(2026, 8).unwrap();
+
+        // 450 of 400 would be over; 450 of 500 is only a warning.
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].level, "warning");
+        assert_eq!(alerts[0].budgeted, dec("500"));
+    }
+
+    #[test]
+    fn the_month_review_counts_rolled_in_money_as_part_of_the_budget() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        budget_groceries(&store, &["2026-07", "2026-08"], "400", &["2026-07", "2026-08"]);
+        spend_on(&store, account, "2026-07-10", "Grocers Jul", "300.00", "Groceries");
+        spend_on(&store, account, "2026-08-10", "Grocers Aug", "450.00", "Groceries");
+        assert!(store.month_review(2026, 8).unwrap().over_budget.is_empty(), "450 of 500 isn't over");
+
+        spend_on(&store, account, "2026-08-20", "Grocers Aug 2", "100.00", "Groceries");
+        let over = store.month_review(2026, 8).unwrap().over_budget;
+
+        assert_eq!(over.len(), 1);
+        assert_eq!((over[0].budgeted, over[0].actual), (dec("500"), dec("550.00")));
+    }
+
+    #[test]
+    fn setting_rollover_on_a_missing_line_is_harmless() {
+        let store = Store::open_in_memory().unwrap();
+
+        store.set_budget_rollover("Nope", "2026-08", true).unwrap();
+
+        assert!(store.list_budgets("2026-08").unwrap().is_empty());
+    }
+
+    // ---- Phase 2 / 12: portfolio history and allocation targets ----
+
+    fn brokerage(store: &Store) -> i64 {
+        store.get_or_create_account("Brokerage", AccountType::Investment).unwrap()
+    }
+
+    #[test]
+    fn a_snapshot_records_the_total_value_of_every_holding() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = brokerage(&store);
+        store
+            .create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), Some("US Stocks"))
+            .unwrap();
+        store
+            .create_holding(acct, "BND", "Bonds", dec("20"), dec("75.50"), dec("1400"), Some("Bonds"))
+            .unwrap();
+
+        let recorded = store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+
+        assert!(recorded);
+        assert_eq!(store.portfolio_history().unwrap(), vec![(day("2026-09-18"), dec("4010.00"))]);
+    }
+
+    #[test]
+    fn snapshotting_twice_in_a_day_keeps_the_latest_value() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = brokerage(&store);
+        let id = store
+            .create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None)
+            .unwrap();
+        store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+
+        store.update_holding_price(id, dec("260.00"), day("2026-09-18")).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+
+        assert_eq!(store.portfolio_history().unwrap(), vec![(day("2026-09-18"), dec("2600.00"))]);
+    }
+
+    #[test]
+    fn history_is_oldest_first_across_days() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = brokerage(&store);
+        let id = store
+            .create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None)
+            .unwrap();
+        store.record_portfolio_snapshot(day("2026-09-16")).unwrap();
+        store.update_holding_price(id, dec("240.00"), day("2026-09-17")).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-17")).unwrap();
+
+        let history = store.portfolio_history().unwrap();
+
+        assert_eq!(history, vec![(day("2026-09-16"), dec("2500.00")), (day("2026-09-17"), dec("2400.00"))]);
+    }
+
+    #[test]
+    fn with_no_holdings_nothing_is_recorded() {
+        let store = Store::open_in_memory().unwrap();
+
+        assert!(!store.record_portfolio_snapshot(day("2026-09-18")).unwrap());
+        assert!(store.portfolio_history().unwrap().is_empty());
+    }
+
+    #[test]
+    fn allocation_targets_can_be_set_replaced_and_cleared() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(store.list_allocation_targets().unwrap().is_empty());
+
+        store.set_allocation_target("US Stocks", dec("60")).unwrap();
+        store.set_allocation_target("Bonds", dec("40")).unwrap();
+        store.set_allocation_target("US Stocks", dec("55")).unwrap();
+
+        assert_eq!(
+            store.list_allocation_targets().unwrap(),
+            vec![("Bonds".to_string(), dec("40")), ("US Stocks".to_string(), dec("55"))]
+        );
+
+        store.set_allocation_target("Bonds", Decimal::ZERO).unwrap();
+        assert_eq!(store.list_allocation_targets().unwrap(), vec![("US Stocks".to_string(), dec("55"))]);
+    }
+
+    #[test]
+    fn a_target_above_100_is_capped_at_100() {
+        let store = Store::open_in_memory().unwrap();
+
+        store.set_allocation_target("US Stocks", dec("250")).unwrap();
+
+        assert_eq!(store.list_allocation_targets().unwrap(), vec![("US Stocks".to_string(), dec("100"))]);
+    }
+
+    // ---- Phase 2 / 4: reconciliation and the account detail page ----
+
+    /// A checking account opening at `start` with a few known transactions;
+    /// returns (account, [+200 on 07-15, -50 on 08-10, -30 on 09-05]).
+    fn reconcilable(store: &Store, start: &str) -> (i64, [i64; 3]) {
+        let acct = store.get_or_create_account("Statement Checking", AccountType::Checking).unwrap();
+        store
+            .conn
+            .execute("UPDATE accounts SET starting_balance = ?1 WHERE id = ?2", params![start, acct])
+            .unwrap();
+        store
+            .save_transactions(
+                acct,
+                &[
+                    tx("2026-07-15", "Deposit", "200.00"),
+                    tx("2026-08-10", "Coffee", "-50.00"),
+                    tx("2026-09-05", "Gas", "-30.00"),
+                ],
+            )
+            .unwrap();
+        (
+            acct,
+            [
+                id_of(store, "Deposit", "2026-07-15"),
+                id_of(store, "Coffee", "2026-08-10"),
+                id_of(store, "Gas", "2026-09-05"),
+            ],
+        )
+    }
+
+    #[test]
+    fn the_cleared_balance_is_the_opening_balance_plus_the_transactions_marked_cleared() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, [deposit, coffee, _gas]) = reconcilable(&store, "1000.00");
+        store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
+
+        let status = store.reconciliation_status(acct, dec("1150.00")).unwrap();
+
+        assert_eq!(status.cleared_balance, dec("1150.00"));
+        assert_eq!(status.difference, Decimal::ZERO);
+        assert_eq!(status.cleared_count, 2);
+    }
+
+    #[test]
+    fn the_difference_is_what_the_statement_says_minus_what_has_cleared() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, [deposit, _coffee, _gas]) = reconcilable(&store, "1000.00");
+        store.set_transactions_cleared(&[deposit], true).unwrap();
+
+        let status = store.reconciliation_status(acct, dec("1150.00")).unwrap();
+
+        assert_eq!(status.cleared_balance, dec("1200.00"));
+        assert_eq!(status.difference, dec("-50.00"));
+    }
+
+    #[test]
+    fn clearing_can_be_undone_and_a_deleted_transaction_stops_counting() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, [deposit, coffee, _gas]) = reconcilable(&store, "1000.00");
+        store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
+
+        store.set_transactions_cleared(&[coffee], false).unwrap();
+        assert_eq!(store.reconciliation_status(acct, dec("0")).unwrap().cleared_balance, dec("1200.00"));
+
+        store.delete_transaction(deposit, test_now()).unwrap();
+        assert_eq!(store.reconciliation_status(acct, dec("0")).unwrap().cleared_balance, dec("1000.00"));
+    }
+
+    #[test]
+    fn a_reconciliation_can_only_be_finished_when_the_difference_is_zero() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, [deposit, coffee, _gas]) = reconcilable(&store, "1000.00");
+        store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
+
+        let refused = store.finish_reconciliation(acct, day("2026-08-31"), dec("1200.00"), test_now()).unwrap();
+        assert!(!refused);
+        assert_eq!(store.last_reconciliation(acct).unwrap(), None);
+
+        let accepted = store.finish_reconciliation(acct, day("2026-08-31"), dec("1150.00"), test_now()).unwrap();
+        assert!(accepted);
+        assert_eq!(store.last_reconciliation(acct).unwrap(), Some((day("2026-08-31"), dec("1150.00"))));
+    }
+
+    #[test]
+    fn the_latest_reconciliation_is_the_one_reported() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, [deposit, coffee, gas]) = reconcilable(&store, "1000.00");
+        store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
+        store.finish_reconciliation(acct, day("2026-08-31"), dec("1150.00"), test_now()).unwrap();
+        store.set_transactions_cleared(&[gas], true).unwrap();
+        store.finish_reconciliation(acct, day("2026-09-30"), dec("1120.00"), test_now()).unwrap();
+
+        assert_eq!(store.last_reconciliation(acct).unwrap(), Some((day("2026-09-30"), dec("1120.00"))));
+    }
+
+    #[test]
+    fn reconcile_candidates_are_uncleared_rows_plus_anything_cleared_since_the_last_reconciliation() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, [deposit, coffee, gas]) = reconcilable(&store, "1000.00");
+        store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
+        store.finish_reconciliation(acct, day("2026-08-31"), dec("1150.00"), test_now()).unwrap();
+        store.set_transactions_cleared(&[gas], true).unwrap();
+
+        // Everything up to Sep 30: the reconciled July/Aug rows are settled and drop out; September's shows.
+        let candidates = store.reconcile_candidates(acct, day("2026-09-30")).unwrap();
+
+        assert_eq!(candidates.iter().map(|c| c.id).collect::<Vec<_>>(), vec![gas]);
+        assert!(candidates[0].cleared);
+    }
+
+    #[test]
+    fn reconcile_candidates_stop_at_the_statement_date() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, [deposit, coffee, _gas]) = reconcilable(&store, "1000.00");
+
+        let candidates = store.reconcile_candidates(acct, day("2026-08-31")).unwrap();
+
+        assert_eq!(
+            candidates.iter().map(|c| c.id).collect::<Vec<_>>(),
+            vec![coffee, deposit],
+            "newest first, none after the statement date"
+        );
+    }
+
+    #[test]
+    fn list_account_transactions_is_newest_first_carries_the_cleared_flag_and_honors_the_limit() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, [deposit, coffee, gas]) = reconcilable(&store, "1000.00");
+        store.set_transactions_cleared(&[deposit], true).unwrap();
+
+        let all = store.list_account_transactions(acct, 10).unwrap();
+        assert_eq!(all.iter().map(|t| t.id).collect::<Vec<_>>(), vec![gas, coffee, deposit]);
+        assert_eq!(all.iter().map(|t| t.cleared).collect::<Vec<_>>(), vec![false, false, true]);
+
+        assert_eq!(store.list_account_transactions(acct, 2).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn balance_history_gives_month_end_balances_ending_with_today() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, _) = reconcilable(&store, "1000.00");
+
+        let history = store.account_balance_history(acct, day("2026-09-18"), 3).unwrap();
+
+        assert_eq!(
+            history,
+            vec![
+                (day("2026-07-31"), dec("1200.00")),
+                (day("2026-08-31"), dec("1150.00")),
+                (day("2026-09-18"), dec("1120.00")),
+            ]
+        );
+    }
+
+    #[test]
+    fn balance_history_repeats_the_balance_through_a_quiet_month() {
+        let store = Store::open_in_memory().unwrap();
+        let (acct, _) = reconcilable(&store, "1000.00");
+
+        let history = store.account_balance_history(acct, day("2026-11-10"), 3).unwrap();
+
+        assert_eq!(
+            history.iter().map(|(_, b)| *b).collect::<Vec<_>>(),
+            vec![dec("1120.00"), dec("1120.00"), dec("1120.00")]
+        );
+    }
+
+    // ---- Phase 2 / 10: the Reports hub's category-by-month table ----
+
+    fn month_cell(rows: &[CategoryMonthAmount], month: &str, category: &str) -> Option<Decimal> {
+        rows.iter().find(|r| r.month == month && r.category == category).map(|r| r.amount)
+    }
+
+    #[test]
+    fn category_spending_is_totaled_per_month_and_category_as_positive_amounts() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2026-07-05", "Kroger", "80.00", "Groceries");
+        spend_on(&store, account, "2026-07-19", "Aldi", "40.00", "Groceries");
+        spend_on(&store, account, "2026-07-20", "Cafe", "12.50", "Dining Out");
+        spend_on(&store, account, "2026-08-02", "Kroger", "95.00", "Groceries");
+
+        let rows = store.category_spending_by_month(2026, 7, 2026, 8).unwrap();
+
+        assert_eq!(month_cell(&rows, "2026-07", "Groceries"), Some(dec("120.00")));
+        assert_eq!(month_cell(&rows, "2026-07", "Dining Out"), Some(dec("12.50")));
+        assert_eq!(month_cell(&rows, "2026-08", "Groceries"), Some(dec("95.00")));
+        assert_eq!(
+            month_cell(&rows, "2026-08", "Dining Out"),
+            None,
+            "a category with no spend that month has no row"
+        );
+    }
+
+    #[test]
+    fn category_spending_stays_inside_the_range_including_across_a_year_end() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2025-11-30", "Too early", "10.00", "Groceries");
+        spend_on(&store, account, "2025-12-15", "In", "20.00", "Groceries");
+        spend_on(&store, account, "2026-01-31", "Also in", "30.00", "Groceries");
+        spend_on(&store, account, "2026-02-01", "Too late", "40.00", "Groceries");
+
+        let rows = store.category_spending_by_month(2025, 12, 2026, 1).unwrap();
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(month_cell(&rows, "2025-12", "Groceries"), Some(dec("20.00")));
+        assert_eq!(month_cell(&rows, "2026-01", "Groceries"), Some(dec("30.00")));
+    }
+
+    #[test]
+    fn category_spending_ignores_income_transfers_and_deleted_rows_and_lists_uncategorized_spend() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-01", "Paycheck", "2000.00"),
+                    tx("2026-08-02", "To Savings", "-500.00"),
+                    tx("2026-08-03", "Gone", "-15.00"),
+                    tx("2026-08-04", "Mystery", "-22.00"),
+                ],
+            )
+            .unwrap();
+        store
+            .set_category(id_of(&store, "To Savings", "2026-08-02"), "Transfer", CategorySource::User, None)
+            .unwrap();
+        store.delete_transaction(id_of(&store, "Gone", "2026-08-03"), test_now()).unwrap();
+
+        let rows = store.category_spending_by_month(2026, 8, 2026, 8).unwrap();
+
+        assert_eq!(rows.len(), 1, "only the uncategorized spend is left: {rows:?}");
+        assert_eq!(month_cell(&rows, "2026-08", "Uncategorized"), Some(dec("22.00")));
+    }
+
+    #[test]
+    fn category_spending_counts_a_split_purchase_through_its_lines() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store.save_transactions(account, &[tx("2026-08-05", "Costco", "-100.00")]).unwrap();
+        let costco = id_of(&store, "Costco", "2026-08-05");
+        store.set_category(costco, "Groceries", CategorySource::User, None).unwrap();
+        store
+            .set_transaction_splits(
+                costco,
+                &[
+                    ("Groceries".to_string(), dec("-60.00"), None),
+                    ("Household".to_string(), dec("-40.00"), None),
+                ],
+            )
+            .unwrap();
+
+        let rows = store.category_spending_by_month(2026, 8, 2026, 8).unwrap();
+
+        assert_eq!(month_cell(&rows, "2026-08", "Groceries"), Some(dec("60.00")));
+        assert_eq!(month_cell(&rows, "2026-08", "Household"), Some(dec("40.00")));
+    }
+
+    // ---- Phase 2 / 18: background bill reminders ----
+
+    fn bill(store: &Store, merchant: &str, amount: &str, anchor: &str) -> i64 {
+        store.create_recurring(merchant, None, dec(amount), "monthly", day(anchor), None).unwrap()
+    }
+
+    fn reminder_names(store: &Store, today: &str, window: i64) -> Vec<String> {
+        store
+            .reminders_to_send(day(today), window)
+            .unwrap()
+            .into_iter()
+            .map(|r| r.merchant)
+            .collect()
+    }
+
+    #[test]
+    fn reminders_cover_bills_due_within_the_window_and_nothing_further_out() {
+        let store = Store::open_in_memory().unwrap();
+        bill(&store, "Geico Auto", "-120.00", "2026-09-20"); // due in 2 days
+        bill(&store, "Netflix", "-15.49", "2026-09-30"); // 12 days
+        bill(&store, "Rent", "-1200.00", "2026-09-18"); // today
+
+        assert_eq!(reminder_names(&store, "2026-09-18", 3), vec!["Rent", "Geico Auto"]);
+    }
+
+    #[test]
+    fn income_and_canceled_items_are_never_reminded() {
+        let store = Store::open_in_memory().unwrap();
+        bill(&store, "Payroll", "3000.00", "2026-09-19");
+        let gym = bill(&store, "Old Gym", "-30.00", "2026-09-19");
+        store.set_recurring_status(gym, "canceled").unwrap();
+
+        assert!(reminder_names(&store, "2026-09-18", 3).is_empty());
+    }
+
+    #[test]
+    fn a_reminder_is_sent_once_per_due_date_and_returns_for_the_next_cycle() {
+        let store = Store::open_in_memory().unwrap();
+        let id = bill(&store, "Geico Auto", "-120.00", "2026-09-20");
+        assert_eq!(reminder_names(&store, "2026-09-18", 3), vec!["Geico Auto"]);
+
+        store.mark_reminder_sent(id, day("2026-09-20"), day("2026-09-18")).unwrap();
+
+        assert!(reminder_names(&store, "2026-09-18", 3).is_empty());
+        assert!(reminder_names(&store, "2026-09-19", 3).is_empty(), "still the same due date");
+        // A month later the next due date is a fresh reminder.
+        assert_eq!(reminder_names(&store, "2026-10-18", 3), vec!["Geico Auto"]);
+    }
+
+    #[test]
+    fn a_bill_due_today_that_has_already_posted_is_not_reminded() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        bill(&store, "Netflix", "-15.49", "2026-08-18");
+        store
+            .save_transactions(
+                account,
+                &[tx("2026-08-18", "NETFLIX.COM", "-15.49"), tx("2026-09-18", "NETFLIX.COM", "-15.49")],
+            )
+            .unwrap();
+
+        assert!(reminder_names(&store, "2026-09-18", 3).is_empty());
+    }
+
+    #[test]
+    fn a_zero_day_window_reminds_only_about_bills_due_today() {
+        let store = Store::open_in_memory().unwrap();
+        bill(&store, "Rent", "-1200.00", "2026-09-18");
+        bill(&store, "Geico Auto", "-120.00", "2026-09-19");
+
+        assert_eq!(reminder_names(&store, "2026-09-18", 0), vec!["Rent"]);
+    }
+
+    #[test]
+    fn a_reminder_carries_what_the_notification_needs() {
+        let store = Store::open_in_memory().unwrap();
+        let id = bill(&store, "Geico Auto", "-120.00", "2026-09-20");
+
+        let reminders = store.reminders_to_send(day("2026-09-18"), 3).unwrap();
+
+        assert_eq!(reminders.len(), 1);
+        assert_eq!(reminders[0].recurring_id, id);
+        assert_eq!(reminders[0].amount, dec("-120.00"));
+        assert_eq!(reminders[0].due_date, day("2026-09-20"));
+    }
+
+    #[test]
+    fn background_settings_start_off_and_are_set_independently() {
+        let store = Store::open_in_memory().unwrap();
+        assert_eq!(
+            store.get_background_settings().unwrap(),
+            BackgroundSettings {
+                tray_enabled: false,
+                autostart_enabled: false
+            }
+        );
+
+        store.set_tray_enabled(true).unwrap();
+        assert_eq!(
+            store.get_background_settings().unwrap(),
+            BackgroundSettings {
+                tray_enabled: true,
+                autostart_enabled: false
+            }
+        );
+
+        store.set_autostart_enabled(true).unwrap();
+        store.set_tray_enabled(false).unwrap();
+        assert_eq!(
+            store.get_background_settings().unwrap(),
+            BackgroundSettings {
+                tray_enabled: false,
+                autostart_enabled: true
+            }
+        );
+    }
+
+    #[test]
+    fn background_settings_leave_the_feature_toggles_alone() {
+        let store = Store::open_in_memory().unwrap();
+        store.set_envelope_caps_enabled(false).unwrap();
+
+        store.set_tray_enabled(true).unwrap();
+
+        assert!(!store.get_app_settings().unwrap().envelope_caps_enabled);
     }
 }

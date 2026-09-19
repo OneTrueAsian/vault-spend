@@ -25,6 +25,10 @@ async function checkDebtTile(dbDir, { expectClass, expectArrow, label }) {
     await debtTile.waitForExist({ timeout: 10000 });
 
     const value = await debtTile.$(".stat-value");
+    // The tile exists before the report behind it has loaded; wait for the colour to settle.
+    await app.browser
+      .waitUntil(async () => (await value.getAttribute("class")).includes(expectClass), { timeout: 10000 })
+      .catch(() => {});
     const valueClass = await value.getAttribute("class");
     if (!valueClass.includes(expectClass)) {
       throw new Error(`[${label}] expected debt value class to include "${expectClass}", got "${valueClass}"`);

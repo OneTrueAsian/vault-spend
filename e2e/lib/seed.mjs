@@ -75,6 +75,17 @@ export async function seedFixture(pySnippet) {
 }
 
 /**
+ * Same as `seedFixture`, but into a directory the caller already owns — no
+ * throwaway temp dir, no cleanup on exit. Used by `npm run demo`
+ * (e2e/demo.mjs), whose data has to outlive the seeding process.
+ */
+export async function seedFixtureInto(dbDir, pySnippet) {
+  await createSchema(dbDir);
+  runSqlite(path.join(dbDir, "vaultspend.db"), pySnippet);
+  return dbDir;
+}
+
+/**
  * Seeds a fresh test DB dir with:
  * - a "Checking" account (checking, starting balance 1000)
  * - a "Car Loan" account (loan, starting balance 10000)

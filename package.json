@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "e2e": "node e2e/run-all.mjs",
+    "demo": "node e2e/demo.mjs",
     "tauri": "tauri",
     "tauri:dev:sandbox": "cross-env VAULTSPEND_DB_DIR=$INIT_CWD/.dev-sandbox tauri dev"
   },

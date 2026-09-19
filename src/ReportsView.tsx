@@ -1,285 +1,22 @@
-import { FormEvent, useState } from "react";
-import type { Account, Asset, Bucket, DebtPayoffPlan, FamilyMember, Report, Transaction } from "./types";
-import { StatDetailPanel } from "./StatDetailPanel";
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import type { Account, CashFlow, DebtPayoffPlan, FamilyMember, MonthTotal, Transaction, Asset } from "./types";
 import { LineChart } from "./charts";
-import { formatAmount, isValidDecimalString, toLocalIsoDate } from "./format";
+import { formatAmount } from "./format";
 import { groupOf, isIncomeTransaction, owedAmount } from "./accountGroups";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
-import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { netWorthByMember, spendingByMember } from "./memberBreakdowns";
-
-const ASSET_TYPE_OPTIONS = ["real_estate", "vehicle", "other"];
-const ASSET_TYPE_LABELS: Record<string, string> = {
-  real_estate: "Real Estate",
-  vehicle: "Vehicle",
-  other: "Other",
-};
-
-function NewAssetForm({
-  familyMembers,
-  onCreate,
-}: {
-  familyMembers: FamilyMember[];
-  onCreate: (
-    name: string,
-    assetType: string,
-    value: string,
-    valuedOn: string,
-    notes: string | null,
-    memberId: number | null,
-  ) => void;
-}) {
-  const [name, setName] = useState("");
-  const [assetType, setAssetType] = useState(ASSET_TYPE_OPTIONS[0]);
-  const [value, setValue] = useState("");
-  const [notes, setNotes] = useState("");
-  const [memberId, setMemberId] = useState("");
-  const [open, setOpen] = useState(false);
-  const [submitAttempted, setSubmitAttempted] = useState(false);
-
-  const valueTrimmed = value.trim();
-  const valueError =
-    valueTrimmed === ""
-      ? "Enter a value."
-      : !isValidDecimalString(valueTrimmed)
-        ? "That doesn't look like a number."
-        : parseFloat(valueTrimmed) < 0
-          ? "Value can't be negative."
-          : null;
-  const valid = name.trim() !== "" && !valueError;
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSubmitAttempted(true);
-    if (!valid) return;
-    onCreate(name.trim(), assetType, valueTrimmed, toLocalIsoDate(), notes.trim() || null, memberId ? Number(memberId) : null);
-    setName("");
-    setValue("");
-    setNotes("");
-    setMemberId("");
-    setSubmitAttempted(false);
-    setOpen(false);
-  }
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)}>Add property or valuable…</button>
-    );
-  }
-
-  return (
-    <form className="bucket-new-form" onSubmit={handleSubmit}>
-      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. "Home"' />
-      <select value={assetType} onChange={(e) => setAssetType(e.target.value)}>
-        {ASSET_TYPE_OPTIONS.map((t) => (
-          <option key={t} value={t}>
-            {ASSET_TYPE_LABELS[t]}
-          </option>
-        ))}
-      </select>
-      <input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Current value"
-        aria-invalid={submitAttempted && valueError !== null}
-      />
-      {submitAttempted && valueError && <span className="field-error">{valueError}</span>}
-      <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" />
-      {familyMembers.length > 0 && (
-        <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-          <option value="">Unassigned</option>
-          {familyMembers.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      )}
-      <button type="submit" disabled={!name.trim()}>
-        Save
-      </button>
-      <button type="button" className="modal-secondary" onClick={() => setOpen(false)}>
-        Cancel
-      </button>
-    </form>
-  );
-}
-
-function PropertyAssetsSection({
-  assets,
-  familyMembers,
-  onCreate,
-  onUpdateValue,
-  onSetMember,
-  onDelete,
-}: {
-  assets: Asset[];
-  familyMembers: FamilyMember[];
-  onCreate: (
-    name: string,
-    assetType: string,
-    value: string,
-    valuedOn: string,
-    notes: string | null,
-    memberId: number | null,
-  ) => void;
-  onUpdateValue: (id: number, value: string, valuedOn: string) => void;
-  onSetMember: (id: number, memberId: number | null) => void;
-  onDelete: (id: number) => void;
-}) {
-  const [editing, setEditing] = useState<{ id: number; value: string } | null>(null);
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
-  useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
-
-  const total = assets.reduce((s, a) => s + parseFloat(a.value), 0);
-
-  function commitEdit(id: number, value: string) {
-    setEditing(null);
-    if (!value.trim()) return;
-    onUpdateValue(id, value.trim(), toLocalIsoDate());
-  }
-
-  return (
-    <div>
-      <h2 className="reports-section-title">
-        Property &amp; Valuables <span className="account-col">{formatAmount(total)}</span>
-      </h2>
-      <table className="ledger">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th className="amount-col">Value</th>
-            <th>Member</th>
-            <th>Updated</th>
-            <th className="actions-col"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {assets.map((a) => (
-            <tr key={a.id}>
-              <td>
-                <div className="account-name-cell">{a.name}</div>
-                {a.notes && <span className="account-col">{a.notes}</span>}
-              </td>
-              <td>{ASSET_TYPE_LABELS[a.asset_type] ?? a.asset_type}</td>
-              <td className="amount-col">
-                {editing?.id === a.id ? (
-                  <input
-                    autoFocus
-                    className="amount-edit-input"
-                    value={editing.value}
-                    onChange={(e) => setEditing({ id: a.id, value: e.target.value })}
-                    onBlur={() => commitEdit(a.id, editing.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitEdit(a.id, editing.value);
-                      if (e.key === "Escape") setEditing(null);
-                    }}
-                  />
-                ) : (
-                  <span
-                    className="amount-editable"
-                    title="Click to update the value"
-                    onClick={() => setEditing({ id: a.id, value: a.value })}
-                  >
-                    {formatAmount(a.value)}
-                  </span>
-                )}
-              </td>
-              <td className="member-col">
-                <select
-                  value={a.member_id ?? ""}
-                  onChange={(e) => onSetMember(a.id, e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">Unassigned</option>
-                  {familyMembers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>{a.valued_on}</td>
-              <td className="actions-col">
-                {confirmingDeleteId === a.id ? (
-                  <span className="row-delete-confirm">
-                    <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(null)}>
-                      Cancel
-                    </button>
-                    <button type="button" className="btn-danger" onClick={() => onDelete(a.id)}>
-                      Delete
-                    </button>
-                  </span>
-                ) : (
-                  <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(a.id)}>
-                    Delete
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-          {assets.length === 0 && (
-            <tr>
-              <td colSpan={6} className="empty-state">
-                No property or valuables tracked yet.
-              </td>
-            </tr>
-          )}
-          <tr>
-            <td colSpan={6}>
-              <NewAssetForm familyMembers={familyMembers} onCreate={onCreate} />
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/** Every savings bucket's progress toward its target, side by side — a
- * summary the Buckets tab itself doesn't have (its own cards are meant to
- * be worked from one at a time, not scanned as a group). Reuses each
- * bucket's own color (see BucketsView's color picker) for its bar, so a
- * color chosen there carries through to this report for free. */
-function BucketsOverviewSection({ buckets }: { buckets: Bucket[] }) {
-  if (buckets.length === 0) return null;
-
-  return (
-    <div className="card">
-      <div className="card-head">
-        <span className="reports-section-title">Goals overview</span>
-      </div>
-      <div className="buckets-overview-list">
-        {buckets.map((b) => {
-          const saved = parseFloat(b.saved_amount);
-          const target = b.target_amount ? parseFloat(b.target_amount) : null;
-          const pct = target && target > 0 ? Math.min(100, Math.max(0, (saved / target) * 100)) : null;
-          return (
-            <div key={b.id} className="buckets-overview-row">
-              <div className="buckets-overview-row-head">
-                <span style={{ fontWeight: 600 }}>{b.name}</span>
-                <span className="account-col">
-                  {formatAmount(b.saved_amount)}
-                  {b.target_amount && ` of ${formatAmount(b.target_amount)}`}
-                </span>
-              </div>
-              {pct !== null ? (
-                <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${pct}%`, background: b.color ?? undefined }} />
-                </div>
-              ) : (
-                <p className="modal-message-secondary" style={{ margin: 0 }}>
-                  No target set
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+import {
+  buildCategoryTable,
+  inMonthRange,
+  monthHeading,
+  monthKeys,
+  PRESET_LABELS,
+  presetRange,
+  yearlySummary,
+  type RangePreset,
+} from "./reportRange";
 
 /** Savings rate — (income − expenses) ÷ income — trended over every month
  * with transaction history, trailing 12. A purely client-side reduction
@@ -323,19 +60,6 @@ function SavingsRateTrendSection({ transactions, accounts }: { transactions: Tra
     </div>
   );
 }
-
-/** Every stat on this page that can be clicked open to show what makes it
- * up. Account-level stats (assets/liabilities/net worth) moved to
- * AccountsView along with the rest of account management — see its own
- * `AccountStatKey`. */
-type ReportStatKey = "totalSaved" | "income" | "byTag" | "byMember";
-
-const REPORT_STAT_LABELS: Record<ReportStatKey, string> = {
-  totalSaved: "Total Saved",
-  income: "Income (all-time)",
-  byTag: "Spending by Tag",
-  byMember: "Spending by Member",
-};
 
 /** How much is actually owed on a debt account — the positive counterpart
  * to `netWorthContribution`'s (negative) debt contribution. Matches
@@ -499,107 +223,144 @@ export function DebtPayoffPlannerSection({
   );
 }
 
+/** A table of name → amount, with each row's share of the total. Used for the
+ * by-member and by-tag cuts. */
+function BreakdownTable({
+  title,
+  dataKey,
+  rows,
+  emptyMessage,
+}: {
+  title: string;
+  dataKey: string;
+  rows: { name: string; amount: number }[];
+  emptyMessage: string;
+}) {
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const sorted = [...rows].sort((a, b) => b.amount - a.amount);
+  return (
+    <div className="card" {...{ [`data-${dataKey}`]: "" }}>
+      <div className="card-head">
+        <span className="reports-section-title">{title}</span>
+      </div>
+      <table className="ledger">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th className="amount-col">Spent</th>
+            <th className="amount-col">Share</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r) => (
+            <tr key={r.name} data-breakdown-row={r.name}>
+              <td>{r.name}</td>
+              <td className="amount-col">{formatAmount(r.amount.toFixed(2))}</td>
+              <td className="amount-col">{total > 0 ? `${((r.amount / total) * 100).toFixed(0)}%` : "—"}</td>
+            </tr>
+          ))}
+          {sorted.length === 0 && (
+            <tr>
+              <td colSpan={3} className="empty-state">
+                {emptyMessage}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+type CategoryMonthCell = { month: string; category: string; amount: string };
+
+/** Reports: one date range drives everything on the page — the summary, a
+ * category-by-month table, a year-by-year summary, and spending cut by family
+ * member and by tag. (Property & Valuables lives on Accounts and data
+ * import/export in Settings; this page is for reading your numbers.) */
 export function ReportsView({
-  report,
   accounts,
-  buckets,
   transactions,
   assets,
   familyMembers,
   onExportCsv,
   onPrint,
-  onDownloadSetupTemplate,
-  onImportSetupData,
-  onCreateAsset,
-  onUpdateAssetValue,
-  onSetAssetMember,
-  onDeleteAsset,
   onOpenBudget,
   layoutWidgets,
   onPinWidget,
 }: {
-  report: Report | null;
   accounts: Account[];
-  buckets: Bucket[];
   transactions: Transaction[];
   assets: Asset[];
   familyMembers: FamilyMember[];
   onExportCsv: () => void;
   onPrint: () => void;
-  onDownloadSetupTemplate: () => void;
-  onImportSetupData: () => void;
-  onCreateAsset: (
-    name: string,
-    assetType: string,
-    value: string,
-    valuedOn: string,
-    notes: string | null,
-    memberId: number | null,
-  ) => void;
-  onUpdateAssetValue: (id: number, value: string, valuedOn: string) => void;
-  onSetAssetMember: (id: number, memberId: number | null) => void;
-  onDeleteAsset: (id: number) => void;
   onOpenBudget: () => void;
   layoutWidgets: WidgetId[];
   onPinWidget: (id: WidgetId) => void;
 }) {
-  const [expandedStat, setExpandedStat] = useState<ReportStatKey | null>(null);
+  const [preset, setPreset] = useState<RangePreset>("last_6");
+  const { from, to } = presetRange(preset, new Date());
+  const months = monthKeys(from, to);
+  const rangeKey = `${months[0]}..${months[months.length - 1]}`;
 
-  function toggleStat(key: ReportStatKey) {
-    setExpandedStat((prev) => (prev === key ? null : key));
-  }
+  const [cells, setCells] = useState<CategoryMonthCell[]>([]);
+  const [flow, setFlow] = useState<CashFlow | null>(null);
+  const [loadedRange, setLoadedRange] = useState<string | null>(null);
 
-  if (!report) {
-    return <p className="empty-state">Loading report…</p>;
-  }
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      invoke<CategoryMonthCell[]>("category_spending_by_month", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
+      invoke<CashFlow>("cash_flow_for_range", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
+    ])
+      .then(([spending, cashFlow]) => {
+        if (cancelled) return;
+        setCells(spending);
+        setFlow(cashFlow);
+        setLoadedRange(rangeKey);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadedRange(rangeKey);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeKey]);
 
-  const totalSavedBreakdown = buckets.map((b) => ({ name: b.name, amount: parseFloat(b.saved_amount) }));
+  const loading = loadedRange !== rangeKey;
+  const income = flow ? parseFloat(flow.total_income) : 0;
+  const spending = flow ? parseFloat(flow.total_expense) : 0;
+  const net = income - spending;
+  const savingsRate = income > 0 ? (net / income) * 100 : null;
 
-  const incomeByAccount = new Map<string, number>();
-  for (const t of transactions) {
-    if (!isIncomeTransaction(t, accounts)) continue;
-    incomeByAccount.set(t.account_name, (incomeByAccount.get(t.account_name) ?? 0) + parseFloat(t.amount));
-  }
-  const incomeBreakdown = Array.from(incomeByAccount, ([name, amount]) => ({ name, amount }));
+  const table = buildCategoryTable(cells, months);
+  const showYear = from.year !== to.year;
+  const years = yearlySummary((flow?.months ?? []) as MonthTotal[]);
 
-  // All-time spending grouped by tag (freeform, set from the Transactions tab) —
-  // only outflows count, same "spent" convention as everywhere else spend
-  // is summed. A transaction with more than one tag counts under each.
+  const inRange = transactions.filter((t) => inMonthRange(t.date, from, to));
+  const memberRows = spendingByMember(inRange);
   const tagTotals = new Map<string, number>();
-  for (const t of transactions) {
+  for (const t of inRange) {
     const amount = parseFloat(t.amount);
     if (amount >= 0) continue;
-    for (const tag of t.tags) {
-      tagTotals.set(tag, (tagTotals.get(tag) ?? 0) + Math.abs(amount));
-    }
+    for (const tag of t.tags) tagTotals.set(tag, (tagTotals.get(tag) ?? 0) + Math.abs(amount));
   }
-  const tagBreakdown = Array.from(tagTotals, ([name, amount]) => ({ name, amount }));
-
-  const memberBreakdown = spendingByMember(transactions);
-
-  const topLevelBreakdowns: Record<"totalSaved" | "income" | "byTag" | "byMember", { name: string; amount: number }[]> = {
-    totalSaved: totalSavedBreakdown,
-    income: incomeBreakdown,
-    byTag: tagBreakdown,
-    byMember: memberBreakdown,
-  };
+  const tagRows = Array.from(tagTotals, ([name, amount]) => ({ name, amount }));
 
   const netWorthByMemberRows = netWorthByMember(accounts, assets);
 
   return (
-    <div className="reports-view">
+    <div className="reports-view" data-reports-hub data-report-range={rangeKey}>
       <div className="page-top">
         <div>
           <h1 className="view-title">Reports</h1>
-          <p className="view-sub">Net worth, savings, and property.</p>
+          <p className="view-sub">
+            {PRESET_LABELS[preset]}: {monthHeading(months[0], true)} – {monthHeading(months[months.length - 1], true)}.
+          </p>
         </div>
         <div className="page-actions no-print">
-          <button type="button" className="modal-secondary" onClick={onDownloadSetupTemplate}>
-            Download setup template…
-          </button>
-          <button type="button" className="modal-secondary" onClick={onImportSetupData}>
-            Import setup data…
-          </button>
           <button type="button" className="modal-secondary" onClick={onExportCsv}>
             Export CSV…
           </button>
@@ -609,73 +370,156 @@ export function ReportsView({
         </div>
       </div>
 
-      <div className="stats">
-        <button
-          type="button"
-          className={
-            expandedStat === "totalSaved" ? "stat tint-accent stat-clickable stat-expanded" : "stat tint-accent stat-clickable"
-          }
-          onClick={() => toggleStat("totalSaved")}
-        >
-          <span className="stat-value">{formatAmount(report.total_saved)}</span>
-          <span className="stat-label">Total saved (all goals)</span>
-        </button>
-        <button
-          type="button"
-          className={expandedStat === "income" ? "stat tint-blue stat-clickable stat-expanded" : "stat tint-blue stat-clickable"}
-          onClick={() => toggleStat("income")}
-        >
-          <span className="stat-value">{formatAmount(report.income_total)}</span>
-          <span className="stat-label">Income (all-time)</span>
-        </button>
-        <button
-          type="button"
-          className={expandedStat === "byTag" ? "stat tint-teal stat-clickable stat-expanded" : "stat tint-teal stat-clickable"}
-          onClick={() => toggleStat("byTag")}
-        >
-          <span className="stat-value">{tagBreakdown.length}</span>
-          <span className="stat-label">Tags in use</span>
-        </button>
-        {familyMembers.length > 0 && (
+      <div className="view-toggle no-print" role="group" aria-label="Report range">
+        {(Object.keys(PRESET_LABELS) as RangePreset[]).map((p) => (
           <button
+            key={p}
             type="button"
-            className={
-              expandedStat === "byMember" ? "stat tint-purple stat-clickable stat-expanded" : "stat tint-purple stat-clickable"
-            }
-            onClick={() => toggleStat("byMember")}
+            className={preset === p ? "view-toggle-active" : ""}
+            onClick={() => setPreset(p)}
+            data-range-preset={p}
           >
-            <span className="stat-value">{memberBreakdown.length}</span>
-            <span className="stat-label">Members with spending</span>
+            {PRESET_LABELS[p]}
           </button>
-        )}
+        ))}
       </div>
 
-      <StatDetailPanel
-        isOpen={expandedStat !== null}
-        title={expandedStat ? REPORT_STAT_LABELS[expandedStat] : null}
-        rows={expandedStat ? topLevelBreakdowns[expandedStat] : null}
-        emptyMessage={
-          expandedStat === "totalSaved"
-            ? "No savings goals yet."
-            : expandedStat === "income"
-              ? "No income recorded yet."
-              : expandedStat === "byTag"
-                ? "No tags used yet — add some from Transactions."
-                : "No spending attributed to a family member yet."
-        }
-        onClose={() => expandedStat && toggleStat(expandedStat)}
-      />
+      <div className="stats" data-report-summary style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+        <div className="stat tint-blue">
+          <span className="stat-value" data-summary-income>
+            {loading ? "…" : formatAmount(income.toFixed(2))}
+          </span>
+          <span className="stat-label">Income</span>
+        </div>
+        <div className="stat tint-red">
+          <span className="stat-value" data-summary-spending>
+            {loading ? "…" : formatAmount(spending.toFixed(2))}
+          </span>
+          <span className="stat-label">Spending</span>
+        </div>
+        <div className="stat tint-accent">
+          <span className={net < 0 ? "stat-value report-over-budget" : "stat-value"} data-summary-net>
+            {loading ? "…" : formatAmount(net.toFixed(2))}
+          </span>
+          <span className="stat-label">Net</span>
+        </div>
+        <div className="stat tint-teal">
+          <span className="stat-value" data-summary-rate>
+            {loading ? "…" : savingsRate === null ? "—" : `${savingsRate.toFixed(0)}%`}
+          </span>
+          <span className="stat-label">Savings rate</span>
+        </div>
+      </div>
 
-      <PropertyAssetsSection
-        assets={assets}
-        familyMembers={familyMembers}
-        onCreate={onCreateAsset}
-        onUpdateValue={onUpdateAssetValue}
-        onSetMember={onSetAssetMember}
-        onDelete={onDeleteAsset}
-      />
+      <div className="card" data-report-table>
+        <div className="card-head">
+          <span className="reports-section-title">Where the money went, by category and month</span>
+        </div>
+        <div className="report-table-scroll">
+          <table className="ledger report-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                {months.map((m) => (
+                  <th key={m} className="amount-col">
+                    {monthHeading(m, showYear)}
+                  </th>
+                ))}
+                <th className="amount-col">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((r) => (
+                <tr key={r.category} data-report-category={r.category}>
+                  <td>{r.category}</td>
+                  {r.byMonth.map((v, i) => (
+                    <td key={months[i]} className="amount-col">
+                      {v > 0 ? formatAmount(v.toFixed(2)) : <span className="account-col">—</span>}
+                    </td>
+                  ))}
+                  <td className="amount-col report-table-total" data-category-total>
+                    {formatAmount(r.total.toFixed(2))}
+                  </td>
+                </tr>
+              ))}
+              {table.rows.length === 0 && (
+                <tr>
+                  <td colSpan={months.length + 2} className="empty-state">
+                    {loading ? "Loading…" : "No spending in this range."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {table.rows.length > 0 && (
+              <tfoot>
+                <tr className="report-table-foot" data-report-totals>
+                  <td>Total</td>
+                  {table.monthTotals.map((v, i) => (
+                    <td key={months[i]} className="amount-col">
+                      {formatAmount(v.toFixed(2))}
+                    </td>
+                  ))}
+                  <td className="amount-col" data-grand-total>
+                    {formatAmount(table.grandTotal.toFixed(2))}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
 
-      <BucketsOverviewSection buckets={buckets} />
+      <div className="card" data-report-years>
+        <div className="card-head">
+          <span className="reports-section-title">Year by year</span>
+        </div>
+        <table className="ledger">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th className="amount-col">Income</th>
+              <th className="amount-col">Spending</th>
+              <th className="amount-col">Net</th>
+              <th className="amount-col">Savings rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {years.map((y) => (
+              <tr key={y.year} data-report-year={y.year}>
+                <td>{y.year}</td>
+                <td className="amount-col">{formatAmount(y.income.toFixed(2))}</td>
+                <td className="amount-col">{formatAmount(y.expense.toFixed(2))}</td>
+                <td className={y.net < 0 ? "amount-col report-over-budget" : "amount-col"}>{formatAmount(y.net.toFixed(2))}</td>
+                <td className="amount-col">{y.savingsRate === null ? "—" : `${y.savingsRate.toFixed(0)}%`}</td>
+              </tr>
+            ))}
+            {years.length === 0 && (
+              <tr>
+                <td colSpan={5} className="empty-state">
+                  {loading ? "Loading…" : "Nothing in this range."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="report-pair">
+        <BreakdownTable
+          title="Spending by member"
+          dataKey="report-members"
+          rows={memberRows}
+          emptyMessage={familyMembers.length === 0 ? "Add family members (Household) to see this." : "No spending attributed to a member in this range."}
+        />
+        <BreakdownTable
+          title="Spending by tag"
+          dataKey="report-tags"
+          rows={tagRows}
+          emptyMessage="No tags used in this range — add some from Transactions."
+        />
+      </div>
+
+      <SavingsRateTrendSection transactions={transactions} accounts={accounts} />
 
       {familyMembers.length > 0 && (
         <div>
@@ -708,8 +552,6 @@ export function ReportsView({
           </table>
         </div>
       )}
-
-      <SavingsRateTrendSection transactions={transactions} accounts={accounts} />
 
       <div className="card clickable-row" onClick={onOpenBudget} title="Go to the Budget tab">
         <span className="category-link">This month's budget →</span>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBeforeAccountCheckpoint, isIncomeTransaction } from "./accountGroups";
+import { isBeforeAccountCheckpoint, isIncomeTransaction, pickDefaultAccountId } from "./accountGroups";
 import type { Account, Transaction } from "./types";
 
 function account(overrides: Partial<Account> = {}): Account {
@@ -24,6 +24,7 @@ function account(overrides: Partial<Account> = {}): Account {
 function tx(overrides: Partial<Transaction> = {}): Transaction {
   return {
     id: 1,
+    transfer_counterpart_id: null,
     account_id: 1,
     account_name: "Everyday Checking",
     date: "2026-07-05",
@@ -125,5 +126,31 @@ describe("isBeforeAccountCheckpoint", () => {
 
   it("is false for an empty date (nothing picked yet)", () => {
     expect(isBeforeAccountCheckpoint(account({ checkpoint_date: "2026-09-09" }), "")).toBe(false);
+  });
+});
+
+describe("pickDefaultAccountId", () => {
+  const acct = (id: number, account_type: string) => ({ id, account_type });
+
+  it("prefers the account last used, when it still exists", () => {
+    expect(pickDefaultAccountId([acct(1, "loan"), acct(2, "checking"), acct(3, "savings")], 3)).toBe(3);
+  });
+
+  it("falls back to the first checking account rather than whichever sorts first", () => {
+    expect(pickDefaultAccountId([acct(1, "loan"), acct(2, "investment"), acct(3, "checking")], null)).toBe(3);
+  });
+
+  it("ignores a remembered account that has since been deleted", () => {
+    expect(pickDefaultAccountId([acct(1, "loan"), acct(2, "checking")], 99)).toBe(2);
+  });
+
+  it("then prefers a credit card, then savings, over a loan or brokerage account", () => {
+    expect(pickDefaultAccountId([acct(1, "loan"), acct(2, "savings"), acct(3, "credit")], null)).toBe(3);
+    expect(pickDefaultAccountId([acct(1, "loan"), acct(2, "investment"), acct(3, "savings")], null)).toBe(3);
+  });
+
+  it("takes the first account when none is an everyday one, and null when there are none", () => {
+    expect(pickDefaultAccountId([acct(7, "loan"), acct(8, "investment")], null)).toBe(7);
+    expect(pickDefaultAccountId([], null)).toBeNull();
   });
 });

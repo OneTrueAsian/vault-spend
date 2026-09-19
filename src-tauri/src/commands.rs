@@ -113,13 +113,127 @@ pub fn list_backups(paths: tauri::State<crate::config::AppPaths>) -> Result<Vec<
         .collect())
 }
 
-/// Manual "Back up now" — always creates one, bypassing the 24h automatic
-/// throttle (`backups::create_backup_if_due`, called only at launch).
+#[derive(Serialize)]
+pub struct BackgroundSettingsDto {
+    pub tray_enabled: bool,
+    pub autostart_enabled: bool,
+    /// Whether "start when I sign in" can be turned on on this platform.
+    pub autostart_supported: bool,
+}
+
 #[tauri::command]
-pub fn create_backup_now(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<String, String> {
+pub fn get_background_settings(state: tauri::State<AppStateHandle>) -> Result<BackgroundSettingsDto, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let s = state.store.get_background_settings().map_err(|e| e.to_string())?;
+    Ok(BackgroundSettingsDto {
+        tray_enabled: s.tray_enabled,
+        autostart_enabled: s.autostart_enabled,
+        autostart_supported: cfg!(windows),
+    })
+}
+
+/// Turns "keep running in the tray and remind me about bills" on or off —
+/// the tray icon appears or disappears straight away.
+#[tauri::command]
+pub fn set_tray_enabled(enabled: bool, app: tauri::AppHandle, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    {
+        let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+        state.store.set_tray_enabled(enabled).map_err(|e| e.to_string())?;
+    }
+    if enabled {
+        crate::background::install_tray(&app).map_err(|e| e.to_string())
+    } else {
+        crate::background::remove_tray(&app);
+        Ok(())
+    }
+}
+
+/// Starts (or stops) Vault Spend at sign-in. The setting is only saved once
+/// the operating system accepted the change.
+#[tauri::command]
+pub fn set_autostart_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    crate::background::set_autostart(enabled)?;
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.set_autostart_enabled(enabled).map_err(|e| e.to_string())
+}
+
+/// Sends a sample reminder so the user can see what one looks like and that
+/// notifications get through.
+#[tauri::command]
+pub fn send_test_reminder(app: tauri::AppHandle) -> Result<(), String> {
+    crate::background::notify(
+        &app,
+        "Vault Spend reminders are on",
+        "This is what an upcoming-bill reminder will look like.",
+    )
+}
+
+#[derive(Serialize)]
+pub struct BackupNowDto {
+    pub filename: String,
+    /// The second folder the backup was also copied to, when one is set and it worked.
+    pub copied_to: Option<String>,
+    /// Why the second copy failed, when one is set and it did not work.
+    pub copy_error: Option<String>,
+}
+
+/// Manual "Back up now" — always creates one, bypassing the 24h automatic
+/// throttle (`backups::create_backup_if_due`, called only at launch). Also
+/// copies it to the second backup folder when one is set.
+#[tauri::command]
+pub fn create_backup_now(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<BackupNowDto, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
-    crate::backups::create_backup(&state.store, &backups_dir, chrono::Local::now().naive_local())
+    let outcome = crate::backups::create_backup_full(&state.store, &backups_dir, chrono::Local::now().naive_local())?;
+    Ok(BackupNowDto {
+        filename: outcome.filename,
+        copied_to: outcome.copied_to.map(|p| p.parent().map(|d| d.display().to_string()).unwrap_or_default()),
+        copy_error: outcome.copy_error,
+    })
+}
+
+/// The second folder every backup is also copied to, if one is set.
+#[tauri::command]
+pub fn get_backup_copy_dir(state: tauri::State<AppStateHandle>) -> Result<Option<String>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.get_backup_copy_dir().map_err(|e| e.to_string())
+}
+
+/// Sets (or clears, with `None`) the second backup folder. A folder is
+/// checked before it's saved — usable, writable, not the primary backups
+/// folder — and the newest existing backup is copied into it straight away,
+/// so "it works" is shown rather than promised. Returns a sentence for the
+/// user.
+#[tauri::command]
+pub fn set_backup_copy_dir(
+    dir: Option<String>,
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<String, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let dir = dir.map(|d| d.trim().to_string()).filter(|d| !d.is_empty());
+    let Some(dir) = dir else {
+        state.store.set_backup_copy_dir(None).map_err(|e| e.to_string())?;
+        return Ok("Backups will no longer be copied to a second folder.".to_string());
+    };
+
+    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
+    let copy_dir = std::path::Path::new(&dir);
+    crate::backups::check_copy_dir(&backups_dir, copy_dir)?;
+    let newest = crate::backups::list_backups(&backups_dir)?.into_iter().next();
+    let copied_now = match newest {
+        Some(b) => {
+            crate::backups::mirror_backup(&backups_dir, &b.filename, copy_dir)?;
+            true
+        }
+        None => false,
+    };
+    state.store.set_backup_copy_dir(Some(&dir)).map_err(|e| e.to_string())?;
+    Ok(if copied_now {
+        format!("Every backup will also be copied to {dir}. The latest one is there now.")
+    } else {
+        format!("Every backup will also be copied to {dir}, starting with the next one.")
+    })
 }
 
 /// Restores `filename` into a brand-new file (see `backups::restore_backup`
@@ -363,10 +477,12 @@ pub type AppStateHandle = Mutex<AppState>;
 impl AppState {
     pub fn open(db_path: impl AsRef<std::path::Path>) -> Result<Self, String> {
         let store = Store::open(db_path).map_err(|e| e.to_string())?;
-        let mut rules = store.load_rules().map_err(|e| e.to_string())?;
-        if rules.is_empty() {
-            rules = RuleSet::seeded();
-        }
+        // The starter rules are persisted once (see
+        // `Store::seed_default_rules_once`) rather than faked in memory
+        // whenever the table is empty, so the rules manager can show and
+        // delete every one of them and "delete them all" sticks.
+        store.seed_default_rules_once().map_err(|e| e.to_string())?;
+        let rules = store.load_rules().map_err(|e| e.to_string())?;
         Ok(AppState { store, rules })
     }
 }
@@ -374,6 +490,8 @@ impl AppState {
 #[derive(Serialize)]
 pub struct TransactionDto {
     pub id: i64,
+    /// The other leg's id when this is one half of a linked transfer.
+    pub transfer_counterpart_id: Option<i64>,
     pub date: String,
     pub description: String,
     pub amount: String,
@@ -443,6 +561,8 @@ pub struct FamilyMemberDto {
 pub struct ImportSummary {
     pub inserted: usize,
     pub row_errors: usize,
+    /// The new transactions' ids, so the app can open its review inbox on exactly them.
+    pub inserted_ids: Vec<i64>,
 }
 
 /// One parsed CSV row awaiting the user's review — every row is shown, not
@@ -483,6 +603,10 @@ pub struct BucketDto {
     pub sinking_amount: Option<String>,
     pub color: Option<String>,
     pub icon_key: Option<String>,
+    /// Progress follows the linked account's balance — see `Store::list_buckets_as_of`.
+    pub tracks_account: bool,
+    /// Net dollars per month gained over the trailing 90 days.
+    pub monthly_pace: String,
 }
 
 #[derive(Serialize)]
@@ -492,6 +616,9 @@ pub struct ReportBudgetLineDto {
     pub budgeted: String,
     pub actual: String,
     pub cap_enabled: bool,
+    /// Unspent budget carried in from earlier months (see `Store::monthly_budget_actuals`).
+    pub rollover: String,
+    pub rollover_enabled: bool,
 }
 
 #[derive(Serialize)]
@@ -716,10 +843,12 @@ pub fn commit_import(
     }
 
     let mut inserted = 0;
+    let mut inserted_ids: Vec<i64> = Vec::new();
     for (account_id, rows) in by_account {
         let (txns, tags_per_row): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
         let ids = state.store.save_transactions_with_ids(account_id, &txns).map_err(|e| e.to_string())?;
         inserted += ids.len();
+        inserted_ids.extend(ids.iter().copied());
         for (id, tags) in ids.into_iter().zip(tags_per_row) {
             for tag in tags {
                 state.store.add_tag(id, &tag).map_err(|e| e.to_string())?;
@@ -729,7 +858,11 @@ pub fn commit_import(
 
     categorize_uncategorized(&mut state)?;
 
-    Ok(ImportSummary { inserted, row_errors })
+    Ok(ImportSummary {
+        inserted,
+        row_errors,
+        inserted_ids,
+    })
 }
 
 /// Adds one transaction directly, without a file import — the Transactions
@@ -1158,6 +1291,7 @@ pub fn list_transactions(state: tauri::State<AppStateHandle>) -> Result<Vec<Tran
         .into_iter()
         .map(|s| TransactionDto {
             id: s.id,
+            transfer_counterpart_id: s.transfer_counterpart_id,
             date: s.transaction.date.to_string(),
             description: s.transaction.description,
             amount: s.transaction.amount.to_string(),
@@ -1178,6 +1312,48 @@ pub fn list_transactions(state: tauri::State<AppStateHandle>) -> Result<Vec<Tran
             member_name: s.member_name,
         })
         .collect())
+}
+
+#[derive(Serialize)]
+pub struct TransferCandidateDto {
+    pub out_id: i64,
+    pub in_id: i64,
+}
+
+/// Pairs of transactions that look like the two legs of one transfer
+/// between the user's own accounts (equal amounts, opposite directions,
+/// different accounts, within 3 days) and aren't linked yet.
+#[tauri::command]
+pub fn list_transfer_candidates(state: tauri::State<AppStateHandle>) -> Result<Vec<TransferCandidateDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let candidates = state.store.transfer_candidates().map_err(|e| e.to_string())?;
+    Ok(candidates
+        .into_iter()
+        .map(|c| TransferCandidateDto {
+            out_id: c.out_id,
+            in_id: c.in_id,
+        })
+        .collect())
+}
+
+/// Links two transactions as the two legs of one transfer, so neither
+/// counts as income or spending.
+#[tauri::command]
+pub fn link_transfer(a: i64, b: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    if state.store.link_transfer(a, b).map_err(|e| e.to_string())? {
+        Ok(())
+    } else {
+        Err("Those two transactions can't be linked as a transfer — they need to be in different accounts, one going out and one coming in, and neither already linked.".to_string())
+    }
+}
+
+/// Undoes a link, from either leg — both transactions count as ordinary
+/// income/spending again.
+#[tauri::command]
+pub fn unlink_transfer(transaction_id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.unlink_transfer(transaction_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1347,12 +1523,102 @@ pub fn bulk_create_recurring_from_transactions(ids: Vec<i64>, cadence: String, s
 /// category), so the in-memory rule set categorization actually uses stays
 /// in sync without requiring an app restart.
 fn reload_rules(state: &mut AppState) -> Result<(), String> {
-    let mut rules = state.store.load_rules().map_err(|e| e.to_string())?;
-    if rules.is_empty() {
-        rules = RuleSet::seeded();
-    }
-    state.rules = rules;
+    state.rules = state.store.load_rules().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[derive(Serialize)]
+pub struct RuleDto {
+    pub pattern: String,
+    pub category: String,
+    pub match_count: usize,
+}
+
+#[derive(Serialize)]
+pub struct RulePreviewDto {
+    pub matching: usize,
+    pub would_change: usize,
+}
+
+/// Every categorization rule (built-in and learned alike) with how many
+/// transactions its pattern touches — Settings' rules manager list.
+#[tauri::command]
+pub fn list_rules(state: tauri::State<AppStateHandle>) -> Result<Vec<RuleDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let rules = state.store.list_rules().map_err(|e| e.to_string())?;
+    Ok(rules
+        .into_iter()
+        .map(|r| RuleDto {
+            pattern: r.pattern,
+            category: r.category,
+            match_count: r.match_count,
+        })
+        .collect())
+}
+
+/// What saving this rule would do to transactions already on the books,
+/// without saving anything. `replacing` is the pattern of the rule being
+/// edited, if any.
+#[tauri::command]
+pub fn preview_rule(
+    pattern: String,
+    category: String,
+    replacing: Option<String>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<RulePreviewDto, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let preview = state
+        .store
+        .preview_rule(&pattern, &category, replacing.as_deref())
+        .map_err(|e| e.to_string())?;
+    Ok(RulePreviewDto {
+        matching: preview.matching,
+        would_change: preview.would_change,
+    })
+}
+
+/// Creates a rule, or edits one (`replacing` = the old pattern). With
+/// `apply_to_existing`, also re-categorizes the transactions
+/// `preview_rule` counted. Returns how many were re-categorized.
+#[tauri::command]
+pub fn save_rule(
+    pattern: String,
+    category: String,
+    replacing: Option<String>,
+    apply_to_existing: bool,
+    state: tauri::State<AppStateHandle>,
+) -> Result<usize, String> {
+    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let pattern = pattern.trim().to_string();
+    let category = category.trim().to_string();
+    if pattern.is_empty() {
+        return Err("A rule needs some text to look for in a transaction's description.".to_string());
+    }
+    if category.is_empty() {
+        return Err("Pick the category this rule should assign.".to_string());
+    }
+
+    state.store.create_category(&category, None).map_err(|e| e.to_string())?;
+    match replacing.as_deref() {
+        Some(old) => state.store.rename_rule(old, &pattern, &category),
+        None => state.store.upsert_rule(&pattern, &category),
+    }
+    .map_err(|e| e.to_string())?;
+    reload_rules(&mut state)?;
+
+    if apply_to_existing {
+        state.store.apply_rule_to_existing(&pattern, &category).map_err(|e| e.to_string())
+    } else {
+        Ok(0)
+    }
+}
+
+/// Removes a rule. Transactions it already categorized keep their category.
+#[tauri::command]
+pub fn delete_rule(pattern: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.delete_rule(&pattern).map_err(|e| e.to_string())?;
+    reload_rules(&mut state)
 }
 
 #[tauri::command]
@@ -1519,7 +1785,8 @@ pub fn create_bucket(
 #[tauri::command]
 pub fn list_buckets(state: tauri::State<AppStateHandle>) -> Result<Vec<BucketDto>, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let buckets = state.store.list_buckets().map_err(|e| e.to_string())?;
+    let today = chrono::Local::now().date_naive();
+    let buckets = state.store.list_buckets_as_of(today).map_err(|e| e.to_string())?;
     Ok(buckets
         .into_iter()
         .map(|b| BucketDto {
@@ -1535,8 +1802,18 @@ pub fn list_buckets(state: tauri::State<AppStateHandle>) -> Result<Vec<BucketDto
             sinking_amount: b.sinking_amount.map(|a| a.to_string()),
             color: b.color,
             icon_key: b.icon_key,
+            tracks_account: b.tracks_account,
+            monthly_pace: b.monthly_pace.to_string(),
         })
         .collect())
+}
+
+/// Turns "progress follows the linked account's balance" on or off for a
+/// goal — see `Store::set_bucket_tracks_account`.
+#[tauri::command]
+pub fn set_bucket_tracks_account(id: i64, tracks_account: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.set_bucket_tracks_account(id, tracks_account).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1674,6 +1951,8 @@ pub fn get_report(state: tauri::State<AppStateHandle>) -> Result<ReportDto, Stri
             budgeted: a.budgeted.to_string(),
             actual: a.actual.to_string(),
             cap_enabled: a.cap_enabled,
+            rollover: a.rollover.to_string(),
+            rollover_enabled: a.rollover_enabled,
         })
         .collect();
 
@@ -1700,8 +1979,21 @@ pub fn budget_actuals_for_month(year: i32, month: u32, state: tauri::State<AppSt
             budgeted: a.budgeted.to_string(),
             actual: a.actual.to_string(),
             cap_enabled: a.cap_enabled,
+            rollover: a.rollover.to_string(),
+            rollover_enabled: a.rollover_enabled,
         })
         .collect())
+}
+
+/// Opts a category's specific month in or out of carrying its unspent
+/// budget forward — see `Store::set_budget_rollover`.
+#[tauri::command]
+pub fn set_budget_rollover(category: String, period: String, rollover_enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state
+        .store
+        .set_budget_rollover(&category, &period, rollover_enabled)
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -1739,6 +2031,104 @@ pub fn monthly_budget_actuals_by_member(year: i32, month: u32, state: tauri::Sta
 pub fn set_budget_cap(category: String, period: String, cap_enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_budget_cap(&category, &period, cap_enabled).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+pub struct BudgetSuggestionDto {
+    pub category: String,
+    pub budget_group: String,
+    pub current: Option<String>,
+    pub suggested: String,
+}
+
+#[derive(Serialize)]
+pub struct BudgetSuggestionsDto {
+    pub months_used: u32,
+    pub lines: Vec<BudgetSuggestionDto>,
+}
+
+/// The Budget page's "Suggest from my 3-month average" preview — see
+/// `Store::suggest_budgets_from_average`. Read-only: nothing is saved until
+/// the user applies rows through `set_budget`.
+#[tauri::command]
+pub fn suggest_budgets(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<BudgetSuggestionsDto, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let suggestions = state.store.suggest_budgets_from_average(year, month, 3).map_err(|e| e.to_string())?;
+    Ok(BudgetSuggestionsDto {
+        months_used: suggestions.months_used,
+        lines: suggestions
+            .lines
+            .into_iter()
+            .map(|l| BudgetSuggestionDto {
+                category: l.category,
+                budget_group: l.budget_group,
+                current: l.current.map(|c| c.to_string()),
+                suggested: l.suggested.to_string(),
+            })
+            .collect(),
+    })
+}
+
+#[derive(Serialize)]
+pub struct OverBudgetLineDto {
+    pub category: String,
+    pub budgeted: String,
+    pub actual: String,
+}
+
+#[derive(Serialize)]
+pub struct MonthReviewDto {
+    pub year: i32,
+    pub month: u32,
+    pub income: String,
+    pub expenses: String,
+    pub prev_income: String,
+    pub prev_expenses: String,
+    pub over_budget: Vec<OverBudgetLineDto>,
+    pub uncategorized_count: usize,
+    pub uncategorized_total: String,
+    pub reviewed: bool,
+}
+
+/// Everything the month-end review shows for one month — see
+/// `Store::month_review`.
+#[tauri::command]
+pub fn month_review(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<MonthReviewDto, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let r = state.store.month_review(year, month).map_err(|e| e.to_string())?;
+    Ok(MonthReviewDto {
+        year: r.year,
+        month: r.month,
+        income: r.income.to_string(),
+        expenses: r.expenses.to_string(),
+        prev_income: r.prev_income.to_string(),
+        prev_expenses: r.prev_expenses.to_string(),
+        over_budget: r
+            .over_budget
+            .into_iter()
+            .map(|l| OverBudgetLineDto {
+                category: l.category,
+                budgeted: l.budgeted.to_string(),
+                actual: l.actual.to_string(),
+            })
+            .collect(),
+        uncategorized_count: r.uncategorized_count,
+        uncategorized_total: r.uncategorized_total.to_string(),
+        reviewed: r.reviewed,
+    })
+}
+
+#[tauri::command]
+pub fn set_month_reviewed(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.set_month_reviewed(year, month).map_err(|e| e.to_string())
+}
+
+/// Every month whose review was finished, as "YYYY-MM".
+#[tauri::command]
+pub fn list_reviewed_months(state: tauri::State<AppStateHandle>) -> Result<Vec<String>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.list_reviewed_months().map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -1929,10 +2319,17 @@ pub struct AnomalyFlagDto {
     pub detail: String,
 }
 
+/// The user looked at a flag and it's fine — see `Store::dismiss_anomaly`.
+#[tauri::command]
+pub fn dismiss_anomaly_flag(transaction_id: i64, kind: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.dismiss_anomaly(transaction_id, &kind).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn list_anomaly_flags(state: tauri::State<AppStateHandle>) -> Result<Vec<AnomalyFlagDto>, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let flags = state.store.anomaly_flags().map_err(|e| e.to_string())?;
+    let flags = state.store.open_anomaly_flags().map_err(|e| e.to_string())?;
     Ok(flags
         .into_iter()
         .map(|f| AnomalyFlagDto {
@@ -2030,6 +2427,45 @@ pub fn set_recurring_status(id: i64, status: String, state: tauri::State<AppStat
     state.store.set_recurring_status(id, &status).map_err(|e| e.to_string())
 }
 
+#[derive(Serialize)]
+pub struct PriceChangeDto {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Serialize)]
+pub struct RecurringMatchDto {
+    pub recurring_id: i64,
+    pub state: String,
+    pub last_due: Option<String>,
+    pub last_paid_date: Option<String>,
+    pub last_paid_amount: Option<String>,
+    pub price_change: Option<PriceChangeDto>,
+}
+
+/// How every recurring item lines up with the charges actually posted — see
+/// `Store::recurring_matches`.
+#[tauri::command]
+pub fn recurring_matches(state: tauri::State<AppStateHandle>) -> Result<Vec<RecurringMatchDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let today = chrono::Local::now().date_naive();
+    let matches = state.store.recurring_matches(today).map_err(|e| e.to_string())?;
+    Ok(matches
+        .into_iter()
+        .map(|m| RecurringMatchDto {
+            recurring_id: m.recurring_id,
+            state: m.state,
+            last_due: m.last_due.map(|d| d.to_string()),
+            last_paid_date: m.last_paid_date.map(|d| d.to_string()),
+            last_paid_amount: m.last_paid_amount.map(|a| a.to_string()),
+            price_change: m.price_change.map(|c| PriceChangeDto {
+                from: c.from.to_string(),
+                to: c.to.to_string(),
+            }),
+        })
+        .collect())
+}
+
 #[tauri::command]
 pub fn recurring_totals(state: tauri::State<AppStateHandle>) -> Result<RecurringTotalsDto, String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
@@ -2124,10 +2560,13 @@ pub fn create_holding(
     if cost_basis < Decimal::ZERO {
         return Err("Cost basis can't be negative.".to_string());
     }
-    state
+    let id = state
         .store
         .create_holding(account_id, &symbol, &name, shares, price, cost_basis, asset_class.as_deref())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    // Best effort: a missed snapshot only leaves a gap in the value history.
+    let _ = state.store.record_portfolio_snapshot(chrono::Local::now().date_naive());
+    Ok(id)
 }
 
 #[tauri::command]
@@ -2155,6 +2594,230 @@ pub fn list_holdings(state: tauri::State<AppStateHandle>) -> Result<Vec<HoldingD
         .collect())
 }
 
+#[derive(Serialize)]
+pub struct CategoryMonthAmountDto {
+    /// "YYYY-MM"
+    pub month: String,
+    pub category: String,
+    pub amount: String,
+}
+
+/// Spending per category per month across a date range — the Reports page's
+/// trend table. See `Store::category_spending_by_month`.
+#[tauri::command]
+pub fn category_spending_by_month(
+    from_year: i32,
+    from_month: u32,
+    to_year: i32,
+    to_month: u32,
+    state: tauri::State<AppStateHandle>,
+) -> Result<Vec<CategoryMonthAmountDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let rows = state
+        .store
+        .category_spending_by_month(from_year, from_month, to_year, to_month)
+        .map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|r| CategoryMonthAmountDto {
+            month: r.month,
+            category: r.category,
+            amount: r.amount.to_string(),
+        })
+        .collect())
+}
+
+#[derive(Serialize)]
+pub struct BalancePointDto {
+    pub date: String,
+    pub balance: String,
+}
+
+/// An account's balance at each of the last `months` month-ends, ending with
+/// today — see `Store::account_balance_history`.
+#[tauri::command]
+pub fn account_balance_history(account_id: i64, months: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<BalancePointDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let today = chrono::Local::now().date_naive();
+    let history = state
+        .store
+        .account_balance_history(account_id, today, months)
+        .map_err(|e| e.to_string())?;
+    Ok(history
+        .into_iter()
+        .map(|(date, balance)| BalancePointDto {
+            date: date.to_string(),
+            balance: balance.to_string(),
+        })
+        .collect())
+}
+
+#[derive(Serialize)]
+pub struct AccountTransactionDto {
+    pub id: i64,
+    pub date: String,
+    pub description: String,
+    pub amount: String,
+    pub category: Option<String>,
+    pub cleared: bool,
+}
+
+fn account_transaction_dtos(rows: Vec<budget_core::store::AccountTransaction>) -> Vec<AccountTransactionDto> {
+    rows.into_iter()
+        .map(|t| AccountTransactionDto {
+            id: t.id,
+            date: t.date.to_string(),
+            description: t.description,
+            amount: t.amount.to_string(),
+            category: t.category,
+            cleared: t.cleared,
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn list_account_transactions(account_id: i64, limit: usize, state: tauri::State<AppStateHandle>) -> Result<Vec<AccountTransactionDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let rows = state.store.list_account_transactions(account_id, limit).map_err(|e| e.to_string())?;
+    Ok(account_transaction_dtos(rows))
+}
+
+/// The transactions to tick through for a statement ending `statement_date` —
+/// see `Store::reconcile_candidates`.
+#[tauri::command]
+pub fn reconcile_candidates(
+    account_id: i64,
+    statement_date: String,
+    state: tauri::State<AppStateHandle>,
+) -> Result<Vec<AccountTransactionDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let date = parse_date(&statement_date)?;
+    let rows = state.store.reconcile_candidates(account_id, date).map_err(|e| e.to_string())?;
+    Ok(account_transaction_dtos(rows))
+}
+
+#[tauri::command]
+pub fn set_transactions_cleared(ids: Vec<i64>, cleared: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.set_transactions_cleared(&ids, cleared).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+pub struct ReconciliationStatusDto {
+    pub cleared_balance: String,
+    pub difference: String,
+    pub cleared_count: usize,
+}
+
+#[tauri::command]
+pub fn reconciliation_status(
+    account_id: i64,
+    statement_balance: String,
+    state: tauri::State<AppStateHandle>,
+) -> Result<ReconciliationStatusDto, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let statement_balance = parse_amount(&statement_balance)?;
+    let status = state
+        .store
+        .reconciliation_status(account_id, statement_balance)
+        .map_err(|e| e.to_string())?;
+    Ok(ReconciliationStatusDto {
+        cleared_balance: status.cleared_balance.to_string(),
+        difference: status.difference.to_string(),
+        cleared_count: status.cleared_count,
+    })
+}
+
+/// Records the reconciliation if it balances; `false` means the difference
+/// wasn't zero and nothing was recorded.
+#[tauri::command]
+pub fn finish_reconciliation(
+    account_id: i64,
+    statement_date: String,
+    statement_balance: String,
+    state: tauri::State<AppStateHandle>,
+) -> Result<bool, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let date = parse_date(&statement_date)?;
+    let balance = parse_amount(&statement_balance)?;
+    state
+        .store
+        .finish_reconciliation(account_id, date, balance, chrono::Local::now().naive_local())
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+pub struct LastReconciliationDto {
+    pub statement_date: String,
+    pub statement_balance: String,
+}
+
+#[tauri::command]
+pub fn last_reconciliation(account_id: i64, state: tauri::State<AppStateHandle>) -> Result<Option<LastReconciliationDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let last = state.store.last_reconciliation(account_id).map_err(|e| e.to_string())?;
+    Ok(last.map(|(date, balance)| LastReconciliationDto {
+        statement_date: date.to_string(),
+        statement_balance: balance.to_string(),
+    }))
+}
+
+#[derive(Serialize)]
+pub struct PortfolioPointDto {
+    pub date: String,
+    pub value: String,
+}
+
+/// The portfolio's recorded value over time — see `Store::record_portfolio_snapshot`.
+#[tauri::command]
+pub fn portfolio_history(state: tauri::State<AppStateHandle>) -> Result<Vec<PortfolioPointDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let history = state.store.portfolio_history().map_err(|e| e.to_string())?;
+    Ok(history
+        .into_iter()
+        .map(|(date, value)| PortfolioPointDto {
+            date: date.to_string(),
+            value: value.to_string(),
+        })
+        .collect())
+}
+
+/// Records today's portfolio value — the app calls it at launch so a quiet
+/// week still leaves a point on the chart.
+#[tauri::command]
+pub fn record_portfolio_snapshot(state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let today = chrono::Local::now().date_naive();
+    state.store.record_portfolio_snapshot(today).map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+pub struct AllocationTargetDto {
+    pub asset_class: String,
+    pub percent: String,
+}
+
+#[tauri::command]
+pub fn list_allocation_targets(state: tauri::State<AppStateHandle>) -> Result<Vec<AllocationTargetDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let targets = state.store.list_allocation_targets().map_err(|e| e.to_string())?;
+    Ok(targets
+        .into_iter()
+        .map(|(asset_class, percent)| AllocationTargetDto {
+            asset_class,
+            percent: percent.to_string(),
+        })
+        .collect())
+}
+
+/// Sets (or, at 0, clears) one asset class's target share — see `Store::set_allocation_target`.
+#[tauri::command]
+pub fn set_allocation_target(asset_class: String, percent: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let percent = parse_amount(&percent)?;
+    state.store.set_allocation_target(&asset_class, percent).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn update_holding_price(id: i64, price: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
@@ -2163,13 +2826,17 @@ pub fn update_holding_price(id: i64, price: String, state: tauri::State<AppState
         return Err("Price must be greater than zero.".to_string());
     }
     let today = chrono::Local::now().date_naive();
-    state.store.update_holding_price(id, price, today).map_err(|e| e.to_string())
+    state.store.update_holding_price(id, price, today).map_err(|e| e.to_string())?;
+    let _ = state.store.record_portfolio_snapshot(today);
+    Ok(())
 }
 
 #[tauri::command]
 pub fn delete_holding(id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    state.store.delete_holding(id).map_err(|e| e.to_string())
+    state.store.delete_holding(id).map_err(|e| e.to_string())?;
+    let _ = state.store.record_portfolio_snapshot(chrono::Local::now().date_naive());
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -2231,6 +2898,7 @@ pub struct AppSettingsDto {
     pub apply_to_debt_enabled: bool,
     pub split_purchases_enabled: bool,
     pub envelope_caps_enabled: bool,
+    pub rollover_enabled: bool,
 }
 
 #[tauri::command]
@@ -2241,6 +2909,7 @@ pub fn get_app_settings(state: tauri::State<AppStateHandle>) -> Result<AppSettin
         apply_to_debt_enabled: settings.apply_to_debt_enabled,
         split_purchases_enabled: settings.split_purchases_enabled,
         envelope_caps_enabled: settings.envelope_caps_enabled,
+        rollover_enabled: settings.rollover_enabled,
     })
 }
 
@@ -2260,6 +2929,15 @@ pub fn set_split_purchases_enabled(enabled: bool, state: tauri::State<AppStateHa
 pub fn set_envelope_caps_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_envelope_caps_enabled(enabled).map_err(|e| e.to_string())
+}
+
+/// The global "Rollover unspent" switch (Settings). Off stops unspent budget
+/// carrying into the next month without touching any stored budget or any
+/// category's own choice.
+#[tauri::command]
+pub fn set_rollover_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.set_rollover_enabled(enabled).map_err(|e| e.to_string())
 }
 
 /// Looks up one live quote — used only by the New Holding form's autofill,
@@ -2490,6 +3168,8 @@ pub async fn refresh_live_prices(
                 .map_err(|e| e.to_string())?;
             updated.push(symbol);
         }
+        // The prices just moved, so today's portfolio value did too.
+        let _ = state.store.record_portfolio_snapshot(today);
         // Only bump "last refreshed" if a request actually went out — a
         // refresh that was entirely skipped for being over budget didn't
         // actually refresh anything.
@@ -2928,6 +3608,56 @@ pub fn cash_flow_forecast(days: i64, state: tauri::State<AppStateHandle>) -> Res
             balance: p.balance.to_string(),
         })
         .collect())
+}
+
+#[derive(Serialize)]
+pub struct ForecastEventDto {
+    pub date: String,
+    pub label: String,
+    pub amount: String,
+}
+
+#[derive(Serialize)]
+pub struct BillAwareForecastDto {
+    pub uses_recurring: bool,
+    pub start_balance: String,
+    pub points: Vec<ForecastPointDto>,
+    pub events: Vec<ForecastEventDto>,
+    pub daily_baseline: String,
+}
+
+/// The Cash Flow tab's Forecast and the Dashboard's "Safe to spend": cash
+/// projected day by day with every active Recurring bill and paycheck placed
+/// on its due date (see `Store::bill_aware_forecast`). Falls back to the
+/// plain trend forecast, flagged `uses_recurring: false`, when Recurring has
+/// nothing active.
+#[tauri::command]
+pub fn bill_aware_forecast(days: i64, state: tauri::State<AppStateHandle>) -> Result<BillAwareForecastDto, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let today = chrono::Local::now().date_naive();
+    let forecast = state.store.bill_aware_forecast(today, days).map_err(|e| e.to_string())?;
+    Ok(BillAwareForecastDto {
+        uses_recurring: forecast.uses_recurring,
+        start_balance: forecast.start_balance.to_string(),
+        points: forecast
+            .points
+            .into_iter()
+            .map(|p| ForecastPointDto {
+                date: p.date.to_string(),
+                balance: p.balance.to_string(),
+            })
+            .collect(),
+        events: forecast
+            .events
+            .into_iter()
+            .map(|ev| ForecastEventDto {
+                date: ev.date.to_string(),
+                label: ev.label,
+                amount: ev.amount.to_string(),
+            })
+            .collect(),
+        daily_baseline: forecast.daily_baseline.to_string(),
+    })
 }
 
 /// Average monthly spend over the trailing ~90 days — powers the

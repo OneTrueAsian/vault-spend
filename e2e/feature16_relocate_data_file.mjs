@@ -34,7 +34,7 @@ try {
   await settingsNav.click();
 
   const settingsCard = await app.browser.$(
-    "//div[contains(@class,'card')][.//span[text()='Data file']]",
+    "//div[contains(@class,'card')][.//span[text()='Data']]", // Settings' single "Data" section (data file, backups, setup data)
   );
   await settingsCard.waitForExist({ timeout: 10000 });
 
@@ -61,7 +61,7 @@ try {
 
   const useExistingButtons = await settingsCard.$$("button*=Use existing file");
   if (useExistingButtons.length === 0) {
-    throw new Error(`expected a "Use existing file…" action in the Data file card, got:\n${cardText}`);
+    throw new Error(`expected a "Use existing file…" action in the Data card, got:\n${cardText}`);
   }
   if (!cardText.toLowerCase().includes("checked for real account/transaction data")) {
     throw new Error(`expected explainer copy mentioning the file is validated before being adopted, got:\n${cardText}`);

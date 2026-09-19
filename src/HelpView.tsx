@@ -75,6 +75,16 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "get started",
       "checklist",
       "ask the vault",
+      "safe to spend",
+      "payday",
+      "to do",
+      "needs a look",
+      "month-end review",
+      "hide amounts",
+      "privacy",
+      "command palette",
+      "keyboard shortcuts",
+      "ctrl+k",
     ],
     node: (
       <li>
@@ -96,8 +106,21 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         layout yourself, <strong>"+ Save as…"</strong> to name and keep
         your own arrangement right alongside them — switch back to it any
         time from the same dropdown, or delete it when you no longer need
-        it. New here also see a <strong>Get started</strong> checklist and
-        the <strong>Ask the Vault</strong> question box (see FAQ below).
+        it. <strong>Safe to spend</strong> shows what's left of your
+        cash after the Recurring bills due before your next paycheck (with an
+        optional buffer you choose to keep), and <strong>Needs a look</strong>{" "}
+        opens with a <strong>To do</strong> list — uncategorized transactions,
+        bills due in the next 3 days, everyday accounts with no activity for
+        30+ days, Recurring bills that look missed or changed price, and a
+        finished month waiting for its <strong>month-end review</strong> —
+        each row jumping to where it's fixed. New here also see a{" "}
+        <strong>Get started</strong> checklist and the{" "}
+        <strong>Ask the Vault</strong> question box (see FAQ below). The
+        header's <strong>Hide amounts</strong> button covers every dollar
+        figure with •••• for when someone's looking over your shoulder, and{" "}
+        <strong>Ctrl+K</strong> opens a command palette that jumps to any tab,
+        account, goal, or transaction (press <strong>?</strong> for the
+        shortcut list).
       </li>
     ),
   },
@@ -113,6 +136,14 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "loan",
       "investment",
       "institution",
+      "details",
+      "reconcile",
+      "reconciliation",
+      "statement",
+      "cleared",
+      "balance history",
+      "property",
+      "valuables",
     ],
     node: (
       <li>
@@ -120,13 +151,39 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         credit, loan, investment, other), with running totals for Total
         Assets, Total Liabilities, and Net Worth — click any of those for a
         breakdown of <strong>what changed</strong> and which accounts drove
-        it. Add, edit, or delete an account here, including its
-        institution, last-4 digits, and which family member it belongs to.
+        it. Add an account here, or click <strong>Edit</strong> on any card to
+        change its type, institution, last-4 digits, and which family member
+        it belongs to — or delete it. Click a balance to correct it. Click{" "}
+        <strong>Details</strong> on a card for that account's own page: a
+        balance-history chart, its transactions, and — for checking and
+        savings accounts — <strong>Reconcile</strong>, which checks your
+        records against a statement's ending balance (see FAQ).{" "}
+        <strong>Property &amp; Valuables</strong> — a home or a vehicle,
+        counted in your net worth — are managed at the bottom of this tab.
       </li>
     ),
   },
   {
-    tags: ["ledger", "transactions", "filter", "split", "tag", "bulk tag", "debt payment", "family member", "manage family members"],
+    tags: [
+      "ledger",
+      "transactions",
+      "filter",
+      "split",
+      "tag",
+      "bulk tag",
+      "debt payment",
+      "family member",
+      "manage family members",
+      "density",
+      "compact",
+      "comfortable",
+      "transfer",
+      "link",
+      "unlink",
+      "possible transfers",
+      "review inbox",
+      "inbox",
+    ],
     node: (
       <li>
         <strong>Transactions</strong> — every transaction, filterable by
@@ -136,19 +193,54 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         categories, applying a payment toward a debt account, and — for
         households tracking more than one person — assigning any account,
         transaction, goal, asset, or recurring item to a family member
-        via <strong>"Manage family members…"</strong>.
+        via <strong>"Manage family members…"</strong>. Rows are{" "}
+        <strong>compact</strong> by default (switch to Comfortable with the
+        toggle above the table). Money moving between your own accounts can
+        be <strong>linked as a transfer</strong>: Vault Spend suggests likely
+        pairs ("N possible transfers — review"), or tick two rows and choose
+        "Link as transfer". A linked pair shows as one row and never counts
+        as income or spending. After an import (and any time from{" "}
+        <strong>Review inbox</strong>), a review dialog lists transactions
+        worth a second look — uncategorized, a low-confidence guess, a
+        possible duplicate, or an unusually large charge — with a suggested
+        category you can accept, change, or skip.
       </li>
     ),
   },
   {
-    tags: ["budget", "budgeted", "actual", "drag", "reorder", "category"],
+    tags: [
+      "budget",
+      "budgeted",
+      "actual",
+      "drag",
+      "reorder",
+      "category",
+      "unallocated",
+      "pace",
+      "warn at 90%",
+      "suggest",
+      "3-month average",
+      "rollover",
+      "roll over unspent",
+      "month-end review",
+    ],
     node: (
       <li>
         <strong>Budget</strong> — this month's budgeted vs. actual per
         category, with prev/next month navigation and reordering (drag a
         row, or use the ↑/↓ buttons next to it). Click any category name to
         see every transaction behind that number and fix any that are
-        miscategorized, right from that screen.
+        miscategorized, right from that screen. A line under the summary shows
+        how much of your budgeted income no expense line has claimed yet, and
+        on the current month each expense bar carries a tick marking how far
+        through the month you are — a bar filled past the tick is running
+        ahead of an even pace. <strong>"Suggest from 3-month average"</strong>{" "}
+        proposes an amount per category from your recent spending, which you
+        accept line by line. Tick <strong>"Roll over unspent"</strong> on a
+        category to carry what's left into next month's budget (see FAQ), and
+        use <strong>"Month-end review"</strong> on a finished month for a
+        short walk through how it went — what ran over, what's still
+        uncategorized, and how your goals moved.
       </li>
     ),
   },
@@ -163,6 +255,12 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "auto-contribute",
       "sinking fund",
       "family member",
+      "pace",
+      "on track",
+      "behind",
+      "projection",
+      "track account balance",
+      "add contribution",
     ],
     node: (
       <li>
@@ -172,7 +270,13 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         custom <strong>icon</strong> and <strong>color</strong> for each
         one, and set an optional <strong>"Auto-contribute
         monthly"</strong> amount for something like insurance or gifts
-        that only comes due once a year (see FAQ).
+        that only comes due once a year (see FAQ). A goal with a target date
+        shows its <strong>monthly pace</strong> — what you've actually been
+        adding over the last three months — and whether that gets it there
+        on time (on track or behind). A goal linked to an
+        account can <strong>follow that account's balance</strong> so its
+        progress updates by itself, and <strong>"+ Add"</strong> on a card
+        logs a contribution without leaving the page.
       </li>
     ),
   },
@@ -187,14 +291,16 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         a single month (defaulting to the current one, with a picker to
         look back further) and show a month-over-month trend per category.
         Further down, a <strong>Forecast</strong> projects your
-        checking/savings balance 30, 60, or 90 days out, and the{" "}
+        checking/savings balance 30, 60, or 90 days out — with each Recurring
+        bill and paycheck landing on its due date, the lowest balance called
+        out, and a "Coming up" list — and the{" "}
         <strong>Debt Payoff Planner</strong> shows how fast your credit
         cards and loans clear under a snowball or avalanche strategy.
       </li>
     ),
   },
   {
-    tags: ["recurring", "bills", "subscriptions", "suggested"],
+    tags: ["recurring", "bills", "subscriptions", "suggested", "matched", "paid", "missed", "price change", "price increase"],
     node: (
       <li>
         <strong>Recurring</strong> — a maintained list of recurring
@@ -202,7 +308,10 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         place. A <strong>Suggested</strong> section above it auto-detects
         merchant/amount pairs in your transactions that look recurring but aren't
         tracked yet, so you can add them with one click instead of typing
-        them in by hand.
+        them in by hand. Each bill is also checked against your transactions:
+        it shows when a matching charge has posted, flags a bill that looks{" "}
+        <strong>missed</strong>, and calls out a <strong>price change</strong>{" "}
+        when a charge comes in different after a steady run (see FAQ).
       </li>
     ),
   },
@@ -220,6 +329,12 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "alpha vantage",
       "finnhub",
       "twelve data",
+      "portfolio history",
+      "allocation",
+      "target allocation",
+      "drift",
+      "rebalance",
+      "save as goal",
     ],
     node: (
       <li>
@@ -232,7 +347,12 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         contribution, and an assumed annual return. Prices are manual by
         default; optionally turn on live pricing (Settings tab) to
         auto-fill a new holding's price by symbol and keep existing ones
-        current automatically.
+        current automatically. Vault Spend records your portfolio's value
+        each day you open it or refresh prices, so a{" "}
+        <strong>history chart</strong> builds up over time; set a{" "}
+        <strong>Target allocation</strong> by asset class to see how far each
+        has drifted from where you want it; and <strong>"Save as goal…"</strong>{" "}
+        turns a goal projection into a real goal.
       </li>
     ),
   },
@@ -259,17 +379,31 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
     ),
   },
   {
-    tags: ["reports", "net worth", "property", "valuables", "csv", "pdf", "setup import", "savings rate", "goals overview"],
+    tags: [
+      "reports",
+      "net worth",
+      "csv",
+      "pdf",
+      "savings rate",
+      "date range",
+      "year to date",
+      "last 12 months",
+      "last month",
+      "category by month",
+      "spending by member",
+      "spending by tag",
+      "year by year",
+    ],
     node: (
       <li>
-        <strong>Reports</strong> — total saved, all-time income, spending
-        by tag, a savings-rate trend, <strong>Property &
-        Valuables</strong> (manually tracked assets like a home or a
-        vehicle, folded into your net worth), net worth by family member,
-        quick summaries linking back to Goals and Budget, and the CSV/PDF
-        export and setup-data import/export tools described below. Account
-        balances and net worth by <em>account</em> live on the Accounts tab
-        instead.
+        <strong>Reports</strong> — pick a range (Year to date, Last 12
+        months, Last 6 months, or Last month) and see income, spending, net,
+        and savings rate for it, a table of where the money went by category
+        and month, spending by family member and by tag, a year-by-year
+        comparison, a savings-rate trend, and net worth by family member —
+        with the CSV and PDF export described below. Property &amp;
+        Valuables is now on the Accounts tab, and the setup-data
+        import/export is in Settings.
       </li>
     ),
   },
@@ -288,17 +422,40 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "slate",
       "futuristic",
       "transparent",
+      "rules",
+      "categorization rules",
+      "privacy",
+      "hide amounts",
+      "second backup",
+      "backup copy",
+      "background reminders",
+      "tray",
+      "start with windows",
+      "setup data",
+      "data",
+      "feature toggles",
+      "rollover unspent",
     ],
     node: (
       <li>
         <strong>Settings</strong> — separate profiles (completely
         independent data files you can create, switch, rename, and delete
-        — see FAQ), where your data file lives (and a button to move it),
-        your backup history with a manual "Back up now" and per-backup
-        restore, an optional live stock-price integration for the
-        Investments tab, and <strong>appearance</strong>: Light/Dark/System
-        plus three visual styles — Slate, Futuristic, and Transparent (see
-        FAQ).
+        — see FAQ), your <strong>categorization rules</strong> (see FAQ), an
+        optional live stock-price integration for the Investments tab, and{" "}
+        <strong>appearance</strong>: Light/Dark/System plus three visual
+        styles — Slate, Futuristic, and Transparent (see FAQ).{" "}
+        <strong>Privacy</strong> can also hide your amounts whenever the
+        window loses focus, and <strong>Background reminders</strong> keeps
+        Vault Spend in the system tray (optionally starting when you sign in)
+        so bill reminders arrive with the window closed. One{" "}
+        <strong>Data</strong> section holds everything about your data: where
+        your data file lives (and a button to move it), your backup history
+        with a manual "Back up now", per-backup restore and an optional{" "}
+        <strong>second copy</strong> of every backup in another folder, and
+        the bulk <strong>setup data</strong> template download and import.
+        <strong> Feature toggles</strong> can hide Apply to Debt, Split,
+        Envelope Caps and <strong>Rollover unspent</strong> (see FAQ)
+        everywhere they appear.
       </li>
     ),
   },
@@ -343,6 +500,13 @@ const IMPORTING_ENTRY: HelpEntry = {
           where possible; anything it can't confidently place is left
           Uncategorized for you to set yourself.
         </li>
+        <li>
+          A <strong>Review transactions</strong> dialog then lists the ones
+          worth a look — uncategorized, a low-confidence guess, a possible
+          duplicate, or an unusually large charge — with a suggested category
+          to accept, change, or skip. Close it any time; it's one click away
+          under <strong>Review inbox</strong> on the Transactions tab.
+        </li>
       </ol>
     </>
   ),
@@ -367,7 +531,7 @@ const BULK_SETUP_ENTRY: HelpEntry = {
       <p>
         If you'd rather set up accounts, categories, budgets, goals, and
         investment holdings in bulk instead of one at a time through the
-        UI, use the two buttons on the <strong>Reports</strong> tab:
+        UI, use the two buttons in <strong>Settings → Data → Setup data</strong>:
       </p>
       <ul>
         <li>
@@ -452,13 +616,18 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "Will I get a reminder before a bill is due?",
-    tags: ["reminder", "notification", "bill", "recurring", "due date", "alert"],
+    tags: ["reminder", "notification", "bill", "recurring", "due date", "alert", "tray", "background", "startup", "autostart"],
     answer: (
       <p>
         If a recurring bill (Recurring tab) is due within 3 days, Vault
-        Spend shows a native Windows notification — but only when you
-        actually open the app. This isn't a background reminder service; it
-        doesn't run, and can't notify you, while the app is closed.
+        Spend shows a native Windows notification when you open the app.
+        To get them while the window is closed, turn on{" "}
+        <strong>Settings → Background reminders → "Keep Vault Spend running
+        in the tray"</strong>: closing the window then hides it to the
+        system tray instead of quitting (the tray icon's menu opens it again
+        or quits for real), and you can also have it start hidden when you
+        sign in to Windows. It's off by default, and with it off nothing
+        runs — or can notify you — while the app is closed.
       </p>
     ),
   },
@@ -486,7 +655,13 @@ const FAQ_ENTRIES: FaqEntry[] = [
         lightweight classifier also kicks in for transactions the rules
         don't cover. Anything neither can confidently place is left
         Uncategorized rather than guessing — setting it yourself teaches the
-        app for next time.
+        app for next time. Every rule, built-in and learned, is listed in{" "}
+        <strong>Settings → Categorization rules</strong>, where you can add,
+        edit, or delete them; before a new rule is saved you'll see how many
+        existing transactions it would change and can apply it to them right
+        there. A rule never overrides a category you set yourself. After you
+        fix one transaction's category, you'll be offered to apply the rule
+        to other identical transactions too.
       </p>
     ),
   },
@@ -500,6 +675,38 @@ const FAQ_ENTRIES: FaqEntry[] = [
         schedule (weekly, biweekly, monthly, or annual) but isn't tracked
         yet. Add it with one click to start it, or dismiss it if it's not
         actually recurring — a dismissed suggestion won't reappear.
+      </p>
+    ),
+  },
+  {
+    question: "What is a linked transfer, and why link one?",
+    tags: ["transfer", "link", "unlink", "savings", "credit card payment", "between accounts", "double count"],
+    answer: (
+      <p>
+        Moving $500 from checking to savings creates two transactions — one
+        out, one in. Left alone they'd count as $500 of spending <em>and</em>{" "}
+        $500 of income. Linking them tells Vault Spend they're one move
+        between your own accounts, so neither counts (whatever category they
+        carry), and they show as a single "A → B" row. Vault Spend suggests
+        pairs with equal amounts, opposite directions, in different accounts,
+        within 3 days of each other; you can also tick any two rows and
+        choose "Link as transfer", and unlink from the row at any time.
+        Anything categorized "Transfer" is treated the same way.
+      </p>
+    ),
+  },
+  {
+    question: 'What does "Safe to spend" mean?',
+    tags: ["safe to spend", "payday", "paycheck", "buffer", "bills", "dashboard", "recurring"],
+    answer: (
+      <p>
+        It's your checking and savings balance, minus every Recurring bill
+        due between now and your next Recurring paycheck (a bill due today or
+        on payday counts), minus an optional buffer you choose to keep. It
+        needs your bills and paycheck on the Recurring tab — without a
+        paycheck it counts every bill in the next 45 days instead. It's a
+        planning guide, not a guarantee: it doesn't know about a one-off
+        expense that isn't on your Recurring list.
       </p>
     ),
   },
@@ -550,6 +757,96 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
+    question: 'What does "Roll over unspent" do on a budget line?',
+    tags: ["rollover", "roll over unspent", "carry", "envelope", "unspent", "budget", "leftover"],
+    answer: (
+      <>
+      <p>
+        Tick it on a category and whatever you don't spend there in a month
+        is added to that category's budget the next month — a $400 grocery
+        line with $100 left over gives you $500 to spend the month after,
+        and the row shows "+ $100.00 rolled in". Going over doesn't carry a
+        debt forward; the carry is never below zero. Turning it on starts
+        fresh from the current month rather than reaching back into old
+        ones, and Budget alerts and the month-end review count the rolled-in
+        amount as part of the budget.
+      </p>
+      <p>
+        Settings → Feature toggles has a master <strong>Rollover
+        unspent</strong> switch, on by default. Turn it off and nothing
+        carries into a later month — the per-category checkboxes and
+        "rolled in" notes disappear from Budget, and every budget and earlier
+        month stays exactly as it was. Each category's own tick is
+        remembered, so turning the switch back on picks up where you left
+        off.
+      </p>
+      </>
+    ),
+  },
+  {
+    question: "How does Vault Spend know a recurring bill was paid?",
+    tags: ["recurring", "matched", "paid", "missed", "price change", "merchant", "match", "subscription"],
+    answer: (
+      <p>
+        It looks for a charge dated from a few days before to about ten days
+        after the bill's due date whose description contains the bill's
+        merchant name — so name the bill the way it appears on your
+        statement (a bill called "Water" won't match a charge that only says
+        "CITY BILLING"). A matching charge marks the bill paid; a bill with
+        no matching charge once that window has passed is flagged as missed;
+        and a charge that comes in at a
+        different amount after a steady run of identical ones is called out
+        as a price change, on the Recurring tab and in your Dashboard To do.
+        The cash-flow forecast doesn't count a bill that has already posted.
+      </p>
+    ),
+  },
+  {
+    question: "How do I reconcile an account against a statement?",
+    tags: ["reconcile", "reconciliation", "statement", "cleared", "balance", "checking", "savings", "account details", "ending balance"],
+    answer: (
+      <p>
+        On Accounts, click <strong>Details</strong> on a checking or savings
+        account, enter the statement's ending balance, and start. Tick each
+        transaction that appears on the statement; the page shows the
+        difference between your cleared balance and the statement, and once
+        it reaches $0.00 you can finish and Vault Spend records the
+        reconciliation. Ticked rows stay marked as cleared, and a difference
+        that won't close usually means a missing, mistyped, or wrongly dated
+        transaction.
+      </p>
+    ),
+  },
+  {
+    question: 'What does "Hide amounts" do?',
+    tags: ["privacy", "hide amounts", "mask", "blur", "screen", "over the shoulder", "settings", "auto hide"],
+    answer: (
+      <p>
+        The header's button covers every dollar figure in the app with ••••
+        until you press it again, so you can open Vault Spend with someone
+        next to you. It hides the numbers, not the shapes of charts or what
+        a hover tooltip says. In Settings → Privacy you can also have the
+        amounts hidden automatically whenever the window isn't in front.
+        It's a screen privacy aid — your data file itself isn't encrypted or
+        changed.
+      </p>
+    ),
+  },
+  {
+    question: "Are there keyboard shortcuts?",
+    tags: ["keyboard", "shortcuts", "command palette", "ctrl+k", "search", "jump", "hotkey"],
+    answer: (
+      <p>
+        <strong>Ctrl+K</strong> opens a command palette: type to jump to any
+        tab, account, goal, or transaction, or to run an action like adding
+        a transaction. Outside a text box, <strong>N</strong> adds a
+        transaction, <strong>/</strong> searches transactions,{" "}
+        <strong>?</strong> shows the list, and <strong>Esc</strong> closes a
+        dialog or the palette.
+      </p>
+    ),
+  },
+  {
     question: "Can I split one transaction across multiple categories?",
     tags: ["split", "transaction", "categories"],
     answer: (
@@ -580,11 +877,14 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["forecast", "cash flow", "projection", "trend"],
     answer: (
       <p>
-        It's based on your actual history, not your listed recurring bills:
-        it takes your average daily net cash flow (income minus spending)
-        over roughly the last 90 days and projects that trend forward from
-        your current checking/savings balance. It's meant to answer "am I
-        trending up or down," not to predict any specific upcoming bill.
+        It starts from the cash in your checking and savings accounts and
+        places every active bill and paycheck on your Recurring list on the
+        day it's due, so a big bill shows up as a dip on its due date. Your
+        everyday spending carries on at your recent average (roughly the last
+        90 days, leaving out anything already on your Recurring list and
+        transfers between your own accounts, so nothing is counted twice). A
+        canceled Recurring item is skipped. With nothing active in Recurring,
+        it falls back to a smooth trend of your net cash flow instead.
       </p>
     ),
   },
@@ -604,7 +904,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["net worth", "assets", "property", "valuables", "trend chart"],
     answer: (
       <p>
-        Yes — whatever you've entered under Property & Valuables (Reports
+        Yes — whatever you've entered under Property & Valuables (Accounts
         tab) is included in the current net worth figure everywhere it's
         shown. One caveat on the Dashboard's net worth <em>trend</em>{" "}
         chart specifically: since a manual asset only carries a value as of
@@ -632,14 +932,20 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "How do automatic backups work, and can I restore one?",
-    tags: ["backup", "restore", "automatic", "data safety"],
+    tags: ["backup", "restore", "automatic", "data safety", "second copy", "onedrive", "dropbox", "usb", "another folder"],
     answer: (
       <p>
         Vault Spend backs up your data file automatically once a day when
         you open it, keeping the most recent 15 (Settings tab — also has a
         manual "Back up now"). Restoring one first backs up your current
         data (so restoring is itself reversible), then loads the restored
-        data immediately — no restart needed.
+        data immediately — no restart needed. Under Settings → Data → Backups you can also
+        choose a <strong>second folder</strong> — one that syncs to OneDrive
+        or Dropbox, or a USB drive, and that already exists (Vault Spend won't
+        create one from a typed path) — and every backup is copied there too,
+        so one failed disk can't take your data and its backups together. If
+        that folder isn't reachable, the main backup still happens and
+        you're told the copy didn't.
       </p>
     ),
   },
