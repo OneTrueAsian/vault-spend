@@ -135,12 +135,14 @@ wallet providers.
   family members…" to start attributing accounts and transactions.
 - **Reports** — pick a range (Year to date, Last 12 months, Last 6
   months, or Last month) and see income, spending, net, and savings rate
-  for it, a table of where the money went by category and month, spending
-  by family member and by tag, a year-by-year comparison, a savings-rate
-  trend, and net worth by family member — with the CSV/PDF export
-  described below. Account balances and net worth by *account*, and
-  Property & Valuables, live on the Accounts tab; the setup-data
-  import/export is in Settings.
+  for it, a Sankey diagram of income flowing to your biggest spending
+  categories (with a "Left over" or "Shortfall" flow depending on which
+  side won), a table of where the money went by category and month, a
+  daily-spending heatmap, spending by family member and by tag, a
+  year-by-year comparison, a savings-rate trend, and net worth by family
+  member — with the CSV/PDF export described below. Account balances and
+  net worth by *account*, and Property & Valuables, live on the Accounts
+  tab; the setup-data import/export is in Settings.
 - **Settings** — separate profiles (completely independent data files you
   can create, switch, rename, and delete — see FAQ), an optional live
   stock-price integration for the Investments tab, and appearance:
