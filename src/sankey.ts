@@ -158,6 +158,25 @@ export function layoutSankey(data: SankeyData, width: number, height: number, no
   return { nodes: [...positioned.values()], links, width, height, nodeWidth };
 }
 
+/** Keeps a column of node labels from printing on top of each other. Takes
+ * the vertical centre each label would like (top to bottom) and returns
+ * positions at least `minGap` apart, all inside `[min, max]`, moved as
+ * little as possible: a crowded run is pushed down, and if that runs off the
+ * bottom the run is pulled back up. If they can't all fit at `minGap`, they're
+ * spread evenly over the range instead. */
+export function spreadLabelPositions(desired: number[], minGap: number, min: number, max: number): number[] {
+  const n = desired.length;
+  if (n === 0) return [];
+  const out = desired.map((y, i) => (i === 0 ? Math.max(y, min) : y));
+  for (let i = 1; i < n; i++) out[i] = Math.max(out[i], out[i - 1] + minGap);
+  if (out[n - 1] > max) {
+    out[n - 1] = max;
+    for (let i = n - 2; i >= 0; i--) out[i] = Math.min(out[i], out[i + 1] - minGap);
+  }
+  if (out[0] < min) return n === 1 ? [min] : out.map((_, i) => min + (i * (max - min)) / (n - 1));
+  return out;
+}
+
 /** A horizontal ribbon between a source slice `[y0Top, y0Bottom]` at `x0`
  * and a target slice `[y1Top, y1Bottom]` at `x1`, as an SVG path — two
  * cubic Béziers meeting in the middle, the same shape d3-sankey draws for

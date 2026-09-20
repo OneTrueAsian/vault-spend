@@ -1,5 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { buildHeatmapWeeks, heatmapBucket } from "./heatmap";
+import { buildHeatmapWeeks, heatmapBucket, heatmapScaleMax } from "./heatmap";
+
+describe("heatmapScaleMax", () => {
+  it("is 0 when nothing was spent, ignoring zero and negative amounts", () => {
+    expect(heatmapScaleMax([])).toBe(0);
+    expect(heatmapScaleMax([0, 0, -5])).toBe(0);
+  });
+
+  it("is simply the biggest day when there are fewer than ten spending days", () => {
+    expect(heatmapScaleMax([12, 40, 1850])).toBe(1850);
+    expect(heatmapScaleMax([5, 6, 7, 8, 9, 10, 11, 12, 13])).toBe(13);
+  });
+
+  it("does not let one huge day (rent) set the scale for everything else", () => {
+    // Nineteen ordinary days and one 1850 rent day: the scale follows the ordinary days.
+    const amounts = [...Array.from({ length: 19 }, (_, i) => 20 + i), 1850];
+    const scale = heatmapScaleMax(amounts);
+    expect(scale).toBe(37);
+    // An ordinary $30 day now reads as a strong cell, and the rent day still clamps to the top step.
+    expect(heatmapBucket(30, scale)).toBe(4);
+    expect(heatmapBucket(1850, scale)).toBe(4);
+    expect(heatmapBucket(20, scale)).toBe(3);
+  });
+
+  it("takes the 90th-percentile spending day", () => {
+    const amounts = Array.from({ length: 10 }, (_, i) => (i + 1) * 10); // 10..100
+    expect(heatmapScaleMax(amounts)).toBe(90);
+  });
+});
 
 describe("buildHeatmapWeeks", () => {
   it("pads a partial week at both ends so every week is 7 days", () => {

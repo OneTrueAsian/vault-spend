@@ -60,8 +60,18 @@ export function buildHeatmapWeeks(daily: DailyAmount[], from: string, to: string
   return weeks;
 }
 
+/** The amount that gets the darkest color step: the 90th-percentile spending
+ * day (or the biggest day when there are fewer than ten). Scaling against the
+ * single biggest day would let one rent-sized day wash every ordinary day out
+ * to the faintest step; days above the scale simply clamp to the darkest. */
+export function heatmapScaleMax(amounts: number[]): number {
+  const spending = amounts.filter((a) => a > 0).sort((a, b) => a - b);
+  if (spending.length === 0) return 0;
+  return spending[Math.ceil((spending.length * 9) / 10) - 1];
+}
+
 /** Which of `bucketCount` color steps `amount` falls into, relative to
- * `max` (the biggest single day in the range being shown) — 0 always means
+ * `max` (the scale from `heatmapScaleMax`) — 0 always means
  * "no spending" (kept as its own step rather than the bottom of the
  * proportional scale, so a $0.01 day and a $0 day don't render
  * identically). Steps 1..bucketCount-1 divide `(0, max]` evenly. */

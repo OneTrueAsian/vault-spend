@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, CashFlow, DebtPayoffPlan, FamilyMember, MonthTotal, Transaction, Asset } from "./types";
 import { LineChart } from "./charts";
@@ -19,8 +19,8 @@ import {
   yearlySummary,
   type RangePreset,
 } from "./reportRange";
-import { buildSankeyData, layoutSankey, sankeyRibbonPath, type SankeyNode } from "./sankey";
-import { buildHeatmapWeeks, heatmapBucket, type DailyAmount } from "./heatmap";
+import { buildSankeyData, layoutSankey, sankeyRibbonPath, spreadLabelPositions, type SankeyNode } from "./sankey";
+import { buildHeatmapWeeks, heatmapBucket, heatmapScaleMax, type DailyAmount } from "./heatmap";
 
 /** Savings rate — (income − expenses) ÷ income — trended over every month
  * with transaction history, trailing 12. A purely client-side reduction
@@ -280,6 +280,21 @@ function BreakdownTable({
 // a category reads the same color everywhere it shows up on Reports.
 const CATEGORY_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 
+// Sankey geometry, in viewBox units. The side margins hold the labels.
+const SANKEY_MARGIN = { top: 20, right: 190, bottom: 6, left: 150 };
+const SANKEY_INNER_WIDTH = 600;
+const SANKEY_NODE_WIDTH = 14;
+const SANKEY_NODE_PADDING = 8;
+const SANKEY_MIN_HEIGHT = 240;
+const SANKEY_ROW_HEIGHT = 28;
+const SANKEY_LABEL_GAP = 16;
+
+/** Keeps a long category name from running out of its label margin; the full
+ * name is in the hidden figures table. */
+function shortLabel(label: string, max = 15): string {
+  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+}
+
 /** A node's fill color: the synthetic income/spending/leftover/shortfall/
  * other nodes each get a fixed theme color, and a real category cycles
  * through `CATEGORY_COLORS` in the same biggest-first order it's listed. */
@@ -324,13 +339,30 @@ function SankeySection({ income, categoryTotals, loading }: { income: number; ca
     .sort((a, b) => b.amount - a.amount || a.category.localeCompare(b.category))
     .map((c) => `cat:${c.category}`);
 
-  const nodeWidth = 16;
-  const nodePadding = 10;
-  const width = 640;
-  const maxInColumn = Math.max(1, ...[...new Set(data.nodes.map((n) => n.column))].map((c) => data.nodes.filter((n) => n.column === c).length));
-  const height = Math.max(220, maxInColumn * 52);
-  const layout = layoutSankey(data, width, height, nodeWidth, nodePadding);
+  const columns = [...new Set(data.nodes.map((n) => n.column))].sort((a, b) => a - b);
+  const maxInColumn = Math.max(1, ...columns.map((c) => data.nodes.filter((n) => n.column === c).length));
+  const height = Math.max(SANKEY_MIN_HEIGHT, maxInColumn * SANKEY_ROW_HEIGHT);
+  const layout = layoutSankey(data, SANKEY_INNER_WIDTH, height, SANKEY_NODE_WIDTH, SANKEY_NODE_PADDING);
   const nodeById = new Map(layout.nodes.map((n) => [n.id, n]));
+  const nodeWidth = SANKEY_NODE_WIDTH;
+  // The labels live inside the drawing (in the side margins), so they scale
+  // with it and can never fall outside the SVG at any window width.
+  const viewWidth = SANKEY_MARGIN.left + SANKEY_INNER_WIDTH + SANKEY_MARGIN.right;
+  const viewHeight = SANKEY_MARGIN.top + height + SANKEY_MARGIN.bottom;
+  // Thin bars sit closer together than a line of text is tall, so each side's
+  // labels are nudged apart (only the outer columns carry a label beside the bar).
+  const labelY = new Map<string, number>();
+  for (const col of columns) {
+    const colNodes = layout.nodes.filter((n) => n.column === col).sort((a, b) => a.y0 - b.y0);
+    const ys = spreadLabelPositions(
+      colNodes.map((n) => (n.y0 + n.y1) / 2),
+      SANKEY_LABEL_GAP,
+      SANKEY_LABEL_GAP / 2,
+      height - SANKEY_LABEL_GAP / 2,
+    );
+    colNodes.forEach((n, i) => labelY.set(n.id, ys[i]));
+  }
+  const lastColumn = columns[columns.length - 1];
 
   return (
     <div className="card" data-report-sankey>
@@ -343,58 +375,50 @@ function SankeySection({ income, categoryTotals, loading }: { income: number; ca
         <p className="empty-state">No income or spending in this range.</p>
       ) : (
         <>
-          <svg
-            className="sankey-svg"
-            viewBox={`0 0 ${width} ${height}`}
-            width="100%"
-            height={height}
-            preserveAspectRatio="xMidYMid meet"
-            role="img"
-            aria-label={`Diagram of income flowing to spending categories${data.leftover < 0 ? ", including a shortfall" : data.leftover > 0 ? ", with money left over" : ""}. Exact figures are in the table below.`}
-          >
-            <g aria-hidden="true">
-              {layout.links.map((l, i) => {
-                const target = nodeById.get(l.target)!;
-                const color = sankeyNodeColor(data.nodes.find((n) => n.id === l.target)!, categoryOrder);
-                const source = nodeById.get(l.source)!;
-                return (
-                  <path
-                    key={i}
-                    d={sankeyRibbonPath(source.x + nodeWidth, l.sy0, l.sy1, target.x, l.ty0, l.ty1)}
-                    fill={color}
-                    opacity={0.32}
-                    stroke="none"
-                  />
-                );
-              })}
-              {layout.nodes.map((n) => {
-                const isLeftmost = n.x === 0;
-                const color = sankeyNodeColor(n, categoryOrder);
-                const midY = (n.y0 + n.y1) / 2;
-                return (
-                  <g key={n.id}>
-                    <rect x={n.x} y={n.y0} width={nodeWidth} height={Math.max(n.y1 - n.y0, 1)} fill={color} rx={2} />
-                    <text
-                      x={isLeftmost ? n.x - 8 : n.x + nodeWidth + 8}
-                      y={midY - 3}
-                      textAnchor={isLeftmost ? "end" : "start"}
-                      className="axis-label"
-                    >
-                      {n.label}
-                    </text>
-                    <text
-                      x={isLeftmost ? n.x - 8 : n.x + nodeWidth + 8}
-                      y={midY + 11}
-                      textAnchor={isLeftmost ? "end" : "start"}
-                      className="axis-label sankey-node-amount"
-                    >
-                      {formatAmount(n.value.toFixed(2))}
-                    </text>
-                  </g>
-                );
-              })}
-            </g>
-          </svg>
+          <div className="table-scroll">
+            <svg
+              className="sankey-svg"
+              viewBox={`0 0 ${viewWidth} ${viewHeight}`}
+              role="img"
+              aria-label={`Diagram of income flowing to spending categories${data.leftover < 0 ? ", including a shortfall" : data.leftover > 0 ? ", with money left over" : ""}. Exact figures are in the table below.`}
+            >
+              <g aria-hidden="true" transform={`translate(${SANKEY_MARGIN.left},${SANKEY_MARGIN.top})`}>
+                {layout.links.map((l, i) => {
+                  const target = nodeById.get(l.target)!;
+                  const color = sankeyNodeColor(data.nodes.find((n) => n.id === l.target)!, categoryOrder);
+                  const source = nodeById.get(l.source)!;
+                  return (
+                    <path
+                      key={i}
+                      d={sankeyRibbonPath(source.x + nodeWidth, l.sy0, l.sy1, target.x, l.ty0, l.ty1)}
+                      fill={color}
+                      opacity={0.32}
+                      stroke="none"
+                    />
+                  );
+                })}
+                {layout.nodes.map((n) => {
+                  const isLeftmost = n.column === columns[0];
+                  const isMiddle = !isLeftmost && n.column !== lastColumn;
+                  const color = sankeyNodeColor(n, categoryOrder);
+                  // Outer columns: the label sits beside the bar. The single middle
+                  // "Total spending" bar (shortfall shape) has ribbons on both sides,
+                  // so its label goes just above it instead.
+                  const labelX = isMiddle ? n.x + nodeWidth / 2 : isLeftmost ? n.x - 8 : n.x + nodeWidth + 8;
+                  const labelBaseline = isMiddle ? n.y0 - 7 : (labelY.get(n.id) ?? (n.y0 + n.y1) / 2);
+                  return (
+                    <g key={n.id}>
+                      <rect x={n.x} y={n.y0} width={nodeWidth} height={Math.max(n.y1 - n.y0, 1)} fill={color} rx={2} />
+                      <text x={labelX} y={labelBaseline} dominantBaseline="central" textAnchor={isMiddle ? "middle" : isLeftmost ? "end" : "start"} className="sankey-label">
+                        {shortLabel(n.label)}{" "}
+                        <tspan className="sankey-node-amount">{formatAmount(n.value.toFixed(2))}</tspan>
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            </svg>
+          </div>
           <table className="sr-only">
             <caption>Income and spending flow, in full dollar figures</caption>
             <thead>
@@ -434,10 +458,18 @@ const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  * scan than tab through ~180 buttons one at a time. */
 function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAmount[]; from: string; to: string; loading: boolean }) {
   const [focused, setFocused] = useState<{ date: string; amount: number } | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const weeks = buildHeatmapWeeks(daily, from, to);
   const inRangeDays = weeks.flat().filter((d) => d.inRange);
-  const max = inRangeDays.reduce((m, d) => Math.max(m, d.amount), 0);
+  const max = heatmapScaleMax(inRangeDays.map((d) => d.amount));
   const hasSpending = inRangeDays.some((d) => d.amount > 0);
+
+  // A long range is wider than the card and scrolls inside it; the newest weeks
+  // matter most, so it opens scrolled to them (like a contribution graph).
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (frame) frame.scrollLeft = frame.scrollWidth;
+  }, [from, to, loading, hasSpending, weeks.length]);
 
   return (
     <div className="card" data-report-heatmap>
@@ -450,7 +482,7 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
         <p className="empty-state">No spending in this range.</p>
       ) : (
         <>
-          <div className="table-scroll">
+          <div className="table-scroll" ref={frameRef}>
             <div className="heatmap-grid" role="presentation">
               <div className="heatmap-weekday-col">
                 {WEEKDAY_LABELS.map((w) => (

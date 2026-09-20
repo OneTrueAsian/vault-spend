@@ -1,5 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { buildSankeyData, layoutSankey, sankeyRibbonPath } from "./sankey";
+import { buildSankeyData, layoutSankey, sankeyRibbonPath, spreadLabelPositions } from "./sankey";
+
+describe("spreadLabelPositions", () => {
+  const gapsOf = (ys: number[]) => ys.slice(1).map((y, i) => y - ys[i]);
+
+  it("leaves well-spaced labels exactly where they were", () => {
+    expect(spreadLabelPositions([10, 40, 90], 15, 0, 200)).toEqual([10, 40, 90]);
+  });
+
+  it("returns nothing for nothing, and a lone label is untouched", () => {
+    expect(spreadLabelPositions([], 15, 0, 200)).toEqual([]);
+    expect(spreadLabelPositions([120], 15, 0, 200)).toEqual([120]);
+  });
+
+  it("pushes a crowded label down until it clears the one above by the minimum gap", () => {
+    const out = spreadLabelPositions([100, 104, 108], 15, 0, 300);
+    expect(out[0]).toBe(100);
+    expect(gapsOf(out).every((g) => g >= 15)).toBe(true);
+    expect(out).toEqual([100, 115, 130]);
+  });
+
+  it("pulls a crowded stack back up when pushing it down would run past the bottom", () => {
+    const out = spreadLabelPositions([190, 195, 199], 15, 0, 200);
+    expect(out[2]).toBeLessThanOrEqual(200);
+    expect(gapsOf(out).every((g) => g >= 15)).toBe(true);
+    expect(out).toEqual([170, 185, 200]);
+  });
+
+  it("keeps the first label inside the top edge too", () => {
+    const out = spreadLabelPositions([-5, 0, 3], 15, 0, 200);
+    expect(out[0]).toBeGreaterThanOrEqual(0);
+    expect(gapsOf(out).every((g) => g >= 15)).toBe(true);
+  });
+
+  it("spreads evenly across the range when they cannot all fit at the minimum gap", () => {
+    const out = spreadLabelPositions([0, 1, 2, 3, 4], 15, 0, 40);
+    expect(out[0]).toBe(0);
+    expect(out[4]).toBe(40);
+    expect(gapsOf(out).every((g) => g > 0)).toBe(true);
+  });
+});
 
 describe("buildSankeyData", () => {
   it("flows income directly into each category plus Left over when income exceeds spending", () => {

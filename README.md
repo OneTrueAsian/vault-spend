@@ -138,9 +138,11 @@ wallet providers.
   for it, a Sankey diagram of income flowing to your biggest spending
   categories (with a "Left over" or "Shortfall" flow depending on which
   side won), a table of where the money went by category and month, a
-  daily-spending heatmap, spending by family member and by tag, a
-  year-by-year comparison, a savings-rate trend, and net worth by family
-  member — with the CSV/PDF export described below. Account balances and
+  daily-spending heatmap (darker days are bigger spending days; hover or
+  Tab to a day for its total, and one big bill like rent doesn't wash the
+  rest out), spending by family member and by tag, a year-by-year
+  comparison, a savings-rate trend, and net worth by family member — with
+  the CSV/PDF export described below. Account balances and
   net worth by *account*, and Property & Valuables, live on the Accounts
   tab; the setup-data import/export is in Settings.
 - **Settings** — separate profiles (completely independent data files you

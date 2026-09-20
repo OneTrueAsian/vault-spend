@@ -5636,7 +5636,17 @@ button:disabled {
 
 .sankey-svg {
   display: block;
+  width: 100%;
+  /* Below this the labels would shrink past readable; the frame scrolls instead. */
+  min-width: 720px;
+  height: auto;
   margin-top: 4px;
+}
+
+.sankey-label {
+  font-size: 12px;
+  fill: var(--text-muted);
+  font-family: var(--font-body);
 }
 
 .sankey-node-amount {
