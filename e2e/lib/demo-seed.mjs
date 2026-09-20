@@ -18,6 +18,9 @@
 //   - budgeted income well above budgeted expenses ("unallocated");
 //   - NO family members, so Household shows its empty state.
 //
+// Loose ends on purpose (auto-linking transfers, added after Phase 3): see the
+// "Auto-linking (opt-in) loose ends" block below.
+//
 // Loose ends on purpose (Phase 2):
 //   - recurring bills that line up with real charges: Hulu (paid, but the last
 //     charge went up), Iron Works Gym (a missed charge), CloudBox Storage (due
@@ -122,6 +125,16 @@ for out_id, in_id in pre_linked:
 # Too far apart to be suggested (10 days) — link these two by hand.
 tx(checking, days_ago(12), "Venmo to Sam", -120.00, "Gifts", "user")
 tx(savings, days_ago(2), "Zelle from Sam", 120.00, "Gifts", "user")
+
+# Auto-linking (opt-in) loose ends. An AMBIGUOUS move — one $250 out and two
+# $250 deposits within three days — which stays a suggestion even with
+# "Link matching transfers automatically" on; and an outgoing $180 whose
+# deposit you add yourself (Everyday Checking -> High-Yield Savings, +180
+# yesterday) to watch it link the moment it arrives.
+tx(checking, days_ago(9), "Holiday Fund Transfer", -250.00, "Savings Goal", "user")
+tx(savings, days_ago(9), "Holiday Fund Deposit", 250.00, "Savings Goal", "user")
+tx(savings, days_ago(8), "Holiday Fund Deposit Copy", 250.00, "Savings Goal", "user")
+tx(checking, days_ago(1), "Car Fund Transfer", -180.00, "Savings Goal", "user")
 
 # Loose ends for the categorization work.
 tx(checking, days_ago(6), "SQ *MYSTERY VENDOR 8841", -42.10, None)

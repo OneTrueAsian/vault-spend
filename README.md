@@ -407,6 +407,19 @@ you can also tick any two rows and choose "Link as transfer", and unlink
 from the row at any time. Anything categorized "Transfer" is treated the
 same way.
 
+**Can Vault Spend link transfers for me?**
+Yes, if you turn it on: Settings → Feature toggles → "Link matching
+transfers automatically" (off by default). It only links a pair that is
+clear-cut — equal amounts, opposite directions, different accounts, within 3
+days, and no other possible match for either side. Anything ambiguous (say,
+one $500 out and two $500 deposits) stays in "possible transfers" for you to
+decide. Turning it on also links the clear-cut pairs already in your ledger,
+and it runs after every import and every transaction you add. Each automatic
+link appears under "N auto-linked — review" on Transactions: choose "Looks
+right" to clear it from the list (the link stays) or Unlink if it isn't a
+transfer — that pair won't be linked automatically again, though it can
+still be linked by hand.
+
 **Where can I see and change the auto-categorization rules?**
 Settings → Categorization rules lists every rule (the built-in starters and
 the ones learned from your corrections), with how many transactions each

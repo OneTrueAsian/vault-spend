@@ -181,6 +181,8 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "link",
       "unlink",
       "possible transfers",
+      "auto-link",
+      "auto-linked",
       "review inbox",
       "inbox",
     ],
@@ -199,7 +201,10 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         be <strong>linked as a transfer</strong>: Vault Spend suggests likely
         pairs ("N possible transfers — review"), or tick two rows and choose
         "Link as transfer". A linked pair shows as one row and never counts
-        as income or spending. After an import (and any time from{" "}
+        as income or spending. Prefer not to review each one? Turn on{" "}
+        <strong>Link matching transfers automatically</strong> in Settings;
+        the pairs it links are listed under "N auto-linked — review". After an
+        import (and any time from{" "}
         <strong>Review inbox</strong>), a review dialog lists transactions
         worth a second look — uncategorized, a low-confidence guess, a
         possible duplicate, or an unusually large charge — with a suggested
@@ -689,7 +694,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "What is a linked transfer, and why link one?",
-    tags: ["transfer", "link", "unlink", "savings", "credit card payment", "between accounts", "double count"],
+    tags: ["transfer", "link", "unlink", "savings", "credit card payment", "between accounts", "double count", "auto-link", "automatic"],
     answer: (
       <p>
         Moving $500 from checking to savings creates two transactions — one
@@ -701,6 +706,26 @@ const FAQ_ENTRIES: FaqEntry[] = [
         within 3 days of each other; you can also tick any two rows and
         choose "Link as transfer", and unlink from the row at any time.
         Anything categorized "Transfer" is treated the same way.
+      </p>
+    ),
+  },
+  {
+    question: "Can Vault Spend link transfers for me?",
+    tags: ["transfer", "link", "auto-link", "automatic", "auto-linked", "review", "unlink", "looks right"],
+    answer: (
+      <p>
+        Yes, if you turn it on: Settings → Feature toggles → "Link matching
+        transfers automatically" (off by default). It only links a pair that
+        is clear-cut — equal amounts, opposite directions, different accounts,
+        within 3 days, and no other possible match for either side. Anything
+        ambiguous (say, one $500 out and two $500 deposits) stays in "possible
+        transfers" for you to decide. Turning it on also links the clear-cut
+        pairs already in your ledger, and it runs after every import and every
+        transaction you add. Each automatic link appears under "N auto-linked
+        — review" on Transactions: choose "Looks right" to clear it from the
+        list (the link stays) or Unlink if it isn't a transfer — that pair
+        won't be linked automatically again, though it can still be linked by
+        hand.
       </p>
     ),
   },

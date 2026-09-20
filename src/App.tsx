@@ -20,6 +20,7 @@ import {
   NewCategoryDialog,
   NewTransactionDialog,
   TransferReviewDialog,
+  AutoLinkedReviewDialog,
   UseExistingDataFileDialog,
   WelcomeDialog,
   WhatsNewDialog,
@@ -117,6 +118,8 @@ type ImportSummary = {
   inserted: number;
   row_errors: number;
   inserted_ids: number[];
+  /** Transfer pairs linked automatically by this import (0 unless auto-linking is on). */
+  auto_linked: number;
 };
 
 type ImportRow = {
@@ -539,6 +542,7 @@ function App({
     split_purchases_enabled: true,
     envelope_caps_enabled: true,
     rollover_enabled: true,
+    auto_link_transfers: false, // the one opt-in switch
   });
 
   const [backupCopyDir, setBackupCopyDir] = useState<string | null>(null);
@@ -807,6 +811,27 @@ function App({
       // alerts so they're read again against the new setting.
       currentMonthAlertsRef.current = null;
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetAutoLinkTransfers(enabled: boolean) {
+    try {
+      const linkedNow = await invoke<number>("set_auto_link_transfers", { enabled });
+      await refreshAppSettings();
+      if (!enabled) {
+        setStatus("Automatic transfer linking is off. Links already made stay; unlink any from Transactions.", "info");
+        return;
+      }
+      // Turning it on also links the clear-cut pairs already in the ledger.
+      await refresh();
+      setStatus(
+        linkedNow > 0
+          ? `Automatic linking is on. ${linkedNow === 1 ? "Linked 1 transfer that was" : `Linked ${linkedNow} transfers that were`} already there — review ${linkedNow === 1 ? "it" : "them"} on Transactions.`
+          : "Automatic linking is on. Clear-cut transfers will be linked as they arrive.",
+        "success",
+      );
     } catch (e) {
       setStatus(String(e));
     }
@@ -1118,6 +1143,30 @@ function App({
       return out && inn ? [{ out, in: inn }] : [];
     });
   }, [transferCandidates, transactions]);
+  // Pairs the app linked on its own (Settings > Feature toggles) that nobody has
+  // marked "looks right" yet — the review report. Read the same way as the
+  // suggestions above.
+  const [autoLinked, setAutoLinked] = useState<{ out_id: number; in_id: number }[]>([]);
+  const [autoLinkReviewOpen, setAutoLinkReviewOpen] = useState(false);
+  const reloadAutoLinked = useCallback(async () => {
+    try {
+      setAutoLinked(await invoke<{ out_id: number; in_id: number }[]>("list_auto_linked_transfers"));
+    } catch {
+      /* the review list is a convenience; never worth an error banner */
+    }
+  }, []);
+  useEffect(() => {
+    if (activeTab !== "ledger") return;
+    void reloadAutoLinked();
+  }, [activeTab, transactions, reloadAutoLinked]);
+  const autoLinkedPairs = useMemo(() => {
+    const byId = new Map(transactions.map((t) => [t.id, t]));
+    return autoLinked.flatMap((c) => {
+      const out = byId.get(c.out_id);
+      const inn = byId.get(c.in_id);
+      return out && inn ? [{ out, in: inn }] : [];
+    });
+  }, [autoLinked, transactions]);
   // Exactly two rows ticked that could be the two legs of one transfer.
   const selectedPairForLink = useMemo(() => {
     if (selectedIds.size !== 2) return null;
@@ -2673,6 +2722,7 @@ function App({
       setStatus(
         `Imported ${summary.inserted} transaction(s)` +
           (skipped ? ` — ${skipped} excluded` : "") +
+          (summary.auto_linked ? ` — linked ${summary.auto_linked} transfer${summary.auto_linked === 1 ? "" : "s"} automatically` : "") +
           (summary.row_errors ? ` — ${summary.row_errors} row(s) couldn't be read` : ""),
         summary.row_errors ? "error" : "success",
       );
@@ -2775,11 +2825,18 @@ function App({
     memberId: number | null,
   ) {
     try {
-      await invoke("create_manual_transaction", { accountId, date, description, amount, category, memberId });
+      const newId = await invoke<number>("create_manual_transaction", { accountId, date, description, amount, category, memberId });
       setLastUsedAccountId(accountId);
       await refresh();
       setNewTransactionOpen(false);
-      setStatus(`Added "${description}".`, "success");
+      // With automatic linking on, an entry that completes a transfer is linked
+      // straight away — say so, so it doesn't just quietly change shape.
+      const autoLinked = await invoke<{ out_id: number; in_id: number }[]>("list_auto_linked_transfers").catch(() => []);
+      const linkedNow = autoLinked.some((p) => p.out_id === newId || p.in_id === newId);
+      setStatus(
+        linkedNow ? `Added "${description}" and linked it as a transfer automatically — review it under “auto-linked”.` : `Added "${description}".`,
+        "success",
+      );
     } catch (e) {
       setStatus(String(e));
     }
@@ -3283,6 +3340,15 @@ function App({
     } catch (e) {
       setStatus(String(e));
       await refresh();
+    }
+  }
+
+  async function handleMarkAutoLinksReviewed(outIds: number[]) {
+    try {
+      await invoke("mark_auto_links_reviewed", { outIds });
+      await reloadAutoLinked();
+    } catch (e) {
+      setStatus(String(e));
     }
   }
 
@@ -3952,6 +4018,16 @@ function App({
           {transferCandidatePairs.length > 0 && (
             <button type="button" className="modal-secondary btn-sm transfer-suggestion" onClick={() => setTransferReviewOpen(true)}>
               ⇄ {transferCandidatePairs.length} possible transfer{transferCandidatePairs.length === 1 ? "" : "s"} — review
+            </button>
+          )}
+          {autoLinkedPairs.length > 0 && (
+            <button
+              type="button"
+              className="modal-secondary btn-sm transfer-suggestion"
+              data-autolink-review
+              onClick={() => setAutoLinkReviewOpen(true)}
+            >
+              ⇄ {autoLinkedPairs.length} auto-linked — review
             </button>
           )}
           <div className="density-toggle" role="group" aria-label="Row density">
@@ -4943,6 +5019,7 @@ function App({
           onSetSplitPurchasesEnabled={handleSetSplitPurchasesEnabled}
           onSetEnvelopeCapsEnabled={handleSetEnvelopeCapsEnabled}
           onSetRolloverEnabled={handleSetRolloverEnabled}
+          onSetAutoLinkTransfers={handleSetAutoLinkTransfers}
           themeStyle={themeStyle}
           onSetThemeStyle={setThemeStyle}
           privacyAutoHide={privacyPrefs.autoHide}
@@ -5050,6 +5127,14 @@ function App({
           pairs={transferCandidatePairs}
           onLink={handleLinkTransfers}
           onCancel={() => setTransferReviewOpen(false)}
+        />
+      )}
+      {autoLinkReviewOpen && (
+        <AutoLinkedReviewDialog
+          pairs={autoLinkedPairs}
+          onUnlink={(outId) => void handleUnlinkTransfer(outId)}
+          onLooksRight={(outIds) => void handleMarkAutoLinksReviewed(outIds)}
+          onClose={() => setAutoLinkReviewOpen(false)}
         />
       )}
 

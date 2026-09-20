@@ -613,12 +613,16 @@ pub struct StoredLivePriceSettings {
 /// works the same way for unspent-budget rollover: each category's own
 /// `budgets.rollover_enabled` choice is left alone, but no unspent amount is
 /// carried into the next month (see `monthly_budget_actuals`).
+/// `auto_link_transfers` is the one opt-IN switch here (off by default): when
+/// on, clear-cut transfer pairs are linked without asking — see
+/// `Store::auto_link_transfers`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StoredAppSettings {
     pub apply_to_debt_enabled: bool,
     pub split_purchases_enabled: bool,
     pub envelope_caps_enabled: bool,
     pub rollover_enabled: bool,
+    pub auto_link_transfers: bool,
 }
 
 /// A manually-tracked asset outside the accounts model — real estate, a
@@ -1035,7 +1039,14 @@ impl Store {
             CREATE TABLE IF NOT EXISTS transfer_links (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 out_transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id),
-                in_transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id)
+                in_transaction_id INTEGER NOT NULL UNIQUE REFERENCES transactions(id),
+                auto INTEGER NOT NULL DEFAULT 0,
+                reviewed INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS transfer_link_rejections (
+                out_transaction_id INTEGER NOT NULL,
+                in_transaction_id INTEGER NOT NULL,
+                PRIMARY KEY (out_transaction_id, in_transaction_id)
             );
             CREATE TABLE IF NOT EXISTS live_price_settings (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -1055,7 +1066,8 @@ impl Store {
                 backup_copy_dir TEXT,
                 tray_enabled INTEGER NOT NULL DEFAULT 0,
                 autostart_enabled INTEGER NOT NULL DEFAULT 0,
-                rollover_enabled INTEGER NOT NULL DEFAULT 1
+                rollover_enabled INTEGER NOT NULL DEFAULT 1,
+                auto_link_transfers INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS reminders_sent (
                 recurring_id INTEGER NOT NULL,
@@ -1083,6 +1095,7 @@ impl Store {
         self.migrate_add_cleared_to_transactions_if_missing()?;
         self.migrate_add_background_settings_if_missing()?;
         self.migrate_add_rollover_setting_if_missing()?;
+        self.migrate_add_auto_link_support_if_missing()?;
         self.migrate_add_bucket_icon_key_if_missing()?;
         self.migrate_add_account_icon_key_if_missing()?;
         self.migrate_add_category_icon_key_if_missing()?;
@@ -1767,6 +1780,33 @@ impl Store {
         if !has_column {
             self.conn
                 .execute("ALTER TABLE app_settings ADD COLUMN rollover_enabled INTEGER NOT NULL DEFAULT 1", [])?;
+        }
+        Ok(())
+    }
+
+    /// Opt-in auto-linking of transfers. The switch is off (`0`) for every
+    /// pre-existing database. `transfer_links.auto` marks a link the app made
+    /// itself (`0` = a person linked it) and `reviewed` says whether a person
+    /// has looked at it since; every pre-existing link counts as reviewed
+    /// (`1`), so nothing shows up on the review list that nobody auto-made.
+    fn migrate_add_auto_link_support_if_missing(&self) -> rusqlite::Result<()> {
+        let columns_of = |table: &str| -> rusqlite::Result<Vec<String>> {
+            let mut stmt = self.conn.prepare(&format!("PRAGMA table_info({table})"))?;
+            let names = stmt.query_map([], |row| row.get::<_, String>(1))?.collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(names)
+        };
+        let link_columns = columns_of("transfer_links")?;
+        if !link_columns.iter().any(|c| c == "auto") {
+            self.conn
+                .execute("ALTER TABLE transfer_links ADD COLUMN auto INTEGER NOT NULL DEFAULT 0", [])?;
+        }
+        if !link_columns.iter().any(|c| c == "reviewed") {
+            self.conn
+                .execute("ALTER TABLE transfer_links ADD COLUMN reviewed INTEGER NOT NULL DEFAULT 1", [])?;
+        }
+        if !columns_of("app_settings")?.iter().any(|c| c == "auto_link_transfers") {
+            self.conn
+                .execute("ALTER TABLE app_settings ADD COLUMN auto_link_transfers INTEGER NOT NULL DEFAULT 0", [])?;
         }
         Ok(())
     }
@@ -3331,6 +3371,14 @@ impl Store {
     /// a transfer with a fee legitimately leaves the legs a few dollars
     /// apart; `transfer_candidates` only *suggests* exact matches.
     pub fn link_transfer(&self, a: i64, b: i64) -> rusqlite::Result<bool> {
+        self.link_transfer_as(a, b, false)
+    }
+
+    /// `link_transfer`'s one implementation. `auto` marks a link the app made
+    /// on its own: it goes on the review list (`reviewed = 0`) until a person
+    /// says it looks right. A person's own link is `auto = 0`, already
+    /// reviewed.
+    fn link_transfer_as(&self, a: i64, b: i64, auto: bool) -> rusqlite::Result<bool> {
         let leg = |id: i64| -> rusqlite::Result<Option<(i64, Decimal)>> {
             match self.conn.query_row(
                 "SELECT account_id, amount FROM transactions WHERE id = ?1 AND deleted_at IS NULL",
@@ -3371,8 +3419,8 @@ impl Store {
             return Ok(false);
         }
         self.conn.execute(
-            "INSERT INTO transfer_links (out_transaction_id, in_transaction_id) VALUES (?1, ?2)",
-            params![out_id, in_id],
+            "INSERT INTO transfer_links (out_transaction_id, in_transaction_id, auto, reviewed) VALUES (?1, ?2, ?3, ?4)",
+            params![out_id, in_id, auto, !auto],
         )?;
         Ok(true)
     }
@@ -3380,7 +3428,18 @@ impl Store {
     /// Removes the link a transaction is part of, from either leg. A no-op
     /// when it isn't linked. The transactions themselves are untouched —
     /// they simply count as ordinary income/spending again.
+    ///
+    /// The pair is also remembered as "not a transfer" so `auto_link_transfers`
+    /// never links it again (otherwise Unlink would undo itself on the next
+    /// import). It is still *suggested* like any other pair, so a person can
+    /// link it by hand.
     pub fn unlink_transfer(&self, transaction_id: i64) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO transfer_link_rejections (out_transaction_id, in_transaction_id)
+             SELECT out_transaction_id, in_transaction_id FROM transfer_links
+             WHERE out_transaction_id = ?1 OR in_transaction_id = ?1",
+            params![transaction_id],
+        )?;
         self.conn.execute(
             "DELETE FROM transfer_links WHERE out_transaction_id = ?1 OR in_transaction_id = ?1",
             params![transaction_id],
@@ -3396,6 +3455,27 @@ impl Store {
     /// includes `apply_debt_payment`'s generated bookkeeping rows or deleted
     /// transactions.
     pub fn transfer_candidates(&self) -> rusqlite::Result<Vec<TransferCandidate>> {
+        let pairs = self.transfer_candidate_pairs()?;
+        let mut used = std::collections::HashSet::new();
+        let mut result = Vec::new();
+        for (_, out_id, in_id) in pairs {
+            if used.contains(&out_id) || used.contains(&in_id) {
+                continue;
+            }
+            used.insert(out_id);
+            used.insert(in_id);
+            result.push(TransferCandidate { out_id, in_id });
+        }
+        result.sort_by_key(|c| c.out_id);
+        Ok(result)
+    }
+
+    /// Every way two unlinked transactions could be the legs of one transfer
+    /// (the rules in `transfer_candidates`), as `(days apart, out id, in id)`,
+    /// closest first — *before* any transaction is limited to a single match.
+    /// `transfer_candidates` takes the closest first; `auto_link_transfers`
+    /// only acts where a leg has exactly one.
+    fn transfer_candidate_pairs(&self) -> rusqlite::Result<Vec<(i64, i64, i64)>> {
         struct Leg {
             id: i64,
             account_id: i64,
@@ -3460,19 +3540,90 @@ impl Store {
             }
         }
         pairs.sort();
+        Ok(pairs)
+    }
 
-        let mut used = std::collections::HashSet::new();
-        let mut result = Vec::new();
-        for (_, out_id, in_id) in pairs {
-            if used.contains(&out_id) || used.contains(&in_id) {
-                continue;
-            }
-            used.insert(out_id);
-            used.insert(in_id);
-            result.push(TransferCandidate { out_id, in_id });
+    /// Links every *clear-cut* transfer pair without asking, and returns the
+    /// pairs it linked. Clear-cut means it meets the suggestion rules (opposite
+    /// signs, equal amounts, different accounts, within 3 days) AND neither leg
+    /// has any other possible match — so a $500 out with two $500 deposits in
+    /// range is left for a person to decide. A pair someone already unlinked
+    /// (`unlink_transfer`) is ignored, and doesn't count against its neighbours
+    /// either. The links are marked automatic and unreviewed, which puts them
+    /// on `auto_linked_transfers_to_review`.
+    pub fn auto_link_transfers(&self) -> rusqlite::Result<Vec<TransferCandidate>> {
+        let rejected: std::collections::HashSet<(i64, i64)> = {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT out_transaction_id, in_transaction_id FROM transfer_link_rejections")?;
+            let rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+        let pairs: Vec<(i64, i64)> = self
+            .transfer_candidate_pairs()?
+            .into_iter()
+            .map(|(_, out_id, in_id)| (out_id, in_id))
+            .filter(|pair| !rejected.contains(pair))
+            .collect();
+        let mut matches_per_out: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();
+        let mut matches_per_in: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();
+        for (out_id, in_id) in &pairs {
+            *matches_per_out.entry(*out_id).or_default() += 1;
+            *matches_per_in.entry(*in_id).or_default() += 1;
         }
-        result.sort_by_key(|c| c.out_id);
-        Ok(result)
+
+        let mut linked = Vec::new();
+        for (out_id, in_id) in pairs {
+            if matches_per_out[&out_id] == 1 && matches_per_in[&in_id] == 1 && self.link_transfer_as(out_id, in_id, true)? {
+                linked.push(TransferCandidate { out_id, in_id });
+            }
+        }
+        linked.sort_by_key(|c| c.out_id);
+        Ok(linked)
+    }
+
+    /// `auto_link_transfers`, but only when the Settings switch is on —
+    /// what every place that adds transactions calls.
+    pub fn auto_link_transfers_if_enabled(&self) -> rusqlite::Result<Vec<TransferCandidate>> {
+        if self.get_app_settings()?.auto_link_transfers {
+            self.auto_link_transfers()
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Automatic links a person hasn't yet marked "looks right" — the review
+    /// report. Only pairs whose two transactions both still exist (a deleted
+    /// leg's link doesn't count, and returns if the delete is undone).
+    pub fn auto_linked_transfers_to_review(&self) -> rusqlite::Result<Vec<TransferCandidate>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT l.out_transaction_id, l.in_transaction_id FROM transfer_links l
+             JOIN transactions o ON o.id = l.out_transaction_id AND o.deleted_at IS NULL
+             JOIN transactions i ON i.id = l.in_transaction_id AND i.deleted_at IS NULL
+             WHERE l.auto = 1 AND l.reviewed = 0
+             ORDER BY l.out_transaction_id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(TransferCandidate {
+                out_id: row.get(0)?,
+                in_id: row.get(1)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Marks automatic links "looks right" (by their outgoing leg's id) so
+    /// they leave the review list. The links themselves stay. Returns how many
+    /// were marked.
+    pub fn mark_transfer_links_reviewed(&self, out_ids: &[i64]) -> rusqlite::Result<usize> {
+        let mut marked = 0;
+        for out_id in out_ids {
+            marked += self.conn.execute(
+                "UPDATE transfer_links SET reviewed = 1 WHERE out_transaction_id = ?1 AND auto = 1 AND reviewed = 0",
+                params![out_id],
+            )?;
+        }
+        Ok(marked)
     }
 
     /// (description, category) for every transaction categorized by a rule
@@ -6683,7 +6834,7 @@ impl Store {
     /// before this setting existed.
     pub fn get_app_settings(&self) -> rusqlite::Result<StoredAppSettings> {
         let row = match self.conn.query_row(
-            "SELECT apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled FROM app_settings WHERE id = 1",
+            "SELECT apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers FROM app_settings WHERE id = 1",
             [],
             |row| {
                 Ok((
@@ -6691,6 +6842,7 @@ impl Store {
                     row.get::<_, bool>(1)?,
                     row.get::<_, bool>(2)?,
                     row.get::<_, bool>(3)?,
+                    row.get::<_, bool>(4)?,
                 ))
             },
         ) {
@@ -6698,13 +6850,28 @@ impl Store {
             Err(rusqlite::Error::QueryReturnedNoRows) => None,
             Err(e) => return Err(e),
         };
-        let (apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled) = row.unwrap_or((true, true, true, true));
+        // Everything defaults on except auto-linking, which is opt-in.
+        let (apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers) =
+            row.unwrap_or((true, true, true, true, false));
         Ok(StoredAppSettings {
             apply_to_debt_enabled,
             split_purchases_enabled,
             envelope_caps_enabled,
             rollover_enabled,
+            auto_link_transfers,
         })
+    }
+
+    /// The opt-in "link matching transfers automatically" switch. Turning it
+    /// off stops future auto-linking; links already made stay (unlink any of
+    /// them from Transactions).
+    pub fn set_auto_link_transfers(&self, enabled: bool) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT INTO app_settings (id, auto_link_transfers) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET auto_link_transfers = ?1",
+            params![enabled],
+        )?;
+        Ok(())
     }
 
     /// See the doc comment on `StoredAppSettings` — off means no unspent
@@ -15672,6 +15839,194 @@ mod tests {
         let candidates = store.transfer_candidates().unwrap();
 
         assert_eq!(candidates, vec![TransferCandidate { out_id, in_id: same_day_in }]);
+    }
+
+    // Auto-linking transfers (opt-in) and the review list.
+
+    #[test]
+    fn auto_linking_is_off_until_switched_on_and_leaves_the_other_switches_alone() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(!store.get_app_settings().unwrap().auto_link_transfers);
+
+        store.set_auto_link_transfers(true).unwrap();
+
+        let settings = store.get_app_settings().unwrap();
+        assert!(settings.auto_link_transfers);
+        assert!(settings.apply_to_debt_enabled && settings.split_purchases_enabled && settings.rollover_enabled);
+        store.set_auto_link_transfers(false).unwrap();
+        assert!(!store.get_app_settings().unwrap().auto_link_transfers);
+    }
+
+    #[test]
+    fn auto_link_links_a_clear_cut_pair_and_puts_it_on_the_review_list() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
+        assert!(store.auto_linked_transfers_to_review().unwrap().is_empty());
+
+        let linked = store.auto_link_transfers().unwrap();
+
+        assert_eq!(linked, vec![TransferCandidate { out_id, in_id }]);
+        assert_eq!(counterpart_of(&store, out_id), Some(in_id));
+        assert_eq!(counterpart_of(&store, in_id), Some(out_id));
+        assert_eq!(store.auto_linked_transfers_to_review().unwrap(), vec![TransferCandidate { out_id, in_id }]);
+        assert!(store.transfer_candidates().unwrap().is_empty(), "a linked pair is no longer a suggestion");
+    }
+
+    #[test]
+    fn auto_link_leaves_a_pair_for_a_person_when_either_side_has_more_than_one_match() {
+        // One outgoing leg, two equal deposits within three days.
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        store.save_transactions(checking, &[tx("2026-08-10", "Move out", "-500.00")]).unwrap();
+        store
+            .save_transactions(savings, &[tx("2026-08-10", "Deposit A", "500.00"), tx("2026-08-11", "Deposit B", "500.00")])
+            .unwrap();
+        assert!(store.auto_link_transfers().unwrap().is_empty());
+        assert_eq!(store.transfer_candidates().unwrap().len(), 1, "still offered as a suggestion");
+
+        // Two outgoing legs, one deposit.
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        store
+            .save_transactions(checking, &[tx("2026-08-10", "Move out A", "-500.00"), tx("2026-08-11", "Move out B", "-500.00")])
+            .unwrap();
+        store.save_transactions(savings, &[tx("2026-08-10", "Deposit", "500.00")]).unwrap();
+        assert!(store.auto_link_transfers().unwrap().is_empty());
+        assert_eq!(store.all_transactions().unwrap().iter().filter(|t| t.transfer_counterpart_id.is_some()).count(), 0);
+    }
+
+    #[test]
+    fn auto_link_follows_the_same_rules_as_suggestions() {
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        store
+            .save_transactions(
+                checking,
+                &[
+                    tx("2026-08-01", "Far", "-100.00"),
+                    tx("2026-08-20", "Unequal", "-300.00"),
+                    tx("2026-08-25", "Same account out", "-40.00"),
+                ],
+            )
+            .unwrap();
+        store
+            .save_transactions(
+                savings,
+                &[tx("2026-08-09", "Far in", "100.00"), tx("2026-08-20", "Unequal in", "299.00")],
+            )
+            .unwrap();
+        store.save_transactions(checking, &[tx("2026-08-25", "Same account in", "40.00")]).unwrap();
+
+        assert!(store.auto_link_transfers().unwrap().is_empty());
+    }
+
+    #[test]
+    fn unlinking_an_auto_link_takes_it_off_the_list_and_it_is_never_auto_linked_again() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        store.auto_link_transfers().unwrap();
+
+        store.unlink_transfer(in_id).unwrap();
+
+        assert!(store.auto_linked_transfers_to_review().unwrap().is_empty());
+        assert!(store.auto_link_transfers().unwrap().is_empty(), "the next pass must not undo the unlink");
+        // A person can still link it by hand, and that link is theirs, not "auto".
+        assert_eq!(store.transfer_candidates().unwrap(), vec![TransferCandidate { out_id, in_id }]);
+        assert!(store.link_transfer(out_id, in_id).unwrap());
+        assert!(store.auto_linked_transfers_to_review().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_pair_unlinked_by_hand_is_not_auto_linked_later() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        store.link_transfer(out_id, in_id).unwrap();
+        store.unlink_transfer(out_id).unwrap();
+
+        assert!(store.auto_link_transfers().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_rejected_pair_does_not_make_the_next_best_match_look_ambiguous() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, first_in) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        store.link_transfer(out_id, first_in).unwrap();
+        store.unlink_transfer(out_id).unwrap(); // "that isn't a transfer"
+        let (_, savings) = checking_and_savings(&store);
+        store.save_transactions(savings, &[tx("2026-08-11", "Second deposit", "500.00")]).unwrap();
+        let second_in = id_of(&store, "Second deposit", "2026-08-11");
+
+        let linked = store.auto_link_transfers().unwrap();
+
+        assert_eq!(linked, vec![TransferCandidate { out_id, in_id: second_in }]);
+        assert_eq!(counterpart_of(&store, first_in), None);
+    }
+
+    #[test]
+    fn marking_auto_links_reviewed_clears_the_list_but_keeps_the_link() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        store.auto_link_transfers().unwrap();
+
+        assert_eq!(store.mark_transfer_links_reviewed(&[out_id]).unwrap(), 1);
+
+        assert!(store.auto_linked_transfers_to_review().unwrap().is_empty());
+        assert_eq!(counterpart_of(&store, out_id), Some(in_id));
+        assert_eq!(store.mark_transfer_links_reviewed(&[out_id]).unwrap(), 0, "nothing left to mark");
+    }
+
+    #[test]
+    fn the_review_list_skips_a_pair_with_a_deleted_leg_and_shows_it_again_on_undo() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        store.auto_link_transfers().unwrap();
+
+        store.delete_transaction(out_id, "2026-08-12T00:00:00".parse().unwrap()).unwrap();
+        assert!(store.auto_linked_transfers_to_review().unwrap().is_empty());
+
+        store.restore_transactions(&[out_id]).unwrap();
+        assert_eq!(store.auto_linked_transfers_to_review().unwrap(), vec![TransferCandidate { out_id, in_id }]);
+    }
+
+    #[test]
+    fn a_link_made_by_hand_is_never_on_the_review_list() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+
+        store.link_transfer(out_id, in_id).unwrap();
+
+        assert!(store.auto_linked_transfers_to_review().unwrap().is_empty());
+    }
+
+    #[test]
+    fn auto_link_if_enabled_does_nothing_while_the_setting_is_off() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+
+        assert!(store.auto_link_transfers_if_enabled().unwrap().is_empty());
+        assert_eq!(counterpart_of(&store, out_id), None);
+
+        store.set_auto_link_transfers(true).unwrap();
+        assert_eq!(store.auto_link_transfers_if_enabled().unwrap(), vec![TransferCandidate { out_id, in_id }]);
+        assert_eq!(counterpart_of(&store, out_id), Some(in_id));
+    }
+
+    #[test]
+    fn a_database_from_before_auto_linking_gains_the_new_columns_and_keeps_its_links() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-10");
+        store.link_transfer(out_id, in_id).unwrap();
+        // Put the tables back the way an older version left them.
+        store.conn.execute_batch("ALTER TABLE transfer_links DROP COLUMN auto; ALTER TABLE transfer_links DROP COLUMN reviewed; ALTER TABLE app_settings DROP COLUMN auto_link_transfers; DROP TABLE transfer_link_rejections;").unwrap();
+
+        store.init_schema().unwrap();
+
+        assert_eq!(counterpart_of(&store, out_id), Some(in_id), "an existing link survives");
+        assert!(store.auto_linked_transfers_to_review().unwrap().is_empty(), "and counts as reviewed");
+        assert!(!store.get_app_settings().unwrap().auto_link_transfers);
+        store.unlink_transfer(out_id).unwrap();
+        store.set_auto_link_transfers(true).unwrap();
+        assert!(store.auto_link_transfers().unwrap().is_empty(), "the unlink was remembered");
     }
 
     // Bill-aware forecast.

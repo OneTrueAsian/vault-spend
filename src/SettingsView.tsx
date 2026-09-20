@@ -585,12 +585,14 @@ function FeatureTogglesSection({
   onSetSplitPurchasesEnabled,
   onSetEnvelopeCapsEnabled,
   onSetRolloverEnabled,
+  onSetAutoLinkTransfers,
 }: {
   appSettings: AppSettings;
   onSetApplyToDebtEnabled: (enabled: boolean) => void;
   onSetSplitPurchasesEnabled: (enabled: boolean) => void;
   onSetEnvelopeCapsEnabled: (enabled: boolean) => void;
   onSetRolloverEnabled: (enabled: boolean) => void;
+  onSetAutoLinkTransfers: (enabled: boolean) => void;
 }) {
   const toggles: { key: keyof AppSettings; label: string; description: string; onChange: (enabled: boolean) => void }[] = [
     {
@@ -617,6 +619,13 @@ function FeatureTogglesSection({
       description:
         'Lets a Budget category carry what it didn\'t spend into next month (the "Roll over unspent" checkbox on each line). Off: nothing rolls over, and each category\'s choice is remembered for when you turn it back on.',
       onChange: onSetRolloverEnabled,
+    },
+    {
+      key: "auto_link_transfers",
+      label: "Link matching transfers automatically",
+      description:
+        "Off by default. When on, a pair of transactions that are clearly one move between your own accounts (equal amounts, opposite directions, different accounts, within 3 days, and no other possible match) is linked as soon as it arrives, instead of waiting in “possible transfers”. Every automatic link is listed on Transactions for you to review and unlink.",
+      onChange: onSetAutoLinkTransfers,
     },
   ];
 
@@ -965,6 +974,7 @@ export function SettingsView({
   onSetSplitPurchasesEnabled,
   onSetEnvelopeCapsEnabled,
   onSetRolloverEnabled,
+  onSetAutoLinkTransfers,
   themeStyle,
   onSetThemeStyle,
   privacyAutoHide,
@@ -1016,6 +1026,7 @@ export function SettingsView({
   onSetSplitPurchasesEnabled: (enabled: boolean) => void;
   onSetEnvelopeCapsEnabled: (enabled: boolean) => void;
   onSetRolloverEnabled: (enabled: boolean) => void;
+  onSetAutoLinkTransfers: (enabled: boolean) => void;
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
 }) {
@@ -1069,6 +1080,7 @@ export function SettingsView({
         onSetSplitPurchasesEnabled={onSetSplitPurchasesEnabled}
         onSetEnvelopeCapsEnabled={onSetEnvelopeCapsEnabled}
         onSetRolloverEnabled={onSetRolloverEnabled}
+        onSetAutoLinkTransfers={onSetAutoLinkTransfers}
       />
       <RulesManager categories={categories} onRulesApplied={onRulesApplied} onMessage={onMessage} />
       <ReleaseNotesSection currentVersion={appVersion} />

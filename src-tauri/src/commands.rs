@@ -563,6 +563,9 @@ pub struct ImportSummary {
     pub row_errors: usize,
     /// The new transactions' ids, so the app can open its review inbox on exactly them.
     pub inserted_ids: Vec<i64>,
+    /// How many transfer pairs were linked automatically as part of this import
+    /// (0 unless the Settings switch is on).
+    pub auto_linked: usize,
 }
 
 /// One parsed CSV row awaiting the user's review — every row is shown, not
@@ -857,11 +860,13 @@ pub fn commit_import(
     }
 
     categorize_uncategorized(&mut state)?;
+    let auto_linked = state.store.auto_link_transfers_if_enabled().map_err(|e| e.to_string())?.len();
 
     Ok(ImportSummary {
         inserted,
         row_errors,
         inserted_ids,
+        auto_linked,
     })
 }
 
@@ -901,6 +906,9 @@ pub fn create_manual_transaction(
     if let Some(member_id) = member_id {
         state.store.set_transaction_member(id, Some(member_id)).map_err(|e| e.to_string())?;
     }
+    // (When the switch is on, an entry that completes a transfer is linked now;
+    // the app finds out from the review list.)
+    state.store.auto_link_transfers_if_enabled().map_err(|e| e.to_string())?;
     Ok(id)
 }
 
@@ -1334,6 +1342,30 @@ pub fn list_transfer_candidates(state: tauri::State<AppStateHandle>) -> Result<V
             in_id: c.in_id,
         })
         .collect())
+}
+
+/// Transfer pairs the app linked on its own (the Settings switch) that no one
+/// has marked "looks right" yet — the review report. Each pair is identified by
+/// its outgoing leg.
+#[tauri::command]
+pub fn list_auto_linked_transfers(state: tauri::State<AppStateHandle>) -> Result<Vec<TransferCandidateDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let linked = state.store.auto_linked_transfers_to_review().map_err(|e| e.to_string())?;
+    Ok(linked
+        .into_iter()
+        .map(|c| TransferCandidateDto {
+            out_id: c.out_id,
+            in_id: c.in_id,
+        })
+        .collect())
+}
+
+/// "Looks right": takes the given automatic links (by outgoing leg) off the
+/// review list. The links stay. Returns how many were marked.
+#[tauri::command]
+pub fn mark_auto_links_reviewed(out_ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.mark_transfer_links_reviewed(&out_ids).map_err(|e| e.to_string())
 }
 
 /// Links two transactions as the two legs of one transfer, so neither
@@ -2930,6 +2962,7 @@ pub struct AppSettingsDto {
     pub split_purchases_enabled: bool,
     pub envelope_caps_enabled: bool,
     pub rollover_enabled: bool,
+    pub auto_link_transfers: bool,
 }
 
 #[tauri::command]
@@ -2941,6 +2974,7 @@ pub fn get_app_settings(state: tauri::State<AppStateHandle>) -> Result<AppSettin
         split_purchases_enabled: settings.split_purchases_enabled,
         envelope_caps_enabled: settings.envelope_caps_enabled,
         rollover_enabled: settings.rollover_enabled,
+        auto_link_transfers: settings.auto_link_transfers,
     })
 }
 
@@ -2969,6 +3003,21 @@ pub fn set_envelope_caps_enabled(enabled: bool, state: tauri::State<AppStateHand
 pub fn set_rollover_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
     state.store.set_rollover_enabled(enabled).map_err(|e| e.to_string())
+}
+
+/// The opt-in "link matching transfers automatically" switch (Settings).
+/// Turning it ON also links the clear-cut pairs already in the ledger, and
+/// returns how many that was (so the app can say so); turning it off returns 0
+/// and leaves existing links alone.
+#[tauri::command]
+pub fn set_auto_link_transfers(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.set_auto_link_transfers(enabled).map_err(|e| e.to_string())?;
+    if enabled {
+        Ok(state.store.auto_link_transfers().map_err(|e| e.to_string())?.len())
+    } else {
+        Ok(0)
+    }
 }
 
 /// Looks up one live quote — used only by the New Holding form's autofill,

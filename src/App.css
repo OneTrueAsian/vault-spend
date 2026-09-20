@@ -21,6 +21,8 @@
   --bg: #f5f7fb;
   --surface: #ffffff;
   --surface-2: #eef1f7;
+  /* What a toast is painted on; opaque. Transparent overrides it. */
+  --status-base: var(--surface);
   --surface-hover: #e6e9f0;
   --sidebar-bg: #fbfbfd;
   --sidebar-bg-hover: #eef1f7;
@@ -373,6 +375,10 @@
      translucent — see the `.topbar` rule's comment below. */
   --topbar-glass-bg: rgba(255, 255, 255, 0.88);
 
+  /* Fully opaque: the colour a toast is painted on. --surface is a 72% wash
+     in this style, and a toast floats over table rows and buttons. */
+  --status-base: #ffffff;
+
   color-scheme: light;
 }
 
@@ -423,6 +429,8 @@
 
     --topbar-glass-bg: rgba(30, 30, 34, 0.88);
 
+    --status-base: #1c1c1e;
+
     color-scheme: dark;
   }
 }
@@ -472,6 +480,8 @@
   --wash-c: rgba(100, 210, 255, 0.26);
 
   --topbar-glass-bg: rgba(30, 30, 34, 0.88);
+
+  --status-base: #1c1c1e;
 
   color-scheme: dark;
 }
@@ -3067,6 +3077,34 @@ button:disabled {
   border-color: var(--info);
 }
 
+/* A toast floats over whatever is on the page, so its fill has to be opaque:
+   the status tint is layered over --status-base. (Transparent's tints are
+   14–22% alpha washes; used alone they let table rows show through the
+   message.) --status-base is just --surface everywhere but Transparent,
+   where --surface itself is see-through. */
+.toast-stack .status-success {
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--status-base);
+}
+
+.toast-stack .status-error {
+  background: linear-gradient(var(--negative-soft), var(--negative-soft)), var(--status-base);
+}
+
+.toast-stack .status-info {
+  background: linear-gradient(var(--info-soft), var(--info-soft)), var(--status-base);
+}
+
+/* Transparent's error and info hues are too dim to read as text on their own
+   tint in dark mode (about 3:1 and 2.8:1), so lean them toward the text
+   colour: still red / indigo, but AA-legible in both modes. */
+[data-palette="transparent"] .toast-stack .status-error {
+  color: color-mix(in srgb, var(--negative) 55%, var(--text));
+}
+
+[data-palette="transparent"] .toast-stack .status-info {
+  color: color-mix(in srgb, var(--info) 55%, var(--text));
+}
+
 .status-icon {
   width: 16px;
   height: 16px;
@@ -3563,6 +3601,11 @@ button:disabled {
   margin-left: 8px;
 }
 
+/* "possible transfers" and "auto-linked" sit side by side, not spread apart. */
+.transfer-suggestion + .transfer-suggestion {
+  margin-left: 8px;
+}
+
 .transfer-badge {
   display: inline-block;
   padding: 1px 8px;
@@ -3605,6 +3648,23 @@ button:disabled {
   border-bottom: 1px solid var(--border);
   font-size: 13px;
   cursor: pointer;
+}
+
+/* The auto-linked review list: same columns as the suggestions above, but the
+   row itself isn't a label — it ends in Unlink / Looks right buttons. */
+.autolink-review-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.autolink-review-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .transfer-review-amount {

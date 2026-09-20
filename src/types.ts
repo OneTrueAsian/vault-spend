@@ -73,6 +73,8 @@ export type AppSettings = {
   envelope_caps_enabled: boolean;
   /** The global "Rollover unspent" switch; off stops any unspent budget carrying into a later month. */
   rollover_enabled: boolean;
+  /** Opt-in (off by default): link clear-cut transfer pairs automatically. */
+  auto_link_transfers: boolean;
 };
 
 /** Purely a per-viewer display preference (like `Theme` in App.tsx) — stored
