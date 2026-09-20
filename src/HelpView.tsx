@@ -393,17 +393,26 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "spending by member",
       "spending by tag",
       "year by year",
+      "sankey",
+      "income flow",
+      "heatmap",
+      "daily spending",
+      "calendar",
     ],
     node: (
       <li>
         <strong>Reports</strong> — pick a range (Year to date, Last 12
         months, Last 6 months, or Last month) and see income, spending, net,
-        and savings rate for it, a table of where the money went by category
-        and month, spending by family member and by tag, a year-by-year
-        comparison, a savings-rate trend, and net worth by family member —
-        with the CSV and PDF export described below. Property &amp;
-        Valuables is now on the Accounts tab, and the setup-data
-        import/export is in Settings.
+        and savings rate for it, a Sankey diagram of income flowing to your
+        biggest spending categories (with a "Left over" or "Shortfall" flow
+        depending on which side won), a table of where the money went by
+        category and month, a daily-spending heatmap (darker days are bigger
+        spending days — hover or Tab to a day for its total; one big bill
+        like rent doesn't wash the rest out), spending by family member and
+        by tag, a year-by-year comparison, a savings-rate trend, and net
+        worth by family member — with the CSV and PDF export described
+        below. Property &amp; Valuables is now on the Accounts tab, and the
+        setup-data import/export is in Settings.
       </li>
     ),
   },

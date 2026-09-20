@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, CashFlow, DebtPayoffPlan, FamilyMember, MonthTotal, Transaction, Asset } from "./types";
 import { LineChart } from "./charts";
-import { formatAmount } from "./format";
+import { formatAmount, toLocalIsoDate } from "./format";
 import { groupOf, isIncomeTransaction, owedAmount } from "./accountGroups";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
@@ -10,13 +10,17 @@ import { netWorthByMember, spendingByMember } from "./memberBreakdowns";
 import {
   buildCategoryTable,
   inMonthRange,
+  monthEndDate,
   monthHeading,
   monthKeys,
+  monthStartDate,
   PRESET_LABELS,
   presetRange,
   yearlySummary,
   type RangePreset,
 } from "./reportRange";
+import { buildSankeyData, layoutSankey, sankeyRibbonPath, spreadLabelPositions, type SankeyNode } from "./sankey";
+import { buildHeatmapWeeks, heatmapBucket, heatmapScaleMax, type DailyAmount } from "./heatmap";
 
 /** Savings rate — (income − expenses) ÷ income — trended over every month
  * with transaction history, trailing 12. A purely client-side reduction
@@ -272,6 +276,281 @@ function BreakdownTable({
   );
 }
 
+// Same palette CashFlowView/DashboardView use for their category donuts, so
+// a category reads the same color everywhere it shows up on Reports.
+const CATEGORY_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
+
+// Sankey geometry, in viewBox units. The side margins hold the labels.
+const SANKEY_MARGIN = { top: 20, right: 190, bottom: 6, left: 150 };
+const SANKEY_INNER_WIDTH = 600;
+const SANKEY_NODE_WIDTH = 14;
+const SANKEY_NODE_PADDING = 8;
+const SANKEY_MIN_HEIGHT = 240;
+const SANKEY_ROW_HEIGHT = 28;
+const SANKEY_LABEL_GAP = 16;
+
+/** Keeps a long category name from running out of its label margin; the full
+ * name is in the hidden figures table. */
+function shortLabel(label: string, max = 15): string {
+  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+}
+
+/** A node's fill color: the synthetic income/spending/leftover/shortfall/
+ * other nodes each get a fixed theme color, and a real category cycles
+ * through `CATEGORY_COLORS` in the same biggest-first order it's listed. */
+function sankeyNodeColor(node: SankeyNode, categoryOrder: string[]): string {
+  switch (node.id) {
+    case "income":
+      return "var(--accent)";
+    case "shortfall":
+      return "var(--negative)";
+    case "spending":
+      return "var(--accent-strong)";
+    case "leftover":
+      return "var(--positive)";
+    case "other":
+      return "var(--text-faint)";
+    default: {
+      const i = categoryOrder.indexOf(node.id);
+      return CATEGORY_COLORS[Math.max(i, 0) % CATEGORY_COLORS.length];
+    }
+  }
+}
+
+/** Income → spending Sankey for the selected range: income (plus a
+ * "Shortfall" flow when spending exceeds it) on the left, the biggest
+ * spending categories on the right (the rest grouped as "Other"), and
+ * either a "Left over" flow or a "Shortfall" one depending on which side
+ * won. All layout math lives in `sankey.ts`, tested on its own — this
+ * component only turns a `SankeyLayout` into SVG.
+ *
+ * Accessibility/privacy: the SVG carries only a plain-language
+ * `aria-label` (no dollar figures, so nothing to leak through the
+ * accessibility tree while Privacy mode is on) plus `aria-hidden` on the
+ * decorative shapes; the actual numbers live in a visually-hidden table
+ * right below it, which is real DOM text `startPrivacyMask` can find and
+ * mask like everywhere else. */
+function SankeySection({ income, categoryTotals, loading }: { income: number; categoryTotals: { category: string; amount: number }[]; loading: boolean }) {
+  const data = buildSankeyData(
+    income,
+    categoryTotals.map((c) => ({ label: c.category, amount: c.amount })),
+  );
+  const categoryOrder = [...categoryTotals]
+    .sort((a, b) => b.amount - a.amount || a.category.localeCompare(b.category))
+    .map((c) => `cat:${c.category}`);
+
+  const columns = [...new Set(data.nodes.map((n) => n.column))].sort((a, b) => a - b);
+  const maxInColumn = Math.max(1, ...columns.map((c) => data.nodes.filter((n) => n.column === c).length));
+  const height = Math.max(SANKEY_MIN_HEIGHT, maxInColumn * SANKEY_ROW_HEIGHT);
+  const layout = layoutSankey(data, SANKEY_INNER_WIDTH, height, SANKEY_NODE_WIDTH, SANKEY_NODE_PADDING);
+  const nodeById = new Map(layout.nodes.map((n) => [n.id, n]));
+  const nodeWidth = SANKEY_NODE_WIDTH;
+  // The labels live inside the drawing (in the side margins), so they scale
+  // with it and can never fall outside the SVG at any window width.
+  const viewWidth = SANKEY_MARGIN.left + SANKEY_INNER_WIDTH + SANKEY_MARGIN.right;
+  const viewHeight = SANKEY_MARGIN.top + height + SANKEY_MARGIN.bottom;
+  // Thin bars sit closer together than a line of text is tall, so each side's
+  // labels are nudged apart (only the outer columns carry a label beside the bar).
+  const labelY = new Map<string, number>();
+  for (const col of columns) {
+    const colNodes = layout.nodes.filter((n) => n.column === col).sort((a, b) => a.y0 - b.y0);
+    const ys = spreadLabelPositions(
+      colNodes.map((n) => (n.y0 + n.y1) / 2),
+      SANKEY_LABEL_GAP,
+      SANKEY_LABEL_GAP / 2,
+      height - SANKEY_LABEL_GAP / 2,
+    );
+    colNodes.forEach((n, i) => labelY.set(n.id, ys[i]));
+  }
+  const lastColumn = columns[columns.length - 1];
+
+  return (
+    <div className="card" data-report-sankey>
+      <div className="card-head">
+        <span className="reports-section-title">Income → spending</span>
+      </div>
+      {loading ? (
+        <p className="empty-state">Loading…</p>
+      ) : data.nodes.length === 0 ? (
+        <p className="empty-state">No income or spending in this range.</p>
+      ) : (
+        <>
+          <div className="table-scroll">
+            <svg
+              className="sankey-svg"
+              viewBox={`0 0 ${viewWidth} ${viewHeight}`}
+              role="img"
+              aria-label={`Diagram of income flowing to spending categories${data.leftover < 0 ? ", including a shortfall" : data.leftover > 0 ? ", with money left over" : ""}. Exact figures are in the table below.`}
+            >
+              <g aria-hidden="true" transform={`translate(${SANKEY_MARGIN.left},${SANKEY_MARGIN.top})`}>
+                {layout.links.map((l, i) => {
+                  const target = nodeById.get(l.target)!;
+                  const color = sankeyNodeColor(data.nodes.find((n) => n.id === l.target)!, categoryOrder);
+                  const source = nodeById.get(l.source)!;
+                  return (
+                    <path
+                      key={i}
+                      d={sankeyRibbonPath(source.x + nodeWidth, l.sy0, l.sy1, target.x, l.ty0, l.ty1)}
+                      fill={color}
+                      opacity={0.32}
+                      stroke="none"
+                    />
+                  );
+                })}
+                {layout.nodes.map((n) => {
+                  const isLeftmost = n.column === columns[0];
+                  const isMiddle = !isLeftmost && n.column !== lastColumn;
+                  const color = sankeyNodeColor(n, categoryOrder);
+                  // Outer columns: the label sits beside the bar. The single middle
+                  // "Total spending" bar (shortfall shape) has ribbons on both sides,
+                  // so its label goes just above it instead.
+                  const labelX = isMiddle ? n.x + nodeWidth / 2 : isLeftmost ? n.x - 8 : n.x + nodeWidth + 8;
+                  const labelBaseline = isMiddle ? n.y0 - 7 : (labelY.get(n.id) ?? (n.y0 + n.y1) / 2);
+                  return (
+                    <g key={n.id}>
+                      <rect x={n.x} y={n.y0} width={nodeWidth} height={Math.max(n.y1 - n.y0, 1)} fill={color} rx={2} />
+                      <text x={labelX} y={labelBaseline} dominantBaseline="central" textAnchor={isMiddle ? "middle" : isLeftmost ? "end" : "start"} className="sankey-label">
+                        {shortLabel(n.label)}{" "}
+                        <tspan className="sankey-node-amount">{formatAmount(n.value.toFixed(2))}</tspan>
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            </svg>
+          </div>
+          <table className="sr-only">
+            <caption>Income and spending flow, in full dollar figures</caption>
+            <thead>
+              <tr>
+                <th>Flow</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.nodes.map((n) => (
+                <tr key={n.id}>
+                  <td>{n.label}</td>
+                  <td>{formatAmount(n.value.toFixed(2))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+const HEATMAP_BUCKET_COLORS = ["var(--surface-2)", "color-mix(in srgb, var(--accent) 25%, var(--surface))", "color-mix(in srgb, var(--accent) 50%, var(--surface))", "color-mix(in srgb, var(--accent) 75%, var(--surface))", "var(--accent)"];
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Calendar-style daily-spend heatmap for the selected range: one cell per
+ * day, color intensity scaled to that day's spending against the biggest
+ * single day in the range. Grid layout comes from `heatmap.ts`.
+ *
+ * Accessibility/privacy: each day is a focusable/hoverable `<button>`
+ * without a dollar amount in its `aria-label` (just the date, so nothing
+ * leaks through the accessibility tree under Privacy mode); the actual
+ * total for the focused/hovered day is announced through a real, masked
+ * text node in an `aria-live` status line, and every day's figure is also
+ * listed in a visually-hidden table for a screen-reader user who'd rather
+ * scan than tab through ~180 buttons one at a time. */
+function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAmount[]; from: string; to: string; loading: boolean }) {
+  const [focused, setFocused] = useState<{ date: string; amount: number } | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const weeks = buildHeatmapWeeks(daily, from, to);
+  const inRangeDays = weeks.flat().filter((d) => d.inRange);
+  const max = heatmapScaleMax(inRangeDays.map((d) => d.amount));
+  const hasSpending = inRangeDays.some((d) => d.amount > 0);
+
+  // A long range is wider than the card and scrolls inside it; the newest weeks
+  // matter most, so it opens scrolled to them (like a contribution graph).
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (frame) frame.scrollLeft = frame.scrollWidth;
+  }, [from, to, loading, hasSpending, weeks.length]);
+
+  return (
+    <div className="card" data-report-heatmap>
+      <div className="card-head">
+        <span className="reports-section-title">Daily spending</span>
+      </div>
+      {loading ? (
+        <p className="empty-state">Loading…</p>
+      ) : !hasSpending ? (
+        <p className="empty-state">No spending in this range.</p>
+      ) : (
+        <>
+          <div className="table-scroll" ref={frameRef}>
+            <div className="heatmap-grid" role="presentation">
+              <div className="heatmap-weekday-col">
+                {WEEKDAY_LABELS.map((w) => (
+                  <div key={w} className="heatmap-weekday-label" aria-hidden="true">
+                    {w}
+                  </div>
+                ))}
+              </div>
+              {weeks.map((week, wi) => (
+                <div key={wi} className="heatmap-week-col">
+                  {week.map((day) => {
+                    const bucket = day.inRange ? heatmapBucket(day.amount, max) : -1;
+                    const label = new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                    return (
+                      <button
+                        type="button"
+                        key={day.date}
+                        className="heatmap-cell"
+                        disabled={!day.inRange}
+                        data-heatmap-day={day.inRange ? day.date : undefined}
+                        style={{ background: bucket >= 0 ? HEATMAP_BUCKET_COLORS[bucket] : "transparent" }}
+                        aria-label={day.inRange ? label : undefined}
+                        onMouseEnter={() => day.inRange && setFocused({ date: day.date, amount: day.amount })}
+                        onFocus={() => day.inRange && setFocused({ date: day.date, amount: day.amount })}
+                        onMouseLeave={() => setFocused(null)}
+                        onBlur={() => setFocused(null)}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="heatmap-status" aria-live="polite" data-heatmap-status>
+            {focused
+              ? `${new Date(`${focused.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}: ${formatAmount(focused.amount.toFixed(2))}`
+              : "Hover or focus a day to see its total."}
+          </p>
+          <div className="heatmap-legend" aria-hidden="true">
+            <span>Less</span>
+            {HEATMAP_BUCKET_COLORS.map((c, i) => (
+              <span key={i} className="heatmap-legend-swatch" style={{ background: c }} />
+            ))}
+            <span>More</span>
+          </div>
+          <table className="sr-only">
+            <caption>Daily spending totals</caption>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Spent</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inRangeDays.map((d) => (
+                <tr key={d.date}>
+                  <td>{d.date}</td>
+                  <td>{formatAmount(d.amount.toFixed(2))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
 type CategoryMonthCell = { month: string; category: string; amount: string };
 
 /** Reports: one date range drives everything on the page — the summary, a
@@ -306,6 +585,7 @@ export function ReportsView({
 
   const [cells, setCells] = useState<CategoryMonthCell[]>([]);
   const [flow, setFlow] = useState<CashFlow | null>(null);
+  const [daily, setDaily] = useState<DailyAmount[]>([]);
   const [loadedRange, setLoadedRange] = useState<string | null>(null);
 
   useEffect(() => {
@@ -313,11 +593,13 @@ export function ReportsView({
     Promise.all([
       invoke<CategoryMonthCell[]>("category_spending_by_month", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
       invoke<CashFlow>("cash_flow_for_range", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
+      invoke<{ date: string; amount: string }[]>("daily_spending", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
     ])
-      .then(([spending, cashFlow]) => {
+      .then(([spending, cashFlow, dailySpend]) => {
         if (cancelled) return;
         setCells(spending);
         setFlow(cashFlow);
+        setDaily(dailySpend.map((d) => ({ date: d.date, amount: parseFloat(d.amount) })));
         setLoadedRange(rangeKey);
       })
       .catch(() => {
@@ -338,6 +620,12 @@ export function ReportsView({
   const table = buildCategoryTable(cells, months);
   const showYear = from.year !== to.year;
   const years = yearlySummary((flow?.months ?? []) as MonthTotal[]);
+  const categoryTotals = table.rows.map((r) => ({ category: r.category, amount: r.total }));
+  // The heatmap only ever shows days that have actually happened — a range
+  // whose "to" month is the current one (every preset but "last month")
+  // would otherwise pad out the rest of this month with meaningless zeros.
+  const heatmapFrom = monthStartDate(from);
+  const heatmapTo = [monthEndDate(to), toLocalIsoDate()].sort()[0];
 
   const inRange = transactions.filter((t) => inMonthRange(t.date, from, to));
   const memberRows = spendingByMember(inRange);
@@ -411,6 +699,8 @@ export function ReportsView({
         </div>
       </div>
 
+      <SankeySection income={income} categoryTotals={categoryTotals} loading={loading} />
+
       <div className="card" data-report-table>
         <div className="card-head">
           <span className="reports-section-title">Where the money went, by category and month</span>
@@ -468,6 +758,8 @@ export function ReportsView({
           </table>
         </div>
       </div>
+
+      <DailySpendHeatmapSection daily={daily} from={heatmapFrom} to={heatmapTo} loading={loading} />
 
       <div className="card" data-report-years>
         <div className="card-head">

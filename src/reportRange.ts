@@ -50,6 +50,23 @@ export function inMonthRange(date: string, from: YearMonth, to: YearMonth): bool
   return month >= key(from) && month <= key(to);
 }
 
+/** The first day of `ym` as "YYYY-MM-DD" — the day-level lower bound for a
+ * range whose backend calls (like `daily_spending`) take actual dates
+ * rather than a year/month pair. */
+export function monthStartDate(ym: YearMonth): string {
+  return `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
+}
+
+/** The last day of `ym` as "YYYY-MM-DD". Built as "day 0 of the following
+ * month" so it doesn't need its own per-month day-count table — `Date.UTC`
+ * already normalizes a rolled-over month (`ym.month` here is 1-based, so
+ * passing it straight as the 0-based month index lands one month ahead,
+ * and day 0 of that month is the last day of `ym.month`). */
+export function monthEndDate(ym: YearMonth): string {
+  const d = new Date(Date.UTC(ym.year, ym.month, 0));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** A column heading for "YYYY-MM": "Jul", or "Jan ’26" when the year is worth showing. */

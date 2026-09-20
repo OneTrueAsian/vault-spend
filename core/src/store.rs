@@ -479,6 +479,15 @@ pub struct CategoryMonthAmount {
     pub amount: Decimal,
 }
 
+/// One day's total spend — see `Store::daily_spending`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DailySpendAmount {
+    /// "YYYY-MM-DD".
+    pub date: String,
+    /// Spending as a positive number.
+    pub amount: Decimal,
+}
+
 /// Where an account's reconciliation stands against a statement — see
 /// `Store::reconciliation_status`.
 #[derive(Debug, Clone, PartialEq)]
@@ -7621,6 +7630,47 @@ impl Store {
             .into_iter()
             .map(|((month, category), amount)| CategoryMonthAmount { month, category, amount })
             .collect())
+    }
+
+    /// Total spend per calendar day across `[from_year/from_month,
+    /// to_year/to_month]` (inclusive) — the Reports page's daily-spend
+    /// heatmap. Expenses only, as positive numbers; income, transfers (by
+    /// category or as a linked pair), debt-payment bookkeeping rows and
+    /// deleted transactions are left out, and a split purchase counts
+    /// through its lines — the same rules as `category_spending_by_month`,
+    /// just summed per day instead of per (month, category). A day with no
+    /// spend has no row.
+    pub fn daily_spending(&self, from_year: i32, from_month: u32, to_year: i32, to_month: u32) -> rusqlite::Result<Vec<DailySpendAmount>> {
+        let (range_start, _) = month_bounds(from_year, from_month);
+        let (_, range_end) = month_bounds(to_year, to_month);
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT date, amount FROM transactions
+             WHERE (category IS NULL OR category <> 'Transfer') AND date >= ?1 AND date < ?2
+                   AND id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
+                   AND id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND deleted_at IS NULL
+             UNION ALL
+             SELECT t.date, ts.amount FROM transaction_splits ts
+             JOIN transactions t ON t.id = ts.transaction_id
+             WHERE (ts.category IS NULL OR ts.category <> 'Transfer') AND t.date >= ?1 AND t.date < ?2
+                   AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+                   AND t.deleted_at IS NULL"
+        ))?;
+        let rows = stmt.query_map(params![range_start.to_string(), range_end.to_string()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+
+        let mut totals: std::collections::BTreeMap<String, Decimal> = std::collections::BTreeMap::new();
+        for row in rows {
+            let (date, amount) = row?;
+            let amount = Decimal::from_str(&amount).expect("amount stored by this crate must be valid");
+            if amount < Decimal::ZERO {
+                *totals.entry(date).or_insert(Decimal::ZERO) -= amount;
+            }
+        }
+        Ok(totals.into_iter().map(|(date, amount)| DailySpendAmount { date, amount }).collect())
     }
 
     /// The top `limit` merchants by total spend within
@@ -17671,6 +17721,91 @@ mod tests {
 
         assert_eq!(month_cell(&rows, "2026-08", "Groceries"), Some(dec("60.00")));
         assert_eq!(month_cell(&rows, "2026-08", "Household"), Some(dec("40.00")));
+    }
+
+    // ---- Phase 3 / 11: the Reports hub's daily-spend heatmap ----
+
+    fn day_cell(rows: &[DailySpendAmount], date: &str) -> Option<Decimal> {
+        rows.iter().find(|r| r.date == date).map(|r| r.amount)
+    }
+
+    #[test]
+    fn daily_spending_is_totaled_per_day_across_categories() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2026-07-05", "Kroger", "80.00", "Groceries");
+        spend_on(&store, account, "2026-07-05", "Cafe", "12.50", "Dining Out");
+        spend_on(&store, account, "2026-07-06", "Aldi", "40.00", "Groceries");
+
+        let rows = store.daily_spending(2026, 7, 2026, 7).unwrap();
+
+        assert_eq!(day_cell(&rows, "2026-07-05"), Some(dec("92.50")));
+        assert_eq!(day_cell(&rows, "2026-07-06"), Some(dec("40.00")));
+        assert_eq!(day_cell(&rows, "2026-07-07"), None, "a day with no spend has no row");
+    }
+
+    #[test]
+    fn daily_spending_stays_inside_the_range_including_across_a_year_end() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        spend_on(&store, account, "2025-11-30", "Too early", "10.00", "Groceries");
+        spend_on(&store, account, "2025-12-15", "In", "20.00", "Groceries");
+        spend_on(&store, account, "2026-01-31", "Also in", "30.00", "Groceries");
+        spend_on(&store, account, "2026-02-01", "Too late", "40.00", "Groceries");
+
+        let rows = store.daily_spending(2025, 12, 2026, 1).unwrap();
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(day_cell(&rows, "2025-12-15"), Some(dec("20.00")));
+        assert_eq!(day_cell(&rows, "2026-01-31"), Some(dec("30.00")));
+    }
+
+    #[test]
+    fn daily_spending_ignores_income_transfers_and_deleted_rows() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-01", "Paycheck", "2000.00"),
+                    tx("2026-08-02", "To Savings", "-500.00"),
+                    tx("2026-08-03", "Gone", "-15.00"),
+                    tx("2026-08-04", "Mystery", "-22.00"),
+                ],
+            )
+            .unwrap();
+        store
+            .set_category(id_of(&store, "To Savings", "2026-08-02"), "Transfer", CategorySource::User, None)
+            .unwrap();
+        store.delete_transaction(id_of(&store, "Gone", "2026-08-03"), test_now()).unwrap();
+
+        let rows = store.daily_spending(2026, 8, 2026, 8).unwrap();
+
+        assert_eq!(rows.len(), 1, "only the uncategorized spend is left: {rows:?}");
+        assert_eq!(day_cell(&rows, "2026-08-04"), Some(dec("22.00")));
+    }
+
+    #[test]
+    fn daily_spending_counts_a_split_purchase_through_its_lines() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store.save_transactions(account, &[tx("2026-08-05", "Costco", "-100.00")]).unwrap();
+        let costco = id_of(&store, "Costco", "2026-08-05");
+        store.set_category(costco, "Groceries", CategorySource::User, None).unwrap();
+        store
+            .set_transaction_splits(
+                costco,
+                &[
+                    ("Groceries".to_string(), dec("-60.00"), None),
+                    ("Household".to_string(), dec("-40.00"), None),
+                ],
+            )
+            .unwrap();
+
+        let rows = store.daily_spending(2026, 8, 2026, 8).unwrap();
+
+        assert_eq!(day_cell(&rows, "2026-08-05"), Some(dec("100.00")));
     }
 
     // ---- Phase 2 / 18: background bill reminders ----
