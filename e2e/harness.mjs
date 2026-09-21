@@ -95,7 +95,7 @@ async function connectWithRetries(options, { attempts = 20, delayMs = 100 } = {}
   throw lastErr;
 }
 
-export async function launchApp({ dbDir } = {}) {
+export async function launchApp({ dbDir, ready = ".brand-word" } = {}) {
   const ownDbDir = dbDir === undefined;
   const testDbDir = dbDir ?? freshTestDbDir();
   const PORT = await getFreePort();
@@ -145,32 +145,36 @@ export async function launchApp({ dbDir } = {}) {
     // TAURI_WEBVIEW_AUTOMATION, so every test must do this once up front.
     await browser.url("http://tauri.localhost/index.html");
     try {
-      await browser.$(".brand-word").waitForExist({ timeout: 15000 });
+      await browser.$(ready).waitForExist({ timeout: 15000 });
     } catch (waitErr) {
       const src = await browser.getPageSource().catch(() => "<getPageSource failed>");
-      throw new Error(`App loaded but never rendered .brand-word. Page source:\n${src}\n\n${waitErr.stack || waitErr}`);
+      throw new Error(`App loaded but never rendered ${ready}. Page source:\n${src}\n\n${waitErr.stack || waitErr}`);
     }
-    // Every fresh test DB (localStorage is per-webview-origin, not shared
-    // with a real install) hits the first-launch welcome dialog, which
-    // blocks clicks on everything behind its overlay — dismiss it here once
-    // so no individual spec needs to know about it.
-    const getStarted = await browser.$("button*=Just get started");
-    if (await getStarted.isExisting()) {
-      await getStarted.click();
-    }
-    // Immediately after Welcome, a fresh launch also always hits the
-    // "What's new" dialog — a fresh profile means no version has ever been
-    // "seen" yet, exactly like a true first install. Same blocking-overlay
-    // problem, same fix. Its version check is an async Tauri call (and
-    // only renders once Welcome is gone), so give it a moment rather than
-    // checking once immediately.
-    try {
-      const gotIt = await browser.$("button=Got it");
-      await gotIt.waitForExist({ timeout: 3000 });
-      await gotIt.click();
-    } catch {
-      // didn't show this run (e.g. no CHANGELOG entry for this version) —
-      // nothing to dismiss
+    // The welcome and "What's new" dialogs exist only inside the app itself. A spec that waits for
+    // something else (the launch error screen) never sees them.
+    if (ready === ".brand-word") {
+      // Every fresh test DB (localStorage is per-webview-origin, not shared
+      // with a real install) hits the first-launch welcome dialog, which
+      // blocks clicks on everything behind its overlay — dismiss it here once
+      // so no individual spec needs to know about it.
+      const getStarted = await browser.$("button*=Just get started");
+      if (await getStarted.isExisting()) {
+        await getStarted.click();
+      }
+      // Immediately after Welcome, a fresh launch also always hits the
+      // "What's new" dialog — a fresh profile means no version has ever been
+      // "seen" yet, exactly like a true first install. Same blocking-overlay
+      // problem, same fix. Its version check is an async Tauri call (and
+      // only renders once Welcome is gone), so give it a moment rather than
+      // checking once immediately.
+      try {
+        const gotIt = await browser.$("button=Got it");
+        await gotIt.waitForExist({ timeout: 3000 });
+        await gotIt.click();
+      } catch {
+        // didn't show this run (e.g. no CHANGELOG entry for this version) —
+        // nothing to dismiss
+      }
     }
   } catch (e) {
     driverProcess.kill();
