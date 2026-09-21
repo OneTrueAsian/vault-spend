@@ -2,6 +2,7 @@ mod background;
 mod backups;
 mod commands;
 mod config;
+mod device_settings;
 mod finnhub;
 mod legacy_migration;
 mod live_price_provider;
