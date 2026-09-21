@@ -7,4 +7,4 @@ edition = "2024"
 csv = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 rust_decimal = "1"
-rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+rusqlite = { version = "0.32", features = ["backup", "bundled-sqlcipher-vendored-openssl"] }
