@@ -4,7 +4,7 @@ use budget_core::importer;
 use budget_core::learner;
 use budget_core::models::AccountType;
 use budget_core::rules::RuleSet;
-use budget_core::store::{CategorySource, Store};
+use budget_core::store::{CategorySource, ImportCategoryChoice, Store};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -584,12 +584,46 @@ pub struct ImportRow {
     /// account if it doesn't exist yet) unless the user picks a different
     /// one for it on the review screen.
     pub account_name: Option<String>,
+    /// The row's own Category column, when the file has one (a bank's CSV export does) —
+    /// what the file calls it, not necessarily a category the person has.
+    pub category: Option<String>,
 }
 
 #[derive(Serialize)]
 pub struct ImportPreview {
     pub rows: Vec<ImportRow>,
     pub row_errors: usize,
+    /// Category names the file uses that the person doesn't have. Nothing is created for
+    /// these unless the review screen sends back a `Create` choice for them.
+    pub unmatched_categories: Vec<UnmatchedCategoryDto>,
+}
+
+#[derive(Serialize)]
+pub struct UnmatchedCategoryDto {
+    pub name: String,
+    pub count: usize,
+}
+
+/// What the review screen decided for one unmatched file category (see `commit_import`).
+#[derive(Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
+pub enum CategoryChoiceDto {
+    /// File the rows under this existing category.
+    MapTo { category: String },
+    /// Add the file's category to the person's list.
+    Create,
+    /// Import the rows without a category.
+    Skip,
+}
+
+impl From<CategoryChoiceDto> for ImportCategoryChoice {
+    fn from(choice: CategoryChoiceDto) -> Self {
+        match choice {
+            CategoryChoiceDto::MapTo { category } => ImportCategoryChoice::MapTo(category),
+            CategoryChoiceDto::Create => ImportCategoryChoice::Create,
+            CategoryChoiceDto::Skip => ImportCategoryChoice::Skip,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -712,11 +746,15 @@ fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
             continue;
         }
         if let Some((category, source, confidence)) = categorizer::categorize(&stored.transaction.description, &state.rules, Some(&classifier)) {
-            state
+            // A guess is only ever filed under a category the person already has — it must
+            // not add one to their list.
+            let applied = state
                 .store
-                .set_category(stored.id, &category, source, confidence)
+                .set_category_if_registered(stored.id, &category, source, confidence)
                 .map_err(|e| e.to_string())?;
-            categorized_ids.push(stored.id);
+            if applied {
+                categorized_ids.push(stored.id);
+            }
         }
     }
     Ok(categorized_ids)
@@ -792,10 +830,23 @@ pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state
             amount: tx.amount.to_string(),
             is_duplicate: *is_duplicate,
             account_name: loaded.account_names.get(index).cloned().flatten(),
+            category: tx.category.as_deref().map(str::trim).filter(|c| !c.is_empty()).map(str::to_string),
         })
         .collect();
 
-    Ok(ImportPreview { rows, row_errors })
+    let unmatched_categories = state
+        .store
+        .unmatched_import_categories(&loaded.transactions)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|u| UnmatchedCategoryDto { name: u.name, count: u.count })
+        .collect();
+
+    Ok(ImportPreview {
+        rows,
+        row_errors,
+        unmatched_categories,
+    })
 }
 
 /// Inserts exactly the rows the user chose to keep on the review screen.
@@ -818,6 +869,7 @@ pub fn commit_import(
     default_account_id: i64,
     included_indices: Vec<usize>,
     account_overrides: std::collections::HashMap<usize, i64>,
+    category_choices: Option<std::collections::HashMap<String, CategoryChoiceDto>>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<ImportSummary, String> {
     let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
@@ -826,11 +878,33 @@ pub fn commit_import(
     let row_errors = loaded.errors.len();
 
     let included: std::collections::HashSet<usize> = included_indices.into_iter().collect();
+    let mut selected: Vec<(usize, budget_core::models::Transaction)> = loaded
+        .transactions
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| included.contains(index))
+        .collect();
+
+    // An import only lands in categories the person already has. A category the file brings
+    // that they don't have is mapped, created or skipped as the review screen chose (skipped
+    // when it wasn't asked about) — never adopted on its own. Settled for the rows being
+    // imported only, before anything is written, so a bad choice changes nothing.
+    let choices: std::collections::HashMap<String, ImportCategoryChoice> = category_choices
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, choice)| (name, choice.into()))
+        .collect();
+    let mut settled: Vec<budget_core::models::Transaction> = selected.iter().map(|(_, tx)| tx.clone()).collect();
+    state
+        .store
+        .reconcile_import_categories(&mut settled, &choices)
+        .map_err(|e| e.to_string())?;
+    for ((_, tx), settled) in selected.iter_mut().zip(settled) {
+        tx.category = settled.category;
+    }
+
     let mut by_account: std::collections::HashMap<i64, Vec<(budget_core::models::Transaction, Vec<String>)>> = std::collections::HashMap::new();
-    for (index, tx) in loaded.transactions.into_iter().enumerate() {
-        if !included.contains(&index) {
-            continue;
-        }
+    for (index, tx) in selected {
         let account_id = if let Some(explicit) = account_overrides.get(&index).copied() {
             explicit
         } else if let Some(name) = loaded.account_names.get(index).and_then(|o| o.as_deref()) {
@@ -4056,4 +4130,36 @@ pub fn check_monthly_rollover(state: tauri::State<AppStateHandle>) -> Result<Vec
             new_balance: new_balance.to_string(),
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The import review screen sends one choice per unfamiliar file category, keyed by the
+    // file's name for it. This is the exact shape the frontend (`CategoryChoice` in
+    // ImportCategoryReconcile.tsx) produces.
+    #[test]
+    fn the_review_screens_category_choices_are_read_as_sent() {
+        let sent = r#"{
+            "Dining": { "action": "map_to", "category": "Dining Out" },
+            "Pet Care": { "action": "create" },
+            "Merchandise": { "action": "skip" }
+        }"#;
+
+        let mut choices: std::collections::HashMap<String, CategoryChoiceDto> = serde_json::from_str(sent).unwrap();
+
+        assert_eq!(
+            ImportCategoryChoice::from(choices.remove("Dining").unwrap()),
+            ImportCategoryChoice::MapTo("Dining Out".to_string())
+        );
+        assert_eq!(ImportCategoryChoice::from(choices.remove("Pet Care").unwrap()), ImportCategoryChoice::Create);
+        assert_eq!(ImportCategoryChoice::from(choices.remove("Merchandise").unwrap()), ImportCategoryChoice::Skip);
+    }
+
+    #[test]
+    fn a_choice_with_an_unknown_action_is_refused_rather_than_guessed() {
+        let result: Result<std::collections::HashMap<String, CategoryChoiceDto>, _> = serde_json::from_str(r#"{"Dining": {"action": "adopt"}}"#);
+        assert!(result.is_err());
+    }
 }

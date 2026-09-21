@@ -683,9 +683,14 @@ const FAQ_ENTRIES: FaqEntry[] = [
         <strong>Settings → Categorization rules</strong>, where you can add,
         edit, or delete them; before a new rule is saved you'll see how many
         existing transactions it would change and can apply it to them right
-        there. A rule never overrides a category you set yourself. After you
-        fix one transaction's category, you'll be offered to apply the rule
-        to other identical transactions too.
+        there. The list scrolls inside its own box and can be sorted by any
+        column and narrowed by text or by category. A rule never overrides a
+        category you set yourself. After you fix one transaction's category,
+        you'll be offered to apply the rule to other identical transactions
+        too. Importing a file that has its own Category column never adds
+        categories on its own: any name you don't already have is listed on
+        the review screen, where you can use one of your own categories for
+        it, add it as a new one, or not use it.
       </p>
     ),
   },

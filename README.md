@@ -182,6 +182,11 @@ From the **Ledger** tab, click **"Import transactions…"**:
    look like duplicates of something already in your ledger are
    unchecked by default (see the FAQ on duplicates) — check or uncheck
    any row, or override which account a specific row should land in.
+   If the file has its own Category column (a bank's CSV export does),
+   any category in it that you don't already have is listed above the
+   rows: for each one, use one of your own categories, add it as a new
+   category, or don't use it. Vault Spend never adds a category from a
+   file on its own.
 5. Confirm the import. Each new transaction is auto-categorized where
    possible; anything it can't confidently place is left Uncategorized
    for you to set yourself.
@@ -452,7 +457,10 @@ Settings → Categorization rules lists every rule (the built-in starters and
 the ones learned from your corrections), with how many transactions each
 touches. Add, edit, or delete them there; before a rule is saved you'll see
 how many existing transactions it would change and can apply it to them in
-the same step. A rule never overrides a category you set yourself.
+the same step. A rule never overrides a category you set yourself. The list
+scrolls inside its own box, so it never makes the page longer however many
+rules build up; click a heading to sort by it, and narrow the list by text
+or by category.
 
 **Can I exclude a debt from the payoff planner?**
 Yes — uncheck "Include" on that debt's row. It's meant for something like

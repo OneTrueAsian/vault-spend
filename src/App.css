@@ -5031,6 +5031,137 @@ button:disabled {
   font-size: 13.5px;
 }
 
+/* The import review's "categories in this file aren't in your list" panel: one row per
+   unfamiliar category, each with its own choice, so nothing is added to the list unasked. */
+.import-category-reconcile {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.import-category-reconcile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.import-category-reconcile-all {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.import-category-reconcile .modal-message-secondary {
+  margin: 6px 0 10px 0;
+}
+
+.import-category-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* minmax(0, …) lets a long category name wrap instead of stretching the column past the card */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.import-category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.import-category-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.import-category-file-name {
+  font-weight: 600;
+}
+
+.import-category-row select {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 320px;
+}
+
+/* Settings > Categorization rules. The list only ever grows (every merchant correction adds a
+   rule), so it scrolls inside its own region instead of lengthening the page, keeps its column
+   headings in view, and uses tighter rows than the ledger tables. */
+.rules-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.rules-controls .help-search {
+  flex: 1 1 220px;
+  margin: 0;
+}
+
+.rules-controls select {
+  max-width: 100%;
+}
+
+.rules-count {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.rules-scroll {
+  max-height: min(440px, 60vh);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.rules-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rules-table {
+  border: 0;
+  border-radius: 0;
+  /* `.ledger` clips its corners with overflow: hidden, which would make the table (not the
+     scrolling region around it) the thing the sticky headings stick inside. */
+  overflow: visible;
+}
+
+.rules-table th,
+.rules-table td {
+  padding: 6px 12px;
+}
+
+.rules-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* opaque even in the Transparent style, so rows scrolling underneath don't show through */
+  background: var(--status-base);
+  box-shadow: 0 1px 0 var(--border);
+}
+
+.rules-table .modal-secondary,
+.rules-table .btn-danger {
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+
 .dup-review-table-scroll {
   max-height: 50vh;
   overflow-y: auto;

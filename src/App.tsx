@@ -31,6 +31,7 @@ import { TransferRow } from "./TransferRow";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
 import { SortableTh } from "./SortableTh";
+import { ImportCategoryReconcile, defaultCategoryChoices, type CategoryChoice, type UnmatchedCategory } from "./ImportCategoryReconcile";
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
 import type { PaletteEntry } from "./paletteSearch";
@@ -134,11 +135,17 @@ type ImportRow = {
    * default (creating that account if none matches by name) unless the
    * row's dropdown is changed. */
   account_name: string | null;
+  /** The row's own Category column, when the file has one — the file's name for it, which
+   * may not be a category the person has (see `unmatched_categories`). */
+  category: string | null;
 };
 
 type ImportPreview = {
   rows: ImportRow[];
   row_errors: number;
+  /** Category names the file uses that the person doesn't have. Nothing is added for these
+   * unless the review screen sends back a "create" choice. */
+  unmatched_categories: UnmatchedCategory[];
 };
 
 type PendingImport = {
@@ -959,6 +966,10 @@ function App({
   } | null>(null);
   const [includedIndices, setIncludedIndices] = useState<Set<number>>(new Set());
   const [accountOverrides, setAccountOverrides] = useState<Map<number, number>>(new Map());
+  // What to do with each category the file uses that the person doesn't have (see
+  // ImportCategoryReconcile). Every one starts as "don't use it", so an import that
+  // isn't reviewed closely adds nothing to their category list.
+  const [importCategoryChoices, setImportCategoryChoices] = useState<Record<string, CategoryChoice>>({});
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
   const [manageFamilyMembersOpen, setManageFamilyMembersOpen] = useState(false);
   const [newTransactionOpen, setNewTransactionOpen] = useState(false);
@@ -2667,6 +2678,7 @@ function App({
         }
       }
       setAccountOverrides(seededOverrides);
+      setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories));
       setPendingImport({ path, invertAmounts, defaultAccountId: accountId, preview });
       setStatus("");
     } catch (e) {
@@ -2721,6 +2733,7 @@ function App({
         defaultAccountId: pendingImport.defaultAccountId,
         includedIndices: Array.from(includedIndices),
         accountOverrides: Object.fromEntries(accountOverrides),
+        categoryChoices: importCategoryChoices,
       });
       await refresh();
       if (summary.inserted_ids.length > 0) setInboxRequest(new Set(summary.inserted_ids));
@@ -2737,6 +2750,7 @@ function App({
     } finally {
       setBusy(false);
       setPendingImport(null);
+      setImportCategoryChoices({});
     }
   }
 
@@ -2744,6 +2758,7 @@ function App({
     setPendingImport(null);
     setIncludedIndices(new Set());
     setAccountOverrides(new Map());
+    setImportCategoryChoices({});
     setStatus("Import cancelled.", "info");
   }
 
@@ -3774,6 +3789,17 @@ function App({
             . Uncheck any you don't want to import, and fix the account for any row that doesn't belong to{" "}
             {accounts.find((a) => a.id === pendingImport.defaultAccountId)?.name ?? "the selected account"}.
           </p>
+          <ImportCategoryReconcile
+            unmatched={pendingImport.preview.unmatched_categories}
+            categories={categoryOptions}
+            choices={importCategoryChoices}
+            onChange={(name, choice) => setImportCategoryChoices((prev) => ({ ...prev, [name]: choice }))}
+            onSetAll={(action) =>
+              setImportCategoryChoices(
+                Object.fromEntries(pendingImport.preview.unmatched_categories.map((u) => [u.name, { action } as CategoryChoice])),
+              )
+            }
+          />
           <div className="dup-review-table-scroll">
             <table className="dup-review-table">
               <thead>

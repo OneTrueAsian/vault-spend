@@ -191,6 +191,50 @@ pub struct StoredCategory {
     pub icon_key: Option<String>,
 }
 
+/// What to do with a category name that came in on an import file but isn't one of
+/// the person's own categories. Nothing is ever created unless they pick `Create`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportCategoryChoice {
+    /// Use one of the person's existing categories instead.
+    MapTo(String),
+    /// Add the file's category to their list.
+    Create,
+    /// Import those rows without a category (the categorizer may still fill one in).
+    Skip,
+}
+
+/// A category name an import file uses that the person doesn't have, with how many
+/// rows use it — see `Store::unmatched_import_categories`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnmatchedImportCategory {
+    pub name: String,
+    pub count: usize,
+}
+
+#[derive(Debug)]
+pub enum ImportCategoryError {
+    /// A choice mapped a file category to a category that doesn't exist.
+    UnknownCategory(String),
+    Db(rusqlite::Error),
+}
+
+impl std::fmt::Display for ImportCategoryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ImportCategoryError::UnknownCategory(name) => write!(f, "There's no category called \"{name}\" to move those rows into."),
+            ImportCategoryError::Db(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for ImportCategoryError {}
+
+impl From<rusqlite::Error> for ImportCategoryError {
+    fn from(e: rusqlite::Error) -> Self {
+        ImportCategoryError::Db(e)
+    }
+}
+
 /// SQL yielding the id of every transaction that is a leg of a *linked
 /// transfer* (see `Store::link_transfer`) whose two legs are both still live.
 ///
@@ -3802,6 +3846,101 @@ impl Store {
         if let Some(icon_key) = icon_key {
             self.conn
                 .execute("UPDATE categories SET icon_key = ?1 WHERE name = ?2", params![icon_key, name])?;
+        }
+        Ok(())
+    }
+
+    /// The stored spelling of the category `name` refers to — matched ignoring case and
+    /// surrounding spaces — or `None` when the person has no such category. Never creates one.
+    pub fn find_category(&self, name: &str) -> rusqlite::Result<Option<String>> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Ok(None);
+        }
+        match self
+            .conn
+            .query_row("SELECT name FROM categories WHERE name = ?1", params![name], |row| row.get::<_, String>(0))
+        {
+            Ok(found) => Ok(Some(found)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// `set_category` for a *guess* (a rule or the classifier): applies the category only when
+    /// the person already has it, using their spelling, and returns whether it did. A guess
+    /// must never add a category to their list — `set_category` (a person typing a new name
+    /// for a transaction) is the one that may.
+    pub fn set_category_if_registered(&self, id: i64, category: &str, source: CategorySource, confidence: Option<f64>) -> rusqlite::Result<bool> {
+        let Some(existing) = self.find_category(category)? else {
+            return Ok(false);
+        };
+        self.conn.execute(
+            "UPDATE transactions SET category = ?1, category_source = ?2, confidence = ?3 WHERE id = ?4",
+            params![existing, source.as_str(), confidence, id],
+        )?;
+        Ok(true)
+    }
+
+    /// The category names in an import file that the person doesn't have — one entry per name
+    /// however it is cased (the file's first spelling), with the number of rows using it, the
+    /// most-used first. Names that match one of their categories, and rows with no category,
+    /// are left out. A pure read.
+    pub fn unmatched_import_categories(&self, txns: &[Transaction]) -> rusqlite::Result<Vec<UnmatchedImportCategory>> {
+        let mut seen: Vec<UnmatchedImportCategory> = Vec::new();
+        for tx in txns {
+            let Some(name) = tx.category.as_deref().map(str::trim).filter(|n| !n.is_empty()) else {
+                continue;
+            };
+            if self.find_category(name)?.is_some() {
+                continue;
+            }
+            match seen.iter_mut().find(|u| u.name.eq_ignore_ascii_case(name)) {
+                Some(existing) => existing.count += 1,
+                None => seen.push(UnmatchedImportCategory { name: name.to_string(), count: 1 }),
+            }
+        }
+        seen.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+        Ok(seen)
+    }
+
+    /// Settles every row's file-supplied category before the rows are saved, so an import only
+    /// ever lands in categories the person has. A category that matches one of theirs (any
+    /// casing) takes their spelling; one they don't have follows `choices` (keyed by the file's
+    /// name, any casing): `MapTo` an existing category, `Create` it (the only way an import adds
+    /// a category), or `Skip` — and a name with no choice is skipped too, never adopted. A
+    /// `MapTo` that names a category that doesn't exist is refused before anything is changed.
+    pub fn reconcile_import_categories(
+        &self,
+        txns: &mut [Transaction],
+        choices: &std::collections::HashMap<String, ImportCategoryChoice>,
+    ) -> Result<(), ImportCategoryError> {
+        for choice in choices.values() {
+            if let ImportCategoryChoice::MapTo(target) = choice {
+                if self.find_category(target)?.is_none() {
+                    return Err(ImportCategoryError::UnknownCategory(target.trim().to_string()));
+                }
+            }
+        }
+        for tx in txns.iter_mut() {
+            let Some(name) = tx.category.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(str::to_string) else {
+                tx.category = None;
+                continue;
+            };
+            if let Some(existing) = self.find_category(&name)? {
+                tx.category = Some(existing);
+                continue;
+            }
+            let choice = choices.iter().find(|(key, _)| key.trim().eq_ignore_ascii_case(&name));
+            tx.category = match choice {
+                Some((_, ImportCategoryChoice::MapTo(target))) => self.find_category(target)?,
+                Some((key, ImportCategoryChoice::Create)) => {
+                    let spelling = key.trim();
+                    self.create_category(spelling, None)?;
+                    self.find_category(spelling)?
+                }
+                Some((_, ImportCategoryChoice::Skip)) | None => None,
+            };
         }
         Ok(())
     }
@@ -9137,11 +9276,12 @@ mod tests {
 
     #[test]
     fn a_transactions_own_category_column_is_registered_immediately_on_import() {
-        // Simulates a file import: the bank's own "Category" column (e.g.
-        // Capital One's CSV export) lands straight on the transaction via
-        // `save_transactions`, the same insert path `commit_import` uses,
-        // never going through `set_category`/`create_category` directly —
-        // this must still make it selectable right away, no restart needed.
+        // The low-level insert: a category on a transaction handed to
+        // `save_transactions` lands on the row and is registered right away, no
+        // restart needed. This is NOT what stops an import adopting a bank's own
+        // "Category" column ("Merchandise", ...) — `commit_import` settles those with
+        // `reconcile_import_categories` first, so only categories the person has (or
+        // chose to add) ever reach this insert.
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         let mut imported = tx("2026-09-02", "HOMEDEPOT.COM", "-1056.37");
@@ -9216,6 +9356,154 @@ mod tests {
         drop(reopened);
 
         std::fs::remove_file(&db_path).unwrap();
+    }
+
+    // ---- reconciling an import's own categories (1.2.8) ----
+    //
+    // A bank CSV's "Category" column ("Merchandise", "Gas/Automotive", ...) used to be
+    // adopted wholesale: every name in the file was registered as a new category.
+    // An import must now use the categories the person already has; a name they
+    // don't have is mapped, created, or skipped only when they say so.
+
+    fn tx_in(category: &str, description: &str) -> Transaction {
+        let mut t = tx("2026-09-02", description, "-10.00");
+        t.category = Some(category.to_string());
+        t
+    }
+
+    fn choices(pairs: &[(&str, ImportCategoryChoice)]) -> std::collections::HashMap<String, ImportCategoryChoice> {
+        pairs.iter().map(|(name, choice)| (name.to_string(), choice.clone())).collect()
+    }
+
+    #[test]
+    fn find_category_matches_any_casing_and_returns_the_stored_spelling() {
+        let store = Store::open_in_memory().unwrap();
+
+        assert_eq!(store.find_category("groceries").unwrap(), Some("Groceries".to_string()));
+        assert_eq!(store.find_category("  GROCERIES ").unwrap(), Some("Groceries".to_string()));
+        assert_eq!(store.find_category("Merchandise").unwrap(), None);
+        assert_eq!(store.find_category("   ").unwrap(), None);
+    }
+
+    #[test]
+    fn unmatched_import_categories_lists_only_names_the_person_does_not_have() {
+        let store = Store::open_in_memory().unwrap();
+        let rows = vec![
+            tx_in("Groceries", "exists"),
+            tx_in("groceries", "exists, other casing"),
+            tx_in("Gas/Automotive", "unknown"),
+            tx_in("Merchandise", "unknown"),
+            tx_in("merchandise", "same unknown name, other casing"),
+            tx("2026-09-02", "no category column value", "-1.00"),
+            tx_in("   ", "blank"),
+        ];
+
+        let unmatched = store.unmatched_import_categories(&rows).unwrap();
+
+        assert_eq!(
+            unmatched,
+            vec![
+                UnmatchedImportCategory { name: "Merchandise".to_string(), count: 2 },
+                UnmatchedImportCategory { name: "Gas/Automotive".to_string(), count: 1 },
+            ],
+            "biggest first, the file's own spelling, one entry per name however it is cased"
+        );
+    }
+
+    #[test]
+    fn reconciling_an_import_never_creates_a_category_on_its_own() {
+        let store = Store::open_in_memory().unwrap();
+        let before = store.list_categories().unwrap();
+        let mut rows = vec![tx_in("Merchandise", "HOMEDEPOT.COM")];
+
+        store.reconcile_import_categories(&mut rows, &choices(&[])).unwrap();
+
+        assert_eq!(rows[0].category, None, "a category the person doesn't have is left off, not adopted");
+        assert_eq!(store.list_categories().unwrap(), before, "and nothing was added to their list");
+    }
+
+    #[test]
+    fn a_file_category_that_matches_an_existing_one_uses_the_existing_spelling() {
+        let store = Store::open_in_memory().unwrap();
+        let mut rows = vec![tx_in("GROCERIES", "a"), tx_in("groceries", "b")];
+
+        store.reconcile_import_categories(&mut rows, &choices(&[])).unwrap();
+
+        assert_eq!(rows[0].category.as_deref(), Some("Groceries"));
+        assert_eq!(rows[1].category.as_deref(), Some("Groceries"));
+        assert_eq!(store.list_categories().unwrap().iter().filter(|c| c.eq_ignore_ascii_case("groceries")).count(), 1);
+    }
+
+    #[test]
+    fn mapping_a_file_category_to_an_existing_one_creates_nothing() {
+        let store = Store::open_in_memory().unwrap();
+        let before = store.list_categories().unwrap();
+        let mut rows = vec![tx_in("Dining", "a"), tx_in("dining", "b")];
+
+        store
+            .reconcile_import_categories(&mut rows, &choices(&[("Dining", ImportCategoryChoice::MapTo("Dining Out".to_string()))]))
+            .unwrap();
+
+        assert_eq!(rows[0].category.as_deref(), Some("Dining Out"));
+        assert_eq!(rows[1].category.as_deref(), Some("Dining Out"), "the choice covers every casing of the name");
+        assert_eq!(store.list_categories().unwrap(), before);
+    }
+
+    #[test]
+    fn skipping_a_file_category_imports_the_rows_without_one() {
+        let store = Store::open_in_memory().unwrap();
+        let before = store.list_categories().unwrap();
+        let mut rows = vec![tx_in("Merchandise", "a")];
+
+        store
+            .reconcile_import_categories(&mut rows, &choices(&[("Merchandise", ImportCategoryChoice::Skip)]))
+            .unwrap();
+
+        assert_eq!(rows[0].category, None);
+        assert_eq!(store.list_categories().unwrap(), before);
+    }
+
+    #[test]
+    fn creating_a_file_category_adds_it_once_with_the_files_spelling() {
+        let store = Store::open_in_memory().unwrap();
+        let mut rows = vec![tx_in("Pet Care", "a"), tx_in("pet care", "b")];
+
+        store
+            .reconcile_import_categories(&mut rows, &choices(&[("Pet Care", ImportCategoryChoice::Create)]))
+            .unwrap();
+
+        assert_eq!(rows[0].category.as_deref(), Some("Pet Care"));
+        assert_eq!(rows[1].category.as_deref(), Some("Pet Care"));
+        assert_eq!(store.list_categories().unwrap().iter().filter(|c| c.eq_ignore_ascii_case("pet care")).count(), 1);
+    }
+
+    #[test]
+    fn mapping_to_a_category_that_does_not_exist_is_refused_and_changes_nothing() {
+        let store = Store::open_in_memory().unwrap();
+        let before = store.list_categories().unwrap();
+        let mut rows = vec![tx_in("Dining", "a")];
+
+        let result = store.reconcile_import_categories(&mut rows, &choices(&[("Dining", ImportCategoryChoice::MapTo("Nope".to_string()))]));
+
+        assert!(result.is_err(), "a mapping can only point at a category that already exists");
+        assert_eq!(store.list_categories().unwrap(), before);
+    }
+
+    #[test]
+    fn set_category_if_registered_only_uses_categories_the_person_has() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let ids = store.save_transactions_with_ids(account, &[tx("2026-09-02", "STARBUCKS", "-4.50")]).unwrap();
+        let before = store.list_categories().unwrap();
+
+        let applied = store.set_category_if_registered(ids[0], "Coffee Runs", CategorySource::Rule, None).unwrap();
+        assert!(!applied, "an automatic guess must not invent a category");
+        assert_eq!(store.list_categories().unwrap(), before);
+        assert_eq!(store.all_transactions().unwrap()[0].transaction.category, None);
+
+        let applied = store.set_category_if_registered(ids[0], "dining out", CategorySource::Rule, None).unwrap();
+        assert!(applied);
+        assert_eq!(store.all_transactions().unwrap()[0].transaction.category.as_deref(), Some("Dining Out"));
     }
 
     #[test]

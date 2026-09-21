@@ -108,7 +108,6 @@ try {
   await row.waitForExist({ timeout: 10000 });
   await (await row.$("button=Delete")).click();
   await (await row.$("button=Delete")).click(); // the confirm button
-  await browser.waitUntil(async () => !(await card2.getText()).includes("Income\n"), { timeout: 10000 });
   await browser.waitUntil(async () => (await card2.$$("//tr[td[normalize-space()='payroll']]")).length === 0, {
     timeout: 10000,
     timeoutMsg: "the payroll rule should be gone",
