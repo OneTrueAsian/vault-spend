@@ -2,6 +2,7 @@
 //! key file. Pure library code with no Tauri or UI dependency. Design: plan v2 sections
 //! 4.1 and 4.3.
 pub mod kdf;
+pub mod keyfile;
 pub mod recovery;
 pub mod wrap;
 
