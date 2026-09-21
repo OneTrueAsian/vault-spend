@@ -9,6 +9,7 @@ import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
 import { toCsv } from "./csv";
 import { buildSetupTemplate } from "./setupTemplate";
 import { CHANGELOG } from "./changelog";
+import { THEME_STORAGE_KEY, THEME_STYLE_STORAGE_KEY } from "./themeBootstrap";
 import {
   AddWidgetDialog,
   CategoryTransactionsDialog,
@@ -283,8 +284,6 @@ const PINNED_NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
   { id: "help", label: "Help", icon: "help" },
 ];
 
-const THEME_STORAGE_KEY = "meadow-theme";
-const THEME_STYLE_STORAGE_KEY = "meadow-theme-style";
 const NAV_ORDER_STORAGE_KEY = "meadow-nav-order";
 const SAVED_FILTERS_STORAGE_KEY = "meadow-saved-ledger-filters";
 // Per-viewer, like the theme: how tall Transactions rows are. Compact is the
