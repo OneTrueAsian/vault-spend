@@ -320,6 +320,40 @@ export type PortfolioPoint = {
   value: string;
 };
 
+/** One calendar month of money in and out of an investment account —
+ * `Store::account_contributions`. */
+export type ContributionMonth = {
+  /** "YYYY-MM". */
+  month: string;
+  money_in: string;
+  /** A positive figure: the size of what left. */
+  money_out: string;
+};
+
+/** An investment account's saved projection assumptions — `Store::get_investment_plan`. */
+export type InvestmentPlan = {
+  /** `null` = use the recent average. */
+  monthly_contribution: string | null;
+  /** A percentage, "0"-"100". */
+  annual_return_pct: string;
+  /** "YYYY-MM", or `null` when none is set. */
+  withdraw_month: string | null;
+  withdraw_years: number | null;
+};
+
+/** What went into an investment account and how it is planned to grow — the
+ * `investment_accumulation` / `list_investment_accumulation` commands. */
+export type InvestmentAccumulation = {
+  account_id: number;
+  months: ContributionMonth[];
+  total_in: string;
+  total_out: string;
+  net: string;
+  first_deposit: string | null;
+  deposit_count: number;
+  plan: InvestmentPlan;
+};
+
 /** The share of the portfolio wanted in an asset class. */
 export type AllocationTarget = {
   asset_class: string;

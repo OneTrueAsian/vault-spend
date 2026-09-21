@@ -2855,6 +2855,158 @@ pub fn record_portfolio_snapshot(state: tauri::State<AppStateHandle>) -> Result<
 }
 
 #[derive(Serialize)]
+pub struct ContributionMonthDto {
+    pub month: String,
+    pub money_in: String,
+    pub money_out: String,
+}
+
+/// One investment account's saved projection assumptions. `withdraw_month` is
+/// `"YYYY-MM"` (what a month picker sends and shows).
+#[derive(Serialize)]
+pub struct InvestmentPlanDto {
+    pub monthly_contribution: Option<String>,
+    pub annual_return_pct: String,
+    pub withdraw_month: Option<String>,
+    pub withdraw_years: Option<u32>,
+}
+
+/// Everything the accumulation view needs about one investment account except
+/// its current value (which the account list already carries) and its value
+/// history (its own command): what went in and out by month, and the plan.
+#[derive(Serialize)]
+pub struct InvestmentAccumulationDto {
+    pub account_id: i64,
+    pub months: Vec<ContributionMonthDto>,
+    pub total_in: String,
+    pub total_out: String,
+    pub net: String,
+    pub first_deposit: Option<String>,
+    pub deposit_count: usize,
+    pub plan: InvestmentPlanDto,
+}
+
+fn accumulation_dto(store: &Store, account_id: i64, today: chrono::NaiveDate) -> Result<InvestmentAccumulationDto, String> {
+    let contributions = store.account_contributions(account_id, today).map_err(|e| e.to_string())?;
+    let plan = store.get_investment_plan(account_id).map_err(|e| e.to_string())?;
+    Ok(InvestmentAccumulationDto {
+        account_id,
+        months: contributions
+            .months
+            .into_iter()
+            .map(|m| ContributionMonthDto {
+                month: m.month,
+                money_in: m.money_in.to_string(),
+                money_out: m.money_out.to_string(),
+            })
+            .collect(),
+        total_in: contributions.total_in.to_string(),
+        total_out: contributions.total_out.to_string(),
+        net: contributions.net.to_string(),
+        first_deposit: contributions.first_deposit.map(|d| d.to_string()),
+        deposit_count: contributions.deposit_count,
+        plan: InvestmentPlanDto {
+            monthly_contribution: plan.monthly_contribution.map(|m| m.to_string()),
+            annual_return_pct: plan.annual_return_pct.to_string(),
+            withdraw_month: plan.withdraw_month.map(|d| d.format("%Y-%m").to_string()),
+            withdraw_years: plan.withdraw_years,
+        },
+    })
+}
+
+/// One investment account's contributions and saved plan — see
+/// `Store::account_contributions` and `Store::get_investment_plan`.
+#[tauri::command]
+pub fn investment_accumulation(account_id: i64, state: tauri::State<AppStateHandle>) -> Result<InvestmentAccumulationDto, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    accumulation_dto(&state.store, account_id, chrono::Local::now().date_naive())
+}
+
+/// The same for every investment account (alphabetical), for the Investments
+/// tab's summary table.
+#[tauri::command]
+pub fn list_investment_accumulation(state: tauri::State<AppStateHandle>) -> Result<Vec<InvestmentAccumulationDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let today = chrono::Local::now().date_naive();
+    let accounts = state.store.list_accounts(today).map_err(|e| e.to_string())?;
+    accounts
+        .into_iter()
+        .filter(|a| a.account.account_type == AccountType::Investment)
+        .map(|a| accumulation_dto(&state.store, a.id, today))
+        .collect()
+}
+
+/// One investment account's recorded values over time — real daily snapshots
+/// only, see `Store::account_value_history`.
+#[tauri::command]
+pub fn account_value_history(account_id: i64, state: tauri::State<AppStateHandle>) -> Result<Vec<PortfolioPointDto>, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let history = state.store.account_value_history(account_id).map_err(|e| e.to_string())?;
+    Ok(history
+        .into_iter()
+        .map(|(date, value)| PortfolioPointDto {
+            date: date.to_string(),
+            value: value.to_string(),
+        })
+        .collect())
+}
+
+/// Saves one investment account's projection assumptions. A blank monthly
+/// amount means "use the recent average"; a blank withdraw month or years
+/// clears it. An inflation, when given, is saved in the same step (the shared
+/// "today's dollars" setting): both are saved or neither is. Anything the store
+/// refuses comes back as its message and saves nothing.
+#[tauri::command]
+pub fn set_investment_plan(
+    account_id: i64,
+    monthly_contribution: Option<String>,
+    annual_return_pct: String,
+    withdraw_month: Option<String>,
+    withdraw_years: Option<u32>,
+    inflation_pct: Option<String>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let monthly_contribution = match monthly_contribution.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(s) => Some(s.parse::<Decimal>().map_err(|_| "The monthly amount has to be a number.".to_string())?),
+        None => None,
+    };
+    let annual_return_pct = annual_return_pct
+        .trim()
+        .parse::<Decimal>()
+        .map_err(|_| "The assumed return has to be a number.".to_string())?;
+    let withdraw_month = match withdraw_month.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(s) => Some(
+            chrono::NaiveDate::parse_from_str(&format!("{s}-01"), "%Y-%m-%d")
+                .map_err(|_| "Pick the withdraw month as a month and year.".to_string())?,
+        ),
+        None => None,
+    };
+    let inflation_pct = match inflation_pct.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(s) => Some(s.parse::<Decimal>().map_err(|_| "Inflation has to be a number.".to_string())?),
+        None => None,
+    };
+    let plan = budget_core::store::InvestmentPlan {
+        monthly_contribution,
+        annual_return_pct,
+        withdraw_month,
+        withdraw_years,
+    };
+    state
+        .store
+        .set_investment_plan_with_inflation(account_id, &plan, inflation_pct, chrono::Local::now().date_naive())
+        .map_err(|e| e.to_string())
+}
+
+/// The inflation percentage behind "today's dollars" (3 until edited).
+#[tauri::command]
+pub fn get_inflation_pct(state: tauri::State<AppStateHandle>) -> Result<String, String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.get_inflation_pct().map(|d| d.to_string()).map_err(|e| e.to_string())
+}
+
+
+#[derive(Serialize)]
 pub struct AllocationTargetDto {
     pub asset_class: String,
     pub percent: String,

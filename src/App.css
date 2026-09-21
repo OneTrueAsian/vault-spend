@@ -1471,6 +1471,9 @@ button:disabled {
   line-height: 1.6;
   margin: 0;
 }
+.help-faq-entry p + p {
+  margin-top: 8px;
+}
 
 .tour-list {
   list-style: none;
@@ -3419,6 +3422,39 @@ button:disabled {
 .sortable-col:hover {
   color: inherit;
   background: var(--surface-2);
+}
+/* A sortable heading's label is a real button (keyboard reach + aria-sort), drawn as the plain heading
+   text it replaces: the global `button` look (accent fill, padding, pill radius in Transparent) is undone,
+   including on hover. */
+.sort-button,
+.sort-button:hover,
+.sort-button:active {
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.sort-button {
+  display: inline-block;
+  padding: 0;
+  border-radius: 4px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  text-align: inherit;
+  transition: none;
+}
+
+.sort-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* The series chart can be focused (its values are read with the arrow keys), so it shows where focus is. */
+[data-series-chart]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 .ledger-row-selected td {
@@ -5787,4 +5823,106 @@ button:disabled {
   height: 13px;
   border-radius: 3px;
   border: 1px solid var(--border);
+}
+
+/* ---- Accumulation & projection (investment Details page + Investments summary) ---- */
+.acc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.acc-toggle input {
+  width: auto;
+  margin: 0;
+}
+
+.acc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 8px;
+}
+
+.acc-error {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--negative);
+  border-radius: 8px;
+  background: var(--negative-soft);
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* A long deposit history scrolls inside its own frame instead of stretching the page. */
+.acc-months-scroll {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.acc-summary-row {
+  cursor: pointer;
+}
+
+.acc-summary-row:hover {
+  background: var(--surface-2);
+}
+
+/* The account's name in the summary table is the way in (the row is clickable too),
+   drawn as a link rather than a filled button. */
+.acc-name-link,
+.acc-name-link:hover {
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.acc-name-link {
+  padding: 0;
+  border-radius: 4px;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  white-space: normal;
+  justify-content: flex-start;
+}
+
+.acc-name-link:hover {
+  text-decoration: underline;
+}
+
+.acc-name-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Half-window: tighter cells first, then the Monthly column goes (each account's
+   Details page has it) so Projected never ends up off the edge of the frame. */
+@media (max-width: 1100px) {
+  .acc-summary-table th,
+  .acc-summary-table td {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .acc-summary-table td {
+    font-size: 12.5px;
+  }
+}
+
+@media (max-width: 900px) {
+  .acc-summary-table .acc-col-monthly {
+    display: none;
+  }
+}
+
+.acc-chart-title {
+  margin: 16px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
