@@ -30,7 +30,7 @@ struct ProfileEntry {
     icon_key: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Registry {
     profiles: Vec<ProfileEntry>,
 }
@@ -62,14 +62,46 @@ fn profiles_dir(config_path: &Path) -> PathBuf {
     config_path.parent().unwrap_or_else(|| Path::new(".")).join("profiles")
 }
 
+/// Why `profiles.json` could not be read, and whether an earlier good version (`.bak`) exists.
+#[derive(Debug)]
+#[allow(dead_code)] // read by the launch error screen in Phase B
+struct RegistryProblem {
+    reason: String,
+    backup_available: bool,
+}
+
+fn registry_backup_is_usable(registry_file: &Path) -> bool {
+    let backup = registry_file.with_file_name(format!("{REGISTRY_FILENAME}.bak"));
+    std::fs::read_to_string(backup).ok().and_then(|text| serde_json::from_str::<Registry>(&text).ok()).is_some()
+}
+
+/// `Ok(None)`: there is no registry (a normal state before a second profile exists).
+/// `Err`: there is one and it cannot be read. `read_registry` cannot tell these apart.
+fn read_registry_strict(config_path: &Path) -> Result<Option<Registry>, RegistryProblem> {
+    let path = registry_path(config_path);
+    let problem = |reason: String| RegistryProblem { reason, backup_available: registry_backup_is_usable(&path) };
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(problem(e.to_string())),
+    };
+    serde_json::from_str(&text).map(Some).map_err(|e| problem(e.to_string()))
+}
+
 fn read_registry(config_path: &Path) -> Option<Registry> {
-    let content = std::fs::read_to_string(registry_path(config_path)).ok()?;
-    serde_json::from_str(&content).ok()
+    read_registry_strict(config_path).ok().flatten()
 }
 
 fn write_registry(config_path: &Path, registry: &Registry) -> Result<(), String> {
     let json = serde_json::to_string_pretty(registry).expect("Registry always serializes");
-    std::fs::write(registry_path(config_path), json).map_err(|e| e.to_string())
+    let path = registry_path(config_path);
+    // Keep the previous version as `.bak`, but never copy a damaged file over a good backup.
+    let result = if read_registry_strict(config_path).is_ok() {
+        budget_core::fsutil::write_atomic_with_backup(&path, json.as_bytes())
+    } else {
+        budget_core::fsutil::write_atomic(&path, json.as_bytes())
+    };
+    result.map_err(|e| e.to_string())
 }
 
 fn default_entry(live_db_path: &Path) -> ProfileEntry {
@@ -736,5 +768,76 @@ mod tests {
             !registry_path(&config_path).exists(),
             "must never materialize the registry for the plain Default profile"
         );
+    }
+
+    fn bak_path(config_path: &Path) -> PathBuf {
+        registry_path(config_path).with_file_name("profiles.json.bak")
+    }
+
+    fn leftover_temp_files(dir: &Path) -> usize {
+        std::fs::read_dir(dir).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-")).count()
+    }
+
+    fn registry_of(dir: &Path, db_file: &str) -> Registry {
+        Registry { profiles: vec![default_entry(&dir.join(db_file))] }
+    }
+
+    #[test]
+    fn writing_the_registry_keeps_the_previous_version_as_bak_and_leaves_no_temp_file() {
+        let dir = temp_dir("registry-bak");
+        let config_path = dir.join("config.json");
+
+        write_registry(&config_path, &registry_of(&dir, "first.db")).unwrap();
+        assert!(!bak_path(&config_path).exists(), "nothing to back up on the first write");
+        write_registry(&config_path, &registry_of(&dir, "second.db")).unwrap();
+
+        let previous: Registry = serde_json::from_str(&std::fs::read_to_string(bak_path(&config_path)).unwrap()).unwrap();
+        assert!(previous.profiles[0].db_path.ends_with("first.db"));
+        let current = read_registry_strict(&config_path).unwrap().unwrap();
+        assert!(current.profiles[0].db_path.ends_with("second.db"));
+        assert_eq!(leftover_temp_files(&dir), 0);
+    }
+
+    #[test]
+    fn the_strict_reader_tells_a_missing_registry_from_a_damaged_one() {
+        let dir = temp_dir("registry-strict");
+        let config_path = dir.join("config.json");
+        assert!(read_registry_strict(&config_path).unwrap().is_none(), "no registry is not an error");
+
+        write_registry(&config_path, &registry_of(&dir, "a.db")).unwrap();
+        assert_eq!(read_registry_strict(&config_path).unwrap().unwrap().profiles.len(), 1);
+
+        std::fs::write(registry_path(&config_path), b"{ this is not json").unwrap();
+        let damaged = read_registry_strict(&config_path).unwrap_err();
+        assert!(!damaged.reason.is_empty());
+        assert!(!damaged.backup_available, "there is no earlier version yet");
+    }
+
+    #[test]
+    fn a_damaged_registry_reports_a_usable_backup_and_never_replaces_it() {
+        let dir = temp_dir("registry-damaged-bak");
+        let config_path = dir.join("config.json");
+        write_registry(&config_path, &registry_of(&dir, "one.db")).unwrap();
+        write_registry(&config_path, &registry_of(&dir, "two.db")).unwrap(); // .bak now holds one.db
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+        assert!(read_registry_strict(&config_path).unwrap_err().backup_available);
+
+        write_registry(&config_path, &registry_of(&dir, "three.db")).unwrap();
+
+        let backup: Registry = serde_json::from_str(&std::fs::read_to_string(bak_path(&config_path)).unwrap()).unwrap();
+        assert!(backup.profiles[0].db_path.ends_with("one.db"), "the good backup must survive a write over a damaged file");
+    }
+
+    #[test]
+    fn a_damaged_registry_still_lists_only_the_default_until_the_launch_error_screen_exists() {
+        // Characterization, not a wish: Phase B replaces this silent fallback with an error screen.
+        let dir = temp_dir("registry-lenient");
+        let config_path = dir.join("config.json");
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+
+        let profiles = list_profiles(&config_path, &dir.join("vaultspend.db"));
+
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].id, "default");
     }
 }

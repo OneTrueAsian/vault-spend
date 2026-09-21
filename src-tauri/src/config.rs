@@ -92,7 +92,7 @@ pub fn write_db_location_config(config_path: &Path, db_path: &Path) -> std::io::
         db_path: db_path.to_string_lossy().to_string(),
     };
     let json = serde_json::to_string_pretty(&config).expect("DbLocationConfig always serializes");
-    std::fs::write(config_path, json)
+    budget_core::fsutil::write_atomic(config_path, json.as_bytes())
 }
 
 #[cfg(test)]
@@ -138,5 +138,19 @@ mod tests {
         let resolved = resolve_db_path(&config_path, &default_dir);
 
         assert_eq!(resolved, default_dir.join("vaultspend.db"));
+    }
+
+    #[test]
+    fn rewriting_the_location_config_replaces_it_and_leaves_no_temporary_file() {
+        let dir = temp_dir("atomic-config");
+        let config_path = dir.join("config.json");
+
+        write_db_location_config(&config_path, &dir.join("one.db")).unwrap();
+        write_db_location_config(&config_path, &dir.join("two.db")).unwrap();
+
+        let text = std::fs::read_to_string(&config_path).unwrap();
+        assert!(text.contains("two.db") && !text.contains("one.db"));
+        let temp_files = std::fs::read_dir(&dir).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-")).count();
+        assert_eq!(temp_files, 0);
     }
 }
