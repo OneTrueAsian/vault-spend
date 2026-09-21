@@ -33,13 +33,36 @@ impl fmt::Display for StoreOpenError {
 
 impl std::error::Error for StoreOpenError {}
 
+fn hex(key: &[u8; 32]) -> String {
+    key.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// `PRAGMA key` with a raw 32-byte key in SQLCipher's `x'<hex>'` form. The hex of the key is the
 /// only thing ever formatted into the statement; a password never reaches SQL.
 pub(super) fn key_pragma(key: &[u8; 32]) -> String {
-    let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
-    format!("PRAGMA key = \"x'{hex}'\";")
+    format!("PRAGMA key = \"x'{}'\";", hex(key))
 }
 
+fn has_plain_header(path: &Path) -> std::io::Result<bool> {
+    use std::io::Read;
+    let mut header = [0u8; 16];
+    let read = std::fs::File::open(path)?.read(&mut header)?;
+    Ok(read == 16 && &header == b"SQLite format 3\0")
+}
+
+fn quote_path(path: &Path) -> String {
+    path.display().to_string().replace('\'', "''")
+}
+
+fn refuse_existing(dest: &Path) -> rusqlite::Result<()> {
+    if dest.exists() {
+        return Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
+            Some(format!("{} already exists; a copy never overwrites a file", dest.display())),
+        ));
+    }
+    Ok(())
+}
 impl Store {
     /// Opens an existing database, plaintext or encrypted, and runs the normal migrations only
     /// after the key has been proven right by a real read.
@@ -84,6 +107,85 @@ impl Store {
     }
 }
 
+impl Store {
+    /// A new encrypted file holding everything in this database, under `new_key`. Works from a
+    /// plaintext or an encrypted store, so it enables protection and re-keys. Never overwrites.
+    pub fn export_encrypted_copy(&self, dest: &Path, new_key: &[u8; 32]) -> rusqlite::Result<()> {
+        self.export_to(dest, &format!("\"x'{}'\"", hex(new_key)))
+    }
+
+    /// A new plaintext file holding everything in this database (used to remove protection).
+    pub fn export_plaintext_copy(&self, dest: &Path) -> rusqlite::Result<()> {
+        self.export_to(dest, "''")
+    }
+
+    fn export_to(&self, dest: &Path, key_clause: &str) -> rusqlite::Result<()> {
+        refuse_existing(dest)?;
+        // `sqlcipher_export` copies the tables and indexes but not `user_version`.
+        let user_version: i64 = self.conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        self.conn
+            .execute_batch(&format!("ATTACH DATABASE '{}' AS export_target KEY {key_clause};", quote_path(dest)))?;
+        let copied = self
+            .conn
+            .query_row("SELECT sqlcipher_export('export_target')", [], |_| Ok(()))
+            .and_then(|_| self.conn.execute_batch(&format!("PRAGMA export_target.user_version = {user_version};")));
+        let detached = self.conn.execute_batch("DETACH DATABASE export_target;");
+        if copied.is_err() {
+            let _ = std::fs::remove_file(dest); // never leave a half-written copy behind
+        }
+        copied.and(detached)
+    }
+
+    /// Read-only check that `dest` is a faithful copy of this database in the expected form:
+    /// right kind of file, healthy, same `user_version`, same tables, same row counts.
+    pub fn verify_copy(&self, dest: &Path, key: DatabaseKey<'_>) -> Result<(), String> {
+        let plain_header = has_plain_header(dest).map_err(|e| e.to_string())?;
+        match (&key, plain_header) {
+            (DatabaseKey::Plaintext, false) => return Err("the copy is not a plaintext database".to_string()),
+            (DatabaseKey::Raw(_), true) => return Err("the encrypted copy has a plaintext header".to_string()),
+            _ => {}
+        }
+        let sql = |e: rusqlite::Error| e.to_string();
+        let copy = rusqlite::Connection::open_with_flags(dest, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(sql)?;
+        if let DatabaseKey::Raw(bytes) = key {
+            copy.execute_batch(&key_pragma(bytes)).map_err(sql)?;
+        }
+        let integrity: String = copy.query_row("PRAGMA integrity_check", [], |row| row.get(0)).map_err(sql)?;
+        if integrity != "ok" {
+            return Err(format!("the copy failed its integrity check: {integrity}"));
+        }
+        if matches!(key, DatabaseKey::Raw(_)) {
+            let mut check = copy.prepare("PRAGMA cipher_integrity_check").map_err(sql)?;
+            let problems = check.query_map([], |row| row.get::<_, String>(0)).map_err(sql)?.count();
+            if problems > 0 {
+                return Err("the copy failed the encryption integrity check".to_string());
+            }
+        }
+        let version = |conn: &rusqlite::Connection| conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0)).map_err(sql);
+        if version(&self.conn)? != version(&copy)? {
+            return Err("the copy has a different user_version".to_string());
+        }
+        let list_tables = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
+        let names = |conn: &rusqlite::Connection| -> Result<Vec<String>, String> {
+            let mut statement = conn.prepare(list_tables).map_err(sql)?;
+            let rows = statement.query_map([], |row| row.get::<_, String>(0)).map_err(sql)?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(sql)
+        };
+        let (source_tables, copy_tables) = (names(&self.conn)?, names(&copy)?);
+        if source_tables != copy_tables {
+            return Err("the copy has a different set of tables".to_string());
+        }
+        for table in &source_tables {
+            let count = format!("SELECT count(*) FROM \"{}\"", table.replace('"', "\"\""));
+            let in_source: i64 = self.conn.query_row(&count, [], |row| row.get(0)).map_err(sql)?;
+            let in_copy: i64 = copy.query_row(&count, [], |row| row.get(0)).map_err(sql)?;
+            if in_source != in_copy {
+                return Err(format!("table {table} has {in_source} rows in the source and {in_copy} in the copy"));
+            }
+        }
+        Ok(())
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,5 +287,129 @@ mod tests {
     #[test]
     fn the_key_pragma_is_the_hex_of_the_raw_key_and_nothing_else() {
         assert_eq!(key_pragma(&[0xab; 32]), format!("PRAGMA key = \"x'{}'\";", "ab".repeat(32)));
+    }
+
+    const MARKER: &str = "SECRET-CATEGORY-XYZ";
+
+    fn plain_store_with_marker(path: &Path) -> Store {
+        let store = Store::open(path).unwrap();
+        store.create_category(MARKER, None).unwrap();
+        store.conn.execute_batch("PRAGMA user_version = 7;").unwrap();
+        store
+    }
+
+    fn has_plain_header(path: &Path) -> bool {
+        let bytes = std::fs::read(path).unwrap();
+        &bytes[..16] == b"SQLite format 3\0"
+    }
+
+    fn file_contains_marker(path: &Path) -> bool {
+        std::fs::read(path).unwrap().windows(MARKER.len()).any(|w| w == MARKER.as_bytes())
+    }
+
+    fn user_version(store: &Store) -> i64 {
+        store.conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap()
+    }
+
+    #[test]
+    fn a_plaintext_store_exports_an_encrypted_copy_that_verifies() {
+        let dir = temp_dir("export-enc");
+        let (source, dest) = (dir.join("plain.db"), dir.join("enc.db"));
+        let store = plain_store_with_marker(&source);
+
+        store.export_encrypted_copy(&dest, &KEY_A).unwrap();
+
+        assert!(!has_plain_header(&dest));
+        assert!(file_contains_marker(&source) && !file_contains_marker(&dest));
+        store.verify_copy(&dest, DatabaseKey::Raw(&KEY_A)).unwrap();
+        let copy = Store::open_with_key(&dest, DatabaseKey::Raw(&KEY_A)).unwrap();
+        assert!(copy.list_categories().unwrap().contains(&MARKER.to_string()));
+        assert_eq!(user_version(&copy), 7);
+    }
+
+    #[test]
+    fn an_encrypted_store_exports_a_plaintext_copy_that_verifies() {
+        let dir = temp_dir("export-plain");
+        let (source, enc, plain_copy) = (dir.join("plain.db"), dir.join("enc.db"), dir.join("copy.db"));
+        plain_store_with_marker(&source).export_encrypted_copy(&enc, &KEY_A).unwrap();
+        let encrypted = Store::open_with_key(&enc, DatabaseKey::Raw(&KEY_A)).unwrap();
+
+        encrypted.export_plaintext_copy(&plain_copy).unwrap();
+
+        assert!(has_plain_header(&plain_copy));
+        encrypted.verify_copy(&plain_copy, DatabaseKey::Plaintext).unwrap();
+        let copy = Store::open(&plain_copy).unwrap();
+        assert!(copy.list_categories().unwrap().contains(&MARKER.to_string()));
+        assert_eq!(user_version(&copy), 7);
+    }
+
+    #[test]
+    fn exporting_under_a_new_key_re_keys_the_copy() {
+        let dir = temp_dir("rekey");
+        let (source, enc_a, enc_b) = (dir.join("plain.db"), dir.join("a.db"), dir.join("b.db"));
+        plain_store_with_marker(&source).export_encrypted_copy(&enc_a, &KEY_A).unwrap();
+        let store_a = Store::open_with_key(&enc_a, DatabaseKey::Raw(&KEY_A)).unwrap();
+
+        store_a.export_encrypted_copy(&enc_b, &KEY_B).unwrap();
+
+        store_a.verify_copy(&enc_b, DatabaseKey::Raw(&KEY_B)).unwrap();
+        assert!(Store::open_with_key(&enc_b, DatabaseKey::Raw(&KEY_B)).is_ok());
+        assert!(matches!(
+            Store::open_with_key(&enc_b, DatabaseKey::Raw(&KEY_A)),
+            Err(StoreOpenError::NotADatabaseOrWrongKey)
+        ));
+    }
+
+    #[test]
+    fn an_export_never_overwrites_an_existing_file_or_leaves_a_half_written_one() {
+        let dir = temp_dir("no-overwrite");
+        let store = plain_store_with_marker(&dir.join("plain.db"));
+        let taken = dir.join("taken.db");
+        std::fs::write(&taken, b"keep me").unwrap();
+        let missing_folder = dir.join("no-such-folder").join("out.db");
+
+        assert!(store.export_encrypted_copy(&taken, &KEY_A).is_err());
+        assert!(store.export_plaintext_copy(&taken).is_err());
+        assert_eq!(std::fs::read(&taken).unwrap(), b"keep me");
+        assert!(store.export_encrypted_copy(&missing_folder, &KEY_A).is_err());
+        assert!(!missing_folder.exists());
+    }
+
+    #[test]
+    fn verification_catches_a_copy_that_lost_data_or_is_the_wrong_kind() {
+        let dir = temp_dir("verify");
+        let (source, enc) = (dir.join("plain.db"), dir.join("enc.db"));
+        let store = plain_store_with_marker(&source);
+        store.export_encrypted_copy(&enc, &KEY_A).unwrap();
+        {
+            let copy = Store::open_with_key(&enc, DatabaseKey::Raw(&KEY_A)).unwrap();
+            copy.conn.execute_batch("DELETE FROM categories;").unwrap();
+        }
+
+        let lost = store.verify_copy(&enc, DatabaseKey::Raw(&KEY_A)).unwrap_err();
+        assert!(lost.contains("categories"), "{lost}");
+        assert!(
+            store.verify_copy(&enc, DatabaseKey::Plaintext).is_err(),
+            "an encrypted file is not a plaintext copy"
+        );
+        assert!(
+            store.verify_copy(&source, DatabaseKey::Raw(&KEY_A)).is_err(),
+            "a plaintext file is not an encrypted copy"
+        );
+        assert!(store.verify_copy(&enc, DatabaseKey::Raw(&KEY_B)).is_err(), "the wrong key cannot verify");
+    }
+
+    #[test]
+    fn backup_to_keeps_an_encrypted_store_encrypted_under_the_same_key() {
+        let dir = temp_dir("backup");
+        let (source, enc, backup) = (dir.join("plain.db"), dir.join("enc.db"), dir.join("backup.db"));
+        plain_store_with_marker(&source).export_encrypted_copy(&enc, &KEY_A).unwrap();
+        let store = Store::open_with_key(&enc, DatabaseKey::Raw(&KEY_A)).unwrap();
+
+        store.backup_to(&backup).unwrap();
+
+        assert!(!has_plain_header(&backup));
+        let copy = Store::open_with_key(&backup, DatabaseKey::Raw(&KEY_A)).unwrap();
+        assert!(copy.list_categories().unwrap().contains(&MARKER.to_string()));
     }
 }

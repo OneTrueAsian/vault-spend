@@ -7707,6 +7707,9 @@ impl Store {
     /// copied or the destination file's correctness.
     pub fn backup_to(&self, dest_path: impl AsRef<Path>) -> rusqlite::Result<()> {
         let mut dest = Connection::open(dest_path)?;
+        if let Some(key) = &self.db_key {
+            dest.execute_batch(&encryption::key_pragma(key))?;
+        }
         let backup = rusqlite::backup::Backup::new(&self.conn, &mut dest)?;
         backup.run_to_completion(i32::MAX, std::time::Duration::ZERO, None)?;
         Ok(())
