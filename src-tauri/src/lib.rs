@@ -1,3 +1,4 @@
+mod background;
 mod backups;
 mod commands;
 mod config;
@@ -21,6 +22,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .on_window_event(|window, event| background::handle_window_event(window, event))
         .setup(|app| {
             // Identifier (tauri.conf.json) and this filename were renamed
             // from "com.joeyf.meadow" / "meadow.db" to "com.joeyf.pennywise"
@@ -111,6 +113,23 @@ pub fn run() {
             // the exact real-AppData leak that handling was written to fix.
             window_state::restore_and_track(app.handle(), &default_dir);
 
+            // The opt-in background behaviour: bring the tray icon up if it's
+            // switched on, start the reminder check, and stay out of the way
+            // when started from the sign-in entry.
+            let handle = app.handle().clone();
+            if app
+                .state::<AppStateHandle>()
+                .lock()
+                .map(|s| s.store.get_background_settings().map(|b| b.tray_enabled).unwrap_or(false))
+                .unwrap_or(false)
+            {
+                if let Err(e) = background::install_tray(&handle) {
+                    eprintln!("tray icon failed (continuing without it): {e}");
+                }
+            }
+            background::start_reminder_thread(handle.clone());
+            background::hide_if_started_minimized(&handle);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -121,6 +140,12 @@ pub fn run() {
             commands::export_database,
             commands::list_backups,
             commands::create_backup_now,
+            commands::get_backup_copy_dir,
+            commands::get_background_settings,
+            commands::set_tray_enabled,
+            commands::set_autostart_enabled,
+            commands::send_test_reminder,
+            commands::set_backup_copy_dir,
             commands::restore_backup,
             commands::list_profiles,
             commands::create_profile,
@@ -137,6 +162,16 @@ pub fn run() {
             commands::list_transactions,
             commands::correct_category,
             commands::bulk_correct_category,
+            commands::list_transfer_candidates,
+            commands::link_transfer,
+            commands::unlink_transfer,
+            commands::list_auto_linked_transfers,
+            commands::mark_auto_links_reviewed,
+            commands::set_auto_link_transfers,
+            commands::list_rules,
+            commands::preview_rule,
+            commands::save_rule,
+            commands::delete_rule,
             commands::bulk_delete_transactions,
             commands::bulk_create_recurring_from_transactions,
             commands::get_stats,
@@ -182,25 +217,33 @@ pub fn run() {
             commands::list_buckets,
             commands::update_bucket_details,
             commands::set_bucket_member,
+            commands::set_bucket_tracks_account,
             commands::add_bucket_contribution,
             commands::delete_bucket,
             commands::set_budget,
             commands::set_budget_cap,
+            commands::set_budget_rollover,
             commands::delete_budget,
             commands::get_report,
             commands::budget_actuals_for_month,
             commands::monthly_budget_actuals_by_member,
             commands::budget_actuals_trend,
+            commands::suggest_budgets,
+            commands::month_review,
+            commands::set_month_reviewed,
+            commands::list_reviewed_months,
             commands::transactions_for_category,
             commands::budget_alerts_for_month,
             commands::dashboard_insights,
             commands::debt_payoff_projection,
             commands::list_anomaly_flags,
+            commands::dismiss_anomaly_flag,
             commands::create_recurring,
             commands::update_recurring,
             commands::set_recurring_member,
             commands::set_recurring_status,
             commands::recurring_totals,
+            commands::recurring_matches,
             commands::list_recurring,
             commands::delete_recurring,
             commands::list_recurring_candidates,
@@ -208,6 +251,24 @@ pub fn run() {
             commands::create_holding,
             commands::list_holdings,
             commands::update_holding_price,
+            commands::portfolio_history,
+            commands::account_balance_history,
+            commands::category_spending_by_month,
+            commands::daily_spending,
+            commands::list_account_transactions,
+            commands::reconcile_candidates,
+            commands::set_transactions_cleared,
+            commands::reconciliation_status,
+            commands::finish_reconciliation,
+            commands::last_reconciliation,
+            commands::record_portfolio_snapshot,
+            commands::investment_accumulation,
+            commands::list_investment_accumulation,
+            commands::account_value_history,
+            commands::set_investment_plan,
+            commands::get_inflation_pct,
+            commands::list_allocation_targets,
+            commands::set_allocation_target,
             commands::delete_holding,
             commands::get_live_price_settings,
             commands::set_live_price_settings,
@@ -215,6 +276,7 @@ pub fn run() {
             commands::set_apply_to_debt_enabled,
             commands::set_split_purchases_enabled,
             commands::set_envelope_caps_enabled,
+            commands::set_rollover_enabled,
             commands::fetch_live_quote,
             commands::refresh_live_prices,
             commands::create_asset,
@@ -228,6 +290,7 @@ pub fn run() {
             commands::month_expense_detail,
             commands::year_over_year_cash_flow,
             commands::cash_flow_forecast,
+            commands::bill_aware_forecast,
             commands::average_monthly_spend,
             commands::net_worth_history,
             commands::account_contribution_deltas,

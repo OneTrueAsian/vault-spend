@@ -19,6 +19,26 @@ export type ForecastPoint = {
   balance: string;
 };
 
+/** One dated Recurring bill (negative) or paycheck (positive) the
+ * bill-aware forecast places on its due date. */
+export type ForecastEvent = {
+  date: string;
+  label: string;
+  amount: string;
+};
+
+export type BillAwareForecast = {
+  /** `false` when Recurring has nothing active, so `points` is just the plain
+   * trend forecast. */
+  uses_recurring: boolean;
+  /** Cash (checking + savings) in the accounts right now. */
+  start_balance: string;
+  points: ForecastPoint[];
+  events: ForecastEvent[];
+  /** Net everyday cash flow per day outside recurring items and transfers. */
+  daily_baseline: string;
+};
+
 export type Backup = {
   filename: string;
   created_at: string;
@@ -51,6 +71,10 @@ export type AppSettings = {
   apply_to_debt_enabled: boolean;
   split_purchases_enabled: boolean;
   envelope_caps_enabled: boolean;
+  /** The global "Rollover unspent" switch; off stops any unspent budget carrying into a later month. */
+  rollover_enabled: boolean;
+  /** Opt-in (off by default): link clear-cut transfer pairs automatically. */
+  auto_link_transfers: boolean;
 };
 
 /** Purely a per-viewer display preference (like `Theme` in App.tsx) — stored
@@ -72,6 +96,9 @@ export type AppliedDebtPayment = {
 
 export type Transaction = {
   id: number;
+  /** The other leg's id when this is one half of a linked transfer between
+   * the user's own accounts (see `Store::link_transfer`); `null` otherwise. */
+  transfer_counterpart_id: number | null;
   date: string;
   description: string;
   amount: string;
@@ -153,6 +180,10 @@ export type Bucket = {
   sinking_amount: string | null;
   color: string | null;
   icon_key: string | null;
+  /** Progress follows the linked account's balance instead of contributions. */
+  tracks_account: boolean;
+  /** Net dollars per month gained over the trailing 90 days. */
+  monthly_pace: string;
 };
 
 export type SinkingFundContribution = {
@@ -178,6 +209,40 @@ export type ReportBudgetLine = {
   budgeted: string;
   actual: string;
   cap_enabled: boolean;
+  /** Unspent budget carried in from earlier months; "0" unless rollover is on. */
+  rollover: string;
+  rollover_enabled: boolean;
+};
+
+/** What the month-end review walks through — `Store::month_review`. */
+export type MonthReview = {
+  year: number;
+  month: number;
+  income: string;
+  /** Spending, as a positive number. */
+  expenses: string;
+  prev_income: string;
+  prev_expenses: string;
+  over_budget: { category: string; budgeted: string; actual: string }[];
+  uncategorized_count: number;
+  uncategorized_total: string;
+  reviewed: boolean;
+};
+
+/** One row of the Budget page's "suggest from my 3-month average" preview. */
+export type BudgetSuggestion = {
+  category: string;
+  budget_group: string;
+  /** What the month already budgets for it; null when it has no line yet. */
+  current: string | null;
+  /** Average monthly spend over the window, a whole-dollar amount. */
+  suggested: string;
+};
+
+export type BudgetSuggestions = {
+  /** Whole months the averages cover — fewer than 3 when history is short. */
+  months_used: number;
+  lines: BudgetSuggestion[];
 };
 
 export type Recurring = {
@@ -193,6 +258,20 @@ export type Recurring = {
   member_id: number | null;
   member_name: string | null;
   status: "keep" | "reviewing" | "canceled";
+};
+
+/** How one recurring item lines up with the transactions actually posted —
+ * `Store::recurring_matches`. */
+export type RecurringMatch = {
+  recurring_id: number;
+  /** "paid" | "pending" | "missed" | "unmatched" | "upcoming" */
+  state: "paid" | "pending" | "missed" | "unmatched" | "upcoming";
+  /** Latest due date on or before today. */
+  last_due: string | null;
+  last_paid_date: string | null;
+  last_paid_amount: string | null;
+  /** Signed like the item itself (a bill is negative). */
+  price_change: { from: string; to: string } | null;
 };
 
 export type RecurringTotals = {
@@ -225,6 +304,61 @@ export type Holding = {
   gain_loss: string;
   prev_close: string | null;
   day_gain_loss: string | null;
+};
+
+/** The opt-in tray icon / background reminders — `get_background_settings`. */
+export type BackgroundSettings = {
+  tray_enabled: boolean;
+  autostart_enabled: boolean;
+  /** Whether "start when I sign in" can be switched on on this platform. */
+  autostart_supported: boolean;
+};
+
+/** One recorded day of the portfolio's total value — `Store::portfolio_history`. */
+export type PortfolioPoint = {
+  date: string;
+  value: string;
+};
+
+/** One calendar month of money in and out of an investment account —
+ * `Store::account_contributions`. */
+export type ContributionMonth = {
+  /** "YYYY-MM". */
+  month: string;
+  money_in: string;
+  /** A positive figure: the size of what left. */
+  money_out: string;
+};
+
+/** An investment account's saved projection assumptions — `Store::get_investment_plan`. */
+export type InvestmentPlan = {
+  /** `null` = use the recent average. */
+  monthly_contribution: string | null;
+  /** A percentage, "0"-"100". */
+  annual_return_pct: string;
+  /** "YYYY-MM", or `null` when none is set. */
+  withdraw_month: string | null;
+  withdraw_years: number | null;
+};
+
+/** What went into an investment account and how it is planned to grow — the
+ * `investment_accumulation` / `list_investment_accumulation` commands. */
+export type InvestmentAccumulation = {
+  account_id: number;
+  months: ContributionMonth[];
+  total_in: string;
+  total_out: string;
+  net: string;
+  first_deposit: string | null;
+  deposit_count: number;
+  plan: InvestmentPlan;
+};
+
+/** The share of the portfolio wanted in an asset class. */
+export type AllocationTarget = {
+  asset_class: string;
+  /** A percentage, "0"-"100". */
+  percent: string;
 };
 
 export type MonthTotal = {

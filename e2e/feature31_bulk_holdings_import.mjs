@@ -1,4 +1,4 @@
-// E2E smoke test for the Reports tab's bulk setup-data import/export
+// E2E smoke test for the Settings tab's bulk setup-data import/export
 // buttons, now that "Holdings" is a 5th section on that template
 // (core/src/setup_import.rs, src-tauri/src/commands.rs's
 // preview_setup_import/commit_setup_import, src/App.tsx's
@@ -22,14 +22,14 @@ import { launchApp } from "./harness.mjs";
 
 const app = await launchApp();
 try {
-  const reportsNav = await app.browser.$("button*=Reports");
-  await reportsNav.click();
+  const settingsNav = await app.browser.$("button*=Settings");
+  await settingsNav.click();
 
   const downloadBtn = await app.browser.$("button*=Download setup template");
   await downloadBtn.waitForExist({ timeout: 10000 });
   const importBtn = await app.browser.$("button*=Import setup data");
   await importBtn.waitForExist({ timeout: 5000 });
-  console.log("both bulk setup-data buttons render on the Reports tab");
+  console.log("both bulk setup-data buttons render on the Settings tab");
 
   console.log("FEATURE 31 E2E TEST PASSED");
 } finally {

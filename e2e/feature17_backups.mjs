@@ -49,7 +49,7 @@ try {
   await settingsNav.click();
 
   const backupsCard = await app.browser.$(
-    "//div[contains(@class,'card')][.//span[text()='Backups']]",
+    "//div[contains(@class,'card')][.//span[text()='Data']]", // the Backups block now lives in Settings' "Data" section
   );
   await backupsCard.waitForExist({ timeout: 10000 });
 

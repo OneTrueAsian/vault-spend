@@ -13,6 +13,17 @@ const BACKUP_SUFFIX: &str = ".db";
 const DEFAULT_KEEP: usize = 15;
 const AUTO_BACKUP_INTERVAL_HOURS: i64 = 24;
 
+/// What `create_backup_full` did: the backup itself, and what happened to
+/// the optional second copy (see `mirror_backup`).
+pub struct BackupOutcome {
+    pub filename: String,
+    /// Where the second copy landed, when one was made.
+    pub copied_to: Option<PathBuf>,
+    /// Why the second copy failed, when it was attempted and did not work.
+    /// A failed second copy never fails the backup itself.
+    pub copy_error: Option<String>,
+}
+
 pub struct BackupInfo {
     pub filename: String,
     pub created_at: String,
@@ -143,6 +154,92 @@ fn verify_backup(source: &Store, dest_path: &Path) -> Result<(), String> {
 /// real one. Used by both the manual "Back up now" command and the
 /// automatic launch-time check.
 pub fn create_backup(store: &Store, backups_dir: &Path, now: NaiveDateTime) -> Result<String, String> {
+    let outcome = create_backup_full(store, backups_dir, now)?;
+    if let Some(error) = &outcome.copy_error {
+        eprintln!("second backup copy failed (the backup itself succeeded): {error}");
+    }
+    Ok(outcome.filename)
+}
+
+/// Whether two paths name the same folder — canonical paths when both
+/// exist, otherwise a plain comparison (a folder that doesn't exist yet
+/// can't be the one backups already live in).
+fn same_folder(a: &Path, b: &Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => a == b,
+    }
+}
+
+/// Checks `copy_dir` can serve as the second backup folder: not the folder
+/// backups already live in, already there (a mistyped path must not quietly
+/// make a new folder somewhere unintended — the person creates it, or picks
+/// one with Browse), and writable (proved by writing and removing a probe
+/// file, since a read-only or unplugged drive otherwise only shows up at the
+/// next backup).
+pub fn check_copy_dir(backups_dir: &Path, copy_dir: &Path) -> Result<(), String> {
+    if same_folder(backups_dir, copy_dir) {
+        return Err("choose a different folder than the one your backups are already kept in".to_string());
+    }
+    if !copy_dir.exists() {
+        return Err(format!(
+            "{} doesn't exist. Create the folder first, or use Browse… to pick one that does.",
+            copy_dir.display()
+        ));
+    }
+    if !copy_dir.is_dir() {
+        return Err(format!("{} isn't a folder.", copy_dir.display()));
+    }
+    let probe = copy_dir.join(".vaultspend-write-test");
+    std::fs::write(&probe, b"ok").map_err(|e| format!("couldn't write to {}: {e}", copy_dir.display()))?;
+    let _ = std::fs::remove_file(&probe);
+    Ok(())
+}
+
+/// Copies the backup `filename` from `backups_dir` into `copy_dir`, confirms
+/// the copy is the same size, and trims `copy_dir` to the newest
+/// `DEFAULT_KEEP` backups (only files named like ours — anything else in the
+/// folder is never touched). Returns the copy's path.
+pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Result<PathBuf, String> {
+    check_copy_dir(backups_dir, copy_dir)?;
+    let source = backups_dir.join(filename);
+    let dest = copy_dir.join(filename);
+    std::fs::copy(&source, &dest).map_err(|e| format!("couldn't copy to {}: {e}", dest.display()))?;
+    let expected = std::fs::metadata(&source).map_err(|e| e.to_string())?.len();
+    let actual = std::fs::metadata(&dest).map_err(|e| e.to_string())?.len();
+    if expected != actual {
+        let _ = std::fs::remove_file(&dest);
+        return Err(format!(
+            "the copy in {} came out {actual} bytes instead of {expected}",
+            copy_dir.display()
+        ));
+    }
+    prune_to_disk(copy_dir, DEFAULT_KEEP)?;
+    Ok(dest)
+}
+
+/// `create_backup`, plus the optional second copy: when the store has a
+/// second backup folder set, the fresh backup is also mirrored there. A
+/// second copy that fails is reported in the outcome rather than failing
+/// the backup — the local one is still good.
+pub fn create_backup_full(store: &Store, backups_dir: &Path, now: NaiveDateTime) -> Result<BackupOutcome, String> {
+    let filename = create_local_backup(store, backups_dir, now)?;
+    let mut copied_to = None;
+    let mut copy_error = None;
+    if let Some(dir) = store.get_backup_copy_dir().map_err(|e| e.to_string())? {
+        match mirror_backup(backups_dir, &filename, Path::new(&dir)) {
+            Ok(path) => copied_to = Some(path),
+            Err(e) => copy_error = Some(e),
+        }
+    }
+    Ok(BackupOutcome {
+        filename,
+        copied_to,
+        copy_error,
+    })
+}
+
+fn create_local_backup(store: &Store, backups_dir: &Path, now: NaiveDateTime) -> Result<String, String> {
     std::fs::create_dir_all(backups_dir).map_err(|e| e.to_string())?;
     let dest_path = unique_backup_path(backups_dir, now);
     let filename = dest_path.file_name().expect("just built from a filename").to_string_lossy().to_string();
@@ -605,5 +702,158 @@ mod tests {
         let result = restore_backup(&store, &backups_dir, "vaultspend-20260101-000000.db", &live_path);
 
         assert!(result.is_err());
+    }
+
+    // ---- Phase 2 / 17: second backup destination ----
+
+    fn seeded_store(dir: &Path) -> Store {
+        let store = Store::open(dir.join("live.db")).unwrap();
+        store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+        store
+    }
+
+    #[test]
+    fn mirror_backup_copies_the_backup_into_an_existing_second_folder() {
+        let dir = temp_dir("mirror-copies");
+        let store = seeded_store(&dir);
+        let backups_dir = dir.join("backups");
+        let filename = create_backup(&store, &backups_dir, dt("2026-09-18 10:00:00")).unwrap();
+        let copy_dir = dir.join("OneDrive").join("VaultSpend");
+        std::fs::create_dir_all(&copy_dir).unwrap();
+
+        let copied = mirror_backup(&backups_dir, &filename, &copy_dir).unwrap();
+
+        assert_eq!(copied, copy_dir.join(&filename));
+        assert_eq!(
+            std::fs::metadata(&copied).unwrap().len(),
+            std::fs::metadata(backups_dir.join(&filename)).unwrap().len()
+        );
+    }
+
+    #[test]
+    fn a_second_folder_that_does_not_exist_is_refused_and_never_created() {
+        let dir = temp_dir("mirror-missing");
+        let store = seeded_store(&dir);
+        let backups_dir = dir.join("backups");
+        let filename = create_backup(&store, &backups_dir, dt("2026-09-18 10:00:00")).unwrap();
+        // A typo in a path must not quietly make a new folder somewhere else.
+        let missing = dir.join("OneDriv").join("VaultSpend");
+
+        let checked = check_copy_dir(&backups_dir, &missing);
+        let mirrored = mirror_backup(&backups_dir, &filename, &missing);
+
+        assert!(checked.unwrap_err().contains("doesn't exist"));
+        assert!(mirrored.is_err());
+        assert!(!missing.exists(), "the folder must not have been created");
+        assert!(!dir.join("OneDriv").exists());
+    }
+
+    #[test]
+    fn a_second_folder_that_is_really_a_file_is_refused() {
+        let dir = temp_dir("mirror-file");
+        let store = seeded_store(&dir);
+        let backups_dir = dir.join("backups");
+        create_backup(&store, &backups_dir, dt("2026-09-18 10:00:00")).unwrap();
+        let file = dir.join("notes.txt");
+        std::fs::write(&file, b"not a folder").unwrap();
+
+        assert!(check_copy_dir(&backups_dir, &file).unwrap_err().contains("isn't a folder"));
+    }
+
+    #[test]
+    fn mirror_backup_trims_the_second_folder_to_the_retention_limit_and_spares_other_files() {
+        let dir = temp_dir("mirror-trims");
+        let store = seeded_store(&dir);
+        let backups_dir = dir.join("backups");
+        let copy_dir = dir.join("second");
+        std::fs::create_dir_all(&copy_dir).unwrap();
+        for day in 1..=15 {
+            std::fs::write(copy_dir.join(format!("vaultspend-202608{day:02}-000000.db")), b"old").unwrap();
+        }
+        std::fs::write(copy_dir.join("holiday-photos.zip"), b"not a backup").unwrap();
+        let filename = create_backup(&store, &backups_dir, dt("2026-09-18 10:00:00")).unwrap();
+
+        mirror_backup(&backups_dir, &filename, &copy_dir).unwrap();
+
+        let mut kept = list_backup_filenames(&copy_dir).unwrap();
+        kept.sort();
+        assert_eq!(kept.len(), DEFAULT_KEEP);
+        assert!(
+            !kept.contains(&"vaultspend-20260801-000000.db".to_string()),
+            "the oldest copy should have been trimmed"
+        );
+        assert!(kept.contains(&filename), "the new copy must be kept");
+        assert!(
+            copy_dir.join("holiday-photos.zip").exists(),
+            "files that aren't backups are never touched"
+        );
+    }
+
+    #[test]
+    fn mirror_backup_refuses_the_folder_the_backups_already_live_in() {
+        let dir = temp_dir("mirror-same");
+        let store = seeded_store(&dir);
+        let backups_dir = dir.join("backups");
+        let filename = create_backup(&store, &backups_dir, dt("2026-09-18 10:00:00")).unwrap();
+
+        let result = mirror_backup(&backups_dir, &filename, &backups_dir);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("different folder"));
+    }
+
+    #[test]
+    fn mirror_backup_reports_a_destination_it_cannot_use() {
+        let dir = temp_dir("mirror-bad");
+        let store = seeded_store(&dir);
+        let backups_dir = dir.join("backups");
+        let filename = create_backup(&store, &backups_dir, dt("2026-09-18 10:00:00")).unwrap();
+        // A plain file where the folder should be.
+        let blocker = dir.join("blocker");
+        std::fs::write(&blocker, b"a file, not a folder").unwrap();
+
+        assert!(mirror_backup(&backups_dir, &filename, &blocker.join("inside")).is_err());
+    }
+
+    #[test]
+    fn create_backup_full_also_copies_when_a_second_folder_is_set() {
+        let dir = temp_dir("full-copies");
+        let store = seeded_store(&dir);
+        let copy_dir = dir.join("second");
+        std::fs::create_dir_all(&copy_dir).unwrap();
+        store.set_backup_copy_dir(Some(copy_dir.to_str().unwrap())).unwrap();
+
+        let outcome = create_backup_full(&store, &dir.join("backups"), dt("2026-09-18 10:00:00")).unwrap();
+
+        assert_eq!(outcome.copied_to, Some(copy_dir.join(&outcome.filename)));
+        assert!(outcome.copy_error.is_none());
+        assert!(copy_dir.join(&outcome.filename).exists());
+    }
+
+    #[test]
+    fn create_backup_full_copies_nowhere_when_no_second_folder_is_set() {
+        let dir = temp_dir("full-nocopy");
+        let store = seeded_store(&dir);
+
+        let outcome = create_backup_full(&store, &dir.join("backups"), dt("2026-09-18 10:00:00")).unwrap();
+
+        assert!(outcome.copied_to.is_none());
+        assert!(outcome.copy_error.is_none());
+    }
+
+    #[test]
+    fn a_second_folder_that_fails_never_fails_the_backup_itself() {
+        let dir = temp_dir("full-badcopy");
+        let store = seeded_store(&dir);
+        let blocker = dir.join("blocker");
+        std::fs::write(&blocker, b"a file, not a folder").unwrap();
+        store.set_backup_copy_dir(Some(blocker.join("inside").to_str().unwrap())).unwrap();
+        let backups_dir = dir.join("backups");
+
+        let outcome = create_backup_full(&store, &backups_dir, dt("2026-09-18 10:00:00")).unwrap();
+
+        assert!(backups_dir.join(&outcome.filename).exists(), "the primary backup must still exist");
+        assert!(outcome.copied_to.is_none());
+        assert!(outcome.copy_error.is_some(), "the failure must be reported, not swallowed");
     }
 }

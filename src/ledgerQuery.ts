@@ -1,4 +1,5 @@
 import Fuse from "fuse.js";
+import { isTransferTransaction } from "./transfers";
 import type { Account, Bucket, Recurring, Transaction } from "./types";
 import { isIncomeTransaction } from "./accountGroups";
 import { toLocalIsoDate } from "./format";
@@ -179,7 +180,7 @@ export function runQuery(query: Query, ctx: QaContext): QueryResult {
       // excluded here the same way `Store::monthly_totals` excludes it on
       // the backend, unless the question is specifically about the
       // Transfer category itself.
-      if (t.category === "Transfer" && !askedAboutTransferDirectly) return false;
+      if (isTransferTransaction(t) && !askedAboutTransferDirectly) return false;
     }
     if (query.sign === "income" && !isIncomeTransaction(t, ctx.accounts)) return false;
     if (query.subject && !matchesSubject(t, query.subject)) return false;

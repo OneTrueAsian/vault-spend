@@ -1,6 +1,6 @@
 [package]
 name = "vaultspend"
-version = "1.2.6"
+version = "1.2.7"
 description = "Vault Spend — a local budgeting app with learning transaction categorization"
 authors = ["OneTrueAsian"]
 license = "MIT"
@@ -19,7 +19,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"

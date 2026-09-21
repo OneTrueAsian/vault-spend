@@ -1,19 +1,32 @@
 import { FormEvent, useMemo, useState } from "react";
-import type { Account, Holding } from "./types";
+import type { Account, AllocationTarget, Holding, PortfolioPoint } from "./types";
+import { allocationRows, driftStatus, targetsTotal } from "./allocation";
 import { DonutChart, LineChart, fmtMoneyShort } from "./charts";
-import { formatAmount, isValidDecimalString } from "./format";
+import { formatAmount, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
 import { projectGoal } from "./projections";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
 import { StatDetailPanel } from "./StatDetailPanel";
+import { AccumulationSummaryCard } from "./AccumulationSection";
 
 const CLASS_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 
 const PROJECTION_YEAR_OPTIONS = [5, 10, 15, 20, 25, 30, 40];
 
-function GoalProjectionCalculator({ currentTotal }: { currentTotal: number }) {
-  const [startingBalance, setStartingBalance] = useState(currentTotal.toFixed(2));
+function GoalProjectionCalculator({
+  currentTotal,
+  onSaveAsGoal,
+}: {
+  currentTotal: number;
+  onSaveAsGoal: (name: string, targetAmount: string, targetDate: string) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [goalName, setGoalName] = useState("Investment goal");
+  // Follows the portfolio total until the person types their own figure, so it
+  // isn't stuck at 0.00 when the holdings finish loading after this mounts.
+  const [typedStartingBalance, setStartingBalance] = useState<string | null>(null);
+  const startingBalance = typedStartingBalance ?? currentTotal.toFixed(2);
   const [monthlyContribution, setMonthlyContribution] = useState("0");
   const [annualReturnPct, setAnnualReturnPct] = useState("7");
   const [years, setYears] = useState(20);
@@ -75,10 +88,164 @@ function GoalProjectionCalculator({ currentTotal }: { currentTotal: number }) {
         </div>
       </div>
 
-      <LineChart points={points.map((p) => ({ label: `Yr ${p.year}`, value: p.balance }))} height={180} />
+      <LineChart points={points.map((p) => ({ label: `Yr ${p.year}`, value: p.balance }))} height={180} maxLabels={11} />
+
+      {saving ? (
+        <form
+          className="projection-goal-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!goalName.trim()) return;
+            const target = new Date();
+            target.setFullYear(target.getFullYear() + years);
+            onSaveAsGoal(goalName.trim(), finalBalance.toFixed(2), toLocalIsoDate(target));
+            setSaving(false);
+          }}
+        >
+          <input
+            className="text-input"
+            autoFocus
+            aria-label="Goal name"
+            value={goalName}
+            onChange={(e) => setGoalName(e.target.value)}
+            data-projection-goal-name
+          />
+          <span className="modal-message-secondary">
+            Target {formatAmount(finalBalance.toFixed(2))} in {years} years.
+          </span>
+          <button type="submit" disabled={!goalName.trim()} data-projection-goal-save>
+            Save goal
+          </button>
+          <button type="button" className="modal-secondary" onClick={() => setSaving(false)}>
+            Cancel
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="modal-secondary" onClick={() => setSaving(true)} data-projection-save-as-goal>
+          Save as goal…
+        </button>
+      )}
     </div>
   );
 }
+
+/** "Where I want to be": a target share for each asset class, and how far the
+ * portfolio has drifted from it. Blank or 0 means no target for that class. */
+function TargetAllocationCard({
+  holdings,
+  targets,
+  onSave,
+}: {
+  holdings: Holding[];
+  targets: AllocationTarget[];
+  onSave: (targets: { assetClass: string; percent: string }[]) => void;
+}) {
+  const rows = allocationRows(holdings, targets);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [newClass, setNewClass] = useState("");
+  const [newPercent, setNewPercent] = useState("");
+
+  const shown = (assetClass: string, saved: number | null) => draft[assetClass] ?? (saved === null ? "" : String(saved));
+  const draftTargets = rows.map((r) => ({ percent: shown(r.assetClass, r.targetPct) }));
+  const total = targetsTotal(newClass.trim() && newPercent.trim() ? [...draftTargets, { percent: newPercent }] : draftTargets);
+
+  function handleSave() {
+    const list = rows.map((r) => ({ assetClass: r.assetClass, percent: shown(r.assetClass, r.targetPct).trim() || "0" }));
+    if (newClass.trim() && newPercent.trim()) list.push({ assetClass: newClass.trim(), percent: newPercent.trim() });
+    onSave(list);
+    setDraft({});
+    setNewClass("");
+    setNewPercent("");
+  }
+
+  return (
+    <div className="card" data-target-allocation>
+      <div className="card-head">
+        <span className="reports-section-title">Target allocation</span>
+      </div>
+      <p className="modal-message-secondary">
+        Say how much of the portfolio you want in each asset class. Vault Spend shows how far each one has drifted, and
+        flags any that are {DRIFT_TOLERANCE_TEXT} points or more off.
+      </p>
+      <div className="table-scroll">
+      <table className="ledger">
+        <thead>
+          <tr>
+            <th>Asset class</th>
+            <th className="amount-col">Now</th>
+            <th className="amount-col">Target %</th>
+            <th>Drift</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const status = driftStatus(r.driftPoints);
+            return (
+              <tr key={r.assetClass}>
+                <td>{r.assetClass}</td>
+                <td className="amount-col">{r.currentPct.toFixed(1)}%</td>
+                <td className="amount-col">
+                  <input
+                    className="target-input"
+                    aria-label={`Target percent for ${r.assetClass}`}
+                    data-target-input={r.assetClass}
+                    value={shown(r.assetClass, r.targetPct)}
+                    onChange={(e) => setDraft((d) => ({ ...d, [r.assetClass]: e.target.value }))}
+                    placeholder="—"
+                  />
+                </td>
+                <td data-drift={r.assetClass} data-drift-status={status}>
+                  {r.driftPoints === null ? (
+                    <span className="account-col">—</span>
+                  ) : (
+                    <span className={`drift-${status}`}>
+                      {r.driftPoints > 0 ? "+" : ""}
+                      {r.driftPoints.toFixed(1)} pts
+                      {status === "over" ? " over" : status === "under" ? " under" : ""}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+          <tr>
+            <td>
+              <input
+                className="target-input target-input-wide"
+                aria-label="Another asset class"
+                placeholder="Add a class…"
+                value={newClass}
+                onChange={(e) => setNewClass(e.target.value)}
+              />
+            </td>
+            <td></td>
+            <td className="amount-col">
+              <input
+                className="target-input"
+                aria-label="Target percent for the new class"
+                placeholder="%"
+                value={newPercent}
+                onChange={(e) => setNewPercent(e.target.value)}
+              />
+            </td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <div className="target-foot">
+        <span className={total === 0 || Math.abs(total - 100) < 0.05 ? "modal-message-secondary" : "drift-over"} data-target-total>
+          {total === 0 ? "No targets set." : `Targets add up to ${Number(total.toFixed(1))}%${Math.abs(total - 100) < 0.05 ? "." : " — they should total 100%."}`}
+        </span>
+        <button type="button" onClick={handleSave} data-save-targets>
+          Save targets
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const DRIFT_TOLERANCE_TEXT = "5";
 
 function NewHoldingForm({
   accounts,
@@ -278,7 +445,18 @@ export function InvestmentsView({
   onFetchQuote,
   layoutWidgets,
   onPinWidget,
+  portfolioHistory,
+  allocationTargets,
+  onSetAllocationTargets,
+  onSaveProjectionAsGoal,
+  onOpenAccountDetail,
 }: {
+  portfolioHistory: PortfolioPoint[];
+  allocationTargets: AllocationTarget[];
+  onSetAllocationTargets: (targets: { assetClass: string; percent: string }[]) => void;
+  onSaveProjectionAsGoal: (name: string, targetAmount: string, targetDate: string) => void;
+  /** Opens an investment account's Details page (its accumulation & projection). */
+  onOpenAccountDetail: (accountId: number) => void;
   holdings: Holding[];
   accounts: Account[];
   onCreate: (
@@ -453,11 +631,30 @@ export function InvestmentsView({
         </div>
       )}
 
-      <GoalProjectionCalculator currentTotal={totalValue} />
+      <div className="card" data-portfolio-history={portfolioHistory.length}>
+        <div className="card-head">
+          <span className="reports-section-title">Portfolio value over time</span>
+        </div>
+        {portfolioHistory.length >= 2 ? (
+          <LineChart points={portfolioHistory.map((p) => ({ label: shortMonthDay(p.date), value: parseFloat(p.value) }))} height={160} maxLabels={6} />
+        ) : (
+          <p className="modal-message-secondary">
+            Vault Spend records your portfolio's value each day you open it or refresh prices, so this chart fills in as time passes
+            {portfolioHistory.length === 1 ? ` (first point: ${formatAmount(portfolioHistory[0].value)} on ${portfolioHistory[0].date}).` : "."}
+          </p>
+        )}
+      </div>
+
+      <TargetAllocationCard holdings={holdings} targets={allocationTargets} onSave={onSetAllocationTargets} />
+
+      <GoalProjectionCalculator currentTotal={totalValue} onSaveAsGoal={onSaveProjectionAsGoal} />
+
+      <AccumulationSummaryCard accounts={accounts} onOpenAccount={onOpenAccountDetail} />
 
       {Array.from(byAccount.entries()).map(([accountName, accountHoldings]) => (
         <div key={accountName}>
           <h2 className="reports-section-title">{accountName}</h2>
+          <div className="table-scroll">
           <table className="ledger">
             <thead>
               <tr>
@@ -466,6 +663,7 @@ export function InvestmentsView({
                 <th className="amount-col">Price</th>
                 <th className="amount-col">Today</th>
                 <th className="amount-col">Value</th>
+                <th className="amount-col">% of portfolio</th>
                 <th className="amount-col">Gain/Loss</th>
                 <th className="actions-col"></th>
               </tr>
@@ -525,6 +723,9 @@ export function InvestmentsView({
                       )}
                     </td>
                     <td className="amount-col">{formatAmount(h.value)}</td>
+                    <td className="amount-col" data-holding-share={h.symbol}>
+                      {totalValue > 0 ? ((parseFloat(h.value) / totalValue) * 100).toFixed(1) : "0.0"}%
+                    </td>
                     <td className={gain < 0 ? "amount-col report-over-budget" : "amount-col"}>
                       {gain > 0 ? "+" : ""}
                       {formatAmount(h.gain_loss)}
@@ -550,6 +751,7 @@ export function InvestmentsView({
               })}
             </tbody>
           </table>
+          </div>
         </div>
       ))}
       {holdings.length === 0 && <p className="empty-state">No holdings yet.</p>}

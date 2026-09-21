@@ -1,4 +1,6 @@
-import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { pickDefaultAccountId } from "./accountGroups";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -17,12 +19,26 @@ import {
   NewAccountDialog,
   NewCategoryDialog,
   NewTransactionDialog,
+  TransferReviewDialog,
+  AutoLinkedReviewDialog,
   UseExistingDataFileDialog,
   WelcomeDialog,
   WhatsNewDialog,
 } from "./Modal";
 import { loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
+import { TransferRow } from "./TransferRow";
+import { MonthReviewDialog } from "./MonthReviewDialog";
+import { AccountDetailView } from "./AccountDetailView";
+import { SortableTh } from "./SortableTh";
+import { ImportInboxDialog } from "./ImportInboxDialog";
+import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
+import type { PaletteEntry } from "./paletteSearch";
+import { buildInbox, type InboxItem } from "./importInbox";
+import { monthReviewDue } from "./monthReview";
+import { loadPrivacyPrefs, savePrivacyPrefs, startPrivacyMask, type PrivacyPrefs } from "./privacy";
+import { distinctMerchants, similarOfferText } from "./similarRules";
+import { canLinkAsTransfer, collapseTransferPairs } from "./transfers";
 // `CADENCE_OPTIONS` is used synchronously in the Transactions tab's own
 // (always-rendered, not tab-gated) bulk "Add to Recurring" control, so it
 // lives in its own tiny module — importing it here can't drag the rest of
@@ -54,19 +70,23 @@ import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
 import type {
   Account,
+  AllocationTarget,
   AnomalyFlag,
+  BackgroundSettings,
   AppSettings,
   Asset,
   Backup,
   Bucket,
   BudgetAlert,
+  BudgetSuggestions,
   CashFlow,
+  MonthReview,
   CategoryAmount,
   CategoryIconEntry,
   CategoryTransaction,
   DebtPayoffPlan,
   FamilyMember,
-  ForecastPoint,
+  BillAwareForecast,
   Holding,
   AccountContributionDelta,
   Insight,
@@ -77,8 +97,10 @@ import type {
   MonthExpenseDetail,
   NetWorthPoint,
   Profile,
+  PortfolioPoint,
   Recurring,
   RecurringCandidate,
+  RecurringMatch,
   RecurringTotals,
   Report,
   ReportBudgetLine,
@@ -96,6 +118,9 @@ import "./App.css";
 type ImportSummary = {
   inserted: number;
   row_errors: number;
+  inserted_ids: number[];
+  /** Transfer pairs linked automatically by this import (0 unless auto-linking is on). */
+  auto_linked: number;
 };
 
 type ImportRow = {
@@ -255,6 +280,18 @@ const THEME_STORAGE_KEY = "meadow-theme";
 const THEME_STYLE_STORAGE_KEY = "meadow-theme-style";
 const NAV_ORDER_STORAGE_KEY = "meadow-nav-order";
 const SAVED_FILTERS_STORAGE_KEY = "meadow-saved-ledger-filters";
+// Per-viewer, like the theme: how tall Transactions rows are. Compact is the
+// default — the comfortable layout stacked the tag box and Split button under
+// their cells and made every row ~75px tall.
+const LEDGER_DENSITY_STORAGE_KEY = "vaultspend-ledger-density";
+type LedgerDensity = "comfortable" | "compact";
+function loadLedgerDensity(): LedgerDensity {
+  try {
+    return localStorage.getItem(LEDGER_DENSITY_STORAGE_KEY) === "comfortable" ? "comfortable" : "compact";
+  } catch {
+    return "compact"; // private window, blocked site data, etc. — just use the default
+  }
+}
 // Which account a fresh import/manual transaction defaults to. Without
 // this, the default falls back to whichever account sorts first
 // alphabetically (list_accounts orders by name) — for most households
@@ -482,6 +519,7 @@ function App({
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [recurring, setRecurring] = useState<Recurring[]>([]);
+  const [recurringMatches, setRecurringMatches] = useState<RecurringMatch[]>([]);
   const [recurringTotals, setRecurringTotals] = useState<RecurringTotals>({
     monthly_expense: "0.00",
     monthly_income: "0.00",
@@ -490,6 +528,8 @@ function App({
   });
   const [recurringCandidates, setRecurringCandidates] = useState<RecurringCandidate[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [portfolioHistory, setPortfolioHistory] = useState<PortfolioPoint[]>([]);
+  const [allocationTargets, setAllocationTargets] = useState<AllocationTarget[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [dataFileLocation, setDataFileLocation] = useState<string | null>(null);
   const [backups, setBackups] = useState<Backup[]>([]);
@@ -502,10 +542,20 @@ function App({
     apply_to_debt_enabled: true,
     split_purchases_enabled: true,
     envelope_caps_enabled: true,
+    rollover_enabled: true,
+    auto_link_transfers: false, // the one opt-in switch
   });
 
+  const [backupCopyDir, setBackupCopyDir] = useState<string | null>(null);
+  const [backgroundSettings, setBackgroundSettings] = useState<BackgroundSettings | null>(null);
+  useEffect(() => {
+    invoke<BackgroundSettings>("get_background_settings")
+      .then(setBackgroundSettings)
+      .catch(() => undefined);
+  }, []);
   const refreshBackups = useCallback(async () => {
     setBackups(await invoke<Backup[]>("list_backups"));
+    setBackupCopyDir(await invoke<string | null>("get_backup_copy_dir"));
   }, []);
 
   const refreshProfiles = useCallback(async () => {
@@ -545,9 +595,69 @@ function App({
 
   async function handleCreateBackupNow() {
     try {
-      await invoke("create_backup_now");
+      const result = await invoke<{ filename: string; copied_to: string | null; copy_error: string | null }>("create_backup_now");
       await refreshBackups();
-      setStatus("Backup created.", "success");
+      if (result.copy_error) {
+        setStatus(`Backup created, but the copy to your second folder failed: ${result.copy_error}`, "error");
+      } else if (result.copied_to) {
+        setStatus(`Backup created and copied to ${result.copied_to}.`, "success");
+      } else {
+        setStatus("Backup created.", "success");
+      }
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetBackupCopyDir(dir: string | null) {
+    try {
+      const message = await invoke<string>("set_backup_copy_dir", { dir });
+      await refreshBackups();
+      setStatus(message, "success");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetTray(enabled: boolean) {
+    try {
+      await invoke("set_tray_enabled", { enabled });
+      const settings = await invoke<BackgroundSettings>("get_background_settings");
+      // Turning the tray off also ends "start at sign-in" — hidden in a tray
+      // that isn't there would leave nothing to bring the window back.
+      if (!enabled && settings.autostart_enabled) {
+        await invoke("set_autostart_enabled", { enabled: false });
+        settings.autostart_enabled = false;
+      }
+      setBackgroundSettings(settings);
+      setStatus(enabled ? "Vault Spend will keep running in the tray and remind you about bills." : "Background reminders are off.", "success");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetAutostart(enabled: boolean) {
+    try {
+      await invoke("set_autostart_enabled", { enabled });
+      setBackgroundSettings(await invoke<BackgroundSettings>("get_background_settings"));
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSendTestReminder() {
+    try {
+      await invoke("send_test_reminder");
+      setStatus("Sent a test reminder — check your notifications.", "info");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleBrowseBackupCopyDir() {
+    try {
+      const picked = await open({ directory: true, multiple: false, title: "Choose a folder for the second backup copy" });
+      if (typeof picked === "string") await handleSetBackupCopyDir(picked);
     } catch (e) {
       setStatus(String(e));
     }
@@ -688,6 +798,41 @@ function App({
       // (see budget_alerts_for_month) — refresh so any already-loaded
       // alerts pick up the change immediately instead of on next nav.
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetRolloverEnabled(enabled: boolean) {
+    try {
+      await invoke("set_rollover_enabled", { enabled });
+      await refreshAppSettings();
+      // What carries into a month is worked out in the backend, and the alerts
+      // (and the month review) count it as part of the budget — drop the cached
+      // alerts so they're read again against the new setting.
+      currentMonthAlertsRef.current = null;
+      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetAutoLinkTransfers(enabled: boolean) {
+    try {
+      const linkedNow = await invoke<number>("set_auto_link_transfers", { enabled });
+      await refreshAppSettings();
+      if (!enabled) {
+        setStatus("Automatic transfer linking is off. Links already made stay; unlink any from Transactions.", "info");
+        return;
+      }
+      // Turning it on also links the clear-cut pairs already in the ledger.
+      await refresh();
+      setStatus(
+        linkedNow > 0
+          ? `Automatic linking is on. ${linkedNow === 1 ? "Linked 1 transfer that was" : `Linked ${linkedNow} transfers that were`} already there — review ${linkedNow === 1 ? "it" : "them"} on Transactions.`
+          : "Automatic linking is on. Clear-cut transfers will be linked as they arrive.",
+        "success",
+      );
     } catch (e) {
       setStatus(String(e));
     }
@@ -861,6 +1006,26 @@ function App({
     const timer = setTimeout(() => setUndoToast(null), 10000);
     return () => clearTimeout(timer);
   }, [undoToast]);
+
+  // Offered right after fixing one transaction's category, when the rule
+  // that fix just taught the app would also re-categorize other, similar
+  // transactions already on the books. Own state (like `undoToast`) so a
+  // routine status message can't clobber it mid-decision.
+  const [similarToast, setSimilarToast] = useState<{ text: string; patterns: string[]; category: string; count: number } | null>(null);
+  useEffect(() => {
+    if (!similarToast) return;
+    const timer = setTimeout(() => setSimilarToast(null), 12000);
+    return () => clearTimeout(timer);
+  }, [similarToast]);
+  const [ledgerDensity, setLedgerDensityState] = useState<LedgerDensity>(loadLedgerDensity);
+  function setLedgerDensity(next: LedgerDensity) {
+    setLedgerDensityState(next);
+    try {
+      localStorage.setItem(LEDGER_DENSITY_STORAGE_KEY, next);
+    } catch {
+      // a failed write only means the choice isn't remembered next launch
+    }
+  }
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -945,8 +1110,70 @@ function App({
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(sortedTransactions.length / pageSize));
-  const pagedTransactions = sortedTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  // A linked transfer shows as one row, not two — see `collapseTransferPairs`.
+  // Done after filtering and sorting so it only ever merges legs that are
+  // both actually on screen, and before paging so page sizes stay honest.
+  const { rows: displayTransactions, inLegByOutId } = useMemo(() => collapseTransferPairs(sortedTransactions), [sortedTransactions]);
+  const totalPages = Math.max(1, Math.ceil(displayTransactions.length / pageSize));
+  const pagedTransactions = displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Suggested transfers (equal-and-opposite amounts in different accounts a
+  // few days apart) — fetched whenever the Transactions tab is showing and
+  // the data changes, so a fresh import or manual entry surfaces its own.
+  const [transferCandidates, setTransferCandidates] = useState<{ out_id: number; in_id: number }[]>([]);
+  const [transferReviewOpen, setTransferReviewOpen] = useState(false);
+  useEffect(() => {
+    if (activeTab !== "ledger") return;
+    let cancelled = false;
+    invoke<{ out_id: number; in_id: number }[]>("list_transfer_candidates")
+      .then((c) => {
+        if (!cancelled) setTransferCandidates(c);
+      })
+      .catch(() => {
+        /* a missing suggestion is never worth an error banner */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, transactions]);
+  const transferCandidatePairs = useMemo(() => {
+    const byId = new Map(transactions.map((t) => [t.id, t]));
+    return transferCandidates.flatMap((c) => {
+      const out = byId.get(c.out_id);
+      const inn = byId.get(c.in_id);
+      return out && inn ? [{ out, in: inn }] : [];
+    });
+  }, [transferCandidates, transactions]);
+  // Pairs the app linked on its own (Settings > Feature toggles) that nobody has
+  // marked "looks right" yet — the review report. Read the same way as the
+  // suggestions above.
+  const [autoLinked, setAutoLinked] = useState<{ out_id: number; in_id: number }[]>([]);
+  const [autoLinkReviewOpen, setAutoLinkReviewOpen] = useState(false);
+  const reloadAutoLinked = useCallback(async () => {
+    try {
+      setAutoLinked(await invoke<{ out_id: number; in_id: number }[]>("list_auto_linked_transfers"));
+    } catch {
+      /* the review list is a convenience; never worth an error banner */
+    }
+  }, []);
+  useEffect(() => {
+    if (activeTab !== "ledger") return;
+    void reloadAutoLinked();
+  }, [activeTab, transactions, reloadAutoLinked]);
+  const autoLinkedPairs = useMemo(() => {
+    const byId = new Map(transactions.map((t) => [t.id, t]));
+    return autoLinked.flatMap((c) => {
+      const out = byId.get(c.out_id);
+      const inn = byId.get(c.in_id);
+      return out && inn ? [{ out, in: inn }] : [];
+    });
+  }, [autoLinked, transactions]);
+  // Exactly two rows ticked that could be the two legs of one transfer.
+  const selectedPairForLink = useMemo(() => {
+    if (selectedIds.size !== 2) return null;
+    const [a, b] = Array.from(selectedIds).map((id) => transactions.find((t) => t.id === id));
+    return a && b && canLinkAsTransfer(a, b) ? [a, b] : null;
+  }, [selectedIds, transactions]);
   // The Debt column is the only one of the three feature toggles that's a
   // whole dedicated table column — Split lives inside the Category cell,
   // so hiding it doesn't change the column count.
@@ -980,6 +1207,41 @@ function App({
   function setTheme(next: Theme) {
     setThemeState(next);
   }
+
+  // Privacy mode: hides every dollar amount on screen (see privacy.ts). Two
+  // per-viewer preferences: the on/off toggle in the header, and an opt-in
+  // "also hide whenever this window isn't in front" from Settings.
+  const [privacyPrefs, setPrivacyPrefs] = useState<PrivacyPrefs>(loadPrivacyPrefs);
+  const [windowFocused, setWindowFocused] = useState(() => document.hasFocus());
+  // Only followed while the auto-hide option is on: every focus change is a
+  // state change, and App is too big to re-render for nothing each time the
+  // window is clicked away from.
+  useEffect(() => {
+    if (!privacyPrefs.autoHide) return;
+    const onFocus = () => setWindowFocused(true);
+    const onBlur = () => setWindowFocused(false);
+    setWindowFocused(document.hasFocus());
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [privacyPrefs.autoHide]);
+  const amountsHidden = privacyPrefs.hidden || (privacyPrefs.autoHide && !windowFocused);
+  // Layout effect so the first paint after launch already has amounts hidden.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (!amountsHidden) {
+      root.removeAttribute("data-privacy");
+      return;
+    }
+    root.setAttribute("data-privacy", "on");
+    return startPrivacyMask(document.body);
+  }, [amountsHidden]);
+  useEffect(() => {
+    savePrivacyPrefs(privacyPrefs);
+  }, [privacyPrefs]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1129,6 +1391,17 @@ function App({
     dataVersionRef.current++;
   }, []);
 
+  // A goal that follows an account's balance gets its figure from the backend
+  // as of when the goals were read, so when the accounts are re-read (a
+  // transaction added, edited or deleted) its card has to be read again too —
+  // otherwise Goals keeps the old total until the app is reopened.
+  useEffect(() => {
+    if (!bucketsLoadedRef.current || !buckets.some((b) => b.tracks_account)) return;
+    refreshBuckets().catch((e) => setStatus(String(e)));
+    // Deliberately keyed on `accounts` alone: `refreshBuckets` replaces `buckets`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts]);
+
   const checkSinkingFundContributions = useCallback(async () => {
     const applied = await invoke<SinkingFundContribution[]>("check_sinking_fund_contributions");
     if (applied.length > 0) {
@@ -1145,6 +1418,19 @@ function App({
     setRecurring(await invoke<Recurring[]>("list_recurring"));
     dataVersionRef.current++;
   }, []);
+
+  const refreshRecurringMatches = useCallback(async () => {
+    setRecurringMatches(await invoke<RecurringMatch[]>("recurring_matches"));
+  }, []);
+
+  // Matches depend on the transactions as much as on the recurring list, so
+  // they're re-read whenever a screen that shows them opens rather than
+  // tracked through every import and edit.
+  useEffect(() => {
+    if (activeTab === "recurring" || activeTab === "dashboard") {
+      refreshRecurringMatches().catch((e) => setStatus(String(e)));
+    }
+  }, [activeTab, refreshRecurringMatches]);
 
   const refreshRecurringTotals = useCallback(async () => {
     setRecurringTotals(await invoke<RecurringTotals>("recurring_totals"));
@@ -1163,6 +1449,8 @@ function App({
 
   const refreshHoldings = useCallback(async () => {
     setHoldings(await invoke<Holding[]>("list_holdings"));
+    setPortfolioHistory(await invoke<PortfolioPoint[]>("portfolio_history"));
+    setAllocationTargets(await invoke<AllocationTarget[]>("list_allocation_targets"));
     holdingsLoadedRef.current = true;
     dataVersionRef.current++;
   }, []);
@@ -1257,11 +1545,30 @@ function App({
   }, []);
 
   const [forecastDays, setForecastDays] = useState(30);
-  const [forecastData, setForecastData] = useState<ForecastPoint[] | null>(null);
+  const [forecastData, setForecastData] = useState<BillAwareForecast | null>(null);
 
   const refreshForecast = useCallback(async (days: number) => {
-    setForecastData(await invoke<ForecastPoint[]>("cash_flow_forecast", { days }));
+    setForecastData(await invoke<BillAwareForecast>("bill_aware_forecast", { days }));
   }, []);
+
+  // The Dashboard's "Safe to spend" needs a horizon long enough to reach the
+  // next paycheck (monthly pay is up to ~35 days out) — its own fetch, since
+  // the Cash Flow tab's forecast window is whatever 30/60/90 the user picked.
+  const [safeToSpendForecast, setSafeToSpendForecast] = useState<BillAwareForecast | null>(null);
+  useEffect(() => {
+    if (activeTab !== "dashboard" || !layoutWidgets.includes("safe_to_spend")) return;
+    let cancelled = false;
+    invoke<BillAwareForecast>("bill_aware_forecast", { days: 45 })
+      .then((f) => {
+        if (!cancelled) setSafeToSpendForecast(f);
+      })
+      .catch(() => {
+        /* the widget just doesn't render — never worth an error banner */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, layoutWidgets, transactions, recurring, accounts]);
 
   useEffect(() => {
     if (activeTab === "cashflow") {
@@ -1374,6 +1681,10 @@ function App({
   // so a bill isn't re-notified every single launch on the same day.
   useEffect(() => {
     if (recurring.length === 0) return;
+    // With background reminders on the backend sends these (once per due
+    // date, window open or not), so this launch-time path steps aside — and
+    // waits until it knows which case it's in.
+    if (backgroundSettings === null || backgroundSettings.tray_enabled) return;
     const NOTIFIED_KEY = "vaultspend-notified-bills";
     const DUE_SOON_DAYS = 3;
 
@@ -1414,7 +1725,7 @@ function App({
         // launch, not a functional failure worth surfacing to the user.
       }
     })();
-  }, [recurring]);
+  }, [recurring, backgroundSettings]);
 
   const [budgetMonthActuals, setBudgetMonthActuals] = useState<ReportBudgetLine[]>([]);
   const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlert[]>([]);
@@ -1478,7 +1789,12 @@ function App({
     refreshRecurring().catch((e) => setStatus(String(e)));
     refreshRecurringTotals().catch((e) => setStatus(String(e)));
     refreshRecurringCandidates().catch((e) => setStatus(String(e)));
-    refreshHoldings().catch((e) => setStatus(String(e)));
+    // Leave today's point on the value chart even if nothing is repriced.
+    invoke("record_portfolio_snapshot")
+      .catch(() => undefined)
+      .finally(() => {
+        refreshHoldings().catch((e) => setStatus(String(e)));
+      });
     refreshAssets().catch((e) => setStatus(String(e)));
   }, [
     checkMonthlyRollover,
@@ -1556,9 +1872,263 @@ function App({
     }
   }
 
+  // ---- Month-end review -------------------------------------------------
+  const [reviewedMonths, setReviewedMonths] = useState<string[]>([]);
+  const [monthReview, setMonthReview] = useState<MonthReview | null>(null);
+  const refreshReviewedMonths = useCallback(async () => {
+    setReviewedMonths(await invoke<string[]>("list_reviewed_months"));
+  }, []);
+  useEffect(() => {
+    refreshReviewedMonths().catch((e) => setStatus(String(e)));
+  }, [refreshReviewedMonths]);
+  const monthReviewOffer = useMemo(
+    () => monthReviewDue({ today: new Date(), reviewedMonths, transactions }),
+    [reviewedMonths, transactions],
+  );
+
+  async function handleOpenMonthReview(year: number, month: number) {
+    try {
+      setMonthReview(await invoke<MonthReview>("month_review", { year, month }));
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleFinishMonthReview() {
+    if (!monthReview) return;
+    try {
+      await invoke("set_month_reviewed", { year: monthReview.year, month: monthReview.month });
+      await refreshReviewedMonths();
+      setStatus(`${new Date(monthReview.year, monthReview.month - 1, 1).toLocaleDateString("en-US", { month: "long" })} review finished.`, "success");
+      setMonthReview(null);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  function handleReviewCategorize() {
+    if (!monthReview) return;
+    const mm = String(monthReview.month).padStart(2, "0");
+    const lastDay = new Date(monthReview.year, monthReview.month, 0).getDate();
+    setFilterCategory(UNCATEGORIZED_FILTER);
+    setFilterFrom(`${monthReview.year}-${mm}-01`);
+    setFilterTo(`${monthReview.year}-${mm}-${String(lastDay).padStart(2, "0")}`);
+    setMonthReview(null);
+    setActiveTab("ledger");
+  }
+
+  // ---- Import review inbox ---------------------------------------------
+  // `inboxRequest`: ids to open the inbox on once the data behind them has
+  // loaded (null = nothing pending). `inbox`: the fixed list the open dialog
+  // works through.
+  const [inboxRequest, setInboxRequest] = useState<Set<number> | null>(null);
+  const [inbox, setInbox] = useState<InboxItem[] | null>(null);
+  const inboxCount = useMemo(() => buildInbox({ transactions, flags: anomalyFlags, scopeIds: null }).length, [transactions, anomalyFlags]);
+  useEffect(() => {
+    if (!inboxRequest) return;
+    const loaded = new Set(transactions.map((t) => t.id));
+    if (![...inboxRequest].every((id) => loaded.has(id))) return; // the import hasn't been read back yet
+    setInboxRequest(null);
+    const items = buildInbox({ transactions, flags: anomalyFlags, scopeIds: inboxRequest });
+    if (items.length > 0) setInbox(items);
+  }, [inboxRequest, transactions, anomalyFlags]);
+
+  function openInbox() {
+    const items = buildInbox({ transactions, flags: anomalyFlags, scopeIds: null });
+    if (items.length > 0) setInbox(items);
+  }
+
+  async function handleInboxSetCategory(id: number, category: string) {
+    try {
+      await invoke("correct_category", { id, category });
+    } catch (e) {
+      setStatus(String(e));
+      throw e;
+    }
+  }
+
+  async function handleInboxDelete(id: number) {
+    try {
+      const deleted = await invoke<number[]>("bulk_delete_transactions", { ids: [id] });
+      setUndoToast({ text: `Deleted ${deleted.length} transaction(s).`, ids: deleted });
+    } catch (e) {
+      setStatus(String(e));
+      throw e;
+    }
+  }
+
+  async function handleInboxDismiss(id: number, kinds: ("large" | "duplicate")[]) {
+    try {
+      for (const kind of kinds) await invoke("dismiss_anomaly_flag", { transactionId: id, kind });
+    } catch (e) {
+      setStatus(String(e));
+      throw e;
+    }
+  }
+
+  async function closeInbox() {
+    setInbox(null);
+    await refresh(); // the edits were made one at a time behind the dialog
+  }
+
+  // ---- Command palette + keyboard shortcuts ------------------------------
+  const [accountDetailId, setAccountDetailId] = useState<number | null>(null);
+  const accountDetail = accountDetailId === null ? null : (accounts.find((a) => a.id === accountDetailId) ?? null);
+  // Set when a Details page was opened from another tab (the Investments summary), so Back returns there.
+  const [detailReturnTab, setDetailReturnTab] = useState<Tab | null>(null);
+  useEffect(() => {
+    // The account page belongs to the Accounts tab; leaving it closes the page.
+    if (activeTab !== "accounts") {
+      setAccountDetailId(null);
+      setDetailReturnTab(null);
+    }
+  }, [activeTab]);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  function focusTransactionSearch() {
+    setActiveTab("ledger");
+    // The Transactions filters mount with the tab; give them a moment.
+    window.setTimeout(() => document.querySelector<HTMLInputElement>('input[aria-label="Search description"]')?.focus(), 60);
+  }
+
+  useEffect(() => {
+    function isTyping(target: EventTarget | null): boolean {
+      const el = target as HTMLElement | null;
+      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      const dialogOpen = document.querySelector('[role="dialog"]') !== null;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        // Another dialog is up: leave it alone. The palette itself toggles off.
+        if (!dialogOpen || paletteOpen) setPaletteOpen((open) => !open);
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey || dialogOpen || isTyping(e.target)) return;
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        setNewTransactionOpen(true);
+      } else if (e.key === "/") {
+        e.preventDefault();
+        focusTransactionSearch();
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setShortcutsOpen(true);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paletteOpen]);
+
+  // Recent transactions only — the palette filters on every keystroke.
+  const paletteEntries = useMemo<PaletteEntry[]>(() => {
+    const entries: PaletteEntry[] = [];
+    for (const item of [...orderedNavItems, ...PINNED_NAV_ITEMS]) {
+      entries.push({ id: `tab:${item.id}`, kind: "tab", label: item.label });
+    }
+    entries.push(
+      { id: "action:add", kind: "action", label: "Add transaction…", keywords: "new create expense income" },
+      { id: "action:import", kind: "action", label: "Import transactions…", keywords: "csv ofx qfx qif file bank statement" },
+      { id: "action:privacy", kind: "action", label: privacyPrefs.hidden ? "Show amounts" : "Hide amounts", keywords: "privacy mask hide blur" },
+      { id: "action:review", kind: "action", label: "Review last month…", keywords: "month end close out check-in" },
+      { id: "action:backup", kind: "action", label: "Back up now", keywords: "backup save copy data" },
+      { id: "action:shortcuts", kind: "action", label: "Keyboard shortcuts", keywords: "keys help hotkeys" },
+    );
+    if (inboxCount > 0) {
+      entries.push({ id: "action:inbox", kind: "action", label: `Review inbox (${inboxCount})`, keywords: "triage uncategorized duplicates large" });
+    }
+    for (const a of accounts) entries.push({ id: `account:${a.id}`, kind: "account", label: a.name, hint: a.account_type });
+    for (const b of buckets) entries.push({ id: `goal:${b.id}`, kind: "goal", label: b.name, hint: "Goal" });
+    for (const t of transactions.slice(0, 3000)) {
+      entries.push({
+        id: `txn:${t.id}`,
+        kind: "transaction",
+        label: t.description,
+        hint: `${t.date} · ${formatAmount(t.amount)}`,
+        keywords: t.category ?? undefined,
+      });
+    }
+    return entries;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderedNavItems.map((i) => i.id).join(","), privacyPrefs.hidden, inboxCount, accounts, buckets, transactions]);
+
+  function runPaletteEntry(entry: PaletteEntry) {
+    setPaletteOpen(false);
+    const [kind, ...rest] = entry.id.split(":");
+    const key = rest.join(":");
+    if (kind === "tab") {
+      setActiveTab(key as Tab);
+    } else if (kind === "account") {
+      setActiveTab("accounts");
+      setAccountDetailId(Number(key));
+    } else if (kind === "goal") {
+      setActiveTab("buckets");
+    } else if (kind === "txn") {
+      const t = transactions.find((x) => x.id === Number(key));
+      if (t) {
+        setSearchText(t.description);
+        setFilterCategory("all");
+        setFilterAccountIds("all");
+        setFilterFrom("");
+        setFilterTo("");
+      }
+      setActiveTab("ledger");
+    } else if (entry.id === "action:add") {
+      setNewTransactionOpen(true);
+    } else if (entry.id === "action:import") {
+      setActiveTab("ledger");
+      void handleImport();
+    } else if (entry.id === "action:privacy") {
+      setPrivacyPrefs((p) => ({ ...p, hidden: !p.hidden }));
+    } else if (entry.id === "action:review") {
+      const last = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+      void handleOpenMonthReview(last.getFullYear(), last.getMonth() + 1);
+    } else if (entry.id === "action:backup") {
+      void handleCreateBackupNow();
+    } else if (entry.id === "action:shortcuts") {
+      setShortcutsOpen(true);
+    } else if (entry.id === "action:inbox") {
+      openInbox();
+    }
+  }
+
+  async function handleSuggestBudgets(): Promise<BudgetSuggestions | null> {
+    try {
+      return await invoke<BudgetSuggestions>("suggest_budgets", { year: budgetYear, month: budgetMonthNum });
+    } catch (e) {
+      setStatus(String(e));
+      return null;
+    }
+  }
+
+  async function handleApplyBudgetSuggestions(rows: { category: string; amount: string; group: string }[]) {
+    try {
+      for (const row of rows) {
+        await invoke("set_budget", { category: row.category, period: budgetPeriod, monthlyAmount: row.amount, budgetGroup: row.group });
+      }
+      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
+      setStatus(`Set ${rows.length} budget${rows.length === 1 ? "" : "s"} for ${budgetMonthLabel}.`);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
   async function handleSetCap(category: string, capEnabled: boolean) {
     try {
       await invoke("set_budget_cap", { category, period: budgetPeriod, capEnabled });
+      await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSetRollover(category: string, rolloverEnabled: boolean) {
+    try {
+      await invoke("set_budget_rollover", { category, period: budgetPeriod, rolloverEnabled });
+      // A category's carry changes what counts as over budget — don't reuse cached alerts.
+      currentMonthAlertsRef.current = null;
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
       setStatus(String(e));
@@ -1742,6 +2312,7 @@ function App({
     sinkingAmount: string | null,
     color: string | null,
     iconKey: string | null,
+    tracksAccount: boolean,
   ) {
     try {
       const id = await invoke<number>("create_bucket", {
@@ -1755,6 +2326,9 @@ function App({
       });
       if (memberId !== null) {
         await invoke("set_bucket_member", { id, memberId });
+      }
+      if (tracksAccount && accountId !== null) {
+        await invoke("set_bucket_tracks_account", { id, tracksAccount });
       }
       await refreshBuckets();
       // A brand-new auto-contribute bucket didn't exist yet the last time
@@ -1777,9 +2351,11 @@ function App({
     sinkingAmount: string | null,
     color: string | null,
     iconKey: string | null,
+    tracksAccount: boolean,
   ) {
     try {
       await invoke("update_bucket_details", { id, targetAmount, targetDate, accountId, sinkingAmount, color, iconKey });
+      await invoke("set_bucket_tracks_account", { id, tracksAccount: tracksAccount && accountId !== null });
       await refreshBuckets();
       // Same reasoning as handleCreateBucket: a sinking amount just added
       // (or changed) here was invisible to the launch-time check, so catch
@@ -1923,6 +2499,23 @@ function App({
     }
   }
 
+  async function handleSetAllocationTargets(targets: { assetClass: string; percent: string }[]) {
+    try {
+      for (const t of targets) {
+        await invoke("set_allocation_target", { assetClass: t.assetClass, percent: t.percent });
+      }
+      await refreshHoldings();
+      setStatus("Target allocation saved.", "success");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleSaveProjectionAsGoal(name: string, targetAmount: string, targetDate: string) {
+    await handleCreateBucket(name, targetAmount, targetDate, null, null, null, null, null, false);
+    setStatus(`Saved "${name}" as a goal — it's on the Goals page.`, "success");
+  }
+
   async function handleDeleteHolding(id: number) {
     try {
       await invoke("delete_holding", { id });
@@ -1990,13 +2583,10 @@ function App({
   useEffect(() => {
     // Keep the selection valid as accounts come and go. Prefer whichever
     // account was last actually used (see LAST_USED_ACCOUNT_STORAGE_KEY);
-    // only fall back to accounts[0] — alphabetically first, not
-    // necessarily the household's everyday account — when there's no
-    // remembered account or it no longer exists.
+    // failing that, an everyday account (see pickDefaultAccountId) — not
+    // just whichever sorts first alphabetically, which was often a loan.
     if (selectedAccountId === null || !accounts.some((a) => a.id === selectedAccountId)) {
-      const lastUsed = getLastUsedAccountId();
-      const stillExists = lastUsed !== null && accounts.some((a) => a.id === lastUsed);
-      setSelectedAccountId(stillExists ? lastUsed : accounts.length > 0 ? accounts[0].id : null);
+      setSelectedAccountId(pickDefaultAccountId(accounts, getLastUsedAccountId()));
     }
   }, [accounts, selectedAccountId]);
 
@@ -2133,10 +2723,12 @@ function App({
         accountOverrides: Object.fromEntries(accountOverrides),
       });
       await refresh();
+      if (summary.inserted_ids.length > 0) setInboxRequest(new Set(summary.inserted_ids));
       const skipped = totalRows - includedCount;
       setStatus(
         `Imported ${summary.inserted} transaction(s)` +
           (skipped ? ` — ${skipped} excluded` : "") +
+          (summary.auto_linked ? ` — linked ${summary.auto_linked} transfer${summary.auto_linked === 1 ? "" : "s"} automatically` : "") +
           (summary.row_errors ? ` — ${summary.row_errors} row(s) couldn't be read` : ""),
         summary.row_errors ? "error" : "success",
       );
@@ -2162,6 +2754,8 @@ function App({
       value = custom;
     }
 
+    const description = transactions.find((t) => t.id === id)?.description.trim();
+
     // optimistic update so the dropdown doesn't snap back while the call is in flight
     setTransactions((prev) =>
       prev.map((t) => (t.id === id ? { ...t, category: value, category_source: "user" } : t)),
@@ -2169,9 +2763,54 @@ function App({
     try {
       await invoke("correct_category", { id, category: value });
       await refresh();
+      if (description) void offerToApplyToSimilar([description], value);
     } catch (e) {
       setStatus(String(e));
       await refresh();
+    }
+  }
+
+  /** A category fix just saved a rule for each of these merchants (one for a
+   * row's dropdown, possibly several for the bulk "Set category to…" bar); if
+   * other transactions from them are still sitting in a different category
+   * (and weren't categorized by hand), offer to fix those in one click.
+   * Purely a convenience — a failure here is never worth surfacing. */
+  async function offerToApplyToSimilar(merchants: string[], category: string) {
+    try {
+      const withTwins: string[] = [];
+      let count = 0;
+      for (const pattern of merchants) {
+        const preview = await invoke<{ matching: number; would_change: number }>("preview_rule", {
+          pattern,
+          category,
+          replacing: null,
+        });
+        if (preview.would_change > 0) {
+          withTwins.push(pattern);
+          count += preview.would_change;
+        }
+      }
+      if (count > 0) {
+        setSimilarToast({ text: similarOfferText(merchants, category, count), patterns: withTwins, category, count });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function handleApplyToSimilar() {
+    if (!similarToast) return;
+    const { patterns, category } = similarToast;
+    setSimilarToast(null);
+    try {
+      let changed = 0;
+      for (const pattern of patterns) {
+        changed += await invoke<number>("save_rule", { pattern, category, replacing: null, applyToExisting: true });
+      }
+      await refresh();
+      setStatus(`Re-categorized ${changed} transaction${changed === 1 ? "" : "s"} as ${category}.`, "success");
+    } catch (e) {
+      setStatus(String(e));
     }
   }
 
@@ -2192,11 +2831,18 @@ function App({
     memberId: number | null,
   ) {
     try {
-      await invoke("create_manual_transaction", { accountId, date, description, amount, category, memberId });
+      const newId = await invoke<number>("create_manual_transaction", { accountId, date, description, amount, category, memberId });
       setLastUsedAccountId(accountId);
       await refresh();
       setNewTransactionOpen(false);
-      setStatus(`Added "${description}".`, "success");
+      // With automatic linking on, an entry that completes a transfer is linked
+      // straight away — say so, so it doesn't just quietly change shape.
+      const autoLinked = await invoke<{ out_id: number; in_id: number }[]>("list_auto_linked_transfers").catch(() => []);
+      const linkedNow = autoLinked.some((p) => p.out_id === newId || p.in_id === newId);
+      setStatus(
+        linkedNow ? `Added "${description}" and linked it as a transfer automatically — review it under “auto-linked”.` : `Added "${description}".`,
+        "success",
+      );
     } catch (e) {
       setStatus(String(e));
     }
@@ -2667,6 +3313,63 @@ function App({
     }
   }
 
+  async function handleUnlinkTransfer(transactionId: number) {
+    try {
+      await invoke("unlink_transfer", { transactionId });
+      await refresh();
+      setStatus("Unlinked — they're two separate transactions again.", "success");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleLinkSelectedAsTransfer() {
+    if (!selectedPairForLink) return;
+    try {
+      await invoke("link_transfer", { a: selectedPairForLink[0].id, b: selectedPairForLink[1].id });
+      setSelectedIds(new Set());
+      await refresh();
+      setStatus("Linked as a transfer — it no longer counts as income or spending.", "success");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  async function handleLinkTransfers(pairs: { out_id: number; in_id: number }[]) {
+    setTransferReviewOpen(false);
+    try {
+      for (const p of pairs) {
+        await invoke("link_transfer", { a: p.out_id, b: p.in_id });
+      }
+      await refresh();
+      setStatus(`Linked ${pairs.length} transfer${pairs.length === 1 ? "" : "s"}.`, "success");
+    } catch (e) {
+      setStatus(String(e));
+      await refresh();
+    }
+  }
+
+  async function handleMarkAutoLinksReviewed(outIds: number[]) {
+    try {
+      await invoke("mark_auto_links_reviewed", { outIds });
+      await reloadAutoLinked();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  function toggleSelectedMany(ids: number[]) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (ids.every((id) => next.has(id))) {
+        ids.forEach((id) => next.delete(id));
+      } else {
+        ids.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
   function toggleSelected(id: number) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -2680,13 +3383,18 @@ function App({
   }
 
   function toggleSelectAllOnPage() {
-    const allSelected = pagedTransactions.length > 0 && pagedTransactions.every((t) => selectedIds.has(t.id));
+    // A merged transfer row stands for two transactions — select both.
+    const pageIds = pagedTransactions.flatMap((t) => {
+      const inLeg = inLegByOutId.get(t.id);
+      return inLeg ? [t.id, inLeg.id] : [t.id];
+    });
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (allSelected) {
-        pagedTransactions.forEach((t) => next.delete(t.id));
+        pageIds.forEach((id) => next.delete(id));
       } else {
-        pagedTransactions.forEach((t) => next.add(t.id));
+        pageIds.forEach((id) => next.add(id));
       }
       return next;
     });
@@ -2699,10 +3407,13 @@ function App({
       value = custom;
     }
     const ids = Array.from(selectedIds);
+    // Read before the reload: these are the merchants the change teaches rules for.
+    const merchants = distinctMerchants(ids.map((id) => transactions.find((t) => t.id === id)?.description));
     try {
       await invoke("bulk_correct_category", { ids, category: value });
       setSelectedIds(new Set());
       await refresh();
+      if (merchants.length > 0) void offerToApplyToSimilar(merchants, value);
     } catch (e) {
       setStatus(String(e));
     }
@@ -2845,6 +3556,16 @@ function App({
             <p className="subtitle">Own your Data, Own your Money!</p>
           </div>
           <div className="topbar-actions">
+            <button
+              type="button"
+              className={privacyPrefs.hidden ? "privacy-toggle privacy-toggle-on" : "privacy-toggle"}
+              data-privacy-toggle
+              aria-pressed={privacyPrefs.hidden}
+              title={privacyPrefs.hidden ? "Amounts are hidden — click to show them" : "Hide every dollar amount on screen"}
+              onClick={() => setPrivacyPrefs((p) => ({ ...p, hidden: !p.hidden }))}
+            >
+              {privacyPrefs.hidden ? "Show amounts" : "Hide amounts"}
+            </button>
             <div className="theme-toggle" role="group" aria-label="Theme">
               {(["light", "dark", "system"] as Theme[]).map((t) => (
                 <button key={t} className={theme === t ? "theme-toggle-active" : ""} onClick={() => setTheme(t)}>
@@ -2854,8 +3575,12 @@ function App({
             </div>
             {activeTab === "ledger" && (
             <div className="import-controls">
-              <label className="import-controls-label" htmlFor="ledger-account-select">
-                Account
+              <label
+                className="import-controls-label"
+                htmlFor="ledger-account-select"
+                title="The account that Import transactions… and Add transaction… start on"
+              >
+                Add to
               </label>
               <select
                 id="ledger-account-select"
@@ -2951,17 +3676,30 @@ function App({
         <div className="page">
 
       <UpdateBanner />
-      <div className="toast-stack">
-        {status && <StatusBanner text={status.text} kind={status.kind} onDismiss={() => setStatusState(null)} />}
-        {undoToast && (
-          <StatusBanner
-            text={undoToast.text}
-            kind="info"
-            action={{ label: "Undo", onClick: handleUndoBulkDelete }}
-            onDismiss={() => setUndoToast(null)}
-          />
-        )}
-      </div>
+      {/* Body level, like the dialogs: `position: fixed` inside `.page` is laid out
+          against the whole page under the Transparent style's backdrop-filter. */}
+      {createPortal(
+        <div className="toast-stack">
+          {status && <StatusBanner text={status.text} kind={status.kind} onDismiss={() => setStatusState(null)} />}
+          {undoToast && (
+            <StatusBanner
+              text={undoToast.text}
+              kind="info"
+              action={{ label: "Undo", onClick: handleUndoBulkDelete }}
+              onDismiss={() => setUndoToast(null)}
+            />
+          )}
+          {similarToast && (
+            <StatusBanner
+              text={similarToast.text}
+              kind="info"
+              action={{ label: `Apply to ${similarToast.count}`, onClick: handleApplyToSimilar }}
+              onDismiss={() => setSimilarToast(null)}
+            />
+          )}
+        </div>,
+        document.body,
+      )}
 
       {activeTab === "dashboard" && (
         <Suspense fallback={null}>
@@ -2972,6 +3710,9 @@ function App({
           spendingThisMonth={spendingThisMonth}
           report={report}
           recurring={recurring}
+          recurringMatches={recurringMatches}
+          monthReviewOffer={monthReviewOffer}
+          onOpenMonthReview={handleOpenMonthReview}
           transactions={transactions}
           budgetAlerts={dashboardBudgetAlerts}
           insights={dashboardInsights}
@@ -2995,6 +3736,11 @@ function App({
           onOpenReports={() => setActiveTab("reports")}
           onOpenAccounts={() => setActiveTab("accounts")}
           onOpenBuckets={() => setActiveTab("buckets")}
+          onOpenUncategorized={() => {
+            setFilterCategory(UNCATEGORIZED_FILTER);
+            setActiveTab("ledger");
+          }}
+          safeToSpendForecast={safeToSpendForecast}
           onAddTransaction={() => setNewTransactionOpen(true)}
           onAddAccount={handleNewAccount}
         />
@@ -3010,6 +3756,11 @@ function App({
               {accounts.length === 1 ? "" : "s"}.
             </p>
           </div>
+          {inboxCount > 0 && (
+            <button type="button" className="modal-secondary" onClick={openInbox} data-inbox-open>
+              Review inbox ({inboxCount})
+            </button>
+          )}
         </div>
       )}
 
@@ -3270,6 +4021,34 @@ function App({
               + Save current filter…
             </button>
           )}
+          {transferCandidatePairs.length > 0 && (
+            <button type="button" className="modal-secondary btn-sm transfer-suggestion" onClick={() => setTransferReviewOpen(true)}>
+              ⇄ {transferCandidatePairs.length} possible transfer{transferCandidatePairs.length === 1 ? "" : "s"} — review
+            </button>
+          )}
+          {autoLinkedPairs.length > 0 && (
+            <button
+              type="button"
+              className="modal-secondary btn-sm transfer-suggestion"
+              data-autolink-review
+              onClick={() => setAutoLinkReviewOpen(true)}
+            >
+              ⇄ {autoLinkedPairs.length} auto-linked — review
+            </button>
+          )}
+          <div className="density-toggle" role="group" aria-label="Row density">
+            {(["comfortable", "compact"] as LedgerDensity[]).map((d) => (
+              <button
+                key={d}
+                type="button"
+                className={ledgerDensity === d ? "density-toggle-active" : ""}
+                aria-pressed={ledgerDensity === d}
+                onClick={() => setLedgerDensity(d)}
+              >
+                {d === "comfortable" ? "Comfortable" : "Compact"}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -3341,6 +4120,16 @@ function App({
               Delete selected
             </button>
           )}
+          {selectedPairForLink && (
+            <button
+              type="button"
+              className="modal-secondary"
+              onClick={handleLinkSelectedAsTransfer}
+              title="These two look like the two sides of one move between your own accounts"
+            >
+              Link as transfer
+            </button>
+          )}
           <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
             Clear selection
           </button>
@@ -3349,7 +4138,7 @@ function App({
 
       {activeTab === "ledger" && (
       <div className="ledger-table-scroll">
-      <table className="ledger">
+      <table className={ledgerDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
         <thead>
           <tr>
             <th className="select-col">
@@ -3360,31 +4149,46 @@ function App({
                 aria-label="Select all on this page"
               />
             </th>
-            <th className="sortable-col" onClick={() => toggleSort("date")}>
-              Date{sortColumn === "date" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
-            <th className="sortable-col" onClick={() => toggleSort("description")}>
-              Description{sortColumn === "description" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
-            <th className="amount-col sortable-col" onClick={() => toggleSort("amount")}>
-              Amount{sortColumn === "amount" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
-            <th className="sortable-col" onClick={() => toggleSort("account")}>
-              Account{sortColumn === "account" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
+            <SortableTh column="date" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Date
+            </SortableTh>
+            <SortableTh column="description" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Description
+            </SortableTh>
+            <SortableTh column="amount" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} className="amount-col">
+              Amount
+            </SortableTh>
+            <SortableTh column="account" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Account
+            </SortableTh>
             <th>Member</th>
-            <th className="sortable-col" onClick={() => toggleSort("category")}>
-              Category{sortColumn === "category" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
-            <th className="sortable-col" onClick={() => toggleSort("source")}>
-              Source{sortColumn === "source" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
+            <SortableTh column="category" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Category
+            </SortableTh>
+            <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Source
+            </SortableTh>
             {appSettings.apply_to_debt_enabled && <th>Debt</th>}
             <th className="actions-col"></th>
           </tr>
         </thead>
         <tbody>
-          {pagedTransactions.map((t) => (
+          {pagedTransactions.map((t) => {
+            const inLeg = inLegByOutId.get(t.id);
+            if (inLeg) {
+              return (
+                <TransferRow
+                  key={t.id}
+                  out={t}
+                  incoming={inLeg}
+                  selected={selectedIds.has(t.id)}
+                  onToggleSelected={() => toggleSelectedMany([t.id, inLeg.id])}
+                  onUnlink={() => handleUnlinkTransfer(t.id)}
+                  showDebtColumn={appSettings.apply_to_debt_enabled}
+                />
+              );
+            }
+            return (
             <Fragment key={t.id}>
             <tr className={selectedIds.has(t.id) ? "ledger-row-selected" : undefined}>
               <td className="select-col">
@@ -3411,7 +4215,7 @@ function App({
                   />
                 ) : (
                   <span
-                    className="amount-editable"
+                    className="amount-editable date-cell"
                     title="Click to fix the date"
                     onClick={() => setEditingDate({ id: t.id, value: t.date })}
                   >
@@ -3455,6 +4259,16 @@ function App({
                     {flag.kind === "large" ? "⚠" : "⧉"}
                   </span>
                 ))}
+                {t.transfer_counterpart_id !== null && (
+                  <button
+                    type="button"
+                    className="transfer-badge transfer-badge-button"
+                    title="Linked as a transfer with a transaction that isn't shown here — click to unlink"
+                    onClick={() => handleUnlinkTransfer(t.id)}
+                  >
+                    ⇄ Transfer ×
+                  </button>
+                )}
                 <div className="tag-pills">
                   {t.tags.map((tag) => (
                     <span key={tag} className="tag-pill">
@@ -3720,7 +4534,8 @@ function App({
               </tr>
             )}
             </Fragment>
-          ))}
+            );
+          })}
           {filteredTransactions.length === 0 && (
             <tr>
               <td colSpan={ledgerColumnCount} className="empty-state">
@@ -3769,7 +4584,7 @@ function App({
               ›
             </button>
           </div>
-          <span className="ledger-page-count">{filteredTransactions.length} total</span>
+          <span className="ledger-page-count">{displayTransactions.length} total</span>
         </div>
       )}
 
@@ -3794,14 +4609,21 @@ function App({
           budgetActuals={budgetMonthActuals}
           budgetAlerts={budgetAlerts}
           monthLabel={budgetMonthLabel}
+          year={budgetYear}
+          month={budgetMonthNum}
           onPrevMonth={handlePrevBudgetMonth}
           onNextMonth={handleNextBudgetMonth}
           onSetBudget={handleSetBudget}
           onSetCap={handleSetCap}
+          onSetRollover={handleSetRollover}
           envelopeCapsEnabled={appSettings.envelope_caps_enabled}
+          rolloverEnabled={appSettings.rollover_enabled}
           onDeleteBudget={handleDeleteBudget}
           onCategoryClick={handleCategoryClick}
           onFetchTrend={handleFetchBudgetTrend}
+          onSuggest={handleSuggestBudgets}
+          onApplySuggestions={handleApplyBudgetSuggestions}
+          onOpenMonthReview={() => void handleOpenMonthReview(budgetYear, budgetMonthNum)}
         />
         </Suspense>
       )}
@@ -3819,6 +4641,7 @@ function App({
           month={budgetMonthNum}
           onPrevMonth={handlePrevBudgetMonth}
           onNextMonth={handleNextBudgetMonth}
+          onManageMembers={openManageFamilyMembers}
         />
         </Suspense>
       )}
@@ -3839,6 +4662,7 @@ function App({
         <Suspense fallback={null}>
         <RecurringView
           recurring={recurring}
+          matches={recurringMatches}
           totals={recurringTotals}
           candidates={recurringCandidates}
           accounts={accounts}
@@ -3866,6 +4690,15 @@ function App({
           onFetchQuote={handleFetchLiveQuote}
           layoutWidgets={layoutWidgets}
           onPinWidget={(id) => addWidgetToDashboard(id, true)}
+          portfolioHistory={portfolioHistory}
+          allocationTargets={allocationTargets}
+          onSetAllocationTargets={handleSetAllocationTargets}
+          onSaveProjectionAsGoal={handleSaveProjectionAsGoal}
+          onOpenAccountDetail={(id) => {
+            setAccountDetailId(id);
+            setDetailReturnTab("investments");
+            setActiveTab("accounts");
+          }}
         />
         </Suspense>
       )}
@@ -4118,7 +4951,21 @@ function App({
         </div>
       )}
 
-      {activeTab === "accounts" && (
+      {activeTab === "accounts" && accountDetail && (
+        <AccountDetailView
+          key={accountDetail.id}
+          account={accountDetail}
+          onBack={() => {
+            if (detailReturnTab) setActiveTab(detailReturnTab);
+            else setAccountDetailId(null);
+          }}
+          backLabel={detailReturnTab === "investments" ? "← Investments" : undefined}
+          onOpenTransactions={() => setActiveTab("ledger")}
+          onMessage={(text, kind) => setStatus(text, kind)}
+        />
+      )}
+
+      {activeTab === "accounts" && !accountDetail && (
         <Suspense fallback={null}>
         <AccountsView
           accounts={accounts}
@@ -4134,6 +4981,12 @@ function App({
           onSetAccountMember={handleSetAccountMember}
           onSetAccountIcon={handleSetAccountIcon}
           onAddAccount={handleNewAccount}
+          onOpenAccountDetail={setAccountDetailId}
+          assets={assets}
+          onCreateAsset={handleCreateAsset}
+          onUpdateAssetValue={handleUpdateAssetValue}
+          onSetAssetMember={handleSetAssetMember}
+          onDeleteAsset={handleDeleteAsset}
         />
         </Suspense>
       )}
@@ -4141,20 +4994,12 @@ function App({
       {activeTab === "reports" && !pendingSetupImport && (
         <Suspense fallback={null}>
         <ReportsView
-          report={report}
           accounts={accounts}
-          buckets={buckets}
           transactions={transactions}
           assets={assets}
           familyMembers={familyMembers}
           onExportCsv={handleExportReportsCsv}
           onPrint={() => window.print()}
-          onDownloadSetupTemplate={handleDownloadSetupTemplate}
-          onImportSetupData={handleImportSetupData}
-          onCreateAsset={handleCreateAsset}
-          onUpdateAssetValue={handleUpdateAssetValue}
-          onSetAssetMember={handleSetAssetMember}
-          onDeleteAsset={handleDeleteAsset}
           onOpenBudget={() => setActiveTab("budget")}
           layoutWidgets={layoutWidgets}
           onPinWidget={(id) => addWidgetToDashboard(id, true)}
@@ -4172,6 +5017,9 @@ function App({
           backups={backups}
           onCreateBackupNow={handleCreateBackupNow}
           onRestoreBackup={handleRestoreBackup}
+          backupCopyDir={backupCopyDir}
+          onSetBackupCopyDir={handleSetBackupCopyDir}
+          onBrowseBackupCopyDir={handleBrowseBackupCopyDir}
           profiles={profiles}
           onCreateProfile={handleCreateProfile}
           onUseExistingDataFile={handlePickExistingDataFile}
@@ -4186,8 +5034,21 @@ function App({
           onSetApplyToDebtEnabled={handleSetApplyToDebtEnabled}
           onSetSplitPurchasesEnabled={handleSetSplitPurchasesEnabled}
           onSetEnvelopeCapsEnabled={handleSetEnvelopeCapsEnabled}
+          onSetRolloverEnabled={handleSetRolloverEnabled}
+          onSetAutoLinkTransfers={handleSetAutoLinkTransfers}
           themeStyle={themeStyle}
           onSetThemeStyle={setThemeStyle}
+          privacyAutoHide={privacyPrefs.autoHide}
+          onSetPrivacyAutoHide={(autoHide) => setPrivacyPrefs((p) => ({ ...p, autoHide }))}
+          onDownloadSetupTemplate={handleDownloadSetupTemplate}
+          onImportSetupData={handleImportSetupData}
+          backgroundSettings={backgroundSettings}
+          onSetTray={handleSetTray}
+          onSetAutostart={handleSetAutostart}
+          onSendTestReminder={handleSendTestReminder}
+          categories={usedCategories}
+          onRulesApplied={() => void refresh()}
+          onMessage={(text, kind) => setStatus(text, kind)}
         />
         </Suspense>
       )}
@@ -4256,6 +5117,43 @@ function App({
           onDelete={handleDeleteCategory}
         />
       )}
+      {paletteOpen && <CommandPalette entries={paletteEntries} onRun={runPaletteEntry} onClose={() => setPaletteOpen(false)} />}
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      {inbox && (
+        <ImportInboxDialog
+          items={inbox}
+          categories={usedCategories}
+          onSetCategory={handleInboxSetCategory}
+          onDelete={handleInboxDelete}
+          onDismiss={handleInboxDismiss}
+          onClose={() => void closeInbox()}
+        />
+      )}
+      {monthReview && (
+        <MonthReviewDialog
+          review={monthReview}
+          goals={buckets}
+          onCategorize={handleReviewCategorize}
+          onFinish={() => void handleFinishMonthReview()}
+          onCancel={() => setMonthReview(null)}
+        />
+      )}
+      {transferReviewOpen && (
+        <TransferReviewDialog
+          pairs={transferCandidatePairs}
+          onLink={handleLinkTransfers}
+          onCancel={() => setTransferReviewOpen(false)}
+        />
+      )}
+      {autoLinkReviewOpen && (
+        <AutoLinkedReviewDialog
+          pairs={autoLinkedPairs}
+          onUnlink={(outId) => void handleUnlinkTransfer(outId)}
+          onLooksRight={(outIds) => void handleMarkAutoLinksReviewed(outIds)}
+          onClose={() => setAutoLinkReviewOpen(false)}
+        />
+      )}
+
       {manageFamilyMembersOpen && (
         <ManageFamilyMembersDialog
           members={familyMembers}

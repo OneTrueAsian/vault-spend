@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { AppSettings, Backup, LivePriceProviderId, LivePriceSettings, Profile, ThemeStyle } from "./types";
+import type { AppSettings, Backup, BackgroundSettings, LivePriceProviderId, LivePriceSettings, Profile, ThemeStyle } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
+import { RulesManager } from "./RulesManager";
 import { CHANGELOG } from "./changelog";
 import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
 
@@ -47,7 +48,8 @@ const LIVE_PRICE_PROVIDERS: Record<
   },
 };
 
-function SettingsSection({
+/** Where the data lives — the first block of Settings' "Data" section. */
+function DataFileBlock({
   dataFileLocation,
   onRelocateDataFile,
   onExportDatabase,
@@ -59,10 +61,8 @@ function SettingsSection({
   onUseExistingDataFile: () => void;
 }) {
   return (
-    <div className="card">
-      <div className="card-head">
-        <span className="reports-section-title">Data file</span>
-      </div>
+    <div className="data-block" data-data-file>
+      <h3 className="data-subhead">Data file</h3>
       <p className="modal-message-secondary">Data file location</p>
       <p className="path-box" style={{ userSelect: "text" }}>
         {dataFileLocation ?? "Loading…"}
@@ -90,21 +90,146 @@ function SettingsSection({
   );
 }
 
-function BackupsSection({
+/** Settings' single "Data" section: the data file, its backups and the bulk setup
+ * tools together, rather than three separate cards. */
+function DataSection({
+  dataFileLocation,
+  onRelocateDataFile,
+  onExportDatabase,
+  onUseExistingDataFile,
   backups,
   onCreateBackupNow,
   onRestoreBackup,
+  copyDir,
+  onSetCopyDir,
+  onBrowseCopyDir,
+  onDownloadSetupTemplate,
+  onImportSetupData,
+}: {
+  dataFileLocation: string | null;
+  onRelocateDataFile: () => void;
+  onExportDatabase: () => void;
+  onUseExistingDataFile: () => void;
+  backups: Backup[];
+  onCreateBackupNow: () => void;
+  onRestoreBackup: (filename: string) => void;
+  copyDir: string | null;
+  onSetCopyDir: (dir: string | null) => void;
+  onBrowseCopyDir: () => void;
+  onDownloadSetupTemplate: () => void;
+  onImportSetupData: () => void;
+}) {
+  return (
+    <div className="card" data-data-section>
+      <div className="card-head">
+        <span className="reports-section-title">Data</span>
+      </div>
+      <DataFileBlock
+        dataFileLocation={dataFileLocation}
+        onRelocateDataFile={onRelocateDataFile}
+        onExportDatabase={onExportDatabase}
+        onUseExistingDataFile={onUseExistingDataFile}
+      />
+      <BackupsBlock
+        backups={backups}
+        onCreateBackupNow={onCreateBackupNow}
+        onRestoreBackup={onRestoreBackup}
+        copyDir={copyDir}
+        onSetCopyDir={onSetCopyDir}
+        onBrowseCopyDir={onBrowseCopyDir}
+      />
+      <SetupDataBlock onDownloadSetupTemplate={onDownloadSetupTemplate} onImportSetupData={onImportSetupData} />
+    </div>
+  );
+}
+
+/** "Also copy each backup to another folder" — so one dead disk can't take
+ * the data and its backups together. Works with any folder, including a
+ * cloud-synced one (OneDrive, Dropbox) or a USB drive. */
+function BackupCopySection({
+  copyDir,
+  onSetCopyDir,
+  onBrowse,
+}: {
+  copyDir: string | null;
+  onSetCopyDir: (dir: string | null) => void;
+  onBrowse: () => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!draft.trim()) return;
+    onSetCopyDir(draft.trim());
+    setDraft("");
+  }
+
+  return (
+    <div className="backup-copy" data-backup-copy>
+      <p className="backup-copy-title">Second copy</p>
+      {copyDir ? (
+        <>
+          <p className="modal-message-secondary">
+            Every backup is also copied to <strong data-backup-copy-dir>{copyDir}</strong>.
+          </p>
+          <div className="backup-copy-actions">
+            <button type="button" className="modal-secondary" onClick={onBrowse}>
+              Change folder…
+            </button>
+            <button type="button" className="modal-secondary" onClick={() => onSetCopyDir(null)}>
+              Stop copying
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="modal-message-secondary">
+            Also keep a copy of each backup in another folder — one that syncs to the cloud (OneDrive, Dropbox) or a USB
+            drive — so one failed disk can't take your data and its backups together.
+          </p>
+          <form className="backup-copy-form" onSubmit={handleSubmit}>
+            <input
+              className="text-input"
+              aria-label="Second backup folder"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Folder path, e.g. D:\OneDrive\VaultSpend"
+            />
+            <button type="button" className="modal-secondary" onClick={onBrowse}>
+              Browse…
+            </button>
+            <button type="submit" disabled={!draft.trim()}>
+              Start copying
+            </button>
+          </form>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** The backup list and second-copy folder — the second block of the "Data" section. */
+function BackupsBlock({
+  backups,
+  onCreateBackupNow,
+  onRestoreBackup,
+  copyDir,
+  onSetCopyDir,
+  onBrowseCopyDir,
 }: {
   backups: Backup[];
   onCreateBackupNow: () => void;
   onRestoreBackup: (filename: string) => void;
+  copyDir: string | null;
+  onSetCopyDir: (dir: string | null) => void;
+  onBrowseCopyDir: () => void;
 }) {
   const [confirmingRestoreFilename, setConfirmingRestoreFilename] = useState<string | null>(null);
 
   return (
-    <div className="card">
-      <div className="card-head">
-        <span className="reports-section-title">Backups</span>
+    <div className="data-block" data-backups>
+      <div className="data-subhead-row">
+        <h3 className="data-subhead">Backups</h3>
         <button type="button" className="modal-secondary" onClick={onCreateBackupNow}>
           Back up now
         </button>
@@ -113,6 +238,7 @@ function BackupsSection({
         Vault Spend backs up automatically once a day when you open it, keeping the most recent 15. Restoring backs
         up your current data first, then reloads it — no restart needed.
       </p>
+      <BackupCopySection copyDir={copyDir} onSetCopyDir={onSetCopyDir} onBrowse={onBrowseCopyDir} />
       <table className="ledger">
         <thead>
           <tr>
@@ -341,16 +467,132 @@ function AppearanceSection({
   );
 }
 
+function PrivacySection({ autoHide, onSetAutoHide }: { autoHide: boolean; onSetAutoHide: (autoHide: boolean) => void }) {
+  return (
+    <div className="card">
+      <div className="card-head">
+        <span className="reports-section-title">Privacy</span>
+      </div>
+      <p className="modal-message-secondary">
+        The header's "Hide amounts" button covers every dollar figure on screen with ••••, so you can open Vault Spend
+        with someone next to you. It hides the numbers, not the charts' shapes.
+      </p>
+      <div className="feature-toggle-list">
+        <label className="feature-toggle-row">
+          <input type="checkbox" checked={autoHide} onChange={(e) => onSetAutoHide(e.target.checked)} data-privacy-autohide />
+          <span className="feature-toggle-text">
+            <span className="feature-toggle-label">Also hide amounts when this window isn't in front</span>
+            <span className="modal-message-secondary">
+              Switch to another program and your figures are covered until you come back.
+            </span>
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+/** Opt-in: keep Vault Spend running in the system tray so it can remind you
+ * about bills while the window is closed. */
+function BackgroundRemindersSection({
+  settings,
+  onSetTray,
+  onSetAutostart,
+  onSendTest,
+}: {
+  settings: BackgroundSettings | null;
+  onSetTray: (enabled: boolean) => void;
+  onSetAutostart: (enabled: boolean) => void;
+  onSendTest: () => void;
+}) {
+  if (!settings) return null;
+  return (
+    <div className="card" data-background-reminders>
+      <div className="card-head">
+        <span className="reports-section-title">Background reminders</span>
+        <button type="button" className="modal-secondary" onClick={onSendTest} data-test-reminder>
+          Send a test reminder
+        </button>
+      </div>
+      <p className="modal-message-secondary">
+        Off by default. Reminders normally only appear while Vault Spend is open; turn this on and it stays in the system tray
+        after you close the window, reminding you about bills due in the next 3 days.
+      </p>
+      <div className="feature-toggle-list">
+        <label className="feature-toggle-row">
+          <input type="checkbox" checked={settings.tray_enabled} onChange={(e) => onSetTray(e.target.checked)} data-tray-toggle />
+          <span className="feature-toggle-text">
+            <span className="feature-toggle-label">Keep Vault Spend running in the tray</span>
+            <span className="modal-message-secondary">
+              Closing the window hides it instead of quitting. Use the tray icon's menu to open it again or to quit.
+            </span>
+          </span>
+        </label>
+        {settings.autostart_supported && (
+          <label className="feature-toggle-row">
+            <input
+              type="checkbox"
+              checked={settings.autostart_enabled}
+              disabled={!settings.tray_enabled}
+              onChange={(e) => onSetAutostart(e.target.checked)}
+              data-autostart-toggle
+            />
+            <span className="feature-toggle-text">
+              <span className="feature-toggle-label">Start Vault Spend when I sign in</span>
+              <span className="modal-message-secondary">
+                It starts hidden in the tray, so reminders work without you opening it. Needs the tray option above.
+              </span>
+            </span>
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Bulk setup: fill in a spreadsheet template with accounts, categories,
+ * budgets, goals and holdings, then import it — moved here from Reports, which
+ * is now only for reading your numbers. The third block of the "Data" section. */
+function SetupDataBlock({
+  onDownloadSetupTemplate,
+  onImportSetupData,
+}: {
+  onDownloadSetupTemplate: () => void;
+  onImportSetupData: () => void;
+}) {
+  return (
+    <div className="data-block" data-setup-data>
+      <h3 className="data-subhead">Setup data</h3>
+      <p className="modal-message-secondary">
+        Setting up from scratch? Download the template, fill in your accounts, categories, budgets, goals and holdings,
+        then import it in one go.
+      </p>
+      <div className="page-actions">
+        <button type="button" className="modal-secondary" onClick={onDownloadSetupTemplate}>
+          Download setup template…
+        </button>
+        <button type="button" className="modal-secondary" onClick={onImportSetupData}>
+          Import setup data…
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function FeatureTogglesSection({
   appSettings,
   onSetApplyToDebtEnabled,
   onSetSplitPurchasesEnabled,
   onSetEnvelopeCapsEnabled,
+  onSetRolloverEnabled,
+  onSetAutoLinkTransfers,
 }: {
   appSettings: AppSettings;
   onSetApplyToDebtEnabled: (enabled: boolean) => void;
   onSetSplitPurchasesEnabled: (enabled: boolean) => void;
   onSetEnvelopeCapsEnabled: (enabled: boolean) => void;
+  onSetRolloverEnabled: (enabled: boolean) => void;
+  onSetAutoLinkTransfers: (enabled: boolean) => void;
 }) {
   const toggles: { key: keyof AppSettings; label: string; description: string; onChange: (enabled: boolean) => void }[] = [
     {
@@ -370,6 +612,20 @@ function FeatureTogglesSection({
       label: "Envelope Caps",
       description: 'Shows the "Cap" checkbox on Budget categories, for warning at 90% instead of the default 80%.',
       onChange: onSetEnvelopeCapsEnabled,
+    },
+    {
+      key: "rollover_enabled",
+      label: "Rollover unspent",
+      description:
+        'Lets a Budget category carry what it didn\'t spend into next month (the "Roll over unspent" checkbox on each line). Off: nothing rolls over, and each category\'s choice is remembered for when you turn it back on.',
+      onChange: onSetRolloverEnabled,
+    },
+    {
+      key: "auto_link_transfers",
+      label: "Link matching transfers automatically",
+      description:
+        "Off by default. When on, a pair of transactions that are clearly one move between your own accounts (equal amounts, opposite directions, different accounts, within 3 days, and no other possible match) is linked as soon as it arrives, instead of waiting in “possible transfers”. Every automatic link is listed on Transactions for you to review and unlink.",
+      onChange: onSetAutoLinkTransfers,
     },
   ];
 
@@ -700,6 +956,9 @@ export function SettingsView({
   backups,
   onCreateBackupNow,
   onRestoreBackup,
+  backupCopyDir,
+  onSetBackupCopyDir,
+  onBrowseBackupCopyDir,
   profiles,
   onCreateProfile,
   onUseExistingDataFile,
@@ -714,9 +973,34 @@ export function SettingsView({
   onSetApplyToDebtEnabled,
   onSetSplitPurchasesEnabled,
   onSetEnvelopeCapsEnabled,
+  onSetRolloverEnabled,
+  onSetAutoLinkTransfers,
   themeStyle,
   onSetThemeStyle,
+  privacyAutoHide,
+  onSetPrivacyAutoHide,
+  onDownloadSetupTemplate,
+  onImportSetupData,
+  backgroundSettings,
+  onSetTray,
+  onSetAutostart,
+  onSendTestReminder,
+  categories,
+  onRulesApplied,
+  onMessage,
 }: {
+  onDownloadSetupTemplate: () => void;
+  onImportSetupData: () => void;
+  backgroundSettings: BackgroundSettings | null;
+  onSetTray: (enabled: boolean) => void;
+  onSetAutostart: (enabled: boolean) => void;
+  onSendTestReminder: () => void;
+  privacyAutoHide: boolean;
+  onSetPrivacyAutoHide: (autoHide: boolean) => void;
+  categories: string[];
+  /** A saved rule re-categorized existing transactions — reload them. */
+  onRulesApplied: () => void;
+  onMessage: (text: string, kind: "success" | "error" | "info") => void;
   appVersion: string | null;
   dataFileLocation: string | null;
   onRelocateDataFile: () => void;
@@ -724,6 +1008,9 @@ export function SettingsView({
   backups: Backup[];
   onCreateBackupNow: () => void;
   onRestoreBackup: (filename: string) => void;
+  backupCopyDir: string | null;
+  onSetBackupCopyDir: (dir: string | null) => void;
+  onBrowseBackupCopyDir: () => void;
   profiles: Profile[];
   onCreateProfile: (name: string) => void;
   onUseExistingDataFile: () => void;
@@ -738,6 +1025,8 @@ export function SettingsView({
   onSetApplyToDebtEnabled: (enabled: boolean) => void;
   onSetSplitPurchasesEnabled: (enabled: boolean) => void;
   onSetEnvelopeCapsEnabled: (enabled: boolean) => void;
+  onSetRolloverEnabled: (enabled: boolean) => void;
+  onSetAutoLinkTransfers: (enabled: boolean) => void;
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
 }) {
@@ -750,6 +1039,7 @@ export function SettingsView({
         </div>
       </div>
       <AppearanceSection themeStyle={themeStyle} onSetThemeStyle={onSetThemeStyle} />
+      <PrivacySection autoHide={privacyAutoHide} onSetAutoHide={onSetPrivacyAutoHide} />
       <ProfilesSection
         profiles={profiles}
         onCreateProfile={onCreateProfile}
@@ -759,13 +1049,26 @@ export function SettingsView({
         onSetProfileIcon={onSetProfileIcon}
         onDeleteProfile={onDeleteProfile}
       />
-      <SettingsSection
+      <DataSection
         dataFileLocation={dataFileLocation}
         onRelocateDataFile={onRelocateDataFile}
         onExportDatabase={onExportDatabase}
         onUseExistingDataFile={onUseExistingDataFile}
+        backups={backups}
+        onCreateBackupNow={onCreateBackupNow}
+        onRestoreBackup={onRestoreBackup}
+        copyDir={backupCopyDir}
+        onSetCopyDir={onSetBackupCopyDir}
+        onBrowseCopyDir={onBrowseBackupCopyDir}
+        onDownloadSetupTemplate={onDownloadSetupTemplate}
+        onImportSetupData={onImportSetupData}
       />
-      <BackupsSection backups={backups} onCreateBackupNow={onCreateBackupNow} onRestoreBackup={onRestoreBackup} />
+      <BackgroundRemindersSection
+        settings={backgroundSettings}
+        onSetTray={onSetTray}
+        onSetAutostart={onSetAutostart}
+        onSendTest={onSendTestReminder}
+      />
       <LivePricesSection
         settings={livePriceSettings}
         onSetApiKey={onSetLivePriceApiKey}
@@ -776,7 +1079,10 @@ export function SettingsView({
         onSetApplyToDebtEnabled={onSetApplyToDebtEnabled}
         onSetSplitPurchasesEnabled={onSetSplitPurchasesEnabled}
         onSetEnvelopeCapsEnabled={onSetEnvelopeCapsEnabled}
+        onSetRolloverEnabled={onSetRolloverEnabled}
+        onSetAutoLinkTransfers={onSetAutoLinkTransfers}
       />
+      <RulesManager categories={categories} onRulesApplied={onRulesApplied} onMessage={onMessage} />
       <ReleaseNotesSection currentVersion={appVersion} />
       <IconCreditsSection />
       <AboutSection />

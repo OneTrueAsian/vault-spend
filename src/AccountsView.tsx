@@ -1,12 +1,11 @@
 import { useState } from "react";
-import type { Account, AccountContributionDelta, FamilyMember, NetWorthPoint } from "./types";
+import type { Account, AccountContributionDelta, Asset, FamilyMember, NetWorthPoint } from "./types";
+import { PropertyAssetsSection } from "./PropertyAssets";
 import { StatDetailPanel } from "./StatDetailPanel";
 import { formatAmount } from "./format";
 import { GROUP_LABELS, GROUP_ORDER, groupOf, netWorthContribution } from "./accountGroups";
-import { useAutoCancelDelete } from "./useAutoCancelDelete";
+import { AccountEditDialog } from "./Modal";
 import { AccountTypeIcon, ACCOUNT_ICON_OPTIONS, isAccountIconKey, IconPicker, type AccountIconKey } from "./icons";
-
-const ACCOUNT_TYPE_OPTIONS = ["checking", "savings", "credit", "loan", "investment", "other"];
 
 /** Lets a user override the type-guessed icon (`icons/accountIcons.tsx`)
  * with an explicit choice — floats below the type badge that opens it
@@ -60,36 +59,24 @@ function AccountCard({
   setEditing,
   onSetStartingBalance,
   onSetBalanceOverride,
-  onUpdateAccountType,
-  editingDetails,
-  setEditingDetails,
-  onSetAccountDetails,
-  familyMembers,
-  onSetAccountMember,
   editingIcon,
   setEditingIcon,
   onSetAccountIcon,
-  confirmingDeleteId,
-  setConfirmingDeleteId,
-  onDeleteAccount,
+  onEdit,
+  onOpenDetail,
 }: {
   account: Account;
   editing: EditingBalance | null;
   setEditing: (v: EditingBalance | null) => void;
   onSetStartingBalance: (accountId: number, balance: string) => void;
   onSetBalanceOverride: (accountId: number, balance: string) => void;
-  onUpdateAccountType: (accountId: number, accountType: string) => void;
-  editingDetails: { id: number; institution: string; mask: string } | null;
-  setEditingDetails: (v: { id: number; institution: string; mask: string } | null) => void;
-  onSetAccountDetails: (accountId: number, institution: string | null, mask: string | null) => void;
-  familyMembers: FamilyMember[];
-  onSetAccountMember: (accountId: number, memberId: number | null) => void;
   editingIcon: number | null;
   setEditingIcon: (id: number | null) => void;
   onSetAccountIcon: (accountId: number, iconKey: string | null) => void;
-  confirmingDeleteId: number | null;
-  setConfirmingDeleteId: (id: number | null) => void;
-  onDeleteAccount: (accountId: number) => void;
+  /** Opens the account's Edit dialog (type, member, institution, delete). */
+  onEdit: (accountId: number) => void;
+  /** Opens the account's own page (balance history, reconcile, transactions). */
+  onOpenDetail: (accountId: number) => void;
 }) {
   const group = groupOf(a.account_type);
   const isCredit = group === "credit";
@@ -128,11 +115,13 @@ function AccountCard({
     onSetBalanceOverride(id, value.trim());
   }
 
-  function commitDetails(id: number) {
-    if (!editingDetails) return;
-    onSetAccountDetails(id, editingDetails.institution.trim() || null, editingDetails.mask.trim() || null);
-    setEditingDetails(null);
-  }
+  const detailLine = [
+    a.institution ? `${a.institution}${a.mask ? " \u2022\u2022\u2022\u2022 " + a.mask : ""}` : null,
+    a.account_type[0].toUpperCase() + a.account_type.slice(1),
+    a.member_name,
+  ]
+    .filter(Boolean)
+    .join(" \u00b7 ");
 
   return (
     <div className="account-card">
@@ -158,59 +147,7 @@ function AccountCard({
       </span>
       <div className="info">
         <div className="account-name-cell">{a.name}</div>
-        {editingDetails?.id === a.id ? (
-          <div className="account-details-edit">
-            <input
-              autoFocus
-              placeholder="Institution"
-              value={editingDetails.institution}
-              onChange={(e) => setEditingDetails({ ...editingDetails, institution: e.target.value })}
-            />
-            <input
-              placeholder="1234"
-              maxLength={4}
-              value={editingDetails.mask}
-              onChange={(e) => setEditingDetails({ ...editingDetails, mask: e.target.value })}
-            />
-            <button type="button" onClick={() => commitDetails(a.id)}>
-              Save
-            </button>
-          </div>
-        ) : (
-          <span
-            className="sub account-name-detail"
-            title="Click to set institution / account number"
-            onClick={() => setEditingDetails({ id: a.id, institution: a.institution ?? "", mask: a.mask ?? "" })}
-          >
-            {a.institution ? `${a.institution}${a.mask ? " •••• " + a.mask : ""}` : "Add institution…"}
-          </span>
-        )}
-        <div className="account-card-row">
-          <select
-            aria-label={`Account type for ${a.name}`}
-            value={a.account_type}
-            onChange={(e) => onUpdateAccountType(a.id, e.target.value)}
-          >
-            {ACCOUNT_TYPE_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t[0].toUpperCase() + t.slice(1)}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label={`Family member for ${a.name}`}
-            className="member-select"
-            value={a.member_id ?? ""}
-            onChange={(e) => onSetAccountMember(a.id, e.target.value ? Number(e.target.value) : null)}
-          >
-            <option value="">Unassigned</option>
-            {familyMembers.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <span className="sub account-name-detail-static">{detailLine}</span>
       </div>
       <div className="account-card-end">
         {editing?.id === a.id && editing.mode === "balance" ? (
@@ -263,20 +200,12 @@ function AccountCard({
               {parseFloat(a.starting_balance) > 0 ? `Available ${formatAmount(a.current_balance)}` : "Set credit limit…"}
             </span>
           ))}
-        {confirmingDeleteId === a.id ? (
-          <span className="row-delete-confirm">
-            <button type="button" className="modal-secondary btn-sm" onClick={() => setConfirmingDeleteId(null)}>
-              Cancel
-            </button>
-            <button type="button" className="btn-sm btn-danger" onClick={() => onDeleteAccount(a.id)}>
-              Delete
-            </button>
-          </span>
-        ) : (
-          <button type="button" className="modal-secondary btn-sm" onClick={() => setConfirmingDeleteId(a.id)}>
-            Delete
-          </button>
-        )}
+        <button type="button" className="modal-secondary btn-sm" onClick={() => onOpenDetail(a.id)} data-account-details={a.id}>
+          Details
+        </button>
+        <button type="button" className="modal-secondary btn-sm" onClick={() => onEdit(a.id)}>
+          Edit
+        </button>
       </div>
     </div>
   );
@@ -296,7 +225,27 @@ export function AccountsView({
   onSetAccountMember,
   onSetAccountIcon,
   onAddAccount,
+  onOpenAccountDetail,
+  assets,
+  onCreateAsset,
+  onUpdateAssetValue,
+  onSetAssetMember,
+  onDeleteAsset,
 }: {
+  onOpenAccountDetail: (accountId: number) => void;
+  /** Property & Valuables — manually tracked things that aren't accounts. */
+  assets: Asset[];
+  onCreateAsset: (
+    name: string,
+    assetType: string,
+    value: string,
+    valuedOn: string,
+    notes: string | null,
+    memberId: number | null,
+  ) => void;
+  onUpdateAssetValue: (id: number, value: string, valuedOn: string) => void;
+  onSetAssetMember: (id: number, memberId: number | null) => void;
+  onDeleteAsset: (id: number) => void;
   accounts: Account[];
   /** Sum of manually-tracked assets (Property & Valuables, from Reports) —
    * folded into the Total Assets / Net Worth stats here alongside real
@@ -319,11 +268,7 @@ export function AccountsView({
   onAddAccount: () => void;
 }) {
   const [editing, setEditing] = useState<EditingBalance | null>(null);
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
-  useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
-  const [editingDetails, setEditingDetails] = useState<{ id: number; institution: string; mask: string } | null>(
-    null,
-  );
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [editingIcon, setEditingIcon] = useState<number | null>(null);
   const [expandedStat, setExpandedStat] = useState<AccountStatKey | null>(null);
 
@@ -377,19 +322,13 @@ export function AccountsView({
     setEditing,
     onSetStartingBalance,
     onSetBalanceOverride,
-    onUpdateAccountType,
-    editingDetails,
-    setEditingDetails,
-    onSetAccountDetails,
-    familyMembers,
-    onSetAccountMember,
     editingIcon,
     setEditingIcon,
     onSetAccountIcon,
-    confirmingDeleteId,
-    setConfirmingDeleteId,
-    onDeleteAccount,
+    onEdit: setEditingAccountId,
+    onOpenDetail: onOpenAccountDetail,
   };
+  const accountBeingEdited = accounts.find((a) => a.id === editingAccountId) ?? null;
 
   return (
     <div className="reports-view">
@@ -467,6 +406,40 @@ export function AccountsView({
         );
       })}
       {accounts.length === 0 && <p className="empty-state">No accounts yet.</p>}
+
+      <PropertyAssetsSection
+        assets={assets}
+        familyMembers={familyMembers}
+        onCreate={onCreateAsset}
+        onUpdateValue={onUpdateAssetValue}
+        onSetMember={onSetAssetMember}
+        onDelete={onDeleteAsset}
+      />
+
+      {accountBeingEdited && (
+        <AccountEditDialog
+          account={accountBeingEdited}
+          familyMembers={familyMembers}
+          onCancel={() => setEditingAccountId(null)}
+          onSave={async (changes) => {
+            const id = accountBeingEdited.id;
+            setEditingAccountId(null);
+            // One at a time: each handler saves and then reloads everything,
+            // and overlapping reloads could land out of order and show the
+            // older state.
+            if (changes.accountType !== undefined) await onUpdateAccountType(id, changes.accountType);
+            if (changes.memberId !== undefined) await onSetAccountMember(id, changes.memberId);
+            if (changes.institution !== undefined || changes.mask !== undefined) {
+              await onSetAccountDetails(id, changes.institution ?? null, changes.mask ?? null);
+            }
+          }}
+          onDelete={() => {
+            const id = accountBeingEdited.id;
+            setEditingAccountId(null);
+            onDeleteAccount(id);
+          }}
+        />
+      )}
     </div>
   );
 }

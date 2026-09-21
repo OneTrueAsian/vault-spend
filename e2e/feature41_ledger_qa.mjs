@@ -31,7 +31,14 @@ cur.execute("INSERT INTO bucket_contributions (bucket_id, date, amount) VALUES (
 
 async function ask(app, question) {
   const input = await app.browser.$(".ledger-qa-card input");
-  await input.setValue(question);
+  // `.setValue()` clears the field with a WebDriver call that doesn't reliably
+  // reach a controlled React input in this WebView (the second question then
+  // got typed onto the end of the first). Select-all + Backspace does — the
+  // same workaround feature26 uses.
+  await input.click();
+  await app.browser.keys(["Control", "a"]);
+  await app.browser.keys("Backspace");
+  await input.addValue(question);
   const qaCard = await app.browser.$(".ledger-qa-card");
   const askButton = await qaCard.$("button=Ask");
   await askButton.click();

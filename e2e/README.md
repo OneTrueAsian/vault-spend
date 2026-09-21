@@ -57,8 +57,8 @@ the real rendered DOM.
 ## Running the full suite
 
 ```
-node e2e/run-all.mjs                 # smoke.mjs + every feature*.mjs, concurrency 4
-node e2e/run-all.mjs --concurrency=8  # verified stable on this machine, ~6x faster than sequential
+node e2e/run-all.mjs                 # smoke.mjs + every feature*.mjs, concurrency 6
+node e2e/run-all.mjs --concurrency=8  # tune for a faster machine
 node e2e/run-all.mjs --concurrency=1  # one at a time, for debugging a flaky-looking failure in isolation
 ```
 
@@ -67,9 +67,36 @@ from each other: each `launchApp()` call gets its own throwaway SQLite file
 (see "Data safety" above) *and*, since `harness.mjs` asks the OS for a free
 port per call instead of using a hardcoded one, its own `tauri-driver`
 instance — no two specs share any state, so there's nothing for
-parallel runs to race on. Measured on this machine across all 52 specs:
-304.5s sequential -> 86.7s at concurrency 4 -> 50.9s at concurrency 8, all
-52/52 passing at every level.
+parallel runs to race on. An earlier 52-spec benchmark measured 304.5s
+sequential, 86.7s at concurrency 4, and 50.9s at concurrency 8. The suite
+has grown since then; the default is now 6 because later measurements found
+little additional gain at 8 and signs of resource contention.
+
+## Faster feedback during development
+
+The full suite remains the release or broad-regression check. For a focused
+change, run the unit tests first, then smoke and the affected E2E specs against
+the current compiled app:
+
+```
+npm test
+npm run e2e:smoke
+npm run e2e -- --spec=75,77
+npm run e2e -- --spec=budget_rollover,month_review
+npm run e2e -- --list
+```
+
+`--spec` accepts comma-separated feature numbers, case-insensitive filename
+fragments, or `smoke`. Every selector must match at least one spec; a typo
+fails immediately instead of silently skipping coverage. `--list` previews
+the selection without starting any drivers. The runner prints the five
+slowest specs after each run and records successful durations to schedule
+longer specs first on later runs.
+
+Rebuild with `npx tauri build --debug --no-bundle` after an app change before
+running E2E. Run the full `npm run e2e` before a release and after changes to
+shared UI infrastructure, persistence, or the E2E harness. This keeps routine
+feedback short without treating a targeted run as full regression coverage.
 
 If a spec ever *does* fail only when run concurrently (never in isolation),
 that's a real isolation bug worth fixing, not a race to paper over —

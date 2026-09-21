@@ -1,4 +1,5 @@
 import type { Account, Transaction } from "./types";
+import { isTransferTransaction } from "./transfers";
 
 /** Shared account-type grouping — used anywhere accounts are organized by
  * kind (Accounts/Reports tabs' account sections, the debt payoff planner,
@@ -71,7 +72,7 @@ export function owedAmount(a: Account): number {
  * empty `accounts` list isn't forced to also supply every account. */
 export function isIncomeTransaction(t: Pick<Transaction, "amount" | "category" | "account_id">, accounts: Account[]): boolean {
   if (parseFloat(t.amount) <= 0) return false;
-  if (t.category === "Transfer") return false;
+  if (isTransferTransaction(t)) return false;
   const account = accounts.find((a) => a.id === t.account_id);
   if (!account) return true;
   const group = groupOf(account.account_type);
@@ -89,4 +90,18 @@ export function isIncomeTransaction(t: Pick<Transaction, "amount" | "category" |
  * before that's a silent surprise. */
 export function isBeforeAccountCheckpoint(account: Pick<Account, "checkpoint_date">, date: string): boolean {
   return account.checkpoint_date !== null && date !== "" && date <= account.checkpoint_date;
+}
+
+/** Which account the Transactions tab's "Add to" control starts on: the one
+ * last used, if it still exists; otherwise the household's first everyday
+ * account — checking, then a credit card, then savings — rather than
+ * whichever happens to sort first alphabetically (a loan or a brokerage
+ * account is a poor default for a new transaction). */
+export function pickDefaultAccountId(accounts: { id: number; account_type: string }[], lastUsedId: number | null): number | null {
+  if (lastUsedId !== null && accounts.some((a) => a.id === lastUsedId)) return lastUsedId;
+  for (const type of ["checking", "credit", "savings"]) {
+    const match = accounts.find((a) => a.account_type === type);
+    if (match) return match.id;
+  }
+  return accounts.length > 0 ? accounts[0].id : null;
 }

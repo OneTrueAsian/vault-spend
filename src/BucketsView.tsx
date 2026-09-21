@@ -3,6 +3,8 @@ import type { Account, Bucket, FamilyMember } from "./types";
 import { formatAmount, toLocalIsoDate } from "./format";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { BUCKET_ICON_OPTIONS, BucketIcon, isBucketIconKey, type BucketIconKey } from "./icons";
+import { goalPlan, type GoalPlan } from "./goalPlan";
+import { usePopover } from "./usePopover";
 
 const BUCKET_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9", "#B0526A", "#5FA85E"];
 
@@ -81,6 +83,7 @@ function NewBucketForm({
     sinkingAmount: string | null,
     color: string | null,
     iconKey: string | null,
+    tracksAccount: boolean,
   ) => void;
 }) {
   const [name, setName] = useState("");
@@ -91,6 +94,7 @@ function NewBucketForm({
   const [sinkingAmount, setSinkingAmount] = useState("");
   const [color, setColor] = useState<string | null>(null);
   const [iconKey, setIconKey] = useState<BucketIconKey | null>(null);
+  const [tracksAccount, setTracksAccount] = useState(false);
   const [open, setOpen] = useState(false);
 
   function handleSubmit(e: FormEvent) {
@@ -105,6 +109,7 @@ function NewBucketForm({
       sinkingAmount.trim() ? sinkingAmount.trim() : null,
       color,
       iconKey,
+      tracksAccount && accountId !== "",
     );
     setName("");
     setTarget("");
@@ -114,6 +119,7 @@ function NewBucketForm({
     setSinkingAmount("");
     setColor(null);
     setIconKey(null);
+    setTracksAccount(false);
     setOpen(false);
   }
 
@@ -139,6 +145,12 @@ function NewBucketForm({
           </option>
         ))}
       </select>
+      {accountId !== "" && (
+        <label className="bucket-track-toggle">
+          <input type="checkbox" checked={tracksAccount} onChange={(e) => setTracksAccount(e.target.checked)} />
+          Progress follows this account's balance
+        </label>
+      )}
       {familyMembers.length > 0 && (
         <select aria-label="Family member" value={memberId} onChange={(e) => setMemberId(e.target.value)}>
           <option value="">Unassigned</option>
@@ -184,10 +196,12 @@ function EditBucketForm({
     sinkingAmount: string | null,
     color: string | null,
     iconKey: string | null,
+    tracksAccount: boolean,
   ) => void;
   onCancel: () => void;
 }) {
   const [target, setTarget] = useState(bucket.target_amount ?? "");
+  const [tracksAccount, setTracksAccount] = useState(bucket.tracks_account);
   const [targetDate, setTargetDate] = useState(bucket.target_date ?? "");
   const [accountId, setAccountId] = useState(bucket.account_id !== null ? String(bucket.account_id) : "");
   const [sinkingAmount, setSinkingAmount] = useState(bucket.sinking_amount ?? "");
@@ -205,6 +219,7 @@ function EditBucketForm({
       sinkingAmount.trim() ? sinkingAmount.trim() : null,
       color,
       iconKey,
+      tracksAccount && accountId !== "",
     );
   }
 
@@ -225,6 +240,12 @@ function EditBucketForm({
           </option>
         ))}
       </select>
+      {accountId !== "" && (
+        <label className="bucket-track-toggle">
+          <input type="checkbox" checked={tracksAccount} onChange={(e) => setTracksAccount(e.target.checked)} />
+          Progress follows this account's balance
+        </label>
+      )}
       <input
         value={sinkingAmount}
         onChange={(e) => setSinkingAmount(e.target.value)}
@@ -243,7 +264,10 @@ function EditBucketForm({
   );
 }
 
-function ContributionForm({
+/** "+ Add" on a goal card: the amount and note inputs used to sit on every
+ * card all the time; now they open on demand, so a page of goals reads as
+ * progress rather than a wall of empty inputs. */
+function ContributePopover({
   bucketId,
   onAddContribution,
 }: {
@@ -253,6 +277,7 @@ function ContributionForm({
   const today = toLocalIsoDate();
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const { open, setOpen, rootRef, triggerRef } = usePopover();
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -260,20 +285,86 @@ function ContributionForm({
     onAddContribution(bucketId, today, amount.trim(), note.trim() ? note.trim() : null);
     setAmount("");
     setNote("");
+    setOpen(false);
   }
 
   return (
-    <form className="bucket-contribution-form" onSubmit={handleSubmit}>
-      <input
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        placeholder="Amount (negative = withdrawal)"
-      />
-      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" />
-      <button type="submit" disabled={!amount.trim()}>
-        Add
+    <div className="bucket-contribute" ref={rootRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="modal-secondary"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="true"
+        aria-expanded={open}
+      >
+        + Add
       </button>
-    </form>
+      {open && (
+        <form className="bucket-contribute-panel" onSubmit={handleSubmit}>
+          <input
+            autoFocus
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Amount (negative = withdrawal)"
+            aria-label="Contribution amount"
+          />
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" aria-label="Contribution note" />
+          <div className="bucket-new-form-actions">
+            <button type="submit" disabled={!amount.trim()}>
+              Add
+            </button>
+            <button type="button" className="modal-secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Jun 2027" / "Dec 18, 2026" from a stored "YYYY-MM-DD". */
+function shortDate(iso: string, withDay: boolean): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return withDay ? `${MONTH_NAMES[m - 1]} ${d}, ${y}` : `${MONTH_NAMES[m - 1]} ${y}`;
+}
+
+/** The projection lines under a goal's progress bar: where the recent pace
+ * lands, and — when there's a target date — what it would take to make it. */
+function GoalPlanLines({ plan, targetDate }: { plan: GoalPlan; targetDate: string | null }) {
+  if (plan.status === "no_target") return null;
+  if (plan.status === "reached") {
+    return (
+      <p className="goal-plan" data-goal-status="reached">
+        <span className="goal-badge goal-badge-good">Goal reached</span>
+      </p>
+    );
+  }
+  const badge =
+    plan.status === "on_track" ? (
+      <span className="goal-badge goal-badge-good">On track</span>
+    ) : plan.status === "behind" ? (
+      <span className="goal-badge goal-badge-warn">Behind</span>
+    ) : null;
+  return (
+    <p className="goal-plan" data-goal-status={plan.status}>
+      {badge}
+      <span className="goal-plan-text">
+        {plan.projectedFinish
+          ? `At your recent pace: ${shortDate(plan.projectedFinish, false)}`
+          : "No recent progress to project from"}
+        {plan.needsPerMonth !== null && targetDate && (
+          <>
+            {" · "}
+            <span data-goal-needs>needs ${Math.ceil(plan.needsPerMonth).toLocaleString("en-US")}/mo</span> to reach it by{" "}
+            {shortDate(targetDate, true)}
+          </>
+        )}
+      </span>
+    </p>
   );
 }
 
@@ -298,6 +389,7 @@ export function BucketsView({
     sinkingAmount: string | null,
     color: string | null,
     iconKey: string | null,
+    tracksAccount: boolean,
   ) => void;
   onUpdateBucketDetails: (
     id: number,
@@ -307,6 +399,7 @@ export function BucketsView({
     sinkingAmount: string | null,
     color: string | null,
     iconKey: string | null,
+    tracksAccount: boolean,
   ) => void;
   onAddContribution: (bucketId: number, date: string, amount: string, note: string | null) => void;
   onDeleteBucket: (id: number) => void;
@@ -314,6 +407,7 @@ export function BucketsView({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
   const [editingId, setEditingId] = useState<number | null>(null);
+  const today = new Date();
 
   return (
     <div className="buckets-view">
@@ -331,6 +425,7 @@ export function BucketsView({
           const saved = parseFloat(b.saved_amount);
           const target = b.target_amount ? parseFloat(b.target_amount) : null;
           const pct = target && target > 0 ? Math.min(100, Math.max(0, (saved / target) * 100)) : null;
+          const plan = goalPlan(b, today);
           return (
             <div key={b.id} className="bucket-card" style={b.color ? { borderTop: `3px solid ${b.color}` } : undefined}>
               <div className="bucket-card-header">
@@ -371,9 +466,10 @@ export function BucketsView({
                 <span>{pct !== null ? `${Math.round(pct)}% funded` : "No target"}</span>
                 <span>{b.target_date ? `${daysLeft(b.target_date)} days left` : "—"}</span>
               </p>
+              <GoalPlanLines plan={plan} targetDate={b.target_date} />
               {(b.account_name || b.member_name) && (
                 <p className="bucket-target">
-                  {b.account_name && `${b.account_name}`}
+                  {b.account_name && (b.tracks_account ? `Follows the ${b.account_name} balance` : `${b.account_name}`)}
                   {b.account_name && b.member_name && " · "}
                   {b.member_name && `${b.member_name}`}
                 </p>
@@ -388,13 +484,13 @@ export function BucketsView({
                   bucket={b}
                   accounts={accounts}
                   onCancel={() => setEditingId(null)}
-                  onSave={(targetAmount, targetDate, accountId, sinkingAmount, color, iconKey) => {
-                    onUpdateBucketDetails(b.id, targetAmount, targetDate, accountId, sinkingAmount, color, iconKey);
+                  onSave={(targetAmount, targetDate, accountId, sinkingAmount, color, iconKey, tracksAccount) => {
+                    onUpdateBucketDetails(b.id, targetAmount, targetDate, accountId, sinkingAmount, color, iconKey, tracksAccount);
                     setEditingId(null);
                   }}
                 />
-              ) : (
-                <ContributionForm bucketId={b.id} onAddContribution={onAddContribution} />
+              ) : b.tracks_account && b.account_id !== null ? null : (
+                <ContributePopover bucketId={b.id} onAddContribution={onAddContribution} />
               )}
             </div>
           );

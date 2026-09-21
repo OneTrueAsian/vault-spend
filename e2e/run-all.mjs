@@ -9,6 +9,9 @@
 //   node e2e/run-all.mjs                 # default concurrency (6)
 //   node e2e/run-all.mjs --concurrency=8
 //   node e2e/run-all.mjs --concurrency=1  # effectively the old sequential behavior
+//   node e2e/run-all.mjs --spec=75,77      # only matching feature numbers
+//   node e2e/run-all.mjs --spec=smoke      # quick launch check
+//   node e2e/run-all.mjs --list            # show selected specs without launching
 //
 // Default was benchmarked on this machine (16 logical cores) at 4/6/8 with
 // this same runner: 4 ~66.8s avg, 6 ~55.2s avg, 8 ~53.5s avg but with an
@@ -39,9 +42,33 @@ if (!Number.isInteger(concurrency) || concurrency < 1) {
 // ever fires on a genuine hang, not a slow-but-fine run.
 const SPEC_TIMEOUT_MS = 60_000;
 
-const specs = ["smoke.mjs", ...fs.readdirSync(e2eDir).filter((f) => /^feature\d+.*\.mjs$/.test(f)).sort(
+const allSpecs = ["smoke.mjs", ...fs.readdirSync(e2eDir).filter((f) => /^feature\d+.*\.mjs$/.test(f)).sort(
   (a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]),
 )];
+const specArg = process.argv.find((a) => a.startsWith("--spec="));
+const selectors = specArg?.slice("--spec=".length).split(",").map((s) => s.trim()).filter(Boolean);
+if (specArg && !selectors?.length) {
+  console.error("--spec needs a comma-separated list of feature numbers, names, or smoke");
+  process.exit(1);
+}
+function matchesSelector(name, selector) {
+  if (selector === "smoke") return name === "smoke.mjs";
+  if (/^\d+$/.test(selector)) return name.startsWith(`feature${Number(selector)}_`);
+  return name.toLowerCase().includes(selector.toLowerCase());
+}
+if (selectors) {
+  for (const selector of selectors) {
+    if (!allSpecs.some((name) => matchesSelector(name, selector))) {
+      console.error(`No E2E spec matches "${selector}". Use --list to see available specs.`);
+      process.exit(1);
+    }
+  }
+}
+const specs = selectors ? allSpecs.filter((name) => selectors.some((selector) => matchesSelector(name, selector))) : allSpecs;
+if (process.argv.includes("--list")) {
+  console.log(specs.join("\n"));
+  process.exit(0);
+}
 
 // Longest-first scheduling: sort specs by their last recorded duration
 // (descending) so the slowest ones start first instead of landing wherever
@@ -151,6 +178,8 @@ saveDurations(updatedDurations);
 
 const failed = results.filter((r) => r.code !== 0);
 console.log(`\n${results.length - failed.length}/${results.length} passed in ${totalSeconds}s (concurrency ${concurrency})`);
+const slowest = [...results].sort((a, b) => b.durationMs - a.durationMs).slice(0, 5);
+console.log("Slowest specs: " + slowest.map((r) => `${r.name} ${(r.durationMs / 1000).toFixed(1)}s`).join(", "));
 if (failed.length > 0) {
   console.log("\nFAILURES:");
   for (const f of failed) {

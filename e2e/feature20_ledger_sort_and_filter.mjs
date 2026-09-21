@@ -77,6 +77,40 @@ try {
 
   console.log("sort behavior verified");
 
+  // Keyboard: sorting has to work without a mouse. Every sortable heading holds a real button (so Tab
+  // reaches it), the active heading says which way it is sorted (aria-sort), and Enter / Space on the
+  // focused button sorts — with focus staying on that button after the table re-renders.
+  const headings = await app.browser.execute(() =>
+    [...document.querySelectorAll("th.sortable-col")].map((th) => ({
+      label: th.textContent.replace(/[▲▼]/g, "").trim(),
+      hasButton: !!th.querySelector("button"),
+      ariaSort: th.getAttribute("aria-sort"),
+    })),
+  );
+  const withoutButton = headings.filter((h) => !h.hasButton).map((h) => h.label);
+  if (withoutButton.length) throw new Error(`these sortable headings have no button, so the keyboard can't reach them: ${withoutButton.join(", ")}`);
+  const sortedNow = headings.filter((h) => h.ariaSort).map((h) => `${h.label}=${h.ariaSort}`);
+  if (sortedNow.join() !== "Amount=descending") throw new Error(`only the sorted heading should carry aria-sort ("Amount=descending"), got: ${sortedNow.join() || "none"}`);
+
+  const ariaSortOf = (label) =>
+    app.browser.execute((l) => [...document.querySelectorAll("th.sortable-col")].find((th) => th.textContent.includes(l))?.getAttribute("aria-sort") ?? null, label);
+  await app.browser.execute(() => {
+    const th = [...document.querySelectorAll("th.sortable-col")].find((h) => h.textContent.includes("Date"));
+    th.querySelector("button").focus();
+  });
+  await app.browser.keys("Enter");
+  await app.browser.waitUntil(
+    async () => (await app.browser.$(firstDescriptionCell).getText()).includes("Apple Store"),
+    { timeout: 10000, timeoutMsg: "Enter on the focused Date heading should sort by date, oldest first (Apple Store)" },
+  );
+  if ((await ariaSortOf("Date")) !== "ascending") throw new Error(`after Enter the Date heading should be aria-sort=ascending, got ${await ariaSortOf("Date")}`);
+  await app.browser.keys(" ");
+  await app.browser.waitUntil(
+    async () => (await app.browser.$(firstDescriptionCell).getText()).includes("Coffee Shop"),
+    { timeout: 10000, timeoutMsg: "Space on the still-focused Date heading should flip it to newest first (Coffee Shop)" },
+  );
+  if ((await ariaSortOf("Date")) !== "descending") throw new Error(`after Space the Date heading should be aria-sort=descending, got ${await ariaSortOf("Date")}`);
+  console.log("keyboard sorting verified");
   // Account filter: open the dropdown, confirm both accounts show grouped
   // under their type headers, then uncheck Credit Card.
   const filterToggle = await app.browser.$("button*=All accounts");
