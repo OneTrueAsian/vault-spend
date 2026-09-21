@@ -126,7 +126,9 @@ wallet providers.
   open the app or refresh prices, so a **history chart** builds up over
   time; a **Target allocation** by asset class shows how far each has
   drifted; and **"Save as goal…"** turns a goal projection into a real
-  goal.
+  goal. Each investment account also gets an **Accumulation & projection**
+  card: the cash put in, what it's worth now, and where it's headed by its
+  withdraw date. Open an account's Details page to set its plan (see FAQ).
 - **Household** — spending and income broken down by family member for
   whichever month you're viewing, net worth by person (always as of
   today — it isn't a monthly figure the way the cards above it are), and
@@ -420,6 +422,31 @@ right" to clear it from the list (the link stays) or Unlink if it isn't a
 transfer — that pair won't be linked automatically again, though it can
 still be linked by hand.
 
+**How do the accumulation & projection numbers for a Roth or 529 work?**
+Open an investment account's Details page (Accounts tab, or click the
+account's name in the "Accumulation & projection" card on the Investments
+tab). **Cash invested** is the deposits you've logged on that account — every
+money-in counts, and money out is shown separately and lowers the net. **Worth
+now** is the same figure the Accounts tab shows, and **Growth** is worth minus
+what you put in. "What was counted" lists it month by month; a month with no
+deposit shows $0.00.
+
+The plan below it has a monthly amount (it starts at your average over the
+last 6 complete months — fewer if the account is newer; type another figure
+to override it, or choose "Reset to average"), an assumed annual return %, and
+a withdraw month. Vault Spend keeps investing that flat amount, compounding
+monthly, and shows what the account would be worth at the withdraw month as a
+dashed line on the chart. Fill in "Spread over" a number of years to see the
+yearly withdrawals instead of one lump (each year takes the balance divided by
+the years left). Turn on "Show projected figures in today's dollars" to
+discount the projection by the inflation % — one setting shared by every
+account, 3% to start.
+
+The Worth line on the chart only starts the first day Vault Spend recorded the
+account's value (it records it each day you open the app), so earlier months
+aren't drawn and nothing is estimated. The projection is an estimate from the
+numbers you give it, not a promise; try a lower return to see how much it
+moves.
 **Where can I see and change the auto-categorization rules?**
 Settings → Categorization rules lists every rule (the built-in starters and
 the ones learned from your corrections), with how many transactions each

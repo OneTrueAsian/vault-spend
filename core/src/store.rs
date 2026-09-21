@@ -625,6 +625,96 @@ pub struct StoredAppSettings {
     pub auto_link_transfers: bool,
 }
 
+/// One calendar month of money moving in and out of one account — a row of
+/// `AccountContributions`. `month` is `"YYYY-MM"`; `money_out` is a positive
+/// figure (the size of what left).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ContributionMonth {
+    pub month: String,
+    pub money_in: Decimal,
+    pub money_out: Decimal,
+}
+
+/// What has gone into (and come out of) one account, from its own
+/// transactions — see `Store::account_contributions`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AccountContributions {
+    /// Oldest first: every month from the first activity to the last, with a
+    /// month nothing happened in shown as zero.
+    pub months: Vec<ContributionMonth>,
+    pub total_in: Decimal,
+    pub total_out: Decimal,
+    /// `total_in - total_out`.
+    pub net: Decimal,
+    /// The date of the first money-in, if there has been one.
+    pub first_deposit: Option<NaiveDate>,
+    /// How many money-in transactions there are.
+    pub deposit_count: usize,
+}
+
+/// The saved assumptions behind one investment account's projection. Every
+/// field is optional or defaulted: an account nobody has set up yet reads as
+/// `InvestmentPlan::default()`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InvestmentPlan {
+    /// The flat amount put in each month; `None` means "use the recent average".
+    pub monthly_contribution: Option<Decimal>,
+    /// The yearly return the projection assumes, as a percentage.
+    pub annual_return_pct: Decimal,
+    /// When the money is wanted, kept as the first day of that month.
+    pub withdraw_month: Option<NaiveDate>,
+    /// Spread the withdrawals over this many years; `None` takes it all at once.
+    pub withdraw_years: Option<u32>,
+}
+
+impl Default for InvestmentPlan {
+    fn default() -> Self {
+        InvestmentPlan {
+            monthly_contribution: None,
+            annual_return_pct: Decimal::from(DEFAULT_ANNUAL_RETURN_PCT),
+            withdraw_month: None,
+            withdraw_years: None,
+        }
+    }
+}
+
+/// The return assumed until someone edits it — the same 7% the Investments
+/// tab's what-if calculator starts from.
+const DEFAULT_ANNUAL_RETURN_PCT: i64 = 7;
+/// The inflation assumed by "today's dollars" until someone edits it.
+const DEFAULT_INFLATION_PCT: i64 = 3;
+
+/// The first day of `d`'s month.
+fn first_of_month(d: NaiveDate) -> NaiveDate {
+    NaiveDate::from_ymd_opt(d.year(), d.month(), 1).expect("day 1 exists in every month")
+}
+
+/// Why saving an investment plan (or the inflation figure) failed: either the
+/// numbers were refused, with a message meant to be shown as-is, or the
+/// database itself errored.
+#[derive(Debug)]
+pub enum PlanError {
+    Invalid(String),
+    Db(rusqlite::Error),
+}
+
+impl std::fmt::Display for PlanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PlanError::Invalid(message) => write!(f, "{message}"),
+            PlanError::Db(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for PlanError {}
+
+impl From<rusqlite::Error> for PlanError {
+    fn from(e: rusqlite::Error) -> Self {
+        PlanError::Db(e)
+    }
+}
+
 /// A manually-tracked asset outside the accounts model — real estate, a
 /// vehicle, or anything else with a value worth counting toward net worth
 /// but no transaction history of its own. See `Store::total_assets_value`
@@ -1067,7 +1157,21 @@ impl Store {
                 tray_enabled INTEGER NOT NULL DEFAULT 0,
                 autostart_enabled INTEGER NOT NULL DEFAULT 0,
                 rollover_enabled INTEGER NOT NULL DEFAULT 1,
-                auto_link_transfers INTEGER NOT NULL DEFAULT 0
+                auto_link_transfers INTEGER NOT NULL DEFAULT 0,
+                inflation_pct TEXT NOT NULL DEFAULT '3'
+            );
+            CREATE TABLE IF NOT EXISTS investment_plans (
+                account_id INTEGER PRIMARY KEY REFERENCES accounts(id),
+                monthly_contribution TEXT,
+                annual_return_pct TEXT NOT NULL DEFAULT '7',
+                withdraw_date TEXT,
+                withdraw_years INTEGER
+            );
+            CREATE TABLE IF NOT EXISTS account_value_snapshots (
+                account_id INTEGER NOT NULL REFERENCES accounts(id),
+                date TEXT NOT NULL,
+                value TEXT NOT NULL,
+                PRIMARY KEY (account_id, date)
             );
             CREATE TABLE IF NOT EXISTS reminders_sent (
                 recurring_id INTEGER NOT NULL,
@@ -1096,6 +1200,7 @@ impl Store {
         self.migrate_add_background_settings_if_missing()?;
         self.migrate_add_rollover_setting_if_missing()?;
         self.migrate_add_auto_link_support_if_missing()?;
+        self.migrate_add_inflation_setting_if_missing()?;
         self.migrate_add_bucket_icon_key_if_missing()?;
         self.migrate_add_account_icon_key_if_missing()?;
         self.migrate_add_category_icon_key_if_missing()?;
@@ -1807,6 +1912,23 @@ impl Store {
         if !columns_of("app_settings")?.iter().any(|c| c == "auto_link_transfers") {
             self.conn
                 .execute("ALTER TABLE app_settings ADD COLUMN auto_link_transfers INTEGER NOT NULL DEFAULT 0", [])?;
+        }
+        Ok(())
+    }
+
+    /// The inflation figure behind "today's dollars" on an investment
+    /// account's projection. Existing databases get the 3% default.
+    fn migrate_add_inflation_setting_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(app_settings)")?;
+        let has_column = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<rusqlite::Result<Vec<_>>>()?
+            .iter()
+            .any(|c| c == "inflation_pct");
+        drop(stmt);
+        if !has_column {
+            self.conn
+                .execute("ALTER TABLE app_settings ADD COLUMN inflation_pct TEXT NOT NULL DEFAULT '3'", [])?;
         }
         Ok(())
     }
@@ -3086,6 +3208,8 @@ impl Store {
         self.conn
             .execute("UPDATE recurring SET account_id = NULL WHERE account_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM holdings WHERE account_id = ?1", params![id])?;
+        self.conn.execute("DELETE FROM investment_plans WHERE account_id = ?1", params![id])?;
+        self.conn.execute("DELETE FROM account_value_snapshots WHERE account_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM balance_resets WHERE account_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
         Ok(tx_ids.len())
@@ -6662,6 +6786,9 @@ impl Store {
     /// whether anything was written — with no holdings there's nothing worth
     /// recording, and a run of zeros would only distort the chart.
     pub fn record_portfolio_snapshot(&self, date: NaiveDate) -> rusqlite::Result<bool> {
+        // Each investment account's own value goes down in the same breath (its
+        // Details page charts it), whether or not any holdings exist to total.
+        self.record_account_value_snapshots(date)?;
         let holdings = self.list_holdings(date)?;
         if holdings.is_empty() {
             return Ok(false);
@@ -6673,6 +6800,253 @@ impl Store {
             params![date.to_string(), total.to_string()],
         )?;
         Ok(true)
+    }
+
+    /// Records what each investment account is worth on `date`: its holdings'
+    /// value once it has holdings, otherwise its transaction balance — exactly
+    /// the figure `list_accounts` shows, so the chart and the Accounts tab
+    /// agree. One row per account per day (a later write the same day replaces
+    /// it). An account with no holdings and a zero balance has nothing worth
+    /// recording, and a run of zeros would only distort its chart — except on
+    /// the day it became empty: its last recorded value was above zero, so the
+    /// drop is real and is recorded once.
+    fn record_account_value_snapshots(&self, date: NaiveDate) -> rusqlite::Result<()> {
+        let with_holdings = self.holdings_value_by_account()?;
+        for account in self.list_accounts(date)? {
+            if account.account.account_type != AccountType::Investment {
+                continue;
+            }
+            if !with_holdings.contains_key(&account.id)
+                && account.current_balance.is_zero()
+                && !self.latest_account_value_is_above_zero(account.id)?
+            {
+                continue;
+            }
+            self.conn.execute(
+                "INSERT INTO account_value_snapshots (account_id, date, value) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(account_id, date) DO UPDATE SET value = excluded.value",
+                params![account.id, date.to_string(), account.current_balance.to_string()],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Whether an account's most recent recorded value is above zero: the one
+    /// case where recording a zero says something (the account just emptied).
+    fn latest_account_value_is_above_zero(&self, account_id: i64) -> rusqlite::Result<bool> {
+        match self.conn.query_row(
+            "SELECT value FROM account_value_snapshots WHERE account_id = ?1 ORDER BY date DESC LIMIT 1",
+            params![account_id],
+            |row| row.get::<_, String>(0),
+        ) {
+            Ok(value) => Ok(!Decimal::from_str(&value).expect("value stored by this crate must be valid").is_zero()),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// One investment account's recorded values, oldest first. Real
+    /// snapshots only — nothing is estimated for the days before the first.
+    pub fn account_value_history(&self, account_id: i64) -> rusqlite::Result<Vec<(NaiveDate, Decimal)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT date, value FROM account_value_snapshots WHERE account_id = ?1 ORDER BY date")?;
+        let rows = stmt.query_map(params![account_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+        let mut history = Vec::new();
+        for row in rows {
+            let (date, value) = row?;
+            history.push((
+                NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
+                Decimal::from_str(&value).expect("value stored by this crate must be valid"),
+            ));
+        }
+        Ok(history)
+    }
+
+    /// What has gone into, and come out of, one account: every money-in and
+    /// money-out transaction on it dated `today` or earlier, grouped by
+    /// calendar month. Soft-deleted rows and other accounts' rows never count,
+    /// and neither do balance corrections (they move the balance, not what
+    /// was contributed). A linked transfer has one leg in each account, so it
+    /// counts once, on the account it is read for.
+    pub fn account_contributions(&self, account_id: i64, today: NaiveDate) -> rusqlite::Result<AccountContributions> {
+        let mut stmt = self.conn.prepare(
+            "SELECT date, amount FROM transactions
+             WHERE account_id = ?1 AND date <= ?2 AND deleted_at IS NULL
+             ORDER BY date",
+        )?;
+        let rows = stmt.query_map(params![account_id, today.to_string()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+
+        let mut by_month: std::collections::BTreeMap<(i32, u32), (Decimal, Decimal)> = std::collections::BTreeMap::new();
+        let mut first_deposit: Option<NaiveDate> = None;
+        let mut deposit_count = 0usize;
+        for row in rows {
+            let (date, amount) = row?;
+            let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid");
+            let amount = Decimal::from_str(&amount).expect("amount stored by this crate must be valid");
+            if amount.is_zero() {
+                continue;
+            }
+            let entry = by_month.entry((date.year(), date.month())).or_default();
+            if amount > Decimal::ZERO {
+                entry.0 += amount;
+                deposit_count += 1;
+                first_deposit.get_or_insert(date);
+            } else {
+                entry.1 += -amount;
+            }
+        }
+
+        let mut months = Vec::new();
+        if let (Some((&first, _)), Some((&last, _))) = (by_month.iter().next(), by_month.iter().next_back()) {
+            let (mut year, mut month) = first;
+            while (year, month) <= last {
+                let (money_in, money_out) = by_month.get(&(year, month)).copied().unwrap_or_default();
+                months.push(ContributionMonth {
+                    month: format!("{year:04}-{month:02}"),
+                    money_in,
+                    money_out,
+                });
+                if month == 12 {
+                    year += 1;
+                    month = 1;
+                } else {
+                    month += 1;
+                }
+            }
+        }
+
+        let total_in: Decimal = months.iter().map(|m| m.money_in).sum();
+        let total_out: Decimal = months.iter().map(|m| m.money_out).sum();
+        Ok(AccountContributions {
+            months,
+            total_in,
+            total_out,
+            net: total_in - total_out,
+            first_deposit,
+            deposit_count,
+        })
+    }
+
+    /// One investment account's saved plan, or the defaults when nobody has
+    /// set one up.
+    pub fn get_investment_plan(&self, account_id: i64) -> rusqlite::Result<InvestmentPlan> {
+        let row = match self.conn.query_row(
+            "SELECT monthly_contribution, annual_return_pct, withdraw_date, withdraw_years FROM investment_plans WHERE account_id = ?1",
+            params![account_id],
+            |row| {
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                ))
+            },
+        ) {
+            Ok(v) => v,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(InvestmentPlan::default()),
+            Err(e) => return Err(e),
+        };
+        let (monthly, return_pct, withdraw_date, withdraw_years) = row;
+        Ok(InvestmentPlan {
+            monthly_contribution: monthly.map(|s| Decimal::from_str(&s).expect("amount stored by this crate must be valid")),
+            annual_return_pct: Decimal::from_str(&return_pct).expect("percent stored by this crate must be valid"),
+            withdraw_month: withdraw_date
+                .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid")),
+            withdraw_years: withdraw_years.map(|y| y as u32),
+        })
+    }
+
+    /// Saves one investment account's plan, after checking it: a return
+    /// between 0 and 100 percent, a monthly amount that isn't negative, 1 to
+    /// 50 withdrawal years, and a withdraw month that isn't in the past (this
+    /// month is fine — and a month already saved may stay, so editing another
+    /// field isn't blocked by a date the person never touched). A refused
+    /// save writes nothing. The withdraw date is stored as the first of its
+    /// month.
+    pub fn set_investment_plan(&self, account_id: i64, plan: &InvestmentPlan, today: NaiveDate) -> Result<(), PlanError> {
+        if plan.annual_return_pct < Decimal::ZERO || plan.annual_return_pct > Decimal::from(100) {
+            return Err(PlanError::Invalid("The assumed return has to be between 0 and 100%.".to_string()));
+        }
+        if plan.monthly_contribution.is_some_and(|m| m < Decimal::ZERO) {
+            return Err(PlanError::Invalid("The monthly amount can't be negative.".to_string()));
+        }
+        if plan.withdraw_years.is_some_and(|y| !(1..=50).contains(&y)) {
+            return Err(PlanError::Invalid("Spread the withdrawals over 1 to 50 years, or leave it blank.".to_string()));
+        }
+        let withdraw_month = plan.withdraw_month.map(first_of_month);
+        if let Some(chosen) = withdraw_month
+            && chosen < first_of_month(today)
+            && self.get_investment_plan(account_id)?.withdraw_month != Some(chosen)
+        {
+            return Err(PlanError::Invalid("That withdraw month is in the past — pick this month or later.".to_string()));
+        }
+        self.conn.execute(
+            "INSERT INTO investment_plans (account_id, monthly_contribution, annual_return_pct, withdraw_date, withdraw_years)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(account_id) DO UPDATE SET
+                 monthly_contribution = excluded.monthly_contribution,
+                 annual_return_pct = excluded.annual_return_pct,
+                 withdraw_date = excluded.withdraw_date,
+                 withdraw_years = excluded.withdraw_years",
+            params![
+                account_id,
+                plan.monthly_contribution.map(|m| m.to_string()),
+                plan.annual_return_pct.to_string(),
+                withdraw_month.map(|d| d.to_string()),
+                plan.withdraw_years.map(|y| y as i64),
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Saves an account's plan together with the shared inflation setting as
+    /// ONE step: both are checked, and both are written or neither is, so a
+    /// refusal of either can't leave the other one saved behind an error.
+    /// `inflation` is `None` when the person didn't change it.
+    pub fn set_investment_plan_with_inflation(
+        &self,
+        account_id: i64,
+        plan: &InvestmentPlan,
+        inflation: Option<Decimal>,
+        today: NaiveDate,
+    ) -> Result<(), PlanError> {
+        // Dropped without `commit`, the transaction rolls back whatever was written.
+        let tx = self.conn.unchecked_transaction()?;
+        self.set_investment_plan(account_id, plan, today)?;
+        if let Some(pct) = inflation {
+            self.set_inflation_pct(pct)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+    /// The inflation assumption behind "today's dollars" (a percentage per
+    /// year); 3 until someone edits it.
+    pub fn get_inflation_pct(&self) -> rusqlite::Result<Decimal> {
+        match self
+            .conn
+            .query_row("SELECT inflation_pct FROM app_settings WHERE id = 1", [], |row| row.get::<_, String>(0))
+        {
+            Ok(s) => Ok(Decimal::from_str(&s).expect("percent stored by this crate must be valid")),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(Decimal::from(DEFAULT_INFLATION_PCT)),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Sets the inflation assumption (0 to 100 percent); a refused value
+    /// changes nothing.
+    pub fn set_inflation_pct(&self, pct: Decimal) -> Result<(), PlanError> {
+        if pct < Decimal::ZERO || pct > Decimal::from(100) {
+            return Err(PlanError::Invalid("Inflation has to be between 0 and 100%.".to_string()));
+        }
+        self.conn.execute(
+            "INSERT INTO app_settings (id, inflation_pct) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET inflation_pct = ?1",
+            params![pct.to_string()],
+        )?;
+        Ok(())
     }
 
     /// The recorded portfolio values, oldest first.
@@ -17790,6 +18164,523 @@ mod tests {
 
         assert!(!store.record_portfolio_snapshot(day("2026-09-18")).unwrap());
         assert!(store.portfolio_history().unwrap().is_empty());
+    }
+
+    // ---- Phase 4 / item 19: investment accumulation + projection ----
+
+    fn roth(store: &Store) -> i64 {
+        store.get_or_create_account("Joey Roth IRA", AccountType::Investment).unwrap()
+    }
+
+    fn put(store: &Store, account: i64, date: &str, description: &str, amount: &str) {
+        store.save_transactions(account, &[tx(date, description, amount)]).unwrap();
+    }
+
+    fn month(m: &str, money_in: &str, money_out: &str) -> ContributionMonth {
+        ContributionMonth {
+            month: m.to_string(),
+            money_in: dec(money_in),
+            money_out: dec(money_out),
+        }
+    }
+
+    #[test]
+    fn contributions_group_money_in_and_out_by_calendar_month_and_total_them() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        put(&store, acct, "2026-05-03", "May deposit", "500.00");
+        put(&store, acct, "2026-05-20", "May top-up", "100.00");
+        // June: nothing arrived.
+        put(&store, acct, "2026-07-03", "July deposit", "500.00");
+        put(&store, acct, "2026-07-15", "Pulled some out", "-200.00");
+
+        let c = store.account_contributions(acct, day("2026-09-20")).unwrap();
+
+        assert_eq!(
+            c.months,
+            vec![month("2026-05", "600.00", "0"), month("2026-06", "0", "0"), month("2026-07", "500.00", "200.00")],
+            "a missed month between two active ones shows as zero; the empty months after the last activity are not listed"
+        );
+        assert_eq!(c.total_in, dec("1100.00"));
+        assert_eq!(c.total_out, dec("200.00"));
+        assert_eq!(c.net, dec("900.00"));
+        assert_eq!(c.first_deposit, Some(day("2026-05-03")));
+        assert_eq!(c.deposit_count, 3);
+    }
+
+    #[test]
+    fn contributions_for_an_account_with_no_activity_are_empty() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+
+        let c = store.account_contributions(acct, day("2026-09-20")).unwrap();
+
+        assert!(c.months.is_empty());
+        assert_eq!((c.total_in, c.total_out, c.net), (dec("0"), dec("0"), dec("0")));
+        assert_eq!(c.first_deposit, None);
+        assert_eq!(c.deposit_count, 0);
+    }
+
+    #[test]
+    fn the_first_deposit_is_the_first_money_in_not_the_first_transaction() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        put(&store, acct, "2026-06-01", "A fee", "-5.00");
+        put(&store, acct, "2026-07-01", "First real deposit", "300.00");
+
+        let c = store.account_contributions(acct, day("2026-09-20")).unwrap();
+
+        assert_eq!(c.first_deposit, Some(day("2026-07-01")));
+        assert_eq!(c.months.first().unwrap().month, "2026-06");
+        assert_eq!(c.net, dec("295.00"));
+    }
+
+    #[test]
+    fn contributions_skip_deleted_rows_and_other_accounts() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let other = store.get_or_create_account("Sam's 529", AccountType::Investment).unwrap();
+        put(&store, acct, "2026-08-03", "Kept", "500.00");
+        put(&store, acct, "2026-08-04", "Entered by mistake", "999.00");
+        put(&store, other, "2026-08-03", "Someone else's deposit", "300.00");
+        store.delete_transaction(id_of(&store, "Entered by mistake", "2026-08-04"), test_now()).unwrap();
+
+        let c = store.account_contributions(acct, day("2026-09-20")).unwrap();
+
+        assert_eq!(c.total_in, dec("500.00"));
+        assert_eq!(c.deposit_count, 1);
+    }
+
+    #[test]
+    fn contributions_split_on_the_calendar_month_and_ignore_future_dated_rows() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        put(&store, acct, "2026-01-31", "Last day of January", "100.00");
+        put(&store, acct, "2026-02-01", "First day of February", "200.00");
+        put(&store, acct, "2026-10-05", "Dated next month", "700.00");
+
+        let c = store.account_contributions(acct, day("2026-09-20")).unwrap();
+
+        assert_eq!(c.months, vec![month("2026-01", "100.00", "0"), month("2026-02", "200.00", "0")]);
+        assert_eq!(c.total_in, dec("300.00"), "a row that hasn't happened yet isn't invested yet");
+    }
+
+    #[test]
+    fn the_current_month_is_listed_once_it_has_activity() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        put(&store, acct, "2026-08-03", "August", "500.00");
+        put(&store, acct, "2026-09-05", "September", "500.00");
+
+        let c = store.account_contributions(acct, day("2026-09-20")).unwrap();
+
+        assert_eq!(c.months.last().unwrap().month, "2026-09");
+    }
+
+    #[test]
+    fn a_linked_transfer_counts_once_on_the_account_that_received_it() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
+        put(&store, checking, "2026-08-02", "Move to Roth", "-500.00");
+        put(&store, acct, "2026-08-02", "From checking", "500.00");
+        store
+            .link_transfer(id_of(&store, "Move to Roth", "2026-08-02"), id_of(&store, "From checking", "2026-08-02"))
+            .unwrap();
+
+        let roth_side = store.account_contributions(acct, day("2026-09-20")).unwrap();
+        let checking_side = store.account_contributions(checking, day("2026-09-20")).unwrap();
+
+        assert_eq!((roth_side.total_in, roth_side.total_out, roth_side.deposit_count), (dec("500.00"), dec("0"), 1));
+        assert_eq!((checking_side.total_in, checking_side.total_out), (dec("0"), dec("500.00")));
+    }
+
+    #[test]
+    fn any_money_in_counts_including_a_dividend_logged_as_income() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        store
+            .save_transactions(
+                acct,
+                &[
+                    Transaction {
+                        category: Some("Dividends".to_string()),
+                        ..tx("2026-08-10", "VTI dividend", "12.40")
+                    },
+                    tx("2026-08-11", "Deposit", "500.00"),
+                ],
+            )
+            .unwrap();
+
+        let c = store.account_contributions(acct, day("2026-09-20")).unwrap();
+
+        assert_eq!(c.total_in, dec("512.40"));
+        assert_eq!(c.deposit_count, 2);
+    }
+
+    #[test]
+    fn a_balance_correction_moves_the_balance_but_not_what_was_contributed() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        put(&store, acct, "2026-08-03", "Deposit", "500.00");
+        store.set_account_balance_override(acct, dec("12000.00"), day("2026-09-01")).unwrap();
+
+        let c = store.account_contributions(acct, day("2026-09-20")).unwrap();
+
+        assert_eq!((c.total_in, c.total_out, c.net), (dec("500.00"), dec("0"), dec("500.00")));
+        assert_eq!(c.months, vec![month("2026-08", "500.00", "0")]);
+    }
+
+    #[test]
+    fn an_account_with_no_saved_plan_gets_the_defaults() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+
+        let plan = store.get_investment_plan(acct).unwrap();
+
+        assert_eq!(
+            plan,
+            InvestmentPlan {
+                monthly_contribution: None,
+                annual_return_pct: dec("7"),
+                withdraw_month: None,
+                withdraw_years: None,
+            }
+        );
+        assert_eq!(plan, InvestmentPlan::default());
+    }
+
+    #[test]
+    fn a_saved_plan_round_trips_and_the_withdraw_date_is_kept_as_a_month() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let plan = InvestmentPlan {
+            monthly_contribution: Some(dec("450.00")),
+            annual_return_pct: dec("5.5"),
+            withdraw_month: Some(day("2031-06-15")),
+            withdraw_years: Some(4),
+        };
+
+        store.set_investment_plan(acct, &plan, day("2026-09-20")).unwrap();
+
+        assert_eq!(
+            store.get_investment_plan(acct).unwrap(),
+            InvestmentPlan {
+                withdraw_month: Some(day("2031-06-01")),
+                ..plan.clone()
+            }
+        );
+
+        // Saving again replaces it, and a blank field really clears.
+        let cleared = InvestmentPlan {
+            monthly_contribution: None,
+            withdraw_month: None,
+            withdraw_years: None,
+            ..plan
+        };
+        store.set_investment_plan(acct, &cleared, day("2026-09-20")).unwrap();
+        assert_eq!(store.get_investment_plan(acct).unwrap(), cleared);
+    }
+
+    #[test]
+    fn plans_are_kept_per_account() {
+        let store = Store::open_in_memory().unwrap();
+        let a = roth(&store);
+        let b = store.get_or_create_account("Sam's 529", AccountType::Investment).unwrap();
+        store
+            .set_investment_plan(
+                a,
+                &InvestmentPlan {
+                    annual_return_pct: dec("4"),
+                    ..InvestmentPlan::default()
+                },
+                day("2026-09-20"),
+            )
+            .unwrap();
+
+        assert_eq!(store.get_investment_plan(a).unwrap().annual_return_pct, dec("4"));
+        assert_eq!(store.get_investment_plan(b).unwrap(), InvestmentPlan::default());
+    }
+
+    #[test]
+    fn an_invalid_plan_is_refused_with_a_message_and_nothing_is_saved() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let today = day("2026-09-20");
+        let good = InvestmentPlan {
+            monthly_contribution: Some(dec("300")),
+            annual_return_pct: dec("6"),
+            withdraw_month: Some(day("2030-01-01")),
+            withdraw_years: Some(3),
+        };
+        store.set_investment_plan(acct, &good, today).unwrap();
+
+        let cases = [
+            (InvestmentPlan { annual_return_pct: dec("100.01"), ..good.clone() }, "between 0 and 100"),
+            (InvestmentPlan { annual_return_pct: dec("-0.1"), ..good.clone() }, "between 0 and 100"),
+            (InvestmentPlan { monthly_contribution: Some(dec("-1")), ..good.clone() }, "can't be negative"),
+            (InvestmentPlan { withdraw_month: Some(day("2026-08-15")), ..good.clone() }, "in the past"),
+            (InvestmentPlan { withdraw_years: Some(0), ..good.clone() }, "1 to 50"),
+            (InvestmentPlan { withdraw_years: Some(51), ..good.clone() }, "1 to 50"),
+        ];
+        for (bad, expected) in cases {
+            let err = store.set_investment_plan(acct, &bad, today).unwrap_err();
+            assert!(matches!(err, PlanError::Invalid(_)), "{bad:?} should be a validation error");
+            assert!(err.to_string().contains(expected), "{bad:?}: {err}");
+            assert_eq!(store.get_investment_plan(acct).unwrap(), good, "a refused save must leave the plan alone");
+        }
+    }
+
+    #[test]
+    fn the_current_month_is_a_valid_withdraw_month_and_an_old_saved_one_can_stay() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let this_month = InvestmentPlan {
+            withdraw_month: Some(day("2026-09-28")),
+            ..InvestmentPlan::default()
+        };
+        store.set_investment_plan(acct, &this_month, day("2026-09-20")).unwrap();
+
+        // Months later that date is in the past — but editing the monthly amount
+        // must not be blocked by a date the person never touched.
+        let edited = InvestmentPlan {
+            monthly_contribution: Some(dec("250")),
+            ..this_month.clone()
+        };
+        store.set_investment_plan(acct, &edited, day("2026-12-01")).unwrap();
+        assert_eq!(store.get_investment_plan(acct).unwrap().monthly_contribution, Some(dec("250")));
+
+        // Picking a different past month is still refused.
+        let other_past = InvestmentPlan {
+            withdraw_month: Some(day("2026-10-01")),
+            ..edited
+        };
+        assert!(store.set_investment_plan(acct, &other_past, day("2026-12-01")).is_err());
+    }
+
+    #[test]
+    fn a_plan_and_an_inflation_are_saved_together() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let plan = InvestmentPlan {
+            annual_return_pct: dec("5"),
+            ..InvestmentPlan::default()
+        };
+
+        store.set_investment_plan_with_inflation(acct, &plan, Some(dec("4")), day("2026-09-20")).unwrap();
+
+        assert_eq!(store.get_investment_plan(acct).unwrap(), plan);
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("4"));
+    }
+
+    #[test]
+    fn a_refused_inflation_saves_nothing_from_the_plan_either() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let plan = InvestmentPlan {
+            annual_return_pct: dec("5"),
+            ..InvestmentPlan::default()
+        };
+
+        // Just over 100 by an amount a double-precision check can't see.
+        let err = store
+            .set_investment_plan_with_inflation(acct, &plan, Some(dec("100.0000000000000000001")), day("2026-09-20"))
+            .unwrap_err();
+
+        assert!(matches!(err, PlanError::Invalid(_)));
+        assert_eq!(
+            store.get_investment_plan(acct).unwrap(),
+            InvestmentPlan::default(),
+            "the plan must not stay saved behind a refused inflation"
+        );
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("3"));
+    }
+
+    #[test]
+    fn a_refused_plan_leaves_the_inflation_alone() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let plan = InvestmentPlan {
+            annual_return_pct: dec("150"),
+            ..InvestmentPlan::default()
+        };
+
+        let err = store.set_investment_plan_with_inflation(acct, &plan, Some(dec("4")), day("2026-09-20")).unwrap_err();
+
+        assert!(matches!(err, PlanError::Invalid(_)));
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("3"), "a refused plan must not change the shared inflation");
+    }
+
+    #[test]
+    fn without_an_inflation_only_the_plan_is_saved() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let plan = InvestmentPlan {
+            annual_return_pct: dec("6"),
+            ..InvestmentPlan::default()
+        };
+
+        store.set_investment_plan_with_inflation(acct, &plan, None, day("2026-09-20")).unwrap();
+
+        assert_eq!(store.get_investment_plan(acct).unwrap(), plan);
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("3"));
+    }
+    #[test]
+    fn the_daily_snapshot_also_records_each_investment_account_s_own_value() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let five29 = store.get_or_create_account("Sam's 529", AccountType::Investment).unwrap();
+        let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
+        put(&store, checking, "2026-09-01", "Paycheck", "2000.00");
+        store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
+        store.create_holding(five29, "VXUS", "International", dec("4"), dec("100.00"), dec("300"), None).unwrap();
+
+        store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+
+        assert_eq!(store.account_value_history(acct).unwrap(), vec![(day("2026-09-18"), dec("2500.00"))]);
+        assert_eq!(store.account_value_history(five29).unwrap(), vec![(day("2026-09-18"), dec("400.00"))]);
+        assert!(store.account_value_history(checking).unwrap().is_empty(), "only investment accounts are recorded");
+    }
+
+    #[test]
+    fn an_account_snapshot_is_once_a_day_oldest_first_and_the_last_write_wins() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let id = store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-17")).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+        store.update_holding_price(id, dec("260.00"), day("2026-09-18")).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+
+        assert_eq!(
+            store.account_value_history(acct).unwrap(),
+            vec![(day("2026-09-17"), dec("2500.00")), (day("2026-09-18"), dec("2600.00"))]
+        );
+    }
+
+    #[test]
+    fn an_investment_account_without_holdings_is_recorded_at_its_transaction_balance() {
+        let store = Store::open_in_memory().unwrap();
+        let funded = roth(&store);
+        let empty = store.get_or_create_account("Alex's 529", AccountType::Investment).unwrap();
+        put(&store, funded, "2026-09-01", "Deposit", "500.00");
+        put(&store, funded, "2026-09-25", "Not yet", "500.00");
+
+        let recorded_portfolio = store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+
+        assert!(!recorded_portfolio, "with no holdings the portfolio chart still records nothing");
+        assert_eq!(store.account_value_history(funded).unwrap(), vec![(day("2026-09-18"), dec("500.00"))]);
+        assert!(
+            store.account_value_history(empty).unwrap().is_empty(),
+            "an account with no holdings and no balance has nothing worth recording"
+        );
+    }
+
+    #[test]
+    fn an_account_that_is_emptied_records_the_move_to_zero_once() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let holding = store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-17")).unwrap();
+        store.delete_holding(holding).unwrap();
+
+        store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-19")).unwrap();
+
+        assert_eq!(
+            store.account_value_history(acct).unwrap(),
+            vec![(day("2026-09-17"), dec("2500.00")), (day("2026-09-18"), dec("0"))],
+            "the drop to zero is on record for the day it happened, and the empty days after it add no run of zeros"
+        );
+    }
+
+    #[test]
+    fn an_emptied_account_that_is_funded_again_is_recorded_again() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        let first = store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-17")).unwrap();
+        store.delete_holding(first).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+        store.create_holding(acct, "VXUS", "International", dec("4"), dec("100.00"), dec("300"), None).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-20")).unwrap();
+
+        assert_eq!(
+            store.account_value_history(acct).unwrap(),
+            vec![(day("2026-09-17"), dec("2500.00")), (day("2026-09-18"), dec("0")), (day("2026-09-20"), dec("400.00"))]
+        );
+    }
+    #[test]
+    fn deleting_an_account_removes_its_plan_and_value_history() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+        store
+            .set_investment_plan(
+                acct,
+                &InvestmentPlan {
+                    annual_return_pct: dec("4"),
+                    ..InvestmentPlan::default()
+                },
+                day("2026-09-20"),
+            )
+            .unwrap();
+
+        store.delete_account(acct).unwrap();
+
+        let plan_rows: i64 = store.conn.query_row("SELECT COUNT(*) FROM investment_plans", [], |r| r.get(0)).unwrap();
+        let snapshot_rows: i64 = store.conn.query_row("SELECT COUNT(*) FROM account_value_snapshots", [], |r| r.get(0)).unwrap();
+        assert_eq!((plan_rows, snapshot_rows), (0, 0));
+        // A new account of the same name starts from scratch.
+        let again = roth(&store);
+        assert_eq!(store.get_investment_plan(again).unwrap(), InvestmentPlan::default());
+        assert!(store.account_value_history(again).unwrap().is_empty());
+    }
+
+    #[test]
+    fn inflation_defaults_to_three_percent_persists_and_refuses_nonsense() {
+        let store = Store::open_in_memory().unwrap();
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("3"));
+
+        store.set_inflation_pct(dec("2.5")).unwrap();
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("2.5"));
+
+        assert!(matches!(store.set_inflation_pct(dec("-1")), Err(PlanError::Invalid(_))));
+        assert!(matches!(store.set_inflation_pct(dec("101")), Err(PlanError::Invalid(_))));
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("2.5"), "a refused save changes nothing");
+
+        // It lives beside the feature switches without disturbing them.
+        let settings = store.get_app_settings().unwrap();
+        assert!(settings.apply_to_debt_enabled && settings.rollover_enabled && !settings.auto_link_transfers);
+    }
+
+    #[test]
+    fn inflation_still_reads_as_three_percent_when_there_is_no_settings_row_at_all() {
+        let store = Store::open_in_memory().unwrap();
+        store.conn.execute("DELETE FROM app_settings", []).unwrap();
+
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("3"));
+        store.set_inflation_pct(dec("2")).unwrap();
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("2"), "saving creates the row");
+    }
+
+    #[test]
+    fn a_database_from_before_phase_4_gains_the_investment_tables_and_the_inflation_setting() {
+        let store = Store::open_in_memory().unwrap();
+        let acct = roth(&store);
+        store
+            .conn
+            .execute_batch("DROP TABLE investment_plans; DROP TABLE account_value_snapshots; ALTER TABLE app_settings DROP COLUMN inflation_pct;")
+            .unwrap();
+
+        store.init_schema().unwrap();
+
+        assert_eq!(store.get_inflation_pct().unwrap(), dec("3"));
+        assert_eq!(store.get_investment_plan(acct).unwrap(), InvestmentPlan::default());
+        store.create_holding(acct, "VTI", "Total Market", dec("1"), dec("100.00"), dec("90"), None).unwrap();
+        store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
+        assert_eq!(store.account_value_history(acct).unwrap().len(), 1);
     }
 
     #[test]

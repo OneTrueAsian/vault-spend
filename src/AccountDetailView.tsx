@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account } from "./types";
 import { LineChart } from "./charts";
 import { formatAmount, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
+// Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
+const AccountAccumulationSection = lazy(() => import("./AccumulationSection").then((m) => ({ default: m.AccountAccumulationSection })));
 
 type BalancePoint = { date: string; balance: string };
 type AccountTransaction = { id: number; date: string; description: string; amount: string; category: string | null; cleared: boolean };
@@ -20,10 +22,15 @@ const RECONCILABLE_TYPES = new Set(["checking", "savings"]);
 export function AccountDetailView({
   account,
   onBack,
+  backLabel = "← All accounts",
+  onOpenTransactions,
   onMessage,
 }: {
   account: Account;
   onBack: () => void;
+  /** Where Back leads, when it isn't the account list (opened from the Investments tab). */
+  backLabel?: string;
+  onOpenTransactions: () => void;
   onMessage: (text: string, kind: "success" | "error" | "info") => void;
 }) {
   const [history, setHistory] = useState<BalancePoint[]>([]);
@@ -99,7 +106,7 @@ export function AccountDetailView({
       <div className="page-top">
         <div>
           <button type="button" className="modal-secondary" onClick={onBack} data-account-back>
-            ← All accounts
+            {backLabel}
           </button>
           <h1 className="view-title" style={{ marginTop: 12 }}>
             {account.name}
@@ -123,6 +130,12 @@ export function AccountDetailView({
         </div>
       </div>
 
+      {account.account_type === "investment" && (
+        <Suspense fallback={null}>
+          <AccountAccumulationSection account={account} onMessage={onMessage} onOpenTransactions={onOpenTransactions} />
+        </Suspense>
+      )}
+
       <div className="card">
         <div className="card-head">
           <span className="reports-section-title">Balance over the last year</span>
@@ -133,7 +146,9 @@ export function AccountDetailView({
           <p className="modal-message-secondary">Not enough history to draw a chart yet.</p>
         )}
         {account.account_type === "investment" && (
-          <p className="modal-message-secondary">An investment account's history shows its cash activity; holdings' value over time is on the Investments page.</p>
+          <p className="modal-message-secondary">
+            An investment account's balance history shows its cash activity; what it is worth over time is charted under Accumulation &amp; projection above.
+          </p>
         )}
       </div>
 

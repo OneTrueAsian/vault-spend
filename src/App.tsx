@@ -30,6 +30,7 @@ import { ProfileSwitcher } from "./ProfileSwitcher";
 import { TransferRow } from "./TransferRow";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
+import { SortableTh } from "./SortableTh";
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
 import type { PaletteEntry } from "./paletteSearch";
@@ -1973,9 +1974,14 @@ function App({
   // ---- Command palette + keyboard shortcuts ------------------------------
   const [accountDetailId, setAccountDetailId] = useState<number | null>(null);
   const accountDetail = accountDetailId === null ? null : (accounts.find((a) => a.id === accountDetailId) ?? null);
+  // Set when a Details page was opened from another tab (the Investments summary), so Back returns there.
+  const [detailReturnTab, setDetailReturnTab] = useState<Tab | null>(null);
   useEffect(() => {
     // The account page belongs to the Accounts tab; leaving it closes the page.
-    if (activeTab !== "accounts") setAccountDetailId(null);
+    if (activeTab !== "accounts") {
+      setAccountDetailId(null);
+      setDetailReturnTab(null);
+    }
   }, [activeTab]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -4143,25 +4149,25 @@ function App({
                 aria-label="Select all on this page"
               />
             </th>
-            <th className="sortable-col" onClick={() => toggleSort("date")}>
-              Date{sortColumn === "date" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
-            <th className="sortable-col" onClick={() => toggleSort("description")}>
-              Description{sortColumn === "description" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
-            <th className="amount-col sortable-col" onClick={() => toggleSort("amount")}>
-              Amount{sortColumn === "amount" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
-            <th className="sortable-col" onClick={() => toggleSort("account")}>
-              Account{sortColumn === "account" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
+            <SortableTh column="date" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Date
+            </SortableTh>
+            <SortableTh column="description" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Description
+            </SortableTh>
+            <SortableTh column="amount" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} className="amount-col">
+              Amount
+            </SortableTh>
+            <SortableTh column="account" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Account
+            </SortableTh>
             <th>Member</th>
-            <th className="sortable-col" onClick={() => toggleSort("category")}>
-              Category{sortColumn === "category" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
-            <th className="sortable-col" onClick={() => toggleSort("source")}>
-              Source{sortColumn === "source" && (sortDirection === "asc" ? " ▲" : " ▼")}
-            </th>
+            <SortableTh column="category" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Category
+            </SortableTh>
+            <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+              Source
+            </SortableTh>
             {appSettings.apply_to_debt_enabled && <th>Debt</th>}
             <th className="actions-col"></th>
           </tr>
@@ -4688,6 +4694,11 @@ function App({
           allocationTargets={allocationTargets}
           onSetAllocationTargets={handleSetAllocationTargets}
           onSaveProjectionAsGoal={handleSaveProjectionAsGoal}
+          onOpenAccountDetail={(id) => {
+            setAccountDetailId(id);
+            setDetailReturnTab("investments");
+            setActiveTab("accounts");
+          }}
         />
         </Suspense>
       )}
@@ -4944,7 +4955,12 @@ function App({
         <AccountDetailView
           key={accountDetail.id}
           account={accountDetail}
-          onBack={() => setAccountDetailId(null)}
+          onBack={() => {
+            if (detailReturnTab) setActiveTab(detailReturnTab);
+            else setAccountDetailId(null);
+          }}
+          backLabel={detailReturnTab === "investments" ? "← Investments" : undefined}
+          onOpenTransactions={() => setActiveTab("ledger")}
           onMessage={(text, kind) => setStatus(text, kind)}
         />
       )}

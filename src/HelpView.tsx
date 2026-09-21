@@ -340,6 +340,12 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "drift",
       "rebalance",
       "save as goal",
+      "accumulation",
+      "projection",
+      "roth",
+      "529",
+      "contributions",
+      "withdraw",
     ],
     node: (
       <li>
@@ -357,7 +363,11 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         <strong>history chart</strong> builds up over time; set a{" "}
         <strong>Target allocation</strong> by asset class to see how far each
         has drifted from where you want it; and <strong>"Save as goal…"</strong>{" "}
-        turns a goal projection into a real goal.
+        turns a goal projection into a real goal. Each investment account
+        also gets an <strong>Accumulation &amp; projection</strong> card: the
+        cash put in, what it's worth now, and where it's headed by its
+        withdraw date. Open an account's Details page to set its plan (see
+        FAQ).
       </li>
     ),
   },
@@ -730,6 +740,61 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
+    question: "How do the accumulation & projection numbers for a Roth or 529 work?",
+    tags: [
+      "accumulation",
+      "projection",
+      "roth",
+      "ira",
+      "529",
+      "contributions",
+      "cash invested",
+      "worth now",
+      "growth",
+      "withdraw",
+      "withdraw month",
+      "return",
+      "inflation",
+      "today's dollars",
+      "spread",
+      "drawdown",
+      "investment account",
+    ],
+    answer: (
+      <>
+        <p>
+          Open an investment account's Details page (Accounts tab, or click the
+          account's name in the "Accumulation & projection" card on the
+          Investments tab). <strong>Cash invested</strong> is the deposits
+          you've logged on that account — every money-in counts, and money out
+          is shown separately and lowers the net. <strong>Worth now</strong> is
+          the same figure the Accounts tab shows, and <strong>Growth</strong>{" "}
+          is worth minus what you put in. "What was counted" lists it month by
+          month; a month with no deposit shows $0.00.
+        </p>
+        <p>
+          The plan below it has a monthly amount (it starts at your average over
+          the last 6 complete months — fewer if the account is newer; type
+          another figure to override it, or choose "Reset to average"), an
+          assumed annual return %, and a withdraw month. Vault Spend keeps
+          investing that flat amount, compounding monthly, and shows what the
+          account would be worth at the withdraw month as a dashed line on the
+          chart. Fill in "Spread over" a number of years to see the yearly
+          withdrawals instead of one lump (each year takes the balance divided
+          by the years left). Turn on "Show projected figures in today's
+          dollars" to discount the projection by the inflation % — one setting
+          shared by every account, 3% to start.
+        </p>
+        <p>
+          The Worth line on the chart only starts the first day Vault Spend
+          recorded the account's value (it records it each day you open the
+          app), so earlier months aren't drawn and nothing is estimated. The
+          projection is an estimate from the numbers you give it, not a
+          promise; try a lower return to see how much it moves.
+        </p>
+      </>
+    ),
+  },  {
     question: 'What does "Safe to spend" mean?',
     tags: ["safe to spend", "payday", "paycheck", "buffer", "bills", "dashboard", "recurring"],
     answer: (

@@ -8,6 +8,7 @@ import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
 import { StatDetailPanel } from "./StatDetailPanel";
+import { AccumulationSummaryCard } from "./AccumulationSection";
 
 const CLASS_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 
@@ -448,11 +449,14 @@ export function InvestmentsView({
   allocationTargets,
   onSetAllocationTargets,
   onSaveProjectionAsGoal,
+  onOpenAccountDetail,
 }: {
   portfolioHistory: PortfolioPoint[];
   allocationTargets: AllocationTarget[];
   onSetAllocationTargets: (targets: { assetClass: string; percent: string }[]) => void;
   onSaveProjectionAsGoal: (name: string, targetAmount: string, targetDate: string) => void;
+  /** Opens an investment account's Details page (its accumulation & projection). */
+  onOpenAccountDetail: (accountId: number) => void;
   holdings: Holding[];
   accounts: Account[];
   onCreate: (
@@ -644,6 +648,8 @@ export function InvestmentsView({
       <TargetAllocationCard holdings={holdings} targets={allocationTargets} onSave={onSetAllocationTargets} />
 
       <GoalProjectionCalculator currentTotal={totalValue} onSaveAsGoal={onSaveProjectionAsGoal} />
+
+      <AccumulationSummaryCard accounts={accounts} onOpenAccount={onOpenAccountDetail} />
 
       {Array.from(byAccount.entries()).map(([accountName, accountHoldings]) => (
         <div key={accountName}>

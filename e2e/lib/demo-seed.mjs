@@ -301,6 +301,66 @@ for days, desc, amt, cat in (
     (3, "Gas & Go", -80.00, "Gas"),
 ):
     tx(statement, days_ago(days), desc, amt, cat, "user")
+
+# ---------------------------------------------------------------------------
+# Phase 4 loose ends: investment accumulation + projection
+#   - "Joey Roth IRA": $450 on the 1st of every month for 14 months with ONE
+#     MISSED MONTH (5 months ago) and one $310 withdrawal, no plan saved yet
+#     (open Details, pick a withdraw month, watch the projection appear);
+#   - "Sam's 529": $275 a month for 15 months, with a saved plan (6% return,
+#     withdrawing in 7 years, spread over 4 years);
+#   - "Alex's 529": $225 a month for 9 months, with a saved plan but no
+#     "spread over years", and NO value history yet (only today's point);
+#   - "Fidelity Brokerage" (above): holdings but no deposits — the empty state.
+# The amounts avoid any figure that another loose end already uses (500, 250,
+# 180, 120) so they never join a "possible transfer" suggestion.
+# ---------------------------------------------------------------------------
+roth = acct("Joey Roth IRA", "investment", "0.00", "Fidelity", "8821")
+sam529 = acct("Sam's 529", "investment", "0.00", "Vanguard", "5529")
+alex529 = acct("Alex's 529", "investment", "0.00", "Vanguard", "5530")
+
+for back in range(13, -1, -1):
+    if back != 5:
+        tx(roth, month_start(back), "Roth contribution", 450.00, "Transfer", "user")
+tx(roth, month_start(3).replace(day=12), "Roth withdrawal", -310.00, "Transfer", "user")
+for back in range(14, -1, -1):
+    tx(sam529, month_start(back), "529 contribution - Sam", 275.00, "Transfer", "user")
+for back in range(8, -1, -1):
+    tx(alex529, month_start(back), "529 contribution - Alex", 225.00, "Transfer", "user")
+
+new_holdings = [
+    (roth, "VTI", "Vanguard Total Stock Market ETF", "20", "296.40", "5400.00", "US Stock"),
+    (roth, "VXUS", "Vanguard Total International", "30", "68.15", "1900.00", "Intl Stock"),
+    (sam529, "VTI", "Vanguard Total Stock Market ETF", "10", "296.40", "2500.00", "US Stock"),
+    (sam529, "BND", "Vanguard Total Bond Market", "25", "73.20", "1800.00", "Bond"),
+    (alex529, "BND", "Vanguard Total Bond Market", "20", "73.20", "1400.00", "Bond"),
+    (alex529, "VTI", "Vanguard Total Stock Market ETF", "4", "296.40", "1000.00", "US Stock"),
+]
+for account_id, sym, name, sh, price, basis, cls in new_holdings:
+    cur.execute("INSERT INTO holdings (account_id, symbol, name, shares, price, cost_basis, asset_class) VALUES (?,?,?,?,?,?,?)",
+                (account_id, sym, name, sh, price, basis, cls))
+
+# Value history for the last 30 days (Alex's 529 has none — the "just started" case).
+roth_now = 20 * 296.40 + 30 * 68.15
+sam_now = 10 * 296.40 + 25 * 73.20
+for i in range(30, 0, -1):
+    for account_id, now_value in ((roth, roth_now), (sam529, sam_now)):
+        value = now_value * (0.95 + 0.0017 * (30 - i)) + 35 * ((i * 5) % 7 - 3)
+        cur.execute("INSERT INTO account_value_snapshots (account_id, date, value) VALUES (?,?,?)", (account_id, days_ago(i).isoformat(), f"{value:.2f}"))
+
+first_of_this_month = today.replace(day=1)
+cur.execute("INSERT INTO investment_plans (account_id, monthly_contribution, annual_return_pct, withdraw_date, withdraw_years) VALUES (?,?,?,?,?)",
+            (sam529, None, "6", add_months(first_of_this_month, 84).isoformat(), 4))
+cur.execute("INSERT INTO investment_plans (account_id, monthly_contribution, annual_return_pct, withdraw_date, withdraw_years) VALUES (?,?,?,?,?)",
+            (alex529, None, "7", add_months(first_of_this_month, 132).isoformat(), None))
+
+# The portfolio grew by the three new accounts' holdings, so redraw its 24-day
+# history around the new total (otherwise the chart would jump on the last day).
+portfolio_total = 24815.70 + roth_now + sam_now + 20 * 73.20 + 4 * 296.40
+cur.execute("DELETE FROM portfolio_snapshots")
+for i in range(24, 0, -1):
+    value = portfolio_total * (0.93 + 0.0030 * (24 - i)) + 90 * ((i * 7) % 5 - 2)
+    cur.execute("INSERT INTO portfolio_snapshots (date, value) VALUES (?, ?)", (days_ago(i).isoformat(), f"{value:.2f}"))
 `;
 
 /** Creates a fresh demo database in `dbDir` (which must already exist and be
