@@ -6,6 +6,9 @@ use rust_decimal::Decimal;
 use std::path::Path;
 use std::str::FromStr;
 
+mod encryption;
+pub use self::encryption::{DatabaseKey, StoreOpenError};
+
 /// The starter categories offered before the user has created or used any
 /// of their own — seeded once into the `categories` table on a fresh
 /// database (see `Store::seed_default_categories_if_missing`).
@@ -907,6 +910,8 @@ pub struct Store {
     /// build type, since there's no sibling directory to put it in and no
     /// real user data to explain.
     activity_log_path: Option<std::path::PathBuf>,
+    /// The raw database key when this store was opened encrypted. Zeroized when the store drops.
+    db_key: Option<zeroize::Zeroizing<[u8; 32]>>,
 }
 
 impl Store {
@@ -920,6 +925,7 @@ impl Store {
         let store = Store {
             conn: Connection::open(path)?,
             activity_log_path,
+            db_key: None,
         };
         store.init_schema()?;
         Ok(store)
@@ -929,6 +935,7 @@ impl Store {
         let store = Store {
             conn: Connection::open_in_memory()?,
             activity_log_path: None,
+            db_key: None,
         };
         store.init_schema()?;
         Ok(store)
