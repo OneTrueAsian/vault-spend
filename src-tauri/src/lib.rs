@@ -9,6 +9,7 @@ mod live_price_provider;
 mod live_prices;
 mod profiles;
 mod runtime;
+mod startup;
 mod stockdata;
 mod twelve_data;
 mod updater;
