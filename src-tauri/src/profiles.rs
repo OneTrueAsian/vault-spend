@@ -64,10 +64,9 @@ fn profiles_dir(config_path: &Path) -> PathBuf {
 
 /// Why `profiles.json` could not be read, and whether an earlier good version (`.bak`) exists.
 #[derive(Debug)]
-#[allow(dead_code)] // read by the launch error screen in Phase B
-struct RegistryProblem {
-    reason: String,
-    backup_available: bool,
+pub struct RegistryProblem {
+    pub reason: String,
+    pub backup_available: bool,
 }
 
 fn registry_backup_is_usable(registry_file: &Path) -> bool {
@@ -90,6 +89,53 @@ fn read_registry_strict(config_path: &Path) -> Result<Option<Registry>, Registry
 
 fn read_registry(config_path: &Path) -> Option<Registry> {
     read_registry_strict(config_path).ok().flatten()
+}
+
+/// One entry of `profiles.json`, as stored.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegisteredProfile {
+    pub id: String,
+    pub name: String,
+    pub db_path: PathBuf,
+}
+
+/// The registered profiles, or none when there is no registry yet. Unlike `list_profiles` this never
+/// invents a Default entry and never hides a registry it could not read; the launch check relies on that.
+pub fn registered_profiles_strict(config_path: &Path) -> Result<Vec<RegisteredProfile>, RegistryProblem> {
+    Ok(read_registry_strict(config_path)?
+        .map(|registry| {
+            registry
+                .profiles
+                .into_iter()
+                .map(|p| RegisteredProfile { id: p.id, name: p.name, db_path: PathBuf::from(p.db_path) })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default())
+}
+
+/// The registry id of the profile whose data file is `db_path`: the Default profile's `"default"`
+/// when there is no registry, or when no entry names that file.
+pub fn profile_id_for(config_path: &Path, db_path: &Path) -> String {
+    entries_or_synthesize(config_path, db_path)
+        .into_iter()
+        .find(|p| Path::new(&p.db_path) == db_path)
+        .map(|p| p.id)
+        .unwrap_or_else(|| DEFAULT_PROFILE_ID.to_string())
+}
+
+/// Puts the previous profile list (`profiles.json.bak`) back in place of a damaged one. The damaged
+/// file is kept as `profiles.json.damaged`. Refuses when the backup is missing or unreadable.
+pub fn restore_registry_backup(config_path: &Path) -> Result<(), String> {
+    let registry_file = registry_path(config_path);
+    let backup_file = registry_file.with_file_name(format!("{REGISTRY_FILENAME}.bak"));
+    let text = std::fs::read_to_string(&backup_file).map_err(|_| "There is no earlier copy of the profile list to go back to.".to_string())?;
+    if serde_json::from_str::<Registry>(&text).is_err() {
+        return Err("The earlier copy of the profile list is damaged too, so it can't be used.".to_string());
+    }
+    if registry_file.exists() {
+        let _ = std::fs::rename(&registry_file, registry_file.with_file_name(format!("{REGISTRY_FILENAME}.damaged")));
+    }
+    budget_core::fsutil::write_atomic(&registry_file, text.as_bytes()).map_err(|e| e.to_string())
 }
 
 fn write_registry(config_path: &Path, registry: &Registry) -> Result<(), String> {
@@ -829,8 +875,8 @@ mod tests {
     }
 
     #[test]
-    fn a_damaged_registry_still_lists_only_the_default_until_the_launch_error_screen_exists() {
-        // Characterization, not a wish: Phase B replaces this silent fallback with an error screen.
+    fn a_damaged_registry_still_lists_only_the_default_because_startup_refuses_to_run_with_one() {
+        // Characterization: list_profiles stays lenient; startup::open_from_disk is what refuses to run with a damaged registry.
         let dir = temp_dir("registry-lenient");
         let config_path = dir.join("config.json");
         std::fs::write(registry_path(&config_path), b"garbage").unwrap();
@@ -839,5 +885,84 @@ mod tests {
 
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].id, "default");
+    }
+
+    #[test]
+    fn registered_profiles_strict_lists_the_registry_and_calls_no_registry_empty() {
+        let dir = temp_dir("strict-list");
+        let config_path = dir.join("config.json");
+        assert!(registered_profiles_strict(&config_path).unwrap().is_empty(), "no registry is not an error and invents nothing");
+
+        create_profile(&config_path, &dir.join("vaultspend.db"), "Alex", dt("2026-08-30 12:00:00")).unwrap();
+        let listed = registered_profiles_strict(&config_path).unwrap();
+
+        assert_eq!(listed.len(), 2);
+        assert_eq!(listed[0].id, "default");
+        assert_eq!(listed[0].db_path, dir.join("vaultspend.db"));
+        assert!(listed.iter().any(|p| p.name == "Alex"));
+    }
+
+    #[test]
+    fn registered_profiles_strict_reports_a_damaged_registry_instead_of_inventing_a_default() {
+        let dir = temp_dir("strict-damaged");
+        let config_path = dir.join("config.json");
+        std::fs::write(registry_path(&config_path), b"{ not json").unwrap();
+
+        let problem = registered_profiles_strict(&config_path).unwrap_err();
+
+        assert!(!problem.reason.is_empty());
+        assert!(!problem.backup_available);
+    }
+
+    #[test]
+    fn profile_id_for_names_the_registered_profile_that_owns_the_file() {
+        let dir = temp_dir("id-for");
+        let config_path = dir.join("config.json");
+        let default_db = dir.join("vaultspend.db");
+        let alex = create_profile(&config_path, &default_db, "Alex", dt("2026-08-30 12:00:00")).unwrap();
+
+        assert_eq!(profile_id_for(&config_path, &default_db), "default");
+        assert_eq!(profile_id_for(&config_path, &alex.db_path), alex.id);
+    }
+
+    #[test]
+    fn profile_id_for_is_default_without_a_registry_or_for_an_unregistered_file() {
+        let dir = temp_dir("id-for-none");
+        let config_path = dir.join("config.json");
+        assert_eq!(profile_id_for(&config_path, &dir.join("vaultspend.db")), "default");
+
+        create_profile(&config_path, &dir.join("vaultspend.db"), "Alex", dt("2026-08-30 12:00:00")).unwrap();
+
+        assert_eq!(profile_id_for(&config_path, &dir.join("somewhere-else.db")), "default");
+    }
+
+    #[test]
+    fn restoring_the_registry_backup_brings_back_the_earlier_list_and_keeps_the_damaged_file() {
+        let dir = temp_dir("restore-registry");
+        let config_path = dir.join("config.json");
+        write_registry(&config_path, &registry_of(&dir, "one.db")).unwrap();
+        write_registry(&config_path, &registry_of(&dir, "two.db")).unwrap(); // .bak now holds one.db
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+
+        restore_registry_backup(&config_path).unwrap();
+
+        let restored = read_registry_strict(&config_path).unwrap().unwrap();
+        assert!(restored.profiles[0].db_path.ends_with("one.db"));
+        let damaged = registry_path(&config_path).with_file_name("profiles.json.damaged");
+        assert_eq!(std::fs::read(damaged).unwrap(), b"garbage", "what was there is kept, not destroyed");
+        assert!(bak_path(&config_path).exists(), "the backup stays in place");
+    }
+
+    #[test]
+    fn restoring_the_registry_backup_refuses_when_there_is_no_usable_backup() {
+        let dir = temp_dir("restore-registry-none");
+        let config_path = dir.join("config.json");
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+
+        assert!(restore_registry_backup(&config_path).is_err(), "no backup at all");
+        assert_eq!(std::fs::read(registry_path(&config_path)).unwrap(), b"garbage", "the file is left as it was");
+
+        std::fs::write(bak_path(&config_path), b"also garbage").unwrap();
+        assert!(restore_registry_backup(&config_path).is_err(), "a damaged backup is no use either");
     }
 }

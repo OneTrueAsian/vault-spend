@@ -84,6 +84,19 @@ fn read_configured_db_path(config_path: &Path) -> Option<PathBuf> {
     path.exists().then_some(path)
 }
 
+/// Where `config.json` says the data file is. `Ok(None)`: there is no `config.json`, which is normal
+/// until the data file is moved or a profile is created. `Err`: there is one and it cannot be read;
+/// the launch check must not guess. Whether the file it names exists is the caller's question.
+pub fn read_location_strict(config_path: &Path) -> Result<Option<PathBuf>, String> {
+    let text = match std::fs::read_to_string(config_path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("{}: {e}", config_path.display())),
+    };
+    let config: DbLocationConfig = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", config_path.display()))?;
+    Ok(Some(PathBuf::from(config.db_path)))
+}
+
 /// Persists a chosen data-file location to `config_path` — read back by
 /// `resolve_db_path` on the *next* launch (relocating doesn't hot-swap the
 /// currently-open connection; the frontend tells the user to restart).
@@ -152,5 +165,30 @@ mod tests {
         assert!(text.contains("two.db") && !text.contains("one.db"));
         let temp_files = std::fs::read_dir(&dir).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-")).count();
         assert_eq!(temp_files, 0);
+    }
+
+    #[test]
+    fn a_missing_config_file_is_not_an_error() {
+        let dir = temp_dir("strict-none");
+
+        assert_eq!(read_location_strict(&dir.join("config.json")).unwrap(), None);
+    }
+
+    #[test]
+    fn the_configured_location_is_returned_even_when_that_file_is_gone() {
+        let dir = temp_dir("strict-configured");
+        let config_path = dir.join("config.json");
+        write_db_location_config(&config_path, &dir.join("no_such_file.db")).unwrap();
+
+        assert_eq!(read_location_strict(&config_path).unwrap(), Some(dir.join("no_such_file.db")));
+    }
+
+    #[test]
+    fn a_damaged_config_file_is_an_error_not_a_reason_to_open_the_default_file() {
+        let dir = temp_dir("strict-damaged");
+        let config_path = dir.join("config.json");
+        std::fs::write(&config_path, b"{ not json").unwrap();
+
+        assert!(read_location_strict(&config_path).is_err());
     }
 }
