@@ -13,6 +13,7 @@ use tauri::{AppHandle, Manager, Window, WindowEvent};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::commands::AppStateHandle;
+use crate::device_settings::DeviceSettingsStore;
 
 const TRAY_ID: &str = "vaultspend-tray";
 const MAIN_WINDOW: &str = "main";
@@ -91,13 +92,16 @@ pub fn set_autostart(enable: bool) -> Result<(), String> {
 }
 
 fn tray_enabled(app: &AppHandle) -> bool {
-    let Some(state) = app.try_state::<AppStateHandle>() else {
-        return false;
-    };
-    let Ok(guard) = state.lock() else {
-        return false;
-    };
-    guard.store.get_background_settings().map(|s| s.tray_enabled).unwrap_or(false)
+    app.try_state::<DeviceSettingsStore>().map(|d| d.snapshot().tray_enabled).unwrap_or(false)
+}
+
+/// Puts the tray icon up when this computer's settings ask for it (a no-op if it is already there).
+pub fn sync_tray_with_settings(app: &AppHandle) {
+    if tray_enabled(app) {
+        if let Err(e) = install_tray(app) {
+            eprintln!("tray icon failed (continuing without it): {e}");
+        }
+    }
 }
 
 fn show_main_window(app: &AppHandle) {
@@ -172,13 +176,12 @@ fn check_reminders(app: &AppHandle) {
     let Some(state) = app.try_state::<AppStateHandle>() else {
         return;
     };
+    // With no profile open (or a locked one) there is nothing to read. Phase E gives that case its own
+    // due-dates-only reminder source.
     let Ok(guard) = state.lock() else {
         return;
     };
-    let Ok(settings) = guard.store.get_background_settings() else {
-        return;
-    };
-    if !settings.tray_enabled {
+    if !tray_enabled(app) {
         return;
     }
     let today = chrono::Local::now().date_naive();
@@ -204,11 +207,18 @@ pub fn start_reminder_thread(app: AppHandle) {
     });
 }
 
+/// A sign-in start (`--minimized`) hides the window only when there is a tray icon to bring it back
+/// from and a profile is open. A launch error is shown, never hidden.
+pub fn should_hide_at_launch(minimized_flag: bool, tray_enabled: bool, profile_open: bool) -> bool {
+    minimized_flag && tray_enabled && profile_open
+}
+
 /// Started from the sign-in entry (`--minimized`) with the tray on: keep the
 /// window out of the way.
 pub fn hide_if_started_minimized(app: &AppHandle) {
     let minimized = std::env::args().any(|a| a == MINIMIZED_FLAG);
-    if minimized && tray_enabled(app) {
+    let profile_open = app.try_state::<AppStateHandle>().map(|s| s.is_open()).unwrap_or(false);
+    if should_hide_at_launch(minimized, tray_enabled(app), profile_open) {
         if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
             let _ = window.hide();
         }
@@ -271,5 +281,13 @@ mod tests {
         let args = autostart_reg_args(false, Path::new("ignored.exe"));
 
         assert_eq!(args, vec!["delete", RUN_KEY, "/v", "VaultSpend", "/f"]);
+    }
+
+    #[test]
+    fn a_sign_in_start_hides_only_when_the_tray_is_on_and_a_profile_is_open() {
+        assert!(should_hide_at_launch(true, true, true));
+        assert!(!should_hide_at_launch(false, true, true), "an ordinary start shows the window");
+        assert!(!should_hide_at_launch(true, false, true), "no tray means nowhere to bring it back from");
+        assert!(!should_hide_at_launch(true, true, false), "a launch error must be seen, not hidden");
     }
 }

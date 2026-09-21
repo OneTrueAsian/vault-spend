@@ -23,19 +23,18 @@ use std::str::FromStr;
 /// Returns the currently-resolved data file path, for display on the
 /// Reports tab's Settings section.
 /// The data file path this session is actually using right now — may
-/// differ from what `resolve_db_path` computed at launch, since
+/// differ from what `startup::open_from_disk` opened at launch, since
 /// `relocate_data_file`/`restore_backup` update it in place rather than
 /// requiring a restart. A poisoned lock (only possible if an earlier panic
 /// happened mid-update) still yields a usable path rather than taking down
 /// every command that reads it.
-/// Temporary: the second backup folder still comes from the profile's database until the device
-/// settings take over (Task 6 of Phase B deletes this).
-pub(crate) fn legacy_copy_dir(store: &Store) -> Option<std::path::PathBuf> {
-    store.get_backup_copy_dir().ok().flatten().map(std::path::PathBuf::from)
-}
-
 fn current_db_path(paths: &crate::config::AppPaths) -> std::path::PathBuf {
     paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// The registry id of the profile this session has open (`"default"` before any profile was created).
+fn active_profile_id(paths: &crate::config::AppPaths) -> String {
+    crate::profiles::profile_id_for(&paths.config_path, &current_db_path(paths))
 }
 
 #[tauri::command]
@@ -127,24 +126,21 @@ pub struct BackgroundSettingsDto {
 }
 
 #[tauri::command]
-pub fn get_background_settings(state: tauri::State<AppStateHandle>) -> Result<BackgroundSettingsDto, String> {
-    let state = state.lock()?;
-    let s = state.store.get_background_settings().map_err(|e| e.to_string())?;
-    Ok(BackgroundSettingsDto {
-        tray_enabled: s.tray_enabled,
-        autostart_enabled: s.autostart_enabled,
+pub fn get_background_settings(device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> BackgroundSettingsDto {
+    let settings = device.snapshot();
+    BackgroundSettingsDto {
+        tray_enabled: settings.tray_enabled,
+        autostart_enabled: settings.autostart_enabled,
         autostart_supported: cfg!(windows),
-    })
+    }
 }
 
 /// Turns "keep running in the tray and remind me about bills" on or off —
-/// the tray icon appears or disappears straight away.
+/// the tray icon appears or disappears straight away. A setting of this
+/// computer, saved beside `config.json`.
 #[tauri::command]
-pub fn set_tray_enabled(enabled: bool, app: tauri::AppHandle, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    {
-        let state = state.lock()?;
-        state.store.set_tray_enabled(enabled).map_err(|e| e.to_string())?;
-    }
+pub fn set_tray_enabled(enabled: bool, app: tauri::AppHandle, device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> Result<(), String> {
+    device.update(|settings| settings.tray_enabled = enabled)?;
     if enabled {
         crate::background::install_tray(&app).map_err(|e| e.to_string())
     } else {
@@ -156,10 +152,9 @@ pub fn set_tray_enabled(enabled: bool, app: tauri::AppHandle, state: tauri::Stat
 /// Starts (or stops) Vault Spend at sign-in. The setting is only saved once
 /// the operating system accepted the change.
 #[tauri::command]
-pub fn set_autostart_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn set_autostart_enabled(enabled: bool, device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> Result<(), String> {
     crate::background::set_autostart(enabled)?;
-    let state = state.lock()?;
-    state.store.set_autostart_enabled(enabled).map_err(|e| e.to_string())
+    device.update(|settings| settings.autostart_enabled = enabled)
 }
 
 /// Sends a sample reminder so the user can see what one looks like and that
@@ -186,10 +181,15 @@ pub struct BackupNowDto {
 /// throttle (`backups::create_backup_if_due`, called only at launch). Also
 /// copies it to the second backup folder when one is set.
 #[tauri::command]
-pub fn create_backup_now(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<BackupNowDto, String> {
+pub fn create_backup_now(
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<BackupNowDto, String> {
     let state = state.lock()?;
     let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
-    let outcome = crate::backups::create_backup_full(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local())?;
+    let copy_dir = device.snapshot().backup_mirror_dir(&active_profile_id(&paths)).map(std::path::PathBuf::from);
+    let outcome = crate::backups::create_backup_full(&state.store, &backups_dir, copy_dir.as_deref(), chrono::Local::now().naive_local())?;
     Ok(BackupNowDto {
         filename: outcome.filename,
         copied_to: outcome.copied_to.map(|p| p.parent().map(|d| d.display().to_string()).unwrap_or_default()),
@@ -197,11 +197,13 @@ pub fn create_backup_now(paths: tauri::State<crate::config::AppPaths>, state: ta
     })
 }
 
-/// The second folder every backup is also copied to, if one is set.
+/// The second folder every backup of this profile is also copied to, if one is set.
 #[tauri::command]
-pub fn get_backup_copy_dir(state: tauri::State<AppStateHandle>) -> Result<Option<String>, String> {
-    let state = state.lock()?;
-    state.store.get_backup_copy_dir().map_err(|e| e.to_string())
+pub fn get_backup_copy_dir(
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<Option<String>, String> {
+    Ok(device.snapshot().backup_mirror_dir(&active_profile_id(&paths)).map(str::to_string))
 }
 
 /// Sets (or clears, with `None`) the second backup folder. A folder is
@@ -213,12 +215,14 @@ pub fn get_backup_copy_dir(state: tauri::State<AppStateHandle>) -> Result<Option
 pub fn set_backup_copy_dir(
     dir: Option<String>,
     paths: tauri::State<crate::config::AppPaths>,
-    state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<String, String> {
-    let state = state.lock()?;
+    let profile_id = active_profile_id(&paths);
     let dir = dir.map(|d| d.trim().to_string()).filter(|d| !d.is_empty());
     let Some(dir) = dir else {
-        state.store.set_backup_copy_dir(None).map_err(|e| e.to_string())?;
+        device.update(|settings| {
+            settings.backup_mirror_dirs.remove(&profile_id);
+        })?;
         return Ok("Backups will no longer be copied to a second folder.".to_string());
     };
 
@@ -233,7 +237,9 @@ pub fn set_backup_copy_dir(
         }
         None => false,
     };
-    state.store.set_backup_copy_dir(Some(&dir)).map_err(|e| e.to_string())?;
+    device.update(|settings| {
+        settings.backup_mirror_dirs.insert(profile_id.clone(), dir.clone());
+    })?;
     Ok(if copied_now {
         format!("Every backup will also be copied to {dir}. The latest one is there now.")
     } else {
@@ -247,11 +253,17 @@ pub fn set_backup_copy_dir(
 /// — same in-place hot-swap as `relocate_data_file`, and for the same
 /// reason (see its doc comment).
 #[tauri::command]
-pub fn restore_backup(filename: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn restore_backup(
+    filename: String,
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
     let mut state = state.lock()?;
     let live_db_path = current_db_path(&paths);
     let backups_dir = crate::backups::backups_dir_for(&live_db_path);
-    let restored_path = crate::backups::restore_backup(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), &filename, &live_db_path)?;
+    let copy_dir = device.snapshot().backup_mirror_dir(&active_profile_id(&paths)).map(std::path::PathBuf::from);
+    let restored_path = crate::backups::restore_backup(&state.store, &backups_dir, copy_dir.as_deref(), &filename, &live_db_path)?;
     crate::config::write_db_location_config(&paths.config_path, &restored_path).map_err(|e| e.to_string())?;
     *state = AppState::open(&restored_path)?;
     // Same registry-sync reasoning as `relocate_data_file` — do this before
@@ -296,7 +308,12 @@ pub fn set_profile_icon(id: String, icon_key: Option<String>, paths: tauri::Stat
 /// immediately, same in-place mechanism as `relocate_data_file`/
 /// `restore_backup` — creating a profile means "start using it now."
 #[tauri::command]
-pub fn create_profile(name: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<String, String> {
+pub fn create_profile(
+    name: String,
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<String, String> {
     let mut state = state.lock()?;
     let live_db_path = current_db_path(&paths);
     let profile = crate::profiles::create_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
@@ -312,14 +329,7 @@ pub fn create_profile(name: String, paths: tauri::State<crate::config::AppPaths>
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = profile.db_path.clone();
     paths.bump_generation();
 
-    // Best-effort, matching `setup()`'s own treatment — a profile left
-    // untouched for a long time and then switched into mid-session should
-    // still get automatic backup coverage without waiting for a full
-    // restart, but a failure here must never block using the app.
-    let backups_dir = crate::backups::backups_dir_for(&profile.db_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local()) {
-        eprintln!("automatic backup failed (continuing anyway): {e}");
-    }
+    crate::startup::after_profile_opened(&paths.config_path, &profile.db_path, &state.store, &device, chrono::Local::now().naive_local());
 
     Ok(profile.name)
 }
@@ -332,7 +342,12 @@ pub fn create_profile(name: String, paths: tauri::State<crate::config::AppPaths>
 /// `backups::verify_backup`'s doc comment for why that's a real risk in
 /// this codebase, not a hypothetical one.
 #[tauri::command]
-pub fn switch_profile(id: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<String, String> {
+pub fn switch_profile(
+    id: String,
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<String, String> {
     let mut state = state.lock()?;
     let live_db_path = current_db_path(&paths);
     let target = crate::profiles::list_profiles(&paths.config_path, &live_db_path)
@@ -364,10 +379,7 @@ pub fn switch_profile(id: String, paths: tauri::State<crate::config::AppPaths>, 
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = target.db_path.clone();
     paths.bump_generation();
 
-    let backups_dir = crate::backups::backups_dir_for(&target.db_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local()) {
-        eprintln!("automatic backup failed (continuing anyway): {e}");
-    }
+    crate::startup::after_profile_opened(&paths.config_path, &target.db_path, &state.store, &device, chrono::Local::now().naive_local());
 
     Ok(target.name)
 }
@@ -388,6 +400,7 @@ pub fn add_existing_profile(
     db_path: String,
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<String, String> {
     let picked_path = std::path::PathBuf::from(&db_path);
     if !picked_path.exists() {
@@ -415,14 +428,7 @@ pub fn add_existing_profile(
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
     paths.bump_generation();
 
-    // Best-effort, matching `create_profile`'s/`switch_profile`'s own
-    // treatment — a file that hasn't been backed up in a while should still
-    // get automatic coverage right away, but this must never block using
-    // the app.
-    let backups_dir = crate::backups::backups_dir_for(&picked_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local()) {
-        eprintln!("automatic backup failed (continuing anyway): {e}");
-    }
+    crate::startup::after_profile_opened(&paths.config_path, &picked_path, &state.store, &device, chrono::Local::now().naive_local());
 
     Ok(profile.name)
 }

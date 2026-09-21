@@ -4,6 +4,7 @@ mod commands;
 mod config;
 mod device_settings;
 mod finnhub;
+mod launch_commands;
 mod legacy_migration;
 mod live_price_provider;
 mod live_prices;
@@ -15,7 +16,7 @@ mod twelve_data;
 mod updater;
 mod window_state;
 
-use commands::{AppState, AppStateHandle};
+use commands::AppStateHandle;
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -50,7 +51,7 @@ pub fn run() {
             // The default directory is where config.json lives (the one
             // fixed, discoverable location) even after the user relocates
             // their actual database elsewhere via the Reports tab's
-            // Settings section — see config::resolve_db_path.
+            // Settings section — see startup::open_from_disk.
             //
             // **Debug builds default to a dev-only directory, never the
             // real AppData folder, even without VAULTSPEND_DB_DIR set** —
@@ -85,24 +86,18 @@ pub fn run() {
                 }
             }
             let config_path = default_dir.join("config.json");
-            let db_path = config::resolve_db_path(&config_path, &default_dir);
 
-            let state = AppState::open(&db_path).map_err(std::io::Error::other)?;
-
-            // A failed automatic backup (disk full, permissions, ...)
-            // must never block the user from opening the app — logged,
-            // not propagated with `?`.
-            let backups_dir = backups::backups_dir_for(&db_path);
-            if let Err(e) = backups::create_backup_if_due(&state.store, &backups_dir, commands::legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local()) {
-                eprintln!("automatic backup failed (continuing anyway): {e}");
-            }
-
-            app.manage::<AppStateHandle>(runtime::AppRuntime::open(state));
+            // This computer's settings (tray, start at sign-in, second backup folders) live in a file
+            // beside config.json, so a start with no profile open can still decide what the tray and
+            // the window do without a database.
+            app.manage(device_settings::DeviceSettingsStore::load(default_dir.join(device_settings::DEVICE_SETTINGS_FILENAME)));
+            app.manage::<AppStateHandle>(runtime::AppRuntime::no_profile_open());
             app.manage(config::AppPaths {
-                config_path,
-                db_path: Mutex::new(db_path),
+                config_path: config_path.clone(),
+                db_path: Mutex::new(default_dir.join(config::DB_FILENAME)),
                 generation: std::sync::atomic::AtomicU64::new(0),
             });
+            app.manage(startup::LaunchStatus::new(default_dir.clone()));
 
             // Restores the window to whatever size (never position — a
             // saved position could sit on a monitor that's no longer
@@ -116,18 +111,15 @@ pub fn run() {
             // the exact real-AppData leak that handling was written to fix.
             window_state::restore_and_track(app.handle(), &default_dir);
 
-            // The opt-in background behaviour: bring the tray icon up if it's
-            // switched on, start the reminder check, and stay out of the way
-            // when started from the sign-in entry.
+            // A profile that can't be opened never aborts the launch: the window shows why, and what the
+            // person can do about it (launch_commands.rs). Nothing quietly opens a different file instead.
             let handle = app.handle().clone();
-            if app
-                .state::<AppStateHandle>()
-                .lock()
-                .map(|s| s.store.get_background_settings().map(|b| b.tray_enabled).unwrap_or(false))
-                .unwrap_or(false)
-            {
-                if let Err(e) = background::install_tray(&handle) {
-                    eprintln!("tray icon failed (continuing without it): {e}");
+            match startup::open_from_disk(&config_path, &default_dir) {
+                Ok(opened) => startup::activate(&handle, opened),
+                Err(error) => {
+                    eprintln!("no profile could be opened at launch: {}", error.message);
+                    app.state::<startup::LaunchStatus>().set_error(error);
+                    background::sync_tray_with_settings(&handle);
                 }
             }
             background::start_reminder_thread(handle.clone());
@@ -136,6 +128,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            launch_commands::get_startup_state,
+            launch_commands::retry_startup,
+            launch_commands::restore_registry_backup,
+            launch_commands::open_profile_at_launch,
+            launch_commands::locate_data_file,
+            launch_commands::quit_app,
             commands::write_text_file,
             commands::download_update_asset,
             commands::get_data_file_location,

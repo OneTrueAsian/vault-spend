@@ -54,10 +54,6 @@ impl DerefMut for OpenSession<'_> {
 }
 
 impl AppRuntime {
-    pub fn open(state: AppState) -> Self {
-        AppRuntime { slot: Mutex::new(Slot::Open(state)) }
-    }
-
     pub fn no_profile_open() -> Self {
         AppRuntime { slot: Mutex::new(Slot::NoProfileOpen) }
     }
@@ -116,9 +112,15 @@ mod tests {
         AppState::open(temp_db(name)).unwrap()
     }
 
+    fn open_runtime(state: AppState) -> AppRuntime {
+        let runtime = AppRuntime::no_profile_open();
+        runtime.install(state);
+        runtime
+    }
+
     #[test]
     fn an_open_runtime_hands_out_the_state() {
-        let runtime = AppRuntime::open(open_state("open"));
+        let runtime = open_runtime(open_state("open"));
 
         assert_eq!(runtime.status(), RuntimeStatus::Open);
         assert!(runtime.is_open());
@@ -139,7 +141,7 @@ mod tests {
 
     #[test]
     fn a_locked_runtime_refuses_with_its_own_code_and_drops_the_state() {
-        let runtime = AppRuntime::open(open_state("locked"));
+        let runtime = open_runtime(open_state("locked"));
 
         runtime.lock_profile("work");
 
@@ -161,7 +163,7 @@ mod tests {
 
     #[test]
     fn a_locked_runtime_can_be_opened_again() {
-        let runtime = AppRuntime::open(open_state("relock"));
+        let runtime = open_runtime(open_state("relock"));
         runtime.lock_profile("work");
 
         runtime.install(open_state("relock-second"));
@@ -172,7 +174,7 @@ mod tests {
     #[test]
     fn the_session_lets_a_command_swap_the_state_in_place() {
         // relocate_data_file, restore_backup and switch_profile do `*state = AppState::open(..)?`.
-        let runtime = AppRuntime::open(open_state("swap-first"));
+        let runtime = open_runtime(open_state("swap-first"));
 
         {
             let mut session = runtime.lock().ok().unwrap();

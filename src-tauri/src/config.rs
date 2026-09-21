@@ -52,41 +52,13 @@ struct DbLocationConfig {
     db_path: String,
 }
 
-/// Resolution order:
-/// 1. `config_path`'s `db_path`, if that config file exists, parses, and
-///    the file it points at still exists (a configured path whose target
-///    vanished — e.g. an unplugged external drive — falls through rather
-///    than silently starting a brand-new empty database there).
-/// 2. `default_dir` joined with `vaultspend.db` — untouched behavior for
-///    every user who has never relocated their data.
-///
-/// `VAULTSPEND_DB_DIR` (the E2E-test env var) is *not* handled here — the
-/// caller substitutes it directly for `default_dir` before calling this,
-/// so a test run's `config.json` lives in the same throwaway directory as
-/// everything else, never the real AppData folder. (An earlier version of
-/// this function took the env var as a third, higher-priority parameter
-/// that only affected the returned `db_path`, leaving `config_path`
-/// computed from the *real* AppData folder regardless — meaning a test
-/// that wrote to `config.json` was silently mutating the real user's
-/// config. Fixed by giving the whole notion of "default location" the
-/// override, not just the final path.)
-pub fn resolve_db_path(config_path: &Path, default_dir: &Path) -> PathBuf {
-    if let Some(configured) = read_configured_db_path(config_path) {
-        return configured;
-    }
-    default_dir.join(DB_FILENAME)
-}
-
-fn read_configured_db_path(config_path: &Path) -> Option<PathBuf> {
-    let content = std::fs::read_to_string(config_path).ok()?;
-    let config: DbLocationConfig = serde_json::from_str(&content).ok()?;
-    let path = PathBuf::from(config.db_path);
-    path.exists().then_some(path)
-}
-
 /// Where `config.json` says the data file is. `Ok(None)`: there is no `config.json`, which is normal
 /// until the data file is moved or a profile is created. `Err`: there is one and it cannot be read;
 /// the launch check must not guess. Whether the file it names exists is the caller's question.
+///
+/// `VAULTSPEND_DB_DIR` (the E2E-test env var) is not handled here: the caller substitutes it for the
+/// whole default folder, so a test run's `config.json` lives in the same throwaway directory as
+/// everything else and never touches the real AppData folder's `config.json`.
 pub fn read_location_strict(config_path: &Path) -> Result<Option<PathBuf>, String> {
     let text = match std::fs::read_to_string(config_path) {
         Ok(text) => text,
@@ -98,7 +70,7 @@ pub fn read_location_strict(config_path: &Path) -> Result<Option<PathBuf>, Strin
 }
 
 /// Persists a chosen data-file location to `config_path` — read back by
-/// `resolve_db_path` on the *next* launch (relocating doesn't hot-swap the
+/// `read_location_strict` on the *next* launch (relocating doesn't hot-swap the
 /// currently-open connection; the frontend tells the user to restart).
 pub fn write_db_location_config(config_path: &Path, db_path: &Path) -> std::io::Result<()> {
     let config = DbLocationConfig {
@@ -116,41 +88,6 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("vaultspend-config-test-{name}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
-    }
-
-    #[test]
-    fn configured_path_wins_when_its_target_file_exists() {
-        let default_dir = temp_dir("configured-default");
-        let relocated_dir = temp_dir("configured-target");
-        let relocated_db = relocated_dir.join("vaultspend.db");
-        std::fs::write(&relocated_db, b"fake db content").unwrap();
-        let config_path = default_dir.join("config.json");
-        write_db_location_config(&config_path, &relocated_db).unwrap();
-
-        let resolved = resolve_db_path(&config_path, &default_dir);
-
-        assert_eq!(resolved, relocated_db);
-    }
-
-    #[test]
-    fn falls_back_to_default_when_no_config_file_exists() {
-        let default_dir = temp_dir("no-config-default");
-        let config_path = default_dir.join("config.json");
-
-        let resolved = resolve_db_path(&config_path, &default_dir);
-
-        assert_eq!(resolved, default_dir.join("vaultspend.db"));
-    }
-
-    #[test]
-    fn falls_back_to_default_when_the_configured_target_no_longer_exists() {
-        let default_dir = temp_dir("vanished-default");
-        let config_path = default_dir.join("config.json");
-        write_db_location_config(&config_path, &default_dir.join("no_such_file.db")).unwrap();
-
-        let resolved = resolve_db_path(&config_path, &default_dir);
-
-        assert_eq!(resolved, default_dir.join("vaultspend.db"));
     }
 
     #[test]

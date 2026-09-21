@@ -245,11 +245,7 @@ pub fn activate(app: &tauri::AppHandle, opened: OpenedProfile) {
     paths.bump_generation();
     runtime.install(opened.state);
     status.clear();
-    if device.snapshot().tray_enabled {
-        if let Err(e) = crate::background::install_tray(app) {
-            eprintln!("tray icon failed (continuing without it): {e}");
-        }
-    }
+    crate::background::sync_tray_with_settings(app);
 }
 
 #[cfg(test)]

@@ -133,8 +133,8 @@ mod tests {
         let migrated = migrate_if_needed(&new_default_dir, "vaultspend.db").unwrap();
 
         assert!(migrated);
-        let resolved = crate::config::resolve_db_path(&new_default_dir.join("config.json"), &new_default_dir);
-        assert_eq!(resolved, legacy_dir.join("pennyworth.db"));
+        let configured = crate::config::read_location_strict(&new_default_dir.join("config.json")).unwrap();
+        assert_eq!(configured, Some(legacy_dir.join("pennyworth.db")));
     }
 
     #[test]
