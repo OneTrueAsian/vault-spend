@@ -28,6 +28,12 @@ use std::str::FromStr;
 /// requiring a restart. A poisoned lock (only possible if an earlier panic
 /// happened mid-update) still yields a usable path rather than taking down
 /// every command that reads it.
+/// Temporary: the second backup folder still comes from the profile's database until the device
+/// settings take over (Task 6 of Phase B deletes this).
+pub(crate) fn legacy_copy_dir(store: &Store) -> Option<std::path::PathBuf> {
+    store.get_backup_copy_dir().ok().flatten().map(std::path::PathBuf::from)
+}
+
 fn current_db_path(paths: &crate::config::AppPaths) -> std::path::PathBuf {
     paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
@@ -183,7 +189,7 @@ pub struct BackupNowDto {
 pub fn create_backup_now(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<BackupNowDto, String> {
     let state = state.lock()?;
     let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
-    let outcome = crate::backups::create_backup_full(&state.store, &backups_dir, chrono::Local::now().naive_local())?;
+    let outcome = crate::backups::create_backup_full(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local())?;
     Ok(BackupNowDto {
         filename: outcome.filename,
         copied_to: outcome.copied_to.map(|p| p.parent().map(|d| d.display().to_string()).unwrap_or_default()),
@@ -245,7 +251,7 @@ pub fn restore_backup(filename: String, paths: tauri::State<crate::config::AppPa
     let mut state = state.lock()?;
     let live_db_path = current_db_path(&paths);
     let backups_dir = crate::backups::backups_dir_for(&live_db_path);
-    let restored_path = crate::backups::restore_backup(&state.store, &backups_dir, &filename, &live_db_path)?;
+    let restored_path = crate::backups::restore_backup(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), &filename, &live_db_path)?;
     crate::config::write_db_location_config(&paths.config_path, &restored_path).map_err(|e| e.to_string())?;
     *state = AppState::open(&restored_path)?;
     // Same registry-sync reasoning as `relocate_data_file` — do this before
@@ -311,7 +317,7 @@ pub fn create_profile(name: String, paths: tauri::State<crate::config::AppPaths>
     // still get automatic backup coverage without waiting for a full
     // restart, but a failure here must never block using the app.
     let backups_dir = crate::backups::backups_dir_for(&profile.db_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
+    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local()) {
         eprintln!("automatic backup failed (continuing anyway): {e}");
     }
 
@@ -359,7 +365,7 @@ pub fn switch_profile(id: String, paths: tauri::State<crate::config::AppPaths>, 
     paths.bump_generation();
 
     let backups_dir = crate::backups::backups_dir_for(&target.db_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
+    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local()) {
         eprintln!("automatic backup failed (continuing anyway): {e}");
     }
 
@@ -414,7 +420,7 @@ pub fn add_existing_profile(
     // get automatic coverage right away, but this must never block using
     // the app.
     let backups_dir = crate::backups::backups_dir_for(&picked_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
+    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local()) {
         eprintln!("automatic backup failed (continuing anyway): {e}");
     }
 

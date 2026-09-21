@@ -92,7 +92,7 @@ pub fn run() {
             // must never block the user from opening the app — logged,
             // not propagated with `?`.
             let backups_dir = backups::backups_dir_for(&db_path);
-            if let Err(e) = backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
+            if let Err(e) = backups::create_backup_if_due(&state.store, &backups_dir, commands::legacy_copy_dir(&state.store).as_deref(), chrono::Local::now().naive_local()) {
                 eprintln!("automatic backup failed (continuing anyway): {e}");
             }
 
