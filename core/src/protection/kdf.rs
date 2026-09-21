@@ -68,6 +68,7 @@ pub fn derive_kek(secret: &[u8], salt: &[u8], params: &KdfParams) -> Result<Zero
         .map_err(|e| ProtectionError::KdfOutOfBounds(e.to_string()))?;
     Ok(out)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

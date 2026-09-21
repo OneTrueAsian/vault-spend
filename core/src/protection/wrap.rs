@@ -46,6 +46,7 @@ pub fn unwrap_dek(kek: &[u8; 32], wrapped: &Wrapped, aad: &[u8]) -> Result<Zeroi
     let bytes: [u8; 32] = plain.as_slice().try_into().map_err(|_| ProtectionError::WrongPasswordOrTampered)?;
     Ok(Zeroizing::new(bytes))
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

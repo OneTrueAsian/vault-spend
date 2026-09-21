@@ -33,6 +33,7 @@ pub fn write_atomic_with_backup(path: &Path, bytes: &[u8]) -> std::io::Result<()
     }
     write_atomic(path, bytes)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
