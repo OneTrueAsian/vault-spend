@@ -4,7 +4,7 @@
 use crate::commands::AppStateHandle;
 use crate::config::AppPaths;
 use crate::profiles;
-use crate::startup::{self, LaunchStatus, StartupState};
+use crate::startup::{self, LaunchErrorKind, LaunchStatus, StartupState};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
@@ -71,6 +71,41 @@ pub fn locate_data_file(path: String, app: AppHandle) -> Result<StartupState, St
     let opened = startup::locate_data_file_at(&app.state::<AppPaths>().config_path, previous.as_deref(), Path::new(&path))?;
     startup::activate(&app, opened);
     Ok(current(&app))
+}
+
+/// Starts with a new, empty data file when the one that was asked for can't be used. Offered only for
+/// file problems; the old file is left exactly where it is.
+#[tauri::command]
+pub fn start_with_new_data_file(app: AppHandle) -> Result<StartupState, String> {
+    refuse_if_open(&app)?;
+    let status = app.state::<LaunchStatus>();
+    let Some(error) = status.error() else {
+        return Err("There is no data file problem to start over from.".to_string());
+    };
+    if !matches!(
+        error.kind,
+        LaunchErrorKind::DataFileMissing | LaunchErrorKind::DataFileUnreadable | LaunchErrorKind::LocationUnreadable
+    ) {
+        return Err("There is no data file problem to start over from.".to_string());
+    }
+    let previous = error.db_path.map(PathBuf::from);
+    let opened = startup::start_new_data_file_at(
+        &app.state::<AppPaths>().config_path,
+        &status.default_dir,
+        previous.as_deref(),
+        chrono::Local::now().naive_local(),
+    )?;
+    startup::activate(&app, opened);
+    Ok(current(&app))
+}
+
+/// Starts without a damaged profile list (it is kept as `profiles.json.damaged`), then runs the launch
+/// check again.
+#[tauri::command]
+pub fn start_with_new_profile_list(app: AppHandle) -> Result<StartupState, String> {
+    refuse_if_open(&app)?;
+    startup::start_new_profile_list_at(&app.state::<AppPaths>().config_path)?;
+    Ok(retry(&app))
 }
 
 /// Quits from the launch error screen, which has no tray menu of its own to do it from.

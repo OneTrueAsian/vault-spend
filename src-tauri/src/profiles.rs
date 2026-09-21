@@ -138,6 +138,17 @@ pub fn restore_registry_backup(config_path: &Path) -> Result<(), String> {
     budget_core::fsutil::write_atomic(&registry_file, text.as_bytes()).map_err(|e| e.to_string())
 }
 
+/// Moves the current profile list aside as `profiles.json.damaged` (replacing an earlier one), so
+/// starting over does not destroy it. The `.bak` stays where it is. A no-op when there is no list.
+pub fn set_aside_registry(config_path: &Path) -> Result<(), String> {
+    let registry_file = registry_path(config_path);
+    if !registry_file.exists() {
+        return Ok(());
+    }
+    std::fs::rename(&registry_file, registry_file.with_file_name(format!("{REGISTRY_FILENAME}.damaged")))
+        .map_err(|e| format!("couldn't set the profile list aside: {e}"))
+}
+
 fn write_registry(config_path: &Path, registry: &Registry) -> Result<(), String> {
     let json = serde_json::to_string_pretty(registry).expect("Registry always serializes");
     let path = registry_path(config_path);
@@ -964,5 +975,29 @@ mod tests {
 
         std::fs::write(bak_path(&config_path), b"also garbage").unwrap();
         assert!(restore_registry_backup(&config_path).is_err(), "a damaged backup is no use either");
+    }
+
+    #[test]
+    fn setting_the_registry_aside_keeps_its_content_and_the_backup() {
+        let dir = temp_dir("set-aside");
+        let config_path = dir.join("config.json");
+        write_registry(&config_path, &registry_of(&dir, "one.db")).unwrap();
+        write_registry(&config_path, &registry_of(&dir, "two.db")).unwrap(); // .bak now holds one.db
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+
+        set_aside_registry(&config_path).unwrap();
+
+        assert!(!registry_path(&config_path).exists());
+        let damaged = registry_path(&config_path).with_file_name("profiles.json.damaged");
+        assert_eq!(std::fs::read(damaged).unwrap(), b"garbage");
+        assert!(bak_path(&config_path).exists());
+        assert!(read_registry_strict(&config_path).unwrap().is_none(), "no list is not an error");
+    }
+
+    #[test]
+    fn setting_aside_a_registry_that_is_not_there_is_fine() {
+        let dir = temp_dir("set-aside-none");
+
+        assert!(set_aside_registry(&dir.join("config.json")).is_ok());
     }
 }

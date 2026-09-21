@@ -149,6 +149,49 @@ pub fn locate_data_file_at(config_path: &Path, previous: Option<&Path>, picked: 
     Ok(OpenedProfile { state, db_path: picked.to_path_buf() })
 }
 
+/// Starts over with a new, empty data file after the one that was asked for could not be used. The new
+/// file gets its own folder under `profiles/` (so its backups never mix with another profile's), and
+/// nothing about the old file is touched or deleted. `config.json`, and the profile entry that used
+/// `previous`, follow the new file.
+pub fn start_new_data_file_at(config_path: &Path, default_dir: &Path, previous: Option<&Path>, now: NaiveDateTime) -> Result<OpenedProfile, String> {
+    let stamp = now.format("%Y%m%d-%H%M%S").to_string();
+    let profiles_dir = default_dir.join("profiles");
+    let mut folder = profiles_dir.join(format!("started-{stamp}"));
+    let mut n = 2;
+    while folder.exists() {
+        folder = profiles_dir.join(format!("started-{stamp}-{n}"));
+        n += 1;
+    }
+    std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let db_path = folder.join(config::DB_FILENAME);
+    let outcome = AppState::open(&db_path)
+        .map_err(|e| format!("Couldn't create a new data file at {}: {e}", db_path.display()))
+        .and_then(|state| {
+            config::write_db_location_config(config_path, &db_path).map_err(|e| e.to_string())?;
+            if let Some(previous) = previous {
+                profiles::update_active_db_path(config_path, previous, &db_path)?;
+            }
+            Ok(state)
+        });
+    match outcome {
+        Ok(state) => Ok(OpenedProfile { state, db_path }),
+        Err(e) => {
+            // The state was dropped with the failed closure, so the new folder can go.
+            let _ = std::fs::remove_dir_all(&folder);
+            Err(e)
+        }
+    }
+}
+
+/// Starts over without the profile list, and only when it really is unreadable: a readable list is
+/// never set aside. The profiles' data files are not touched; they can be added back from Settings.
+pub fn start_new_profile_list_at(config_path: &Path) -> Result<(), String> {
+    if profiles::registered_profiles_strict(config_path).is_ok() {
+        return Err("The profile list isn't damaged, so there is nothing to start over from.".to_string());
+    }
+    profiles::set_aside_registry(config_path)
+}
+
 /// The work that follows every successful open of a profile's data file: take over the settings that
 /// used to live in the database (once), then the automatic backup when one is due, mirrored to this
 /// profile's second folder. Best effort: a failure here never blocks using the app.
@@ -520,5 +563,66 @@ mod tests {
         runtime.install(AppState::open(dir.join("vaultspend.db")).unwrap());
         status.clear();
         assert_eq!(startup_state(&runtime, &status), StartupState::Open);
+    }
+
+
+    // ---- the escape actions ----
+
+    #[test]
+    fn a_new_data_file_gets_its_own_folder_and_the_old_file_is_left_alone() {
+        let dir = temp_dir("fresh-file");
+        let old = dir.join("vaultspend.db");
+        std::fs::write(&old, b"this is not a database").unwrap();
+        write_registry(&dir, &[("default", "Default", old.clone())]);
+        let config_path = dir.join("config.json");
+
+        let opened = start_new_data_file_at(&config_path, &dir, Some(&old), now()).ok().unwrap();
+
+        assert_eq!(opened.db_path, dir.join("profiles").join("started-20260921-090000").join("vaultspend.db"));
+        assert!(opened.db_path.exists());
+        assert_eq!(std::fs::read(&old).unwrap(), b"this is not a database", "the old file is not touched");
+        assert_eq!(config::read_location_strict(&config_path).unwrap(), Some(opened.db_path.clone()));
+        assert_eq!(profiles::registered_profiles_strict(&config_path).unwrap()[0].db_path, opened.db_path, "the profile that used the old file follows");
+    }
+
+    #[test]
+    fn two_new_data_files_started_in_the_same_second_do_not_collide() {
+        let dir = temp_dir("fresh-file-twice");
+        let config_path = dir.join("config.json");
+
+        let first = start_new_data_file_at(&config_path, &dir, None, now()).ok().unwrap();
+        let second = start_new_data_file_at(&config_path, &dir, None, now()).ok().unwrap();
+
+        assert_ne!(first.db_path, second.db_path);
+        assert!(first.db_path.exists() && second.db_path.exists());
+    }
+
+    #[test]
+    fn a_new_data_file_can_be_started_when_the_old_place_is_gone() {
+        let dir = temp_dir("fresh-file-gone");
+        let gone = dir.join("unplugged").join("vaultspend.db");
+        let config_path = dir.join("config.json");
+        config::write_db_location_config(&config_path, &gone).unwrap();
+
+        let opened = start_new_data_file_at(&config_path, &dir, Some(&gone), now()).ok().unwrap();
+
+        assert_eq!(config::read_location_strict(&config_path).unwrap(), Some(opened.db_path));
+        assert!(!gone.parent().unwrap().exists(), "nothing is created at the old place");
+    }
+
+    #[test]
+    fn starting_a_new_profile_list_sets_a_damaged_one_aside_and_never_a_good_one() {
+        let dir = temp_dir("fresh-list");
+        let config_path = dir.join("config.json");
+        write_registry(&dir, &[("default", "Default", dir.join("vaultspend.db"))]);
+
+        assert!(start_new_profile_list_at(&config_path).is_err(), "a readable list must not be set aside");
+        assert!(dir.join("profiles.json").exists());
+
+        std::fs::write(dir.join("profiles.json"), b"garbage").unwrap();
+        start_new_profile_list_at(&config_path).unwrap();
+
+        assert!(!dir.join("profiles.json").exists());
+        assert_eq!(std::fs::read(dir.join("profiles.json.damaged")).unwrap(), b"garbage");
     }
 }
