@@ -6114,6 +6114,12 @@ button:disabled {
   color: var(--negative);
 }
 
+/* Nothing to say: keep the live region in the page but take no room. */
+.launch-error-problem:empty {
+  min-height: 0;
+  margin: 0;
+}
+
 .launch-error-actions,
 .launch-error-profiles {
   display: flex;
