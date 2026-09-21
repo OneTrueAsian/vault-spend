@@ -7,6 +7,7 @@ mod legacy_migration;
 mod live_price_provider;
 mod live_prices;
 mod profiles;
+mod runtime;
 mod stockdata;
 mod twelve_data;
 mod updater;
@@ -94,7 +95,7 @@ pub fn run() {
                 eprintln!("automatic backup failed (continuing anyway): {e}");
             }
 
-            app.manage::<AppStateHandle>(Mutex::new(state));
+            app.manage::<AppStateHandle>(runtime::AppRuntime::open(state));
             app.manage(config::AppPaths {
                 config_path,
                 db_path: Mutex::new(db_path),
