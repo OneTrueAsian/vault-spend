@@ -1,3 +1,10 @@
 [workspace]
 resolver = "2"
 members = ["core", "src-tauri"]
+
+# Argon2 is deliberately slow. Unoptimized it takes many seconds per call in debug and test
+# builds, which would make every unlock (and every e2e run) crawl.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
