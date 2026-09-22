@@ -199,8 +199,8 @@ pub fn after_profile_opened(config_path: &Path, db_path: &Path, store: &Store, d
     let profile_id = profiles::profile_id_for(config_path, db_path);
     take_over_legacy_settings(&profile_id, store, device);
     let copy_dir = device.snapshot().backup_mirror_dir(&profile_id).map(PathBuf::from);
-    let backups_dir = crate::backups::backups_dir_for(db_path);
-    if let Err(e) = crate::backups::create_backup_if_due(store, &backups_dir, copy_dir.as_deref(), now) {
+    let backups_dir = crate::backups::backups_dir_for(db_path, store.is_encrypted());
+    if let Err(e) = crate::backups::create_backup_if_due(store, db_path, &backups_dir, copy_dir.as_deref(), now) {
         eprintln!("automatic backup failed (continuing anyway): {e}");
     }
 }
@@ -558,7 +558,7 @@ mod tests {
         assert!(settings.tray_enabled);
         assert_eq!(settings.backup_mirror_dir("default"), Some(second.to_str().unwrap()));
         assert!(DeviceSettingsStore::load(dir.join(DEVICE_SETTINGS_FILENAME)).snapshot().tray_enabled, "saved to the file");
-        let backups = crate::backups::list_backups(&crate::backups::backups_dir_for(&db_path)).unwrap();
+        let backups = crate::backups::list_backups(&crate::backups::backups_dir_for(&db_path, false), false).unwrap();
         assert_eq!(backups.len(), 1, "a launch with no backup yet takes the automatic one");
         assert!(second.join(&backups[0].filename).exists(), "and copies it to the second folder");
     }

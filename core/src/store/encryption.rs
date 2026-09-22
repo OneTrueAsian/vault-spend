@@ -105,6 +105,20 @@ impl Store {
     pub fn is_encrypted(&self) -> bool {
         self.db_key.is_some()
     }
+
+    /// The raw key this store was opened with, if any. Exposes a reference only (never copies the
+    /// key out into a longer-lived value) — needed by `backups.rs` to open a just-written backup
+    /// file (a different file on disk from this connection) with the same key for verification.
+    pub fn db_key_bytes(&self) -> Option<&[u8; 32]> {
+        self.db_key.as_deref()
+    }
+}
+
+/// Whether `path` is an encrypted (non-plaintext) SQLite/SQLCipher file, by header alone — no key
+/// needed, no connection opened. Used to refuse "Add existing" on an encrypted file until packages
+/// exist (Phase D) and to decide which key, if any, to use when reopening a backup.
+pub fn file_looks_encrypted(path: &Path) -> std::io::Result<bool> {
+    Ok(!has_plain_header(path)?)
 }
 
 impl Store {
@@ -411,5 +425,28 @@ mod tests {
         assert!(!has_plain_header(&backup));
         let copy = Store::open_with_key(&backup, DatabaseKey::Raw(&KEY_A)).unwrap();
         assert!(copy.list_categories().unwrap().contains(&MARKER.to_string()));
+    }
+
+    // ---- db_key_bytes / file_looks_encrypted (Phase C, Task 4) ----
+
+    #[test]
+    fn db_key_bytes_is_none_for_a_plaintext_store_and_the_raw_key_for_an_encrypted_one() {
+        let dir = temp_dir("db-key-bytes");
+        let plain = Store::open(dir.join("plain.db")).unwrap();
+        assert_eq!(plain.db_key_bytes(), None);
+
+        make_encrypted_file(&dir.join("enc.db"), &KEY_A);
+        let encrypted = Store::open_with_key(dir.join("enc.db"), DatabaseKey::Raw(&KEY_A)).unwrap();
+        assert_eq!(encrypted.db_key_bytes(), Some(&KEY_A));
+    }
+
+    #[test]
+    fn file_looks_encrypted_reads_the_header_only() {
+        let dir = temp_dir("looks-encrypted");
+        drop(Store::open(dir.join("plain.db")).unwrap());
+        make_encrypted_file(&dir.join("enc.db"), &KEY_A);
+
+        assert!(!file_looks_encrypted(&dir.join("plain.db")).unwrap());
+        assert!(file_looks_encrypted(&dir.join("enc.db")).unwrap());
     }
 }

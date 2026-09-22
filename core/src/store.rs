@@ -7,7 +7,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 mod encryption;
-pub use self::encryption::{DatabaseKey, StoreOpenError};
+pub use self::encryption::{DatabaseKey, StoreOpenError, file_looks_encrypted};
 mod profile_ui_state;
 pub use self::profile_ui_state::UiStateKey;
 

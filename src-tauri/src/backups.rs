@@ -113,7 +113,9 @@ fn prune_to_disk(backups_dir: &Path, keep: usize) -> Result<(), String> {
         // Best-effort: a backup that fails to delete (e.g. briefly locked
         // by antivirus scanning) just means one extra file survives past
         // the retention target, not a functional failure worth surfacing.
-        let _ = std::fs::remove_file(backups_dir.join(filename));
+        let path = backups_dir.join(filename);
+        let _ = std::fs::remove_file(budget_core::protection::keyfile::key_file_path_for(&path));
+        let _ = std::fs::remove_file(path);
     }
     Ok(())
 }
@@ -134,7 +136,11 @@ fn verify_backup(source: &Store, dest_path: &Path) -> Result<(), String> {
     let expected_accounts = source.list_accounts(today).map_err(|e| e.to_string())?.len();
     let expected_transactions = source.all_transactions().map_err(|e| e.to_string())?.len();
 
-    let backup = Store::open(dest_path).map_err(|e| e.to_string())?;
+    let key = match source.db_key_bytes() {
+        Some(bytes) => budget_core::store::DatabaseKey::Raw(bytes),
+        None => budget_core::store::DatabaseKey::Plaintext,
+    };
+    let backup = Store::open_with_key(dest_path, key).map_err(|e| e.to_string())?;
     let actual_accounts = backup.list_accounts(today).map_err(|e| e.to_string())?.len();
     let actual_transactions = backup.all_transactions().map_err(|e| e.to_string())?.len();
 
@@ -153,8 +159,8 @@ fn verify_backup(source: &Store, dest_path: &Path) -> Result<(), String> {
 /// retry budget is deleted rather than left in the list looking like a
 /// real one. Used by both the manual "Back up now" command and the
 /// automatic launch-time check.
-pub fn create_backup(store: &Store, backups_dir: &Path, copy_dir: Option<&Path>, now: NaiveDateTime) -> Result<String, String> {
-    let outcome = create_backup_full(store, backups_dir, copy_dir, now)?;
+pub fn create_backup(store: &Store, source_db_path: &Path, backups_dir: &Path, copy_dir: Option<&Path>, now: NaiveDateTime) -> Result<String, String> {
+    let outcome = create_backup_full(store, source_db_path, backups_dir, copy_dir, now)?;
     if let Some(error) = &outcome.copy_error {
         eprintln!("second backup copy failed (the backup itself succeeded): {error}");
     }
@@ -214,6 +220,11 @@ pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Res
             copy_dir.display()
         ));
     }
+    let source_key = budget_core::protection::keyfile::key_file_path_for(&source);
+    if source_key.exists() {
+        let dest_key = budget_core::protection::keyfile::key_file_path_for(&dest);
+        std::fs::copy(&source_key, &dest_key).map_err(|e| format!("couldn't mirror the backup's key file: {e}"))?;
+    }
     prune_to_disk(copy_dir, DEFAULT_KEEP)?;
     Ok(dest)
 }
@@ -222,8 +233,8 @@ pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Res
 /// given, the fresh backup is also mirrored there. A second copy that
 /// fails is reported in the outcome rather than failing the backup — the
 /// local one is still good.
-pub fn create_backup_full(store: &Store, backups_dir: &Path, copy_dir: Option<&Path>, now: NaiveDateTime) -> Result<BackupOutcome, String> {
-    let filename = create_local_backup(store, backups_dir, now)?;
+pub fn create_backup_full(store: &Store, source_db_path: &Path, backups_dir: &Path, copy_dir: Option<&Path>, now: NaiveDateTime) -> Result<BackupOutcome, String> {
+    let filename = create_local_backup(store, source_db_path, backups_dir, now)?;
     let mut copied_to = None;
     let mut copy_error = None;
     if let Some(dir) = copy_dir {
@@ -239,17 +250,26 @@ pub fn create_backup_full(store: &Store, backups_dir: &Path, copy_dir: Option<&P
     })
 }
 
-fn create_local_backup(store: &Store, backups_dir: &Path, now: NaiveDateTime) -> Result<String, String> {
+fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path, now: NaiveDateTime) -> Result<String, String> {
     std::fs::create_dir_all(backups_dir).map_err(|e| e.to_string())?;
     let dest_path = unique_backup_path(backups_dir, now);
     let filename = dest_path.file_name().expect("just built from a filename").to_string_lossy().to_string();
+    let dest_key_path = budget_core::protection::keyfile::key_file_path_for(&dest_path);
 
     const MAX_ATTEMPTS: u32 = 3;
     let mut last_error = String::new();
     for attempt in 1..=MAX_ATTEMPTS {
         let _ = std::fs::remove_file(&dest_path);
+        let _ = std::fs::remove_file(&dest_key_path);
         let _ = std::fs::remove_file(dest_path.with_extension("db-journal"));
         store.backup_to(&dest_path).map_err(|e| e.to_string())?;
+        if store.is_encrypted() {
+            let source_key_path = budget_core::protection::keyfile::key_file_path_for(source_db_path);
+            if let Err(e) = std::fs::copy(&source_key_path, &dest_key_path) {
+                let _ = std::fs::remove_file(&dest_path);
+                return Err(format!("couldn't write the backup's key file: {e}"));
+            }
+        }
         match verify_backup(store, &dest_path) {
             Ok(()) => {
                 prune_to_disk(backups_dir, DEFAULT_KEEP)?;
@@ -264,17 +284,18 @@ fn create_local_backup(store: &Store, backups_dir: &Path, now: NaiveDateTime) ->
         }
     }
     let _ = std::fs::remove_file(&dest_path);
+    let _ = std::fs::remove_file(&dest_key_path);
     Err(format!("backup did not verify after {MAX_ATTEMPTS} attempts: {last_error}"))
 }
 
 /// Creates a backup only if the newest existing one is more than 24h old
 /// (or none exist yet) — the launch-time automatic check, distinct from
 /// the always-runs manual "Back up now" button.
-pub fn create_backup_if_due(store: &Store, backups_dir: &Path, copy_dir: Option<&Path>, now: NaiveDateTime) -> Result<Option<String>, String> {
+pub fn create_backup_if_due(store: &Store, source_db_path: &Path, backups_dir: &Path, copy_dir: Option<&Path>, now: NaiveDateTime) -> Result<Option<String>, String> {
     std::fs::create_dir_all(backups_dir).map_err(|e| e.to_string())?;
     let existing = list_backup_filenames(backups_dir).map_err(|e| e.to_string())?;
     if should_create_backup(&existing, now, AUTO_BACKUP_INTERVAL_HOURS) {
-        Ok(Some(create_backup(store, backups_dir, copy_dir, now)?))
+        Ok(Some(create_backup(store, source_db_path, backups_dir, copy_dir, now)?))
     } else {
         Ok(None)
     }
@@ -283,8 +304,11 @@ pub fn create_backup_if_due(store: &Store, backups_dir: &Path, copy_dir: Option<
 /// Every backup on disk, newest first, with its display timestamp (parsed
 /// from the filename, not filesystem metadata — stable even if the file
 /// was copied/moved and its mtime changed) and size.
-pub fn list_backups(backups_dir: &Path) -> Result<Vec<BackupInfo>, String> {
+pub fn list_backups(backups_dir: &Path, is_encrypted: bool) -> Result<Vec<BackupInfo>, String> {
     let mut filenames = list_backup_filenames(backups_dir).map_err(|e| e.to_string())?;
+    if is_encrypted {
+        filenames.retain(|f| budget_core::protection::keyfile::key_file_path_for(&backups_dir.join(f)).exists());
+    }
     filenames.sort();
     filenames.reverse();
     Ok(filenames
@@ -390,24 +414,27 @@ pub fn restore_backup(store: &Store, backups_dir: &Path, copy_dir: Option<&Path>
     // in place rather than deleted: it's valid, verified data, and
     // discarding it on top of a failed safety-backup would be strictly
     // worse for the user.
-    create_backup(store, backups_dir, copy_dir, chrono::Local::now().naive_local())?;
+    create_backup(store, live_db_path, backups_dir, copy_dir, chrono::Local::now().naive_local())?;
 
     Ok(restored_path)
 }
 
-/// Where backups for a given live database path live — a `backups`
-/// subfolder right next to it, so they follow a relocated data file too.
-pub fn backups_dir_for(live_db_path: &Path) -> PathBuf {
-    live_db_path
-        .parent()
-        .map(|p| p.join("backups"))
-        .unwrap_or_else(|| PathBuf::from("backups"))
+/// Where backups for a given live database path live — a `backups` subfolder right next to it (so
+/// they follow a relocated data file too), split further into `backups/protected/` for an
+/// encrypted profile so a converted backup can keep its original filename without colliding with
+/// the plaintext original sitting in the plain `backups/` folder (Phase C, Task 5).
+pub fn backups_dir_for(live_db_path: &Path, is_encrypted: bool) -> PathBuf {
+    let base = live_db_path.parent().map(|p| p.join("backups")).unwrap_or_else(|| PathBuf::from("backups"));
+    if is_encrypted { base.join("protected") } else { base }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use budget_core::models::AccountType;
+    use budget_core::protection::kdf::KdfParams;
+    use budget_core::protection::keyfile;
+    use budget_core::store::DatabaseKey;
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("vaultspend-backups-test-{name}-{}", std::process::id()));
@@ -418,6 +445,18 @@ mod tests {
 
     fn dt(s: &str) -> NaiveDateTime {
         NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap()
+    }
+
+    /// An encrypted store with a real key file beside it, for the key-aware backup tests below.
+    /// Uses `FAST_FOR_TESTS` KDF settings — this is about file plumbing, not KDF strength.
+    fn encrypted_store_with_key(dir: &Path, key: &[u8; 32]) -> (Store, PathBuf) {
+        let plain_path = dir.join("plain.db");
+        let enc_path = dir.join("vaultspend.db");
+        let plain = Store::open(&plain_path).unwrap();
+        plain.export_encrypted_copy(&enc_path, key).unwrap();
+        let protection = keyfile::create_protection("correct horse battery staple", &KdfParams::FAST_FOR_TESTS, "2026-09-21T00:00:00Z").unwrap();
+        protection.key_file.write_to(&keyfile::key_file_path_for(&enc_path)).unwrap();
+        (Store::open_with_key(&enc_path, DatabaseKey::Raw(key)).unwrap(), enc_path)
     }
 
     #[test]
@@ -509,15 +548,16 @@ mod tests {
     #[test]
     fn create_backup_writes_a_file_and_lists_it() {
         let dir = temp_dir("create");
-        let store = Store::open(dir.join("live.db")).unwrap();
+        let live_path = dir.join("live.db");
+        let store = Store::open(&live_path).unwrap();
         store.get_or_create_account("Checking", AccountType::Checking).unwrap();
         let backups_dir = dir.join("backups");
 
-        let filename = create_backup(&store, &backups_dir, None, dt("2026-08-30 12:00:00")).unwrap();
+        let filename = create_backup(&store, &live_path, &backups_dir, None, dt("2026-08-30 12:00:00")).unwrap();
 
         assert_eq!(filename, "vaultspend-20260830-120000.db");
         assert!(backups_dir.join(&filename).exists());
-        let listed = list_backups(&backups_dir).unwrap();
+        let listed = list_backups(&backups_dir, false).unwrap();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].filename, filename);
         assert!(listed[0].size_bytes > 0);
@@ -541,19 +581,20 @@ mod tests {
         // practice meant a stale/earlier backup could outrank a just-
         // created real one in the UI's "Restore" list.
         let dir = temp_dir("same-second-collision");
-        let store = Store::open(dir.join("live.db")).unwrap();
+        let live_path = dir.join("live.db");
+        let store = Store::open(&live_path).unwrap();
         store.get_or_create_account("Checking", AccountType::Checking).unwrap();
         let backups_dir = dir.join("backups");
         let same_instant = dt("2026-08-30 19:41:25");
 
-        let first = create_backup(&store, &backups_dir, None, same_instant).unwrap();
-        let second = create_backup(&store, &backups_dir, None, same_instant).unwrap();
+        let first = create_backup(&store, &live_path, &backups_dir, None, same_instant).unwrap();
+        let second = create_backup(&store, &live_path, &backups_dir, None, same_instant).unwrap();
 
         assert_ne!(first, second, "two backups computed for the same second must not collide");
         assert!(backups_dir.join(&first).exists(), "the first backup must survive the second call");
         assert!(backups_dir.join(&second).exists());
 
-        let listed = list_backups(&backups_dir).unwrap();
+        let listed = list_backups(&backups_dir, false).unwrap();
         assert_eq!(listed[0].filename, second, "the second (later-created) backup must sort first (newest)");
         assert_eq!(listed[1].filename, first);
     }
@@ -561,7 +602,8 @@ mod tests {
     #[test]
     fn create_backup_prunes_beyond_the_retention_limit() {
         let dir = temp_dir("prune-disk");
-        let store = Store::open(dir.join("live.db")).unwrap();
+        let live_path = dir.join("live.db");
+        let store = Store::open(&live_path).unwrap();
         let backups_dir = dir.join("backups");
         std::fs::create_dir_all(&backups_dir).unwrap();
         // Pre-seed 15 fake backups (the retention limit) with distinct
@@ -571,9 +613,9 @@ mod tests {
             std::fs::write(backups_dir.join(name), b"fake").unwrap();
         }
 
-        create_backup(&store, &backups_dir, None, dt("2026-08-30 12:00:00")).unwrap();
+        create_backup(&store, &live_path, &backups_dir, None, dt("2026-08-30 12:00:00")).unwrap();
 
-        let listed = list_backups(&backups_dir).unwrap();
+        let listed = list_backups(&backups_dir, false).unwrap();
         assert_eq!(listed.len(), 15, "expected pruning back down to the 15-backup limit");
         assert_eq!(listed[0].filename, "vaultspend-20260830-120000.db", "newest should survive");
         assert!(
@@ -585,11 +627,12 @@ mod tests {
     #[test]
     fn create_backup_if_due_skips_within_the_interval() {
         let dir = temp_dir("if-due-skip");
-        let store = Store::open(dir.join("live.db")).unwrap();
+        let live_path = dir.join("live.db");
+        let store = Store::open(&live_path).unwrap();
         let backups_dir = dir.join("backups");
 
-        let first = create_backup_if_due(&store, &backups_dir, None, dt("2026-08-30 06:00:00")).unwrap();
-        let second = create_backup_if_due(&store, &backups_dir, None, dt("2026-08-30 12:00:00")).unwrap();
+        let first = create_backup_if_due(&store, &live_path, &backups_dir, None, dt("2026-08-30 06:00:00")).unwrap();
+        let second = create_backup_if_due(&store, &live_path, &backups_dir, None, dt("2026-08-30 12:00:00")).unwrap();
 
         assert!(first.is_some());
         assert!(second.is_none(), "expected no new backup within 24h of the first");
@@ -614,7 +657,7 @@ mod tests {
                 }],
             )
             .unwrap();
-        let filename = create_backup(&store, &backups_dir, None, dt("2026-08-30 12:00:00")).unwrap();
+        let filename = create_backup(&store, &live_path, &backups_dir, None, dt("2026-08-30 12:00:00")).unwrap();
 
         // Mutate the live data after the backup was taken.
         store
@@ -674,11 +717,11 @@ mod tests {
         // matters is only that DEFAULT_KEEP (15) backups already exist
         // before the restore, so the safety-backup this restore takes of
         // the live database is the 16th and prunes the oldest one.
-        let oldest = create_backup(&store, &backups_dir, None, dt("2026-08-01 00:00:00")).unwrap();
+        let oldest = create_backup(&store, &live_path, &backups_dir, None, dt("2026-08-01 00:00:00")).unwrap();
         for day in 2..=DEFAULT_KEEP {
-            create_backup(&store, &backups_dir, None, dt(&format!("2026-08-{day:02} 00:00:00"))).unwrap();
+            create_backup(&store, &live_path, &backups_dir, None, dt(&format!("2026-08-{day:02} 00:00:00"))).unwrap();
         }
-        assert_eq!(list_backups(&backups_dir).unwrap().len(), DEFAULT_KEEP);
+        assert_eq!(list_backups(&backups_dir, false).unwrap().len(), DEFAULT_KEEP);
 
         let restored_path = restore_backup(&store, &backups_dir, None, &oldest, &live_path).unwrap();
 
@@ -717,7 +760,7 @@ mod tests {
         let dir = temp_dir("mirror-copies");
         let store = seeded_store(&dir);
         let backups_dir = dir.join("backups");
-        let filename = create_backup(&store, &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
+        let filename = create_backup(&store, &dir.join("live.db"), &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
         let copy_dir = dir.join("OneDrive").join("VaultSpend");
         std::fs::create_dir_all(&copy_dir).unwrap();
 
@@ -735,7 +778,7 @@ mod tests {
         let dir = temp_dir("mirror-missing");
         let store = seeded_store(&dir);
         let backups_dir = dir.join("backups");
-        let filename = create_backup(&store, &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
+        let filename = create_backup(&store, &dir.join("live.db"), &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
         // A typo in a path must not quietly make a new folder somewhere else.
         let missing = dir.join("OneDriv").join("VaultSpend");
 
@@ -753,7 +796,7 @@ mod tests {
         let dir = temp_dir("mirror-file");
         let store = seeded_store(&dir);
         let backups_dir = dir.join("backups");
-        create_backup(&store, &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
+        create_backup(&store, &dir.join("live.db"), &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
         let file = dir.join("notes.txt");
         std::fs::write(&file, b"not a folder").unwrap();
 
@@ -771,7 +814,7 @@ mod tests {
             std::fs::write(copy_dir.join(format!("vaultspend-202608{day:02}-000000.db")), b"old").unwrap();
         }
         std::fs::write(copy_dir.join("holiday-photos.zip"), b"not a backup").unwrap();
-        let filename = create_backup(&store, &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
+        let filename = create_backup(&store, &dir.join("live.db"), &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
 
         mirror_backup(&backups_dir, &filename, &copy_dir).unwrap();
 
@@ -794,7 +837,7 @@ mod tests {
         let dir = temp_dir("mirror-same");
         let store = seeded_store(&dir);
         let backups_dir = dir.join("backups");
-        let filename = create_backup(&store, &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
+        let filename = create_backup(&store, &dir.join("live.db"), &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
 
         let result = mirror_backup(&backups_dir, &filename, &backups_dir);
 
@@ -807,7 +850,7 @@ mod tests {
         let dir = temp_dir("mirror-bad");
         let store = seeded_store(&dir);
         let backups_dir = dir.join("backups");
-        let filename = create_backup(&store, &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
+        let filename = create_backup(&store, &dir.join("live.db"), &backups_dir, None, dt("2026-09-18 10:00:00")).unwrap();
         // A plain file where the folder should be.
         let blocker = dir.join("blocker");
         std::fs::write(&blocker, b"a file, not a folder").unwrap();
@@ -822,7 +865,7 @@ mod tests {
         let copy_dir = dir.join("second");
         std::fs::create_dir_all(&copy_dir).unwrap();
 
-        let outcome = create_backup_full(&store, &dir.join("backups"), Some(&copy_dir), dt("2026-09-18 10:00:00")).unwrap();
+        let outcome = create_backup_full(&store, &dir.join("live.db"), &dir.join("backups"), Some(&copy_dir), dt("2026-09-18 10:00:00")).unwrap();
 
         assert_eq!(outcome.copied_to, Some(copy_dir.join(&outcome.filename)));
         assert!(outcome.copy_error.is_none());
@@ -834,7 +877,7 @@ mod tests {
         let dir = temp_dir("full-nocopy");
         let store = seeded_store(&dir);
 
-        let outcome = create_backup_full(&store, &dir.join("backups"), None, dt("2026-09-18 10:00:00")).unwrap();
+        let outcome = create_backup_full(&store, &dir.join("live.db"), &dir.join("backups"), None, dt("2026-09-18 10:00:00")).unwrap();
 
         assert!(outcome.copied_to.is_none());
         assert!(outcome.copy_error.is_none());
@@ -849,10 +892,97 @@ mod tests {
         let bad_copy_dir = blocker.join("inside");
         let backups_dir = dir.join("backups");
 
-        let outcome = create_backup_full(&store, &backups_dir, Some(&bad_copy_dir), dt("2026-09-18 10:00:00")).unwrap();
+        let outcome = create_backup_full(&store, &dir.join("live.db"), &backups_dir, Some(&bad_copy_dir), dt("2026-09-18 10:00:00")).unwrap();
 
         assert!(backups_dir.join(&outcome.filename).exists(), "the primary backup must still exist");
         assert!(outcome.copied_to.is_none());
         assert!(outcome.copy_error.is_some(), "the failure must be reported, not swallowed");
+    }
+
+    // ---- key-aware backups (Phase C, Task 4) ----
+
+    #[test]
+    fn a_backup_of_an_encrypted_store_is_itself_encrypted_with_a_key_file_beside_it() {
+        let dir = temp_dir("encrypted-backup");
+        let key = [0x33u8; 32];
+        let (store, source_path) = encrypted_store_with_key(&dir, &key);
+        let backups_dir = backups_dir_for(&source_path, true);
+
+        let filename = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-21 09:00:00")).unwrap();
+
+        let backup_path = backups_dir.join(&filename);
+        let header = std::fs::read(&backup_path).unwrap();
+        assert_ne!(&header[..16], b"SQLite format 3\0", "the backup itself stays encrypted on disk");
+        let key_file_path = keyfile::key_file_path_for(&backup_path);
+        assert!(key_file_path.exists());
+        assert!(Store::open_with_key(&backup_path, DatabaseKey::Raw(&key)).is_ok());
+    }
+
+    #[test]
+    fn list_backups_hides_an_encrypted_db_missing_its_key_file_for_a_protected_profile() {
+        let dir = temp_dir("hide-incomplete-pair");
+        let key = [0x44u8; 32];
+        let (store, source_path) = encrypted_store_with_key(&dir, &key);
+        let backups_dir = backups_dir_for(&source_path, true);
+        let filename = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-21 09:00:00")).unwrap();
+        std::fs::remove_file(keyfile::key_file_path_for(&backups_dir.join(&filename))).unwrap();
+
+        let listed = list_backups(&backups_dir, true).unwrap();
+
+        assert!(listed.is_empty(), "an interrupted publication must never look like a healthy backup");
+    }
+
+    #[test]
+    fn list_backups_for_an_unprotected_profile_is_unaffected_by_missing_key_files() {
+        let dir = temp_dir("plaintext-unaffected");
+        let store = seeded_store(&dir);
+        let backups_dir = backups_dir_for(&dir.join("live.db"), false);
+        create_backup(&store, &dir.join("live.db"), &backups_dir, None, dt("2026-09-21 09:00:00")).unwrap();
+
+        assert_eq!(list_backups(&backups_dir, false).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn mirroring_an_encrypted_backup_copies_its_key_file_too() {
+        let dir = temp_dir("mirror-encrypted");
+        let key = [0x55u8; 32];
+        let (store, source_path) = encrypted_store_with_key(&dir, &key);
+        let backups_dir = backups_dir_for(&source_path, true);
+        let copy_dir = dir.join("second-copy");
+        std::fs::create_dir_all(&copy_dir).unwrap();
+        let filename = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-21 09:00:00")).unwrap();
+
+        let mirrored = mirror_backup(&backups_dir, &filename, &copy_dir).unwrap();
+
+        assert!(keyfile::key_file_path_for(&mirrored).exists());
+    }
+
+    #[test]
+    fn pruning_an_encrypted_backup_removes_its_key_file_with_it() {
+        // Caught a real bug in this test itself the first time it ran: it iterated `remaining`
+        // (the *survivors*) and asserted each one's key file was gone, backwards from what the
+        // behavior actually is (a survivor keeps its key; only a pruned backup loses it) — the
+        // assertion happened to still fail loudly rather than silently pass, but for the wrong
+        // reason. Fixed to check both sides against the full list of what was created.
+        let dir = temp_dir("prune-encrypted");
+        let key = [0x66u8; 32];
+        let (store, source_path) = encrypted_store_with_key(&dir, &key);
+        let backups_dir = backups_dir_for(&source_path, true);
+        let days = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17"];
+        let mut all_created = Vec::new();
+        for day in days {
+            all_created.push(create_backup(&store, &source_path, &backups_dir, None, dt(&format!("2026-08-{day} 00:00:00"))).unwrap());
+        }
+
+        let remaining = list_backup_filenames(&backups_dir).unwrap();
+        assert_eq!(remaining.len(), 15, "DEFAULT_KEEP still applies");
+        for filename in &all_created {
+            let key_file_path = keyfile::key_file_path_for(&backups_dir.join(filename));
+            if remaining.contains(filename) {
+                assert!(key_file_path.exists(), "a surviving backup must keep its key file: {filename}");
+            } else {
+                assert!(!key_file_path.exists(), "a pruned backup's key file must go with it: {filename}");
+            }
+        }
     }
 }

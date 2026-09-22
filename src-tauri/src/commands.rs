@@ -70,6 +70,9 @@ pub fn relocate_data_file(
     }
 
     let mut state = state.lock()?;
+    if state.store.is_encrypted() {
+        return Err("Moving the data file for a password-protected profile isn't available yet in this development build. It will arrive in a later update.".to_string());
+    }
     state.store.backup_to(&new_db_path).map_err(|e| e.to_string())?;
     crate::config::write_db_location_config(&paths.config_path, &new_db_path).map_err(|e| e.to_string())?;
     *state = AppState::open(&new_db_path)?;
@@ -94,6 +97,9 @@ pub fn relocate_data_file(
 #[tauri::command]
 pub fn export_database(destination: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock()?;
+    if state.store.is_encrypted() {
+        return Err("Exporting the raw database file for a password-protected profile isn't available yet in this development build. It will arrive in a later update.".to_string());
+    }
     state.store.backup_to(&destination).map_err(|e| e.to_string())
 }
 
@@ -105,9 +111,10 @@ pub struct BackupDto {
 }
 
 #[tauri::command]
-pub fn list_backups(paths: tauri::State<crate::config::AppPaths>) -> Result<Vec<BackupDto>, String> {
-    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
-    Ok(crate::backups::list_backups(&backups_dir)?
+pub fn list_backups(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<Vec<BackupDto>, String> {
+    let is_encrypted = state.lock()?.store.is_encrypted();
+    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths), is_encrypted);
+    Ok(crate::backups::list_backups(&backups_dir, is_encrypted)?
         .into_iter()
         .map(|b| BackupDto {
             filename: b.filename,
@@ -187,9 +194,10 @@ pub fn create_backup_now(
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<BackupNowDto, String> {
     let state = state.lock()?;
-    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
+    let db_path = current_db_path(&paths);
+    let backups_dir = crate::backups::backups_dir_for(&db_path, state.store.is_encrypted());
     let copy_dir = device.snapshot().backup_mirror_dir(&active_profile_id(&paths)).map(std::path::PathBuf::from);
-    let outcome = crate::backups::create_backup_full(&state.store, &backups_dir, copy_dir.as_deref(), chrono::Local::now().naive_local())?;
+    let outcome = crate::backups::create_backup_full(&state.store, &db_path, &backups_dir, copy_dir.as_deref(), chrono::Local::now().naive_local())?;
     Ok(BackupNowDto {
         filename: outcome.filename,
         copied_to: outcome.copied_to.map(|p| p.parent().map(|d| d.display().to_string()).unwrap_or_default()),
@@ -215,6 +223,7 @@ pub fn get_backup_copy_dir(
 pub fn set_backup_copy_dir(
     dir: Option<String>,
     paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<String, String> {
     let profile_id = active_profile_id(&paths);
@@ -226,10 +235,11 @@ pub fn set_backup_copy_dir(
         return Ok("Backups will no longer be copied to a second folder.".to_string());
     };
 
-    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
+    let is_encrypted = state.lock()?.store.is_encrypted();
+    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths), is_encrypted);
     let copy_dir = std::path::Path::new(&dir);
     crate::backups::check_copy_dir(&backups_dir, copy_dir)?;
-    let newest = crate::backups::list_backups(&backups_dir)?.into_iter().next();
+    let newest = crate::backups::list_backups(&backups_dir, is_encrypted)?.into_iter().next();
     let copied_now = match newest {
         Some(b) => {
             crate::backups::mirror_backup(&backups_dir, &b.filename, copy_dir)?;
@@ -260,8 +270,11 @@ pub fn restore_backup(
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<(), String> {
     let mut state = state.lock()?;
+    if state.store.is_encrypted() {
+        return Err("Restoring a backup for a password-protected profile isn't available yet in this development build. It will arrive in a later update.".to_string());
+    }
     let live_db_path = current_db_path(&paths);
-    let backups_dir = crate::backups::backups_dir_for(&live_db_path);
+    let backups_dir = crate::backups::backups_dir_for(&live_db_path, false);
     let copy_dir = device.snapshot().backup_mirror_dir(&active_profile_id(&paths)).map(std::path::PathBuf::from);
     let restored_path = crate::backups::restore_backup(&state.store, &backups_dir, copy_dir.as_deref(), &filename, &live_db_path)?;
     crate::config::write_db_location_config(&paths.config_path, &restored_path).map_err(|e| e.to_string())?;
@@ -407,6 +420,16 @@ pub fn add_existing_profile(
     let picked_path = std::path::PathBuf::from(&db_path);
     if !picked_path.exists() {
         return Err(format!("{} doesn't exist.", picked_path.display()));
+    }
+    // Checked before the plaintext-database sniff below, which would otherwise reject an
+    // encrypted file with the more confusing "doesn't look like a Vault Spend database" message —
+    // it is one, just not one this development build can add yet (no `.vaultspend` package/Add
+    // Existing support for encrypted files until Phase D).
+    if budget_core::store::file_looks_encrypted(&picked_path).map_err(|e| e.to_string())? {
+        return Err(
+            "This file is password-protected. Adding an encrypted profile from another computer isn't available yet in this development build."
+                .to_string(),
+        );
     }
     // Checked *before* AppState::open, which runs schema migrations that
     // create any table found missing — by the time it succeeds, even an

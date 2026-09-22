@@ -14,6 +14,7 @@ import {
   AddWidgetDialog,
   CategoryTransactionsDialog,
   ConfirmInvertDialog,
+  CsvExportWarningDialog,
   ManageCategoriesDialog,
   ManageFamilyMembersDialog,
   MonthExpenseDetailDialog,
@@ -180,7 +181,8 @@ type PendingDialog =
       resolve: (result: NewAccountResult | null) => void;
     }
   | { kind: "newCategory"; resolve: (name: string | null) => void }
-  | { kind: "confirmInvert"; resolve: (invert: boolean) => void };
+  | { kind: "confirmInvert"; resolve: (invert: boolean) => void }
+  | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
 
 type Tab =
   | "dashboard"
@@ -1354,6 +1356,9 @@ function App({
   }
   function askConfirmInvert(): Promise<boolean> {
     return new Promise((resolve) => setDialog({ kind: "confirmInvert", resolve }));
+  }
+  function askCsvExportWarning(): Promise<boolean> {
+    return new Promise((resolve) => setDialog({ kind: "csvExportWarning", resolve }));
   }
 
   // Bumped by every refetch below that follows a real mutation (never by
@@ -3120,6 +3125,7 @@ function App({
   }
 
   async function handleExportReportsCsv() {
+    if (profiles.find((p) => p.is_active)?.is_password_protected && !(await askCsvExportWarning())) return;
     const path = await save({
       defaultPath: `reports-export-${toLocalIsoDate()}.csv`,
       filters: [{ name: "CSV", extensions: ["csv"] }],
@@ -3143,6 +3149,7 @@ function App({
   }
 
   async function handleExportLedgerCsv() {
+    if (profiles.find((p) => p.is_active)?.is_password_protected && !(await askCsvExportWarning())) return;
     const path = await save({
       defaultPath: `transactions-export-${toLocalIsoDate()}.csv`,
       filters: [{ name: "CSV", extensions: ["csv"] }],
@@ -5124,6 +5131,18 @@ function App({
       )}
       {dialog?.kind === "confirmInvert" && (
         <ConfirmInvertDialog
+          onCancel={() => {
+            dialog.resolve(false);
+            setDialog(null);
+          }}
+          onConfirm={() => {
+            dialog.resolve(true);
+            setDialog(null);
+          }}
+        />
+      )}
+      {dialog?.kind === "csvExportWarning" && (
+        <CsvExportWarningDialog
           onCancel={() => {
             dialog.resolve(false);
             setDialog(null);
