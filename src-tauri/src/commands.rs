@@ -280,6 +280,7 @@ pub struct ProfileDto {
     pub name: String,
     pub is_active: bool,
     pub icon_key: Option<String>,
+    pub is_password_protected: bool,
 }
 
 #[tauri::command]
@@ -287,6 +288,7 @@ pub fn list_profiles(paths: tauri::State<crate::config::AppPaths>) -> Vec<Profil
     crate::profiles::list_profiles(&paths.config_path, &current_db_path(&paths))
         .into_iter()
         .map(|p| ProfileDto {
+            is_password_protected: p.is_password_protected(),
             id: p.id,
             name: p.name,
             is_active: p.is_active,

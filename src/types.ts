@@ -50,6 +50,7 @@ export type Profile = {
   name: string;
   is_active: boolean;
   icon_key: string | null;
+  is_password_protected: boolean;
 };
 
 export type LivePriceProviderId = "alpha_vantage" | "finnhub" | "twelve_data" | "stockdata_org";

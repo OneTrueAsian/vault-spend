@@ -21,6 +21,10 @@ pub struct DeviceSettings {
     pub tray_settings_migrated: bool,
     /// Profiles whose old second-backup-folder setting has been taken over, even when it was unset.
     pub mirror_dirs_migrated: BTreeSet<String>,
+    /// The profile the selector should pre-select on the next launch (plan v2 §4.4/§7.5). Updated
+    /// only on a successful activation, never merely on being shown in the selector.
+    #[serde(default)]
+    pub last_used_profile_id: Option<String>,
 }
 
 /// What a profile's database still holds from before these settings moved out of it.
@@ -58,6 +62,10 @@ impl DeviceSettings {
             changed = true;
         }
         changed
+    }
+
+    pub fn note_last_used(&mut self, profile_id: &str) {
+        self.last_used_profile_id = Some(profile_id.to_string());
     }
 }
 
@@ -259,5 +267,22 @@ mod tests {
 
         assert!(result.is_err());
         assert!(!store.snapshot().tray_enabled, "memory must not run ahead of the file");
+    }
+
+    // ---- last-used profile (Phase C, Task 1) ----
+
+    #[test]
+    fn there_is_no_last_used_profile_by_default() {
+        assert_eq!(DeviceSettings::default().last_used_profile_id, None);
+    }
+
+    #[test]
+    fn noting_a_profile_used_records_it_and_replaces_the_previous_one() {
+        let mut settings = DeviceSettings::default();
+
+        settings.note_last_used("alpha");
+        settings.note_last_used("beta");
+
+        assert_eq!(settings.last_used_profile_id, Some("beta".to_string()));
     }
 }

@@ -21,6 +21,8 @@ const DEFAULT_PROFILE_NAME: &str = "Default";
 /// `flatIcons.ts` on the frontend) — `#[serde(default)]` so a
 /// `profiles.json` written before this field existed still deserializes
 /// (missing means "no icon picked yet", same as a brand-new profile).
+/// `protection` is `#[serde(default)]` for the same reason: every
+/// `profiles.json` written before Phase C existed has no such field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct ProfileEntry {
     id: String,
@@ -28,6 +30,17 @@ struct ProfileEntry {
     db_path: String,
     #[serde(default)]
     icon_key: Option<String>,
+    #[serde(default)]
+    protection: Option<Protection>,
+}
+
+/// Whether a profile's database is encrypted. `None` (the common case) means unprotected. The key
+/// file itself lives at `budget_core::protection::keyfile::key_file_path_for(&db_path)` — this
+/// struct never stores a path, only the cached format number, so a stale copy of it can never
+/// disagree with that naming rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Protection {
+    pub format: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -45,6 +58,13 @@ pub struct Profile {
     pub db_path: PathBuf,
     pub is_active: bool,
     pub icon_key: Option<String>,
+    pub protection: Option<Protection>,
+}
+
+impl Profile {
+    pub fn is_password_protected(&self) -> bool {
+        self.protection.is_some()
+    }
 }
 
 fn registry_path(config_path: &Path) -> PathBuf {
@@ -97,6 +117,7 @@ pub struct RegisteredProfile {
     pub id: String,
     pub name: String,
     pub db_path: PathBuf,
+    pub protection: Option<Protection>,
 }
 
 /// The registered profiles, or none when there is no registry yet. Unlike `list_profiles` this never
@@ -107,7 +128,7 @@ pub fn registered_profiles_strict(config_path: &Path) -> Result<Vec<RegisteredPr
             registry
                 .profiles
                 .into_iter()
-                .map(|p| RegisteredProfile { id: p.id, name: p.name, db_path: PathBuf::from(p.db_path) })
+                .map(|p| RegisteredProfile { id: p.id, name: p.name, db_path: PathBuf::from(p.db_path), protection: p.protection })
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default())
@@ -167,6 +188,7 @@ fn default_entry(live_db_path: &Path) -> ProfileEntry {
         name: DEFAULT_PROFILE_NAME.to_string(),
         db_path: live_db_path.to_string_lossy().to_string(),
         icon_key: None,
+        protection: None,
     }
 }
 
@@ -229,6 +251,7 @@ pub fn list_profiles(config_path: &Path, live_db_path: &Path) -> Vec<Profile> {
                 db_path,
                 is_active,
                 icon_key: p.icon_key,
+                protection: p.protection,
             }
         })
         .collect()
@@ -255,6 +278,7 @@ pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: 
         name: name.to_string(),
         db_path: db_path.to_string_lossy().to_string(),
         icon_key: None,
+        protection: None,
     });
     write_registry(config_path, &Registry { profiles: entries })?;
 
@@ -264,6 +288,7 @@ pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: 
         db_path,
         is_active: false,
         icon_key: None,
+        protection: None,
     })
 }
 
@@ -309,6 +334,7 @@ pub fn add_existing_profile(
         name: name.to_string(),
         db_path: existing_db_path.to_string_lossy().to_string(),
         icon_key: None,
+        protection: None,
     });
     write_registry(config_path, &Registry { profiles: entries })?;
 
@@ -318,6 +344,7 @@ pub fn add_existing_profile(
         db_path: existing_db_path.to_path_buf(),
         is_active: false,
         icon_key: None,
+        protection: None,
     })
 }
 
@@ -357,6 +384,21 @@ pub fn set_profile_icon(config_path: &Path, live_db_path: &Path, id: &str, icon_
     for p in entries.iter_mut() {
         if p.id == id {
             p.icon_key = icon_key.map(|s| s.to_string());
+        }
+    }
+    write_registry(config_path, &Registry { profiles: entries })
+}
+
+/// Records (or clears, with `None`) a profile's protection summary. An unconditional update, not
+/// merge-only — same convention as `set_profile_icon`. Unknown id is a harmless no-op.
+pub fn set_profile_protection(config_path: &Path, live_db_path: &Path, id: &str, protection: Option<Protection>) -> Result<(), String> {
+    let mut entries = entries_or_synthesize(config_path, live_db_path);
+    if !entries.iter().any(|p| p.id == id) {
+        return Ok(());
+    }
+    for p in entries.iter_mut() {
+        if p.id == id {
+            p.protection = protection;
         }
     }
     write_registry(config_path, &Registry { profiles: entries })
@@ -999,5 +1041,61 @@ mod tests {
         let dir = temp_dir("set-aside-none");
 
         assert!(set_aside_registry(&dir.join("config.json")).is_ok());
+    }
+
+    // ---- password protection metadata (Phase C, Task 1) ----
+
+    #[test]
+    fn a_profile_with_no_protection_field_reads_as_unprotected() {
+        let dir = temp_dir("no-protection-field");
+        std::fs::write(
+            dir.join("profiles.json"),
+            r#"{"profiles":[{"id":"default","name":"Default","db_path":"C:\\v.db"}]}"#,
+        )
+        .unwrap();
+
+        let profiles = list_profiles(&dir.join("config.json"), Path::new("C:\\v.db"));
+
+        assert_eq!(profiles[0].protection, None);
+        assert!(!profiles[0].is_password_protected());
+    }
+
+    #[test]
+    fn set_profile_protection_records_and_clears_it() {
+        let dir = temp_dir("set-protection");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+
+        set_profile_protection(&dir.join("config.json"), &live, &id, Some(Protection { format: 1 })).unwrap();
+        let after_set = list_profiles(&dir.join("config.json"), &live);
+        assert_eq!(after_set.iter().find(|p| p.id == id).unwrap().protection, Some(Protection { format: 1 }));
+
+        set_profile_protection(&dir.join("config.json"), &live, &id, None).unwrap();
+        let after_clear = list_profiles(&dir.join("config.json"), &live);
+        assert_eq!(after_clear.iter().find(|p| p.id == id).unwrap().protection, None);
+    }
+
+    #[test]
+    fn setting_protection_on_an_unknown_id_is_a_harmless_no_op() {
+        let dir = temp_dir("set-protection-unknown");
+        let live = dir.join("v.db");
+
+        set_profile_protection(&dir.join("config.json"), &live, "nobody", Some(Protection { format: 1 })).unwrap();
+
+        assert!(!dir.join("profiles.json").exists(), "a plain Default profile must not be materialized by this");
+    }
+
+    #[test]
+    fn registered_profiles_strict_carries_protection_through_too() {
+        let dir = temp_dir("registered-strict-protection");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Sam", dt("2026-09-21 09:00:00")).unwrap();
+        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+        set_profile_protection(&dir.join("config.json"), &live, &id, Some(Protection { format: 1 })).unwrap();
+
+        let registered = registered_profiles_strict(&dir.join("config.json")).unwrap();
+
+        assert_eq!(registered.iter().find(|p| p.id == id).unwrap().protection, Some(Protection { format: 1 }));
     }
 }
