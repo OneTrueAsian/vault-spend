@@ -6,6 +6,8 @@ import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { RulesManager } from "./RulesManager";
 import { CHANGELOG } from "./changelog";
 import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
+import { ProfileProtectionSection } from "./ProfileProtectionSection";
+import { ProtectionLeftovers } from "./ProtectionLeftovers";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -985,6 +987,7 @@ export function SettingsView({
   onRenameProfile,
   onSetProfileIcon,
   onDeleteProfile,
+  onProtected,
   livePriceSettings,
   onSetLivePriceApiKey,
   onRefreshLivePrices,
@@ -1041,6 +1044,11 @@ export function SettingsView({
   onRenameProfile: (id: string, newName: string) => void;
   onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
+  /** The active profile just turned password protection on — refresh the `profiles` list (its
+   * `is_password_protected` flag is now stale) rather than reloading the whole data file: `enable_
+   * profile_protection` re-encrypts the exact same rows, so everything else already fetched from
+   * them is still valid. */
+  onProtected: () => void;
   livePriceSettings: LivePriceSettings | null;
   onSetLivePriceApiKey: (provider: LivePriceProviderId, apiKey: string | null) => void;
   onRefreshLivePrices: () => void;
@@ -1072,6 +1080,8 @@ export function SettingsView({
         onSetProfileIcon={onSetProfileIcon}
         onDeleteProfile={onDeleteProfile}
       />
+      <ProfileProtectionSection profiles={profiles} onProtected={onProtected} />
+      <ProtectionLeftovers profiles={profiles} />
       <DataSection
         dataFileLocation={dataFileLocation}
         onRelocateDataFile={onRelocateDataFile}

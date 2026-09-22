@@ -10,6 +10,7 @@ mod live_price_provider;
 mod live_prices;
 mod profiles;
 mod protection_commands;
+mod protection_leftovers;
 mod protection_session;
 mod protection_transition;
 mod runtime;
@@ -192,6 +193,8 @@ pub fn run() {
             protection_commands::begin_protection_setup,
             protection_commands::cancel_protection_setup,
             protection_commands::commit_protection_setup,
+            protection_commands::list_protection_leftovers,
+            protection_commands::delete_protection_leftovers,
             commands::preview_setup_import,
             commands::commit_setup_import,
             commands::preview_import,

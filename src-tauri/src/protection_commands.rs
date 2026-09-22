@@ -226,6 +226,30 @@ pub fn commit_protection_setup(
     }
 }
 
+/// Leftovers can only exist for a profile that was actually *converted* (the plaintext file
+/// `enable_profile_protection` replaced) — a profile protected from creation never had one, and
+/// `db_path` itself is by now the new encrypted file, not the plaintext original, so it must never
+/// be passed to `list_leftovers` as the path to look for leftovers next to (see `profiles::
+/// ProfileEntry::former_plaintext_path`'s doc comment).
+#[tauri::command]
+pub fn list_protection_leftovers(
+    paths: tauri::State<AppPaths>,
+    device: tauri::State<DeviceSettingsStore>,
+) -> Vec<crate::protection_leftovers::LeftoverEntry> {
+    let db_path = current_db_path(&paths);
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    let Some(former_path) = profiles::former_plaintext_path_for(&paths.config_path, &db_path, &profile_id) else {
+        return Vec::new();
+    };
+    let mirror = device.snapshot().backup_mirror_dir(&profile_id).map(std::path::PathBuf::from);
+    crate::protection_leftovers::list_leftovers(&former_path, mirror.as_deref())
+}
+
+#[tauri::command]
+pub fn delete_protection_leftovers(paths_to_delete: Vec<String>, paths: tauri::State<AppPaths>) -> Result<Vec<String>, String> {
+    crate::protection_leftovers::delete_leftovers(&paths_to_delete, &current_db_path(&paths))
+}
+
 #[cfg(test)]
 mod tests {
     // Command functions that take `tauri::State`/`tauri::AppHandle` cannot be called directly in a

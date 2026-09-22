@@ -22,3 +22,17 @@ export const commitProtectionSetup = (
   targetProfileId: string | null,
   newProfileName: string | null,
 ) => invoke<StartupState>("commit_protection_setup", { token, answers, targetProfileId, newProfileName });
+
+export type LeftoverKind = "original_database" | "plaintext_backup" | "mirrored_plaintext_backup";
+
+export interface LeftoverEntry {
+  path: string;
+  kind: LeftoverKind;
+  size_bytes: number;
+}
+
+export const listProtectionLeftovers = () => invoke<LeftoverEntry[]>("list_protection_leftovers");
+/** Returns whichever of `pathsToDelete` could NOT be deleted (a directory, the live database, or a
+ * path that no longer exists) — never rejects just because some of them were refused. */
+export const deleteProtectionLeftovers = (pathsToDelete: string[]) =>
+  invoke<string[]>("delete_protection_leftovers", { pathsToDelete });

@@ -32,6 +32,15 @@ struct ProfileEntry {
     icon_key: Option<String>,
     #[serde(default)]
     protection: Option<Protection>,
+    /// The plaintext path this entry's `db_path` replaced, the one time a conversion actually
+    /// moved it (`commit_protection_conversion`) — `None` for every profile that has never been
+    /// converted, including one that was protected from creation (nothing was ever plaintext) and
+    /// every `profiles.json` written before this field existed. The only reader is `protection_
+    /// leftovers::list_leftovers` (via `former_plaintext_path_for`), which needs the ORIGINAL file
+    /// to look for leftovers next to — `db_path` itself is the new encrypted file by the time
+    /// anyone asks, so passing that instead would misreport the live database as its own leftover.
+    #[serde(default)]
+    former_plaintext_path: Option<String>,
 }
 
 /// Whether a profile's database is encrypted. `None` (the common case) means unprotected. The key
@@ -197,6 +206,7 @@ fn default_entry(live_db_path: &Path) -> ProfileEntry {
         db_path: live_db_path.to_string_lossy().to_string(),
         icon_key: None,
         protection: None,
+        former_plaintext_path: None,
     }
 }
 
@@ -295,7 +305,7 @@ pub fn register_prepared_profile(config_path: &Path, live_db_path: &Path, id: &s
     if entries.iter().any(|p| p.id == id) {
         return Err(format!("{id} is already registered."));
     }
-    entries.push(ProfileEntry { id: id.to_string(), name: name.to_string(), db_path: db_path.to_string_lossy().to_string(), icon_key: None, protection });
+    entries.push(ProfileEntry { id: id.to_string(), name: name.to_string(), db_path: db_path.to_string_lossy().to_string(), icon_key: None, protection, former_plaintext_path: None });
     write_registry(config_path, &Registry { profiles: entries })
 }
 
@@ -348,6 +358,7 @@ pub fn add_existing_profile(
         db_path: existing_db_path.to_string_lossy().to_string(),
         icon_key: None,
         protection: None,
+        former_plaintext_path: None,
     });
     write_registry(config_path, &Registry { profiles: entries })?;
 
@@ -434,11 +445,24 @@ pub fn commit_protection_conversion(config_path: &Path, live_db_path: &Path, id:
     }
     for p in entries.iter_mut() {
         if p.id == id {
-            p.db_path = new_db_path.to_string_lossy().to_string();
+            p.former_plaintext_path = Some(std::mem::replace(&mut p.db_path, new_db_path.to_string_lossy().to_string()));
             p.protection = Some(protection);
         }
     }
     write_registry(config_path, &Registry { profiles: entries })
+}
+
+/// The plaintext path `id`'s database used to live at, before a conversion moved it to an encrypted
+/// file — `None` if it was never converted (including a profile that was protected from creation,
+/// where nothing was ever plaintext). See `ProfileEntry::former_plaintext_path`'s own doc comment
+/// for why `protection_leftovers::list_leftovers` needs this rather than the profile's current
+/// (already-encrypted) `db_path`.
+pub fn former_plaintext_path_for(config_path: &Path, live_db_path: &Path, id: &str) -> Option<PathBuf> {
+    entries_or_synthesize(config_path, live_db_path)
+        .into_iter()
+        .find(|p| p.id == id)
+        .and_then(|p| p.former_plaintext_path)
+        .map(PathBuf::from)
 }
 
 /// Removes a profile from the registry — the file it points at is left on
@@ -1185,6 +1209,33 @@ mod tests {
         let entry = after.iter().find(|p| p.id == id).unwrap();
         assert_eq!(entry.db_path, new_path);
         assert_eq!(entry.protection, Some(Protection { format: 1 }));
+    }
+
+    #[test]
+    fn commit_protection_conversion_remembers_the_plaintext_path_it_replaced() {
+        // Mirrors the real call site (`protection_commands::enable_profile_protection`): the
+        // profile being converted is always the one that's currently open, so its own current
+        // `db_path` — not the `live_db_path` parameter, which only matters for the no-registry
+        // synthesize fallback — is the plaintext path that must be remembered.
+        let dir = temp_dir("commit-conversion-remembers-former-path");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let alex = list_profiles(&dir.join("config.json"), &live)[1].clone();
+        let new_path = dir.join("v-protected.db");
+
+        commit_protection_conversion(&dir.join("config.json"), &alex.db_path, &alex.id, &new_path, Protection { format: 1 }).unwrap();
+
+        assert_eq!(former_plaintext_path_for(&dir.join("config.json"), &new_path, &alex.id), Some(alex.db_path));
+    }
+
+    #[test]
+    fn a_profile_with_no_conversion_behind_it_has_no_former_plaintext_path() {
+        let dir = temp_dir("no-former-path");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+
+        assert_eq!(former_plaintext_path_for(&dir.join("config.json"), &live, &id), None);
     }
 
     #[test]

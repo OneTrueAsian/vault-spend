@@ -5126,6 +5126,7 @@ function App({
           onRenameProfile={handleRenameProfile}
           onSetProfileIcon={handleSetProfileIcon}
           onDeleteProfile={handleDeleteProfile}
+          onProtected={() => void refreshProfiles()}
           livePriceSettings={livePriceSettings}
           onSetLivePriceApiKey={handleSetLivePriceApiKey}
           onRefreshLivePrices={handleRefreshLivePrices}
