@@ -28,6 +28,9 @@ pub enum LaunchErrorKind {
     DataFileMissing,
     /// The data file is there and cannot be opened.
     DataFileUnreadable,
+    /// An interrupted password-protection change (Phase C, Task 5) left a journal that could not
+    /// be read, so it is unsafe to guess whether the change committed.
+    ProtectionJournalUnreadable,
 }
 
 /// A profile the person can open instead, when the one they wanted will not open.

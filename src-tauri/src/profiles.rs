@@ -397,8 +397,11 @@ pub fn set_profile_icon(config_path: &Path, live_db_path: &Path, id: &str, icon_
     write_registry(config_path, &Registry { profiles: entries })
 }
 
-/// Records (or clears, with `None`) a profile's protection summary. An unconditional update, not
-/// merge-only — same convention as `set_profile_icon`. Unknown id is a harmless no-op.
+/// Records (or clears, with `None`) a profile's protection summary, without touching its db_path —
+/// correct only when the path isn't moving (a brand-new protected profile, Task 6; conversion of an
+/// existing one moves the path too, via `commit_protection_conversion`). An unconditional update,
+/// not merge-only — same convention as `set_profile_icon`. Unknown id is a harmless no-op.
+#[allow(dead_code)] // not called until Task 6 (creating a brand-new protected profile)
 pub fn set_profile_protection(config_path: &Path, live_db_path: &Path, id: &str, protection: Option<Protection>) -> Result<(), String> {
     let mut entries = entries_or_synthesize(config_path, live_db_path);
     if !entries.iter().any(|p| p.id == id) {
@@ -407,6 +410,27 @@ pub fn set_profile_protection(config_path: &Path, live_db_path: &Path, id: &str,
     for p in entries.iter_mut() {
         if p.id == id {
             p.protection = protection;
+        }
+    }
+    write_registry(config_path, &Registry { profiles: entries })
+}
+
+/// Marks a profile protected AND repoints its registry entry at the newly encrypted database, in
+/// one atomic write. The two must land together, never as two separate commits: a kill between
+/// them would otherwise leave the registry pointing at a file with no protection recorded (so
+/// `protection_transition::recover_interrupted_operation` would wrongly conclude the conversion
+/// never committed and delete the very file the registry now names), or leave it pointing at the
+/// stale plaintext original with no way back to the encrypted file that replaced it. Unknown id is
+/// a harmless no-op, same convention as `set_profile_protection`.
+pub fn commit_protection_conversion(config_path: &Path, live_db_path: &Path, id: &str, new_db_path: &Path, protection: Protection) -> Result<(), String> {
+    let mut entries = entries_or_synthesize(config_path, live_db_path);
+    if !entries.iter().any(|p| p.id == id) {
+        return Ok(());
+    }
+    for p in entries.iter_mut() {
+        if p.id == id {
+            p.db_path = new_db_path.to_string_lossy().to_string();
+            p.protection = Some(protection);
         }
     }
     write_registry(config_path, &Registry { profiles: entries })
@@ -1090,6 +1114,33 @@ mod tests {
         let live = dir.join("v.db");
 
         set_profile_protection(&dir.join("config.json"), &live, "nobody", Some(Protection { format: 1 })).unwrap();
+
+        assert!(!dir.join("profiles.json").exists(), "a plain Default profile must not be materialized by this");
+    }
+
+    #[test]
+    fn commit_protection_conversion_moves_the_path_and_sets_protection_together() {
+        let dir = temp_dir("commit-conversion");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+        let new_path = dir.join("v-protected.db");
+
+        commit_protection_conversion(&dir.join("config.json"), &live, &id, &new_path, Protection { format: 1 }).unwrap();
+
+        let after = list_profiles(&dir.join("config.json"), &new_path);
+        let entry = after.iter().find(|p| p.id == id).unwrap();
+        assert_eq!(entry.db_path, new_path);
+        assert_eq!(entry.protection, Some(Protection { format: 1 }));
+    }
+
+    #[test]
+    fn commit_protection_conversion_on_an_unknown_id_is_a_harmless_no_op() {
+        let dir = temp_dir("commit-conversion-unknown");
+        let live = dir.join("v.db");
+        let new_path = dir.join("v-protected.db");
+
+        commit_protection_conversion(&dir.join("config.json"), &live, "nobody", &new_path, Protection { format: 1 }).unwrap();
 
         assert!(!dir.join("profiles.json").exists(), "a plain Default profile must not be materialized by this");
     }

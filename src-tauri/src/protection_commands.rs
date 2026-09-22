@@ -120,6 +120,45 @@ pub fn lock_current_profile(
     Ok(startup::startup_state_for_registry(&paths.config_path, &runtime, &status, Some(&profile_id)))
 }
 
+/// Turns password protection on for the currently open (and so far unprotected) profile — the
+/// journaled conversion itself lives in `protection_transition::enable_protection`; this command
+/// just supplies the profile identity from the live session, then hot-swaps the connection to the
+/// freshly encrypted file the same way `unlock_profile` swaps in a freshly opened one (`startup::
+/// activate`, not a raw field assignment, so the second backup folder, the tray and the due-backup
+/// check all run exactly as they do on every other profile-open). Returns the one-time recovery
+/// code (never stored) for the caller to show, once, before it is gone forever.
+#[tauri::command]
+pub fn enable_profile_protection(
+    password: String,
+    app: tauri::AppHandle,
+    paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+) -> Result<String, String> {
+    if password.chars().count() < 8 {
+        return Err("Choose a password of at least 8 characters.".to_string());
+    }
+    let db_path = current_db_path(&paths);
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    let (key_file, recovery_code, target_path) = {
+        // Held for the whole conversion, not just released after reading the source: nothing else
+        // may mutate this profile's data while it is being exported into and verified against the
+        // new encrypted file.
+        let session = runtime.lock()?;
+        crate::protection_transition::enable_protection(
+            &paths.config_path,
+            &profile_id,
+            &db_path,
+            &session.store,
+            &password,
+            chrono::Local::now().naive_local(),
+        )?
+    };
+    let dek = key_file.unlock_with_password(&password).map_err(|e| e.to_string())?;
+    let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
+    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    Ok(recovery_code.display())
+}
+
 #[cfg(test)]
 mod tests {
     // Command functions that take `tauri::State`/`tauri::AppHandle` cannot be called directly in a

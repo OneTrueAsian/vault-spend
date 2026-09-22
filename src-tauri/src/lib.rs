@@ -11,6 +11,7 @@ mod live_prices;
 mod profiles;
 mod protection_commands;
 mod protection_session;
+mod protection_transition;
 mod runtime;
 mod startup;
 mod stockdata;
@@ -116,13 +117,32 @@ pub fn run() {
 
             // A profile that can't be opened never aborts the launch: the window shows why, and what the
             // person can do about it (launch_commands.rs). Nothing quietly opens a different file instead.
+            // Resolved before anything else opens: an interrupted `enable_protection` (Phase C,
+            // Task 5) must either finish or fully unwind before `config.json`'s current db_path is
+            // trusted — see `protection_transition::recover_interrupted_operation`'s own doc
+            // comment. A journal that cannot even be read is left for the person to see rather than
+            // guessed at, the same "never silently open something else" treatment as a damaged
+            // profiles.json.
             let handle = app.handle().clone();
-            match startup::open_from_disk(&config_path, &default_dir) {
-                Ok(opened) => startup::activate(&handle, opened),
-                Err(error) => {
-                    eprintln!("no profile could be opened at launch: {}", error.message);
-                    app.state::<startup::LaunchStatus>().set_error(error);
-                    background::sync_tray_with_settings(&handle);
+            if let Err(reason) = protection_transition::recover_interrupted_operation(&config_path) {
+                eprintln!("couldn't recover an interrupted password-protection change: {reason}");
+                app.state::<startup::LaunchStatus>().set_error(startup::LaunchError {
+                    kind: startup::LaunchErrorKind::ProtectionJournalUnreadable,
+                    message: "Vault Spend found an unfinished password-protection change it couldn't safely resolve. Your data files have not been changed.".to_string(),
+                    details: reason,
+                    db_path: None,
+                    can_restore_registry: false,
+                    other_profiles: Vec::new(),
+                });
+                background::sync_tray_with_settings(&handle);
+            } else {
+                match startup::open_from_disk(&config_path, &default_dir) {
+                    Ok(opened) => startup::activate(&handle, opened),
+                    Err(error) => {
+                        eprintln!("no profile could be opened at launch: {}", error.message);
+                        app.state::<startup::LaunchStatus>().set_error(error);
+                        background::sync_tray_with_settings(&handle);
+                    }
                 }
             }
             background::start_reminder_thread(handle.clone());
@@ -169,6 +189,7 @@ pub fn run() {
             protection_commands::select_profile,
             protection_commands::unlock_profile,
             protection_commands::lock_current_profile,
+            protection_commands::enable_profile_protection,
             commands::preview_setup_import,
             commands::commit_setup_import,
             commands::preview_import,
