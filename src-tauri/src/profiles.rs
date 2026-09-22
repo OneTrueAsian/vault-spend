@@ -273,31 +273,36 @@ pub fn list_profiles(config_path: &Path, live_db_path: &Path) -> Vec<Profile> {
 /// the caller's job (`commands::create_profile`), so a registry entry is
 /// only ever written for a profile whose storage the caller successfully
 /// initialized.
-pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<Profile, String> {
-    let mut entries = entries_or_synthesize(config_path, live_db_path);
+/// The id and directory a new profile named `name` would get, without writing anything — the first
+/// half of `create_profile`, split out so protected creation (Phase C, Task 6) can write the
+/// database file in between choosing the path and registering it: verify before registering, never
+/// the reverse.
+pub fn plan_new_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<(String, PathBuf), String> {
+    let entries = entries_or_synthesize(config_path, live_db_path);
     if entries.iter().any(|p| p.name.eq_ignore_ascii_case(name)) {
         return Err(format!("A profile named '{name}' already exists."));
     }
-
     let id = unique_profile_id(&entries, name, now);
     let db_path = profiles_dir(config_path).join(&id).join("vaultspend.db");
-    entries.push(ProfileEntry {
-        id: id.clone(),
-        name: name.to_string(),
-        db_path: db_path.to_string_lossy().to_string(),
-        icon_key: None,
-        protection: None,
-    });
-    write_registry(config_path, &Registry { profiles: entries })?;
+    Ok((id, db_path))
+}
 
-    Ok(Profile {
-        id,
-        name: name.to_string(),
-        db_path,
-        is_active: false,
-        icon_key: None,
-        protection: None,
-    })
+/// Registers a profile at a path and protection state the caller already prepared and verified.
+/// Refuses a duplicate id (should not happen in practice — `plan_new_profile` computed a fresh one
+/// — but a caller that raced with another creation must not silently overwrite an entry).
+pub fn register_prepared_profile(config_path: &Path, live_db_path: &Path, id: &str, name: &str, db_path: &Path, protection: Option<Protection>) -> Result<(), String> {
+    let mut entries = entries_or_synthesize(config_path, live_db_path);
+    if entries.iter().any(|p| p.id == id) {
+        return Err(format!("{id} is already registered."));
+    }
+    entries.push(ProfileEntry { id: id.to_string(), name: name.to_string(), db_path: db_path.to_string_lossy().to_string(), icon_key: None, protection });
+    write_registry(config_path, &Registry { profiles: entries })
+}
+
+pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<Profile, String> {
+    let (id, db_path) = plan_new_profile(config_path, live_db_path, name, now)?;
+    register_prepared_profile(config_path, live_db_path, &id, name, &db_path, None)?;
+    Ok(Profile { id, name: name.to_string(), db_path, is_active: false, icon_key: None, protection: None })
 }
 
 /// Registers a profile pointing at an *existing* database file elsewhere on
@@ -585,6 +590,54 @@ mod tests {
         let profile_dir = profile.db_path.parent().unwrap();
         assert_eq!(profile_dir.parent().unwrap(), profiles_dir(&config_path));
         assert_eq!(profile_dir.file_name().unwrap(), profile.id.as_str());
+    }
+
+    #[test]
+    fn plan_new_profile_computes_the_same_path_create_profile_would_without_writing_anything() {
+        let dir = temp_dir("plan-only");
+        let live = dir.join("v.db");
+
+        let (id, db_path) = plan_new_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+
+        assert!(!dir.join("profiles.json").exists(), "planning alone must not register anything");
+        assert_eq!(db_path, profiles_dir(&dir.join("config.json")).join(&id).join("vaultspend.db"));
+    }
+
+    #[test]
+    fn register_prepared_profile_adds_exactly_the_entry_given_including_protection() {
+        let dir = temp_dir("register-prepared");
+        let live = dir.join("v.db");
+        let (id, db_path) = plan_new_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+
+        register_prepared_profile(&dir.join("config.json"), &live, &id, "Alex", &db_path, Some(Protection { format: 1 })).unwrap();
+
+        let profile = list_profiles(&dir.join("config.json"), &live).into_iter().find(|p| p.id == id).unwrap();
+        assert_eq!(profile.db_path, db_path);
+        assert_eq!(profile.protection, Some(Protection { format: 1 }));
+    }
+
+    #[test]
+    fn registering_the_same_id_twice_is_refused() {
+        let dir = temp_dir("register-twice");
+        let live = dir.join("v.db");
+        let (id, db_path) = plan_new_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        register_prepared_profile(&dir.join("config.json"), &live, &id, "Alex", &db_path, None).unwrap();
+
+        assert!(register_prepared_profile(&dir.join("config.json"), &live, &id, "Alex", &db_path, None).is_err());
+    }
+
+    #[test]
+    fn create_profile_still_behaves_exactly_as_before_the_split() {
+        // The full pre-existing test suite for create_profile (name collisions, id disambiguation,
+        // returned Profile shape) already covers this — this one just confirms the refactor didn't
+        // change create_profile's own contract.
+        let dir = temp_dir("create-profile-unchanged");
+        let live = dir.join("v.db");
+
+        let profile = create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+
+        assert_eq!(profile.protection, None);
+        assert!(!profile.is_active);
     }
 
     #[test]

@@ -132,6 +132,31 @@ pub fn enable_protection(
     Ok((protection.key_file, protection.recovery_code, target_db_path))
 }
 
+/// Creates a brand-new, already-protected profile: an in-memory (never touches disk unencrypted,
+/// not even momentarily) empty database exported straight to an encrypted file, verified, then
+/// registered — in that order, so a kill at any point before registration just leaves an orphaned,
+/// never-registered file on disk, exactly what "failed/cancelled creation leaves the prior session
+/// and registry intact" requires. No journal: unlike `enable_protection`, there is nothing to
+/// unwind that isn't already unwound by simply never having registered anything.
+pub fn create_protected_profile(
+    config_path: &Path,
+    live_db_path: &Path,
+    name: &str,
+    password: &str,
+    now: NaiveDateTime,
+) -> Result<(String, KeyFile, RecoveryCode, PathBuf), String> {
+    let (id, target_db_path) = profiles::plan_new_profile(config_path, live_db_path, name, now)?;
+    std::fs::create_dir_all(target_db_path.parent().ok_or_else(|| "invalid profile path".to_string())?).map_err(|e| e.to_string())?;
+
+    let empty = Store::open_in_memory().map_err(|e| e.to_string())?;
+    let protection = keyfile::create_protection(password, &KdfParams::PRODUCTION, &now.and_utc().to_rfc3339()).map_err(|e| e.to_string())?;
+    empty.export_encrypted_copy(&target_db_path, protection.dek.as_bytes()).map_err(|e| e.to_string())?;
+    empty.verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes())).map_err(|e| e.to_string())?;
+    protection.key_file.write_to(&keyfile::key_file_path_for(&target_db_path)).map_err(|e| e.to_string())?;
+    profiles::register_prepared_profile(config_path, live_db_path, &id, name, &target_db_path, Some(profiles::Protection { format: keyfile::FORMAT }))?;
+    Ok((id, protection.key_file, protection.recovery_code, target_db_path))
+}
+
 /// Resolves an interrupted `enable_protection` (or, from Task 6, a protected creation) found at
 /// startup, before anything else opens. The registry is the only source of truth for whether the
 /// commit happened — see this task's header comment for why that collapses every kill point to one
@@ -260,6 +285,66 @@ mod tests {
             let dek = key_file.unlock_with_password("correct horse battery staple").unwrap();
             assert!(Store::open_with_key(&converted, DatabaseKey::Raw(dek.as_bytes())).is_ok());
         }
+    }
+
+    #[test]
+    fn creating_a_protected_profile_registers_only_after_the_encrypted_file_verifies() {
+        let dir = temp_dir("create-protected-happy");
+        let live = dir.join("v.db");
+        let config_path = dir.join("config.json");
+
+        let (id, key_file, recovery_code, target_path) = create_protected_profile(&config_path, &live, "Sam", "correct horse battery staple", now()).unwrap();
+
+        assert!(target_path.exists());
+        assert!(keyfile::key_file_path_for(&target_path).exists());
+        let dek = key_file.unlock_with_password("correct horse battery staple").unwrap();
+        let opened = Store::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).unwrap();
+        // A fresh database always seeds the standard starter categories (see `DEFAULT_CATEGORIES`
+        // in core/src/store.rs) — the real signal that this is a genuinely fresh schema and not a
+        // copy of some other, already-populated profile is the absence of any account or
+        // transaction, which only a real profile would ever have.
+        assert!(opened.list_accounts(chrono::Local::now().date_naive()).unwrap().is_empty());
+        assert!(opened.all_transactions().unwrap().is_empty());
+        assert_eq!(
+            profiles::list_profiles(&config_path, &live).iter().find(|p| p.id == id).unwrap().protection,
+            Some(profiles::Protection { format: keyfile::FORMAT })
+        );
+        assert_eq!(recovery_code.display().split('-').count(), 7);
+    }
+
+    #[test]
+    fn a_duplicate_name_is_refused_before_any_file_is_written() {
+        let dir = temp_dir("create-protected-duplicate");
+        let live = dir.join("v.db");
+        let config_path = dir.join("config.json");
+        profiles::create_profile(&config_path, &live, "Sam", now()).unwrap();
+
+        let error = create_protected_profile(&config_path, &live, "Sam", "correct horse battery staple", now())
+            .map(|_| ())
+            .unwrap_err();
+
+        assert!(error.contains("already exists"), "{error}");
+        assert_eq!(profiles::list_profiles(&config_path, &live).len(), 2, "no extra entry was added");
+    }
+
+    #[test]
+    fn a_failed_export_never_registers_a_profile() {
+        // Forces `export_encrypted_copy` to fail its own `refuse_existing` check by pre-creating the
+        // exact path `plan_new_profile` will compute, proving the write-then-verify-then-register
+        // order really is enforced and not just true by construction in the happy-path test above.
+        let dir = temp_dir("create-protected-export-fails");
+        let live = dir.join("v.db");
+        let config_path = dir.join("config.json");
+        let (id, target_db_path) = profiles::plan_new_profile(&config_path, &live, "Sam", now()).unwrap();
+        std::fs::create_dir_all(target_db_path.parent().unwrap()).unwrap();
+        std::fs::write(&target_db_path, b"already here").unwrap();
+
+        let error = create_protected_profile(&config_path, &live, "Sam", "correct horse battery staple", now())
+            .map(|_| ())
+            .unwrap_err();
+
+        assert!(error.contains("already exists"), "{error}");
+        assert!(profiles::list_profiles(&config_path, &live).iter().all(|p| p.id != id), "never registered");
     }
 
     #[test]

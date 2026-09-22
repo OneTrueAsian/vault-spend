@@ -4,7 +4,7 @@
 use crate::commands::{AppState, AppStateHandle};
 use crate::config::AppPaths;
 use crate::device_settings::DeviceSettingsStore;
-use crate::protection_session::Sessions;
+use crate::protection_session::{Sessions, SetupChallenge};
 use crate::startup::{self, LaunchStatus, StartupState};
 use crate::profiles;
 use budget_core::protection::keyfile::KeyFile;
@@ -157,6 +157,66 @@ pub fn enable_profile_protection(
     let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
     startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
     Ok(recovery_code.display())
+}
+
+/// Starts the shared 2-of-7 recovery-key setup challenge (Phase C, Task 6), used by both turning
+/// protection on for the current profile and creating a brand-new protected one. Which of those two
+/// this is for is not asked here — only `password` and the generation the caller's session must
+/// still match — and is instead supplied again to `commit_protection_setup`, since nothing about
+/// which target this challenge is *for* needs remembering server-side in between: only the secret
+/// (the password) and proof the recovery code was actually written down do.
+#[tauri::command]
+pub fn begin_protection_setup(password: String, expected_generation: u64, sessions: tauri::State<Sessions>) -> Result<SetupChallenge, String> {
+    if password.chars().count() < 8 {
+        return Err("Choose a password of at least 8 characters.".to_string());
+    }
+    Ok(sessions.begin_setup(&password, expected_generation))
+}
+
+#[tauri::command]
+pub fn cancel_protection_setup(token: String, sessions: tauri::State<Sessions>) {
+    sessions.cancel_setup(&token);
+}
+
+/// Finishes a setup once its challenge has been answered correctly: either protects the currently
+/// open profile or creates a brand-new protected one. The existing-profile case delegates to
+/// `enable_profile_protection` rather than re-deriving its own hot-swap — that command's own doc
+/// comment explains why going through `startup::activate` (not a raw field assignment) matters, and
+/// duplicating that logic here would only give it a second, easier-to-drift copy. A brand-new
+/// profile is registered but never auto-opened here — Task 8's UI decides whether and how to switch
+/// to it, the same way plaintext `create_profile` already leaves that choice to its own caller.
+#[tauri::command]
+pub fn commit_protection_setup(
+    token: String,
+    answers: [String; 2],
+    target_profile_id: Option<String>,
+    new_profile_name: Option<String>,
+    app: tauri::AppHandle,
+    paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+    status: tauri::State<LaunchStatus>,
+    sessions: tauri::State<Sessions>,
+) -> Result<StartupState, String> {
+    let (password, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before setup could finish.".to_string());
+    }
+    match (target_profile_id, new_profile_name) {
+        (Some(id), None) => {
+            let active_id = profiles::profile_id_for(&paths.config_path, &current_db_path(&paths));
+            if id != active_id {
+                return Err("The active profile changed before setup could finish.".to_string());
+            }
+            enable_profile_protection(password, app, paths, runtime)?;
+            Ok(StartupState::Open)
+        }
+        (None, Some(name)) => {
+            let live_db_path = current_db_path(&paths);
+            crate::protection_transition::create_protected_profile(&paths.config_path, &live_db_path, &name, &password, chrono::Local::now().naive_local())?;
+            Ok(startup::startup_state_for_registry(&paths.config_path, &runtime, &status, None))
+        }
+        _ => Err("Specify exactly one of an existing profile to protect or a new profile name.".to_string()),
+    }
 }
 
 #[cfg(test)]
