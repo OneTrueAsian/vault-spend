@@ -1,6 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type UiStateKey = "saved_filters" | "safe_to_spend_buffer" | "notified_bills" | "category_order";
+export type UiStateKey =
+  | "saved_filters"
+  | "safe_to_spend_buffer"
+  | "notified_bills"
+  | "category_order"
+  | "show_bill_names_in_reminders";
 
 /** `set_profile_ui_state`'s staleness guard needs the backend's current generation number — the
  * frontend had no reason to track its own copy of it before this. Fetched once per mount; `App`
@@ -14,8 +19,10 @@ export const setProfileUiState = (key: UiStateKey, value: string, expectedGenera
   invoke<void>("set_profile_ui_state", { key, value, expectedGeneration });
 
 /** The exact global keys these four settings used before this table existed — never read again
- * once `migrateLegacyProfileUiState` has run once on this computer (`device_settings.ui_state_migrated`). */
-const LEGACY_KEYS: Record<UiStateKey, string> = {
+ * once `migrateLegacyProfileUiState` has run once on this computer (`device_settings.ui_state_migrated`).
+ * `show_bill_names_in_reminders` is not here: it was born in this table, with no earlier
+ * localStorage form to migrate from. */
+const LEGACY_KEYS: Partial<Record<UiStateKey, string>> = {
   saved_filters: "meadow-saved-ledger-filters", // App.tsx
   safe_to_spend_buffer: "vaultspend-safe-to-spend-buffer", // SafeToSpendCard.tsx
   notified_bills: "vaultspend-notified-bills", // App.tsx

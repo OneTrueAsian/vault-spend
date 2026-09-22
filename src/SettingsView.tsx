@@ -499,11 +499,15 @@ function BackgroundRemindersSection({
   onSetTray,
   onSetAutostart,
   onSendTest,
+  showBillNamesInReminders,
+  onSetShowBillNamesInReminders,
 }: {
   settings: BackgroundSettings | null;
   onSetTray: (enabled: boolean) => void;
   onSetAutostart: (enabled: boolean) => void;
   onSendTest: () => void;
+  showBillNamesInReminders: boolean;
+  onSetShowBillNamesInReminders: (enabled: boolean) => void;
 }) {
   if (!settings) return null;
   return (
@@ -545,6 +549,21 @@ function BackgroundRemindersSection({
             </span>
           </label>
         )}
+        <label className="feature-toggle-row">
+          <input
+            type="checkbox"
+            checked={showBillNamesInReminders}
+            onChange={(e) => onSetShowBillNamesInReminders(e.target.checked)}
+            data-show-bill-names-toggle
+          />
+          <span className="feature-toggle-text">
+            <span className="feature-toggle-label">Show bill names in reminders</span>
+            <span className="modal-message-secondary">
+              Only applies while a password-protected profile is unlocked — its reminders say "A bill is due soon" instead
+              of naming it, unless this is on. An unprotected profile always names the bill.
+            </span>
+          </span>
+        </label>
       </div>
     </div>
   );
@@ -985,6 +1004,8 @@ export function SettingsView({
   onSetTray,
   onSetAutostart,
   onSendTestReminder,
+  showBillNamesInReminders,
+  onSetShowBillNamesInReminders,
   categories,
   onRulesApplied,
   onMessage,
@@ -995,6 +1016,8 @@ export function SettingsView({
   onSetTray: (enabled: boolean) => void;
   onSetAutostart: (enabled: boolean) => void;
   onSendTestReminder: () => void;
+  showBillNamesInReminders: boolean;
+  onSetShowBillNamesInReminders: (enabled: boolean) => void;
   privacyAutoHide: boolean;
   onSetPrivacyAutoHide: (autoHide: boolean) => void;
   categories: string[];
@@ -1068,6 +1091,8 @@ export function SettingsView({
         onSetTray={onSetTray}
         onSetAutostart={onSetAutostart}
         onSendTest={onSendTestReminder}
+        showBillNamesInReminders={showBillNamesInReminders}
+        onSetShowBillNamesInReminders={onSetShowBillNamesInReminders}
       />
       <LivePricesSection
         settings={livePriceSettings}

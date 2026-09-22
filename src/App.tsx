@@ -578,6 +578,24 @@ function App({
       .then(setBackgroundSettings)
       .catch(() => undefined);
   }, []);
+  // Off by default for every profile; only meaningfully different once the profile is protected
+  // (decision 9) — shown in Settings unconditionally so the value is already correct if the profile
+  // is protected later, rather than hidden and then defaulted for an already-configured profile.
+  const [showBillNamesInReminders, setShowBillNamesInReminders] = useState(false);
+  useEffect(() => {
+    getProfileUiState("show_bill_names_in_reminders")
+      .then((v) => setShowBillNamesInReminders(v === "true"))
+      .catch(() => undefined);
+  }, []);
+  async function handleSetShowBillNamesInReminders(enabled: boolean) {
+    setShowBillNamesInReminders(enabled);
+    try {
+      const generation = await getCurrentGeneration();
+      await setProfileUiState("show_bill_names_in_reminders", enabled ? "true" : "false", generation);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
   const refreshBackups = useCallback(async () => {
     setBackups(await invoke<Backup[]>("list_backups"));
     setBackupCopyDir(await invoke<string | null>("get_backup_copy_dir"));
@@ -1766,8 +1784,11 @@ function App({
       }
       if (!granted) return;
 
+      const isPasswordProtected = profiles.find((p) => p.is_active)?.is_password_protected ?? false;
+      const showNames = !isPasswordProtected || showBillNamesInReminders;
       for (const r of toNotify) {
-        sendNotification({ title: "Upcoming bill", body: `${r.merchant} — ${formatAmount(r.amount)} due ${r.next_date}` });
+        const body = showNames ? `${r.merchant} — ${formatAmount(r.amount)} due ${r.next_date}` : "A bill is due soon.";
+        sendNotification({ title: "Upcoming bill", body });
         notified[String(r.id)] = todayIso;
       }
       try {
@@ -1777,7 +1798,7 @@ function App({
         // functional failure worth surfacing to the user.
       }
     })();
-  }, [recurring, backgroundSettings]);
+  }, [recurring, backgroundSettings, profiles, showBillNamesInReminders]);
 
   const [budgetMonthActuals, setBudgetMonthActuals] = useState<ReportBudgetLine[]>([]);
   const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlert[]>([]);
@@ -5124,6 +5145,8 @@ function App({
           onSetTray={handleSetTray}
           onSetAutostart={handleSetAutostart}
           onSendTestReminder={handleSendTestReminder}
+          showBillNamesInReminders={showBillNamesInReminders}
+          onSetShowBillNamesInReminders={handleSetShowBillNamesInReminders}
           categories={usedCategories}
           onRulesApplied={() => void refresh()}
           onMessage={(text, kind) => setStatus(text, kind)}

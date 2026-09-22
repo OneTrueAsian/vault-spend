@@ -12,6 +12,7 @@ pub enum UiStateKey {
     SafeToSpendBuffer,
     NotifiedBills,
     CategoryOrder,
+    ShowBillNamesInReminders,
 }
 
 impl UiStateKey {
@@ -21,6 +22,7 @@ impl UiStateKey {
             UiStateKey::SafeToSpendBuffer => "safe_to_spend_buffer",
             UiStateKey::NotifiedBills => "notified_bills",
             UiStateKey::CategoryOrder => "category_order",
+            UiStateKey::ShowBillNamesInReminders => "show_bill_names_in_reminders",
         }
     }
 
@@ -30,6 +32,7 @@ impl UiStateKey {
             "safe_to_spend_buffer" => Some(UiStateKey::SafeToSpendBuffer),
             "notified_bills" => Some(UiStateKey::NotifiedBills),
             "category_order" => Some(UiStateKey::CategoryOrder),
+            "show_bill_names_in_reminders" => Some(UiStateKey::ShowBillNamesInReminders),
             _ => None,
         }
     }
@@ -48,6 +51,18 @@ impl Store {
             rusqlite::params![key.as_str(), value],
         )?;
         Ok(())
+    }
+
+    /// Whether an unlocked protected profile's background/launch reminders should name the bill
+    /// and amount, rather than the generic "A bill is due soon." (decision 9) — off by default, and
+    /// harmless/inert for an unprotected profile (its reminders always show the real wording,
+    /// regardless of this setting — see `background::check_reminders`).
+    pub fn show_bill_names_in_reminders(&self) -> rusqlite::Result<bool> {
+        Ok(self.get_ui_state(UiStateKey::ShowBillNamesInReminders)?.as_deref() == Some("true"))
+    }
+
+    pub fn set_show_bill_names_in_reminders(&self, value: bool) -> rusqlite::Result<()> {
+        self.set_ui_state(UiStateKey::ShowBillNamesInReminders, if value { "true" } else { "false" })
     }
 }
 
@@ -97,11 +112,28 @@ mod tests {
     }
 
     #[test]
-    fn parse_accepts_exactly_the_four_known_keys() {
+    fn parse_accepts_exactly_the_five_known_keys() {
         assert_eq!(UiStateKey::parse("saved_filters"), Some(UiStateKey::SavedFilters));
         assert_eq!(UiStateKey::parse("safe_to_spend_buffer"), Some(UiStateKey::SafeToSpendBuffer));
         assert_eq!(UiStateKey::parse("notified_bills"), Some(UiStateKey::NotifiedBills));
         assert_eq!(UiStateKey::parse("category_order"), Some(UiStateKey::CategoryOrder));
+        assert_eq!(UiStateKey::parse("show_bill_names_in_reminders"), Some(UiStateKey::ShowBillNamesInReminders));
         assert_eq!(UiStateKey::parse("anything_else"), None, "not an arbitrary-key store");
+    }
+
+    #[test]
+    fn show_bill_names_in_reminders_defaults_to_off() {
+        let store = temp_store("default-off");
+
+        assert_eq!(store.show_bill_names_in_reminders().unwrap(), false);
+    }
+
+    #[test]
+    fn show_bill_names_in_reminders_round_trips() {
+        let store = temp_store("round-trip");
+
+        store.set_show_bill_names_in_reminders(true).unwrap();
+
+        assert!(store.show_bill_names_in_reminders().unwrap());
     }
 }

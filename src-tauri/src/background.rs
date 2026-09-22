@@ -27,8 +27,14 @@ const RUN_VALUE: &str = "VaultSpend";
 /// Passed by the sign-in entry so the app starts hidden in the tray.
 pub const MINIMIZED_FLAG: &str = "--minimized";
 
-/// What the reminder notification says: "Geico Auto — $120.00 due tomorrow".
-pub fn reminder_body(reminder: &BillReminder, today: NaiveDate) -> String {
+/// What the reminder notification says: "Geico Auto — $120.00 due tomorrow" when `show_names` is
+/// true, or a generic "A bill is due soon." when it is false — decision 9: an unlocked protected
+/// profile without "Show bill names in reminders" turned on gets the generic text; an unprotected
+/// profile always passes `true` (see `should_show_bill_names`).
+pub fn reminder_body(reminder: &BillReminder, today: NaiveDate, show_names: bool) -> String {
+    if !show_names {
+        return "A bill is due soon.".to_string();
+    }
     let days = (reminder.due_date - today).num_days();
     let when = match days {
         0 => "due today".to_string(),
@@ -36,6 +42,12 @@ pub fn reminder_body(reminder: &BillReminder, today: NaiveDate) -> String {
         _ => format!("due {}", reminder.due_date.format("%b %-d")),
     };
     format!("{} — ${:.2} {}", reminder.merchant, reminder.amount.abs(), when)
+}
+
+/// Whether a reminder notification may name the bill and amount (decision 9): always for an
+/// unprotected profile, and for a protected one only once "Show bill names in reminders" is on.
+fn should_show_bill_names(is_encrypted: bool, setting: bool) -> bool {
+    !is_encrypted || setting
 }
 
 /// The `reg` invocation that adds (or removes) Vault Spend from the Windows
@@ -188,8 +200,9 @@ fn check_reminders(app: &AppHandle) {
     let Ok(reminders) = guard.store.reminders_to_send(today, REMINDER_WINDOW_DAYS) else {
         return;
     };
+    let show_names = should_show_bill_names(guard.store.is_encrypted(), guard.store.show_bill_names_in_reminders().unwrap_or(false));
     for reminder in reminders {
-        if notify(app, "Upcoming bill", &reminder_body(&reminder, today)).is_ok() {
+        if notify(app, "Upcoming bill", &reminder_body(&reminder, today, show_names)).is_ok() {
             let _ = guard.store.mark_reminder_sent(reminder.recurring_id, reminder.due_date, today);
         }
     }
@@ -248,17 +261,47 @@ mod tests {
         let today = day("2026-09-18");
 
         assert_eq!(
-            reminder_body(&reminder("Rent", "-1200", "2026-09-18"), today),
+            reminder_body(&reminder("Rent", "-1200", "2026-09-18"), today, true),
             "Rent — $1200.00 due today"
         );
         assert_eq!(
-            reminder_body(&reminder("Geico Auto", "-120.5", "2026-09-19"), today),
+            reminder_body(&reminder("Geico Auto", "-120.5", "2026-09-19"), today, true),
             "Geico Auto — $120.50 due tomorrow"
         );
         assert_eq!(
-            reminder_body(&reminder("Netflix", "-15.49", "2026-09-21"), today),
+            reminder_body(&reminder("Netflix", "-15.49", "2026-09-21"), today, true),
             "Netflix — $15.49 due Sep 21"
         );
+    }
+
+    #[test]
+    fn reminder_body_names_the_bill_when_show_names_is_true() {
+        let today = day("2026-09-21");
+        let r = reminder("Geico Auto", "-120.00", "2026-09-22");
+
+        assert_eq!(reminder_body(&r, today, true), "Geico Auto — $120.00 due tomorrow");
+    }
+
+    #[test]
+    fn reminder_body_is_generic_when_show_names_is_false() {
+        let today = day("2026-09-21");
+        let r = reminder("Geico Auto", "-120.00", "2026-09-22");
+
+        assert_eq!(reminder_body(&r, today, false), "A bill is due soon.");
+    }
+
+    // reminder_body's own tests above prove the wording is right *given* show_names — they say
+    // nothing about how show_names itself gets decided. check_reminders can't be unit tested at all
+    // (it needs a live AppHandle, no precedent for that anywhere in this codebase), so a mutation
+    // that hard-codes show_names to true there would slip past every test above. Extracting the
+    // one-line decision itself into should_show_bill_names closes that gap without needing a fake
+    // AppHandle — everything check_reminders does with it is then just calling an already-proven fn.
+    #[test]
+    fn should_show_bill_names_matrix() {
+        assert!(should_show_bill_names(false, false), "unprotected: always real names, setting ignored");
+        assert!(should_show_bill_names(false, true), "unprotected: always real names, setting ignored");
+        assert!(!should_show_bill_names(true, false), "protected, setting off: generic");
+        assert!(should_show_bill_names(true, true), "protected, setting on: real names");
     }
 
     #[test]
