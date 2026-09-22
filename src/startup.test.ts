@@ -15,6 +15,7 @@ import {
   startWithNewDataFile,
   startWithNewProfileList,
   startupFailure,
+  type StartupState,
 } from "./startup";
 
 beforeEach(() => {
@@ -52,5 +53,24 @@ describe("launch commands", () => {
     expect(error.details).toBe("the bridge is down");
     expect(error.can_restore_registry).toBe(false);
     expect(error.other_profiles).toEqual([]);
+  });
+
+  it("a selector state carries its profiles and last-used id", () => {
+    const state: StartupState = {
+      status: "selector",
+      profiles: [{ id: "a", name: "Alex", icon_key: null, is_password_protected: true }],
+      last_used_id: "a",
+    };
+    expect(state.status).toBe("selector");
+  });
+
+  it("a locked state carries the profile id and name", () => {
+    const state: StartupState = { status: "locked", profile_id: "a", profile_name: "Alex" };
+    expect(state.status).toBe("locked");
+  });
+
+  it("an empty_registry state carries nothing else", () => {
+    const state: StartupState = { status: "empty_registry" };
+    expect(state.status).toBe("empty_registry");
   });
 });

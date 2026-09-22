@@ -24,7 +24,19 @@ export interface LaunchError {
   other_profiles: LaunchProfile[];
 }
 
-export type StartupState = { status: "open" } | { status: "error"; error: LaunchError };
+export interface SelectorEntry {
+  id: string;
+  name: string;
+  icon_key: string | null;
+  is_password_protected: boolean;
+}
+
+export type StartupState =
+  | { status: "open" }
+  | { status: "selector"; profiles: SelectorEntry[]; last_used_id: string | null }
+  | { status: "locked"; profile_id: string; profile_name: string }
+  | { status: "empty_registry" }
+  | { status: "error"; error: LaunchError };
 
 export const getStartupState = () => invoke<StartupState>("get_startup_state");
 export const retryStartup = () => invoke<StartupState>("retry_startup");

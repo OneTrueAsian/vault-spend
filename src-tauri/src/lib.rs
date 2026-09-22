@@ -189,7 +189,6 @@ pub fn run() {
             protection_commands::select_profile,
             protection_commands::unlock_profile,
             protection_commands::lock_current_profile,
-            protection_commands::enable_profile_protection,
             protection_commands::begin_protection_setup,
             protection_commands::cancel_protection_setup,
             protection_commands::commit_protection_setup,

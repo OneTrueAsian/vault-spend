@@ -6,6 +6,7 @@ import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { isBeforeAccountCheckpoint } from "./accountGroups";
 import { effectiveBudget } from "./budgetPlan";
 import { accountWidgetId, bucketWidgetId, investmentWidgetId, WIDGET_CATALOG, type WidgetId } from "./dashboardLayout";
+import { PasswordForm } from "./PasswordForm";
 import {
   AccountTypeIcon,
   ACCOUNT_ICON_OPTIONS,
@@ -1177,6 +1178,28 @@ export function CsvExportWarningDialog({
           Export anyway
         </button>
       </div>
+    </ModalShell>
+  );
+}
+
+/** Switching to a password-protected profile from inside the running app (Phase C, Task 7, decision
+ * 4) — asks for its password instead of calling the plain `switch_profile` command, which has no
+ * way to unlock anything. Wraps the same `PasswordForm` `ProfileLockScreen` uses, so a wrong
+ * password behaves identically in both places. Nothing about the currently open profile is touched
+ * unless `onSubmit` itself succeeds — a rejected `onSubmit` leaves this dialog open with the error
+ * inline, same as any other failed attempt. */
+export function SwitchToProtectedProfileDialog({
+  profileName,
+  onCancel,
+  onSubmit,
+}: {
+  profileName: string;
+  onCancel: () => void;
+  onSubmit: (password: string) => Promise<void>;
+}) {
+  return (
+    <ModalShell title={`${profileName} is password protected`} onCancel={onCancel}>
+      <PasswordForm submitLabel="Switch" onSubmit={onSubmit} onCancel={onCancel} />
     </ModalShell>
   );
 }

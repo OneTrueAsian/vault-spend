@@ -1,0 +1,24 @@
+import { invoke } from "@tauri-apps/api/core";
+import type { StartupState } from "./startup";
+
+export const showProfileSelector = () => invoke<StartupState>("show_profile_selector");
+export const selectProfile = (id: string) => invoke<StartupState>("select_profile", { id });
+export const unlockProfile = (id: string, password: string) => invoke<StartupState>("unlock_profile", { id, password });
+export const lockCurrentProfile = (expectedGeneration: number) =>
+  invoke<StartupState>("lock_current_profile", { expectedGeneration });
+
+export interface SetupChallenge {
+  token: string;
+  recovery_display: string;
+  challenge_group_indices: [number, number];
+}
+
+export const beginProtectionSetup = (password: string, expectedGeneration: number) =>
+  invoke<SetupChallenge>("begin_protection_setup", { password, expectedGeneration });
+export const cancelProtectionSetup = (token: string) => invoke<void>("cancel_protection_setup", { token });
+export const commitProtectionSetup = (
+  token: string,
+  answers: [string, string],
+  targetProfileId: string | null,
+  newProfileName: string | null,
+) => invoke<StartupState>("commit_protection_setup", { token, answers, targetProfileId, newProfileName });

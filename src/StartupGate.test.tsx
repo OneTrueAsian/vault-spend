@@ -28,6 +28,8 @@ const startup = vi.hoisted(() => ({
 }));
 vi.mock("./startup", () => startup);
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+const listenMock = vi.hoisted(() => vi.fn());
+vi.mock("@tauri-apps/api/event", () => ({ listen: listenMock }));
 
 import { StartupGate } from "./StartupGate";
 
@@ -51,6 +53,8 @@ describe("StartupGate", () => {
       startup.startWithNewDataFile,
       startup.startWithNewProfileList,
     ].forEach((fn) => fn.mockReset());
+    listenMock.mockReset();
+    listenMock.mockResolvedValue(() => {});
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -127,5 +131,40 @@ describe("StartupGate", () => {
     await mount();
 
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+  });
+
+  it("subscribes to profile-lock-state-changed before its first fetch, and a state broadcast during the fetch wins", async () => {
+    // The subscription only becomes "live" once listen()'s own returned promise settles — modelled
+    // here as a real microtask delay, the same way the actual Tauri IPC round trip that registers
+    // the listener would be — not by assigning emitLockedEvent synchronously inside listen() itself.
+    // A mock that assigned it synchronously couldn't tell a correct "subscribe, wait, then fetch"
+    // implementation apart from a wrong "subscribe and fetch at the same time" one, since the
+    // assignment would already exist by the time either fired the fetch.
+    let emitLockedEvent: (() => void) | undefined;
+    listenMock.mockImplementation((_event: string, handler: (e: { payload: unknown }) => void) =>
+      Promise.resolve().then(() => {
+        emitLockedEvent = () => handler({ payload: { status: "locked", profile_id: "a", profile_name: "Alex" } });
+        return () => {};
+      }),
+    );
+    startup.getStartupState.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          emitLockedEvent?.(); // the event "arrives" while the fetch is still in flight
+          setTimeout(() => resolve({ status: "open" }), 0); // the fetch's own (now-stale) answer resolves after
+        }),
+    );
+
+    await mount();
+
+    expect(container.querySelector("[data-profile-lock-screen] h1")?.textContent).toContain("Alex is locked");
+  });
+
+  it("renders EmptyRegistryScreen for an empty_registry state", async () => {
+    startup.getStartupState.mockResolvedValue({ status: "empty_registry" });
+
+    await mount();
+
+    expect(container.querySelector("[data-empty-registry] h1")?.textContent).toMatch(/no profiles/i);
   });
 });

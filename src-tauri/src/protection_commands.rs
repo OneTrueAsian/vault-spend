@@ -45,12 +45,15 @@ pub fn select_profile(
 
     if target.protection.is_some() {
         runtime.lock_profile(&id);
-        return Ok(startup::startup_state_for_registry(&paths.config_path, &runtime, &status, Some(&id)));
+        let next = startup::startup_state_for_registry(&paths.config_path, &runtime, &status, Some(&id));
+        startup::broadcast_state(&app);
+        return Ok(next);
     }
     match startup::open_registered_profile(&paths.config_path, &id) {
         Ok((_, opened)) => {
             let _ = device.update(|s| s.note_last_used(&id));
             startup::activate(&app, opened);
+            startup::broadcast_state(&app);
             Ok(StartupState::Open)
         }
         Err(e) => Err(e),
@@ -63,12 +66,6 @@ pub fn unlock_profile(
     password: String,
     app: tauri::AppHandle,
     paths: tauri::State<AppPaths>,
-    // Not read yet — Task 7 adds a `broadcast_state(&app, ..., &runtime, &status, ...)` call at the
-    // end of this command, once the frontend has something listening for it. Underscore-prefixed
-    // rather than dropped so this command's parameter list is already shaped for that, and so
-    // Tauri still resolves and injects the right managed state under this exact name.
-    _runtime: tauri::State<AppStateHandle>,
-    _status: tauri::State<LaunchStatus>,
     device: tauri::State<DeviceSettingsStore>,
     sessions: tauri::State<Sessions>,
 ) -> Result<StartupState, String> {
@@ -98,6 +95,7 @@ pub fn unlock_profile(
     sessions.record_success(&id);
     let _ = device.update(|s| s.note_last_used(&id));
     startup::activate(&app, startup::OpenedProfile { state, db_path: target.db_path });
+    startup::broadcast_state(&app);
     Ok(StartupState::Open)
 }
 
@@ -107,6 +105,7 @@ pub fn unlock_profile(
 #[tauri::command]
 pub fn lock_current_profile(
     expected_generation: u64,
+    app: tauri::AppHandle,
     paths: tauri::State<AppPaths>,
     runtime: tauri::State<AppStateHandle>,
     status: tauri::State<LaunchStatus>,
@@ -117,17 +116,24 @@ pub fn lock_current_profile(
     let profile_id = profiles::profile_id_for(&paths.config_path, &current_db_path(&paths));
     runtime.lock_profile(&profile_id);
     paths.bump_generation();
-    Ok(startup::startup_state_for_registry(&paths.config_path, &runtime, &status, Some(&profile_id)))
+    let next = startup::startup_state_for_registry(&paths.config_path, &runtime, &status, Some(&profile_id));
+    startup::broadcast_state(&app);
+    Ok(next)
 }
 
 /// Turns password protection on for the currently open (and so far unprotected) profile — the
-/// journaled conversion itself lives in `protection_transition::enable_protection`; this command
+/// journaled conversion itself lives in `protection_transition::enable_protection`; this function
 /// just supplies the profile identity from the live session, then hot-swaps the connection to the
 /// freshly encrypted file the same way `unlock_profile` swaps in a freshly opened one (`startup::
 /// activate`, not a raw field assignment, so the second backup folder, the tray and the due-backup
 /// check all run exactly as they do on every other profile-open). Returns the one-time recovery
 /// code (never stored) for the caller to show, once, before it is gone forever.
-#[tauri::command]
+///
+/// Deliberately **not** a `#[tauri::command]` (Phase C, Task 7) — Task 6's `commit_protection_setup`
+/// is the only correct way to reach this, since it enforces the 2-of-7 recovery-code confirmation
+/// first. Registering this as its own directly invokable command would let the frontend (or a bug)
+/// call straight through to it, encrypting a profile with nobody ever having proven they wrote the
+/// recovery code down. It stays a plain function, called only from `commit_protection_setup` below.
 pub fn enable_profile_protection(
     password: String,
     app: tauri::AppHandle,
@@ -156,6 +162,7 @@ pub fn enable_profile_protection(
     let dek = key_file.unlock_with_password(&password).map_err(|e| e.to_string())?;
     let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
     startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    startup::broadcast_state(&app);
     Ok(recovery_code.display())
 }
 

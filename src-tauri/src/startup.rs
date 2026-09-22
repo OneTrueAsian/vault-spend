@@ -347,6 +347,21 @@ pub fn activate(app: &tauri::AppHandle, opened: OpenedProfile) {
     crate::background::sync_tray_with_settings(app);
 }
 
+/// Tells the frontend the coarse startup state changed, for a transition that does not happen
+/// during the normal launch fetch (manual lock, unlock, an in-app select, enabling protection).
+/// `StartupGate` subscribes to this before its own initial fetch (Task 7's header explains why that
+/// ordering matters). Takes only `app` and derives everything else from it, the same way `activate`
+/// above does — so a caller never needs to thread `device`/`status` through just for this.
+pub fn broadcast_state(app: &tauri::AppHandle) {
+    use tauri::{Emitter, Manager};
+    let paths = app.state::<config::AppPaths>();
+    let runtime = app.state::<AppStateHandle>();
+    let status = app.state::<LaunchStatus>();
+    let device = app.state::<DeviceSettingsStore>();
+    let state = startup_state_for_registry(&paths.config_path, &runtime, &status, device.snapshot().last_used_profile_id.as_deref());
+    let _ = app.emit("profile-lock-state-changed", state);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -23,12 +23,15 @@ import {
   NewTransactionDialog,
   TransferReviewDialog,
   AutoLinkedReviewDialog,
+  SwitchToProtectedProfileDialog,
   UseExistingDataFileDialog,
   WelcomeDialog,
   WhatsNewDialog,
 } from "./Modal";
 import { loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
+import { lockCurrentProfile, unlockProfile } from "./protection";
+import { hasObservableUnsavedInput } from "./unsavedInput";
 import { TransferRow } from "./TransferRow";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
@@ -750,9 +753,29 @@ function App({
   }
 
   async function handleSwitchProfile(id: string) {
+    const target = profiles.find((p) => p.id === id);
+    if (target?.is_password_protected) {
+      setPendingProtectedSwitch({ id, name: target.name });
+      return;
+    }
     try {
       const switched = await invoke<string>("switch_profile", { id });
       onDataFileChanged(`Switched to "${switched}".`);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
+  // Locking never disturbs any other profile's data (there is nothing to touch — this just drops
+  // the live connection) — StartupGate's own profile-lock-state-changed subscription swaps the
+  // screen over to ProfileLockScreen on its own, so there is nothing else to do here afterward.
+  async function handleLockProfile() {
+    if (hasObservableUnsavedInput() && !window.confirm("Locking now will discard anything you haven't saved. Lock anyway?")) {
+      return;
+    }
+    try {
+      const generation = await getCurrentGeneration();
+      await lockCurrentProfile(generation);
     } catch (e) {
       setStatus(String(e));
     }
@@ -989,6 +1012,7 @@ function App({
   const [manageFamilyMembersOpen, setManageFamilyMembersOpen] = useState(false);
   const [newTransactionOpen, setNewTransactionOpen] = useState(false);
   const [pendingExistingDbPath, setPendingExistingDbPath] = useState<string | null>(null);
+  const [pendingProtectedSwitch, setPendingProtectedSwitch] = useState<{ id: string; name: string } | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const { shouldRender: moreMenuShouldRender, closing: moreMenuClosing } = useDelayedVisibility(moreMenuOpen);
@@ -2064,6 +2088,12 @@ function App({
       { id: "action:backup", kind: "action", label: "Back up now", keywords: "backup save copy data" },
       { id: "action:shortcuts", kind: "action", label: "Keyboard shortcuts", keywords: "keys help hotkeys" },
     );
+    // Locking only makes sense for a profile that actually has a password to unlock it again — a
+    // locked-but-unprotected profile has no way back in except Switch profile, so this is never
+    // offered unless the active profile really is protected.
+    if (profiles.find((p) => p.is_active)?.is_password_protected) {
+      entries.push({ id: "action:lock", kind: "action", label: "Lock profile", keywords: "password protected security signout" });
+    }
     if (inboxCount > 0) {
       entries.push({ id: "action:inbox", kind: "action", label: `Review inbox (${inboxCount})`, keywords: "triage uncategorized duplicates large" });
     }
@@ -2080,7 +2110,7 @@ function App({
     }
     return entries;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderedNavItems.map((i) => i.id).join(","), privacyPrefs.hidden, inboxCount, accounts, buckets, transactions]);
+  }, [orderedNavItems.map((i) => i.id).join(","), privacyPrefs.hidden, inboxCount, accounts, buckets, transactions, profiles]);
 
   function runPaletteEntry(entry: PaletteEntry) {
     setPaletteOpen(false);
@@ -2119,6 +2149,8 @@ function App({
       setShortcutsOpen(true);
     } else if (entry.id === "action:inbox") {
       openInbox();
+    } else if (entry.id === "action:lock") {
+      void handleLockProfile();
     }
   }
 
@@ -3508,6 +3540,7 @@ function App({
           profiles={profiles}
           onSwitchProfile={handleSwitchProfile}
           onManageProfiles={() => setActiveTab("settings")}
+          onLock={profiles.find((p) => p.is_active)?.is_password_protected ? handleLockProfile : undefined}
         />
         {NAV_GROUP_ORDER.map((group) => (
           <div className="nav-group" key={group}>
@@ -5225,6 +5258,24 @@ function App({
           path={pendingExistingDbPath}
           onCancel={() => setPendingExistingDbPath(null)}
           onSubmit={handleAddExistingProfile}
+        />
+      )}
+      {pendingProtectedSwitch && (
+        <SwitchToProtectedProfileDialog
+          profileName={pendingProtectedSwitch.name}
+          onCancel={() => setPendingProtectedSwitch(null)}
+          onSubmit={async (password) => {
+            // unlock_profile only ever resolves once it has already hot-swapped the live backend
+            // connection to the new profile — onDataFileChanged (not the profile-lock-state-changed
+            // broadcast, which StartupGate alone listens to) is what actually remounts this App
+            // instance so it refetches everything for the newly-active profile: StartupGate stays on
+            // its own "open" status across this whole switch, so its event subscription never fires
+            // a re-render that would change what it renders.
+            await unlockProfile(pendingProtectedSwitch.id, password);
+            const name = pendingProtectedSwitch.name;
+            setPendingProtectedSwitch(null);
+            onDataFileChanged(`Switched to "${name}".`);
+          }}
         />
       )}
       {newTransactionOpen && (
