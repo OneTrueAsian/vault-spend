@@ -449,6 +449,48 @@ pub fn delete_profile(id: String, paths: tauri::State<crate::config::AppPaths>) 
     crate::profiles::delete_profile(&paths.config_path, &current_db_path(&paths), &id)
 }
 
+/// The four settings moved out of global browser storage into the profile database (plan v2
+/// §4.12) — a bounded, typed set of keys, never an arbitrary storage passthrough.
+#[tauri::command]
+pub fn get_profile_ui_state(key: String, state: tauri::State<AppStateHandle>) -> Result<Option<String>, String> {
+    let key = budget_core::store::UiStateKey::parse(&key).ok_or_else(|| format!("unknown UI state key: {key}"))?;
+    let state = state.lock()?;
+    state.store.get_ui_state(key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_profile_ui_state(
+    key: String,
+    value: String,
+    expected_generation: u64,
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<(), String> {
+    let key = budget_core::store::UiStateKey::parse(&key).ok_or_else(|| format!("unknown UI state key: {key}"))?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before this could be saved.".to_string());
+    }
+    let state = state.lock()?;
+    state.store.set_ui_state(key, &value).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn mark_ui_state_migrated(device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> Result<(), String> {
+    device.update(|s| s.ui_state_migrated = true)
+}
+
+#[tauri::command]
+pub fn is_ui_state_migrated(device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> bool {
+    device.snapshot().ui_state_migrated
+}
+
+/// The frontend had no reason to know its own copy of `AppPaths::generation` before Phase C —
+/// `set_profile_ui_state`'s staleness guard is the first frontend-initiated write that needs it.
+#[tauri::command]
+pub fn get_current_generation(paths: tauri::State<crate::config::AppPaths>) -> u64 {
+    paths.current_generation()
+}
+
 #[tauri::command]
 pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     let mut bytes = vec![0xEF, 0xBB, 0xBF];

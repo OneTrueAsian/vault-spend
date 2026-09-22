@@ -8,6 +8,8 @@ use std::str::FromStr;
 
 mod encryption;
 pub use self::encryption::{DatabaseKey, StoreOpenError};
+mod profile_ui_state;
+pub use self::profile_ui_state::UiStateKey;
 
 /// The starter categories offered before the user has created or used any
 /// of their own — seeded once into the `categories` table on a fresh
@@ -1229,6 +1231,10 @@ impl Store {
                 due_date TEXT NOT NULL,
                 sent_on TEXT NOT NULL,
                 PRIMARY KEY (recurring_id, due_date)
+            );
+            CREATE TABLE IF NOT EXISTS profile_ui_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
             );",
         )?;
         self.migrate_add_account_id_if_missing()?;

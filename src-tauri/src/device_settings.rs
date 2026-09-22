@@ -25,6 +25,12 @@ pub struct DeviceSettings {
     /// only on a successful activation, never merely on being shown in the selector.
     #[serde(default)]
     pub last_used_profile_id: Option<String>,
+    /// True once the four legacy browser-storage settings (saved filters, the safe-to-spend
+    /// buffer, notified bills, category order) have been moved into a profile's database — plan v2
+    /// §4.12. Set once, on this computer, by whichever profile opens first after the upgrade;
+    /// never re-checked afterward, so a later profile never re-imports stale browser values.
+    #[serde(default)]
+    pub ui_state_migrated: bool,
 }
 
 /// What a profile's database still holds from before these settings moved out of it.
@@ -284,5 +290,12 @@ mod tests {
         settings.note_last_used("beta");
 
         assert_eq!(settings.last_used_profile_id, Some("beta".to_string()));
+    }
+
+    // ---- profile UI state migration flag (Phase C, Task 3) ----
+
+    #[test]
+    fn ui_state_migration_starts_unmarked() {
+        assert!(!DeviceSettings::default().ui_state_migrated);
     }
 }

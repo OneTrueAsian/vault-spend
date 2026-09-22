@@ -70,6 +70,7 @@ import { formatAmount, toLocalIsoDate } from "./format";
 import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
+import { ensureUiStateMigrated, getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import type {
   Account,
   AllocationTarget,
@@ -285,7 +286,6 @@ const PINNED_NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
 ];
 
 const NAV_ORDER_STORAGE_KEY = "meadow-nav-order";
-const SAVED_FILTERS_STORAGE_KEY = "meadow-saved-ledger-filters";
 // Per-viewer, like the theme: how tall Transactions rows are. Compact is the
 // default — the comfortable layout stacked the tag box and Split button under
 // their cells and made every row ~75px tall.
@@ -346,24 +346,25 @@ type SavedLedgerFilter = {
   filterTag: string;
 };
 
-function loadSavedFilters(): SavedLedgerFilter[] {
+async function loadSavedFilters(): Promise<SavedLedgerFilter[]> {
   try {
-    const stored = localStorage.getItem(SAVED_FILTERS_STORAGE_KEY);
+    const stored = await getProfileUiState("saved_filters");
     if (stored) {
       const parsed: unknown = JSON.parse(stored);
       if (Array.isArray(parsed)) return parsed as SavedLedgerFilter[];
     }
   } catch {
-    // corrupt/unavailable storage — fall back to no saved filters
+    // corrupt/unavailable value — fall back to no saved filters
   }
   return [];
 }
 
-function saveSavedFilters(filters: SavedLedgerFilter[]) {
+async function saveSavedFilters(filters: SavedLedgerFilter[]) {
   try {
-    localStorage.setItem(SAVED_FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    const generation = await getCurrentGeneration();
+    await setProfileUiState("saved_filters", JSON.stringify(filters), generation);
   } catch {
-    // per-viewer preference only — fine to skip if storage is unavailable
+    // per-viewer preference only — fine to skip if the save fails
   }
 }
 
@@ -474,9 +475,22 @@ function App({
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
   const [filterTag, setFilterTag] = useState("all");
-  const [savedFilters, setSavedFilters] = useState<SavedLedgerFilter[]>(loadSavedFilters);
+  const [savedFilters, setSavedFilters] = useState<SavedLedgerFilter[]>([]);
   const [savingFilter, setSavingFilter] = useState(false);
   const [newFilterName, setNewFilterName] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    ensureUiStateMigrated()
+      .catch(() => {}) // best effort — the same treatment every browser-storage read/write here already gets
+      .then(() => loadSavedFilters())
+      .then((filters) => {
+        if (!cancelled) setSavedFilters(filters);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function saveCurrentFilter() {
     const name = newFilterName.trim();
@@ -1695,7 +1709,6 @@ function App({
     // date, window open or not), so this launch-time path steps aside — and
     // waits until it knows which case it's in.
     if (backgroundSettings === null || backgroundSettings.tray_enabled) return;
-    const NOTIFIED_KEY = "vaultspend-notified-bills";
     const DUE_SOON_DAYS = 3;
 
     (async () => {
@@ -1708,9 +1721,10 @@ function App({
       });
       if (dueSoon.length === 0) return;
 
+      const generation = await ensureUiStateMigrated().catch(() => getCurrentGeneration().catch(() => 0));
       let notified: Record<string, string> = {};
       try {
-        notified = JSON.parse(localStorage.getItem(NOTIFIED_KEY) ?? "{}");
+        notified = JSON.parse((await getProfileUiState("notified_bills")) ?? "{}");
       } catch {
         notified = {};
       }
@@ -1728,11 +1742,10 @@ function App({
         notified[String(r.id)] = todayIso;
       }
       try {
-        localStorage.setItem(NOTIFIED_KEY, JSON.stringify(notified));
+        await setProfileUiState("notified_bills", JSON.stringify(notified), generation);
       } catch {
-        // localStorage can throw (private window, blocked site data) — a
-        // missed dedup write just means this bill might notify again next
-        // launch, not a functional failure worth surfacing to the user.
+        // a missed dedup write just means this bill might notify again next launch, not a
+        // functional failure worth surfacing to the user.
       }
     })();
   }, [recurring, backgroundSettings]);
