@@ -15,7 +15,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const SEED = `cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")`;
@@ -96,7 +96,17 @@ async function scenario(name, dbDir, body) {
   });
 }
 
-// 3. A data file that has moved, with another profile to open instead.
+// 3. A data file that has moved, with a real, readable multi-profile registry alongside it. Phase
+// C, Task 9: once a registry is readable, `.setup()` never auto-opens anything from it (any entry
+// could be password protected, which can't be opened without asking first) — so the selector shows
+// both profiles instead of the missing file ever getting the chance to surface as its own error
+// screen. Picking the one whose file exists opens it; picking the one whose file is missing shows
+// an inline problem right on the selector. This is a real, deliberate behavior change from before
+// Task 9 (a single-profile "data file missing" LaunchError, offering other registered profiles
+// inline, is now unreachable whenever the registry itself is readable with more than one entry —
+// that error kind and its "other profiles" affordance still exist, and still fire correctly, for a
+// registry that can't be read at all, exactly as scenario 2 above proves) — found and fixed while
+// rechecking this exact spec against Task 9's new startup wiring, not assumed in advance.
 {
   const dbDir = await seedFixture(SEED);
   const dbFile = path.join(dbDir, "vaultspend.db");
@@ -113,20 +123,32 @@ async function scenario(name, dbDir, body) {
   fs.writeFileSync(path.join(dbDir, "profiles.json"), JSON.stringify(registry));
   fs.writeFileSync(path.join(dbDir, "config.json"), JSON.stringify({ db_path: dbFile }));
   fs.renameSync(dbFile, `${dbFile}.moved`);
-  await scenario("a data file that has moved", dbDir, async (browser) => {
-    await expectKind(browser, "data_file_missing");
-    const message = await browser.$("[data-launch-error-message]").getText();
-    if (!message.includes(dbFile)) throw new Error(`the message should name the missing file, got: ${message}`);
-    if (fs.existsSync(dbFile)) throw new Error("no blank database may appear where the file used to be");
-    if (await browser.$("[data-launch-profile='default']").isExisting()) throw new Error("the profile whose file is missing must not be offered");
 
-    await (await browser.$("[data-launch-profile='second']")).click();
-    await expectAppOpens(browser, "opening the other profile should open the app");
+  const app = await launchApp({ dbDir, ready: "[data-profile-selector]" });
+  try {
+    const { browser } = app;
+    const options = await browser.$$("[data-profile-option]");
+    if (options.length !== 2) throw new Error(`expected both profiles offered by the selector, got ${options.length}`);
+
+    await (await browser.$("button=Default")).click();
+    await browser.waitUntil(async () => (await browser.$('[role="alert"]').getText()) !== "", {
+      timeout: 10000,
+      timeoutMsg: "selecting the profile whose file is missing should show an inline problem on the selector",
+    });
+    if (fs.existsSync(dbFile)) throw new Error("no blank database may appear where the file used to be");
+    if (await browser.$(".brand-word").isExisting()) throw new Error("the app must not open for a profile whose file is missing");
+
+    await (await browser.$("button=Second")).click();
+    await browser.$(".brand-word").waitForExist({ timeout: 10000, timeoutMsg: "opening the other profile should open the app" });
+    await dismissFirstLaunchDialogs(browser);
     const where = (await invoke(browser, "get_data_file_location")).ok;
     if (path.resolve(where) !== path.resolve(secondDb)) throw new Error(`the app should be on the second profile's file, is on ${where}`);
     const config = JSON.parse(fs.readFileSync(path.join(dbDir, "config.json"), "utf8"));
     if (path.resolve(config.db_path) !== path.resolve(secondDb)) throw new Error("config.json should now point at the profile that was opened");
-  });
+  } finally {
+    await app.close();
+  }
+  console.log("  ok: a data file that has moved");
 }
 
 // 4. Locating the data file.

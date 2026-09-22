@@ -2,6 +2,8 @@ mod background;
 mod backups;
 mod commands;
 mod config;
+#[cfg(debug_assertions)]
+mod debug_commands;
 mod device_settings;
 mod finnhub;
 mod launch_commands;
@@ -136,7 +138,22 @@ pub fn run() {
                     other_profiles: Vec::new(),
                 });
                 background::sync_tray_with_settings(&handle);
-            } else {
+            } else if !(profiles::registry_file_exists(&config_path) && profiles::registered_profiles_strict(&config_path).is_ok()) {
+                // No registry at all, OR one that exists but can't even be read: unchanged
+                // pre-Phase-C behavior either way — open whatever config.json (or the default
+                // location) names directly. `open_from_disk` below already surfaces a damaged
+                // registry as its own `RegistryUnreadable` launch error (it calls
+                // `registered_profiles_strict` itself), exactly as it always has; that path must
+                // keep running for a DAMAGED registry, only a genuinely READABLE one (found by
+                // checking here, a real bug caught by Task 9's own e2e suite: checking existence
+                // alone also skipped this for a damaged profiles.json, silently losing that error)
+                // should skip straight to the selector logic below instead. Once a registry is
+                // readable, ANY of its entries could be password protected, which can never be
+                // auto-opened without asking first — so nothing here is opened at all; the
+                // frontend's very first `get_startup_state` call (now registry-aware, see
+                // `launch_commands::current`) shows the selector, a locked profile, or the
+                // empty-registry escape instead, and opening only happens once the person actually
+                // picks one.
                 match startup::open_from_disk(&config_path, &default_dir) {
                     Ok(opened) => startup::activate(&handle, opened),
                     Err(error) => {
@@ -145,6 +162,11 @@ pub fn run() {
                         background::sync_tray_with_settings(&handle);
                     }
                 }
+            } else {
+                // A real registry exists and nothing was opened above — still bring the tray up
+                // from this computer's settings, the same as every other no-profile-open branch,
+                // so it's available while the selector/lock screen is showing.
+                background::sync_tray_with_settings(&handle);
             }
             background::start_reminder_thread(handle.clone());
             background::hide_if_started_minimized(&handle);
@@ -338,6 +360,8 @@ pub fn run() {
             commands::spending_this_month,
             commands::check_monthly_rollover,
             commands::check_sinking_fund_contributions,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_process_id,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

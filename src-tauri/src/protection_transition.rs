@@ -50,16 +50,24 @@ fn unique_protected_path(source_db_path: &Path) -> PathBuf {
     }
 }
 
-/// Announces itself on stderr and then blocks forever when `VAULTSPEND_FAILPOINT` names it —
-/// Task 9's e2e driver watches for the announcement and hard-kills the process at that exact
-/// instant. Compiled out entirely in release builds, so it can never fire for a real user.
+/// Writes a `failpoint-reached.txt` marker into `VAULTSPEND_DB_DIR` and then blocks forever when
+/// `VAULTSPEND_FAILPOINT` names it — Task 9's e2e driver polls for that file and hard-kills the
+/// process at that exact instant. A marker file, not a stderr line: `tauri-driver` launches the app
+/// as its own child without forwarding the app's stdio anywhere a test can read it, confirmed
+/// empirically while building Task 9, so a file that survives independently of any process's stdio
+/// plumbing is the only reliable signal. Gated behind `VAULTSPEND_DB_DIR` (only ever set by e2e
+/// tests, never a normal launch) on top of the existing `#[cfg(debug_assertions)]` gate, so a stray
+/// `VAULTSPEND_FAILPOINT` left set in a dev shell can never freeze an ordinary `tauri dev` session.
+/// Compiled out entirely in release builds, so it can never fire for a real user.
 #[cfg(debug_assertions)]
 pub fn debug_failpoint(name: &str) {
-    if std::env::var("VAULTSPEND_FAILPOINT").as_deref() == Ok(name) {
-        eprintln!("FAILPOINT_REACHED:{name}");
-        loop {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
+    let Ok(marker_dir) = std::env::var("VAULTSPEND_DB_DIR") else { return };
+    if std::env::var("VAULTSPEND_FAILPOINT").as_deref() != Ok(name) {
+        return;
+    }
+    let _ = std::fs::write(Path::new(&marker_dir).join("failpoint-reached.txt"), name);
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(50));
     }
 }
 #[cfg(not(debug_assertions))]
@@ -93,6 +101,7 @@ pub fn enable_protection(
         target_key_path: target_key_path.display().to_string(),
         owned_backup_pairs: Vec::new(),
     };
+    debug_failpoint("before_journal");
     write_journal(config_path, &journal)?;
 
     store.export_encrypted_copy(&target_db_path, protection.dek.as_bytes()).map_err(|e| e.to_string())?;
@@ -153,6 +162,7 @@ pub fn create_protected_profile(
     empty.export_encrypted_copy(&target_db_path, protection.dek.as_bytes()).map_err(|e| e.to_string())?;
     empty.verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes())).map_err(|e| e.to_string())?;
     protection.key_file.write_to(&keyfile::key_file_path_for(&target_db_path)).map_err(|e| e.to_string())?;
+    debug_failpoint("before_register");
     profiles::register_prepared_profile(config_path, live_db_path, &id, name, &target_db_path, Some(profiles::Protection { format: keyfile::FORMAT }))?;
     Ok((id, protection.key_file, protection.recovery_code, target_db_path))
 }
@@ -176,6 +186,7 @@ pub fn recover_interrupted_operation(config_path: &Path) -> Result<(), String> {
     if !committed {
         let _ = std::fs::remove_file(&journal.target_db_path);
         let _ = std::fs::remove_file(&journal.target_key_path);
+        debug_failpoint("during_recovery");
         for filename in &journal.owned_backup_pairs {
             let _ = std::fs::remove_file(filename);
             let _ = std::fs::remove_file(keyfile::key_file_path_for(Path::new(filename)));

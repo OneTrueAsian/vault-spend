@@ -322,6 +322,15 @@ pub fn set_profile_icon(id: String, icon_key: Option<String>, paths: tauri::Stat
 /// subfolder — see `profiles::create_profile`) and hot-swaps to it
 /// immediately, same in-place mechanism as `relocate_data_file`/
 /// `restore_backup` — creating a profile means "start using it now."
+///
+/// Deliberately does NOT require a profile to already be open (`runtime.install`, not `.lock()?`
+/// followed by a swap): the in-app Settings "New profile" button always has one open, but
+/// `EmptyRegistryScreen` (Phase C) calls this exact command with NOTHING open — a registry that
+/// exists but lists no profiles. `install` drops whatever was there and installs fresh either way,
+/// so both callers get the same "now open on the new profile" result regardless of where they
+/// started. Found via a real e2e launch (Task 9): no unit test calls the real Tauri command layer,
+/// so `state.lock()?` unconditionally failing with `NO_PROFILE_OPEN` for the empty-registry path
+/// was invisible to every jsdom/Rust test already covering the two pieces separately.
 #[tauri::command]
 pub fn create_profile(
     name: String,
@@ -329,7 +338,6 @@ pub fn create_profile(
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<String, String> {
-    let mut state = state.lock()?;
     let live_db_path = current_db_path(&paths);
     let profile = crate::profiles::create_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
 
@@ -340,11 +348,12 @@ pub fn create_profile(
     // live on the old profile instead of silently drifting out of sync with
     // `config.json`.
     crate::config::write_db_location_config(&paths.config_path, &profile.db_path).map_err(|e| e.to_string())?;
-    *state = AppState::open(&profile.db_path)?;
+    state.install(AppState::open(&profile.db_path)?);
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = profile.db_path.clone();
     paths.bump_generation();
 
-    crate::startup::after_profile_opened(&paths.config_path, &profile.db_path, &state.store, &device, chrono::Local::now().naive_local());
+    let session = state.lock()?;
+    crate::startup::after_profile_opened(&paths.config_path, &profile.db_path, &session.store, &device, chrono::Local::now().naive_local());
 
     Ok(profile.name)
 }

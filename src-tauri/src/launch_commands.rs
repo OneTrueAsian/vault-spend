@@ -8,8 +8,19 @@ use crate::startup::{self, LaunchErrorKind, LaunchStatus, StartupState};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
+/// Registry-aware (Phase C): a real `profiles.json` can mean the selector, a locked profile, or an
+/// empty registry, none of which the pre-Phase-C `startup::startup_state` (open-or-error only) ever
+/// reports — see `startup_state_for_registry`'s own doc comment. This is also what makes `.setup()`
+/// (`lib.rs`) skipping its boot-time auto-open once a registry exists actually visible to the
+/// frontend: without this, `get_startup_state` would report the OLD "no profile is open" generic
+/// error instead of the selector, exactly the class of bug only a real launch (Task 9's e2e) could
+/// catch — no unit test calls the real Tauri command this wraps.
 fn current(app: &AppHandle) -> StartupState {
-    startup::startup_state(&app.state::<AppStateHandle>(), &app.state::<LaunchStatus>())
+    let paths = app.state::<AppPaths>();
+    let runtime = app.state::<AppStateHandle>();
+    let status = app.state::<LaunchStatus>();
+    let device = app.state::<crate::device_settings::DeviceSettingsStore>();
+    startup::startup_state_for_registry(&paths.config_path, &runtime, &status, device.snapshot().last_used_profile_id.as_deref())
 }
 
 fn refuse_if_open(app: &AppHandle) -> Result<(), String> {

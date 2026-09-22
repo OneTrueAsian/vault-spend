@@ -95,7 +95,32 @@ async function connectWithRetries(options, { attempts = 20, delayMs = 100 } = {}
   throw lastErr;
 }
 
-export async function launchApp({ dbDir, ready = ".brand-word" } = {}) {
+// Every fresh test DB (localStorage is per-webview-origin, not shared with a real install) hits
+// the first-launch welcome dialog, which blocks clicks on everything behind its overlay — dismiss
+// it here once so no individual spec needs to know about it. `launchApp` already calls this itself
+// when `ready` is left at its default (`.brand-word`); a spec that waits for something ELSE first
+// (a launch error screen, the profile selector, a lock screen) and only reaches the open app
+// afterward — e.g. by unlocking a profile mid-test — must call this itself once `.brand-word`
+// actually exists, before clicking anything else, or the very first click lands on this overlay.
+export async function dismissFirstLaunchDialogs(browser) {
+  const getStarted = await browser.$("button*=Just get started");
+  if (await getStarted.isExisting()) {
+    await getStarted.click();
+  }
+  // Immediately after Welcome, a fresh launch also always hits the "What's new" dialog — a fresh
+  // profile means no version has ever been "seen" yet, exactly like a true first install. Same
+  // blocking-overlay problem, same fix. Its version check is an async Tauri call (and only renders
+  // once Welcome is gone), so give it a moment rather than checking once immediately.
+  try {
+    const gotIt = await browser.$("button=Got it");
+    await gotIt.waitForExist({ timeout: 3000 });
+    await gotIt.click();
+  } catch {
+    // didn't show this run (e.g. no CHANGELOG entry for this version) — nothing to dismiss
+  }
+}
+
+export async function launchApp({ dbDir, ready = ".brand-word", beforeReady } = {}) {
   const ownDbDir = dbDir === undefined;
   const testDbDir = dbDir ?? freshTestDbDir();
   const PORT = await getFreePort();
@@ -144,6 +169,10 @@ export async function launchApp({ dbDir, ready = ".brand-word" } = {}) {
     // session starting at about:blank) — Tauri does not auto-navigate under
     // TAURI_WEBVIEW_AUTOMATION, so every test must do this once up front.
     await browser.url("http://tauri.localhost/index.html");
+    // A narrow window to run something (e.g. seeding localStorage) after the page has navigated —
+    // so it's on the app's own origin — but as early as possible relative to the app's own mount
+    // effects, for a test that needs to be present before the app's very first read of it.
+    if (beforeReady) await beforeReady(browser);
     try {
       await browser.$(ready).waitForExist({ timeout: 15000 });
     } catch (waitErr) {
@@ -151,30 +180,11 @@ export async function launchApp({ dbDir, ready = ".brand-word" } = {}) {
       throw new Error(`App loaded but never rendered ${ready}. Page source:\n${src}\n\n${waitErr.stack || waitErr}`);
     }
     // The welcome and "What's new" dialogs exist only inside the app itself. A spec that waits for
-    // something else (the launch error screen) never sees them.
+    // something else (the launch error screen, the profile selector) never sees them at this point
+    // — call dismissFirstLaunchDialogs once the app itself is actually showing, e.g. after a
+    // selector/lock-screen detour reaches it, if it needs to interact with anything past them.
     if (ready === ".brand-word") {
-      // Every fresh test DB (localStorage is per-webview-origin, not shared
-      // with a real install) hits the first-launch welcome dialog, which
-      // blocks clicks on everything behind its overlay — dismiss it here once
-      // so no individual spec needs to know about it.
-      const getStarted = await browser.$("button*=Just get started");
-      if (await getStarted.isExisting()) {
-        await getStarted.click();
-      }
-      // Immediately after Welcome, a fresh launch also always hits the
-      // "What's new" dialog — a fresh profile means no version has ever been
-      // "seen" yet, exactly like a true first install. Same blocking-overlay
-      // problem, same fix. Its version check is an async Tauri call (and
-      // only renders once Welcome is gone), so give it a moment rather than
-      // checking once immediately.
-      try {
-        const gotIt = await browser.$("button=Got it");
-        await gotIt.waitForExist({ timeout: 3000 });
-        await gotIt.click();
-      } catch {
-        // didn't show this run (e.g. no CHANGELOG entry for this version) —
-        // nothing to dismiss
-      }
+      await dismissFirstLaunchDialogs(browser);
     }
   } catch (e) {
     driverProcess.kill();
@@ -185,7 +195,16 @@ export async function launchApp({ dbDir, ready = ".brand-word" } = {}) {
     browser,
     testDbDir,
     async close() {
-      try { await browser.deleteSession(); } catch { /* app may already be gone */ }
+      // Bounded: an app that died on its own (a spec's own process-kill test, or a genuine crash)
+      // can leave tauri-driver waiting on a response that will never come — an unbounded await here
+      // would hang this call (and so the whole spec) indefinitely instead of just leaking a little
+      // slower. A real bug found running Task 9's own kill scenarios: they cost 90+s each before
+      // this bound existed, and left tauri-driver/msedgedriver processes running afterward too,
+      // since driverProcess.kill() below was never reached until the hung await gave up on its own.
+      await Promise.race([
+        browser.deleteSession().catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
       driverProcess.kill();
       // Wait for the actual exit rather than firing kill() and moving on —
       // bounded so a driver that won't die can't hang the caller, but this
