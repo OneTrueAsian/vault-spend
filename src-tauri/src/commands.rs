@@ -498,6 +498,19 @@ impl AppState {
         let rules = store.load_rules().map_err(|e| e.to_string())?;
         Ok(AppState { store, rules })
     }
+
+    /// The keyed counterpart to `open`, used once a password has unwrapped a profile's database
+    /// key (Phase C). Refuses a missing file rather than silently creating one — see
+    /// `budget_core::store::encryption::Store::open_with_key`'s own doc comment.
+    pub fn open_with_key(
+        db_path: impl AsRef<std::path::Path>,
+        key: budget_core::store::DatabaseKey<'_>,
+    ) -> Result<Self, String> {
+        let store = Store::open_with_key(db_path, key).map_err(|e| e.to_string())?;
+        store.seed_default_rules_once().map_err(|e| e.to_string())?;
+        let rules = store.load_rules().map_err(|e| e.to_string())?;
+        Ok(AppState { store, rules })
+    }
 }
 
 #[derive(Serialize)]

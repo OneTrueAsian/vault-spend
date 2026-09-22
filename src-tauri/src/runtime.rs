@@ -172,6 +172,19 @@ mod tests {
     }
 
     #[test]
+    fn a_freshly_locked_profile_has_no_delay() {
+        // A baseline guard, not a new behavior: attempt-delay bookkeeping (Phase C, Task 2) lives
+        // in the separate `protection_session::Sessions`, not here — `AppRuntime` itself carries no
+        // deadline state. This just pins down that locking alone still reports the plain Locked
+        // status, so a later change that tries to fold delay state into this slot is caught here.
+        let runtime = open_runtime(open_state("fresh-lock"));
+
+        runtime.lock_profile("work");
+
+        assert_eq!(runtime.status(), RuntimeStatus::Locked { profile_id: "work".to_string() });
+    }
+
+    #[test]
     fn the_session_lets_a_command_swap_the_state_in_place() {
         // relocate_data_file, restore_backup and switch_profile do `*state = AppState::open(..)?`.
         let runtime = open_runtime(open_state("swap-first"));

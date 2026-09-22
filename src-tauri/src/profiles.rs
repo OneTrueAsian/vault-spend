@@ -71,6 +71,14 @@ fn registry_path(config_path: &Path) -> PathBuf {
     config_path.parent().unwrap_or_else(|| Path::new(".")).join(REGISTRY_FILENAME)
 }
 
+/// Whether `profiles.json` exists at all — distinct from whether it lists any profiles. An absent
+/// file means nobody has ever touched profiles (open the default profile directly, unchanged); a
+/// present-but-empty file is a real, if unusual, state (`StartupState::EmptyRegistry`) that must
+/// not be treated the same way.
+pub fn registry_file_exists(config_path: &Path) -> bool {
+    registry_path(config_path).exists()
+}
+
 /// Where a new profile's own directory (and thus its `vaultspend.db` and
 /// its automatically-isolated `backups/` subfolder — see
 /// `backups::backups_dir_for`) lives: a `profiles` folder next to

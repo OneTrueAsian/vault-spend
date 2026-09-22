@@ -5,7 +5,7 @@ use crate::commands::{AppState, AppStateHandle};
 use crate::config;
 use crate::device_settings::{DeviceSettingsStore, LegacyProfileSettings};
 use crate::profiles;
-use crate::runtime::AppRuntime;
+use crate::runtime::{AppRuntime, RuntimeStatus};
 use budget_core::store::Store;
 use chrono::NaiveDateTime;
 use serde::Serialize;
@@ -249,11 +249,25 @@ impl LaunchStatus {
     }
 }
 
-/// What the page renders. Phase C adds `Selector` and `Locked`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SelectorEntry {
+    pub id: String,
+    pub name: String,
+    pub icon_key: Option<String>,
+    pub is_password_protected: bool,
+}
+
+/// What the page renders.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum StartupState {
     Open,
+    Selector { profiles: Vec<SelectorEntry>, last_used_id: Option<String> },
+    Locked { profile_id: String, profile_name: String },
+    /// `profiles.json` exists and parses, but lists no profiles — distinct from no file at all
+    /// (which stays `Open`/`Error` via `startup_state` below). Never silently opens or invents a
+    /// Default profile; the frontend's escape is "Create a profile."
+    EmptyRegistry,
     Error { error: LaunchError },
 }
 
@@ -271,6 +285,45 @@ pub fn startup_state(runtime: &AppRuntime, status: &LaunchStatus) -> StartupStat
         other_profiles: Vec::new(),
     });
     StartupState::Error { error }
+}
+
+/// Chooses between the five states. `registered` is read fresh every call (cheap — it is just a
+/// `profiles.json` read) rather than cached, because the registry can change between calls (a
+/// profile created, deleted or protected) while nothing is open.
+pub fn startup_state_for_registry(config_path: &Path, runtime: &AppRuntime, status: &LaunchStatus, last_used_id: Option<&str>) -> StartupState {
+    if runtime.is_open() {
+        return StartupState::Open;
+    }
+    if let RuntimeStatus::Locked { profile_id } = runtime.status() {
+        let name = profiles::registered_profiles_strict(config_path)
+            .ok()
+            .and_then(|list| list.into_iter().find(|p| p.id == profile_id).map(|p| p.name))
+            .unwrap_or_else(|| profile_id.clone());
+        return StartupState::Locked { profile_id, profile_name: name };
+    }
+    if !profiles::registry_file_exists(config_path) {
+        return startup_state(runtime, status); // no registry at all: unchanged, direct default open (or its existing error path)
+    }
+    let registered = match profiles::registered_profiles_strict(config_path) {
+        Ok(list) => list,
+        Err(_) => return startup_state(runtime, status), // an unreadable registry is the existing RegistryUnreadable error path
+    };
+    if registered.is_empty() {
+        return StartupState::EmptyRegistry;
+    }
+    let last_used_id = last_used_id.filter(|id| registered.iter().any(|p| &p.id == id)).map(str::to_string);
+    StartupState::Selector {
+        profiles: registered
+            .into_iter()
+            .map(|p| SelectorEntry {
+                id: p.id,
+                name: p.name,
+                icon_key: None, // list_profiles (not registered_profiles_strict) carries icon_key; wired in Task 7's command layer
+                is_password_protected: p.protection.is_some(),
+            })
+            .collect(),
+        last_used_id,
+    }
 }
 
 /// Makes `opened` the live profile: settles this computer's settings and any due backup, hands the
@@ -565,6 +618,96 @@ mod tests {
         assert_eq!(startup_state(&runtime, &status), StartupState::Open);
     }
 
+    // ---- startup_state_for_registry (Phase C, Task 2) ----
+
+    #[test]
+    fn a_registry_with_one_profile_still_shows_the_selector_not_a_silent_open() {
+        let dir = temp_dir("selector-one");
+        write_registry(&dir, &[("default", "Default", dir.join("vaultspend.db"))]);
+        let runtime = AppRuntime::no_profile_open();
+        let status = LaunchStatus::new(dir.clone());
+
+        let state = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, None);
+
+        match state {
+            StartupState::Selector { profiles, .. } => assert_eq!(profiles.len(), 1),
+            other => panic!("expected Selector, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn no_registry_at_all_skips_the_selector_exactly_like_before() {
+        let dir = temp_dir("selector-none");
+        let runtime = AppRuntime::no_profile_open();
+        runtime.install(AppState::open(dir.join("vaultspend.db")).unwrap());
+        let status = LaunchStatus::new(dir.clone());
+
+        let state = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, None);
+
+        assert_eq!(state, StartupState::Open);
+    }
+
+    #[test]
+    fn a_protected_profile_locked_by_the_runtime_reports_locked_with_its_name() {
+        let dir = temp_dir("selector-locked");
+        let alpha = dir.join("alpha").join("vaultspend.db");
+        make_database(&alpha);
+        write_registry(&dir, &[("alpha", "Alpha", alpha.clone())]);
+        let runtime = AppRuntime::no_profile_open();
+        runtime.lock_profile("alpha");
+        let status = LaunchStatus::new(dir.clone());
+
+        let state = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, None);
+
+        assert_eq!(state, StartupState::Locked { profile_id: "alpha".to_string(), profile_name: "Alpha".to_string() });
+    }
+
+    #[test]
+    fn the_last_used_id_is_carried_into_the_selector_when_present() {
+        let dir = temp_dir("selector-last-used");
+        write_registry(&dir, &[("default", "Default", dir.join("vaultspend.db")), ("second", "Second", dir.join("second.db"))]);
+        let runtime = AppRuntime::no_profile_open();
+        let status = LaunchStatus::new(dir.clone());
+
+        let state = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, Some("second"));
+
+        match state {
+            StartupState::Selector { last_used_id, .. } => assert_eq!(last_used_id, Some("second".to_string())),
+            other => panic!("expected Selector, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_registry_that_lost_its_last_used_entry_still_shows_the_selector() {
+        let dir = temp_dir("selector-stale-last-used");
+        write_registry(&dir, &[("default", "Default", dir.join("vaultspend.db"))]);
+        let runtime = AppRuntime::no_profile_open();
+        let status = LaunchStatus::new(dir.clone());
+
+        let state = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, Some("deleted-profile"));
+
+        match state {
+            StartupState::Selector { last_used_id, .. } => assert_eq!(last_used_id, None, "a stale id is not offered as if it still existed"),
+            other => panic!("expected Selector, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_empty_registry_file_is_a_distinct_escape_never_a_silent_default_open() {
+        // Not the same thing as no `profiles.json` at all (that case is
+        // `no_registry_at_all_skips_the_selector_exactly_like_before`, above) — a *present but
+        // empty* file is what v2's architecture note means by "never silently invent or open
+        // Default."
+        let dir = temp_dir("selector-empty-file");
+        write_registry(&dir, &[]);
+        let runtime = AppRuntime::no_profile_open();
+        let status = LaunchStatus::new(dir.clone());
+
+        let state = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, None);
+
+        assert_eq!(state, StartupState::EmptyRegistry);
+        assert!(!dir.join("vaultspend.db").exists(), "nothing is opened on the person's behalf");
+    }
 
     // ---- the escape actions ----
 

@@ -9,6 +9,8 @@ mod legacy_migration;
 mod live_price_provider;
 mod live_prices;
 mod profiles;
+mod protection_commands;
+mod protection_session;
 mod runtime;
 mod startup;
 mod stockdata;
@@ -98,6 +100,7 @@ pub fn run() {
                 generation: std::sync::atomic::AtomicU64::new(0),
             });
             app.manage(startup::LaunchStatus::new(default_dir.clone()));
+            app.manage(protection_session::Sessions::new());
 
             // Restores the window to whatever size (never position — a
             // saved position could sit on a monitor that's no longer
@@ -157,6 +160,10 @@ pub fn run() {
             commands::rename_profile,
             commands::set_profile_icon,
             commands::delete_profile,
+            protection_commands::show_profile_selector,
+            protection_commands::select_profile,
+            protection_commands::unlock_profile,
+            protection_commands::lock_current_profile,
             commands::preview_setup_import,
             commands::commit_setup_import,
             commands::preview_import,
