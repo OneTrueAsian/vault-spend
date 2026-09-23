@@ -509,14 +509,20 @@ pub fn former_plaintext_path_for(config_path: &Path, live_db_path: &Path, id: &s
 /// disk untouched (matching `relocate_data_file`'s "old file left in
 /// place" philosophy: deleting a profile removes it from the list, it
 /// doesn't destroy data). Refuses to delete whichever profile is currently
-/// active (`db_path == live_db_path`) — there's nothing to hot-swap to.
+/// OPEN (`db_path == live_db_path` AND `currently_open`) — there's an active
+/// connection to hot-swap away from and nothing to hot-swap to. `AppPaths`'
+/// own `db_path` still names a merely LOCKED profile too (locking closes the
+/// connection but never repoints `db_path` — nothing else to point it at),
+/// so the caller must pass `currently_open: false` for that case: deleting a
+/// locked profile's registry entry is safe (no open connection holds it) and
+/// is exactly what the "forgot password, remove this profile" escape needs.
 /// Unknown id is a harmless no-op.
-pub fn delete_profile(config_path: &Path, live_db_path: &Path, id: &str) -> Result<(), String> {
+pub fn delete_profile(config_path: &Path, live_db_path: &Path, currently_open: bool, id: &str) -> Result<(), String> {
     let entries = entries_or_synthesize(config_path, live_db_path);
     let Some(target) = entries.iter().find(|p| p.id == id) else {
         return Ok(());
     };
-    if &target.db_path == live_db_path {
+    if currently_open && &target.db_path == live_db_path {
         return Err("Can't delete the profile you're currently using — switch to another one first.".to_string());
     }
     let remaining: Vec<ProfileEntry> = entries.into_iter().filter(|p| p.id != id).collect();
@@ -944,7 +950,7 @@ mod tests {
         std::fs::create_dir_all(alex.db_path.parent().unwrap()).unwrap();
         std::fs::write(&alex.db_path, b"fake db content").unwrap();
 
-        delete_profile(&config_path, &live_db_path, &alex.id).unwrap();
+        delete_profile(&config_path, &live_db_path, true, &alex.id).unwrap();
 
         let profiles = list_profiles(&config_path, &live_db_path);
         assert!(!profiles.iter().any(|p| p.id == alex.id), "the registry entry must be gone");
@@ -952,14 +958,14 @@ mod tests {
     }
 
     #[test]
-    fn delete_profile_refuses_to_delete_the_currently_active_profile() {
+    fn delete_profile_refuses_to_delete_the_currently_open_profile() {
         let dir = temp_dir("delete-refuses-active");
         let config_path = dir.join("config.json");
         let live_db_path = dir.join("vaultspend.db");
         let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-08-30 12:00:00")).unwrap();
 
-        // "Switch" to Alex by treating her path as the live one.
-        let result = delete_profile(&config_path, &alex.db_path, &alex.id);
+        // "Switch" to Alex by treating her path as the live one, genuinely open.
+        let result = delete_profile(&config_path, &alex.db_path, true, &alex.id);
 
         assert!(result.is_err());
         let profiles = list_profiles(&config_path, &alex.db_path);
@@ -970,12 +976,30 @@ mod tests {
     }
 
     #[test]
+    fn delete_profile_allows_deleting_a_merely_locked_not_open_profile() {
+        // AppPaths::db_path still names a locked (not open) profile too — locking closes the
+        // connection but never repoints db_path — so `currently_open: false` must let the delete
+        // through even though db_path still matches. This is exactly the "forgot password, remove
+        // this profile" escape's own scenario (Phase D, Task 5): the profile it's removing is always
+        // the one currently sitting locked, never one that's genuinely open.
+        let dir = temp_dir("delete-allows-locked");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("vaultspend.db");
+        let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-08-30 12:00:00")).unwrap();
+
+        delete_profile(&config_path, &alex.db_path, false, &alex.id).unwrap();
+
+        let profiles = list_profiles(&config_path, &alex.db_path);
+        assert!(!profiles.iter().any(|p| p.id == alex.id), "a locked (not open) profile must be deletable");
+    }
+
+    #[test]
     fn delete_profile_on_an_unknown_id_is_a_harmless_no_op() {
         let dir = temp_dir("delete-unknown-id");
         let config_path = dir.join("config.json");
         let live_db_path = dir.join("vaultspend.db");
 
-        let result = delete_profile(&config_path, &live_db_path, "no-such-id");
+        let result = delete_profile(&config_path, &live_db_path, true, "no-such-id");
 
         assert!(result.is_ok());
         assert!(!registry_path(&config_path).exists(), "a no-op delete must not materialize the registry");

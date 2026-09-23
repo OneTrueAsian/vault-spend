@@ -8,6 +8,17 @@ import { createRoot, type Root } from "react-dom/client";
 
 const protection = vi.hoisted(() => ({ unlockProfile: vi.fn(), showProfileSelector: vi.fn() }));
 vi.mock("./protection", () => protection);
+const profileUiState = vi.hoisted(() => ({ getCurrentGeneration: vi.fn() }));
+vi.mock("./profileUiState", () => profileUiState);
+const invokeMock = vi.hoisted(() => vi.fn());
+vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+vi.mock("./RecoverProfileDialog", () => ({
+  RecoverProfileDialog: ({ profileId, expectedGeneration }: { profileId: string; expectedGeneration: number }) => (
+    <div data-recover-profile-dialog>
+      {profileId}:{expectedGeneration}
+    </div>
+  ),
+}));
 
 import { ProfileLockScreen } from "./ProfileLockScreen";
 
@@ -29,6 +40,8 @@ describe("ProfileLockScreen", () => {
   beforeEach(() => {
     protection.unlockProfile.mockReset();
     protection.showProfileSelector.mockReset();
+    profileUiState.getCurrentGeneration.mockReset().mockResolvedValue(4);
+    invokeMock.mockReset().mockResolvedValue(undefined);
     onResolved.mockReset();
     container = document.createElement("div");
     document.body.append(container);
@@ -77,5 +90,50 @@ describe("ProfileLockScreen", () => {
 
     expect(onResolved).toHaveBeenCalledWith({ status: "selector", profiles: [], last_used_id: null });
     expect(protection.unlockProfile).not.toHaveBeenCalled();
+  });
+
+  it("Forgot your password? fetches the current generation and opens RecoverProfileDialog for this profile", async () => {
+    show();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-forgot-password]")!.click();
+    });
+
+    expect(profileUiState.getCurrentGeneration).toHaveBeenCalledTimes(1);
+    expect(document.body.querySelector("[data-recover-profile-dialog]")!.textContent).toBe("a:4");
+  });
+
+  it("the remove-from-list escape needs a second click, names the profile, then deletes it and shows the selector", async () => {
+    protection.showProfileSelector.mockResolvedValue({ status: "selector", profiles: [], last_used_id: null });
+    show();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>("[data-forgot-remove-profile]")!.click();
+    });
+
+    expect(document.body.textContent).toContain("Alex");
+    expect(invokeMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-confirm-remove-profile]")!.click();
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("delete_profile", { id: "a" });
+    expect(protection.showProfileSelector).toHaveBeenCalledTimes(1);
+    expect(onResolved).toHaveBeenCalledWith({ status: "selector", profiles: [], last_used_id: null });
+  });
+
+  it("cancelling the remove-from-list confirmation deletes nothing", async () => {
+    show();
+    act(() => {
+      container.querySelector<HTMLButtonElement>("[data-forgot-remove-profile]")!.click();
+    });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>("[data-cancel-remove-profile]")!.click();
+    });
+
+    expect(invokeMock).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-confirm-remove-profile]")).toBeNull();
   });
 });

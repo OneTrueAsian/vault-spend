@@ -6308,10 +6308,27 @@ svg.profile-card-avatar {
   place-items: center;
 }
 
-.profile-gate-switch {
+.profile-gate-switch,
+.profile-gate-forgot,
+.profile-gate-forgot-remove {
   display: block;
   width: 100%;
   margin-top: 14px;
+}
+
+.profile-gate-forgot-remove {
+  font-size: 0.85em;
+}
+
+.profile-gate-remove-confirm {
+  display: block;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.profile-gate-remove-confirm .profile-card-actions {
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 
 .password-form-field {

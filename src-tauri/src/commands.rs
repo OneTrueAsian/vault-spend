@@ -474,11 +474,14 @@ pub fn rename_profile(id: String, new_name: String, paths: tauri::State<crate::c
 
 /// Registry-only — the profile's own file is left on disk untouched (same
 /// "old file left in place" philosophy as `relocate_data_file`). Refuses to
-/// delete whichever profile is currently active — see
-/// `profiles::delete_profile`.
+/// delete whichever profile is currently OPEN, but allows deleting one that's
+/// merely LOCKED (its connection already closed the moment it was locked —
+/// `AppPaths::db_path` still names it either way, so the runtime's own
+/// status, not just the path, decides) — see `profiles::delete_profile`.
 #[tauri::command]
-pub fn delete_profile(id: String, paths: tauri::State<crate::config::AppPaths>) -> Result<(), String> {
-    crate::profiles::delete_profile(&paths.config_path, &current_db_path(&paths), &id)
+pub fn delete_profile(id: String, paths: tauri::State<crate::config::AppPaths>, runtime: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let currently_open = runtime.status() == crate::runtime::RuntimeStatus::Open;
+    crate::profiles::delete_profile(&paths.config_path, &current_db_path(&paths), currently_open, &id)
 }
 
 /// The four settings moved out of global browser storage into the profile database (plan v2

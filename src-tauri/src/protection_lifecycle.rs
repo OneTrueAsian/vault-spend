@@ -89,7 +89,6 @@ fn unique_protected_path(source_db_path: &Path) -> PathBuf {
 
 enum Proof<'a> {
     Password(&'a str),
-    #[allow(dead_code)]
     Recovery(&'a RecoveryCode),
 }
 
@@ -314,7 +313,7 @@ pub fn remove_protection(
     Ok(target_db_path)
 }
 
-#[allow(dead_code)] // public lifecycle entry point retained for Task 5 and direct unit coverage
+#[allow(dead_code)] // exercised directly by this file's own unit tests; the command layer uses rotate_password_with_recovery
 pub fn rotate_password(
     config_path: &Path,
     profile_id: &str,
@@ -334,6 +333,39 @@ pub fn rotate_password(
         RecoveryCode::generate(),
         now,
     )
+}
+
+/// Recovers access to a locked, protected profile with its recovery code, then immediately sets a
+/// new password through the same rotation `rotate_password` uses — the recovery code itself is
+/// then retired (a fresh one is issued), exactly like a normal password change. Plan v2 §4.8.
+#[allow(dead_code)] // exercised directly by this file's own unit tests; the command layer uses recover_password_with_recovery
+pub fn recover_password(
+    config_path: &Path,
+    profile_id: &str,
+    live_db_path: &Path,
+    store: &Store,
+    recovery_code: &RecoveryCode,
+    new_password: &str,
+    now: NaiveDateTime,
+) -> Result<(KeyFile, RecoveryCode, PathBuf), String> {
+    rotate_dek(config_path, profile_id, live_db_path, store, Proof::Recovery(recovery_code), new_password, RecoveryCode::generate(), now)
+}
+
+/// `recover_password`'s code-identity-safe sibling: the caller supplies the exact new recovery code
+/// its own save-confirmation challenge displayed, so the code shown to the person and the code
+/// actually committed can never diverge — the same fix `rotate_password_with_recovery` applies for
+/// change password.
+pub fn recover_password_with_recovery(
+    config_path: &Path,
+    profile_id: &str,
+    live_db_path: &Path,
+    store: &Store,
+    recovery_code: &RecoveryCode,
+    new_password: &str,
+    new_recovery_code: RecoveryCode,
+    now: NaiveDateTime,
+) -> Result<(KeyFile, RecoveryCode, PathBuf), String> {
+    rotate_dek(config_path, profile_id, live_db_path, store, Proof::Recovery(recovery_code), new_password, new_recovery_code, now)
 }
 
 pub fn rotate_password_with_recovery(
@@ -588,6 +620,48 @@ mod tests {
         assert!(!live_db_path.exists());
         assert!(!keyfile::key_file_path_for(&live_db_path).exists());
         assert!(!removal_journal_path_for(&config_path).exists());
+    }
+
+    #[test]
+    fn recovering_with_the_right_code_sets_a_new_password_and_issues_a_new_code() {
+        let dir = temp_dir("recover-happy-path");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("v.db");
+        let (id, key_file, recovery_code, target) =
+            crate::protection_transition::create_protected_profile(&config_path, &live_db_path, "Sam", "old password 123", now()).unwrap();
+        let old_dek = key_file.unlock_with_password("old password 123").unwrap();
+        let store = Store::open_with_key(&target, DatabaseKey::Raw(old_dek.as_bytes())).unwrap();
+
+        let (new_key_file, new_recovery_code, target_path) =
+            recover_password(&config_path, &id, &target, &store, &recovery_code, "recovered new password", now()).unwrap();
+
+        assert!(new_key_file.unlock_with_password("recovered new password").is_ok());
+        assert!(new_key_file.unlock_with_password("old password 123").is_err());
+        assert!(
+            new_key_file.unlock_with_recovery(&recovery_code).is_err(),
+            "the code just used to recover must stop working too"
+        );
+        assert!(new_key_file.unlock_with_recovery(&new_recovery_code).is_ok());
+        assert_eq!(profiles::list_profiles(&config_path, &live_db_path).iter().find(|p| p.id == id).unwrap().db_path, target_path);
+    }
+
+    #[test]
+    fn a_wrong_recovery_code_recovers_nothing() {
+        let dir = temp_dir("recover-wrong-code");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("v.db");
+        let (id, key_file, _real_code, target) =
+            crate::protection_transition::create_protected_profile(&config_path, &live_db_path, "Sam", "old password 123", now()).unwrap();
+        let dek = key_file.unlock_with_password("old password 123").unwrap();
+        let store = Store::open_with_key(&target, DatabaseKey::Raw(dek.as_bytes())).unwrap();
+
+        let error = recover_password(&config_path, &id, &target, &store, &RecoveryCode::generate(), "irrelevant new password", now())
+            .map(|_| ())
+            .unwrap_err();
+
+        assert_eq!(error, "That recovery key didn't work.");
+        assert!(target.exists(), "nothing was touched");
+        assert!(!rotation_journal_path_for(&config_path).exists());
     }
 
     #[test]

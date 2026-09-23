@@ -8,7 +8,8 @@ use crate::profiles;
 use crate::protection_session::{Sessions, SetupChallenge};
 use crate::startup::{self, LaunchStatus, StartupState};
 use budget_core::protection::keyfile::KeyFile;
-use budget_core::store::DatabaseKey;
+use budget_core::protection::recovery::RecoveryCode;
+use budget_core::store::{DatabaseKey, Store};
 
 fn current_db_path(paths: &AppPaths) -> std::path::PathBuf {
     paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone()
@@ -303,6 +304,117 @@ pub fn remove_protection(
     }
     startup::broadcast_state(&app);
     Ok(())
+}
+
+/// A fast, non-committing check used only to fail early in the recover-via-code dialog's first step,
+/// before the person is asked to choose a new password. `commit_recovery` re-verifies for real
+/// (against the on-disk key file, inside `rotate_dek`) regardless of what this returns. Subject to
+/// the same per-profile attempt delays as a password attempt — the two share one `Sessions` table
+/// keyed on profile id, so a person can't bypass the delay by switching between password and
+/// recovery-code guesses.
+#[tauri::command]
+pub fn verify_recovery_code(id: String, code: String, paths: tauri::State<AppPaths>, sessions: tauri::State<Sessions>) -> Result<(), String> {
+    let remaining = sessions.delay_remaining(&id);
+    if !remaining.is_zero() {
+        return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+    }
+    let target = profiles::registered_profiles_strict(&paths.config_path)
+        .map_err(|p| p.reason)?
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| "That profile no longer exists.".to_string())?;
+    let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&target.db_path)).map_err(|e| e.to_string())?;
+    let parsed = RecoveryCode::parse(&code).map_err(|_| "That recovery key didn't work.".to_string())?;
+    if key_file.unlock_with_recovery(&parsed).is_err() {
+        sessions.record_failure(&id);
+        return Err("That recovery key didn't work.".to_string());
+    }
+    sessions.record_success(&id);
+    Ok(())
+}
+
+/// Re-verifies the recovery code (fail fast, same check as `verify_recovery_code`, committing
+/// nothing) then starts the shared 2-of-7 challenge for the new password the person is about to set.
+/// `expected_generation` guards against something else changing state mid-dialog, the same
+/// convention every other multi-step protection command already follows — even though nothing is
+/// open yet here, `AppPaths::generation` is a plain counter, not scoped to an open session.
+#[tauri::command]
+pub fn begin_recovery(
+    id: String,
+    code: String,
+    new_password: String,
+    expected_generation: u64,
+    paths: tauri::State<AppPaths>,
+    sessions: tauri::State<Sessions>,
+) -> Result<SetupChallenge, String> {
+    if new_password.chars().count() < 8 {
+        return Err("Choose a password of at least 8 characters.".to_string());
+    }
+    if paths.current_generation() != expected_generation {
+        return Err("Something else changed before recovery could continue.".to_string());
+    }
+    let target = profiles::registered_profiles_strict(&paths.config_path)
+        .map_err(|p| p.reason)?
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| "That profile no longer exists.".to_string())?;
+    let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&target.db_path)).map_err(|e| e.to_string())?;
+    let parsed = RecoveryCode::parse(&code).map_err(|_| "That recovery key didn't work.".to_string())?;
+    key_file
+        .unlock_with_recovery(&parsed)
+        .map_err(|_| "That recovery key didn't work.".to_string())?;
+    Ok(sessions.begin_setup(&new_password, expected_generation))
+}
+
+/// Finishes recovery for `id`: re-verifies `code` against the on-disk key file one more time (never
+/// trusting `begin_recovery`'s earlier check alone), opens the profile with the DEK it unwraps, and
+/// rotates to the confirmed new password via `protection_lifecycle::recover_password_with_recovery`
+/// — the same journaled rotation `change_password` uses, so a kill mid-recovery resolves through the
+/// exact startup recovery Task 2 already built (`recover_interrupted_rotation`). Activates the
+/// profile on success, the same hot-swap `unlock_profile`/`change_password` already do.
+#[tauri::command]
+pub fn commit_recovery(
+    id: String,
+    code: String,
+    token: String,
+    answers: [String; 2],
+    app: tauri::AppHandle,
+    paths: tauri::State<AppPaths>,
+    sessions: tauri::State<Sessions>,
+) -> Result<String, String> {
+    let (new_password, new_recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    if paths.current_generation() != expected_generation {
+        return Err("Something else changed before recovery could finish.".to_string());
+    }
+    let target = profiles::registered_profiles_strict(&paths.config_path)
+        .map_err(|p| p.reason)?
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| "That profile no longer exists.".to_string())?;
+    let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&target.db_path)).map_err(|e| e.to_string())?;
+    let parsed = RecoveryCode::parse(&code).map_err(|_| "That recovery key didn't work.".to_string())?;
+    let dek = key_file
+        .unlock_with_recovery(&parsed)
+        .map_err(|_| "That recovery key didn't work.".to_string())?;
+    let opened = Store::open_with_key(&target.db_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
+    let (new_key_file, committed_recovery_code, target_path) = crate::protection_lifecycle::recover_password_with_recovery(
+        &paths.config_path,
+        &id,
+        &target.db_path,
+        &opened,
+        &parsed,
+        &new_password,
+        new_recovery_code,
+        chrono::Local::now().naive_local(),
+    )?;
+    let new_dek = new_key_file.unlock_with_password(&new_password).map_err(|e| e.to_string())?;
+    let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(new_dek.as_bytes())).map_err(|e| e.to_string())?;
+    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    if let Err(reason) = crate::protection_lifecycle::complete_committed_rotation(&paths.config_path) {
+        eprintln!("recovery committed; old-file cleanup will resume on restart: {reason}");
+    }
+    startup::broadcast_state(&app);
+    Ok(committed_recovery_code.display())
 }
 
 /// Starts the shared 2-of-7 recovery-key setup challenge (Phase C, Task 6), used by both turning

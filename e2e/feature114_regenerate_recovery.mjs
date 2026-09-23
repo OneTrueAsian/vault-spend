@@ -1,5 +1,8 @@
-// Regenerate-recovery coverage through the compiled app. The debug-only verification command is a
-// temporary E2E probe until Task 5 adds the real recovery-code entry flow.
+// Regenerate-recovery coverage through the compiled app. Uses the debug-only
+// debug_recovery_code_unlocks probe deliberately (this spec is about the regenerate flow, not the
+// recover-via-code UI feature116 covers) rather than the real "Forgot your password?" entry Task 5
+// added — checking whether a code unlocks the on-disk key file is a strictly narrower, faster check
+// than walking the full recovery-and-reset UI just to prove the old code stopped working.
 // Run with: node e2e/run-all.mjs --spec=114
 
 import assert from "node:assert/strict";

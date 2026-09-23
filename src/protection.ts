@@ -16,6 +16,11 @@ export const commitRegenerateRecovery = (token: string, answers: [string, string
   invoke<string>("commit_regenerate_recovery", { token, answers });
 export const removeProtection = (currentPassword: string, expectedGeneration: number) =>
   invoke<void>("remove_protection", { currentPassword, expectedGeneration });
+export const verifyRecoveryCode = (id: string, code: string) => invoke<void>("verify_recovery_code", { id, code });
+export const beginRecovery = (id: string, code: string, newPassword: string, expectedGeneration: number) =>
+  invoke<SetupChallenge>("begin_recovery", { id, code, newPassword, expectedGeneration });
+export const commitRecovery = (id: string, code: string, token: string, answers: [string, string]) =>
+  invoke<string>("commit_recovery", { id, code, token, answers });
 
 export interface SetupChallenge {
   token: string;
