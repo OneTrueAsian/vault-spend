@@ -21,8 +21,12 @@ pub fn show_profile_selector(
     status: tauri::State<LaunchStatus>,
     device: tauri::State<DeviceSettingsStore>,
 ) -> StartupState {
-    // Never silently discards an open session: the frontend only calls this from the profile
-    // switcher (which locks or authenticates first) or the very first launch check.
+    // The only caller is the lock screen's "Switch profile" button, which always means "abandon
+    // this locked profile and let me pick another" — release the lock FIRST, or startup_state_for_
+    // registry's own Locked-first check (the same one every passive state query relies on) would
+    // just hand back the exact same Locked state, making this button a permanent no-op. Never
+    // discards a real OPEN session: release_lock is a no-op on anything but a genuinely locked slot.
+    runtime.release_lock();
     startup::startup_state_for_registry(&paths.config_path, &runtime, &status, device.snapshot().last_used_profile_id.as_deref())
 }
 

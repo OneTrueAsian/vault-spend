@@ -1,12 +1,13 @@
 // E2E coverage for locking/unlocking a real protected profile (Phase C, Task 9): a correct password
 // unlocks; a wrong one shows the message and re-tries at the documented delay after the 4th failure;
-// a locked profile refuses to leak data through a direct backend call.
+// a locked profile refuses to leak data through a direct backend call; the lock screen's "Switch
+// profile" button (Task 10 finding) actually reaches the selector instead of re-showing itself.
 //
 // Run with: node e2e/feature102_profile_unlock_lock.mjs
 
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
-import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
+import { enableProtectionThroughUI, seedProfiles } from "./lib/protection.mjs";
 
 async function invoke(browser, command, args = {}) {
   const result = await browser.executeAsync((command, args, done) => {
@@ -71,6 +72,45 @@ try {
   assert.equal(openState.ok?.status, "open", `expected an open startup state after unlocking, got ${JSON.stringify(openState)}`);
 } finally {
   await app.close();
+}
+
+// "Switch profile" on the lock screen (Task 10 finding, found by a real UAT walk, invisible to
+// every jsdom/Rust unit test the same way every other Task 9 wiring gap was): it must actually reach
+// the selector, not just re-report the same Locked state it started from — which is exactly what
+// happened before `show_profile_selector` released the lock first. Needs a real registry (two
+// profiles) so there is an actual selector, distinct from a single-profile launch's direct-open path.
+{
+  const dbDir = await seedProfiles([{ name: "Alex" }, { name: "Blair" }]);
+  const app2 = await launchApp({ dbDir, ready: "[data-profile-selector]" });
+  try {
+    const { browser } = app2;
+    const alex = await browser.$("[data-profile-option]"); // "Alex" sorts/lists first, opens unprotected
+    assert.match(await alex.getText(), /Alex/);
+    await alex.click();
+    await browser.$(".brand-word").waitForExist({ timeout: 10000 });
+    await dismissFirstLaunchDialogs(browser);
+
+    await (await browser.$("button*=Settings")).click();
+    await enableProtectionThroughUI(browser, PASSWORD);
+    await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), { timeout: 10000 });
+
+    await (await browser.$(".profile-switcher-toggle")).click();
+    await (await browser.$("[data-profile-switcher-lock]")).click();
+    await browser.$("[data-profile-lock-screen]").waitForExist({ timeout: 10000 });
+
+    await (await browser.$("[data-switch-profile]")).click();
+    await browser.$("[data-profile-selector]").waitForExist({
+      timeout: 10000,
+      timeoutMsg: "Switch profile should reach the real selector, not re-show the same lock screen",
+    });
+    const options = [];
+    for (const o of await browser.$$("[data-profile-option]")) options.push((await o.getText()).trim());
+    assert.equal(options.length, 2, `expected both profiles offered, got ${JSON.stringify(options)}`);
+    assert.ok(options.some((t) => /Alex/.test(t) && /🔒|protected/i.test(t)), `expected Alex to show as protected, got ${JSON.stringify(options)}`);
+    assert.ok(options.some((t) => /Blair/.test(t)), `expected Blair still offered, got ${JSON.stringify(options)}`);
+  } finally {
+    await app2.close();
+  }
 }
 
 console.log("FEATURE 102 E2E TEST PASSED");

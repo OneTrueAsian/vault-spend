@@ -82,6 +82,19 @@ impl AppRuntime {
         *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Locked { profile_id: profile_id.to_string() };
     }
 
+    /// Abandons a locked slot, going back to `NoProfileOpen` — the lock screen's "Switch profile"
+    /// button's only way to actually reach the selector again (found by a real UAT walk: without
+    /// this, `show_profile_selector` re-derived state through the same registry check every other
+    /// caller uses, which checks `Locked` first and so could only ever hand the lock screen straight
+    /// back to itself). A no-op on `Open` or `NoProfileOpen` — this must never be able to silently
+    /// discard a real open session; only a genuinely locked slot is ever released.
+    pub fn release_lock(&self) {
+        let mut guard = self.slot.lock().unwrap_or_else(|e| e.into_inner());
+        if matches!(&*guard, Slot::Locked { .. }) {
+            *guard = Slot::NoProfileOpen;
+        }
+    }
+
     pub fn status(&self) -> RuntimeStatus {
         match &*self.slot.lock().unwrap_or_else(|e| e.into_inner()) {
             Slot::NoProfileOpen => RuntimeStatus::NoProfileOpen,
@@ -167,6 +180,30 @@ mod tests {
         runtime.lock_profile("work");
 
         runtime.install(open_state("relock-second"));
+
+        assert_eq!(runtime.status(), RuntimeStatus::Open);
+    }
+
+    #[test]
+    fn releasing_a_lock_goes_back_to_no_profile_open() {
+        // The only real caller: the lock screen's "Switch profile" button, which must be able to
+        // abandon a locked profile and reach the selector — not just re-report the same lock,
+        // which is what happened before this method existed (found by a real UAT walk, not a test).
+        let runtime = open_runtime(open_state("release"));
+        runtime.lock_profile("work");
+
+        runtime.release_lock();
+
+        assert_eq!(runtime.status(), RuntimeStatus::NoProfileOpen);
+    }
+
+    #[test]
+    fn releasing_a_lock_on_an_open_runtime_leaves_it_open() {
+        // Must never be able to silently discard a real open session — only a genuinely locked
+        // slot is ever released.
+        let runtime = open_runtime(open_state("release-open"));
+
+        runtime.release_lock();
 
         assert_eq!(runtime.status(), RuntimeStatus::Open);
     }
