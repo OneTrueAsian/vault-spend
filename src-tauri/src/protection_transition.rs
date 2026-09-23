@@ -78,6 +78,7 @@ pub fn debug_failpoint(_name: &str) {}
 /// live file. Returns the new key file, the one-time recovery code, and the new database path —
 /// the caller (Task 8's UI, and Task 9's tests) is responsible for showing the recovery code and
 /// telling the frontend to reopen at the returned path.
+#[allow(dead_code)] // convenience entry point used by transition tests; commands supply a confirmed recovery code
 pub fn enable_protection(
     config_path: &Path,
     profile_id: &str,
@@ -86,11 +87,24 @@ pub fn enable_protection(
     password: &str,
     now: NaiveDateTime,
 ) -> Result<(KeyFile, RecoveryCode, PathBuf), String> {
+    enable_protection_with_recovery(config_path, profile_id, source_db_path, store, password, RecoveryCode::generate(), now)
+}
+
+pub fn enable_protection_with_recovery(
+    config_path: &Path,
+    profile_id: &str,
+    source_db_path: &Path,
+    store: &Store,
+    password: &str,
+    recovery_code: RecoveryCode,
+    now: NaiveDateTime,
+) -> Result<(KeyFile, RecoveryCode, PathBuf), String> {
     if store.is_encrypted() {
         return Err("This profile is already password protected.".to_string());
     }
     let created_at = now.and_utc().to_rfc3339();
-    let protection = keyfile::create_protection(password, &KdfParams::PRODUCTION, &created_at).map_err(|e| e.to_string())?;
+    let protection =
+        keyfile::create_protection_with_recovery(password, recovery_code, &KdfParams::PRODUCTION, &created_at).map_err(|e| e.to_string())?;
     let target_db_path = unique_protected_path(source_db_path);
     let target_key_path = keyfile::key_file_path_for(&target_db_path);
 
@@ -104,8 +118,12 @@ pub fn enable_protection(
     debug_failpoint("before_journal");
     write_journal(config_path, &journal)?;
 
-    store.export_encrypted_copy(&target_db_path, protection.dek.as_bytes()).map_err(|e| e.to_string())?;
-    store.verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes())).map_err(|e| e.to_string())?;
+    store
+        .export_encrypted_copy(&target_db_path, protection.dek.as_bytes())
+        .map_err(|e| e.to_string())?;
+    store
+        .verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes()))
+        .map_err(|e| e.to_string())?;
     protection.key_file.write_to(&target_key_path).map_err(|e| e.to_string())?;
     debug_failpoint("after_export");
 
@@ -123,7 +141,10 @@ pub fn enable_protection(
         historical
             .verify_copy(&converted_backup, DatabaseKey::Raw(protection.dek.as_bytes()))
             .map_err(|e| format!("{filename}: {e}"))?;
-        protection.key_file.write_to(&keyfile::key_file_path_for(&converted_backup)).map_err(|e| e.to_string())?;
+        protection
+            .key_file
+            .write_to(&keyfile::key_file_path_for(&converted_backup))
+            .map_err(|e| e.to_string())?;
         journal.owned_backup_pairs.push(converted_backup.display().to_string());
         write_journal(config_path, &journal)?;
     }
@@ -132,7 +153,13 @@ pub fn enable_protection(
     // A single atomic write moves the registry's db_path to the new file AND records protection
     // together — see `profiles::commit_protection_conversion`'s own doc comment for why splitting
     // this into two separate writes (as a plain `set_profile_protection` call alone would) is unsafe.
-    profiles::commit_protection_conversion(config_path, source_db_path, profile_id, &target_db_path, profiles::Protection { format: keyfile::FORMAT })?;
+    profiles::commit_protection_conversion(
+        config_path,
+        source_db_path,
+        profile_id,
+        &target_db_path,
+        profiles::Protection { format: keyfile::FORMAT },
+    )?;
     debug_failpoint("after_registry_write");
     config::write_db_location_config(config_path, &target_db_path).map_err(|e| e.to_string())?;
     debug_failpoint("after_config_write");
@@ -147,6 +174,7 @@ pub fn enable_protection(
 /// never-registered file on disk, exactly what "failed/cancelled creation leaves the prior session
 /// and registry intact" requires. No journal: unlike `enable_protection`, there is nothing to
 /// unwind that isn't already unwound by simply never having registered anything.
+#[allow(dead_code)] // convenience entry point used by transition tests; commands supply a confirmed recovery code
 pub fn create_protected_profile(
     config_path: &Path,
     live_db_path: &Path,
@@ -154,16 +182,42 @@ pub fn create_protected_profile(
     password: &str,
     now: NaiveDateTime,
 ) -> Result<(String, KeyFile, RecoveryCode, PathBuf), String> {
+    create_protected_profile_with_recovery(config_path, live_db_path, name, password, RecoveryCode::generate(), now)
+}
+
+pub fn create_protected_profile_with_recovery(
+    config_path: &Path,
+    live_db_path: &Path,
+    name: &str,
+    password: &str,
+    recovery_code: RecoveryCode,
+    now: NaiveDateTime,
+) -> Result<(String, KeyFile, RecoveryCode, PathBuf), String> {
     let (id, target_db_path) = profiles::plan_new_profile(config_path, live_db_path, name, now)?;
     std::fs::create_dir_all(target_db_path.parent().ok_or_else(|| "invalid profile path".to_string())?).map_err(|e| e.to_string())?;
 
     let empty = Store::open_in_memory().map_err(|e| e.to_string())?;
-    let protection = keyfile::create_protection(password, &KdfParams::PRODUCTION, &now.and_utc().to_rfc3339()).map_err(|e| e.to_string())?;
-    empty.export_encrypted_copy(&target_db_path, protection.dek.as_bytes()).map_err(|e| e.to_string())?;
-    empty.verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes())).map_err(|e| e.to_string())?;
-    protection.key_file.write_to(&keyfile::key_file_path_for(&target_db_path)).map_err(|e| e.to_string())?;
+    let protection = keyfile::create_protection_with_recovery(password, recovery_code, &KdfParams::PRODUCTION, &now.and_utc().to_rfc3339())
+        .map_err(|e| e.to_string())?;
+    empty
+        .export_encrypted_copy(&target_db_path, protection.dek.as_bytes())
+        .map_err(|e| e.to_string())?;
+    empty
+        .verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes()))
+        .map_err(|e| e.to_string())?;
+    protection
+        .key_file
+        .write_to(&keyfile::key_file_path_for(&target_db_path))
+        .map_err(|e| e.to_string())?;
     debug_failpoint("before_register");
-    profiles::register_prepared_profile(config_path, live_db_path, &id, name, &target_db_path, Some(profiles::Protection { format: keyfile::FORMAT }))?;
+    profiles::register_prepared_profile(
+        config_path,
+        live_db_path,
+        &id,
+        name,
+        &target_db_path,
+        Some(profiles::Protection { format: keyfile::FORMAT }),
+    )?;
     Ok((id, protection.key_file, protection.recovery_code, target_db_path))
 }
 
@@ -231,7 +285,9 @@ mod tests {
         let account = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
         store.create_category("Groceries", None).unwrap();
         store.save_transactions(account, &[tx("2026-09-10", "Market Basket", "-42.17")]).unwrap();
-        store.set_ui_state(budget_core::store::UiStateKey::SavedFilters, "[{\"name\":\"Groceries only\"}]").unwrap();
+        store
+            .set_ui_state(budget_core::store::UiStateKey::SavedFilters, "[{\"name\":\"Groceries only\"}]")
+            .unwrap();
         let backups_dir = backups::backups_dir_for(&db_path, false);
         backups::create_backup(&store, &db_path, &backups_dir, None, now() - chrono::Duration::days(2)).unwrap();
         backups::create_backup(&store, &db_path, &backups_dir, None, now() - chrono::Duration::days(1)).unwrap();
@@ -255,8 +311,11 @@ mod tests {
 
         assert_eq!(target_path, dir.join("vaultspend-protected.db"));
         assert!(!dir.join("protection-journal.json").exists(), "the journal is retired on success");
-        let opened =
-            Store::open_with_key(&target_path, DatabaseKey::Raw(key_file.unlock_with_password("correct horse battery staple").unwrap().as_bytes())).unwrap();
+        let opened = Store::open_with_key(
+            &target_path,
+            DatabaseKey::Raw(key_file.unlock_with_password("correct horse battery staple").unwrap().as_bytes()),
+        )
+        .unwrap();
         assert!(opened
             .all_transactions()
             .unwrap()
@@ -267,7 +326,10 @@ mod tests {
             Some("[{\"name\":\"Groceries only\"}]".to_string())
         );
         let recovered_dek = key_file.unlock_with_recovery(&recovery_code).unwrap();
-        assert_eq!(recovered_dek.as_bytes(), key_file.unlock_with_password("correct horse battery staple").unwrap().as_bytes());
+        assert_eq!(
+            recovered_dek.as_bytes(),
+            key_file.unlock_with_password("correct horse battery staple").unwrap().as_bytes()
+        );
         let registered = profiles::list_profiles(&config_path, &target_path);
         let entry = registered.iter().find(|p| p.id == profile_id).unwrap();
         assert_eq!(entry.protection, Some(profiles::Protection { format: keyfile::FORMAT }));
@@ -281,13 +343,20 @@ mod tests {
         let config_path = dir.join("config.json");
         let profile_id = register(&config_path, &db_path);
         let plaintext_backups_dir = backups::backups_dir_for(&db_path, false);
-        let originals: Vec<String> = backups::list_backups(&plaintext_backups_dir, false).unwrap().into_iter().map(|b| b.filename).collect();
+        let originals: Vec<String> = backups::list_backups(&plaintext_backups_dir, false)
+            .unwrap()
+            .into_iter()
+            .map(|b| b.filename)
+            .collect();
         assert_eq!(originals.len(), 2, "the fixture made two");
 
         let (key_file, _, _) = enable_protection(&config_path, &profile_id, &db_path, &store, "correct horse battery staple", now()).unwrap();
 
         for filename in &originals {
-            assert!(plaintext_backups_dir.join(filename).exists(), "the plaintext original stays exactly where it was");
+            assert!(
+                plaintext_backups_dir.join(filename).exists(),
+                "the plaintext original stays exactly where it was"
+            );
         }
         let protected_backups_dir = backups::backups_dir_for(&db_path, true);
         for filename in &originals {
@@ -304,7 +373,8 @@ mod tests {
         let live = dir.join("v.db");
         let config_path = dir.join("config.json");
 
-        let (id, key_file, recovery_code, target_path) = create_protected_profile(&config_path, &live, "Sam", "correct horse battery staple", now()).unwrap();
+        let (id, key_file, recovery_code, target_path) =
+            create_protected_profile(&config_path, &live, "Sam", "correct horse battery staple", now()).unwrap();
 
         assert!(target_path.exists());
         assert!(keyfile::key_file_path_for(&target_path).exists());
@@ -317,7 +387,11 @@ mod tests {
         assert!(opened.list_accounts(chrono::Local::now().date_naive()).unwrap().is_empty());
         assert!(opened.all_transactions().unwrap().is_empty());
         assert_eq!(
-            profiles::list_profiles(&config_path, &live).iter().find(|p| p.id == id).unwrap().protection,
+            profiles::list_profiles(&config_path, &live)
+                .iter()
+                .find(|p| p.id == id)
+                .unwrap()
+                .protection,
             Some(profiles::Protection { format: keyfile::FORMAT })
         );
         assert_eq!(recovery_code.display().split('-').count(), 7);
@@ -355,7 +429,10 @@ mod tests {
             .unwrap_err();
 
         assert!(error.contains("already exists"), "{error}");
-        assert!(profiles::list_profiles(&config_path, &live).iter().all(|p| p.id != id), "never registered");
+        assert!(
+            profiles::list_profiles(&config_path, &live).iter().all(|p| p.id != id),
+            "never registered"
+        );
     }
 
     #[test]
@@ -373,8 +450,19 @@ mod tests {
             .unwrap_err();
 
         assert!(error.contains("vaultspend-20250101-000000.db"), "{error}");
-        assert_eq!(profiles::list_profiles(&config_path, &db_path).iter().find(|p| p.id == profile_id).unwrap().protection, None, "never committed");
-        assert!(std::fs::read_to_string(config_path.parent().unwrap().join("protection-journal.json")).is_ok(), "left for recovery to clean up, not swallowed silently");
+        assert_eq!(
+            profiles::list_profiles(&config_path, &db_path)
+                .iter()
+                .find(|p| p.id == profile_id)
+                .unwrap()
+                .protection,
+            None,
+            "never committed"
+        );
+        assert!(
+            std::fs::read_to_string(config_path.parent().unwrap().join("protection-journal.json")).is_ok(),
+            "left for recovery to clean up, not swallowed silently"
+        );
     }
 
     #[test]
@@ -424,8 +512,22 @@ mod tests {
         assert!(!target_db_path.exists());
         assert!(!target_key_path.exists());
         assert!(!config_path.parent().unwrap().join("protection-journal.json").exists());
-        assert_eq!(profiles::list_profiles(&config_path, &db_path).iter().find(|p| p.id == profile_id).unwrap().protection, None);
-        assert!(store.all_transactions().unwrap().iter().any(|t| t.transaction.description == "Market Basket"), "the original is untouched and still openable");
+        assert_eq!(
+            profiles::list_profiles(&config_path, &db_path)
+                .iter()
+                .find(|p| p.id == profile_id)
+                .unwrap()
+                .protection,
+            None
+        );
+        assert!(
+            store
+                .all_transactions()
+                .unwrap()
+                .iter()
+                .any(|t| t.transaction.description == "Market Basket"),
+            "the original is untouched and still openable"
+        );
     }
 
     #[test]

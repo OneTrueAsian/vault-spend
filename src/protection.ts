@@ -6,6 +6,10 @@ export const selectProfile = (id: string) => invoke<StartupState>("select_profil
 export const unlockProfile = (id: string, password: string) => invoke<StartupState>("unlock_profile", { id, password });
 export const lockCurrentProfile = (expectedGeneration: number) =>
   invoke<StartupState>("lock_current_profile", { expectedGeneration });
+export const verifyCurrentPassword = (password: string, expectedGeneration: number) =>
+  invoke<void>("verify_current_password", { password, expectedGeneration });
+export const changePassword = (currentPassword: string, token: string, answers: [string, string]) =>
+  invoke<string>("change_password", { currentPassword, token, answers });
 
 export interface SetupChallenge {
   token: string;

@@ -1,12 +1,12 @@
 //! The key file: everything needed to turn a password (or recovery code) back into the database
 //! key. It sits beside every encrypted database and backup (plan v2 section 4.3) and holds only
 //! wrapped keys, never a password, a recovery code or an unwrapped key.
-use super::kdf::{KdfParams, derive_kek, validate_salt};
+use super::kdf::{derive_kek, validate_salt, KdfParams};
 use super::recovery::RecoveryCode;
-use super::wrap::{Wrapped, generate_dek, unwrap_dek, wrap_dek};
-use super::{ProtectionError, random_bytes};
+use super::wrap::{generate_dek, unwrap_dek, wrap_dek, Wrapped};
+use super::{random_bytes, ProtectionError};
 use crate::fsutil::write_atomic;
-use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use unicode_normalization::UnicodeNormalization;
@@ -115,9 +115,19 @@ fn is_protection_id(id: &str) -> bool {
 /// Starts protecting a profile: a new database key, a new protection id, a password slot and a
 /// recovery slot. The caller shows `recovery_code` once and encrypts the database with `dek`.
 pub fn create_protection(password: &str, params: &KdfParams, now: &str) -> Result<NewProtection, ProtectionError> {
+    create_protection_with_recovery(password, RecoveryCode::generate(), params, now)
+}
+
+/// Creates protection around a recovery code that was already shown and confirmed by a setup
+/// challenge. The code is consumed so callers cannot accidentally retain an extra secret copy.
+pub fn create_protection_with_recovery(
+    password: &str,
+    recovery_code: RecoveryCode,
+    params: &KdfParams,
+    now: &str,
+) -> Result<NewProtection, ProtectionError> {
     let dek = generate_dek();
     let protection_id: String = random_bytes::<16>().iter().map(|b| format!("{b:02x}")).collect();
-    let recovery_code = RecoveryCode::generate();
     let password_slot = make_slot(&normalize_password(password), &dek, &protection_id, PASSWORD_SLOT, params)?;
     let recovery_slot = make_slot(recovery_code.secret_bytes(), &dek, &protection_id, RECOVERY_SLOT, params)?;
     Ok(NewProtection {

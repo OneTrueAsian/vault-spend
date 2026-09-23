@@ -13,6 +13,7 @@ mod live_prices;
 mod profiles;
 mod protection_commands;
 mod protection_leftovers;
+mod protection_lifecycle;
 mod protection_session;
 mod protection_transition;
 mod runtime;
@@ -127,7 +128,9 @@ pub fn run() {
             // guessed at, the same "never silently open something else" treatment as a damaged
             // profiles.json.
             let handle = app.handle().clone();
-            if let Err(reason) = protection_transition::recover_interrupted_operation(&config_path) {
+            let protection_recovery = protection_transition::recover_interrupted_operation(&config_path)
+                .and_then(|()| protection_lifecycle::recover_interrupted_rotation(&config_path));
+            if let Err(reason) = protection_recovery {
                 eprintln!("couldn't recover an interrupted password-protection change: {reason}");
                 app.state::<startup::LaunchStatus>().set_error(startup::LaunchError {
                     kind: startup::LaunchErrorKind::ProtectionJournalUnreadable,
@@ -212,6 +215,8 @@ pub fn run() {
             protection_commands::select_profile,
             protection_commands::unlock_profile,
             protection_commands::lock_current_profile,
+            protection_commands::verify_current_password,
+            protection_commands::change_password,
             protection_commands::begin_protection_setup,
             protection_commands::cancel_protection_setup,
             protection_commands::commit_protection_setup,

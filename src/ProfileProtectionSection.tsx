@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
+import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import { getCurrentGeneration } from "./profileUiState";
 import type { Profile } from "./types";
 
@@ -16,6 +17,7 @@ export function ProfileProtectionSection({
   onProtected: () => void;
 }) {
   const [dialogGeneration, setDialogGeneration] = useState<number | null>(null);
+  const [changeGeneration, setChangeGeneration] = useState<number | null>(null);
   const active = profiles.find((p) => p.is_active);
 
   if (!active) return null;
@@ -37,6 +39,11 @@ export function ProfileProtectionSection({
           Turn on password protection…
         </button>
       )}
+      {active.is_password_protected && (
+        <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setChangeGeneration)}>
+          Change password…
+        </button>
+      )}
       {dialogGeneration !== null && (
         <ProtectionSetupDialog
           targetProfileId={active.id}
@@ -47,6 +54,16 @@ export function ProfileProtectionSection({
             onProtected();
           }}
           onCancel={() => setDialogGeneration(null)}
+        />
+      )}
+      {changeGeneration !== null && (
+        <ChangePasswordDialog
+          expectedGeneration={changeGeneration}
+          onDone={() => {
+            setChangeGeneration(null);
+            onProtected();
+          }}
+          onCancel={() => setChangeGeneration(null)}
         />
       )}
     </div>

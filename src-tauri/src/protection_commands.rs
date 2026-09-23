@@ -4,9 +4,9 @@
 use crate::commands::{AppState, AppStateHandle};
 use crate::config::AppPaths;
 use crate::device_settings::DeviceSettingsStore;
+use crate::profiles;
 use crate::protection_session::{Sessions, SetupChallenge};
 use crate::startup::{self, LaunchStatus, StartupState};
-use crate::profiles;
 use budget_core::protection::keyfile::KeyFile;
 use budget_core::store::DatabaseKey;
 
@@ -98,7 +98,13 @@ pub fn unlock_profile(
     let state = AppState::open_with_key(&target.db_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
     sessions.record_success(&id);
     let _ = device.update(|s| s.note_last_used(&id));
-    startup::activate(&app, startup::OpenedProfile { state, db_path: target.db_path });
+    startup::activate(
+        &app,
+        startup::OpenedProfile {
+            state,
+            db_path: target.db_path,
+        },
+    );
     startup::broadcast_state(&app);
     Ok(StartupState::Open)
 }
@@ -138,8 +144,9 @@ pub fn lock_current_profile(
 /// first. Registering this as its own directly invokable command would let the frontend (or a bug)
 /// call straight through to it, encrypting a profile with nobody ever having proven they wrote the
 /// recovery code down. It stays a plain function, called only from `commit_protection_setup` below.
-pub fn enable_profile_protection(
+pub fn enable_profile_protection_with_recovery(
     password: String,
+    recovery_code: budget_core::protection::recovery::RecoveryCode,
     app: tauri::AppHandle,
     paths: tauri::State<AppPaths>,
     runtime: tauri::State<AppStateHandle>,
@@ -154,12 +161,13 @@ pub fn enable_profile_protection(
         // may mutate this profile's data while it is being exported into and verified against the
         // new encrypted file.
         let session = runtime.lock()?;
-        crate::protection_transition::enable_protection(
+        crate::protection_transition::enable_protection_with_recovery(
             &paths.config_path,
             &profile_id,
             &db_path,
             &session.store,
             &password,
+            recovery_code,
             chrono::Local::now().naive_local(),
         )?
     };
@@ -168,6 +176,58 @@ pub fn enable_profile_protection(
     startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
     startup::broadcast_state(&app);
     Ok(recovery_code.display())
+}
+
+#[tauri::command]
+pub fn verify_current_password(password: String, expected_generation: u64, paths: tauri::State<AppPaths>) -> Result<(), String> {
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the password could be checked.".to_string());
+    }
+    let db_path = current_db_path(&paths);
+    let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&db_path)).map_err(|e| e.to_string())?;
+    key_file
+        .unlock_with_password(&password)
+        .map_err(|_| "That password didn't work.".to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn change_password(
+    current_password: String,
+    token: String,
+    answers: [String; 2],
+    app: tauri::AppHandle,
+    paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+    sessions: tauri::State<Sessions>,
+) -> Result<String, String> {
+    let (new_password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the password could be changed.".to_string());
+    }
+    let db_path = current_db_path(&paths);
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    let (key_file, committed_recovery_code, target_path) = {
+        let session = runtime.lock()?;
+        crate::protection_lifecycle::rotate_password_with_recovery(
+            &paths.config_path,
+            &profile_id,
+            &db_path,
+            &session.store,
+            &current_password,
+            &new_password,
+            recovery_code,
+            chrono::Local::now().naive_local(),
+        )?
+    };
+    let dek = key_file.unlock_with_password(&new_password).map_err(|e| e.to_string())?;
+    let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
+    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    if let Err(reason) = crate::protection_lifecycle::complete_committed_rotation(&paths.config_path) {
+        eprintln!("password rotation committed; old-file cleanup will resume on restart: {reason}");
+    }
+    startup::broadcast_state(&app);
+    Ok(committed_recovery_code.display())
 }
 
 /// Starts the shared 2-of-7 recovery-key setup challenge (Phase C, Task 6), used by both turning
@@ -208,7 +268,7 @@ pub fn commit_protection_setup(
     status: tauri::State<LaunchStatus>,
     sessions: tauri::State<Sessions>,
 ) -> Result<StartupState, String> {
-    let (password, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    let (password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before setup could finish.".to_string());
     }
@@ -218,12 +278,19 @@ pub fn commit_protection_setup(
             if id != active_id {
                 return Err("The active profile changed before setup could finish.".to_string());
             }
-            enable_profile_protection(password, app, paths, runtime)?;
+            enable_profile_protection_with_recovery(password, recovery_code, app, paths, runtime)?;
             Ok(StartupState::Open)
         }
         (None, Some(name)) => {
             let live_db_path = current_db_path(&paths);
-            crate::protection_transition::create_protected_profile(&paths.config_path, &live_db_path, &name, &password, chrono::Local::now().naive_local())?;
+            crate::protection_transition::create_protected_profile_with_recovery(
+                &paths.config_path,
+                &live_db_path,
+                &name,
+                &password,
+                recovery_code,
+                chrono::Local::now().naive_local(),
+            )?;
             Ok(startup::startup_state_for_registry(&paths.config_path, &runtime, &status, None))
         }
         _ => Err("Specify exactly one of an existing profile to protect or a new profile name.".to_string()),

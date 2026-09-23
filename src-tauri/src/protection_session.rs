@@ -68,7 +68,10 @@ pub struct Sessions {
 
 impl Sessions {
     pub fn new() -> Self {
-        Sessions { attempts: Mutex::new(HashMap::new()), pending: Mutex::new(None) }
+        Sessions {
+            attempts: Mutex::new(HashMap::new()),
+            pending: Mutex::new(None),
+        }
     }
 
     /// Starts a setup, invalidating any previous pending one. The two challenge indices are
@@ -80,7 +83,11 @@ impl Sessions {
         let group_count = display.split('-').count();
         let (a, b) = distinct_pair(group_count);
         let token = random_token();
-        let challenge = SetupChallenge { token: token.clone(), recovery_display: display, challenge_group_indices: [a, b] };
+        let challenge = SetupChallenge {
+            token: token.clone(),
+            recovery_display: display,
+            challenge_group_indices: [a, b],
+        };
         *self.pending.lock().unwrap_or_else(|e| e.into_inner()) = Some(PendingSetup {
             token,
             password: Zeroizing::new(password.to_string()),
@@ -94,9 +101,12 @@ impl Sessions {
     /// Consumes the pending setup if `token` matches, checking both challenge answers against the
     /// actual groups (never a renderer-computed boolean — the backend verifies). Any mismatch, or
     /// no pending setup at all, leaves the slot untouched.
-    pub fn take_verified_setup(&self, token: &str, answers: &[String; 2]) -> Result<(String, u64), &'static str> {
+    pub fn take_verified_setup(&self, token: &str, answers: &[String; 2]) -> Result<(String, RecoveryCode, u64), &'static str> {
         let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
-        let setup = pending.as_ref().filter(|p| p.token == token).ok_or("This setup has expired or was already used.")?;
+        let setup = pending
+            .as_ref()
+            .filter(|p| p.token == token)
+            .ok_or("This setup has expired or was already used.")?;
         let display = setup.recovery_code.display();
         let groups: Vec<&str> = display.split('-').collect();
         let expected = [groups[setup.challenge_group_indices[0]], groups[setup.challenge_group_indices[1]]];
@@ -104,7 +114,7 @@ impl Sessions {
             return Err("Those don't match what was shown. Check them and try again.");
         }
         let setup = pending.take().unwrap();
-        Ok((setup.password.to_string(), setup.expected_generation))
+        Ok((setup.password.to_string(), setup.recovery_code, setup.expected_generation))
     }
 
     pub fn cancel_setup(&self, token: &str) {
@@ -126,7 +136,10 @@ impl Sessions {
 
     pub fn record_failure(&self, profile_id: &str) {
         let mut attempts = self.attempts.lock().unwrap_or_else(|e| e.into_inner());
-        let entry = attempts.entry(profile_id.to_string()).or_insert(ProfileAttempts { failures: 0, not_before: Instant::now() });
+        let entry = attempts.entry(profile_id.to_string()).or_insert(ProfileAttempts {
+            failures: 0,
+            not_before: Instant::now(),
+        });
         entry.failures += 1;
         entry.not_before = Instant::now() + delay_for(entry.failures);
     }
@@ -217,11 +230,15 @@ mod pending_setup_tests {
         let sessions = Sessions::new();
         let challenge = sessions.begin_setup("hunter2 but eight chars", 7);
         let groups: Vec<&str> = challenge.recovery_display.split('-').collect();
-        let answers = [groups[challenge.challenge_group_indices[0]].to_string(), groups[challenge.challenge_group_indices[1]].to_string()];
+        let answers = [
+            groups[challenge.challenge_group_indices[0]].to_string(),
+            groups[challenge.challenge_group_indices[1]].to_string(),
+        ];
 
-        let (password, generation) = sessions.take_verified_setup(&challenge.token, &answers).unwrap();
+        let (password, recovery_code, generation) = sessions.take_verified_setup(&challenge.token, &answers).unwrap();
 
         assert_eq!(password, "hunter2 but eight chars");
+        assert_eq!(recovery_code.display(), challenge.recovery_display);
         assert_eq!(generation, 7);
     }
 
@@ -230,10 +247,15 @@ mod pending_setup_tests {
         let sessions = Sessions::new();
         let challenge = sessions.begin_setup("a password", 1);
 
-        assert!(sessions.take_verified_setup(&challenge.token, &["WRONG".to_string(), "ALSO".to_string()]).is_err());
+        assert!(sessions
+            .take_verified_setup(&challenge.token, &["WRONG".to_string(), "ALSO".to_string()])
+            .is_err());
         // still pending — the right answer still works afterward:
         let groups: Vec<&str> = challenge.recovery_display.split('-').collect();
-        let answers = [groups[challenge.challenge_group_indices[0]].to_string(), groups[challenge.challenge_group_indices[1]].to_string()];
+        let answers = [
+            groups[challenge.challenge_group_indices[0]].to_string(),
+            groups[challenge.challenge_group_indices[1]].to_string(),
+        ];
         assert!(sessions.take_verified_setup(&challenge.token, &answers).is_ok());
     }
 
@@ -242,7 +264,9 @@ mod pending_setup_tests {
         let sessions = Sessions::new();
         sessions.begin_setup("a password", 1);
 
-        assert!(sessions.take_verified_setup("not-a-real-token", &["AAAA".to_string(), "BBBB".to_string()]).is_err());
+        assert!(sessions
+            .take_verified_setup("not-a-real-token", &["AAAA".to_string(), "BBBB".to_string()])
+            .is_err());
     }
 
     #[test]
@@ -252,7 +276,9 @@ mod pending_setup_tests {
 
         sessions.begin_setup("second", 2);
 
-        assert!(sessions.take_verified_setup(&first.token, &["AAAA".to_string(), "BBBB".to_string()]).is_err());
+        assert!(sessions
+            .take_verified_setup(&first.token, &["AAAA".to_string(), "BBBB".to_string()])
+            .is_err());
     }
 
     #[test]
@@ -263,7 +289,10 @@ mod pending_setup_tests {
         sessions.cancel_setup(&challenge.token);
 
         let groups: Vec<&str> = challenge.recovery_display.split('-').collect();
-        let answers = [groups[challenge.challenge_group_indices[0]].to_string(), groups[challenge.challenge_group_indices[1]].to_string()];
+        let answers = [
+            groups[challenge.challenge_group_indices[0]].to_string(),
+            groups[challenge.challenge_group_indices[1]].to_string(),
+        ];
         assert!(sessions.take_verified_setup(&challenge.token, &answers).is_err());
     }
 

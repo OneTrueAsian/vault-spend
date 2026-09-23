@@ -8,6 +8,8 @@ const protection = vi.hoisted(() => ({
   beginProtectionSetup: vi.fn(),
   commitProtectionSetup: vi.fn(),
   cancelProtectionSetup: vi.fn(),
+  verifyCurrentPassword: vi.fn(),
+  changePassword: vi.fn(),
 }));
 vi.mock("./protection", () => protection);
 
@@ -44,6 +46,8 @@ describe("ProfileProtectionSection", () => {
     protection.beginProtectionSetup.mockReset();
     protection.commitProtectionSetup.mockReset();
     protection.cancelProtectionSetup.mockReset().mockResolvedValue(undefined);
+    protection.verifyCurrentPassword.mockReset().mockResolvedValue(undefined);
+    protection.changePassword.mockReset();
     profileUiState.getCurrentGeneration.mockReset().mockResolvedValue(1);
     onProtected.mockReset();
     container = document.createElement("div");
@@ -73,11 +77,22 @@ describe("ProfileProtectionSection", () => {
     expect(button("Turn on password protection…")).not.toBeUndefined();
   });
 
-  it('shows "On" and no button for a protected active profile', () => {
+  it('shows "On" and offers password changes for a protected active profile', () => {
     show(PROTECTED);
 
     expect(container.textContent).toContain("On");
     expect([...container.querySelectorAll("button")].find((b) => b.textContent === "Turn on password protection…")).toBeUndefined();
+    expect(button("Change password…")).not.toBeUndefined();
+  });
+
+  it("opens the change-password dialog with the current generation", async () => {
+    show(PROTECTED);
+
+    await act(async () => button("Change password…").click());
+
+    expect(document.body.textContent).toContain("Change password");
+    expect(document.body.querySelector("#change-password-current")).not.toBeNull();
+    expect(profileUiState.getCurrentGeneration).toHaveBeenCalledTimes(1);
   });
 
   it("clicking the button opens the setup dialog for the active profile", async () => {
