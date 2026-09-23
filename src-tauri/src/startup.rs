@@ -321,7 +321,7 @@ pub fn startup_state_for_registry(config_path: &Path, runtime: &AppRuntime, stat
             .map(|p| SelectorEntry {
                 id: p.id,
                 name: p.name,
-                icon_key: None, // list_profiles (not registered_profiles_strict) carries icon_key; wired in Task 7's command layer
+                icon_key: p.icon_key,
                 is_password_protected: p.protection.is_some(),
             })
             .collect(),
@@ -649,6 +649,29 @@ mod tests {
 
         match state {
             StartupState::Selector { profiles, .. } => assert_eq!(profiles.len(), 1),
+            other => panic!("expected Selector, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_profiles_icon_key_reaches_the_selector_entry() {
+        // registered_profiles_strict used to have nowhere to put an icon_key at all, so this could
+        // never have worked regardless of what SelectorEntry's own construction did with it — the
+        // selector's card grid needs a real icon per profile, not the hardcoded None it was stuck
+        // with before.
+        let dir = temp_dir("selector-icon");
+        std::fs::write(
+            dir.join("profiles.json"),
+            serde_json::json!({ "profiles": [{ "id": "alpha", "name": "Alpha", "db_path": dir.join("vaultspend.db").to_string_lossy(), "icon_key": "cat" }] }).to_string(),
+        )
+        .unwrap();
+        let runtime = AppRuntime::no_profile_open();
+        let status = LaunchStatus::new(dir.clone());
+
+        let state = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, None);
+
+        match state {
+            StartupState::Selector { profiles, .. } => assert_eq!(profiles[0].icon_key.as_deref(), Some("cat")),
             other => panic!("expected Selector, got {other:?}"),
         }
     }

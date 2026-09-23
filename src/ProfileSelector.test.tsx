@@ -5,14 +5,24 @@ import { createRoot, type Root } from "react-dom/client";
 
 const protection = vi.hoisted(() => ({ selectProfile: vi.fn() }));
 vi.mock("./protection", () => protection);
+const invokeMock = vi.hoisted(() => vi.fn());
+vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
 import { ProfileSelector } from "./ProfileSelector";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+function typeInto(input: HTMLInputElement, value: string) {
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  act(() => {
+    setValue.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 const THREE = [
   { id: "a", name: "Alex", icon_key: null, is_password_protected: false },
-  { id: "b", name: "Blair", icon_key: null, is_password_protected: true },
+  { id: "b", name: "Blair", icon_key: "account-avatar-profile-3", is_password_protected: true },
   { id: "c", name: "Casey", icon_key: null, is_password_protected: false },
 ];
 
@@ -23,6 +33,7 @@ describe("ProfileSelector", () => {
 
   beforeEach(() => {
     protection.selectProfile.mockReset();
+    invokeMock.mockReset();
     onResolved.mockReset();
     container = document.createElement("div");
     document.body.append(container);
@@ -40,28 +51,29 @@ describe("ProfileSelector", () => {
     });
   }
 
-  function buttons() {
+  function cards() {
     return [...container.querySelectorAll<HTMLButtonElement>("[data-profile-option]")];
   }
 
-  it("shows a plain list for three or fewer profiles, with a lock indicator on protected ones", () => {
+  it("shows a card per profile, with a lock indicator only on protected ones", () => {
     show(THREE);
 
-    expect(buttons()).toHaveLength(3);
-    expect(buttons().map((b) => b.textContent)).toEqual(expect.arrayContaining([expect.stringContaining("Alex")]));
-    const blair = buttons().find((b) => b.textContent?.includes("Blair"))!;
+    expect(cards()).toHaveLength(3);
+    const blair = cards().find((b) => b.textContent?.includes("Blair"))!;
     expect(blair.querySelector('[aria-label="Password protected"]')).not.toBeNull();
-    const alex = buttons().find((b) => b.textContent?.includes("Alex"))!;
+    const alex = cards().find((b) => b.textContent?.includes("Alex"))!;
     expect(alex.querySelector('[aria-label="Password protected"]')).toBeNull();
   });
 
-  it("shows a drop-down for four or more profiles", () => {
-    const four = [...THREE, { id: "d", name: "Dana", icon_key: null, is_password_protected: false }];
+  it("renders as cards for any number of profiles — no drop-down mode", () => {
+    const six = [...THREE, { id: "d", name: "Dana", icon_key: null, is_password_protected: false },
+      { id: "e", name: "Erin", icon_key: null, is_password_protected: false },
+      { id: "f", name: "Finn", icon_key: null, is_password_protected: false }];
 
-    show(four);
+    show(six);
 
-    expect(container.querySelector("select")).not.toBeNull();
-    expect(buttons()).toHaveLength(0);
+    expect(container.querySelector("select")).toBeNull();
+    expect(cards()).toHaveLength(6);
   });
 
   it("selecting an unprotected profile calls selectProfile and reports the result", async () => {
@@ -69,7 +81,7 @@ describe("ProfileSelector", () => {
     show(THREE);
 
     await act(async () => {
-      buttons().find((b) => b.textContent?.includes("Alex"))!.click();
+      cards().find((b) => b.textContent?.includes("Alex"))!.click();
     });
 
     expect(protection.selectProfile).toHaveBeenCalledWith("a");
@@ -81,7 +93,7 @@ describe("ProfileSelector", () => {
     show(THREE);
 
     await act(async () => {
-      buttons().find((b) => b.textContent?.includes("Blair"))!.click();
+      cards().find((b) => b.textContent?.includes("Blair"))!.click();
     });
 
     expect(onResolved).toHaveBeenCalledWith({ status: "locked", profile_id: "b", profile_name: "Blair" });
@@ -92,11 +104,64 @@ describe("ProfileSelector", () => {
     show(THREE);
 
     await act(async () => {
-      buttons().find((b) => b.textContent?.includes("Alex"))!.click();
+      cards().find((b) => b.textContent?.includes("Alex"))!.click();
     });
 
     const alert = container.querySelector('[role="alert"]');
     expect(alert?.textContent).toBe("That profile no longer exists.");
     expect(onResolved).not.toHaveBeenCalled();
+  });
+
+  it("renaming a profile calls rename_profile and updates the card without leaving the screen", async () => {
+    invokeMock.mockResolvedValue(undefined);
+    show(THREE);
+
+    await act(async () => {
+      [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Rename" && b.closest("[data-profile-card]")?.textContent?.includes("Alex"))!.click();
+    });
+    typeInto(container.querySelector<HTMLInputElement>(".profile-card-editing input")!, "Alexandra");
+    await act(async () => {
+      container.querySelector<HTMLInputElement>(".profile-card-editing input")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("rename_profile", { id: "a", newName: "Alexandra" });
+    expect(cards().some((b) => b.textContent?.includes("Alexandra"))).toBe(true);
+    expect(onResolved).not.toHaveBeenCalled();
+  });
+
+  it("deleting a profile needs a second click to confirm, then calls delete_profile and removes the card", async () => {
+    invokeMock.mockResolvedValue(undefined);
+    show(THREE);
+    const deleteButtonFor = (name: string) =>
+      [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Delete" && b.closest("[data-profile-card]")?.textContent?.includes(name));
+
+    await act(async () => {
+      deleteButtonFor("Casey")!.click();
+    });
+    expect(invokeMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deleteButtonFor("Casey")!.click();
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("delete_profile", { id: "c" });
+    expect(cards().some((b) => b.textContent?.includes("Casey"))).toBe(false);
+    expect(cards()).toHaveLength(2);
+  });
+
+  it("an Add profile tile creates a new profile through the existing create_profile command and opens it", async () => {
+    invokeMock.mockResolvedValue("Dana");
+    show(THREE);
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-add-profile]")!.click();
+    });
+    typeInto(container.querySelector<HTMLInputElement>(".profile-card-new-form input")!, "Dana");
+    await act(async () => {
+      container.querySelector<HTMLInputElement>(".profile-card-new-form input")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("create_profile", { name: "Dana" });
+    expect(onResolved).toHaveBeenCalledWith({ status: "open" });
   });
 });

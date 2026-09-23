@@ -6142,3 +6142,199 @@ button:disabled {
 .launch-error-confirm h2 {
   margin-top: 0;
 }
+
+/* The profile selector and lock screen ("choose a profile" / "sign in") — a dedicated look on top of
+   the same full-screen-gate idea as .launch-error above, still entirely token-driven so it looks
+   correct in all six theme/mode combinations. */
+.profile-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.profile-gate-card {
+  width: min(400px, 100%);
+  padding: 32px 28px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-gate-card h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  line-height: 1.25;
+  text-align: center;
+  outline: none;
+}
+
+.profile-gate-subtitle {
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.profile-selector-card {
+  width: min(640px, 100%);
+}
+
+.profile-card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 140px;
+  padding: 16px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.profile-card-open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.profile-card-open:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.profile-card-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+/* The Lucide fallback (no avatar picked yet) renders as a bare <svg>, not an <img> like the bundled
+   avatar pictures — same treatment as .profile-switcher-icon's own fallback, sized up. */
+svg.profile-card-avatar {
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.profile-card-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 14px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.profile-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.profile-card-editing,
+.profile-card-new-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* Nested inside an ordinary .profile-card (still 140px), so width: 100% fills that — unlike
+   .profile-card-new-form below, which replaces the "Add profile" tile directly in the flex row. */
+.profile-card-editing {
+  align-items: center;
+  width: 100%;
+}
+
+/* Capped, not open-ended: a plain width: 100% here would resolve against the flex row itself (it's
+   not nested inside a fixed-width parent the way .profile-card-editing is), stretching to fill the
+   whole grid's remaining width on a wide window — a real layout bug an actual screenshot caught.
+   Deliberately wider than a 140px card, though: typing a name needs more room than renaming an
+   already-short existing one does. */
+.profile-card-new-form {
+  width: min(260px, 100%);
+}
+
+.profile-card-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 140px;
+  min-height: 118px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.profile-card-add:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.profile-card-add-icon {
+  font-size: 20px;
+  line-height: 1;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  display: grid;
+  place-items: center;
+}
+
+.profile-gate-switch {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.password-form-field {
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.password-form-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.password-form-field .text-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+/* Full-bleed only when it's the form's sole action (the sign-in/unlock screens) — the in-app
+   switch-to-protected-profile prompt (Modal.tsx) also renders a Cancel button alongside it, where
+   forcing 100% width would fight the Cancel button for space instead of sharing the row. */
+.password-form-submit:only-child {
+  width: 100%;
+}

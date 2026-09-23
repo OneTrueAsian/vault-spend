@@ -1,7 +1,9 @@
 // E2E coverage for locking/unlocking a real protected profile (Phase C, Task 9): a correct password
 // unlocks; a wrong one shows the message and re-tries at the documented delay after the 4th failure;
 // a locked profile refuses to leak data through a direct backend call; the lock screen's "Switch
-// profile" button (Task 10 finding) actually reaches the selector instead of re-showing itself.
+// profile" button (Task 10 finding) actually reaches the selector instead of re-showing itself; the
+// sign-in redesign (Task 10) actually carries the app's standard entry-field styling, not a bare
+// browser-default input.
 //
 // Run with: node e2e/feature102_profile_unlock_lock.mjs
 
@@ -32,6 +34,18 @@ try {
   await (await browser.$(".profile-switcher-toggle")).click();
   await (await browser.$("[data-profile-switcher-lock]")).click();
   await browser.$("[data-profile-lock-screen]").waitForExist({ timeout: 10000 });
+
+  // The sign-in redesign (Task 10): the password field must actually carry the app's standard
+  // entry-field styling (feature88's own convention — a real border, real radius, not the bare
+  // browser-default box PasswordForm rendered before this phase's restyle).
+  const fieldStyle = await browser.execute(() => {
+    const el = document.getElementById("password-form-field");
+    const cs = getComputedStyle(el);
+    return { class: el.className, borderStyle: cs.borderTopStyle, borderRadius: cs.borderRadius };
+  });
+  assert.match(fieldStyle.class, /\btext-input\b/, `expected the password field to carry the standard text-input class, got "${fieldStyle.class}"`);
+  assert.equal(fieldStyle.borderStyle, "solid", `expected a real border, got ${fieldStyle.borderStyle}`);
+  assert.notEqual(fieldStyle.borderRadius, "0px", "expected a rounded field, not a square browser-default box");
 
   // A direct backend call must report locked, never open, while the lock screen is up.
   const state = await invoke(browser, "get_startup_state");

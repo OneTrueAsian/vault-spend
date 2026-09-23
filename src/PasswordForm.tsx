@@ -40,29 +40,32 @@ export function PasswordForm({
   }
 
   return (
-    <form onSubmit={submit}>
-      <label htmlFor="password-form-field">Password</label>
-      <input
-        id="password-form-field"
-        ref={passwordRef}
-        type="password"
-        autoComplete="current-password"
-        autoFocus
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        aria-invalid={error !== ""}
-        aria-describedby={error ? errorId : undefined}
-        disabled={busy}
-      />
+    <form onSubmit={submit} className="password-form">
+      <div className="password-form-field">
+        <label htmlFor="password-form-field">Password</label>
+        <input
+          id="password-form-field"
+          className="text-input"
+          ref={passwordRef}
+          type="password"
+          autoComplete="current-password"
+          autoFocus
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          aria-invalid={error !== ""}
+          aria-describedby={error ? errorId : undefined}
+          disabled={busy}
+        />
+      </div>
       <p id={errorId} className="launch-error-problem" role="alert">
         {error}
       </p>
       <div className="launch-error-actions">
-        <button type="submit" disabled={busy || password === ""}>
+        <button type="submit" className="password-form-submit" disabled={busy || password === ""}>
           {submitLabel}
         </button>
         {onCancel && (
-          <button type="button" data-password-form-cancel onClick={onCancel} disabled={busy}>
+          <button type="button" className="modal-secondary" data-password-form-cancel onClick={onCancel} disabled={busy}>
             Cancel
           </button>
         )}

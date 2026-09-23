@@ -25,13 +25,14 @@ export function ProfileLockScreen({
   }
 
   return (
-    <main className="launch-error" data-profile-lock-screen>
-      <div className="launch-error-card">
+    <main className="profile-gate" data-profile-lock-screen>
+      <div className="profile-gate-card">
         <h1 ref={headingRef} tabIndex={-1}>
           {profileName} is locked
         </h1>
+        <p className="profile-gate-subtitle">Enter your password to continue.</p>
         <PasswordForm submitLabel="Unlock" onSubmit={async (password) => onResolved(await unlockProfile(profileId, password))} />
-        <button type="button" data-switch-profile onClick={switchProfile}>
+        <button type="button" className="modal-secondary profile-gate-switch" data-switch-profile onClick={switchProfile}>
           Switch profile
         </button>
       </div>

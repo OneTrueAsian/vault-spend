@@ -135,6 +135,7 @@ pub struct RegisteredProfile {
     pub name: String,
     pub db_path: PathBuf,
     pub protection: Option<Protection>,
+    pub icon_key: Option<String>,
 }
 
 /// The registered profiles, or none when there is no registry yet. Unlike `list_profiles` this never
@@ -145,7 +146,7 @@ pub fn registered_profiles_strict(config_path: &Path) -> Result<Vec<RegisteredPr
             registry
                 .profiles
                 .into_iter()
-                .map(|p| RegisteredProfile { id: p.id, name: p.name, db_path: PathBuf::from(p.db_path), protection: p.protection })
+                .map(|p| RegisteredProfile { id: p.id, name: p.name, db_path: PathBuf::from(p.db_path), protection: p.protection, icon_key: p.icon_key })
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default())
@@ -1062,6 +1063,26 @@ mod tests {
         assert_eq!(listed[0].id, "default");
         assert_eq!(listed[0].db_path, dir.join("vaultspend.db"));
         assert!(listed.iter().any(|p| p.name == "Alex"));
+    }
+
+    #[test]
+    fn registered_profiles_strict_carries_icon_key_through() {
+        // The selector's card grid needs a real icon per profile, not the hardcoded `None` it was
+        // stuck with before — `RegisteredProfile` itself never carried this field, so there was
+        // nothing for the selector's own construction to read regardless of what the frontend asked
+        // for. This is the layer that gap actually lived in.
+        let dir = temp_dir("strict-icon");
+        let config_path = dir.join("config.json");
+        create_profile(&config_path, &dir.join("vaultspend.db"), "Alex", dt("2026-08-30 12:00:00")).unwrap();
+        let alex = registered_profiles_strict(&config_path).unwrap().into_iter().find(|p| p.name == "Alex").unwrap();
+        set_profile_icon(&config_path, &dir.join("vaultspend.db"), &alex.id, Some("cat")).unwrap();
+
+        let listed = registered_profiles_strict(&config_path).unwrap();
+
+        let updated = listed.iter().find(|p| p.name == "Alex").unwrap();
+        assert_eq!(updated.icon_key.as_deref(), Some("cat"));
+        let untouched = listed.iter().find(|p| p.id == "default").unwrap();
+        assert_eq!(untouched.icon_key, None, "a profile that never had an icon set should report None, not a made-up default");
     }
 
     #[test]
