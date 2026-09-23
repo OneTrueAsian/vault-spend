@@ -7,3 +7,18 @@
 pub fn debug_process_id() -> u32 {
     std::process::id()
 }
+
+/// Debug-build-only probe used by compiled-app E2E until the real recovery flow lands in Task 5.
+/// It returns only a boolean and never logs or serializes the recovery code or unwrapped key.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_recovery_code_unlocks(code: String, paths: tauri::State<crate::config::AppPaths>) -> Result<bool, String> {
+    let db_path = paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let key_file =
+        budget_core::protection::keyfile::KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&db_path)).map_err(|e| e.to_string())?;
+    let parsed = match budget_core::protection::recovery::RecoveryCode::parse(&code) {
+        Ok(code) => code,
+        Err(_) => return Ok(false),
+    };
+    Ok(key_file.unlock_with_recovery(&parsed).is_ok())
+}

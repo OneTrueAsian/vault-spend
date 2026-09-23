@@ -156,9 +156,16 @@ impl KeyFile {
     /// Replaces only the recovery slot (same database key); the old code stops working.
     pub fn regenerate_recovery(&self, dek: &UnlockedKey, params: &KdfParams) -> Result<(KeyFile, RecoveryCode), ProtectionError> {
         let code = RecoveryCode::generate();
+        let renewed = self.regenerate_recovery_with_code(dek, &code, params)?;
+        Ok((renewed, code))
+    }
+
+    /// Replaces only the recovery slot with a caller-supplied code. This lets a backend challenge
+    /// commit the exact code that was displayed and confirmed rather than generating a second one.
+    pub fn regenerate_recovery_with_code(&self, dek: &UnlockedKey, code: &RecoveryCode, params: &KdfParams) -> Result<KeyFile, ProtectionError> {
         let mut renewed = self.clone();
         renewed.recovery_slot = make_slot(code.secret_bytes(), dek.as_bytes(), &self.protection_id, RECOVERY_SLOT, params)?;
-        Ok((renewed, code))
+        Ok(renewed)
     }
 
     pub fn to_json(&self) -> String {

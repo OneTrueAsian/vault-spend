@@ -10,6 +10,8 @@ const protection = vi.hoisted(() => ({
   cancelProtectionSetup: vi.fn(),
   verifyCurrentPassword: vi.fn(),
   changePassword: vi.fn(),
+  beginRegenerateRecovery: vi.fn(),
+  commitRegenerateRecovery: vi.fn(),
 }));
 vi.mock("./protection", () => protection);
 
@@ -48,6 +50,8 @@ describe("ProfileProtectionSection", () => {
     protection.cancelProtectionSetup.mockReset().mockResolvedValue(undefined);
     protection.verifyCurrentPassword.mockReset().mockResolvedValue(undefined);
     protection.changePassword.mockReset();
+    protection.beginRegenerateRecovery.mockReset();
+    protection.commitRegenerateRecovery.mockReset();
     profileUiState.getCurrentGeneration.mockReset().mockResolvedValue(1);
     onProtected.mockReset();
     container = document.createElement("div");
@@ -83,6 +87,17 @@ describe("ProfileProtectionSection", () => {
     expect(container.textContent).toContain("On");
     expect([...container.querySelectorAll("button")].find((b) => b.textContent === "Turn on password protection…")).toBeUndefined();
     expect(button("Change password…")).not.toBeUndefined();
+    expect(button("Regenerate recovery key…")).not.toBeUndefined();
+  });
+
+  it("opens the regenerate-recovery dialog with the current generation", async () => {
+    show(PROTECTED);
+
+    await act(async () => button("Regenerate recovery key…").click());
+
+    expect(document.body.textContent).toContain("Regenerate recovery key");
+    expect(document.body.querySelector("#regenerate-recovery-current")).not.toBeNull();
+    expect(profileUiState.getCurrentGeneration).toHaveBeenCalledTimes(1);
   });
 
   it("opens the change-password dialog with the current generation", async () => {

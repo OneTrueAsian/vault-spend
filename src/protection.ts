@@ -10,6 +10,10 @@ export const verifyCurrentPassword = (password: string, expectedGeneration: numb
   invoke<void>("verify_current_password", { password, expectedGeneration });
 export const changePassword = (currentPassword: string, token: string, answers: [string, string]) =>
   invoke<string>("change_password", { currentPassword, token, answers });
+export const beginRegenerateRecovery = (currentPassword: string, expectedGeneration: number) =>
+  invoke<SetupChallenge>("begin_regenerate_recovery", { currentPassword, expectedGeneration });
+export const commitRegenerateRecovery = (token: string, answers: [string, string]) =>
+  invoke<string>("commit_regenerate_recovery", { token, answers });
 
 export interface SetupChallenge {
   token: string;

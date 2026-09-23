@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
 import { ChangePasswordDialog } from "./ChangePasswordDialog";
+import { RegenerateRecoveryDialog } from "./RegenerateRecoveryDialog";
 import { getCurrentGeneration } from "./profileUiState";
 import type { Profile } from "./types";
 
@@ -18,6 +19,7 @@ export function ProfileProtectionSection({
 }) {
   const [dialogGeneration, setDialogGeneration] = useState<number | null>(null);
   const [changeGeneration, setChangeGeneration] = useState<number | null>(null);
+  const [regenerateGeneration, setRegenerateGeneration] = useState<number | null>(null);
   const active = profiles.find((p) => p.is_active);
 
   if (!active) return null;
@@ -40,9 +42,14 @@ export function ProfileProtectionSection({
         </button>
       )}
       {active.is_password_protected && (
-        <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setChangeGeneration)}>
-          Change password…
-        </button>
+        <div className="button-row">
+          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setChangeGeneration)}>
+            Change password…
+          </button>
+          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRegenerateGeneration)}>
+            Regenerate recovery key…
+          </button>
+        </div>
       )}
       {dialogGeneration !== null && (
         <ProtectionSetupDialog
@@ -64,6 +71,16 @@ export function ProfileProtectionSection({
             onProtected();
           }}
           onCancel={() => setChangeGeneration(null)}
+        />
+      )}
+      {regenerateGeneration !== null && (
+        <RegenerateRecoveryDialog
+          expectedGeneration={regenerateGeneration}
+          onDone={() => {
+            setRegenerateGeneration(null);
+            onProtected();
+          }}
+          onCancel={() => setRegenerateGeneration(null)}
         />
       )}
     </div>

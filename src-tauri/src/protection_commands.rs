@@ -230,6 +230,48 @@ pub fn change_password(
     Ok(committed_recovery_code.display())
 }
 
+#[tauri::command]
+pub fn begin_regenerate_recovery(
+    current_password: String,
+    expected_generation: u64,
+    paths: tauri::State<AppPaths>,
+    sessions: tauri::State<Sessions>,
+) -> Result<SetupChallenge, String> {
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the password could be checked.".to_string());
+    }
+    let db_path = current_db_path(&paths);
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    let remaining = sessions.delay_remaining(&profile_id);
+    if !remaining.is_zero() {
+        return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+    }
+    let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&db_path)).map_err(|e| e.to_string())?;
+    if key_file.unlock_with_password(&current_password).is_err() {
+        sessions.record_failure(&profile_id);
+        return Err("That password didn't work.".to_string());
+    }
+    sessions.record_success(&profile_id);
+    Ok(sessions.begin_setup(&current_password, expected_generation))
+}
+
+#[tauri::command]
+pub fn commit_regenerate_recovery(
+    token: String,
+    answers: [String; 2],
+    paths: tauri::State<AppPaths>,
+    sessions: tauri::State<Sessions>,
+) -> Result<String, String> {
+    let (current_password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the recovery key could be regenerated.".to_string());
+    }
+    let recovery_display = recovery_code.display();
+    let db_path = current_db_path(&paths);
+    crate::protection_lifecycle::regenerate_recovery_with_code(&db_path, &current_password, recovery_code)?;
+    Ok(recovery_display)
+}
+
 /// Starts the shared 2-of-7 recovery-key setup challenge (Phase C, Task 6), used by both turning
 /// protection on for the current profile and creating a brand-new protected one. Which of those two
 /// this is for is not asked here — only `password` and the generation the caller's session must

@@ -217,6 +217,8 @@ pub fn run() {
             protection_commands::lock_current_profile,
             protection_commands::verify_current_password,
             protection_commands::change_password,
+            protection_commands::begin_regenerate_recovery,
+            protection_commands::commit_regenerate_recovery,
             protection_commands::begin_protection_setup,
             protection_commands::cancel_protection_setup,
             protection_commands::commit_protection_setup,
@@ -368,6 +370,7 @@ pub fn run() {
             commands::check_sinking_fund_contributions,
             #[cfg(debug_assertions)]
             debug_commands::debug_process_id,
+            debug_commands::debug_recovery_code_unlocks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

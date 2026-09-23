@@ -258,6 +258,22 @@ pub fn rotate_password_with_recovery(
     )
 }
 
+/// Replaces only the recovery slot in the live key file. The current password proves authority and
+/// unwraps the existing DEK; the database, password slot, and backups are not changed. The caller
+/// supplies the code that its save-confirmation challenge displayed, so UI and disk cannot diverge.
+pub fn regenerate_recovery_with_code(live_db_path: &Path, current_password: &str, recovery_code: RecoveryCode) -> Result<KeyFile, String> {
+    let key_path = keyfile::key_file_path_for(live_db_path);
+    let key_file = KeyFile::read(&key_path).map_err(|e| e.to_string())?;
+    let dek = key_file
+        .unlock_with_password(current_password)
+        .map_err(|_| "That password didn't work.".to_string())?;
+    let renewed = key_file
+        .regenerate_recovery_with_code(&dek, &recovery_code, &KdfParams::PRODUCTION)
+        .map_err(|e| e.to_string())?;
+    renewed.write_to(&key_path).map_err(|e| e.to_string())?;
+    Ok(renewed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,6 +368,39 @@ mod tests {
         assert_eq!(error, "That password didn't work.");
         assert!(live_db_path.exists());
         assert!(!rotation_journal_path_for(&config_path).exists());
+    }
+
+    #[test]
+    fn regenerating_the_recovery_key_uses_the_confirmed_code_and_leaves_the_database_untouched() {
+        let dir = temp_dir("regenerate");
+        let (_, live_db_path, store) = protected_profile(&dir);
+        let before = KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap();
+        let old_dek = before.unlock_with_password("old password 123").unwrap();
+        let confirmed_code = RecoveryCode::generate();
+        let confirmed_display = confirmed_code.display();
+
+        let renewed = regenerate_recovery_with_code(&live_db_path, "old password 123", confirmed_code).unwrap();
+        let confirmed_code = RecoveryCode::parse(&confirmed_display).unwrap();
+
+        assert!(renewed.unlock_with_password("old password 123").is_ok(), "the password is unchanged");
+        assert_eq!(renewed.unlock_with_recovery(&confirmed_code).unwrap().as_bytes(), old_dek.as_bytes());
+        assert_ne!(renewed, before, "the recovery slot changes");
+        assert!(store.list_categories().is_ok(), "the database itself was never touched");
+        assert_eq!(KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap(), renewed);
+    }
+
+    #[test]
+    fn a_wrong_password_refuses_to_regenerate_recovery() {
+        let dir = temp_dir("regenerate-wrong-password");
+        let (_, live_db_path, _store) = protected_profile(&dir);
+        let before = KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap();
+
+        let error = regenerate_recovery_with_code(&live_db_path, "not it", RecoveryCode::generate())
+            .map(|_| ())
+            .unwrap_err();
+
+        assert_eq!(error, "That password didn't work.");
+        assert_eq!(KeyFile::read(&keyfile::key_file_path_for(&live_db_path)).unwrap(), before);
     }
 
     #[test]
