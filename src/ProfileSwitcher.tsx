@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { usePopover } from "./usePopover";
 import type { Profile } from "./types";
 import { ProfileIcon } from "./icons";
 
@@ -20,25 +20,14 @@ export function ProfileSwitcher({
    * password protected, so there is nothing for a lock action to guard. */
   onLock?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  const { open, setOpen, rootRef, triggerRef } = usePopover();
 
   const current = profiles.find((p) => p.is_active);
 
   return (
     <div className="profile-switcher" ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         className="profile-switcher-toggle"
         onClick={() => setOpen((v) => !v)}

@@ -373,7 +373,7 @@ function LivePricesSection({
         <>
           <select
             aria-label="Live price provider"
-            className="row-edit-input"
+            className="text-input"
             value={pickerProvider}
             onChange={(e) => setPickerProvider(e.target.value as LivePriceProviderId)}
           >

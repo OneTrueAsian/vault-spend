@@ -29,8 +29,10 @@ export function EmptyRegistryScreen({ onResolved }: { onResolved: (next: Startup
       <div className="launch-error-card">
         <h1 tabIndex={-1}>No profiles are set up yet</h1>
         <p>Create one to get started.</p>
-        <label htmlFor="empty-registry-name">Profile name</label>
-        <input id="empty-registry-name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
+        <div className="password-form-field">
+          <label htmlFor="empty-registry-name">Profile name</label>
+          <input className="text-input" id="empty-registry-name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
+        </div>
         <p className="launch-error-problem" role="alert">
           {error}
         </p>

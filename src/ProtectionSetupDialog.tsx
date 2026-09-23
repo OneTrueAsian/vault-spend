@@ -70,95 +70,122 @@ export function ProtectionSetupDialog({
 
   return (
     <ModalShell title="Protect this profile with a password" onCancel={cancel}>
-      {step === "password" && (
-        <>
-          <label htmlFor="protection-setup-password">Password</label>
-          <input
-            id="protection-setup-password"
-            type="password"
-            autoFocus
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-          />
-          <label htmlFor="protection-setup-confirm">Confirm password</label>
-          <input
-            id="protection-setup-confirm"
-            type="password"
-            value={confirmValue}
-            onChange={(e) => setConfirmValue(e.target.value)}
-            disabled={busy}
-          />
-          {error && (
-            <p className="launch-error-problem" role="alert">
-              {error}
+      <div className="protection-setup">
+        <p className="protection-setup-step">
+          Step {step === "password" ? "1 of 3 · Password" : step === "recovery" ? "2 of 3 · Save recovery key" : "3 of 3 · Confirm recovery key"}
+        </p>
+        {step === "password" && (
+          <>
+            <p className="modal-message modal-message-secondary">Choose a password to unlock this profile.</p>
+            <div className="password-form-field">
+              <label htmlFor="protection-setup-password">Password</label>
+              <input
+                className="text-input"
+                autoComplete="new-password"
+                aria-describedby="protection-setup-password-hint"
+                id="protection-setup-password"
+                type="password"
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={busy}
+              />
+              <p id="protection-setup-password-hint" className="protection-setup-hint">At least 8 characters.</p>
+            </div>
+            <div className="password-form-field">
+              <label htmlFor="protection-setup-confirm">Confirm password</label>
+              <input
+                className="text-input"
+                autoComplete="new-password"
+                aria-invalid={confirmValue.length > 0 && !matches}
+                aria-describedby={confirmValue.length > 0 && !matches ? "protection-setup-match-hint" : undefined}
+                id="protection-setup-confirm"
+                type="password"
+                value={confirmValue}
+                onChange={(e) => setConfirmValue(e.target.value)}
+                disabled={busy}
+              />
+              {confirmValue.length > 0 && !matches && (
+                <p id="protection-setup-match-hint" className="protection-setup-hint protection-setup-error">Passwords do not match.</p>
+              )}
+            </div>
+            {error && (
+              <p className="launch-error-problem" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="modal-secondary" onClick={cancel} disabled={busy}>
+                Cancel
+              </button>
+              <button type="button" onClick={startRecovery} disabled={busy || !lengthOk || !matches}>
+                Continue
+              </button>
+            </div>
+          </>
+        )}
+        {step === "recovery" && challenge && (
+          <>
+            <p className="modal-message">
+              Write this recovery key down and keep it somewhere safe. If you forget your password, this is the only
+              way back into this profile.
             </p>
-          )}
-          <div className="modal-actions">
-            <button type="button" className="modal-secondary" onClick={cancel} disabled={busy}>
-              Cancel
-            </button>
-            <button type="button" onClick={startRecovery} disabled={busy || !lengthOk || !matches}>
-              Continue
-            </button>
-          </div>
-        </>
-      )}
-      {step === "recovery" && challenge && (
-        <>
-          <p className="modal-message">
-            Write this recovery key down and keep it somewhere safe. If you forget your password, this is the only
-            way back into this profile.
-          </p>
-          <p className="path-box" style={{ userSelect: "text" }}>
-            {challenge.recovery_display}
-          </p>
-          <div className="modal-actions">
-            <button type="button" className="modal-secondary" onClick={cancel}>
-              Cancel
-            </button>
-            <button type="button" onClick={() => setStep("confirm")}>
-              I&apos;ve saved it
-            </button>
-          </div>
-        </>
-      )}
-      {step === "confirm" && challenge && (
-        <>
-          <p className="modal-message">
-            To confirm you saved it, type groups {challenge.challenge_group_indices[0] + 1} and{" "}
-            {challenge.challenge_group_indices[1] + 1} below.
-          </p>
-          <label htmlFor="protection-setup-answer-0">{`Group ${challenge.challenge_group_indices[0] + 1}`}</label>
-          <input
-            id="protection-setup-answer-0"
-            autoFocus
-            value={answers[0]}
-            onChange={(e) => setAnswers([e.target.value, answers[1]])}
-            disabled={busy}
-          />
-          <label htmlFor="protection-setup-answer-1">{`Group ${challenge.challenge_group_indices[1] + 1}`}</label>
-          <input
-            id="protection-setup-answer-1"
-            value={answers[1]}
-            onChange={(e) => setAnswers([answers[0], e.target.value])}
-            disabled={busy}
-          />
-          {error && (
-            <p className="launch-error-problem" role="alert">
-              {error}
+            <p className="path-box protection-setup-key">
+              {challenge.recovery_display}
             </p>
-          )}
-          <div className="modal-actions">
-            <button type="button" className="modal-secondary" onClick={cancel} disabled={busy}>
-              Cancel
-            </button>
-            <button type="button" onClick={commit} disabled={busy || answers[0] === "" || answers[1] === ""}>
-              Finish
-            </button>
-          </div>
-        </>
-      )}
+            <div className="modal-actions">
+              <button type="button" className="modal-secondary" onClick={cancel}>
+                Cancel
+              </button>
+              <button type="button" onClick={() => setStep("confirm")}>
+                I&apos;ve saved it
+              </button>
+            </div>
+          </>
+        )}
+        {step === "confirm" && challenge && (
+          <>
+            <p className="modal-message">
+              To confirm you saved it, type groups {challenge.challenge_group_indices[0] + 1} and{" "}
+              {challenge.challenge_group_indices[1] + 1} below.
+            </p>
+            <div className="password-form-field">
+              <label htmlFor="protection-setup-answer-0">{`Group ${challenge.challenge_group_indices[0] + 1}`}</label>
+              <input
+                className="text-input"
+                id="protection-setup-answer-0"
+                autoFocus
+                value={answers[0]}
+                onChange={(e) => setAnswers([e.target.value, answers[1]])}
+                disabled={busy}
+              />
+            </div>
+            <div className="password-form-field">
+              <label htmlFor="protection-setup-answer-1">{`Group ${challenge.challenge_group_indices[1] + 1}`}</label>
+              <input
+                className="text-input"
+                id="protection-setup-answer-1"
+                value={answers[1]}
+                onChange={(e) => setAnswers([answers[0], e.target.value])}
+                disabled={busy}
+              />
+            </div>
+            {error && (
+              <p className="launch-error-problem" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="modal-secondary" onClick={cancel} disabled={busy}>
+                Cancel
+              </button>
+              <button type="button" onClick={commit} disabled={busy || answers[0] === "" || answers[1] === ""}>
+                Finish
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </ModalShell>
   );
 }

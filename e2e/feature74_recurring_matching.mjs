@@ -128,7 +128,7 @@ try {
   await browser.$("//h1[normalize-space()='Recurring']").waitForExist({ timeout: 10000 });
 
   // --- Update to the new price clears the alert ---------------------------
-  await (await browser.$("[data-price-alert='Netflix'] button")).click();
+  await (await browser.$("[data-price-alert='Netflix']").$("button=Update to $17.99")).click();
   await browser.waitUntil(async () => !(await browser.$("[data-price-alert='Netflix']").isExisting()), {
     timeout: 10000,
     timeoutMsg: "updating the amount should clear the alert",

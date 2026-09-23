@@ -404,6 +404,7 @@ export function RecurringView({
   onSetStatus,
   onAddCandidate,
   onDismissCandidate,
+  onIgnorePriceChange,
 }: {
   recurring: Recurring[];
   /** Each item lined up against the charges actually posted. */
@@ -438,10 +439,25 @@ export function RecurringView({
   onSetStatus: (id: number, status: "keep" | "reviewing" | "canceled") => void;
   onAddCandidate: (candidate: RecurringCandidate) => void;
   onDismissCandidate: (candidate: RecurringCandidate) => void;
+  onIgnorePriceChange: (id: number, from: string, to: string) => Promise<void>;
 }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [ignoringIds, setIgnoringIds] = useState<Set<number>>(new Set());
+
+  async function ignorePriceChange(id: number, from: string, to: string) {
+    setIgnoringIds((ids) => new Set(ids).add(id));
+    try {
+      await onIgnorePriceChange(id, from, to);
+    } finally {
+      setIgnoringIds((ids) => {
+        const next = new Set(ids);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
 
   const matchById = new Map(matches.map((m) => [m.recurring_id, m]));
   // A price change the amount on file already reflects has been dealt with.
@@ -560,13 +576,25 @@ export function RecurringView({
                 <span>
                   <strong>{r.merchant}</strong> went from {from} to {to}.
                 </span>
-                <button
-                  type="button"
-                  className="modal-secondary"
-                  onClick={() => onUpdate(r.id, r.merchant, r.category, change.to, r.cadence, r.anchor_date, r.account_id, r.member_id)}
-                >
-                  Update to {to}
-                </button>
+                <div className="price-alert-actions">
+                  <button
+                    type="button"
+                    className="modal-secondary"
+                    disabled={ignoringIds.has(r.id)}
+                    title="Keep the current amount and stop suggesting this change"
+                    onClick={() => void ignorePriceChange(r.id, change.from, change.to)}
+                  >
+                    {ignoringIds.has(r.id) ? "Ignoring…" : "Ignore"}
+                  </button>
+                  <button
+                    type="button"
+                    className="modal-secondary"
+                    disabled={ignoringIds.has(r.id)}
+                    onClick={() => onUpdate(r.id, r.merchant, r.category, change.to, r.cadence, r.anchor_date, r.account_id, r.member_id)}
+                  >
+                    Update to {to}
+                  </button>
+                </div>
               </div>
             );
           })}

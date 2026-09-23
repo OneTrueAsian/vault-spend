@@ -311,6 +311,7 @@ pub fn run() {
             commands::delete_recurring,
             commands::list_recurring_candidates,
             commands::dismiss_recurring_candidate,
+            commands::dismiss_recurring_price_change,
             commands::create_holding,
             commands::list_holdings,
             commands::update_holding_price,

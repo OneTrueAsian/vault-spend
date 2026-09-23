@@ -72,10 +72,17 @@ describe("ProtectionSetupDialog", () => {
 
     typeInto(field("protection-setup-password"), "short");
     expect(button("Continue").disabled).toBe(true);
+    expect(document.body.textContent).toContain("At least 8 characters.");
 
     typeInto(field("protection-setup-password"), "eight ok!");
     typeInto(field("protection-setup-confirm"), "different");
     expect(button("Continue").disabled).toBe(true);
+    expect(field("protection-setup-confirm").getAttribute("aria-invalid")).toBe("true");
+    expect(document.body.textContent).toContain("Passwords do not match.");
+    typeInto(field("protection-setup-confirm"), "eight ok!");
+    expect(button("Continue").disabled).toBe(false);
+    expect(field("protection-setup-confirm").getAttribute("aria-invalid")).toBe("false");
+    expect(document.body.textContent).not.toContain("Passwords do not match.");
   });
 
   it("shows the recovery code once the password step completes, then asks for exactly the two challenged groups", async () => {
