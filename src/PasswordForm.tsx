@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
+const LOCKOUT_RE = /^Try again in (\d+) seconds\.$/;
+
 /** A password field + submit button, sharing the exact same focus/error/clear behavior on a failed
  * attempt — used by `ProfileLockScreen` (locked at launch) and the in-app "switch to a protected
  * profile" prompt, so the two never drift apart into two slightly different copies. Moving focus
@@ -20,10 +22,31 @@ export function PasswordForm({
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [lockoutRemaining, setLockoutRemaining] = useState<number | null>(null);
 
   useEffect(() => {
     if (error) passwordRef.current?.focus();
   }, [error]);
+
+  // A lockout error ("Try again in N seconds.") is a snapshot from the moment the attempt was
+  // rejected, not a live value — left alone, it would keep claiming a wait that already passed.
+  // Count it down locally and clear it once real time actually catches up.
+  useEffect(() => {
+    const match = LOCKOUT_RE.exec(error);
+    setLockoutRemaining(match ? Number(match[1]) : null);
+  }, [error]);
+
+  useEffect(() => {
+    if (lockoutRemaining === null) return;
+    if (lockoutRemaining <= 0) {
+      setError("");
+      return;
+    }
+    const timer = setTimeout(() => setLockoutRemaining((s) => (s === null ? null : s - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [lockoutRemaining]);
+
+  const displayedError = lockoutRemaining !== null ? `Try again in ${lockoutRemaining} seconds.` : error;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -58,7 +81,7 @@ export function PasswordForm({
         />
       </div>
       <p id={errorId} className="launch-error-problem" role="alert">
-        {error}
+        {displayedError}
       </p>
       <div className="launch-error-actions">
         <button type="submit" className="password-form-submit" disabled={busy || password === ""}>

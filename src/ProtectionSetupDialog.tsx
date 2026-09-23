@@ -146,8 +146,8 @@ export function ProtectionSetupDialog({
         {step === "confirm" && challenge && (
           <>
             <p className="modal-message">
-              To confirm you saved it, type groups {challenge.challenge_group_indices[0] + 1} and{" "}
-              {challenge.challenge_group_indices[1] + 1} below.
+              Type the characters from groups {challenge.challenge_group_indices[0] + 1} and{" "}
+              {challenge.challenge_group_indices[1] + 1} of the recovery key you just saved.
             </p>
             <div className="password-form-field">
               <label htmlFor="protection-setup-answer-0">{`Group ${challenge.challenge_group_indices[0] + 1}`}</label>

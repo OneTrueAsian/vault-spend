@@ -79,6 +79,30 @@ describe("PasswordForm", () => {
     expect(document.activeElement).toBe(passwordField());
   });
 
+  it("a lockout error counts down live and clears once the wait is actually over", async () => {
+    onSubmit.mockRejectedValue("Try again in 2 seconds.");
+    show();
+    typeInto(passwordField(), "wrong");
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("button[type='submit']")!.click();
+    });
+
+    const error = container.querySelector('[role="alert"]')!;
+    expect(error.textContent).toBe("Try again in 2 seconds.");
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+    });
+    expect(error.textContent).toBe("Try again in 1 seconds.");
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+    });
+    expect(error.textContent).toBe("");
+    expect(passwordField().getAttribute("aria-invalid")).toBe("false");
+  }, 10000);
+
   it("Cancel calls onCancel without ever calling onSubmit", () => {
     show();
 

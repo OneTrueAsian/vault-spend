@@ -108,6 +108,27 @@ describe("ProtectionSetupDialog", () => {
     expect(document.body.querySelector("label[for='protection-setup-answer-1']")!.textContent).toBe("Group 5");
   });
 
+  it("the confirm step says to type the recovery key's own characters, not the word \"group\"", async () => {
+    protection.beginProtectionSetup.mockResolvedValue({
+      token: "tok",
+      recovery_display: "AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG",
+      challenge_group_indices: [1, 4],
+    });
+    show();
+    typeInto(field("protection-setup-password"), "eight ok chars");
+    typeInto(field("protection-setup-confirm"), "eight ok chars");
+    await act(async () => {
+      button("Continue").click();
+    });
+    act(() => {
+      button("I've saved it").click();
+    });
+
+    expect(document.body.textContent).toContain(
+      "Type the characters from groups 2 and 5 of the recovery key you just saved.",
+    );
+  });
+
   it("submitting the two answers calls commitProtectionSetup and reports the result", async () => {
     protection.beginProtectionSetup.mockResolvedValue({
       token: "tok",
