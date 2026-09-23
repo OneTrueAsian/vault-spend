@@ -8,6 +8,8 @@ import { CHANGELOG } from "./changelog";
 import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
 import { ProfileProtectionSection } from "./ProfileProtectionSection";
 import { ProtectionLeftovers } from "./ProtectionLeftovers";
+import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
+import { getCurrentGeneration } from "./profileUiState";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -694,7 +696,7 @@ function ProfileIconPopover({ anchorRect, onClose, children }: { anchorRect: DOM
   );
 }
 
-function ProfilesSection({
+export function ProfilesSection({
   profiles,
   onCreateProfile,
   onUseExistingDataFile,
@@ -702,6 +704,7 @@ function ProfilesSection({
   onRenameProfile,
   onSetProfileIcon,
   onDeleteProfile,
+  onProtected,
 }: {
   profiles: Profile[];
   onCreateProfile: (name: string) => void;
@@ -715,18 +718,25 @@ function ProfilesSection({
   onRenameProfile: (id: string, newName: string) => void;
   onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
+  onProtected: () => void;
 }) {
   const [newProfileName, setNewProfileName] = useState("");
+  const [protectNewProfile, setProtectNewProfile] = useState(false);
+  const [pendingProtectedProfile, setPendingProtectedProfile] = useState<{ name: string; generation: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
   const [editingIcon, setEditingIcon] = useState<{ id: string; anchorRect: DOMRect } | null>(null);
 
-  function handleCreateSubmit(e: FormEvent) {
+  async function handleCreateSubmit(e: FormEvent) {
     e.preventDefault();
     const trimmed = newProfileName.trim();
     if (!trimmed) return;
+    if (protectNewProfile) {
+      setPendingProtectedProfile({ name: trimmed, generation: await getCurrentGeneration() });
+      return;
+    }
     onCreateProfile(trimmed);
     setNewProfileName("");
   }
@@ -866,6 +876,15 @@ function ProfilesSection({
         <button type="button" className="modal-secondary" onClick={onUseExistingDataFile}>
           Use existing file…
         </button>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            data-protect-new-profile
+            checked={protectNewProfile}
+            onChange={(event) => setProtectNewProfile(event.target.checked)}
+          />
+          Protect this profile with a password
+        </label>
       </form>
       <p className="modal-message-secondary">
         Moving to a new computer, or upgrading from an older version that used a different data file name? "Use
@@ -873,6 +892,20 @@ function ProfilesSection({
         checked for real account/transaction data before being adopted — a file that isn't actually a Vault Spend
         database is rejected with a clear reason.
       </p>
+      {pendingProtectedProfile && (
+        <ProtectionSetupDialog
+          targetProfileId={null}
+          newProfileName={pendingProtectedProfile.name}
+          expectedGeneration={pendingProtectedProfile.generation}
+          onDone={() => {
+            setPendingProtectedProfile(null);
+            setNewProfileName("");
+            setProtectNewProfile(false);
+            onProtected();
+          }}
+          onCancel={() => setPendingProtectedProfile(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1079,6 +1112,7 @@ export function SettingsView({
         onRenameProfile={onRenameProfile}
         onSetProfileIcon={onSetProfileIcon}
         onDeleteProfile={onDeleteProfile}
+        onProtected={onProtected}
       />
       <ProfileProtectionSection profiles={profiles} onProtected={onProtected} />
       <ProtectionLeftovers profiles={profiles} />

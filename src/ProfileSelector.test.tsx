@@ -3,8 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-const protection = vi.hoisted(() => ({ selectProfile: vi.fn() }));
+const protection = vi.hoisted(() => ({ selectProfile: vi.fn(), getCurrentGeneration: vi.fn() }));
 vi.mock("./protection", () => protection);
+vi.mock("./profileUiState", () => ({ getCurrentGeneration: protection.getCurrentGeneration }));
+vi.mock("./ProtectionSetupDialog", () => ({
+  ProtectionSetupDialog: ({ newProfileName }: { newProfileName: string | null }) => (
+    <div data-protection-setup-dialog>{newProfileName}</div>
+  ),
+}));
 const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
@@ -33,6 +39,7 @@ describe("ProfileSelector", () => {
 
   beforeEach(() => {
     protection.selectProfile.mockReset();
+    protection.getCurrentGeneration.mockReset().mockResolvedValue(7);
     invokeMock.mockReset();
     onResolved.mockReset();
     container = document.createElement("div");
@@ -74,6 +81,22 @@ describe("ProfileSelector", () => {
 
     expect(container.querySelector("select")).toBeNull();
     expect(cards()).toHaveLength(6);
+  });
+
+  it("refreshes the cards when a completed profile operation supplies a new selector state", () => {
+    show(THREE);
+
+    act(() => {
+      root.render(
+        <ProfileSelector
+          profiles={[...THREE, { id: "d", name: "Jamie", icon_key: null, is_password_protected: true }]}
+          lastUsedId={null}
+          onResolved={onResolved}
+        />,
+      );
+    });
+
+    expect(cards().some((button) => button.textContent?.includes("Jamie"))).toBe(true);
   });
 
   it("selecting an unprotected profile calls selectProfile and reports the result", async () => {
@@ -163,5 +186,23 @@ describe("ProfileSelector", () => {
 
     expect(invokeMock).toHaveBeenCalledWith("create_profile", { name: "Dana" });
     expect(onResolved).toHaveBeenCalledWith({ status: "open" });
+  });
+
+  it('checking "Protect this profile with a password" opens the protection setup instead of creating a plain profile', async () => {
+    show(THREE);
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-add-profile]")!.click();
+    });
+    typeInto(container.querySelector<HTMLInputElement>(".profile-card-new-form input")!, "Jamie");
+    act(() => {
+      container.querySelector<HTMLInputElement>("[data-protect-new-profile]")!.click();
+    });
+    await act(async () => {
+      [...container.querySelectorAll<HTMLButtonElement>(".profile-card-new-form button")].find((button) => button.textContent === "Add")!.click();
+    });
+
+    expect(document.body.querySelector("[data-protection-setup-dialog]")?.textContent).toBe("Jamie");
+    expect(invokeMock).not.toHaveBeenCalledWith("create_profile", expect.anything());
   });
 });

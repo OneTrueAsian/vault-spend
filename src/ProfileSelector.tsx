@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ProfileIcon } from "./icons";
 import { selectProfile } from "./protection";
+import { getCurrentGeneration } from "./profileUiState";
+import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import type { SelectorEntry, StartupState } from "./startup";
 
@@ -32,6 +34,12 @@ export function ProfileSelector({
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
+  const [protectNewProfile, setProtectNewProfile] = useState(false);
+  const [pendingProtectedProfile, setPendingProtectedProfile] = useState<{ name: string; generation: number } | null>(null);
+
+  useEffect(() => {
+    setEntries(profiles);
+  }, [profiles]);
 
   async function open(id: string) {
     setBusy(true);
@@ -79,6 +87,11 @@ export function ProfileSelector({
     setBusy(true);
     setProblem("");
     try {
+      if (protectNewProfile) {
+        setPendingProtectedProfile({ name: trimmed, generation: await getCurrentGeneration() });
+        setBusy(false);
+        return;
+      }
       await invoke("create_profile", { name: trimmed });
       onResolved({ status: "open" });
     } catch (e) {
@@ -90,6 +103,7 @@ export function ProfileSelector({
   function cancelAdd() {
     setAdding(false);
     setNewName("");
+    setProtectNewProfile(false);
   }
 
   return (
@@ -157,7 +171,13 @@ export function ProfileSelector({
             </div>
           ))}
           {adding ? (
-            <div className="profile-card profile-card-new-form">
+            <form
+              className="profile-card profile-card-new-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void commitCreate();
+              }}
+            >
               <input
                 autoFocus
                 className="text-input row-edit-input"
@@ -166,19 +186,32 @@ export function ProfileSelector({
                 onChange={(e) => setNewName(e.target.value)}
                 disabled={busy}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void commitCreate();
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void commitCreate();
+                  }
                   if (e.key === "Escape") cancelAdd();
                 }}
               />
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  data-protect-new-profile
+                  checked={protectNewProfile}
+                  onChange={(event) => setProtectNewProfile(event.target.checked)}
+                  disabled={busy}
+                />
+                Protect this profile with a password
+              </label>
               <span className="profile-card-actions">
                 <button type="button" className="modal-secondary btn-sm" onClick={cancelAdd} disabled={busy}>
                   Cancel
                 </button>
-                <button type="button" className="btn-sm" onClick={() => void commitCreate()} disabled={busy || newName.trim() === ""}>
+                <button type="submit" className="btn-sm" disabled={busy || newName.trim() === ""}>
                   Add
                 </button>
               </span>
-            </div>
+            </form>
           ) : (
             <button type="button" className="profile-card profile-card-add" data-add-profile onClick={() => setAdding(true)} disabled={busy}>
               <span className="profile-card-add-icon" aria-hidden="true">
@@ -192,6 +225,18 @@ export function ProfileSelector({
           {problem}
         </p>
       </div>
+      {pendingProtectedProfile && (
+        <ProtectionSetupDialog
+          targetProfileId={null}
+          newProfileName={pendingProtectedProfile.name}
+          expectedGeneration={pendingProtectedProfile.generation}
+          onDone={(next) => {
+            setPendingProtectedProfile(null);
+            onResolved(next);
+          }}
+          onCancel={() => setPendingProtectedProfile(null)}
+        />
+      )}
     </main>
   );
 }

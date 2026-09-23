@@ -1,13 +1,8 @@
 // E2E coverage for creating a brand-new, already-protected profile (Phase C, Task 9), including a
 // real process-kill after the encrypted file is written but before it's registered.
 //
-// No dedicated UI button exists for "create a new protected profile" (Task 8 only built "turn on
-// password protection for the CURRENT profile" — ProfileProtectionSection.tsx); the backend command
-// (`commit_protection_setup` with `newProfileName` set, `targetProfileId` left null) is fully built
-// and unit-tested (protection_transition.rs) but has no reachable entry point in the compiled app.
-// Same workaround feature99 already uses for the native file picker it can't drive: call the
-// backend directly. This is a real, load-bearing gap worth fixing (Phase D or a Task 8 follow-up),
-// not just a testing inconvenience — flagged again in this task's own commit notes.
+// Feature117 covers the normal profile-selector UI. This spec keeps using the backend directly so
+// it can stop the process at the exact pre-registration failpoint and verify crash recovery.
 //
 // Run with: node e2e/feature104_create_protected_profile.mjs
 
