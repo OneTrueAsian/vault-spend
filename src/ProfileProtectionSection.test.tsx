@@ -12,6 +12,7 @@ const protection = vi.hoisted(() => ({
   changePassword: vi.fn(),
   beginRegenerateRecovery: vi.fn(),
   commitRegenerateRecovery: vi.fn(),
+  removeProtection: vi.fn(),
 }));
 vi.mock("./protection", () => protection);
 
@@ -52,6 +53,7 @@ describe("ProfileProtectionSection", () => {
     protection.changePassword.mockReset();
     protection.beginRegenerateRecovery.mockReset();
     protection.commitRegenerateRecovery.mockReset();
+    protection.removeProtection.mockReset();
     profileUiState.getCurrentGeneration.mockReset().mockResolvedValue(1);
     onProtected.mockReset();
     container = document.createElement("div");
@@ -88,6 +90,7 @@ describe("ProfileProtectionSection", () => {
     expect([...container.querySelectorAll("button")].find((b) => b.textContent === "Turn on password protection…")).toBeUndefined();
     expect(button("Change password…")).not.toBeUndefined();
     expect(button("Regenerate recovery key…")).not.toBeUndefined();
+    expect(button("Remove protection…")).not.toBeUndefined();
   });
 
   it("opens the regenerate-recovery dialog with the current generation", async () => {

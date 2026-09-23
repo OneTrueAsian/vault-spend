@@ -14,6 +14,8 @@ export const beginRegenerateRecovery = (currentPassword: string, expectedGenerat
   invoke<SetupChallenge>("begin_regenerate_recovery", { currentPassword, expectedGeneration });
 export const commitRegenerateRecovery = (token: string, answers: [string, string]) =>
   invoke<string>("commit_regenerate_recovery", { token, answers });
+export const removeProtection = (currentPassword: string, expectedGeneration: number) =>
+  invoke<void>("remove_protection", { currentPassword, expectedGeneration });
 
 export interface SetupChallenge {
   token: string;

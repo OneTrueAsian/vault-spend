@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
 import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import { RegenerateRecoveryDialog } from "./RegenerateRecoveryDialog";
+import { RemoveProtectionDialog } from "./RemoveProtectionDialog";
 import { getCurrentGeneration } from "./profileUiState";
 import type { Profile } from "./types";
 
@@ -20,6 +21,7 @@ export function ProfileProtectionSection({
   const [dialogGeneration, setDialogGeneration] = useState<number | null>(null);
   const [changeGeneration, setChangeGeneration] = useState<number | null>(null);
   const [regenerateGeneration, setRegenerateGeneration] = useState<number | null>(null);
+  const [removeGeneration, setRemoveGeneration] = useState<number | null>(null);
   const active = profiles.find((p) => p.is_active);
 
   if (!active) return null;
@@ -48,6 +50,9 @@ export function ProfileProtectionSection({
           </button>
           <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRegenerateGeneration)}>
             Regenerate recovery key…
+          </button>
+          <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRemoveGeneration)}>
+            Remove protection…
           </button>
         </div>
       )}
@@ -82,6 +87,9 @@ export function ProfileProtectionSection({
           }}
           onCancel={() => setRegenerateGeneration(null)}
         />
+      )}
+      {removeGeneration !== null && (
+        <RemoveProtectionDialog expectedGeneration={removeGeneration} onDone={() => { setRemoveGeneration(null); onProtected(); }} onCancel={() => setRemoveGeneration(null)} />
       )}
     </div>
   );

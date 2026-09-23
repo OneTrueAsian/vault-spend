@@ -129,7 +129,8 @@ pub fn run() {
             // profiles.json.
             let handle = app.handle().clone();
             let protection_recovery = protection_transition::recover_interrupted_operation(&config_path)
-                .and_then(|()| protection_lifecycle::recover_interrupted_rotation(&config_path));
+                .and_then(|()| protection_lifecycle::recover_interrupted_rotation(&config_path))
+                .and_then(|()| protection_lifecycle::recover_interrupted_removal(&config_path));
             if let Err(reason) = protection_recovery {
                 eprintln!("couldn't recover an interrupted password-protection change: {reason}");
                 app.state::<startup::LaunchStatus>().set_error(startup::LaunchError {
@@ -219,6 +220,7 @@ pub fn run() {
             protection_commands::change_password,
             protection_commands::begin_regenerate_recovery,
             protection_commands::commit_regenerate_recovery,
+            protection_commands::remove_protection,
             protection_commands::begin_protection_setup,
             protection_commands::cancel_protection_setup,
             protection_commands::commit_protection_setup,

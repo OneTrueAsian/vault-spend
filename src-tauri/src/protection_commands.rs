@@ -272,6 +272,39 @@ pub fn commit_regenerate_recovery(
     Ok(recovery_display)
 }
 
+#[tauri::command]
+pub fn remove_protection(
+    current_password: String,
+    expected_generation: u64,
+    app: tauri::AppHandle,
+    paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+) -> Result<(), String> {
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before protection could be removed.".to_string());
+    }
+    let db_path = current_db_path(&paths);
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    let target_path = {
+        let session = runtime.lock()?;
+        crate::protection_lifecycle::remove_protection(
+            &paths.config_path,
+            &profile_id,
+            &db_path,
+            &session.store,
+            &current_password,
+            chrono::Local::now().naive_local(),
+        )?
+    };
+    let state = AppState::open(&target_path).map_err(|e| e.to_string())?;
+    startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
+    if let Err(reason) = crate::protection_lifecycle::complete_committed_removal(&paths.config_path) {
+        eprintln!("protection removal committed; encrypted-file cleanup will resume on restart: {reason}");
+    }
+    startup::broadcast_state(&app);
+    Ok(())
+}
+
 /// Starts the shared 2-of-7 recovery-key setup challenge (Phase C, Task 6), used by both turning
 /// protection on for the current profile and creating a brand-new protected one. Which of those two
 /// this is for is not asked here — only `password` and the generation the caller's session must
