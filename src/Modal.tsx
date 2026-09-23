@@ -1563,6 +1563,19 @@ export function TransferReviewDialog({
                 <span className="transfer-review-amount">{formatAmount(p.in.amount)}</span>
                 <span className="transfer-review-note">{days === 0 ? "same day" : `${days} day${days === 1 ? "" : "s"} apart`}</span>
               </label>
+              <details className="transfer-review-details">
+                <summary>View transactions</summary>
+                <div className="transfer-review-transactions">
+                  {[{ transaction: p.out, direction: "Money out" }, { transaction: p.in, direction: "Money in" }].map(({ transaction, direction }) => (
+                    <div className="transfer-review-transaction" key={transaction.id}>
+                      <strong>{direction} · {transaction.account_name}</strong>
+                      <span>{transaction.date} · {formatAmount(transaction.amount)}</span>
+                      <span>{transaction.description}</span>
+                      <span className="transfer-review-note">Category: {transaction.category || "Uncategorized"}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
             </li>
           );
         })}

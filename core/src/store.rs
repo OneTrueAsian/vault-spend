@@ -1076,6 +1076,12 @@ impl Store {
                 cadence TEXT NOT NULL,
                 PRIMARY KEY (merchant, amount, cadence)
             );
+            CREATE TABLE IF NOT EXISTS recurring_price_dismissals (
+                recurring_id INTEGER NOT NULL REFERENCES recurring(id) ON DELETE CASCADE,
+                from_amount TEXT NOT NULL,
+                to_amount TEXT NOT NULL,
+                PRIMARY KEY (recurring_id, from_amount, to_amount)
+            );
             CREATE TABLE IF NOT EXISTS holdings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 account_id INTEGER NOT NULL REFERENCES accounts(id),
@@ -6606,16 +6612,36 @@ impl Store {
             };
 
             let amounts: Vec<Decimal> = matched.iter().map(|(_, _, a)| *a).collect();
+            let mut price_change = detect_price_change(&amounts, item.amount);
+            if let Some(change) = &price_change {
+                let dismissed: bool = self.conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM recurring_price_dismissals WHERE recurring_id = ?1 AND from_amount = ?2 AND to_amount = ?3)",
+                    params![item.id, change.from.normalize().to_string(), change.to.normalize().to_string()],
+                    |row| row.get(0),
+                )?;
+                if dismissed {
+                    price_change = None;
+                }
+            }
             result.push(RecurringMatch {
                 recurring_id: item.id,
                 state: state.to_string(),
                 last_due: Some(last_due),
                 last_paid_date: matched.last().map(|(_, posted, _)| *posted),
                 last_paid_amount: amounts.last().copied(),
-                price_change: detect_price_change(&amounts, item.amount),
+                price_change,
             });
         }
         Ok(result)
+    }
+
+    /// Ignore only this amount transition for this item, without changing its forecast amount.
+    pub fn dismiss_recurring_price_change(&self, id: i64, from: Decimal, to: Decimal) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO recurring_price_dismissals (recurring_id, from_amount, to_amount) VALUES (?1, ?2, ?3)",
+            params![id, from.normalize().to_string(), to.normalize().to_string()],
+        )?;
+        Ok(())
     }
 
     /// Removes a recurring item. An unknown id is a harmless no-op.
@@ -17910,6 +17936,25 @@ mod tests {
         let change = match_for(&store, "2026-09-05", id).price_change.expect("a price change");
 
         assert_eq!((change.from, change.to), (dec("-15.49"), dec("-17.99")));
+    }
+
+    #[test]
+    fn ignored_recurring_price_change_keeps_amount_and_allows_a_different_change() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[("2026-09-03", "-17.99")]);
+        store.dismiss_recurring_price_change(id, dec("-15.490"), dec("-17.990")).unwrap();
+        store.dismiss_recurring_price_change(id, dec("-15.49"), dec("-17.99")).unwrap();
+        let result = match_for(&store, "2026-09-05", id);
+        assert!(result.price_change.is_none());
+        assert_eq!(result.state, "paid");
+        assert_eq!(store.list_recurring(day("2026-09-05")).unwrap().iter().find(|r| r.id == id).unwrap().amount, dec("-15.49"));
+
+        // Another recurring item is not silenced by the same ignored amounts.
+        let other = store.create_recurring("NETFLIX", None, dec("-15.49"), "monthly", day("2026-09-03"), None).unwrap();
+        assert!(match_for(&store, "2026-09-05", other).price_change.is_some());
+        store.save_transactions(account, &[tx("2026-10-03", "NETFLIX.COM 866-579", "-19.99")]).unwrap();
+        assert_eq!(match_for(&store, "2026-10-05", id).price_change.unwrap().to, dec("-19.99"));
     }
 
     #[test]

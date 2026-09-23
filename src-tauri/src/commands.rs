@@ -4163,3 +4163,9 @@ mod tests {
         assert!(result.is_err());
     }
 }
+
+#[tauri::command]
+pub fn dismiss_recurring_price_change(id: i64, from: String, to: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    state.store.dismiss_recurring_price_change(id, parse_amount(&from)?, parse_amount(&to)?).map_err(|e| e.to_string())
+}

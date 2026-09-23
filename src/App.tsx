@@ -32,6 +32,7 @@ import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
 import { SortableTh } from "./SortableTh";
 import { ImportCategoryReconcile, defaultCategoryChoices, type CategoryChoice, type UnmatchedCategory } from "./ImportCategoryReconcile";
+import { AccountDestinationDropdown } from "./AccountDestinationDropdown";
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
 import type { PaletteEntry } from "./paletteSearch";
@@ -448,6 +449,10 @@ function App({
   onDataFileChanged: (message: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [activeTab]);
   const [theme, setThemeState] = useState<Theme>(() => {
     try {
       return (localStorage.getItem(THEME_STORAGE_KEY) as Theme | null) ?? "system";
@@ -2484,6 +2489,15 @@ function App({
     }
   }
 
+  async function handleIgnoreRecurringPriceChange(id: number, from: string, to: string) {
+    try {
+      await invoke("dismiss_recurring_price_change", { id, from, to });
+      await refreshRecurringMatches();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
   async function handleCreateHolding(
     accountId: number,
     symbol: string,
@@ -3564,7 +3578,7 @@ function App({
         <div className="sidebar-foot">{appVersion && <p className="sidebar-version">v{appVersion}</p>}</div>
       </aside>
 
-      <div className="main">
+      <div className="main" ref={mainScrollRef}>
         <header className="topbar">
           <div>
             <h1>Vault Spend</h1>
@@ -3597,21 +3611,12 @@ function App({
               >
                 Add to
               </label>
-              <select
-                id="ledger-account-select"
-                className="account-select"
-                value={selectedAccountId ?? ""}
-                onChange={(e) => handleAccountSelectChange(e.target.value)}
+              <AccountDestinationDropdown
+                accounts={accounts}
+                value={selectedAccountId}
+                onChange={handleAccountSelectChange}
                 disabled={busy || pendingImport !== null}
-              >
-                {accounts.length === 0 && <option value="">No accounts yet</option>}
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-                <option value="__new__">+ New account…</option>
-              </select>
+              />
               <button onClick={handleImport} disabled={busy || pendingImport !== null}>
                 {busy ? "Importing…" : "Import transactions…"}
               </button>
@@ -4700,6 +4705,7 @@ function App({
           onSetStatus={handleSetRecurringStatus}
           onAddCandidate={handleAddRecurringCandidate}
           onDismissCandidate={handleDismissRecurringCandidate}
+          onIgnorePriceChange={handleIgnoreRecurringPriceChange}
         />
         </Suspense>
       )}
