@@ -70,12 +70,13 @@ pub fn relocate_data_file(
     }
 
     let mut state = state.lock()?;
-    if state.store.is_encrypted() {
-        return Err("Moving the data file for a password-protected profile isn't available yet in this development build. It will arrive in a later update.".to_string());
-    }
-    state.store.backup_to(&new_db_path).map_err(|e| e.to_string())?;
+    copy_database_for_relocation(&state.store, &old_live_path, &new_db_path)?;
     crate::config::write_db_location_config(&paths.config_path, &new_db_path).map_err(|e| e.to_string())?;
-    *state = AppState::open(&new_db_path)?;
+    let reopened = match state.store.db_key_bytes() {
+        Some(key) => AppState::open_with_key(&new_db_path, budget_core::store::DatabaseKey::Raw(key))?,
+        None => AppState::open(&new_db_path)?,
+    };
+    *state = reopened;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = new_db_path.clone();
     paths.bump_generation();
     // If the profile that was just live is a registered profile (not the
@@ -86,6 +87,19 @@ pub fn relocate_data_file(
     crate::profiles::update_active_db_path(&paths.config_path, &old_live_path, &new_db_path)?;
 
     Ok(new_db_path.to_string_lossy().to_string())
+}
+
+fn copy_database_for_relocation(store: &Store, old_live_path: &std::path::Path, new_db_path: &std::path::Path) -> Result<(), String> {
+    store.backup_to(new_db_path).map_err(|e| e.to_string())?;
+    if store.is_encrypted() {
+        let source_key = budget_core::protection::keyfile::key_file_path_for(old_live_path);
+        let destination_key = budget_core::protection::keyfile::key_file_path_for(new_db_path);
+        if let Err(error) = std::fs::copy(&source_key, &destination_key) {
+            let _ = std::fs::remove_file(new_db_path);
+            return Err(format!("couldn't move the profile's key file: {error}"));
+        }
+    }
+    Ok(())
 }
 
 /// Copies the live database to an exact file path the user picked via a
@@ -146,7 +160,11 @@ pub fn get_background_settings(device: tauri::State<crate::device_settings::Devi
 /// the tray icon appears or disappears straight away. A setting of this
 /// computer, saved beside `config.json`.
 #[tauri::command]
-pub fn set_tray_enabled(enabled: bool, app: tauri::AppHandle, device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> Result<(), String> {
+pub fn set_tray_enabled(
+    enabled: bool,
+    app: tauri::AppHandle,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
     device.update(|settings| settings.tray_enabled = enabled)?;
     if enabled {
         crate::background::install_tray(&app).map_err(|e| e.to_string())
@@ -196,8 +214,17 @@ pub fn create_backup_now(
     let state = state.lock()?;
     let db_path = current_db_path(&paths);
     let backups_dir = crate::backups::backups_dir_for(&db_path, state.store.is_encrypted());
-    let copy_dir = device.snapshot().backup_mirror_dir(&active_profile_id(&paths)).map(std::path::PathBuf::from);
-    let outcome = crate::backups::create_backup_full(&state.store, &db_path, &backups_dir, copy_dir.as_deref(), chrono::Local::now().naive_local())?;
+    let copy_dir = device
+        .snapshot()
+        .backup_mirror_dir(&active_profile_id(&paths))
+        .map(std::path::PathBuf::from);
+    let outcome = crate::backups::create_backup_full(
+        &state.store,
+        &db_path,
+        &backups_dir,
+        copy_dir.as_deref(),
+        chrono::Local::now().naive_local(),
+    )?;
     Ok(BackupNowDto {
         filename: outcome.filename,
         copied_to: outcome.copied_to.map(|p| p.parent().map(|d| d.display().to_string()).unwrap_or_default()),
@@ -265,20 +292,70 @@ pub fn set_backup_copy_dir(
 #[tauri::command]
 pub fn restore_backup(
     filename: String,
+    password: Option<String>,
+    expected_generation: u64,
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+    sessions: tauri::State<crate::protection_session::Sessions>,
 ) -> Result<(), String> {
-    let mut state = state.lock()?;
-    if state.store.is_encrypted() {
-        return Err("Restoring a backup for a password-protected profile isn't available yet in this development build. It will arrive in a later update.".to_string());
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the backup could be restored.".to_string());
     }
+    let mut state = state.lock()?;
     let live_db_path = current_db_path(&paths);
-    let backups_dir = crate::backups::backups_dir_for(&live_db_path, false);
-    let copy_dir = device.snapshot().backup_mirror_dir(&active_profile_id(&paths)).map(std::path::PathBuf::from);
-    let restored_path = crate::backups::restore_backup(&state.store, &backups_dir, copy_dir.as_deref(), &filename, &live_db_path)?;
+    let is_encrypted = state.store.is_encrypted();
+    let backups_dir = crate::backups::backups_dir_for(&live_db_path, is_encrypted);
+    let copy_dir = device
+        .snapshot()
+        .backup_mirror_dir(&active_profile_id(&paths))
+        .map(std::path::PathBuf::from);
+    let profile_id = active_profile_id(&paths);
+    let mut restored_key_file = None;
+    let restored_dek = if is_encrypted {
+        let remaining = sessions.delay_remaining(&profile_id);
+        if !remaining.is_zero() {
+            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+        }
+        let backup_path = backups_dir.join(&filename);
+        let key_file = budget_core::protection::keyfile::KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&backup_path))
+            .map_err(|e| e.to_string())?;
+        match key_file.unlock_with_password(password.as_deref().unwrap_or_default()) {
+            Ok(dek) => {
+                sessions.record_success(&profile_id);
+                restored_key_file = Some(key_file);
+                Some(dek)
+            }
+            Err(_) => {
+                sessions.record_failure(&profile_id);
+                return Err("That password didn't work for this backup.".to_string());
+            }
+        }
+    } else {
+        None
+    };
+    let restored_path = match restored_dek.as_ref() {
+        Some(dek) => crate::backups::restore_backup_with_key(
+            &state.store,
+            &backups_dir,
+            copy_dir.as_deref(),
+            &filename,
+            &live_db_path,
+            budget_core::store::DatabaseKey::Raw(dek.as_bytes()),
+        )?,
+        None => crate::backups::restore_backup(&state.store, &backups_dir, copy_dir.as_deref(), &filename, &live_db_path)?,
+    };
+    if let Some(key_file) = restored_key_file {
+        key_file
+            .write_to(&budget_core::protection::keyfile::key_file_path_for(&restored_path))
+            .map_err(|e| e.to_string())?;
+    }
     crate::config::write_db_location_config(&paths.config_path, &restored_path).map_err(|e| e.to_string())?;
-    *state = AppState::open(&restored_path)?;
+    let reopened = match restored_dek.as_ref() {
+        Some(dek) => AppState::open_with_key(&restored_path, budget_core::store::DatabaseKey::Raw(dek.as_bytes()))?,
+        None => AppState::open(&restored_path)?,
+    };
+    *state = reopened;
     // Same registry-sync reasoning as `relocate_data_file` — do this before
     // `restored_path` is moved into `paths.db_path` below.
     crate::profiles::update_active_db_path(&paths.config_path, &live_db_path, &restored_path)?;
@@ -353,7 +430,13 @@ pub fn create_profile(
     paths.bump_generation();
 
     let session = state.lock()?;
-    crate::startup::after_profile_opened(&paths.config_path, &profile.db_path, &session.store, &device, chrono::Local::now().naive_local());
+    crate::startup::after_profile_opened(
+        &paths.config_path,
+        &profile.db_path,
+        &session.store,
+        &device,
+        chrono::Local::now().naive_local(),
+    );
 
     Ok(profile.name)
 }
@@ -403,7 +486,13 @@ pub fn switch_profile(
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = target.db_path.clone();
     paths.bump_generation();
 
-    crate::startup::after_profile_opened(&paths.config_path, &target.db_path, &state.store, &device, chrono::Local::now().naive_local());
+    crate::startup::after_profile_opened(
+        &paths.config_path,
+        &target.db_path,
+        &state.store,
+        &device,
+        chrono::Local::now().naive_local(),
+    );
 
     Ok(target.name)
 }
@@ -462,7 +551,13 @@ pub fn add_existing_profile(
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
     paths.bump_generation();
 
-    crate::startup::after_profile_opened(&paths.config_path, &picked_path, &state.store, &device, chrono::Local::now().naive_local());
+    crate::startup::after_profile_opened(
+        &paths.config_path,
+        &picked_path,
+        &state.store,
+        &device,
+        chrono::Local::now().naive_local(),
+    );
 
     Ok(profile.name)
 }
@@ -579,10 +674,7 @@ impl AppState {
     /// The keyed counterpart to `open`, used once a password has unwrapped a profile's database
     /// key (Phase C). Refuses a missing file rather than silently creating one — see
     /// `budget_core::store::encryption::Store::open_with_key`'s own doc comment.
-    pub fn open_with_key(
-        db_path: impl AsRef<std::path::Path>,
-        key: budget_core::store::DatabaseKey<'_>,
-    ) -> Result<Self, String> {
+    pub fn open_with_key(db_path: impl AsRef<std::path::Path>, key: budget_core::store::DatabaseKey<'_>) -> Result<Self, String> {
         let store = Store::open_with_key(db_path, key).map_err(|e| e.to_string())?;
         store.seed_default_rules_once().map_err(|e| e.to_string())?;
         let rules = store.load_rules().map_err(|e| e.to_string())?;
@@ -942,7 +1034,10 @@ pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state
         .unmatched_import_categories(&loaded.transactions)
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(|u| UnmatchedCategoryDto { name: u.name, count: u.count })
+        .map(|u| UnmatchedCategoryDto {
+            name: u.name,
+            count: u.count,
+        })
         .collect();
 
     Ok(ImportPreview {
@@ -3182,7 +3277,6 @@ pub fn get_inflation_pct(state: tauri::State<AppStateHandle>) -> Result<String, 
     state.store.get_inflation_pct().map(|d| d.to_string()).map_err(|e| e.to_string())
 }
 
-
 #[derive(Serialize)]
 pub struct AllocationTargetDto {
     pub asset_class: String,
@@ -4239,6 +4333,31 @@ pub fn check_monthly_rollover(state: tauri::State<AppStateHandle>) -> Result<Vec
 mod tests {
     use super::*;
 
+    #[test]
+    fn relocating_an_encrypted_database_copies_its_key_file() {
+        use budget_core::protection::{kdf::KdfParams, keyfile};
+        use budget_core::store::DatabaseKey;
+
+        let dir = std::env::temp_dir().join(format!("vaultspend-relocate-protected-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let source_path = dir.join("source.db");
+        let destination_path = dir.join("moved").join("vaultspend.db");
+        std::fs::create_dir_all(destination_path.parent().unwrap()).unwrap();
+        let plain = Store::open(dir.join("plain.db")).unwrap();
+        let protection = keyfile::create_protection("same password", &KdfParams::FAST_FOR_TESTS, "2026-09-23T00:00:00Z").unwrap();
+        plain.export_encrypted_copy(&source_path, protection.dek.as_bytes()).unwrap();
+        protection.key_file.write_to(&keyfile::key_file_path_for(&source_path)).unwrap();
+        let encrypted = Store::open_with_key(&source_path, DatabaseKey::Raw(protection.dek.as_bytes())).unwrap();
+
+        copy_database_for_relocation(&encrypted, &source_path, &destination_path).unwrap();
+
+        let copied_key = keyfile::KeyFile::read(&keyfile::key_file_path_for(&destination_path)).unwrap();
+        let copied_dek = copied_key.unlock_with_password("same password").unwrap();
+        assert!(Store::open_with_key(&destination_path, DatabaseKey::Raw(copied_dek.as_bytes())).is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     // The import review screen sends one choice per unfamiliar file category, keyed by the
     // file's name for it. This is the exact shape the frontend (`CategoryChoice` in
     // ImportCategoryReconcile.tsx) produces.
@@ -4256,8 +4375,14 @@ mod tests {
             ImportCategoryChoice::from(choices.remove("Dining").unwrap()),
             ImportCategoryChoice::MapTo("Dining Out".to_string())
         );
-        assert_eq!(ImportCategoryChoice::from(choices.remove("Pet Care").unwrap()), ImportCategoryChoice::Create);
-        assert_eq!(ImportCategoryChoice::from(choices.remove("Merchandise").unwrap()), ImportCategoryChoice::Skip);
+        assert_eq!(
+            ImportCategoryChoice::from(choices.remove("Pet Care").unwrap()),
+            ImportCategoryChoice::Create
+        );
+        assert_eq!(
+            ImportCategoryChoice::from(choices.remove("Merchandise").unwrap()),
+            ImportCategoryChoice::Skip
+        );
     }
 
     #[test]
@@ -4270,5 +4395,8 @@ mod tests {
 #[tauri::command]
 pub fn dismiss_recurring_price_change(id: i64, from: String, to: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock()?;
-    state.store.dismiss_recurring_price_change(id, parse_amount(&from)?, parse_amount(&to)?).map_err(|e| e.to_string())
+    state
+        .store
+        .dismiss_recurring_price_change(id, parse_amount(&from)?, parse_amount(&to)?)
+        .map_err(|e| e.to_string())
 }

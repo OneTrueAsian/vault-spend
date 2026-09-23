@@ -10,6 +10,8 @@ import { ProfileProtectionSection } from "./ProfileProtectionSection";
 import { ProtectionLeftovers } from "./ProtectionLeftovers";
 import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
 import { getCurrentGeneration } from "./profileUiState";
+import { ModalShell } from "./Modal";
+import { PasswordForm } from "./PasswordForm";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -109,6 +111,7 @@ function DataSection({
   onBrowseCopyDir,
   onDownloadSetupTemplate,
   onImportSetupData,
+  isProtected,
 }: {
   dataFileLocation: string | null;
   onRelocateDataFile: () => void;
@@ -116,12 +119,13 @@ function DataSection({
   onUseExistingDataFile: () => void;
   backups: Backup[];
   onCreateBackupNow: () => void;
-  onRestoreBackup: (filename: string) => void;
+  onRestoreBackup: (filename: string, password?: string) => void | Promise<void>;
   copyDir: string | null;
   onSetCopyDir: (dir: string | null) => void;
   onBrowseCopyDir: () => void;
   onDownloadSetupTemplate: () => void;
   onImportSetupData: () => void;
+  isProtected: boolean;
 }) {
   return (
     <div className="card" data-data-section>
@@ -138,6 +142,7 @@ function DataSection({
         backups={backups}
         onCreateBackupNow={onCreateBackupNow}
         onRestoreBackup={onRestoreBackup}
+        isProtected={isProtected}
         copyDir={copyDir}
         onSetCopyDir={onSetCopyDir}
         onBrowseCopyDir={onBrowseCopyDir}
@@ -213,22 +218,25 @@ function BackupCopySection({
 }
 
 /** The backup list and second-copy folder — the second block of the "Data" section. */
-function BackupsBlock({
+export function BackupsBlock({
   backups,
   onCreateBackupNow,
   onRestoreBackup,
   copyDir,
   onSetCopyDir,
   onBrowseCopyDir,
+  isProtected,
 }: {
   backups: Backup[];
   onCreateBackupNow: () => void;
-  onRestoreBackup: (filename: string) => void;
+  onRestoreBackup: (filename: string, password?: string) => void | Promise<void>;
   copyDir: string | null;
   onSetCopyDir: (dir: string | null) => void;
   onBrowseCopyDir: () => void;
+  isProtected: boolean;
 }) {
   const [confirmingRestoreFilename, setConfirmingRestoreFilename] = useState<string | null>(null);
+  const [passwordRestoreFilename, setPasswordRestoreFilename] = useState<string | null>(null);
 
   return (
     <div className="data-block" data-backups>
@@ -265,8 +273,9 @@ function BackupsBlock({
                     <button
                       type="button"
                       onClick={() => {
-                        onRestoreBackup(b.filename);
                         setConfirmingRestoreFilename(null);
+                        if (isProtected) setPasswordRestoreFilename(b.filename);
+                        else void onRestoreBackup(b.filename);
                       }}
                     >
                       Restore
@@ -289,6 +298,22 @@ function BackupsBlock({
           )}
         </tbody>
       </table>
+      {passwordRestoreFilename && (
+        <ModalShell title="Restore password-protected backup" onCancel={() => setPasswordRestoreFilename(null)}>
+          <p className="modal-message-secondary">
+            Enter the password that protected this backup when it was created. If you changed your password later,
+            this may be your old password. Restoring also makes that password current again.
+          </p>
+          <PasswordForm
+            submitLabel="Restore"
+            onCancel={() => setPasswordRestoreFilename(null)}
+            onSubmit={async (password) => {
+              await onRestoreBackup(passwordRestoreFilename, password);
+              setPasswordRestoreFilename(null);
+            }}
+          />
+        </ModalShell>
+      )}
     </div>
   );
 }
@@ -1066,7 +1091,7 @@ export function SettingsView({
   onExportDatabase: () => void;
   backups: Backup[];
   onCreateBackupNow: () => void;
-  onRestoreBackup: (filename: string) => void;
+  onRestoreBackup: (filename: string, password?: string) => void | Promise<void>;
   backupCopyDir: string | null;
   onSetBackupCopyDir: (dir: string | null) => void;
   onBrowseBackupCopyDir: () => void;
@@ -1129,6 +1154,7 @@ export function SettingsView({
         onBrowseCopyDir={onBrowseBackupCopyDir}
         onDownloadSetupTemplate={onDownloadSetupTemplate}
         onImportSetupData={onImportSetupData}
+        isProtected={profiles.find((profile) => profile.is_active)?.is_password_protected ?? false}
       />
       <BackgroundRemindersSection
         settings={backgroundSettings}

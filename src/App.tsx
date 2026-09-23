@@ -711,12 +711,14 @@ function App({
     }
   }
 
-  async function handleRestoreBackup(filename: string) {
+  async function handleRestoreBackup(filename: string, password?: string) {
     try {
-      await invoke("restore_backup", { filename });
+      const expectedGeneration = await getCurrentGeneration();
+      await invoke("restore_backup", { filename, password: password ?? null, expectedGeneration });
       onDataFileChanged(`Restored ${filename} — your prior data was backed up first.`);
     } catch (e) {
       setStatus(String(e));
+      if (password !== undefined) throw e;
     }
   }
 

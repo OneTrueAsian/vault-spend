@@ -11,7 +11,7 @@ vi.mock("./ProtectionSetupDialog", () => ({
   ),
 }));
 
-import { ProfilesSection } from "./SettingsView";
+import { BackupsBlock, ProfilesSection } from "./SettingsView";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -69,5 +69,49 @@ describe("Settings ProfilesSection", () => {
 
     expect(document.body.querySelector("[data-protection-setup-dialog]")?.textContent).toBe("Jamie");
     expect(onCreateProfile).not.toHaveBeenCalled();
+  });
+});
+
+describe("Settings protected backup restore", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("asks for the selected encrypted backup's password before restoring", async () => {
+    const onRestore = vi.fn();
+    act(() => {
+      root.render(
+        <BackupsBlock
+          backups={[{ filename: "old.db", created_at: "2026-09-21 10:00", size_bytes: 1024 }]}
+          onCreateBackupNow={vi.fn()}
+          onRestoreBackup={onRestore}
+          isProtected
+          copyDir={null}
+          onSetCopyDir={vi.fn()}
+          onBrowseCopyDir={vi.fn()}
+        />,
+      );
+    });
+
+    act(() => [...container.querySelectorAll("button")].find((button) => button.textContent === "Restore")!.click());
+    act(() => [...container.querySelectorAll("button")].find((button) => button.textContent === "Restore")!.click());
+
+    const password = document.body.querySelector<HTMLInputElement>('input[type="password"]');
+    expect(password).not.toBeNull();
+    typeInto(password!, "old password");
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>("button.password-form-submit")!.click();
+    });
+    expect(onRestore).toHaveBeenCalledWith("old.db", "old password");
   });
 });

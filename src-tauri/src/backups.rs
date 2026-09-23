@@ -159,7 +159,13 @@ fn verify_backup(source: &Store, dest_path: &Path) -> Result<(), String> {
 /// retry budget is deleted rather than left in the list looking like a
 /// real one. Used by both the manual "Back up now" command and the
 /// automatic launch-time check.
-pub fn create_backup(store: &Store, source_db_path: &Path, backups_dir: &Path, copy_dir: Option<&Path>, now: NaiveDateTime) -> Result<String, String> {
+pub fn create_backup(
+    store: &Store,
+    source_db_path: &Path,
+    backups_dir: &Path,
+    copy_dir: Option<&Path>,
+    now: NaiveDateTime,
+) -> Result<String, String> {
     let outcome = create_backup_full(store, source_db_path, backups_dir, copy_dir, now)?;
     if let Some(error) = &outcome.copy_error {
         eprintln!("second backup copy failed (the backup itself succeeded): {error}");
@@ -233,7 +239,13 @@ pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Res
 /// given, the fresh backup is also mirrored there. A second copy that
 /// fails is reported in the outcome rather than failing the backup — the
 /// local one is still good.
-pub fn create_backup_full(store: &Store, source_db_path: &Path, backups_dir: &Path, copy_dir: Option<&Path>, now: NaiveDateTime) -> Result<BackupOutcome, String> {
+pub fn create_backup_full(
+    store: &Store,
+    source_db_path: &Path,
+    backups_dir: &Path,
+    copy_dir: Option<&Path>,
+    now: NaiveDateTime,
+) -> Result<BackupOutcome, String> {
     let filename = create_local_backup(store, source_db_path, backups_dir, now)?;
     let mut copied_to = None;
     let mut copy_error = None;
@@ -291,7 +303,13 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
 /// Creates a backup only if the newest existing one is more than 24h old
 /// (or none exist yet) — the launch-time automatic check, distinct from
 /// the always-runs manual "Back up now" button.
-pub fn create_backup_if_due(store: &Store, source_db_path: &Path, backups_dir: &Path, copy_dir: Option<&Path>, now: NaiveDateTime) -> Result<Option<String>, String> {
+pub fn create_backup_if_due(
+    store: &Store,
+    source_db_path: &Path,
+    backups_dir: &Path,
+    copy_dir: Option<&Path>,
+    now: NaiveDateTime,
+) -> Result<Option<String>, String> {
     std::fs::create_dir_all(backups_dir).map_err(|e| e.to_string())?;
     let existing = list_backup_filenames(backups_dir).map_err(|e| e.to_string())?;
     if should_create_backup(&existing, now, AUTO_BACKUP_INTERVAL_HOURS) {
@@ -352,13 +370,33 @@ pub fn list_backups(backups_dir: &Path, is_encrypted: bool) -> Result<Vec<Backup
 /// returned path (same as `relocate_data_file`) and telling the user to
 /// restart — this function never touches the running connection.
 pub fn restore_backup(store: &Store, backups_dir: &Path, copy_dir: Option<&Path>, filename: &str, live_db_path: &Path) -> Result<PathBuf, String> {
+    restore_backup_with_key(
+        store,
+        backups_dir,
+        copy_dir,
+        filename,
+        live_db_path,
+        budget_core::store::DatabaseKey::Plaintext,
+    )
+}
+
+/// Key-aware restore used for protected profiles. `source_key` belongs to the selected backup,
+/// which can differ from the live store's key after a password change.
+pub fn restore_backup_with_key(
+    store: &Store,
+    backups_dir: &Path,
+    copy_dir: Option<&Path>,
+    filename: &str,
+    live_db_path: &Path,
+    source_key: budget_core::store::DatabaseKey<'_>,
+) -> Result<PathBuf, String> {
     let backup_path = backups_dir.join(filename);
     if !backup_path.exists() {
         return Err(format!("backup \"{filename}\" not found"));
     }
 
     let today = chrono::Local::now().date_naive();
-    let source = Store::open(&backup_path).map_err(|e| e.to_string())?;
+    let source = Store::open_with_key(&backup_path, source_key).map_err(|e| e.to_string())?;
     source.list_accounts(today).map_err(|e| e.to_string())?;
 
     let restored_dir = live_db_path.parent().unwrap_or(Path::new("."));
@@ -424,8 +462,15 @@ pub fn restore_backup(store: &Store, backups_dir: &Path, copy_dir: Option<&Path>
 /// encrypted profile so a converted backup can keep its original filename without colliding with
 /// the plaintext original sitting in the plain `backups/` folder (Phase C, Task 5).
 pub fn backups_dir_for(live_db_path: &Path, is_encrypted: bool) -> PathBuf {
-    let base = live_db_path.parent().map(|p| p.join("backups")).unwrap_or_else(|| PathBuf::from("backups"));
-    if is_encrypted { base.join("protected") } else { base }
+    let base = live_db_path
+        .parent()
+        .map(|p| p.join("backups"))
+        .unwrap_or_else(|| PathBuf::from("backups"));
+    if is_encrypted {
+        base.join("protected")
+    } else {
+        base
+    }
 }
 
 #[cfg(test)]
@@ -684,6 +729,39 @@ mod tests {
         assert_eq!(transactions[0].transaction.description, "Original");
     }
 
+    #[test]
+    fn encrypted_restore_uses_the_selected_backups_own_key() {
+        let dir = temp_dir("restore-encrypted-old-key");
+        let live_path = dir.join("vaultspend.db");
+        let backups_dir = backups_dir_for(&live_path, true);
+        std::fs::create_dir_all(&backups_dir).unwrap();
+
+        let old = keyfile::create_protection("old password", &KdfParams::FAST_FOR_TESTS, "2026-09-21T00:00:00Z").unwrap();
+        let old_backup_path = backups_dir.join("vaultspend-20260921-000000.db");
+        let old_plain = Store::open(dir.join("old-plain.db")).unwrap();
+        old_plain.export_encrypted_copy(&old_backup_path, old.dek.as_bytes()).unwrap();
+        old.key_file.write_to(&keyfile::key_file_path_for(&old_backup_path)).unwrap();
+
+        let current = keyfile::create_protection("new password", &KdfParams::FAST_FOR_TESTS, "2026-09-22T00:00:00Z").unwrap();
+        let current_plain = Store::open(dir.join("current-plain.db")).unwrap();
+        current_plain.export_encrypted_copy(&live_path, current.dek.as_bytes()).unwrap();
+        current.key_file.write_to(&keyfile::key_file_path_for(&live_path)).unwrap();
+        let live = Store::open_with_key(&live_path, DatabaseKey::Raw(current.dek.as_bytes())).unwrap();
+
+        let restored_path = restore_backup_with_key(
+            &live,
+            &backups_dir,
+            None,
+            "vaultspend-20260921-000000.db",
+            &live_path,
+            DatabaseKey::Raw(old.dek.as_bytes()),
+        )
+        .unwrap();
+
+        assert!(Store::open_with_key(&restored_path, DatabaseKey::Raw(old.dek.as_bytes())).is_ok());
+        assert!(Store::open_with_key(&restored_path, DatabaseKey::Raw(current.dek.as_bytes())).is_err());
+    }
+
     /// Regression test for a real data-loss bug: restoring the *oldest*
     /// retained backup while already at the retention cap used to delete
     /// that very file (as part of the safety-backup's own pruning) before
@@ -865,7 +943,14 @@ mod tests {
         let copy_dir = dir.join("second");
         std::fs::create_dir_all(&copy_dir).unwrap();
 
-        let outcome = create_backup_full(&store, &dir.join("live.db"), &dir.join("backups"), Some(&copy_dir), dt("2026-09-18 10:00:00")).unwrap();
+        let outcome = create_backup_full(
+            &store,
+            &dir.join("live.db"),
+            &dir.join("backups"),
+            Some(&copy_dir),
+            dt("2026-09-18 10:00:00"),
+        )
+        .unwrap();
 
         assert_eq!(outcome.copied_to, Some(copy_dir.join(&outcome.filename)));
         assert!(outcome.copy_error.is_none());
@@ -968,7 +1053,9 @@ mod tests {
         let key = [0x66u8; 32];
         let (store, source_path) = encrypted_store_with_key(&dir, &key);
         let backups_dir = backups_dir_for(&source_path, true);
-        let days = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17"];
+        let days = [
+            "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17",
+        ];
         let mut all_created = Vec::new();
         for day in days {
             all_created.push(create_backup(&store, &source_path, &backups_dir, None, dt(&format!("2026-08-{day} 00:00:00"))).unwrap());
