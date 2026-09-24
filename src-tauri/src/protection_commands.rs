@@ -49,16 +49,21 @@ pub fn get_auto_lock_settings(paths: tauri::State<AppPaths>, runtime: tauri::Sta
 pub fn set_auto_lock_settings(
     settings: profiles::AutoLockSettings,
     expected_generation: u64,
+    app: tauri::AppHandle,
     paths: tauri::State<AppPaths>,
     runtime: tauri::State<AppStateHandle>,
 ) -> Result<(), String> {
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before automatic-lock settings could be saved.".to_string());
     }
-    let _open = runtime.lock()?;
-    let db_path = current_db_path(&paths);
-    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
-    profiles::set_auto_lock_settings(&paths.config_path, &db_path, &profile_id, settings)
+    {
+        let _open = runtime.lock()?;
+        let db_path = current_db_path(&paths);
+        let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+        profiles::set_auto_lock_settings(&paths.config_path, &db_path, &profile_id, settings)?;
+    }
+    crate::auto_lock::arm_current_profile(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -160,22 +165,9 @@ pub fn unlock_profile(
 /// second lock button click that lost a race — must not lock a *different* profile that opened in
 /// the meantime).
 #[tauri::command]
-pub fn lock_current_profile(
-    expected_generation: u64,
-    app: tauri::AppHandle,
-    paths: tauri::State<AppPaths>,
-    runtime: tauri::State<AppStateHandle>,
-    status: tauri::State<LaunchStatus>,
-) -> Result<StartupState, String> {
-    if paths.current_generation() != expected_generation {
-        return Err("Something else already changed which profile is open.".to_string());
-    }
+pub fn lock_current_profile(expected_generation: u64, app: tauri::AppHandle, paths: tauri::State<AppPaths>) -> Result<StartupState, String> {
     let profile_id = profiles::profile_id_for(&paths.config_path, &current_db_path(&paths));
-    runtime.lock_profile(&profile_id);
-    paths.bump_generation();
-    let next = startup::startup_state_for_registry(&paths.config_path, &runtime, &status, Some(&profile_id));
-    startup::broadcast_state(&app);
-    Ok(next)
+    crate::auto_lock::lock_profile(&app, &profile_id, expected_generation, crate::auto_lock::LockReason::Manual)
 }
 
 /// Turns password protection on for the currently open (and so far unprotected) profile — the

@@ -82,6 +82,30 @@ impl AppRuntime {
         *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Locked { profile_id: profile_id.to_string() };
     }
 
+    /// Atomically finishes work that needs the open database and replaces it with a locked slot.
+    /// `still_current` must only inspect state that does not need this runtime mutex. Its second
+    /// check closes the gap between a timer taking a profile snapshot and actually acquiring the
+    /// runtime. A best-effort `before_drop` failure is returned to the caller for logging, but the
+    /// state is still dropped and locked.
+    pub fn lock_open_profile<V, F>(&self, profile_id: &str, still_current: V, before_drop: F) -> Result<Option<String>, String>
+    where
+        V: FnOnce() -> bool,
+        F: FnOnce(&AppState) -> Option<String>,
+    {
+        let mut guard = self.slot.lock().map_err(|_| "app state poisoned".to_string())?;
+        let state = match &*guard {
+            Slot::Open(state) => state,
+            Slot::Locked { .. } => return Err(format!("{PROFILE_LOCKED}: This profile is already locked.")),
+            Slot::NoProfileOpen => return Err(format!("{NO_PROFILE_OPEN}: No profile is open.")),
+        };
+        if !still_current() {
+            return Err("Something else already changed which profile is open.".to_string());
+        }
+        let before_drop_error = before_drop(state);
+        *guard = Slot::Locked { profile_id: profile_id.to_string() };
+        Ok(before_drop_error)
+    }
+
     /// Abandons a locked slot, going back to `NoProfileOpen` — the lock screen's "Switch profile"
     /// button's only way to actually reach the selector again (found by a real UAT walk: without
     /// this, `show_profile_selector` re-derived state through the same registry check every other

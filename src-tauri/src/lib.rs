@@ -1,4 +1,5 @@
 mod background;
+mod auto_lock;
 mod backups;
 mod commands;
 mod config;
@@ -106,6 +107,7 @@ pub fn run() {
             });
             app.manage(startup::LaunchStatus::new(default_dir.clone()));
             app.manage(protection_session::Sessions::new());
+            app.manage(auto_lock::AutoLockController::new());
 
             // Restores the window to whatever size (never position — a
             // saved position could sit on a monitor that's no longer
@@ -173,6 +175,7 @@ pub fn run() {
                 background::sync_tray_with_settings(&handle);
             }
             background::start_reminder_thread(handle.clone());
+            auto_lock::start_timer_thread(handle.clone());
             background::hide_if_started_minimized(&handle);
 
             Ok(())

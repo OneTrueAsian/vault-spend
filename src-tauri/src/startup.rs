@@ -344,6 +344,7 @@ pub fn activate(app: &tauri::AppHandle, opened: OpenedProfile) {
     paths.bump_generation();
     runtime.install(opened.state);
     status.clear();
+    crate::auto_lock::arm_current_profile(app);
     crate::background::sync_tray_with_settings(app);
 }
 
