@@ -48,8 +48,48 @@ struct ProfileEntry {
 /// struct never stores a path, only the cached format number, so a stale copy of it can never
 /// disagree with that naming rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AutoLockSettings {
+    pub inactivity_minutes: u32,
+    pub lock_when_hidden: bool,
+    pub lock_on_focus_loss: bool,
+    pub lock_on_system_event: bool,
+}
+
+impl Default for AutoLockSettings {
+    fn default() -> Self {
+        Self {
+            inactivity_minutes: 15,
+            lock_when_hidden: true,
+            lock_on_focus_loss: false,
+            lock_on_system_event: true,
+        }
+    }
+}
+
+impl AutoLockSettings {
+    pub fn validate(self) -> Result<Self, String> {
+        if ![0, 1, 5, 15, 30, 60].contains(&self.inactivity_minutes) {
+            return Err("Choose Off, 1, 5, 15, 30, or 60 minutes for automatic locking.".to_string());
+        }
+        Ok(self)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Protection {
     pub format: u32,
+    #[serde(default)]
+    pub auto_lock: AutoLockSettings,
+}
+
+impl Protection {
+    pub fn new(format: u32) -> Self {
+        Self {
+            format,
+            auto_lock: AutoLockSettings::default(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -465,6 +505,32 @@ pub fn set_profile_protection(config_path: &Path, live_db_path: &Path, id: &str,
     write_registry(config_path, &Registry { profiles: entries })
 }
 
+pub fn auto_lock_settings_for(config_path: &Path, live_db_path: &Path, id: &str) -> Result<AutoLockSettings, String> {
+    let profile = entries_or_synthesize(config_path, live_db_path)
+        .into_iter()
+        .find(|profile| profile.id == id)
+        .ok_or_else(|| "That profile no longer exists.".to_string())?;
+    profile
+        .protection
+        .map(|protection| protection.auto_lock)
+        .ok_or_else(|| "Turn on password protection before configuring automatic locking.".to_string())
+}
+
+pub fn set_auto_lock_settings(config_path: &Path, live_db_path: &Path, id: &str, settings: AutoLockSettings) -> Result<(), String> {
+    let settings = settings.validate()?;
+    let mut entries = entries_or_synthesize(config_path, live_db_path);
+    let profile = entries
+        .iter_mut()
+        .find(|profile| profile.id == id)
+        .ok_or_else(|| "That profile no longer exists.".to_string())?;
+    let protection = profile
+        .protection
+        .as_mut()
+        .ok_or_else(|| "Turn on password protection before configuring automatic locking.".to_string())?;
+    protection.auto_lock = settings;
+    write_registry(config_path, &Registry { profiles: entries })
+}
+
 /// Marks a profile protected AND repoints its registry entry at the newly encrypted database, in
 /// one atomic write. The two must land together, never as two separate commits: a kill between
 /// them would otherwise leave the registry pointing at a file with no protection recorded (so
@@ -679,11 +745,11 @@ mod tests {
         let live = dir.join("v.db");
         let (id, db_path) = plan_new_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
 
-        register_prepared_profile(&dir.join("config.json"), &live, &id, "Alex", &db_path, Some(Protection { format: 1 })).unwrap();
+        register_prepared_profile(&dir.join("config.json"), &live, &id, "Alex", &db_path, Some(Protection::new(1))).unwrap();
 
         let profile = list_profiles(&dir.join("config.json"), &live).into_iter().find(|p| p.id == id).unwrap();
         assert_eq!(profile.db_path, db_path);
-        assert_eq!(profile.protection, Some(Protection { format: 1 }));
+        assert_eq!(profile.protection, Some(Protection::new(1)));
     }
 
     #[test]
@@ -1276,15 +1342,94 @@ mod tests {
     }
 
     #[test]
+    fn old_protection_metadata_gets_safe_auto_lock_defaults() {
+        let dir = temp_dir("old-auto-lock-defaults");
+        let registry = dir.join("profiles.json");
+        let original = r#"{"profiles":[{"id":"default","name":"Default","db_path":"C:\\v.db","protection":{"format":1}}]}"#;
+        std::fs::write(&registry, original).unwrap();
+
+        let profiles = list_profiles(&dir.join("config.json"), Path::new("C:\\v.db"));
+        let settings = profiles[0].protection.unwrap().auto_lock;
+
+        assert_eq!(settings.inactivity_minutes, 15);
+        assert!(settings.lock_when_hidden);
+        assert!(!settings.lock_on_focus_loss);
+        assert!(settings.lock_on_system_event);
+        assert_eq!(
+            std::fs::read_to_string(registry).unwrap(),
+            original,
+            "reading defaults must not rewrite the registry"
+        );
+    }
+
+    #[test]
+    fn auto_lock_settings_accept_only_the_documented_intervals() {
+        for minutes in [0, 1, 5, 15, 30, 60] {
+            assert!(AutoLockSettings {
+                inactivity_minutes: minutes,
+                ..AutoLockSettings::default()
+            }
+            .validate()
+            .is_ok());
+        }
+        assert!(AutoLockSettings {
+            inactivity_minutes: 2,
+            ..AutoLockSettings::default()
+        }
+        .validate()
+        .is_err());
+    }
+
+    #[test]
+    fn updating_auto_lock_settings_changes_only_the_selected_protected_profile() {
+        let dir = temp_dir("set-auto-lock");
+        let config = dir.join("config.json");
+        let live = dir.join("v.db");
+        create_profile(&config, &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let profiles = list_profiles(&config, &live);
+        let default_id = profiles[0].id.clone();
+        let alex_id = profiles[1].id.clone();
+        set_profile_protection(&config, &live, &default_id, Some(Protection::new(1))).unwrap();
+        set_profile_protection(&config, &live, &alex_id, Some(Protection::new(1))).unwrap();
+        let changed = AutoLockSettings {
+            inactivity_minutes: 30,
+            lock_when_hidden: false,
+            lock_on_focus_loss: true,
+            lock_on_system_event: false,
+        };
+
+        set_auto_lock_settings(&config, &live, &alex_id, changed).unwrap();
+
+        let after = list_profiles(&config, &live);
+        assert_eq!(after.iter().find(|p| p.id == alex_id).unwrap().protection.unwrap().auto_lock, changed);
+        assert_eq!(
+            after.iter().find(|p| p.id == default_id).unwrap().protection.unwrap().auto_lock,
+            AutoLockSettings::default()
+        );
+    }
+
+    #[test]
+    fn an_unprotected_profile_cannot_save_auto_lock_settings() {
+        let dir = temp_dir("set-auto-lock-unprotected");
+        let config = dir.join("config.json");
+        let live = dir.join("v.db");
+
+        let error = set_auto_lock_settings(&config, &live, "default", AutoLockSettings::default()).unwrap_err();
+
+        assert!(error.contains("password protection"), "{error}");
+        assert!(!dir.join("profiles.json").exists());
+    }
+
+    #[test]
     fn set_profile_protection_records_and_clears_it() {
         let dir = temp_dir("set-protection");
         let live = dir.join("v.db");
         create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
         let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
 
-        set_profile_protection(&dir.join("config.json"), &live, &id, Some(Protection { format: 1 })).unwrap();
+        set_profile_protection(&dir.join("config.json"), &live, &id, Some(Protection::new(1))).unwrap();
         let after_set = list_profiles(&dir.join("config.json"), &live);
-        assert_eq!(after_set.iter().find(|p| p.id == id).unwrap().protection, Some(Protection { format: 1 }));
+        assert_eq!(after_set.iter().find(|p| p.id == id).unwrap().protection, Some(Protection::new(1)));
 
         set_profile_protection(&dir.join("config.json"), &live, &id, None).unwrap();
         let after_clear = list_profiles(&dir.join("config.json"), &live);
@@ -1296,7 +1441,7 @@ mod tests {
         let dir = temp_dir("set-protection-unknown");
         let live = dir.join("v.db");
 
-        set_profile_protection(&dir.join("config.json"), &live, "nobody", Some(Protection { format: 1 })).unwrap();
+        set_profile_protection(&dir.join("config.json"), &live, "nobody", Some(Protection::new(1))).unwrap();
 
         assert!(
             !dir.join("profiles.json").exists(),
@@ -1312,12 +1457,12 @@ mod tests {
         let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
         let new_path = dir.join("v-protected.db");
 
-        commit_protection_conversion(&dir.join("config.json"), &live, &id, &new_path, Protection { format: 1 }).unwrap();
+        commit_protection_conversion(&dir.join("config.json"), &live, &id, &new_path, Protection::new(1)).unwrap();
 
         let after = list_profiles(&dir.join("config.json"), &new_path);
         let entry = after.iter().find(|p| p.id == id).unwrap();
         assert_eq!(entry.db_path, new_path);
-        assert_eq!(entry.protection, Some(Protection { format: 1 }));
+        assert_eq!(entry.protection, Some(Protection::new(1)));
     }
 
     #[test]
@@ -1327,7 +1472,7 @@ mod tests {
         let live = dir.join("v.db");
         create_profile(&config_path, &live, "Sam", dt("2026-09-24 09:00:00")).unwrap();
         let id = list_profiles(&config_path, &live)[1].id.clone();
-        set_profile_protection(&config_path, &live, &id, Some(Protection { format: 1 })).unwrap();
+        set_profile_protection(&config_path, &live, &id, Some(Protection::new(1))).unwrap();
         let new_path = dir.join("vaultspend.db");
 
         commit_protection_removal(&config_path, &live, &id, &new_path).unwrap();
@@ -1352,7 +1497,7 @@ mod tests {
         let alex = list_profiles(&dir.join("config.json"), &live)[1].clone();
         let new_path = dir.join("v-protected.db");
 
-        commit_protection_conversion(&dir.join("config.json"), &alex.db_path, &alex.id, &new_path, Protection { format: 1 }).unwrap();
+        commit_protection_conversion(&dir.join("config.json"), &alex.db_path, &alex.id, &new_path, Protection::new(1)).unwrap();
 
         assert_eq!(
             former_plaintext_path_for(&dir.join("config.json"), &new_path, &alex.id),
@@ -1376,7 +1521,7 @@ mod tests {
         let live = dir.join("v.db");
         let new_path = dir.join("v-protected.db");
 
-        commit_protection_conversion(&dir.join("config.json"), &live, "nobody", &new_path, Protection { format: 1 }).unwrap();
+        commit_protection_conversion(&dir.join("config.json"), &live, "nobody", &new_path, Protection::new(1)).unwrap();
 
         assert!(
             !dir.join("profiles.json").exists(),
@@ -1390,11 +1535,11 @@ mod tests {
         let live = dir.join("v.db");
         create_profile(&dir.join("config.json"), &live, "Sam", dt("2026-09-21 09:00:00")).unwrap();
         let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
-        set_profile_protection(&dir.join("config.json"), &live, &id, Some(Protection { format: 1 })).unwrap();
+        set_profile_protection(&dir.join("config.json"), &live, &id, Some(Protection::new(1))).unwrap();
 
         let registered = registered_profiles_strict(&dir.join("config.json")).unwrap();
 
-        assert_eq!(registered.iter().find(|p| p.id == id).unwrap().protection, Some(Protection { format: 1 }));
+        assert_eq!(registered.iter().find(|p| p.id == id).unwrap().protection, Some(Protection::new(1)));
     }
 }
 

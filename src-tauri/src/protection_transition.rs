@@ -158,7 +158,7 @@ pub fn enable_protection_with_recovery(
         source_db_path,
         profile_id,
         &target_db_path,
-        profiles::Protection { format: keyfile::FORMAT },
+        profiles::Protection::new(keyfile::FORMAT),
     )?;
     debug_failpoint("after_registry_write");
     config::write_db_location_config(config_path, &target_db_path).map_err(|e| e.to_string())?;
@@ -216,7 +216,7 @@ pub fn create_protected_profile_with_recovery(
         &id,
         name,
         &target_db_path,
-        Some(profiles::Protection { format: keyfile::FORMAT }),
+        Some(profiles::Protection::new(keyfile::FORMAT)),
     )?;
     Ok((id, protection.key_file, protection.recovery_code, target_db_path))
 }
@@ -332,7 +332,7 @@ mod tests {
         );
         let registered = profiles::list_profiles(&config_path, &target_path);
         let entry = registered.iter().find(|p| p.id == profile_id).unwrap();
-        assert_eq!(entry.protection, Some(profiles::Protection { format: keyfile::FORMAT }));
+        assert_eq!(entry.protection, Some(profiles::Protection::new(keyfile::FORMAT)));
         assert_eq!(entry.db_path, target_path, "the registry must follow the profile to its new file");
     }
 
@@ -392,7 +392,7 @@ mod tests {
                 .find(|p| p.id == id)
                 .unwrap()
                 .protection,
-            Some(profiles::Protection { format: keyfile::FORMAT })
+            Some(profiles::Protection::new(keyfile::FORMAT))
         );
         assert_eq!(recovery_code.display().split('-').count(), 7);
     }

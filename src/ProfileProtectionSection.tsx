@@ -3,6 +3,7 @@ import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
 import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import { RegenerateRecoveryDialog } from "./RegenerateRecoveryDialog";
 import { RemoveProtectionDialog } from "./RemoveProtectionDialog";
+import { AutoLockSettings } from "./AutoLockSettings";
 import { getCurrentGeneration } from "./profileUiState";
 import type { Profile } from "./types";
 
@@ -38,6 +39,7 @@ export function ProfileProtectionSection({
       <p className="modal-message-secondary">
         Password protection: {active.is_password_protected ? "On" : "Off"}
       </p>
+      <AutoLockSettings enabled={active.is_password_protected} />
       {!active.is_password_protected && (
         <button type="button" className="modal-secondary" onClick={() => void openSetup()}>
           Turn on password protection…

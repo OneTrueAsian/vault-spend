@@ -19,6 +19,12 @@ vi.mock("./protection", () => protection);
 const profileUiState = vi.hoisted(() => ({ getCurrentGeneration: vi.fn() }));
 vi.mock("./profileUiState", () => profileUiState);
 
+const autoLock = vi.hoisted(() => ({
+  getAutoLockSettings: vi.fn(),
+  setAutoLockSettings: vi.fn(),
+}));
+vi.mock("./autoLock", () => autoLock);
+
 import { ProfileProtectionSection } from "./ProfileProtectionSection";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -55,6 +61,14 @@ describe("ProfileProtectionSection", () => {
     protection.commitRegenerateRecovery.mockReset();
     protection.removeProtection.mockReset();
     profileUiState.getCurrentGeneration.mockReset().mockResolvedValue(1);
+    autoLock.getAutoLockSettings.mockReset().mockResolvedValue({
+      inactivity_minutes: 15,
+      lock_when_hidden: true,
+      lock_on_focus_loss: false,
+      lock_on_system_event: true,
+      system_event_supported: true,
+    });
+    autoLock.setAutoLockSettings.mockReset().mockResolvedValue(undefined);
     onProtected.mockReset();
     container = document.createElement("div");
     document.body.append(container);
@@ -91,6 +105,43 @@ describe("ProfileProtectionSection", () => {
     expect(button("Change password…")).not.toBeUndefined();
     expect(button("Regenerate recovery key…")).not.toBeUndefined();
     expect(button("Remove protection…")).not.toBeUndefined();
+  });
+
+  it("loads all automatic-lock choices and the documented defaults for a protected profile", async () => {
+    show(PROTECTED);
+
+    await act(async () => undefined);
+
+    const select = container.querySelector<HTMLSelectElement>("[data-auto-lock-minutes]")!;
+    expect([...select.options].map((option) => option.value)).toEqual(["0", "1", "5", "15", "30", "60"]);
+    expect(select.value).toBe("15");
+    expect(container.querySelector<HTMLInputElement>("[data-lock-when-hidden]")!.checked).toBe(true);
+    expect(container.querySelector<HTMLInputElement>("[data-lock-on-focus-loss]")!.checked).toBe(false);
+    expect(container.querySelector<HTMLInputElement>("[data-lock-on-system-event]")!.checked).toBe(true);
+  });
+
+  it("saves a changed auto-lock setting with the current profile generation", async () => {
+    show(PROTECTED);
+    await act(async () => undefined);
+    const select = container.querySelector<HTMLSelectElement>("[data-auto-lock-minutes]")!;
+
+    await act(async () => {
+      select.value = "30";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(autoLock.setAutoLockSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ inactivity_minutes: 30 }),
+      1,
+    );
+  });
+
+  it("explains that automatic locking requires protection and disables its controls", () => {
+    show(UNPROTECTED);
+
+    expect(container.textContent).toContain("Turn on password protection to use automatic locking");
+    expect(container.querySelector<HTMLSelectElement>("[data-auto-lock-minutes]")!.disabled).toBe(true);
+    expect(autoLock.getAutoLockSettings).not.toHaveBeenCalled();
   });
 
   it("opens the regenerate-recovery dialog with the current generation", async () => {

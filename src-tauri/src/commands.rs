@@ -667,9 +667,7 @@ pub fn add_existing_profile(
             &id,
             &name,
             &imported_db_path,
-            Some(crate::profiles::Protection {
-                format: validated.manifest.protection_format,
-            }),
+            Some(crate::profiles::Protection::new(validated.manifest.protection_format)),
         ) {
             let _ = std::fs::remove_dir_all(imported_dir);
             return Err(error);

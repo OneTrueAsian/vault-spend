@@ -10,9 +10,55 @@ use crate::startup::{self, LaunchStatus, StartupState};
 use budget_core::protection::keyfile::KeyFile;
 use budget_core::protection::recovery::RecoveryCode;
 use budget_core::store::{DatabaseKey, Store};
+use serde::Serialize;
 
 fn current_db_path(paths: &AppPaths) -> std::path::PathBuf {
     paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct AutoLockSettingsDto {
+    pub inactivity_minutes: u32,
+    pub lock_when_hidden: bool,
+    pub lock_on_focus_loss: bool,
+    pub lock_on_system_event: bool,
+    pub system_event_supported: bool,
+}
+
+impl From<profiles::AutoLockSettings> for AutoLockSettingsDto {
+    fn from(settings: profiles::AutoLockSettings) -> Self {
+        Self {
+            inactivity_minutes: settings.inactivity_minutes,
+            lock_when_hidden: settings.lock_when_hidden,
+            lock_on_focus_loss: settings.lock_on_focus_loss,
+            lock_on_system_event: settings.lock_on_system_event,
+            system_event_supported: cfg!(windows),
+        }
+    }
+}
+
+#[tauri::command]
+pub fn get_auto_lock_settings(paths: tauri::State<AppPaths>, runtime: tauri::State<AppStateHandle>) -> Result<AutoLockSettingsDto, String> {
+    let _open = runtime.lock()?;
+    let db_path = current_db_path(&paths);
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    profiles::auto_lock_settings_for(&paths.config_path, &db_path, &profile_id).map(Into::into)
+}
+
+#[tauri::command]
+pub fn set_auto_lock_settings(
+    settings: profiles::AutoLockSettings,
+    expected_generation: u64,
+    paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+) -> Result<(), String> {
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before automatic-lock settings could be saved.".to_string());
+    }
+    let _open = runtime.lock()?;
+    let db_path = current_db_path(&paths);
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    profiles::set_auto_lock_settings(&paths.config_path, &db_path, &profile_id, settings)
 }
 
 #[tauri::command]

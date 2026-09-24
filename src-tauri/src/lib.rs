@@ -216,6 +216,8 @@ pub fn run() {
             protection_commands::select_profile,
             protection_commands::unlock_profile,
             protection_commands::lock_current_profile,
+            protection_commands::get_auto_lock_settings,
+            protection_commands::set_auto_lock_settings,
             protection_commands::verify_current_password,
             protection_commands::change_password,
             protection_commands::begin_regenerate_recovery,
