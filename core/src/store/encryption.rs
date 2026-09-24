@@ -112,6 +112,10 @@ impl Store {
     pub fn db_key_bytes(&self) -> Option<&[u8; 32]> {
         self.db_key.as_deref()
     }
+
+    pub fn schema_user_version(&self) -> Result<i64, rusqlite::Error> {
+        self.conn.query_row("PRAGMA user_version", [], |row| row.get(0))
+    }
 }
 
 /// Whether `path` is an encrypted (non-plaintext) SQLite/SQLCipher file, by header alone — no key

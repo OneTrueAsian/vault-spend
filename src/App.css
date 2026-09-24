@@ -5462,6 +5462,35 @@ button:disabled {
   font-size: 12.5px;
 }
 
+.choice-card-list {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+
+.choice-card {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+}
+
+.choice-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.choice-card span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
 .modal-changelog-list {
   margin: 0 0 16px 0;
   padding-left: 20px;

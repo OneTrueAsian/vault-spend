@@ -109,12 +109,103 @@ fn copy_database_for_relocation(store: &Store, old_live_path: &std::path::Path, 
 /// Safe against the live connection (`Store::backup_to`'s SQLite online
 /// backup API), so nothing needs to pause or lock while this runs.
 #[tauri::command]
-pub fn export_database(destination: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn export_database(destination: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock()?;
     if state.store.is_encrypted() {
-        return Err("Exporting the raw database file for a password-protected profile isn't available yet in this development build. It will arrive in a later update.".to_string());
+        let live_path = current_db_path(&paths);
+        let profile_name = crate::profiles::list_profiles(&paths.config_path, &live_path)
+            .into_iter()
+            .find(|profile| profile.is_active)
+            .map(|profile| profile.name)
+            .unwrap_or_else(|| "Default".to_string());
+        return export_protected_package(
+            std::path::Path::new(&destination),
+            &profile_name,
+            &live_path,
+            &state.store,
+            &chrono::Utc::now().to_rfc3339(),
+        );
     }
     state.store.backup_to(&destination).map_err(|e| e.to_string())
+}
+
+fn export_protected_package(
+    destination: &std::path::Path,
+    profile_name: &str,
+    source_db_path: &std::path::Path,
+    store: &Store,
+    exported_at: &str,
+) -> Result<(), String> {
+    use budget_core::protection::package::{sha256_file, DATABASE_FILENAME, MANIFEST_FILENAME};
+    use budget_core::protection::{PackageManifest, PACKAGE_FORMAT};
+
+    if destination.exists() {
+        return Err(format!("{} already exists. Choose a new package name.", destination.display()));
+    }
+    std::fs::create_dir_all(destination).map_err(|e| e.to_string())?;
+    let result = (|| {
+        let database_path = destination.join(DATABASE_FILENAME);
+        store.backup_to(&database_path).map_err(|e| e.to_string())?;
+        let source_key_path = budget_core::protection::keyfile::key_file_path_for(source_db_path);
+        let destination_key_path = budget_core::protection::keyfile::key_file_path_for(&database_path);
+        std::fs::copy(&source_key_path, &destination_key_path).map_err(|e| format!("couldn't copy the profile's key file: {e}"))?;
+        let key_file = budget_core::protection::keyfile::KeyFile::read(&destination_key_path).map_err(|e| e.to_string())?;
+        let manifest = PackageManifest {
+            format: PACKAGE_FORMAT,
+            profile_name: profile_name.to_string(),
+            protection_format: key_file.format,
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            schema_user_version: store.schema_user_version().map_err(|e| e.to_string())?,
+            database_sha256: sha256_file(&database_path)?,
+            exported_at: exported_at.to_string(),
+        };
+        std::fs::write(destination.join(MANIFEST_FILENAME), manifest.to_json()).map_err(|e| e.to_string())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_dir_all(destination);
+    }
+    result
+}
+
+struct ValidatedProtectedPackage {
+    manifest: budget_core::protection::PackageManifest,
+    key_file: budget_core::protection::keyfile::KeyFile,
+    dek: budget_core::protection::keyfile::UnlockedKey,
+}
+
+fn validate_protected_package(package_dir: &std::path::Path, password: &str) -> Result<ValidatedProtectedPackage, String> {
+    use budget_core::protection::package::{sha256_file, DATABASE_FILENAME, MANIFEST_FILENAME};
+    use budget_core::protection::PACKAGE_FORMAT;
+
+    if !package_dir.is_dir() {
+        return Err(format!("{} isn't a Vault Spend package folder.", package_dir.display()));
+    }
+    let manifest = budget_core::protection::PackageManifest::from_json(
+        &std::fs::read_to_string(package_dir.join(MANIFEST_FILENAME)).map_err(|e| format!("couldn't read this package's manifest: {e}"))?,
+    )?;
+    if manifest.format != PACKAGE_FORMAT {
+        return Err(format!(
+            "This package uses format {}, but this Vault Spend supports format {PACKAGE_FORMAT}.",
+            manifest.format
+        ));
+    }
+    let database_path = package_dir.join(DATABASE_FILENAME);
+    let actual_hash = sha256_file(&database_path).map_err(|e| format!("couldn't read this package's database: {e}"))?;
+    if actual_hash != manifest.database_sha256 {
+        return Err("This package's database doesn't match its manifest. It may be damaged or incomplete.".to_string());
+    }
+    if !budget_core::store::file_looks_encrypted(&database_path).map_err(|e| e.to_string())? {
+        return Err("This protected package contains a plaintext database.".to_string());
+    }
+    let key_file_path = budget_core::protection::keyfile::key_file_path_for(&database_path);
+    let key_file = budget_core::protection::keyfile::KeyFile::read(&key_file_path).map_err(|e| e.to_string())?;
+    if key_file.format != manifest.protection_format {
+        return Err("This package's protection information doesn't match its manifest.".to_string());
+    }
+    let dek = key_file
+        .unlock_with_password(password)
+        .map_err(|_| "That password didn't work.".to_string())?;
+    Ok(ValidatedProtectedPackage { manifest, key_file, dek })
 }
 
 #[derive(Serialize)]
@@ -511,23 +602,92 @@ pub fn switch_profile(
 pub fn add_existing_profile(
     name: String,
     db_path: String,
+    password: Option<String>,
+    expected_generation: u64,
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+    sessions: tauri::State<crate::protection_session::Sessions>,
 ) -> Result<String, String> {
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before this profile could be added.".to_string());
+    }
     let picked_path = std::path::PathBuf::from(&db_path);
     if !picked_path.exists() {
         return Err(format!("{} doesn't exist.", picked_path.display()));
     }
-    // Checked before the plaintext-database sniff below, which would otherwise reject an
-    // encrypted file with the more confusing "doesn't look like a Vault Spend database" message —
-    // it is one, just not one this development build can add yet (no `.vaultspend` package/Add
-    // Existing support for encrypted files until Phase D).
-    if budget_core::store::file_looks_encrypted(&picked_path).map_err(|e| e.to_string())? {
-        return Err(
-            "This file is password-protected. Adding an encrypted profile from another computer isn't available yet in this development build."
-                .to_string(),
+    if picked_path.is_dir() {
+        let attempt_id = format!("package:{}", picked_path.to_string_lossy().to_lowercase());
+        let remaining = sessions.delay_remaining(&attempt_id);
+        if !remaining.is_zero() {
+            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+        }
+        let validated = match validate_protected_package(&picked_path, password.as_deref().unwrap_or_default()) {
+            Ok(package) => {
+                sessions.record_success(&attempt_id);
+                package
+            }
+            Err(error) => {
+                if error == "That password didn't work." {
+                    sessions.record_failure(&attempt_id);
+                }
+                return Err(error);
+            }
+        };
+        let live_db_path = current_db_path(&paths);
+        let (id, imported_db_path) = crate::profiles::plan_new_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
+        let imported_dir = imported_db_path.parent().ok_or_else(|| "invalid imported profile path".to_string())?;
+        std::fs::create_dir_all(imported_dir).map_err(|e| e.to_string())?;
+        let prepare_result = (|| {
+            let packaged_db = picked_path.join(budget_core::protection::package::DATABASE_FILENAME);
+            std::fs::copy(&packaged_db, &imported_db_path).map_err(|e| format!("couldn't copy the package database: {e}"))?;
+            let copied_hash = budget_core::protection::package::sha256_file(&imported_db_path)?;
+            if copied_hash != validated.manifest.database_sha256 {
+                return Err("The imported database copy did not verify.".to_string());
+            }
+            validated
+                .key_file
+                .write_to(&budget_core::protection::keyfile::key_file_path_for(&imported_db_path))
+                .map_err(|e| e.to_string())?;
+            AppState::open_with_key(&imported_db_path, budget_core::store::DatabaseKey::Raw(validated.dek.as_bytes()))
+        })();
+        let new_state = match prepare_result {
+            Ok(state) => state,
+            Err(error) => {
+                let _ = std::fs::remove_dir_all(imported_dir);
+                return Err(error);
+            }
+        };
+
+        let mut state = state.lock()?;
+        if let Err(error) = crate::profiles::register_prepared_profile(
+            &paths.config_path,
+            &live_db_path,
+            &id,
+            &name,
+            &imported_db_path,
+            Some(crate::profiles::Protection {
+                format: validated.manifest.protection_format,
+            }),
+        ) {
+            let _ = std::fs::remove_dir_all(imported_dir);
+            return Err(error);
+        }
+        crate::config::write_db_location_config(&paths.config_path, &imported_db_path).map_err(|e| e.to_string())?;
+        *state = new_state;
+        *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = imported_db_path.clone();
+        paths.bump_generation();
+        crate::startup::after_profile_opened(
+            &paths.config_path,
+            &imported_db_path,
+            &state.store,
+            &device,
+            chrono::Local::now().naive_local(),
         );
+        return Ok(name);
+    }
+    if budget_core::store::file_looks_encrypted(&picked_path).map_err(|e| e.to_string())? {
+        return Err("Choose the .vaultspend package folder, not a bare encrypted database file.".to_string());
     }
     // Checked *before* AppState::open, which runs schema migrations that
     // create any table found missing — by the time it succeeds, even an
@@ -4332,6 +4492,67 @@ pub fn check_monthly_rollover(state: tauri::State<AppStateHandle>) -> Result<Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn protected_store_for_package_test(dir: &std::path::Path, password: &str) -> (Store, std::path::PathBuf) {
+        use budget_core::protection::{kdf::KdfParams, keyfile};
+        use budget_core::store::DatabaseKey;
+
+        let plain_path = dir.join("plain.db");
+        let protected_path = dir.join("protected.db");
+        let plain = Store::open(&plain_path).unwrap();
+        let protection = keyfile::create_protection(password, &KdfParams::FAST_FOR_TESTS, "2026-09-23T00:00:00Z").unwrap();
+        plain.export_encrypted_copy(&protected_path, protection.dek.as_bytes()).unwrap();
+        protection.key_file.write_to(&keyfile::key_file_path_for(&protected_path)).unwrap();
+        (
+            Store::open_with_key(&protected_path, DatabaseKey::Raw(protection.dek.as_bytes())).unwrap(),
+            protected_path,
+        )
+    }
+
+    #[test]
+    fn exporting_a_protected_profile_writes_a_complete_package() {
+        let dir = std::env::temp_dir().join(format!("vaultspend-package-export-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (store, source_path) = protected_store_for_package_test(&dir, "package password");
+        let destination = dir.join("Sam.vaultspend");
+
+        export_protected_package(&destination, "Sam", &source_path, &store, "2026-09-24T09:00:00Z").unwrap();
+
+        let database_path = destination.join(budget_core::protection::package::DATABASE_FILENAME);
+        let manifest = budget_core::protection::PackageManifest::from_json(
+            &std::fs::read_to_string(destination.join(budget_core::protection::package::MANIFEST_FILENAME)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(manifest.profile_name, "Sam");
+        assert_eq!(manifest.protection_format, 1);
+        assert_eq!(
+            manifest.database_sha256,
+            budget_core::protection::package::sha256_file(&database_path).unwrap()
+        );
+        assert!(budget_core::protection::keyfile::key_file_path_for(&database_path).exists());
+        assert!(budget_core::store::file_looks_encrypted(&database_path).unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn importing_a_protected_package_requires_its_password_and_intact_database() {
+        let dir = std::env::temp_dir().join(format!("vaultspend-package-import-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (store, source_path) = protected_store_for_package_test(&dir, "package password");
+        let package = dir.join("Sam.vaultspend");
+        export_protected_package(&package, "Sam", &source_path, &store, "2026-09-24T09:00:00Z").unwrap();
+
+        assert!(validate_protected_package(&package, "wrong password").is_err());
+        assert!(validate_protected_package(&package, "package password").is_ok());
+        std::fs::write(package.join(budget_core::protection::package::DATABASE_FILENAME), b"damaged").unwrap();
+        assert!(validate_protected_package(&package, "package password")
+            .err()
+            .unwrap()
+            .contains("doesn't match"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn relocating_an_encrypted_database_copies_its_key_file() {

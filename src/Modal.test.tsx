@@ -19,7 +19,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { CsvExportWarningDialog, NewAccountDialog } from "./Modal";
+import { ChooseExistingDataSourceDialog, CsvExportWarningDialog, NewAccountDialog, UseExistingDataFileDialog } from "./Modal";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -117,5 +117,44 @@ describe("CsvExportWarningDialog", () => {
     act(() => confirmButton!.click());
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).not.toHaveBeenCalled();
+  });
+});
+
+describe("protected package import dialogs", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("lets the user choose a raw database or a protected package", () => {
+    const onDatabase = vi.fn();
+    const onPackage = vi.fn();
+    act(() => root.render(<ChooseExistingDataSourceDialog onCancel={vi.fn()} onDatabase={onDatabase} onPackage={onPackage} />));
+    expect(document.body.textContent).toContain("password-protected .vaultspend package");
+    act(() => [...document.querySelectorAll("button")].find((button) => button.textContent?.startsWith("Protected package"))!.click());
+    expect(onPackage).toHaveBeenCalledTimes(1);
+    expect(onDatabase).not.toHaveBeenCalled();
+  });
+
+  it("requires a password when naming an imported protected package", () => {
+    const onSubmit = vi.fn();
+    act(() =>
+      root.render(
+        <UseExistingDataFileDialog path="C:\\Sam.vaultspend" isProtectedPackage onCancel={vi.fn()} onSubmit={onSubmit} />,
+      ),
+    );
+    const inputs = document.body.querySelectorAll<HTMLInputElement>("input");
+    expect(inputs).toHaveLength(2);
+    expect(inputs[1].type).toBe("password");
+    expect(document.body.textContent).toContain("copied into Vault Spend");
   });
 });

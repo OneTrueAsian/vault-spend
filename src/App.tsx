@@ -23,6 +23,7 @@ import {
   NewTransactionDialog,
   TransferReviewDialog,
   AutoLinkedReviewDialog,
+  ChooseExistingDataSourceDialog,
   SwitchToProtectedProfileDialog,
   UseExistingDataFileDialog,
   WelcomeDialog,
@@ -734,9 +735,14 @@ function App({
   }
 
   async function handleExportDatabase() {
+    const isProtected = profiles.find((profile) => profile.is_active)?.is_password_protected ?? false;
     const path = await save({
-      defaultPath: `vaultspend-export-${toLocalIsoDate(new Date())}.db`,
-      filters: [{ name: "Vault Spend Database", extensions: ["db"] }],
+      defaultPath: `vaultspend-export-${toLocalIsoDate(new Date())}.${isProtected ? "vaultspend" : "db"}`,
+      filters: [
+        isProtected
+          ? { name: "Vault Spend Protected Package", extensions: ["vaultspend"] }
+          : { name: "Vault Spend Database", extensions: ["db"] },
+      ],
     });
     if (!path) return;
     try {
@@ -761,19 +767,41 @@ function App({
    * split the same way `handleRelocateDataFile` splits picking a folder
    * from the backend call, except a name has to come from the user first. */
   async function handlePickExistingDataFile() {
+    setChoosingExistingSource(true);
+  }
+
+  async function handlePickExistingDatabase() {
     const path = await open({ multiple: false, filters: [{ name: "Vault Spend Database", extensions: ["db"] }] });
     if (!path || Array.isArray(path)) return;
+    setChoosingExistingSource(false);
+    setPendingExistingIsProtected(false);
     setPendingExistingDbPath(path);
   }
 
-  async function handleAddExistingProfile(name: string) {
+  async function handlePickProtectedPackage() {
+    const path = await open({ directory: true, multiple: false, title: "Choose a .vaultspend package folder" });
+    if (!path || Array.isArray(path)) return;
+    setChoosingExistingSource(false);
+    setPendingExistingIsProtected(true);
+    setPendingExistingDbPath(path);
+  }
+
+  async function handleAddExistingProfile(name: string, password?: string) {
     if (!pendingExistingDbPath) return;
     try {
-      const added = await invoke<string>("add_existing_profile", { name, dbPath: pendingExistingDbPath });
+      const expectedGeneration = await getCurrentGeneration();
+      const added = await invoke<string>("add_existing_profile", {
+        name,
+        dbPath: pendingExistingDbPath,
+        password: password ?? null,
+        expectedGeneration,
+      });
       setPendingExistingDbPath(null);
+      setPendingExistingIsProtected(false);
       onDataFileChanged(`Switched to "${added}".`);
     } catch (e) {
       setStatus(String(e));
+      if (pendingExistingIsProtected) throw e;
     }
   }
 
@@ -1037,6 +1065,8 @@ function App({
   const [manageFamilyMembersOpen, setManageFamilyMembersOpen] = useState(false);
   const [newTransactionOpen, setNewTransactionOpen] = useState(false);
   const [pendingExistingDbPath, setPendingExistingDbPath] = useState<string | null>(null);
+  const [pendingExistingIsProtected, setPendingExistingIsProtected] = useState(false);
+  const [choosingExistingSource, setChoosingExistingSource] = useState(false);
   const [pendingProtectedSwitch, setPendingProtectedSwitch] = useState<{ id: string; name: string } | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -5285,10 +5315,21 @@ function App({
           onDelete={handleDeleteFamilyMember}
         />
       )}
+      {choosingExistingSource && (
+        <ChooseExistingDataSourceDialog
+          onCancel={() => setChoosingExistingSource(false)}
+          onDatabase={() => void handlePickExistingDatabase()}
+          onPackage={() => void handlePickProtectedPackage()}
+        />
+      )}
       {pendingExistingDbPath && (
         <UseExistingDataFileDialog
           path={pendingExistingDbPath}
-          onCancel={() => setPendingExistingDbPath(null)}
+          isProtectedPackage={pendingExistingIsProtected}
+          onCancel={() => {
+            setPendingExistingDbPath(null);
+            setPendingExistingIsProtected(false);
+          }}
           onSubmit={handleAddExistingProfile}
         />
       )}

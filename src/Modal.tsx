@@ -1076,29 +1076,44 @@ export function CategoryTransactionsDialog({
  * can confirm it's the right one before it becomes live. */
 export function UseExistingDataFileDialog({
   path,
+  isProtectedPackage = false,
   onCancel,
   onSubmit,
 }: {
   path: string;
+  isProtectedPackage?: boolean;
   onCancel: () => void;
-  onSubmit: (name: string) => void;
+  onSubmit: (name: string, password?: string) => void | Promise<void>;
 }) {
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
-    onSubmit(name.trim());
+    if (!name.trim() || (isProtectedPackage && !password)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await onSubmit(name.trim(), isProtectedPackage ? password : undefined);
+    } catch (e) {
+      setError(String(e));
+      setPassword("");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <ModalShell title="Use an existing data file" onCancel={onCancel}>
+    <ModalShell title={isProtectedPackage ? "Import a protected profile" : "Use an existing data file"} onCancel={onCancel}>
       <p className="modal-message-secondary" style={{ userSelect: "text", wordBreak: "break-all" }}>
         {path}
       </p>
       <p className="modal-message modal-message-secondary">
-        Vault Spend will start using this file right away, registered as a new profile you can switch away from
-        anytime. The file stays exactly where it is — nothing is copied or moved.
+        {isProtectedPackage
+          ? "The encrypted database and its protection information will be verified, then copied into Vault Spend as a new profile. The package stays unchanged."
+          : "Vault Spend will start using this file right away, registered as a new profile you can switch away from anytime. The file stays exactly where it is — nothing is copied or moved."}
       </p>
       <form onSubmit={handleSubmit}>
         <label className="modal-field">
@@ -1110,15 +1125,57 @@ export function UseExistingDataFileDialog({
             placeholder='e.g. "Old Laptop"'
           />
         </label>
+        {isProtectedPackage && (
+          <label className="modal-field">
+            <span>Package password</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={busy}
+            />
+          </label>
+        )}
+        <p className="launch-error-problem" role="alert">{error}</p>
         <div className="modal-actions">
-          <button type="button" className="modal-secondary" onClick={onCancel}>
+          <button type="button" className="modal-secondary" onClick={onCancel} disabled={busy}>
             Cancel
           </button>
-          <button type="submit" disabled={!name.trim()}>
-            Use this file
+          <button type="submit" disabled={busy || !name.trim() || (isProtectedPackage && !password)}>
+            {isProtectedPackage ? "Import profile" : "Use this file"}
           </button>
         </div>
       </form>
+    </ModalShell>
+  );
+}
+
+export function ChooseExistingDataSourceDialog({
+  onCancel,
+  onDatabase,
+  onPackage,
+}: {
+  onCancel: () => void;
+  onDatabase: () => void;
+  onPackage: () => void;
+}) {
+  return (
+    <ModalShell title="Add an existing profile" onCancel={onCancel}>
+      <p className="modal-message-secondary">Choose what you brought to this computer.</p>
+      <div className="choice-card-list">
+        <button type="button" className="choice-card" onClick={onDatabase}>
+          <strong>Database file</strong>
+          <span>An unprotected Vault Spend .db file</span>
+        </button>
+        <button type="button" className="choice-card" onClick={onPackage}>
+          <strong>Protected package</strong>
+          <span>A password-protected .vaultspend package folder</span>
+        </button>
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="modal-secondary" onClick={onCancel}>Cancel</button>
+      </div>
     </ModalShell>
   );
 }

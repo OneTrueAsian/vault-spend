@@ -3,8 +3,11 @@
 //! 4.1 and 4.3.
 pub mod kdf;
 pub mod keyfile;
+pub mod package;
 pub mod recovery;
 pub mod wrap;
+
+pub use package::{PACKAGE_FORMAT, PackageManifest};
 
 use std::fmt;
 
