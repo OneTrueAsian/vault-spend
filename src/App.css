@@ -6233,6 +6233,9 @@ button:disabled {
 }
 
 .profile-card-open {
+  /* The global button rule is white-space: nowrap; a long profile name must wrap inside its card
+     instead of running across the neighbouring one (feature120). */
+  white-space: normal;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -6268,6 +6271,9 @@ svg.profile-card-avatar {
 }
 
 .profile-card-name {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   display: flex;
   align-items: center;
   justify-content: center;

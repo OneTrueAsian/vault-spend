@@ -7,8 +7,12 @@ const protection = vi.hoisted(() => ({ selectProfile: vi.fn(), getCurrentGenerat
 vi.mock("./protection", () => protection);
 vi.mock("./profileUiState", () => ({ getCurrentGeneration: protection.getCurrentGeneration }));
 vi.mock("./ProtectionSetupDialog", () => ({
-  ProtectionSetupDialog: ({ newProfileName }: { newProfileName: string | null }) => (
-    <div data-protection-setup-dialog>{newProfileName}</div>
+  ProtectionSetupDialog: ({ newProfileName, onDone, onCancel }: { newProfileName: string | null; onDone: (next: { status: string }) => void; onCancel: () => void }) => (
+    <div data-protection-setup-dialog>
+      {newProfileName}
+      <button type="button" data-finish-protection onClick={() => onDone({ status: "selector" })} />
+      <button type="button" data-cancel-protection onClick={onCancel} />
+    </div>
   ),
 }));
 const invokeMock = vi.hoisted(() => vi.fn());
@@ -204,5 +208,46 @@ describe("ProfileSelector", () => {
 
     expect(document.body.querySelector("[data-protection-setup-dialog]")?.textContent).toBe("Jamie");
     expect(invokeMock).not.toHaveBeenCalledWith("create_profile", expect.anything());
+  });
+
+  async function startProtectedAdd(name: string) {
+    show(THREE);
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-add-profile]")!.click();
+    });
+    typeInto(container.querySelector<HTMLInputElement>(".profile-card-new-form input")!, name);
+    act(() => {
+      container.querySelector<HTMLInputElement>("[data-protect-new-profile]")!.click();
+    });
+    await act(async () => {
+      [...container.querySelectorAll<HTMLButtonElement>(".profile-card-new-form button")].find((button) => button.textContent === "Add")!.click();
+    });
+  }
+
+  it("closes and clears the Add profile form once the protected profile has been created", async () => {
+    await startProtectedAdd("Jamie");
+
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>("[data-finish-protection]")!.click();
+    });
+
+    // The wizard's success returns to the selector; a form still showing "Jamie" with the box ticked
+    // would invite a second Add for a profile that now exists.
+    expect(container.querySelector(".profile-card-new-form")).toBeNull();
+    expect(container.querySelector("[data-add-profile]")).not.toBeNull();
+    expect(onResolved).toHaveBeenCalledWith({ status: "selector" });
+  });
+
+  it("keeps the typed name and the ticked box when the protection wizard is cancelled, so the user can retry", async () => {
+    await startProtectedAdd("Jamie");
+
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>("[data-cancel-protection]")!.click();
+    });
+
+    expect(document.body.querySelector("[data-protection-setup-dialog]")).toBeNull();
+    expect(container.querySelector<HTMLInputElement>(".profile-card-new-form input:not([type='checkbox'])")!.value).toBe("Jamie");
+    expect(container.querySelector<HTMLInputElement>("[data-protect-new-profile]")!.checked).toBe(true);
+    expect(onResolved).not.toHaveBeenCalled();
   });
 });

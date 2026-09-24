@@ -232,6 +232,7 @@ export function ProfileSelector({
           expectedGeneration={pendingProtectedProfile.generation}
           onDone={(next) => {
             setPendingProtectedProfile(null);
+            cancelAdd(); // the profile now exists — don't leave its name typed into a live Add form
             onResolved(next);
           }}
           onCancel={() => setPendingProtectedProfile(null)}
