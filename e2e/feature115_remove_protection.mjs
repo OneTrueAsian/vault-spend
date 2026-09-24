@@ -26,10 +26,8 @@ async function prepare(browser) {
   await (await browser.$("button=Continue")).click();
   await browser.$("button=Remove protection").waitForExist({ timeout: 10000 });
 }
-// `list_profiles`'s DTO deliberately has no db_path (the frontend never needs a filesystem path).
-// Settings' own "Data file location" display is fetched once on mount and never refreshed after a
-// protection op hot-swaps the live db underneath it (a separate, pre-existing staleness bug — not
-// fixed here), so `get_data_file_location` is invoked directly for the real current live path.
+// `list_profiles`'s DTO deliberately has no db_path (the frontend never needs a filesystem path),
+// so use the dedicated command for the authoritative path and compare it with Settings' display.
 async function currentDataFilePath(browser) {
   return (await invoke(browser, "get_data_file_location")).ok;
 }
@@ -45,6 +43,10 @@ async function currentDataFilePath(browser) {
     await app.browser.$(".remove-protection-dialog").waitForExist({ reverse: true, timeout: 15000 });
     const after = await currentDataFilePath(app.browser);
     assert.notEqual(after, before, "removal should repoint the active profile at a new plaintext file");
+    await app.browser.waitUntil(
+      async () => (await app.browser.$("[data-data-file] .path-box").getText()).trim() === after,
+      { timeout: 10000, timeoutMsg: "Settings should refresh the displayed data-file path after removing protection" },
+    );
     const profile = (await invoke(app.browser, "list_profiles")).ok.find((p) => p.is_active);
     assert.equal(profile.is_password_protected, false);
     assert.equal(fs.readFileSync(after, { encoding: "utf8", flag: "r" }).slice(0, 15), "SQLite format 3");

@@ -139,6 +139,7 @@ fn retire_committed_rotation(config_path: &Path, journal: &RotationJournal) -> R
     std::fs::remove_file(rotation_journal_path_for(config_path)).map_err(|e| e.to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn rotate_dek(
     config_path: &Path,
     profile_id: &str,
@@ -355,6 +356,7 @@ pub fn recover_password(
 /// its own save-confirmation challenge displayed, so the code shown to the person and the code
 /// actually committed can never diverge — the same fix `rotate_password_with_recovery` applies for
 /// change password.
+#[allow(clippy::too_many_arguments)]
 pub fn recover_password_with_recovery(
     config_path: &Path,
     profile_id: &str,
@@ -368,6 +370,7 @@ pub fn recover_password_with_recovery(
     rotate_dek(config_path, profile_id, live_db_path, store, Proof::Recovery(recovery_code), new_password, new_recovery_code, now)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn rotate_password_with_recovery(
     config_path: &Path,
     profile_id: &str,

@@ -41,11 +41,11 @@ describe("Settings ProfilesSection", () => {
     container.remove();
   });
 
-  function show() {
+  function show(profiles: Parameters<typeof ProfilesSection>[0]["profiles"] = []) {
     act(() => {
       root.render(
         <ProfilesSection
-          profiles={[]}
+          profiles={profiles}
           onCreateProfile={onCreateProfile}
           onUseExistingDataFile={vi.fn()}
           onSwitchProfile={vi.fn()}
@@ -69,6 +69,17 @@ describe("Settings ProfilesSection", () => {
 
     expect(document.body.querySelector("[data-protection-setup-dialog]")?.textContent).toBe("Jamie");
     expect(onCreateProfile).not.toHaveBeenCalled();
+  });
+
+  it("shows a lock indicator only beside password-protected profiles", () => {
+    show([
+      { id: "a", name: "Alex", is_active: true, icon_key: null, is_password_protected: false },
+      { id: "b", name: "Blair", is_active: false, icon_key: null, is_password_protected: true },
+    ]);
+
+    const rows = [...container.querySelectorAll("tbody tr")];
+    expect(rows[0].querySelector('[aria-label="Password protected"]')).toBeNull();
+    expect(rows[1].querySelector('[aria-label="Password protected"]')).not.toBeNull();
   });
 });
 

@@ -76,6 +76,20 @@ try {
   );
   console.log("clearing the search restored the full page");
 
+  await searchInput.setValue("password protection");
+  await app.browser.waitUntil(
+    async () => {
+      const text = await helpPage.getText();
+      return text.includes("How does password protection work?") && text.includes("recovery key");
+    },
+    { timeout: 10000, timeoutMsg: 'expected Help search to find the password-protection and recovery guidance' },
+  );
+  console.log("password protection has a searchable Help topic");
+
+  await searchInput.click();
+  await app.browser.keys(["Control", "a"]);
+  await app.browser.keys("Backspace");
+
   await searchInput.setValue("zzzznonexistentquery");
   await app.browser.waitUntil(
     async () => {

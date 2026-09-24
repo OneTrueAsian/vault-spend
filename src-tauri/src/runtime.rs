@@ -137,7 +137,7 @@ mod tests {
 
         assert_eq!(runtime.status(), RuntimeStatus::Open);
         assert!(runtime.is_open());
-        let session = runtime.lock().ok().expect("an open runtime can be locked for use");
+        let session = runtime.lock().expect("an open runtime can be locked for use");
         assert!(session.store.get_background_settings().is_ok());
     }
 

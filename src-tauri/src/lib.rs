@@ -33,7 +33,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .on_window_event(|window, event| background::handle_window_event(window, event))
+        .on_window_event(background::handle_window_event)
         .setup(|app| {
             // Identifier (tauri.conf.json) and this filename were renamed
             // from "com.joeyf.meadow" / "meadow.db" to "com.joeyf.pennywise"

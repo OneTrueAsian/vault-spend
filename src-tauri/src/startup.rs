@@ -405,7 +405,7 @@ mod tests {
     fn a_fresh_folder_opens_a_new_default_database() {
         let dir = temp_dir("fresh");
 
-        let opened = open_from_disk(&dir.join("config.json"), &dir).ok().expect("a fresh install opens straight in");
+        let opened = open_from_disk(&dir.join("config.json"), &dir).expect("a fresh install opens straight in");
 
         assert_eq!(opened.db_path, dir.join("vaultspend.db"));
         assert!(dir.join("vaultspend.db").exists());

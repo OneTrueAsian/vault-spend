@@ -615,6 +615,27 @@ type FaqEntry = {
 
 const FAQ_ENTRIES: FaqEntry[] = [
   {
+    question: "How does password protection work?",
+    tags: ["password", "protection", "recovery key", "recover", "locked", "encryption", "profile", "backup", "export"],
+    answer: (
+      <>
+        <p>
+          Password protection encrypts that profile&apos;s data on disk and asks for its password when you open it.
+          Profile names and icons remain visible so you can choose which profile to unlock. Keep the recovery key
+          somewhere safe: if you forget the password, it is the only way to regain access. You can change the
+          password, regenerate the recovery key, or remove protection under <strong>Settings → Profile protection</strong>.
+        </p>
+        <p>
+          Backups and Vault Spend package exports from a protected profile stay encrypted. CSV exports are plain
+          text, so Vault Spend warns before creating one. If neither the password nor recovery key is available,
+          the profile can only be removed from the profile list; its files are left on disk. Protection secures
+          stored data, but it cannot protect information while the profile is unlocked from malware, an administrator,
+          or someone viewing the screen.
+        </p>
+      </>
+    ),
+  },
+  {
     question: "Is my data private?",
     tags: ["privacy", "data", "local", "cloud", "security", "offline", "account"],
     answer: (

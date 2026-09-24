@@ -849,6 +849,11 @@ export function ProfilesSection({
                 ) : (
                   <>
                     {p.name}
+                    {p.is_password_protected && (
+                      <span className="settings-profile-lock" aria-label="Password protected" title="Password protected">
+                        🔒
+                      </span>
+                    )}
                     {p.is_active && <span className="account-col"> (current)</span>}
                   </>
                 )}
@@ -1102,10 +1107,8 @@ export function SettingsView({
   onRenameProfile: (id: string, newName: string) => void;
   onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
-  /** The active profile just turned password protection on — refresh the `profiles` list (its
-   * `is_password_protected` flag is now stale) rather than reloading the whole data file: `enable_
-   * profile_protection` re-encrypts the exact same rows, so everything else already fetched from
-   * them is still valid. */
+  /** Password-protection state changed. Refresh profile metadata and any Settings values whose
+   * backing files can move during a protection transition. */
   onProtected: () => void;
   livePriceSettings: LivePriceSettings | null;
   onSetLivePriceApiKey: (provider: LivePriceProviderId, apiKey: string | null) => void;

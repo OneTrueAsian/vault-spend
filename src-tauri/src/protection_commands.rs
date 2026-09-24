@@ -444,6 +444,7 @@ pub fn cancel_protection_setup(token: String, sessions: tauri::State<Sessions>) 
 /// profile is registered but never auto-opened here — Task 8's UI decides whether and how to switch
 /// to it, the same way plaintext `create_profile` already leaves that choice to its own caller.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn commit_protection_setup(
     token: String,
     answers: [String; 2],

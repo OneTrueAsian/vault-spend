@@ -3935,10 +3935,10 @@ impl Store {
         choices: &std::collections::HashMap<String, ImportCategoryChoice>,
     ) -> Result<(), ImportCategoryError> {
         for choice in choices.values() {
-            if let ImportCategoryChoice::MapTo(target) = choice {
-                if self.find_category(target)?.is_none() {
-                    return Err(ImportCategoryError::UnknownCategory(target.trim().to_string()));
-                }
+            if let ImportCategoryChoice::MapTo(target) = choice
+                && self.find_category(target)?.is_none()
+            {
+                return Err(ImportCategoryError::UnknownCategory(target.trim().to_string()));
             }
         }
         for tx in txns.iter_mut() {

@@ -62,6 +62,18 @@ try {
       await check("[data-rules-category-filter]", theme);
     }
   }
+  const protectionCheckbox = await b.execute(() => {
+    const input = document.querySelector("[data-protect-new-profile]");
+    const label = input.closest("label");
+    const box = input.getBoundingClientRect();
+    const labelBox = label.getBoundingClientRect();
+    return {
+      height: box.height,
+      centerDelta: Math.abs((box.top + box.height / 2) - (labelBox.top + labelBox.height / 2)),
+    };
+  });
+  assert.ok(protectionCheckbox.height <= 20, `Settings protection checkbox should keep native checkbox sizing: ${JSON.stringify(protectionCheckbox)}`);
+  assert.ok(protectionCheckbox.centerDelta <= 2, `Settings protection checkbox should align with its label: ${JSON.stringify(protectionCheckbox)}`);
   await b.setWindowSize(800, 700);
   await nav("Transactions");
   await (await b.$("button*=More filters")).click();

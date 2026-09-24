@@ -137,7 +137,7 @@ export function ProtectionSetupDialog({
               <button type="button" className="modal-secondary" onClick={cancel}>
                 Cancel
               </button>
-              <button type="button" onClick={() => setStep("confirm")}>
+              <button type="button" autoFocus onClick={() => setStep("confirm")}>
                 I&apos;ve saved it
               </button>
             </div>

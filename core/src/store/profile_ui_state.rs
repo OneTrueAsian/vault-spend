@@ -125,7 +125,7 @@ mod tests {
     fn show_bill_names_in_reminders_defaults_to_off() {
         let store = temp_store("default-off");
 
-        assert_eq!(store.show_bill_names_in_reminders().unwrap(), false);
+        assert!(!store.show_bill_names_in_reminders().unwrap());
     }
 
     #[test]

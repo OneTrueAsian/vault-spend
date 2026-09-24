@@ -599,6 +599,7 @@ pub fn switch_profile(
 /// now" convention as `create_profile`. The file itself is never copied or
 /// moved — it stays wherever the user pointed at it.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn add_existing_profile(
     name: String,
     db_path: String,

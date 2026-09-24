@@ -80,6 +80,7 @@ describe("RecoverProfileDialog", () => {
     typeInto(field("recover-profile-new"), "new password!!");
     typeInto(field("recover-profile-confirm"), "new password!!");
     await act(async () => button("Continue").click());
+    expect(document.activeElement).toBe(button("I've saved it"));
     act(() => button("I've saved it").click());
     typeInto(field("recover-profile-answer-0"), "AAAA");
     typeInto(field("recover-profile-answer-1"), "GGGG");

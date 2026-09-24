@@ -76,6 +76,7 @@ describe("RegenerateRecoveryDialog", () => {
     typeInto(field("regenerate-recovery-current"), "old password");
     await act(async () => button("Continue").click());
     expect(document.body.textContent).toContain("AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG");
+    expect(document.activeElement).toBe(button("I've saved it"));
     act(() => button("I've saved it").click());
     typeInto(field("regenerate-recovery-answer-0"), "BBBB");
     typeInto(field("regenerate-recovery-answer-1"), "FFFF");

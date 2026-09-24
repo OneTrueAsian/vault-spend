@@ -100,6 +100,7 @@ describe("ProtectionSetupDialog", () => {
     });
 
     expect(document.body.textContent).toContain("AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG");
+    expect(document.activeElement).toBe(button("I've saved it"));
     act(() => {
       button("I've saved it").click();
     });

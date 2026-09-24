@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn a_code_carries_at_least_128_bits_and_no_two_are_alike() {
-        assert!(SYMBOLS * 5 >= 128);
+        const { assert!(SYMBOLS * 5 >= 128) };
         assert_ne!(RecoveryCode::generate().display(), RecoveryCode::generate().display());
     }
 

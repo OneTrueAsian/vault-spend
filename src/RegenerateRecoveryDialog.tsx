@@ -87,7 +87,7 @@ export function RegenerateRecoveryDialog({
             <p className="path-box protection-setup-key">{challenge.recovery_display}</p>
             <div className="modal-actions">
               <button type="button" className="modal-secondary" onClick={cancel}>Cancel</button>
-              <button type="button" onClick={() => setStep("confirm")}>I&apos;ve saved it</button>
+              <button type="button" autoFocus onClick={() => setStep("confirm")}>I&apos;ve saved it</button>
             </div>
           </>
         )}

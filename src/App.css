@@ -5690,7 +5690,7 @@ button:disabled {
   margin-bottom: 14px;
 }
 
-.category-create-form input {
+.category-create-form input:not([type="checkbox"]):not([type="radio"]) {
   flex: 1;
   font-family: inherit;
   font-size: 13.5px;
@@ -5699,6 +5699,33 @@ button:disabled {
   border: 1px solid var(--border-strong);
   background: var(--surface);
   color: inherit;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.category-create-form .checkbox-label input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.settings-profile-lock {
+  margin-left: 6px;
+  font-size: 12px;
 }
 
 .category-create-form button {
@@ -6503,7 +6530,7 @@ svg.profile-card-avatar {
     .labeled-field input, .labeled-field select, .ledger-filters input,
     .ledger-filters select, .rules-controls select, .account-filter-toggle,
     .account-select, .month-select, .saved-filter-form input, .help-search,
-    .category-create-form input) {
+    .category-create-form input:not([type="checkbox"]):not([type="radio"])) {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.4;

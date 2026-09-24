@@ -611,6 +611,10 @@ function App({
     setProfiles(await invoke<Profile[]>("list_profiles"));
   }, []);
 
+  const refreshDataFileLocation = useCallback(async () => {
+    setDataFileLocation(await invoke<string>("get_data_file_location"));
+  }, []);
+
   const refreshLivePriceSettings = useCallback(async () => {
     setLivePriceSettings(await invoke<LivePriceSettings>("get_live_price_settings"));
   }, []);
@@ -620,12 +624,20 @@ function App({
   }, []);
 
   useEffect(() => {
-    invoke<string>("get_data_file_location").then(setDataFileLocation).catch((e) => setStatus(String(e)));
+    refreshDataFileLocation().catch((e) => setStatus(String(e)));
     refreshBackups().catch((e) => setStatus(String(e)));
     refreshProfiles().catch((e) => setStatus(String(e)));
     refreshLivePriceSettings().catch((e) => setStatus(String(e)));
     refreshAppSettings().catch((e) => setStatus(String(e)));
-  }, [refreshBackups, refreshProfiles, refreshLivePriceSettings, refreshAppSettings]);
+  }, [refreshBackups, refreshProfiles, refreshDataFileLocation, refreshLivePriceSettings, refreshAppSettings]);
+
+  const refreshProtectionState = useCallback(async () => {
+    try {
+      await Promise.all([refreshProfiles(), refreshDataFileLocation(), refreshBackups()]);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }, [refreshBackups, refreshDataFileLocation, refreshProfiles]);
 
   // Once live prices are enabled for the active profile, refresh right away
   // and then every 2 hours for as long as the app stays open. Keyed on
@@ -5164,7 +5176,7 @@ function App({
           onRenameProfile={handleRenameProfile}
           onSetProfileIcon={handleSetProfileIcon}
           onDeleteProfile={handleDeleteProfile}
-          onProtected={() => void refreshProfiles()}
+          onProtected={() => void refreshProtectionState()}
           livePriceSettings={livePriceSettings}
           onSetLivePriceApiKey={handleSetLivePriceApiKey}
           onRefreshLivePrices={handleRefreshLivePrices}

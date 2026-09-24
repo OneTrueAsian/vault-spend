@@ -80,6 +80,20 @@ try {
   await (await browser.$("#protection-setup-confirm")).setValue("correct horse battery staple");
   await (await browser.$("button=Continue")).click();
   await browser.$(".protection-setup-key").waitForExist({ timeout: 10000 });
+  let recoveryFocus;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await reclaimWindowFocus(browser);
+    recoveryFocus = await browser.execute(() => ({
+      hasFocus: document.hasFocus(),
+      activeText: document.activeElement?.textContent?.trim() ?? "",
+    }));
+    if (recoveryFocus.hasFocus) break;
+  }
+  assert.equal(
+    recoveryFocus.activeText,
+    "I've saved it",
+    `the recovery-key step should move focus to its primary action (${JSON.stringify(recoveryFocus)})`,
+  );
   const fits = await browser.execute(() => {
     const panel = document.querySelector(".modal-panel");
     return panel.scrollWidth <= panel.clientWidth;

@@ -80,6 +80,7 @@ describe("ChangePasswordDialog", () => {
     typeInto(field("change-password-new"), "new password!!");
     typeInto(field("change-password-confirm"), "new password!!");
     await act(async () => button("Continue").click());
+    expect(document.activeElement).toBe(button("I've saved it"));
     act(() => button("I've saved it").click());
     typeInto(field("change-password-answer-0"), "AAAA");
     typeInto(field("change-password-answer-1"), "GGGG");

@@ -1400,6 +1400,7 @@ mod tests {
 
 /// Clears protection and repoints the profile at its plaintext replacement in one atomic registry
 /// write. A crash must never expose only half of this state transition.
+#[allow(clippy::items_after_test_module)]
 pub fn commit_protection_removal(config_path: &Path, live_db_path: &Path, id: &str, new_db_path: &Path) -> Result<(), String> {
     let mut entries = entries_or_synthesize(config_path, live_db_path);
     if !entries.iter().any(|profile| profile.id == id) {
