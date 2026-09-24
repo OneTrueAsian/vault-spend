@@ -22,3 +22,12 @@ pub fn debug_recovery_code_unlocks(code: String, paths: tauri::State<crate::conf
     };
     Ok(key_file.unlock_with_recovery(&parsed).is_ok())
 }
+
+/// Advances only the managed automatic-lock clock. This deterministic seam is compiled out of
+/// release builds and lets desktop E2E prove warning/cancellation/expiry without changing release
+/// timeout choices or waiting a real minute.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_advance_auto_lock(seconds: u64, app: tauri::AppHandle) -> Result<(), String> {
+    crate::auto_lock::advance_debug_clock(&app, seconds)
+}

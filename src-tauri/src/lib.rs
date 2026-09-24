@@ -221,6 +221,7 @@ pub fn run() {
             protection_commands::lock_current_profile,
             protection_commands::get_auto_lock_settings,
             protection_commands::set_auto_lock_settings,
+            auto_lock::record_trusted_activity,
             protection_commands::verify_current_password,
             protection_commands::change_password,
             protection_commands::begin_regenerate_recovery,
@@ -381,6 +382,8 @@ pub fn run() {
             #[cfg(debug_assertions)]
             debug_commands::debug_process_id,
             debug_commands::debug_recovery_code_unlocks,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_advance_auto_lock,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

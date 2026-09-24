@@ -6,6 +6,7 @@ import { ProfileLockScreen } from "./ProfileLockScreen";
 import { ProfileSelector } from "./ProfileSelector";
 import { getStartupState, startupFailure, type StartupState } from "./startup";
 import { applyStoredTheme } from "./themeBootstrap";
+import { AutoLockSession } from "./AutoLockSession";
 
 // Asks the backend where startup stands before the app mounts: nothing until it answers, the app when
 // a profile is open, the launch error screen when none is. Also subscribes to the backend's
@@ -48,5 +49,10 @@ export function StartupGate({ children }: { children: ReactNode }) {
   if (state.status === "selector") return <ProfileSelector profiles={state.profiles} lastUsedId={state.last_used_id} onResolved={setState} />;
   if (state.status === "locked") return <ProfileLockScreen profileId={state.profile_id} profileName={state.profile_name} onResolved={setState} />;
   if (state.status === "empty_registry") return <EmptyRegistryScreen onResolved={setState} />;
-  return <>{children}</>;
+  return (
+    <>
+      <AutoLockSession />
+      {children}
+    </>
+  );
 }

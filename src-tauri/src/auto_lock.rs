@@ -4,6 +4,8 @@ use crate::device_settings::DeviceSettingsStore;
 use crate::profiles::{self, AutoLockSettings};
 use crate::startup::{self, StartupState};
 use serde::Serialize;
+#[cfg(debug_assertions)]
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
@@ -162,6 +164,8 @@ impl TimerState {
 
 pub struct AutoLockController {
     started: Instant,
+    #[cfg(debug_assertions)]
+    debug_offset_seconds: AtomicU64,
     timer: Mutex<TimerState>,
 }
 
@@ -169,12 +173,18 @@ impl AutoLockController {
     pub fn new() -> Self {
         Self {
             started: Instant::now(),
+            #[cfg(debug_assertions)]
+            debug_offset_seconds: AtomicU64::new(0),
             timer: Mutex::new(TimerState::default()),
         }
     }
 
     fn now_seconds(&self) -> u64 {
-        self.started.elapsed().as_secs()
+        let elapsed = self.started.elapsed().as_secs();
+        #[cfg(debug_assertions)]
+        return elapsed.saturating_add(self.debug_offset_seconds.load(Ordering::SeqCst));
+        #[cfg(not(debug_assertions))]
+        elapsed
     }
 
     pub fn arm(&self, profile_id: &str, generation: u64, settings: AutoLockSettings) {
@@ -184,10 +194,6 @@ impl AutoLockController {
             .arm(profile_id, generation, settings, self.now_seconds());
     }
 
-    // Task 3 exposes trusted frontend activity through this controller. Keeping the production
-    // path here now lets Task 2 test cancellation/reset semantics without making the frontend part
-    // of the backend-owned timer implementation.
-    #[allow(dead_code)]
     fn record_activity(&self, profile_id: &str, generation: u64) -> TimerAction {
         self.timer
             .lock()
@@ -205,6 +211,11 @@ impl AutoLockController {
 
     fn tick(&self) -> TimerAction {
         self.timer.lock().unwrap_or_else(|e| e.into_inner()).tick(self.now_seconds())
+    }
+
+    #[cfg(debug_assertions)]
+    fn advance_debug_clock(&self, seconds: u64) {
+        self.debug_offset_seconds.fetch_add(seconds, Ordering::SeqCst);
     }
 }
 
@@ -301,6 +312,38 @@ fn dispatch_action(app: &tauri::AppHandle, action: TimerAction) {
             }
         }
     }
+}
+
+#[tauri::command]
+pub fn record_trusted_activity(
+    expected_generation: u64,
+    app: tauri::AppHandle,
+    paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+) -> Result<(), String> {
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before activity could be recorded.".to_string());
+    }
+    {
+        let _open = runtime.lock()?;
+    }
+    let db_path = paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    let action = app.state::<AutoLockController>().record_activity(&profile_id, expected_generation);
+    dispatch_action(&app, action);
+    Ok(())
+}
+
+#[cfg(debug_assertions)]
+pub fn advance_debug_clock(app: &tauri::AppHandle, seconds: u64) -> Result<(), String> {
+    if seconds > 3_600 {
+        return Err("The debug automatic-lock clock can advance by at most one hour at a time.".to_string());
+    }
+    let controller = app.state::<AutoLockController>();
+    controller.advance_debug_clock(seconds);
+    let action = controller.tick();
+    dispatch_action(app, action);
+    Ok(())
 }
 
 pub fn start_timer_thread(app: tauri::AppHandle) {

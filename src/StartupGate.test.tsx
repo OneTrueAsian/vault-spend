@@ -28,6 +28,7 @@ const startup = vi.hoisted(() => ({
 }));
 vi.mock("./startup", () => startup);
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+vi.mock("./AutoLockSession", () => ({ AutoLockSession: () => <div data-auto-lock-session /> }));
 const listenMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/event", () => ({ listen: listenMock }));
 
@@ -91,6 +92,7 @@ describe("StartupGate", () => {
     await mount();
 
     expect(container.querySelector("[data-app]")).not.toBeNull();
+    expect(container.querySelector("[data-auto-lock-session]")).not.toBeNull();
     expect(container.querySelector("[data-launch-error]")).toBeNull();
   });
 
@@ -158,6 +160,7 @@ describe("StartupGate", () => {
     await mount();
 
     expect(container.querySelector("[data-profile-lock-screen] h1")?.textContent).toContain("Alex is locked");
+    expect(container.querySelector("[data-auto-lock-session]")).toBeNull();
   });
 
   it("renders EmptyRegistryScreen for an empty_registry state", async () => {
