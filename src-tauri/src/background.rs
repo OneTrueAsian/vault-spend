@@ -6,6 +6,7 @@
 use budget_core::store::BillReminder;
 use chrono::NaiveDate;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -16,6 +17,7 @@ use crate::commands::AppStateHandle;
 use crate::device_settings::DeviceSettingsStore;
 
 const TRAY_ID: &str = "vaultspend-tray";
+static EXITING: AtomicBool = AtomicBool::new(false);
 const MAIN_WINDOW: &str = "main";
 /// A bill counts as "due soon" from today through this many days out — the
 /// same window the Dashboard's To do list uses.
@@ -138,7 +140,10 @@ pub fn install_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => show_main_window(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                EXITING.store(true, Ordering::SeqCst);
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -166,14 +171,23 @@ pub fn remove_tray(app: &AppHandle) {
 /// With the tray on, closing the main window tucks it away instead of
 /// quitting; with it off the window closes the app as it always did.
 pub fn handle_window_event(window: &Window, event: &WindowEvent) {
-    if window.label() != MAIN_WINDOW {
+    if window.label() != MAIN_WINDOW || EXITING.load(Ordering::SeqCst) {
         return;
     }
-    if let WindowEvent::CloseRequested { api, .. } = event {
-        if tray_enabled(window.app_handle()) {
-            api.prevent_close();
-            let _ = window.hide();
+    match event {
+        WindowEvent::CloseRequested { api, .. } => {
+            if tray_enabled(window.app_handle()) {
+                api.prevent_close();
+                crate::auto_lock::queue_window_lock(window.app_handle(), crate::auto_lock::WindowLockTrigger::HiddenToTray);
+                let _ = window.hide();
+            } else {
+                EXITING.store(true, Ordering::SeqCst);
+            }
         }
+        WindowEvent::Focused(false) => {
+            crate::auto_lock::queue_window_lock(window.app_handle(), crate::auto_lock::WindowLockTrigger::FocusLost);
+        }
+        _ => {}
     }
 }
 

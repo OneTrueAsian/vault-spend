@@ -384,6 +384,10 @@ pub fn run() {
             debug_commands::debug_recovery_code_unlocks,
             #[cfg(debug_assertions)]
             debug_commands::debug_advance_auto_lock,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_apply_window_lock_trigger,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_set_main_window_visible,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

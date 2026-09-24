@@ -19,6 +19,27 @@ const COUNTDOWN_CANCELLED_EVENT: &str = "profile-lock-countdown-cancelled";
 pub enum LockReason {
     Inactivity,
     Manual,
+    HiddenToTray,
+    FocusLost,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowLockTrigger {
+    HiddenToTray,
+    FocusLost,
+    FocusGained,
+    Quit,
+}
+
+pub fn window_lock_reason(profile_open: bool, is_protected: bool, settings: AutoLockSettings, trigger: WindowLockTrigger) -> Option<LockReason> {
+    if !profile_open || !is_protected {
+        return None;
+    }
+    match trigger {
+        WindowLockTrigger::HiddenToTray if settings.lock_when_hidden => Some(LockReason::HiddenToTray),
+        WindowLockTrigger::FocusLost if settings.lock_on_focus_loss => Some(LockReason::FocusLost),
+        WindowLockTrigger::HiddenToTray | WindowLockTrigger::FocusLost | WindowLockTrigger::FocusGained | WindowLockTrigger::Quit => None,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -70,6 +91,14 @@ impl LockRequest {
             reason: LockReason::Inactivity,
         }
     }
+
+    fn window(profile_id: &str, generation: u64, reason: LockReason) -> Self {
+        Self {
+            profile_id: profile_id.to_string(),
+            generation,
+            reason,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +108,7 @@ struct ArmedTimer {
     timeout_seconds: Option<u64>,
     deadline: Option<u64>,
     warning_sent: bool,
+    settings: AutoLockSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,6 +133,7 @@ impl TimerState {
             timeout_seconds,
             deadline: timeout_seconds.map(|timeout| now.saturating_add(timeout)),
             warning_sent: false,
+            settings,
         });
     }
 
@@ -160,6 +191,11 @@ impl TimerState {
         }
         TimerAction::None
     }
+
+    fn window_lock_request(&self, trigger: WindowLockTrigger) -> Option<LockRequest> {
+        let armed = self.armed.as_ref()?;
+        window_lock_reason(true, true, armed.settings, trigger).map(|reason| LockRequest::window(&armed.profile_id, armed.generation, reason))
+    }
 }
 
 pub struct AutoLockController {
@@ -211,6 +247,10 @@ impl AutoLockController {
 
     fn tick(&self) -> TimerAction {
         self.timer.lock().unwrap_or_else(|e| e.into_inner()).tick(self.now_seconds())
+    }
+
+    fn window_lock_request(&self, trigger: WindowLockTrigger) -> Option<LockRequest> {
+        self.timer.lock().unwrap_or_else(|e| e.into_inner()).window_lock_request(trigger)
     }
 
     #[cfg(debug_assertions)]
@@ -295,6 +335,41 @@ pub fn lock_profile(
     let next = startup::startup_state_for_registry(&paths.config_path, &runtime, &status, Some(&profile_id));
     startup::broadcast_state(app);
     Ok(next)
+}
+
+fn current_window_lock_request(app: &tauri::AppHandle, trigger: WindowLockTrigger) -> Option<LockRequest> {
+    app.try_state::<AutoLockController>()?.window_lock_request(trigger)
+}
+
+fn perform_window_lock(app: &tauri::AppHandle, request: LockRequest) -> Result<(), String> {
+    lock_profile(app, &request.profile_id, request.generation, request.reason).map(|_| ())
+}
+
+/// Captures the currently armed profile and generation before leaving the native event callback,
+/// then performs the backup/lock transition on a worker. A later profile can never be locked by a
+/// delayed event because `lock_profile` rechecks both captured values.
+pub fn queue_window_lock(app: &tauri::AppHandle, trigger: WindowLockTrigger) -> bool {
+    let Some(request) = current_window_lock_request(app, trigger) else {
+        return false;
+    };
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        if let Err(error) = perform_window_lock(&handle, request) {
+            eprintln!("window lock request was no longer current: {error}");
+        }
+    });
+    true
+}
+
+/// Deterministic synchronous entry for debug-build desktop tests. It uses the same captured request
+/// and coordinator as native callbacks; release builds never register the calling debug command.
+#[cfg(debug_assertions)]
+pub fn apply_window_lock_for_debug(app: &tauri::AppHandle, trigger: WindowLockTrigger) -> Result<bool, String> {
+    let Some(request) = current_window_lock_request(app, trigger) else {
+        return Ok(false);
+    };
+    perform_window_lock(app, request)?;
+    Ok(true)
 }
 
 fn dispatch_action(app: &tauri::AppHandle, action: TimerAction) {
@@ -472,6 +547,75 @@ mod tests {
 
         assert_eq!(timer.tick(250), TimerAction::Warn(CountdownPayload::inactivity("alpha", 5, 10)));
         assert_eq!(timer.tick(260), TimerAction::Lock(LockRequest::inactivity("alpha", 5)));
+    }
+
+    #[test]
+    fn window_trigger_decision_covers_open_protected_settings_and_quit() {
+        let defaults = AutoLockSettings::default();
+        assert_eq!(
+            window_lock_reason(false, true, defaults, WindowLockTrigger::HiddenToTray),
+            None,
+            "no open profile means there is no session to lock"
+        );
+        assert_eq!(
+            window_lock_reason(true, false, defaults, WindowLockTrigger::HiddenToTray),
+            None,
+            "an unprotected open profile stays open"
+        );
+        assert_eq!(
+            window_lock_reason(true, true, defaults, WindowLockTrigger::HiddenToTray),
+            Some(LockReason::HiddenToTray)
+        );
+        assert_eq!(
+            window_lock_reason(
+                true,
+                true,
+                AutoLockSettings {
+                    lock_when_hidden: false,
+                    ..defaults
+                },
+                WindowLockTrigger::HiddenToTray,
+            ),
+            None,
+            "the per-profile hide setting is respected"
+        );
+        assert_eq!(
+            window_lock_reason(true, true, defaults, WindowLockTrigger::FocusLost),
+            None,
+            "focus-loss locking is off by default"
+        );
+        assert_eq!(
+            window_lock_reason(
+                true,
+                true,
+                AutoLockSettings {
+                    lock_on_focus_loss: true,
+                    ..defaults
+                },
+                WindowLockTrigger::FocusLost,
+            ),
+            Some(LockReason::FocusLost)
+        );
+        assert_eq!(window_lock_reason(true, true, defaults, WindowLockTrigger::FocusGained), None);
+        assert_eq!(window_lock_reason(true, true, defaults, WindowLockTrigger::Quit), None);
+    }
+
+    #[test]
+    fn controller_window_request_keeps_the_armed_profile_and_generation() {
+        let controller = AutoLockController::new();
+        controller.arm(
+            "alpha",
+            17,
+            AutoLockSettings {
+                lock_on_focus_loss: true,
+                ..AutoLockSettings::default()
+            },
+        );
+
+        assert_eq!(
+            controller.window_lock_request(WindowLockTrigger::FocusLost),
+            Some(LockRequest::window("alpha", 17, LockReason::FocusLost))
+        );
     }
 
     #[test]
