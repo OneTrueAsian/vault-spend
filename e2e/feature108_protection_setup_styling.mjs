@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
-import { launchApp } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 
 const app = await launchApp();
 try {
@@ -48,20 +48,33 @@ try {
         document.documentElement.dataset.theme = theme;
       }, palette, theme);
       await checkFields();
-      const focus = await browser.execute(() => {
-        const field = document.querySelector(".protection-setup input");
-        const reference = document.createElement("span");
-        reference.style.color = "var(--accent)";
-        field.parentElement.append(reference);
-        const cs = getComputedStyle(field);
-        const result = { visible: field.matches(":focus-visible"), outline: cs.outlineColor, accent: getComputedStyle(reference).color };
-        reference.remove();
-        return result;
-      });
-      assert.ok(focus.visible, "the initial password field should have visible keyboard focus");
+      // Reclaim focus first, and re-sample if another window took it again between the reclaim and
+      // the read (see reclaimWindowFocus) — but only ever retry on a lost WINDOW focus: a field that
+      // is focused in a focused window and still not :focus-visible fails the assertion below.
+      let focus;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await reclaimWindowFocus(browser);
+        focus = await sampleFocus();
+        if (focus.hasFocus) break;
+      }
+      assert.ok(focus.visible, `the initial password field should have visible keyboard focus (${palette}/${theme}: ${JSON.stringify(focus)})`);
       assert.equal(focus.outline, focus.accent, "focus should use the active theme accent");
       await browser.saveScreenshot(path.join(os.tmpdir(), `vault-protection-${palette}-${theme}.png`));
     }
+  }
+  async function sampleFocus() {
+    return browser.execute(() => {
+      const field = document.querySelector(".protection-setup input");
+      const reference = document.createElement("span");
+      reference.style.color = "var(--accent)";
+      field.parentElement.append(reference);
+      const cs = getComputedStyle(field);
+      // hasFocus/active tell a lost WINDOW focus (another spec's window took OS foreground) apart from
+      // a genuine field-focus defect, and are printed in the assertion message when it fails.
+      const result = { visible: field.matches(":focus-visible"), outline: cs.outlineColor, accent: getComputedStyle(reference).color, hasFocus: document.hasFocus(), active: document.activeElement?.id || document.activeElement?.tagName };
+      reference.remove();
+      return result;
+    });
   }
   await (await browser.$("#protection-setup-password")).setValue("correct horse battery staple");
   await (await browser.$("#protection-setup-confirm")).setValue("correct horse battery staple");

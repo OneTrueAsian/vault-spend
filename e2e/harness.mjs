@@ -120,6 +120,26 @@ export async function dismissFirstLaunchDialogs(browser) {
   }
 }
 
+// Under the parallel runner, every other spec's app window that launches takes OS foreground from
+// this one: `document.hasFocus()` flips to false while `document.activeElement` is untouched, so
+// `:focus`/`:focus-visible` stop matching and any focus-dismissed UI (a dropdown menu) closes. That
+// is the environment, not the app — reproduced deterministically by launching a second window, and
+// it is what made feature108's focus assertion and feature112's menu measurement flaky only in full
+// runs. `window.focus()` and `switchToWindow` do NOT bring it back; maximizing does, so maximize and
+// put the size back (layout-neutral in the end). Call it right before a focus-sensitive check; it
+// does nothing when the window already has focus, so it can't hide a genuine focus bug — a field
+// that is focused but still not `:focus-visible` after this is a real failure.
+export async function reclaimWindowFocus(browser) {
+  if (await browser.execute(() => document.hasFocus())) return;
+  const { width, height } = await browser.getWindowSize();
+  await browser.maximizeWindow();
+  await browser.setWindowSize(width, height);
+  await browser.waitUntil(() => browser.execute(() => document.hasFocus()), {
+    timeout: 5000,
+    timeoutMsg: "the app window never regained focus (another window is holding OS foreground)",
+  });
+}
+
 export async function launchApp({ dbDir, ready = ".brand-word", beforeReady } = {}) {
   const ownDbDir = dbDir === undefined;
   const testDbDir = dbDir ?? freshTestDbDir();
