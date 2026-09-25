@@ -21,6 +21,8 @@ pub enum LockReason {
     Manual,
     HiddenToTray,
     FocusLost,
+    SystemLocked,
+    Suspending,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +33,13 @@ pub enum WindowLockTrigger {
     Quit,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SystemSessionEvent {
+    Locked,
+    Suspending,
+    Resumed,
+}
+
 pub fn window_lock_reason(profile_open: bool, is_protected: bool, settings: AutoLockSettings, trigger: WindowLockTrigger) -> Option<LockReason> {
     if !profile_open || !is_protected {
         return None;
@@ -39,6 +48,22 @@ pub fn window_lock_reason(profile_open: bool, is_protected: bool, settings: Auto
         WindowLockTrigger::HiddenToTray if settings.lock_when_hidden => Some(LockReason::HiddenToTray),
         WindowLockTrigger::FocusLost if settings.lock_on_focus_loss => Some(LockReason::FocusLost),
         WindowLockTrigger::HiddenToTray | WindowLockTrigger::FocusLost | WindowLockTrigger::FocusGained | WindowLockTrigger::Quit => None,
+    }
+}
+
+pub fn system_session_lock_reason(
+    profile_open: bool,
+    is_protected: bool,
+    settings: AutoLockSettings,
+    event: SystemSessionEvent,
+) -> Option<LockReason> {
+    if !profile_open || !is_protected || !settings.lock_on_system_event {
+        return None;
+    }
+    match event {
+        SystemSessionEvent::Locked => Some(LockReason::SystemLocked),
+        SystemSessionEvent::Suspending => Some(LockReason::Suspending),
+        SystemSessionEvent::Resumed => None,
     }
 }
 
@@ -93,6 +118,14 @@ impl LockRequest {
     }
 
     fn window(profile_id: &str, generation: u64, reason: LockReason) -> Self {
+        Self {
+            profile_id: profile_id.to_string(),
+            generation,
+            reason,
+        }
+    }
+
+    fn system(profile_id: &str, generation: u64, reason: LockReason) -> Self {
         Self {
             profile_id: profile_id.to_string(),
             generation,
@@ -196,6 +229,11 @@ impl TimerState {
         let armed = self.armed.as_ref()?;
         window_lock_reason(true, true, armed.settings, trigger).map(|reason| LockRequest::window(&armed.profile_id, armed.generation, reason))
     }
+
+    fn system_session_lock_request(&self, event: SystemSessionEvent) -> Option<LockRequest> {
+        let armed = self.armed.as_ref()?;
+        system_session_lock_reason(true, true, armed.settings, event).map(|reason| LockRequest::system(&armed.profile_id, armed.generation, reason))
+    }
 }
 
 pub struct AutoLockController {
@@ -251,6 +289,10 @@ impl AutoLockController {
 
     fn window_lock_request(&self, trigger: WindowLockTrigger) -> Option<LockRequest> {
         self.timer.lock().unwrap_or_else(|e| e.into_inner()).window_lock_request(trigger)
+    }
+
+    fn system_session_lock_request(&self, event: SystemSessionEvent) -> Option<LockRequest> {
+        self.timer.lock().unwrap_or_else(|e| e.into_inner()).system_session_lock_request(event)
     }
 
     #[cfg(debug_assertions)]
@@ -361,11 +403,39 @@ pub fn queue_window_lock(app: &tauri::AppHandle, trigger: WindowLockTrigger) -> 
     true
 }
 
+fn current_system_session_lock_request(app: &tauri::AppHandle, event: SystemSessionEvent) -> Option<LockRequest> {
+    app.try_state::<AutoLockController>()?.system_session_lock_request(event)
+}
+
+/// Captures the protected profile session while handling the native event, then leaves backup and
+/// database teardown to the shared lock coordinator on a worker. Resume is deliberately a no-op.
+pub fn queue_system_session_lock(app: &tauri::AppHandle, event: SystemSessionEvent) -> bool {
+    let Some(request) = current_system_session_lock_request(app, event) else {
+        return false;
+    };
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        if let Err(error) = perform_window_lock(&handle, request) {
+            eprintln!("system session lock request was no longer current: {error}");
+        }
+    });
+    true
+}
+
 /// Deterministic synchronous entry for debug-build desktop tests. It uses the same captured request
 /// and coordinator as native callbacks; release builds never register the calling debug command.
 #[cfg(debug_assertions)]
 pub fn apply_window_lock_for_debug(app: &tauri::AppHandle, trigger: WindowLockTrigger) -> Result<bool, String> {
     let Some(request) = current_window_lock_request(app, trigger) else {
+        return Ok(false);
+    };
+    perform_window_lock(app, request)?;
+    Ok(true)
+}
+
+#[cfg(debug_assertions)]
+pub fn apply_system_session_event_for_debug(app: &tauri::AppHandle, event: SystemSessionEvent) -> Result<bool, String> {
+    let Some(request) = current_system_session_lock_request(app, event) else {
         return Ok(false);
     };
     perform_window_lock(app, request)?;
@@ -616,6 +686,59 @@ mod tests {
             controller.window_lock_request(WindowLockTrigger::FocusLost),
             Some(LockRequest::window("alpha", 17, LockReason::FocusLost))
         );
+    }
+
+    #[test]
+    fn system_session_decision_covers_open_protected_setting_and_resume() {
+        let defaults = AutoLockSettings::default();
+        assert_eq!(
+            system_session_lock_reason(false, true, defaults, SystemSessionEvent::Locked),
+            None,
+            "no open profile means there is no session to lock"
+        );
+        assert_eq!(
+            system_session_lock_reason(true, false, defaults, SystemSessionEvent::Locked),
+            None,
+            "an unprotected open profile stays open"
+        );
+        assert_eq!(
+            system_session_lock_reason(true, true, defaults, SystemSessionEvent::Locked),
+            Some(LockReason::SystemLocked)
+        );
+        assert_eq!(
+            system_session_lock_reason(true, true, defaults, SystemSessionEvent::Suspending),
+            Some(LockReason::Suspending)
+        );
+        assert_eq!(
+            system_session_lock_reason(
+                true,
+                true,
+                AutoLockSettings {
+                    lock_on_system_event: false,
+                    ..defaults
+                },
+                SystemSessionEvent::Locked,
+            ),
+            None,
+            "the per-profile system-event setting is respected"
+        );
+        assert_eq!(
+            system_session_lock_reason(true, true, defaults, SystemSessionEvent::Resumed),
+            None,
+            "resume never opens or unlocks a profile"
+        );
+    }
+
+    #[test]
+    fn controller_system_request_keeps_the_armed_profile_and_generation() {
+        let controller = AutoLockController::new();
+        controller.arm("alpha", 23, AutoLockSettings::default());
+
+        assert_eq!(
+            controller.system_session_lock_request(SystemSessionEvent::Suspending),
+            Some(LockRequest::system("alpha", 23, LockReason::Suspending))
+        );
+        assert_eq!(controller.system_session_lock_request(SystemSessionEvent::Resumed), None);
     }
 
     #[test]

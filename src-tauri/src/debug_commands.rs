@@ -48,6 +48,20 @@ pub fn debug_apply_window_lock_trigger(trigger: String, app: tauri::AppHandle) -
     crate::auto_lock::apply_window_lock_for_debug(&app, trigger)
 }
 
+/// Routes a synthetic workstation/session event through the production decision and lock
+/// coordinator without locking or suspending the machine running desktop E2E.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_apply_system_session_event(event: String, app: tauri::AppHandle) -> Result<bool, String> {
+    let event = match event.as_str() {
+        "locked" => crate::auto_lock::SystemSessionEvent::Locked,
+        "suspending" => crate::auto_lock::SystemSessionEvent::Suspending,
+        "resumed" => crate::auto_lock::SystemSessionEvent::Resumed,
+        _ => return Err("Unknown debug system-session event.".to_string()),
+    };
+    crate::auto_lock::apply_system_session_event_for_debug(&app, event)
+}
+
 /// Hides or restores the real main window so desktop E2E can complete a tray round trip without
 /// automating the operating system's notification area. Returns the authoritative native state.
 #[cfg(debug_assertions)]

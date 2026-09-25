@@ -20,6 +20,7 @@ mod protection_transition;
 mod runtime;
 mod startup;
 mod stockdata;
+mod system_session;
 mod twelve_data;
 mod updater;
 mod window_state;
@@ -108,6 +109,10 @@ pub fn run() {
             app.manage(startup::LaunchStatus::new(default_dir.clone()));
             app.manage(protection_session::Sessions::new());
             app.manage(auto_lock::AutoLockController::new());
+
+            if let Err(error) = system_session::install(app.handle()) {
+                eprintln!("system session event hook could not be installed: {error}");
+            }
 
             // Restores the window to whatever size (never position — a
             // saved position could sit on a monitor that's no longer
@@ -386,6 +391,8 @@ pub fn run() {
             debug_commands::debug_advance_auto_lock,
             #[cfg(debug_assertions)]
             debug_commands::debug_apply_window_lock_trigger,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_apply_system_session_event,
             #[cfg(debug_assertions)]
             debug_commands::debug_set_main_window_visible,
         ])
