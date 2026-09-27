@@ -140,8 +140,12 @@ mod tests {
     #[test]
     fn dashboard_layout_and_custom_layouts_round_trip_independently() {
         let store = temp_store("dashboard-layout-round-trip");
-        store.set_ui_state(UiStateKey::DashboardLayout, "[\"stat_cash\",\"investment:Brokerage\"]").unwrap();
-        store.set_ui_state(UiStateKey::DashboardCustomLayouts, "[{\"name\":\"Weekly\",\"widgets\":[\"runway\"]}]").unwrap();
+        store
+            .set_ui_state(UiStateKey::DashboardLayout, "[\"stat_cash\",\"investment:Brokerage\"]")
+            .unwrap();
+        store
+            .set_ui_state(UiStateKey::DashboardCustomLayouts, "[{\"name\":\"Weekly\",\"widgets\":[\"runway\"]}]")
+            .unwrap();
 
         assert_eq!(
             store.get_ui_state(UiStateKey::DashboardLayout).unwrap(),

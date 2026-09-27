@@ -127,7 +127,9 @@ impl AppRuntime {
         }
         let before_drop_error = before_drop(state);
         self.clear_notice();
-        *guard = Slot::Locked { profile_id: profile_id.to_string() };
+        *guard = Slot::Locked {
+            profile_id: profile_id.to_string(),
+        };
         Ok(before_drop_error)
     }
 

@@ -1,5 +1,5 @@
-mod background;
 mod auto_lock;
+mod background;
 mod backups;
 mod commands;
 mod config;
