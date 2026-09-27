@@ -11,6 +11,7 @@ mod launch_commands;
 mod legacy_migration;
 mod live_price_provider;
 mod live_prices;
+mod maintenance;
 mod profiles;
 mod protection_commands;
 mod protection_leftovers;
@@ -348,7 +349,6 @@ pub fn run() {
             commands::reconciliation_status,
             commands::finish_reconciliation,
             commands::last_reconciliation,
-            commands::record_portfolio_snapshot,
             commands::investment_accumulation,
             commands::list_investment_accumulation,
             commands::account_value_history,
@@ -382,7 +382,7 @@ pub fn run() {
             commands::net_worth_history,
             commands::account_contribution_deltas,
             commands::spending_this_month,
-            commands::check_monthly_rollover,
+            commands::take_maintenance_summary,
             commands::check_sinking_fund_contributions,
             #[cfg(debug_assertions)]
             debug_commands::debug_process_id,

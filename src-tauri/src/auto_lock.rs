@@ -350,6 +350,18 @@ where
     Ok(profile_id)
 }
 
+/// The last chance to take a due automatic backup: the database is still open here and is gone the
+/// moment the coordinator swaps in the locked slot.
+fn take_final_backup(
+    state: &AppState,
+    db_path: &std::path::Path,
+    copy_dir: Option<&std::path::Path>,
+    now: chrono::NaiveDateTime,
+) -> Result<(), String> {
+    let backups_dir = crate::backups::backups_dir_for(db_path, state.store.is_encrypted());
+    crate::backups::create_backup_if_due(&state.store, db_path, &backups_dir, copy_dir, now).map(|_| ())
+}
+
 pub fn lock_profile(
     app: &tauri::AppHandle,
     expected_profile_id: &str,
@@ -362,15 +374,7 @@ pub fn lock_profile(
     let db_path = paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let copy_dir = device.snapshot().backup_mirror_dir(expected_profile_id).map(std::path::PathBuf::from);
     let profile_id = transition_runtime(&paths, &runtime, expected_profile_id, expected_generation, |state| {
-        let backups_dir = crate::backups::backups_dir_for(&db_path, state.store.is_encrypted());
-        crate::backups::create_backup_if_due(
-            &state.store,
-            &db_path,
-            &backups_dir,
-            copy_dir.as_deref(),
-            chrono::Local::now().naive_local(),
-        )
-        .map(|_| ())
+        take_final_backup(state, &db_path, copy_dir.as_deref(), chrono::Local::now().naive_local())
     })?;
     app.state::<AutoLockController>().disarm(&profile_id, expected_generation);
     let status = app.state::<startup::LaunchStatus>();
@@ -757,6 +761,23 @@ mod tests {
         );
         let message = runtime.lock().err().expect("the database connection is gone");
         assert!(message.starts_with(PROFILE_LOCKED), "{message}");
+    }
+
+    #[test]
+    fn locking_takes_the_due_backup_before_the_connection_closes() {
+        let (runtime, paths) = open_runtime_and_paths("final-backup", 3);
+        let db_path = paths.db_path.lock().unwrap().clone();
+        let now = chrono::NaiveDate::from_ymd_opt(2026, 9, 21).unwrap().and_hms_opt(9, 0, 0).unwrap();
+
+        transition_runtime(&paths, &runtime, "default", 3, |state| take_final_backup(state, &db_path, None, now)).unwrap();
+
+        let backups = crate::backups::list_backups(&crate::backups::backups_dir_for(&db_path, false), false).unwrap();
+        assert_eq!(
+            backups.len(),
+            1,
+            "a lock with no recent backup takes one while the database is still open"
+        );
+        assert!(matches!(runtime.status(), RuntimeStatus::Locked { .. }));
     }
 
     #[test]

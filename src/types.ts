@@ -452,6 +452,13 @@ export type RolledAccount = {
   new_balance: string;
 };
 
+/** What opening a profile's housekeeping did, kept by the backend for the page to show once. */
+export type MaintenanceSummary = {
+  rolled: RolledAccount[];
+  contributions: SinkingFundContribution[];
+  warnings: string[];
+};
+
 export type BudgetAlert = {
   category: string;
   budget_group: string;

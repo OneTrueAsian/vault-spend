@@ -3,6 +3,7 @@
 //! selector), a locked profile (later phases) or an open one. Every command reaches its state
 //! through `lock()`, which fails the same way for the first two. Design: plan v2 section 4.4.
 use crate::commands::AppState;
+use crate::maintenance::MaintenanceSummary;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Mutex, MutexGuard};
 
@@ -26,6 +27,9 @@ enum Slot {
 
 pub struct AppRuntime {
     slot: Mutex<Slot>,
+    /// What opening the current profile's housekeeping did, waiting for the page to show it once.
+    /// Cleared whenever the slot changes hands, so it can never reach another profile or a locked one.
+    notice: Mutex<MaintenanceSummary>,
 }
 
 /// The open state, held under the runtime's lock for as long as this value lives.
@@ -55,7 +59,25 @@ impl DerefMut for OpenSession<'_> {
 
 impl AppRuntime {
     pub fn no_profile_open() -> Self {
-        AppRuntime { slot: Mutex::new(Slot::NoProfileOpen) }
+        AppRuntime {
+            slot: Mutex::new(Slot::NoProfileOpen),
+            notice: Mutex::new(MaintenanceSummary::default()),
+        }
+    }
+
+    fn clear_notice(&self) {
+        *self.notice.lock().unwrap_or_else(|e| e.into_inner()) = MaintenanceSummary::default();
+    }
+
+    /// Keeps what opening the profile just did until the page asks for it. Replaces any earlier one.
+    pub fn set_notice(&self, summary: MaintenanceSummary) {
+        *self.notice.lock().unwrap_or_else(|e| e.into_inner()) = summary;
+    }
+
+    /// Hands the pending notice to the page, once. Needs an open profile like every other read.
+    pub fn take_notice(&self) -> Result<MaintenanceSummary, String> {
+        let _session = self.lock()?;
+        Ok(std::mem::take(&mut *self.notice.lock().unwrap_or_else(|e| e.into_inner())))
     }
 
     /// The open state, or `NO_PROFILE_OPEN: ...` / `PROFILE_LOCKED: ...`. Meant to be used as
@@ -73,12 +95,14 @@ impl AppRuntime {
 
     /// Makes `state` the open profile, dropping whatever was there (its connection closes).
     pub fn install(&self, state: AppState) {
+        self.clear_notice();
         *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Open(state);
     }
 
     /// Drops the open profile's state (its connection closes) and remembers which profile is locked.
     #[allow(dead_code)] // used by the lock screen and auto-lock in Phases C and E
     pub fn lock_profile(&self, profile_id: &str) {
+        self.clear_notice();
         *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Locked { profile_id: profile_id.to_string() };
     }
 
@@ -102,6 +126,7 @@ impl AppRuntime {
             return Err("Something else already changed which profile is open.".to_string());
         }
         let before_drop_error = before_drop(state);
+        self.clear_notice();
         *guard = Slot::Locked { profile_id: profile_id.to_string() };
         Ok(before_drop_error)
     }
@@ -153,6 +178,65 @@ mod tests {
         let runtime = AppRuntime::no_profile_open();
         runtime.install(state);
         runtime
+    }
+
+    fn one_rolled_account() -> crate::maintenance::MaintenanceSummary {
+        let mut summary = crate::maintenance::MaintenanceSummary::default();
+        summary.rolled.push(crate::commands::RolledAccountDto {
+            account_id: 1,
+            account_name: "Checking".to_string(),
+            new_balance: "10.00".to_string(),
+        });
+        summary
+    }
+
+    #[test]
+    fn the_open_session_receives_its_startup_notice_exactly_once() {
+        let runtime = open_runtime(open_state("notice-once"));
+        runtime.set_notice(one_rolled_account());
+
+        let first = runtime.take_notice().unwrap();
+        let second = runtime.take_notice().unwrap();
+
+        assert_eq!(first.rolled.len(), 1);
+        assert_eq!(second, MaintenanceSummary::default(), "a second read must not repeat the toast");
+    }
+
+    #[test]
+    fn a_locked_or_empty_runtime_cannot_read_the_notice() {
+        let runtime = open_runtime(open_state("notice-locked"));
+        runtime.lock_profile("work");
+        assert!(runtime.take_notice().unwrap_err().starts_with(PROFILE_LOCKED));
+
+        let none = AppRuntime::no_profile_open();
+        assert!(none.take_notice().unwrap_err().starts_with(NO_PROFILE_OPEN));
+    }
+
+    #[test]
+    fn an_unread_notice_never_survives_a_lock_or_another_profile() {
+        let runtime = open_runtime(open_state("notice-lock-a"));
+        runtime.set_notice(one_rolled_account());
+        runtime.lock_open_profile("a", || true, |_| None).unwrap();
+        runtime.install(open_state("notice-lock-b"));
+        assert_eq!(
+            runtime.take_notice().unwrap(),
+            MaintenanceSummary::default(),
+            "an unlocked profile must not inherit the old one's notice"
+        );
+
+        runtime.set_notice(one_rolled_account());
+        runtime.install(open_state("notice-lock-c"));
+        assert_eq!(
+            runtime.take_notice().unwrap(),
+            MaintenanceSummary::default(),
+            "installing a profile discards a stale notice"
+        );
+
+        runtime.set_notice(one_rolled_account());
+        runtime.lock_profile("c");
+        runtime.release_lock();
+        runtime.install(open_state("notice-lock-d"));
+        assert_eq!(runtime.take_notice().unwrap(), MaintenanceSummary::default());
     }
 
     #[test]

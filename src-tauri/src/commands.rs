@@ -69,7 +69,8 @@ pub fn relocate_data_file(
         return Err(format!("{} already has a vaultspend.db — pick an empty folder.", new_dir.display()));
     }
 
-    let mut state = state.lock()?;
+    let runtime = &*state;
+    let mut state = runtime.lock()?;
     copy_database_for_relocation(&state.store, &old_live_path, &new_db_path)?;
     crate::config::write_db_location_config(&paths.config_path, &new_db_path).map_err(|e| e.to_string())?;
     let reopened = match state.store.db_key_bytes() {
@@ -85,6 +86,11 @@ pub fn relocate_data_file(
     // silently reopen the stale pre-relocate copy. A no-op when
     // profiles.json doesn't exist yet.
     crate::profiles::update_active_db_path(&paths.config_path, &old_live_path, &new_db_path)?;
+    // The page remounts after this and no longer runs the month's housekeeping itself.
+    runtime.set_notice(crate::maintenance::run_open_profile_maintenance(
+        &state.store,
+        chrono::Local::now().date_naive(),
+    ));
 
     Ok(new_db_path.to_string_lossy().to_string())
 }
@@ -393,7 +399,8 @@ pub fn restore_backup(
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the backup could be restored.".to_string());
     }
-    let mut state = state.lock()?;
+    let runtime = &*state;
+    let mut state = runtime.lock()?;
     let live_db_path = current_db_path(&paths);
     let is_encrypted = state.store.is_encrypted();
     let backups_dir = crate::backups::backups_dir_for(&live_db_path, is_encrypted);
@@ -452,6 +459,12 @@ pub fn restore_backup(
     crate::profiles::update_active_db_path(&paths.config_path, &live_db_path, &restored_path)?;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = restored_path;
     paths.bump_generation();
+    // The page remounts after this and no longer runs the month's housekeeping itself. A backup from
+    // an earlier month needs this month's roll-forward as much as a freshly opened profile does.
+    runtime.set_notice(crate::maintenance::run_open_profile_maintenance(
+        &state.store,
+        chrono::Local::now().date_naive(),
+    ));
     Ok(())
 }
 
@@ -521,13 +534,14 @@ pub fn create_profile(
     paths.bump_generation();
 
     let session = state.lock()?;
-    crate::startup::after_profile_opened(
+    let summary = crate::startup::after_profile_opened(
         &paths.config_path,
         &profile.db_path,
         &session.store,
         &device,
         chrono::Local::now().naive_local(),
     );
+    state.set_notice(summary);
 
     Ok(profile.name)
 }
@@ -546,7 +560,8 @@ pub fn switch_profile(
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<String, String> {
-    let mut state = state.lock()?;
+    let runtime = &*state;
+    let mut state = runtime.lock()?;
     let live_db_path = current_db_path(&paths);
     let target = crate::profiles::list_profiles(&paths.config_path, &live_db_path)
         .into_iter()
@@ -577,13 +592,14 @@ pub fn switch_profile(
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = target.db_path.clone();
     paths.bump_generation();
 
-    crate::startup::after_profile_opened(
+    let summary = crate::startup::after_profile_opened(
         &paths.config_path,
         &target.db_path,
         &state.store,
         &device,
         chrono::Local::now().naive_local(),
     );
+    runtime.set_notice(summary);
 
     Ok(target.name)
 }
@@ -660,7 +676,8 @@ pub fn add_existing_profile(
             }
         };
 
-        let mut state = state.lock()?;
+        let runtime = &*state;
+        let mut state = runtime.lock()?;
         if let Err(error) = crate::profiles::register_prepared_profile(
             &paths.config_path,
             &live_db_path,
@@ -676,13 +693,14 @@ pub fn add_existing_profile(
         *state = new_state;
         *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = imported_db_path.clone();
         paths.bump_generation();
-        crate::startup::after_profile_opened(
+        let summary = crate::startup::after_profile_opened(
             &paths.config_path,
             &imported_db_path,
             &state.store,
             &device,
             chrono::Local::now().naive_local(),
         );
+        runtime.set_notice(summary);
         return Ok(name);
     }
     if budget_core::store::file_looks_encrypted(&picked_path).map_err(|e| e.to_string())? {
@@ -698,7 +716,8 @@ pub fn add_existing_profile(
     budget_core::store::looks_like_a_vault_spend_database(&picked_path)?;
     let new_state = AppState::open(&picked_path).map_err(|e| format!("Couldn't open {} as a Vault Spend data file: {e}", picked_path.display()))?;
 
-    let mut state = state.lock()?;
+    let runtime = &*state;
+    let mut state = runtime.lock()?;
     let live_db_path = current_db_path(&paths);
     let profile = crate::profiles::add_existing_profile(&paths.config_path, &live_db_path, &name, &picked_path, chrono::Local::now().naive_local())?;
 
@@ -710,13 +729,14 @@ pub fn add_existing_profile(
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
     paths.bump_generation();
 
-    crate::startup::after_profile_opened(
+    let summary = crate::startup::after_profile_opened(
         &paths.config_path,
         &picked_path,
         &state.store,
         &device,
         chrono::Local::now().naive_local(),
     );
+    runtime.set_notice(summary);
 
     Ok(profile.name)
 }
@@ -2345,8 +2365,9 @@ pub fn update_bucket_details(
 
 /// Auto-contributes each sinking-fund bucket's fixed monthly amount if this
 /// is the first time it's happened this calendar month — see
-/// `Store::apply_sinking_fund_contributions`. Safe to call on every app
-/// launch, same convention as `check_monthly_rollover`.
+/// `Store::apply_sinking_fund_contributions`. The page calls this when a
+/// bucket gains a sinking amount so it takes effect right away; the run that
+/// happens as a profile opens is `maintenance::run_open_profile_maintenance`.
 #[tauri::command]
 pub fn check_sinking_fund_contributions(state: tauri::State<AppStateHandle>) -> Result<Vec<SinkingFundContributionDto>, String> {
     let state = state.lock()?;
@@ -2362,7 +2383,7 @@ pub fn check_sinking_fund_contributions(state: tauri::State<AppStateHandle>) -> 
         .collect())
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SinkingFundContributionDto {
     pub bucket_id: i64,
     pub bucket_name: String,
@@ -3353,15 +3374,6 @@ pub fn portfolio_history(state: tauri::State<AppStateHandle>) -> Result<Vec<Port
             value: value.to_string(),
         })
         .collect())
-}
-
-/// Records today's portfolio value — the app calls it at launch so a quiet
-/// week still leaves a point on the chart.
-#[tauri::command]
-pub fn record_portfolio_snapshot(state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock()?;
-    let today = chrono::Local::now().date_naive();
-    state.store.record_portfolio_snapshot(today).map(|_| ()).map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -4539,32 +4551,20 @@ pub fn spending_this_month(state: tauri::State<AppStateHandle>) -> Result<Vec<Ca
         .collect())
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RolledAccountDto {
     pub account_id: i64,
     pub account_name: String,
     pub new_balance: String,
 }
 
-/// Rolls every account's balance forward into a fresh monthly reset if
-/// this is the first time it's happened this calendar month (see
-/// `Store::roll_forward_monthly_balances`) — safe to call on every app
-/// launch. Returns only the accounts that just got a *fresh* reset in
-/// this call, so the UI can show a one-time "here's what changed" note
-/// instead of nagging every time the app opens.
+/// What opening the profile's housekeeping did (this month's roll-forward, automatic sinking-fund
+/// contributions), for the page's one-time "here's what changed" notes. The work itself runs in
+/// `startup::after_profile_opened`, never from the page; this hands the result over once and needs
+/// an open profile like every other read.
 #[tauri::command]
-pub fn check_monthly_rollover(state: tauri::State<AppStateHandle>) -> Result<Vec<RolledAccountDto>, String> {
-    let state = state.lock()?;
-    let today = chrono::Local::now().date_naive();
-    let rolled = state.store.roll_forward_monthly_balances(today).map_err(|e| e.to_string())?;
-    Ok(rolled
-        .into_iter()
-        .map(|(account_id, account_name, new_balance)| RolledAccountDto {
-            account_id,
-            account_name,
-            new_balance: new_balance.to_string(),
-        })
-        .collect())
+pub fn take_maintenance_summary(state: tauri::State<AppStateHandle>) -> Result<crate::maintenance::MaintenanceSummary, String> {
+    state.take_notice()
 }
 
 #[cfg(test)]

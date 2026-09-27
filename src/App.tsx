@@ -113,7 +113,7 @@ import type {
   RecurringTotals,
   Report,
   ReportBudgetLine,
-  RolledAccount,
+  MaintenanceSummary,
   SetupImportPreview,
   SetupImportSummary,
   SinkingFundContribution,
@@ -1492,16 +1492,25 @@ function App({
     dataVersionRef.current++;
   }, []);
 
-  // The first time the app opens in a new calendar month, every account's
-  // balance rolls forward into a fresh baseline automatically (see
-  // `Store::roll_forward_monthly_balances`) — this just surfaces a
-  // one-time note when that happens; it's a no-op on every later refresh
-  // this month.
-  const checkMonthlyRollover = useCallback(async () => {
-    const rolled = await invoke<RolledAccount[]>("check_monthly_rollover");
-    if (rolled.length > 0) {
-      const names = rolled.map((r) => r.account_name).join(", ");
-      setStatus(`Rolled forward this month's starting balance for ${rolled.length} account(s): ${names}.`, "success");
+  // The first time a profile opens in a new calendar month, every account's
+  // balance rolls forward into a fresh baseline and each sinking-fund bucket
+  // gets its automatic contribution, and today's point is left on the value
+  // chart. That housekeeping runs in the backend as the profile opens (see
+  // `startup::after_profile_opened`), so this page never starts a write on its
+  // own; it only shows the one-time notes the backend kept for it, and nothing
+  // the second time.
+  const showMaintenanceSummary = useCallback(async () => {
+    const summary = await invoke<MaintenanceSummary>("take_maintenance_summary");
+    if (summary.rolled.length > 0) {
+      const names = summary.rolled.map((r) => r.account_name).join(", ");
+      setStatus(`Rolled forward this month's starting balance for ${summary.rolled.length} account(s): ${names}.`, "success");
+    }
+    if (summary.contributions.length > 0) {
+      const names = summary.contributions.map((a) => a.bucket_name).join(", ");
+      setStatus(`Added this month's automatic contribution for ${summary.contributions.length} bucket(s): ${names}.`, "success");
+    }
+    if (summary.warnings.length > 0) {
+      setStatus(summary.warnings.join(" "));
     }
   }, []);
 
@@ -1898,30 +1907,19 @@ function App({
   );
 
   useEffect(() => {
-    checkMonthlyRollover()
-      .catch((e) => setStatus(String(e)))
-      .finally(() => {
-        refresh().catch((e) => setStatus(String(e)));
-      });
-    checkSinkingFundContributions()
-      .catch((e) => setStatus(String(e)))
-      .finally(() => {
-        refreshBuckets().catch((e) => setStatus(String(e)));
-      });
+    // The housekeeping already ran before this page mounted, so the reads below
+    // don't have to wait for it.
+    showMaintenanceSummary().catch((e) => setStatus(String(e)));
+    refresh().catch((e) => setStatus(String(e)));
+    refreshBuckets().catch((e) => setStatus(String(e)));
     refreshRecurring().catch((e) => setStatus(String(e)));
     refreshRecurringTotals().catch((e) => setStatus(String(e)));
     refreshRecurringCandidates().catch((e) => setStatus(String(e)));
-    // Leave today's point on the value chart even if nothing is repriced.
-    invoke("record_portfolio_snapshot")
-      .catch(() => undefined)
-      .finally(() => {
-        refreshHoldings().catch((e) => setStatus(String(e)));
-      });
+    refreshHoldings().catch((e) => setStatus(String(e)));
     refreshAssets().catch((e) => setStatus(String(e)));
   }, [
-    checkMonthlyRollover,
+    showMaintenanceSummary,
     refresh,
-    checkSinkingFundContributions,
     refreshBuckets,
     refreshRecurring,
     refreshRecurringTotals,

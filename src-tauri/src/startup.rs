@@ -4,6 +4,7 @@
 use crate::commands::{AppState, AppStateHandle};
 use crate::config;
 use crate::device_settings::{DeviceSettingsStore, LegacyProfileSettings};
+use crate::maintenance::MaintenanceSummary;
 use crate::profiles;
 use crate::runtime::{AppRuntime, RuntimeStatus};
 use budget_core::store::Store;
@@ -196,11 +197,21 @@ pub fn start_new_profile_list_at(config_path: &Path) -> Result<(), String> {
 }
 
 /// The work that follows every successful open of a profile's data file: take over the settings that
-/// used to live in the database (once), then the automatic backup when one is due, mirrored to this
-/// profile's second folder. Best effort: a failure here never blocks using the app.
-pub fn after_profile_opened(config_path: &Path, db_path: &Path, store: &Store, device: &DeviceSettingsStore, now: NaiveDateTime) {
+/// used to live in the database (once), the month/day housekeeping, then the automatic backup when
+/// one is due, mirrored to this profile's second folder. Best effort: a failure here never blocks
+/// using the app. Returns what the housekeeping did; the caller keeps it on the runtime for the page.
+#[must_use = "the page shows this once the profile is open: hand it to AppRuntime::set_notice"]
+pub fn after_profile_opened(
+    config_path: &Path,
+    db_path: &Path,
+    store: &Store,
+    device: &DeviceSettingsStore,
+    now: NaiveDateTime,
+) -> MaintenanceSummary {
     let profile_id = profiles::profile_id_for(config_path, db_path);
     take_over_legacy_settings(&profile_id, store, device);
+    // Before the backup, so the copy taken on open already includes this month's roll-forward.
+    let summary = crate::maintenance::run_open_profile_maintenance(store, now.date());
     if crate::background::refresh_reminder_index(config_path, db_path, store, device, now.date()).is_err() {
         eprintln!("Could not refresh bill reminders after opening the profile.");
     }
@@ -209,6 +220,7 @@ pub fn after_profile_opened(config_path: &Path, db_path: &Path, store: &Store, d
     if let Err(e) = crate::backups::create_backup_if_due(store, db_path, &backups_dir, copy_dir.as_deref(), now) {
         eprintln!("automatic backup failed (continuing anyway): {e}");
     }
+    summary
 }
 
 fn take_over_legacy_settings(profile_id: &str, store: &Store, device: &DeviceSettingsStore) {
@@ -342,10 +354,17 @@ pub fn activate(app: &tauri::AppHandle, opened: OpenedProfile) {
     let device = app.state::<DeviceSettingsStore>();
     let status = app.state::<LaunchStatus>();
 
-    after_profile_opened(&paths.config_path, &opened.db_path, &opened.state.store, &device, chrono::Local::now().naive_local());
+    let summary = after_profile_opened(
+        &paths.config_path,
+        &opened.db_path,
+        &opened.state.store,
+        &device,
+        chrono::Local::now().naive_local(),
+    );
     *paths.db_path.lock().unwrap_or_else(|e| e.into_inner()) = opened.db_path;
     paths.bump_generation();
     runtime.install(opened.state);
+    runtime.set_notice(summary);
     status.clear();
     crate::auto_lock::arm_current_profile(app);
     crate::background::sync_tray_with_settings(app);
@@ -574,7 +593,7 @@ mod tests {
         store.set_backup_copy_dir(Some(second.to_str().unwrap())).unwrap();
         let device = DeviceSettingsStore::load(dir.join(DEVICE_SETTINGS_FILENAME));
 
-        after_profile_opened(&dir.join("config.json"), &db_path, &store, &device, now());
+        let _ = after_profile_opened(&dir.join("config.json"), &db_path, &store, &device, now());
 
         let settings = device.snapshot();
         assert!(settings.tray_enabled);
@@ -586,16 +605,43 @@ mod tests {
     }
 
     #[test]
+    fn opening_a_profile_runs_the_housekeeping_once_and_reports_it() {
+        let dir = temp_dir("after-open-maintenance");
+        let db_path = dir.join("vaultspend.db");
+        let store = Store::open(&db_path).unwrap();
+        let checking = store
+            .get_or_create_account("Everyday Checking", budget_core::models::AccountType::Checking)
+            .unwrap();
+        store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
+        store
+            .create_bucket("Car Insurance", None, None, None, Some("50.00".parse().unwrap()), None, None)
+            .unwrap();
+        let device = DeviceSettingsStore::load(dir.join(DEVICE_SETTINGS_FILENAME));
+
+        let first = after_profile_opened(&dir.join("config.json"), &db_path, &store, &device, now());
+        let second = after_profile_opened(&dir.join("config.json"), &db_path, &store, &device, now());
+
+        assert_eq!(first.rolled.len(), 1, "the new month's rollover happens as part of opening");
+        assert_eq!(first.contributions.len(), 1);
+        assert_eq!(
+            second,
+            MaintenanceSummary::default(),
+            "opening the same profile again the same month reports nothing"
+        );
+        assert_eq!(store.list_buckets().unwrap()[0].saved_amount, "50.00".parse().unwrap());
+    }
+
+    #[test]
     fn opening_the_same_profile_again_does_not_undo_a_change_made_here() {
         let dir = temp_dir("after-open-twice");
         let db_path = dir.join("vaultspend.db");
         let store = Store::open(&db_path).unwrap();
         store.set_tray_enabled(true).unwrap();
         let device = DeviceSettingsStore::load(dir.join(DEVICE_SETTINGS_FILENAME));
-        after_profile_opened(&dir.join("config.json"), &db_path, &store, &device, now());
+        let _ = after_profile_opened(&dir.join("config.json"), &db_path, &store, &device, now());
         device.update(|s| s.tray_enabled = false).unwrap();
 
-        after_profile_opened(&dir.join("config.json"), &db_path, &store, &device, now());
+        let _ = after_profile_opened(&dir.join("config.json"), &db_path, &store, &device, now());
 
         assert!(!device.snapshot().tray_enabled, "the database's old value must not come back");
     }
