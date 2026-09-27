@@ -1,3 +1,5 @@
+import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
+
 /** The 9 always-available Dashboard widgets, plus the 4 report sections
  * that can also be pinned onto the Dashboard from their home tab (Cash
  * Flow, Investments, Reports). "Pinning" and picking a widget from the
@@ -140,18 +142,18 @@ export const LAYOUT_PRESET_LABELS: Record<LayoutPresetKey, string> = {
   investor_focus: "Investor Focus",
 };
 
-const STORAGE_KEY = "meadow-dashboard-layout";
-
-/** Same try/parse/catch-fallback shape as `loadNavOrder`/`theme` in
- * App.tsx — a per-viewer arrangement, not app data, so it lives in
- * localStorage. Drops any id from a future/older version of the catalog
- * this build doesn't recognize, rather than erroring. A saved layout from
- * before the stat cards were split back out carries the single legacy
- * "stats" id — expanded in place into the 4 new ids so an upgrading user's
- * arrangement doesn't just lose its stat row. */
-export function loadDashboardLayout(): WidgetId[] {
+/** Was a per-viewer `localStorage` arrangement (like `loadNavOrder`/`theme` in App.tsx) until Phase E
+ * Task 8's browser-state audit: an investment widget's id (`investment:<account name>`) embeds a
+ * real account name, which is profile financial content, not a display choice — it can't sit in
+ * global, unencrypted, cross-profile browser storage. Now a per-profile backend UI-state key, same
+ * as `saved_filters`/`category_order`, so it shares their encryption, lock gating, and generation
+ * guard. Drops any id from a future/older version of the catalog this build doesn't recognize,
+ * rather than erroring. A saved layout from before the stat cards were split back out carries the
+ * single legacy "stats" id — expanded in place into the 4 new ids so an upgrading user's arrangement
+ * doesn't just lose its stat row. */
+export async function loadDashboardLayout(): Promise<WidgetId[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = await getProfileUiState("dashboard_layout");
     if (!raw) return DEFAULT_LAYOUT;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_LAYOUT;
@@ -163,26 +165,25 @@ export function loadDashboardLayout(): WidgetId[] {
   }
 }
 
-export function saveDashboardLayout(widgets: WidgetId[]) {
+export async function saveDashboardLayout(widgets: WidgetId[]): Promise<void> {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets));
+    const generation = await getCurrentGeneration();
+    await setProfileUiState("dashboard_layout", JSON.stringify(widgets), generation);
   } catch {
-    // per-viewer preference only — fine to skip if storage is unavailable
+    // per-viewer preference only — fine to skip if the save fails
   }
 }
 
 /** A user-named arrangement, saved alongside the 3 built-in presets —
- * same idea as `SavedLedgerFilter` in App.tsx (a per-viewer localStorage
+ * same idea as `SavedLedgerFilter` in App.tsx (a per-profile backend-stored
  * list keyed by name, where saving under a name already in use replaces
  * it rather than accumulating duplicates). Its dropdown `<option value>`
  * is `custom:${name}` — see `matchingLayoutPreset` below. */
 export type SavedLayoutPreset = { name: string; widgets: WidgetId[] };
 
-const CUSTOM_PRESETS_STORAGE_KEY = "meadow-dashboard-custom-layouts";
-
-export function loadCustomLayoutPresets(): SavedLayoutPreset[] {
+export async function loadCustomLayoutPresets(): Promise<SavedLayoutPreset[]> {
   try {
-    const raw = localStorage.getItem(CUSTOM_PRESETS_STORAGE_KEY);
+    const raw = await getProfileUiState("dashboard_custom_layouts");
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -199,11 +200,12 @@ export function loadCustomLayoutPresets(): SavedLayoutPreset[] {
   }
 }
 
-export function saveCustomLayoutPresets(presets: SavedLayoutPreset[]) {
+export async function saveCustomLayoutPresets(presets: SavedLayoutPreset[]): Promise<void> {
   try {
-    localStorage.setItem(CUSTOM_PRESETS_STORAGE_KEY, JSON.stringify(presets));
+    const generation = await getCurrentGeneration();
+    await setProfileUiState("dashboard_custom_layouts", JSON.stringify(presets), generation);
   } catch {
-    // per-viewer preference only — fine to skip if storage is unavailable
+    // per-viewer preference only — fine to skip if the save fails
   }
 }
 

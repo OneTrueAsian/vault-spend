@@ -38,6 +38,28 @@ describe("migrateLegacyProfileUiState", () => {
     expect(localStorage.getItem("vaultspend-safe-to-spend-buffer")).toBeNull();
   });
 
+  it("migrates the dashboard layout and custom-layout keys the same way as the original four", async () => {
+    localStorage.setItem("meadow-dashboard-layout", "[\"stat_cash\",\"investment:Brokerage\"]");
+    localStorage.setItem("meadow-dashboard-custom-layouts", "[{\"name\":\"Weekly\",\"widgets\":[\"runway\"]}]");
+    const calls: [string, unknown][] = [];
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      calls.push([String(cmd), args]);
+    });
+
+    await migrateLegacyProfileUiState(1, false);
+
+    expect(calls).toContainEqual([
+      "set_profile_ui_state",
+      { key: "dashboard_layout", value: "[\"stat_cash\",\"investment:Brokerage\"]", expectedGeneration: 1 },
+    ]);
+    expect(calls).toContainEqual([
+      "set_profile_ui_state",
+      { key: "dashboard_custom_layouts", value: "[{\"name\":\"Weekly\",\"widgets\":[\"runway\"]}]", expectedGeneration: 1 },
+    ]);
+    expect(localStorage.getItem("meadow-dashboard-layout")).toBeNull();
+    expect(localStorage.getItem("meadow-dashboard-custom-layouts")).toBeNull();
+  });
+
   it("marks migrated even when no legacy key is present (fresh install)", async () => {
     await migrateLegacyProfileUiState(1, false);
 

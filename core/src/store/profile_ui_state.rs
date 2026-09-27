@@ -13,6 +13,16 @@ pub enum UiStateKey {
     NotifiedBills,
     CategoryOrder,
     ShowBillNamesInReminders,
+    /// The Dashboard's widget arrangement (plan v2 §4.12 follow-up, Phase E Task 8): used to live in
+    /// `localStorage` under `meadow-dashboard-layout` alongside genuine per-viewer preferences like
+    /// theme/nav-order, until an investment widget's id (`investment:<account name>`) started
+    /// embedding a real account name — profile financial content, not a display choice — into
+    /// unencrypted, never-cleared, cross-profile browser storage. Moved here so it shares the same
+    /// per-profile encryption, lock gating, and generation guard as every other UI-state key.
+    DashboardLayout,
+    /// The Dashboard's named custom layout presets — same reasoning and same migration as
+    /// `DashboardLayout` (a saved preset's `widgets` can contain the same investment widget ids).
+    DashboardCustomLayouts,
 }
 
 impl UiStateKey {
@@ -23,6 +33,8 @@ impl UiStateKey {
             UiStateKey::NotifiedBills => "notified_bills",
             UiStateKey::CategoryOrder => "category_order",
             UiStateKey::ShowBillNamesInReminders => "show_bill_names_in_reminders",
+            UiStateKey::DashboardLayout => "dashboard_layout",
+            UiStateKey::DashboardCustomLayouts => "dashboard_custom_layouts",
         }
     }
 
@@ -33,6 +45,8 @@ impl UiStateKey {
             "notified_bills" => Some(UiStateKey::NotifiedBills),
             "category_order" => Some(UiStateKey::CategoryOrder),
             "show_bill_names_in_reminders" => Some(UiStateKey::ShowBillNamesInReminders),
+            "dashboard_layout" => Some(UiStateKey::DashboardLayout),
+            "dashboard_custom_layouts" => Some(UiStateKey::DashboardCustomLayouts),
             _ => None,
         }
     }
@@ -112,13 +126,31 @@ mod tests {
     }
 
     #[test]
-    fn parse_accepts_exactly_the_five_known_keys() {
+    fn parse_accepts_exactly_the_seven_known_keys() {
         assert_eq!(UiStateKey::parse("saved_filters"), Some(UiStateKey::SavedFilters));
         assert_eq!(UiStateKey::parse("safe_to_spend_buffer"), Some(UiStateKey::SafeToSpendBuffer));
         assert_eq!(UiStateKey::parse("notified_bills"), Some(UiStateKey::NotifiedBills));
         assert_eq!(UiStateKey::parse("category_order"), Some(UiStateKey::CategoryOrder));
         assert_eq!(UiStateKey::parse("show_bill_names_in_reminders"), Some(UiStateKey::ShowBillNamesInReminders));
+        assert_eq!(UiStateKey::parse("dashboard_layout"), Some(UiStateKey::DashboardLayout));
+        assert_eq!(UiStateKey::parse("dashboard_custom_layouts"), Some(UiStateKey::DashboardCustomLayouts));
         assert_eq!(UiStateKey::parse("anything_else"), None, "not an arbitrary-key store");
+    }
+
+    #[test]
+    fn dashboard_layout_and_custom_layouts_round_trip_independently() {
+        let store = temp_store("dashboard-layout-round-trip");
+        store.set_ui_state(UiStateKey::DashboardLayout, "[\"stat_cash\",\"investment:Brokerage\"]").unwrap();
+        store.set_ui_state(UiStateKey::DashboardCustomLayouts, "[{\"name\":\"Weekly\",\"widgets\":[\"runway\"]}]").unwrap();
+
+        assert_eq!(
+            store.get_ui_state(UiStateKey::DashboardLayout).unwrap(),
+            Some("[\"stat_cash\",\"investment:Brokerage\"]".to_string())
+        );
+        assert_eq!(
+            store.get_ui_state(UiStateKey::DashboardCustomLayouts).unwrap(),
+            Some("[{\"name\":\"Weekly\",\"widgets\":[\"runway\"]}]".to_string())
+        );
     }
 
     #[test]

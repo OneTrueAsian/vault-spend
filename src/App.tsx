@@ -29,7 +29,7 @@ import {
   WelcomeDialog,
   WhatsNewDialog,
 } from "./Modal";
-import { loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
+import { DEFAULT_LAYOUT, loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 import { lockCurrentProfile, unlockProfile } from "./protection";
 import { hasObservableUnsavedInput } from "./unsavedInput";
@@ -475,7 +475,7 @@ function App({
   });
   const [navOrder, setNavOrder] = useState<Tab[]>(loadNavOrder);
   const [dragNavTab, setDragNavTab] = useState<Tab | null>(null);
-  const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(loadDashboardLayout);
+  const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(DEFAULT_LAYOUT);
   const [addWidgetModalOpen, setAddWidgetModalOpen] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [anomalyFlags, setAnomalyFlags] = useState<AnomalyFlag[]>([]);
@@ -497,6 +497,19 @@ function App({
       .then(() => loadSavedFilters())
       .then((filters) => {
         if (!cancelled) setSavedFilters(filters);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    ensureUiStateMigrated()
+      .catch(() => {}) // best effort — the same treatment every browser-storage read/write here already gets
+      .then(() => loadDashboardLayout())
+      .then((widgets) => {
+        if (!cancelled) setLayoutWidgetsState(widgets);
       });
     return () => {
       cancelled = true;

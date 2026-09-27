@@ -5,7 +5,9 @@ export type UiStateKey =
   | "safe_to_spend_buffer"
   | "notified_bills"
   | "category_order"
-  | "show_bill_names_in_reminders";
+  | "show_bill_names_in_reminders"
+  | "dashboard_layout"
+  | "dashboard_custom_layouts";
 
 /** `set_profile_ui_state`'s staleness guard needs the backend's current generation number — the
  * frontend had no reason to track its own copy of it before this. Fetched once per mount; `App`
@@ -18,15 +20,20 @@ export const getProfileUiState = (key: UiStateKey) => invoke<string | null>("get
 export const setProfileUiState = (key: UiStateKey, value: string, expectedGeneration: number) =>
   invoke<void>("set_profile_ui_state", { key, value, expectedGeneration });
 
-/** The exact global keys these four settings used before this table existed — never read again
- * once `migrateLegacyProfileUiState` has run once on this computer (`device_settings.ui_state_migrated`).
+/** The exact global keys these settings used before this table existed — never read again once
+ * `migrateLegacyProfileUiState` has run once on this computer (`device_settings.ui_state_migrated`).
  * `show_bill_names_in_reminders` is not here: it was born in this table, with no earlier
- * localStorage form to migrate from. */
+ * localStorage form to migrate from. `dashboard_layout`/`dashboard_custom_layouts` joined later
+ * (Phase E Task 8's browser-state audit): an investment widget's id can embed a real account name,
+ * so the arrangement is profile financial content, not the per-viewer display choice it was
+ * originally treated as — see `dashboardLayout.ts`. */
 const LEGACY_KEYS: Partial<Record<UiStateKey, string>> = {
   saved_filters: "meadow-saved-ledger-filters", // App.tsx
   safe_to_spend_buffer: "vaultspend-safe-to-spend-buffer", // SafeToSpendCard.tsx
   notified_bills: "vaultspend-notified-bills", // App.tsx
   category_order: "meadow-budget-category-order", // BudgetView.tsx
+  dashboard_layout: "meadow-dashboard-layout", // dashboardLayout.ts
+  dashboard_custom_layouts: "meadow-dashboard-custom-layouts", // dashboardLayout.ts
 };
 
 /** Moves any legacy browser-storage values into the currently open profile's database, once per
