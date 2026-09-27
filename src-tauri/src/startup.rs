@@ -201,6 +201,9 @@ pub fn start_new_profile_list_at(config_path: &Path) -> Result<(), String> {
 pub fn after_profile_opened(config_path: &Path, db_path: &Path, store: &Store, device: &DeviceSettingsStore, now: NaiveDateTime) {
     let profile_id = profiles::profile_id_for(config_path, db_path);
     take_over_legacy_settings(&profile_id, store, device);
+    if crate::background::refresh_reminder_index(config_path, db_path, store, device, now.date()).is_err() {
+        eprintln!("Could not refresh bill reminders after opening the profile.");
+    }
     let copy_dir = device.snapshot().backup_mirror_dir(&profile_id).map(PathBuf::from);
     let backups_dir = crate::backups::backups_dir_for(db_path, store.is_encrypted());
     if let Err(e) = crate::backups::create_backup_if_due(store, db_path, &backups_dir, copy_dir.as_deref(), now) {

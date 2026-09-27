@@ -3,6 +3,26 @@
 //! own child, so nothing else hands a test that PID, and the crash-recovery tests (Task 9) need to
 //! kill this exact process, never one found by name (which could hit the owner's own installed copy).
 use tauri::Manager;
+
+/// Runs the real reminder worker with only OS delivery replaced. No payloads are retained
+/// globally, and neither this command nor its caller is registered in release builds.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_check_reminders(today: String, app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let today = today.parse::<chrono::NaiveDate>().map_err(|_| "Invalid reminder date.".to_string())?;
+    let mut sent = Vec::new();
+    crate::background::run_reminder_check(
+        &app.state::<crate::commands::AppStateHandle>(),
+        &app.state::<crate::config::AppPaths>(),
+        &app.state::<crate::device_settings::DeviceSettingsStore>(),
+        today,
+        |body| {
+            sent.push(body.to_owned());
+            Ok(())
+        },
+    )?;
+    Ok(sent)
+}
 #[cfg(debug_assertions)]
 #[tauri::command]
 pub fn debug_process_id() -> u32 {

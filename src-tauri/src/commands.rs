@@ -722,8 +722,22 @@ pub fn add_existing_profile(
 }
 
 #[tauri::command]
-pub fn rename_profile(id: String, new_name: String, paths: tauri::State<crate::config::AppPaths>) -> Result<(), String> {
-    crate::profiles::rename_profile(&paths.config_path, &current_db_path(&paths), &id, &new_name)
+pub fn rename_profile(
+    id: String,
+    new_name: String,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
+    let mut result = Ok(());
+    device.update(|settings| {
+        result = crate::profiles::rename_profile(&paths.config_path, &current_db_path(&paths), &id, &new_name);
+        if result.is_ok() {
+            if let Some(cached) = settings.reminder_index.get_mut(&id) {
+                cached.profile_name = new_name.trim().to_owned();
+            }
+        }
+    })?;
+    result
 }
 
 /// Registry-only — the profile's own file is left on disk untouched (same
@@ -733,9 +747,21 @@ pub fn rename_profile(id: String, new_name: String, paths: tauri::State<crate::c
 /// `AppPaths::db_path` still names it either way, so the runtime's own
 /// status, not just the path, decides) — see `profiles::delete_profile`.
 #[tauri::command]
-pub fn delete_profile(id: String, paths: tauri::State<crate::config::AppPaths>, runtime: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn delete_profile(
+    id: String,
+    paths: tauri::State<crate::config::AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
     let currently_open = runtime.status() == crate::runtime::RuntimeStatus::Open;
-    crate::profiles::delete_profile(&paths.config_path, &current_db_path(&paths), currently_open, &id)
+    let mut result = Ok(());
+    device.update(|settings| {
+        result = crate::profiles::delete_profile(&paths.config_path, &current_db_path(&paths), currently_open, &id);
+        if result.is_ok() {
+            settings.remove_profile_reminders(&id);
+        }
+    })?;
+    result
 }
 
 /// The four settings moved out of global browser storage into the profile database (plan v2
@@ -1956,7 +1982,13 @@ pub fn bulk_delete_transactions(ids: Vec<i64>, state: tauri::State<AppStateHandl
 /// matches any transaction is skipped rather than failing the whole batch.
 /// Returns how many were created, for the confirmation message.
 #[tauri::command]
-pub fn bulk_create_recurring_from_transactions(ids: Vec<i64>, cadence: String, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
+pub fn bulk_create_recurring_from_transactions(
+    ids: Vec<i64>,
+    cadence: String,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<usize, String> {
     let state = state.lock()?;
     let transactions = state.store.all_transactions().map_err(|e| e.to_string())?;
 
@@ -1976,6 +2008,7 @@ pub fn bulk_create_recurring_from_transactions(ids: Vec<i64>, cadence: String, s
                 Some(t.account_id),
             )
             .map_err(|e| e.to_string())?;
+        refresh_open_reminders(&state.store, &paths, &device);
         created += 1;
     }
     Ok(created)
@@ -2835,7 +2868,22 @@ pub fn get_stats(state: tauri::State<AppStateHandle>) -> Result<Stats, String> {
     Ok(stats)
 }
 
+fn refresh_open_reminders(store: &Store, paths: &crate::config::AppPaths, device: &crate::device_settings::DeviceSettingsStore) {
+    if crate::background::refresh_reminder_index(
+        &paths.config_path,
+        &current_db_path(paths),
+        store,
+        device,
+        chrono::Local::now().date_naive(),
+    )
+    .is_err()
+    {
+        eprintln!("Could not refresh bill reminders after a recurring change.");
+    }
+}
+
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // recurring fields plus managed runtime/cache state
 pub fn create_recurring(
     merchant: String,
     category: Option<String>,
@@ -2844,14 +2892,18 @@ pub fn create_recurring(
     anchor_date: String,
     account_id: Option<i64>,
     state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<i64, String> {
     let state = state.lock()?;
     let amount = parse_amount(&amount)?;
     let anchor_date = parse_date(&anchor_date)?;
-    state
+    let result = state
         .store
         .create_recurring(&merchant, category.as_deref(), amount, &cadence, anchor_date, account_id)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(result)
 }
 
 #[tauri::command]
@@ -2879,15 +2931,30 @@ pub fn list_recurring(state: tauri::State<AppStateHandle>) -> Result<Vec<Recurri
 }
 
 #[tauri::command]
-pub fn delete_recurring(id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn delete_recurring(
+    id: i64,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
     let state = state.lock()?;
-    state.store.delete_recurring(id).map_err(|e| e.to_string())
+    state.store.delete_recurring(id).map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn set_recurring_status(id: i64, status: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn set_recurring_status(
+    id: i64,
+    status: String,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
     let state = state.lock()?;
-    state.store.set_recurring_status(id, &status).map_err(|e| e.to_string())
+    state.store.set_recurring_status(id, &status).map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -2953,6 +3020,8 @@ pub fn update_recurring(
     anchor_date: String,
     account_id: Option<i64>,
     state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<(), String> {
     let state = state.lock()?;
     let amount = parse_amount(&amount)?;
@@ -2960,13 +3029,23 @@ pub fn update_recurring(
     state
         .store
         .update_recurring(id, &merchant, category.as_deref(), amount, &cadence, anchor_date, account_id)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn set_recurring_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn set_recurring_member(
+    id: i64,
+    member_id: Option<i64>,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
     let state = state.lock()?;
-    state.store.set_recurring_member(id, member_id).map_err(|e| e.to_string())
+    state.store.set_recurring_member(id, member_id).map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(())
 }
 
 #[tauri::command]

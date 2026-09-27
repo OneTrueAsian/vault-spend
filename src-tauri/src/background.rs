@@ -196,29 +196,127 @@ pub fn notify(app: &AppHandle, title: &str, body: &str) -> Result<(), String> {
     app.notification().builder().title(title).body(body).show().map_err(|e| e.to_string())
 }
 
-/// One pass of the reminder check: if the tray is on, remind about each bill
-/// due soon that hasn't been reminded about for that due date yet.
-fn check_reminders(app: &AppHandle) {
-    let Some(state) = app.try_state::<AppStateHandle>() else {
-        return;
-    };
-    // With no profile open (or a locked one) there is nothing to read. Phase E gives that case its own
-    // due-dates-only reminder source.
-    let Ok(guard) = state.lock() else {
-        return;
-    };
-    if !tray_enabled(app) {
-        return;
-    }
-    let today = chrono::Local::now().date_naive();
-    let Ok(reminders) = guard.store.reminders_to_send(today, REMINDER_WINDOW_DAYS) else {
-        return;
-    };
-    let show_names = should_show_bill_names(guard.store.is_encrypted(), guard.store.show_bill_names_in_reminders().unwrap_or(false));
-    for reminder in reminders {
-        if notify(app, "Upcoming bill", &reminder_body(&reminder, today, show_names)).is_ok() {
-            let _ = guard.store.mark_reminder_sent(reminder.recurring_id, reminder.due_date, today);
+/// Rebuild only the open profile's slice. Callers hold the runtime session, then acquire
+/// device settings; never acquire the runtime while holding device settings. Raw row ids
+/// stay inside this function and the live worker, never in the serialized cache.
+pub fn refresh_reminder_index(
+    config: &Path,
+    db: &Path,
+    store: &budget_core::store::Store,
+    device: &DeviceSettingsStore,
+    today: NaiveDate,
+) -> Result<(), String> {
+    let rows = store.reminder_projection(today).map_err(|e| e.to_string())?;
+    device.update(|settings| {
+        if let Some(profile) = crate::profiles::list_profiles(config, db).into_iter().find(|p| p.db_path == db) {
+            settings.replace_reminders(&profile.id, &profile.name, index_entries(&rows));
         }
+    })
+}
+
+fn index_entries(rows: &[budget_core::store::ReminderProjection]) -> Vec<crate::device_settings::ReminderIndexEntry> {
+    rows.iter()
+        .map(|r| crate::device_settings::ReminderIndexEntry {
+            opaque_id: r.opaque_id.clone(),
+            due_date: r.due_date.to_string(),
+            last_notified: r.last_notified.map(|d| d.to_string()),
+        })
+        .collect()
+}
+
+fn deliver_index_reminders(
+    settings: &mut crate::device_settings::DeviceSettings,
+    open_id: Option<&str>,
+    today: NaiveDate,
+    mut send: impl FnMut(&str) -> Result<(), String>,
+) {
+    for (id, profile) in &mut settings.reminder_index {
+        if Some(id.as_str()) == open_id {
+            continue;
+        }
+        for row in &mut profile.entries {
+            if row.is_due(today, REMINDER_WINDOW_DAYS) && send(&format!("A bill is due soon in {}", profile.profile_name)).is_ok() {
+                row.last_notified = Some(today.to_string());
+            }
+        }
+    }
+}
+
+/// Shared production worker with only the OS delivery boundary injectable. Holding an open
+/// session through delivery prevents a full-text notification racing past a completed lock.
+/// The device update serializes competing checks and sent markers. No Store is opened here.
+pub fn run_reminder_check(
+    runtime: &AppStateHandle,
+    paths: &crate::config::AppPaths,
+    device: &DeviceSettingsStore,
+    today: NaiveDate,
+    mut send: impl FnMut(&str) -> Result<(), String>,
+) -> Result<(), String> {
+    let session = runtime.lock().ok();
+    let db = paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let projection = session
+        .as_ref()
+        .map(|s| s.store.reminder_projection(today))
+        .transpose()
+        .map_err(|e| e.to_string())?;
+    let live = session
+        .as_ref()
+        .map(|s| s.store.reminders_to_send(today, REMINDER_WINDOW_DAYS))
+        .transpose()
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default();
+    let show_names = session
+        .as_ref()
+        .is_some_and(|s| should_show_bill_names(s.store.is_encrypted(), s.store.show_bill_names_in_reminders().unwrap_or(false)));
+    device.update(|settings| {
+        let profiles = crate::profiles::list_profiles(&paths.config_path, &db);
+        // Reconcile before delivering: deleted profiles cannot keep sending; names follow renames.
+        settings.reminder_index.retain(|id, cached| {
+            if let Some(p) = profiles.iter().find(|p| &p.id == id) {
+                cached.profile_name.clone_from(&p.name);
+                true
+            } else {
+                false
+            }
+        });
+        let open = session.as_ref().and_then(|_| profiles.iter().find(|p| p.db_path == db));
+        if let (Some(profile), Some(rows)) = (open, projection.as_ref()) {
+            settings.replace_reminders(&profile.id, &profile.name, index_entries(rows));
+        }
+        if !settings.tray_enabled {
+            return;
+        }
+        if let (Some(profile), Some(rows), Some(session)) = (open, projection.as_ref(), session.as_ref()) {
+            for reminder in &live {
+                let Some(row) = rows.iter().find(|r| r.recurring_id == reminder.recurring_id) else {
+                    continue;
+                };
+                let due = reminder.due_date.to_string();
+                let eligible = settings.reminder_index.get(&profile.id).is_some_and(|p| {
+                    p.entries
+                        .iter()
+                        .any(|r| r.opaque_id == row.opaque_id && r.due_date == due && r.is_due(today, REMINDER_WINDOW_DAYS))
+                });
+                if eligible && send(&reminder_body(reminder, today, show_names)).is_ok() {
+                    settings.mark_index_reminder_sent(&profile.id, &row.opaque_id, &due, &today.to_string());
+                    let _ = session.store.mark_reminder_sent(reminder.recurring_id, reminder.due_date, today);
+                }
+            }
+        }
+        deliver_index_reminders(settings, open.map(|p| p.id.as_str()), today, &mut send);
+    })
+}
+
+fn check_reminders(app: &AppHandle) {
+    let result = run_reminder_check(
+        &app.state::<AppStateHandle>(),
+        &app.state::<crate::config::AppPaths>(),
+        &app.state::<DeviceSettingsStore>(),
+        chrono::Local::now().date_naive(),
+        |body| notify(app, "Upcoming bill", body),
+    );
+    if result.is_err() {
+        eprintln!("Could not refresh or save bill reminders.");
     }
 }
 
@@ -256,6 +354,96 @@ pub fn hide_if_started_minimized(app: &AppHandle) {
 mod tests {
     use super::*;
     use rust_decimal::Decimal;
+
+    #[test]
+    fn reminders_survive_lock_without_database_access_and_deduplicate_after_unlock() {
+        use crate::{commands::AppState, config::AppPaths, runtime::AppRuntime};
+        use std::sync::{atomic::AtomicU64, Mutex};
+        let dir = std::env::temp_dir().join(format!("reminder-runtime-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("vaultspend.db");
+        let paths = AppPaths {
+            config_path: dir.join("config.json"),
+            db_path: Mutex::new(db.clone()),
+            generation: AtomicU64::new(0),
+        };
+        let device = DeviceSettingsStore::load(dir.join("device-settings.json"));
+        let runtime = AppRuntime::no_profile_open();
+        let state = AppState::open(&db).unwrap();
+        let id = state
+            .store
+            .create_recurring("Secret Merchant", None, "-123.45".parse().unwrap(), "monthly", day("2026-09-20"), None)
+            .unwrap();
+        refresh_reminder_index(&paths.config_path, &db, &state.store, &device, day("2026-09-18")).unwrap();
+        runtime.install(state);
+        runtime.lock_profile("default");
+        device.update(|s| s.tray_enabled = true).unwrap();
+        let mut messages = Vec::new();
+        run_reminder_check(&runtime, &paths, &device, day("2026-09-18"), |body| {
+            messages.push(body.to_string());
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(messages, vec!["A bill is due soon in Default"]);
+        assert!(!runtime.is_open());
+        runtime.release_lock();
+        run_reminder_check(&runtime, &paths, &device, day("2026-09-19"), |_| panic!("no-profile must not repeat")).unwrap();
+        let state = AppState::open(&db).unwrap();
+        assert_eq!(
+            state.store.reminders_to_send(day("2026-09-18"), 3).unwrap()[0].recurring_id,
+            id,
+            "locked send must not mark the database"
+        );
+        runtime.install(state);
+        run_reminder_check(&runtime, &paths, &device, day("2026-09-19"), |_| panic!("unlock must not repeat")).unwrap();
+        run_reminder_check(&runtime, &paths, &device, day("2026-10-18"), |body| {
+            messages.push(body.to_string());
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(messages[1], "Secret Merchant — $123.45 due Oct 20");
+        run_reminder_check(&runtime, &paths, &device, day("2026-10-19"), |_| panic!("open send must not repeat")).unwrap();
+        runtime.lock_profile("default");
+        let text = std::fs::read_to_string(dir.join("device-settings.json")).unwrap();
+        for forbidden in [
+            "Secret Merchant",
+            "123.45",
+            "recurring_id",
+            "transaction_id",
+            "merchant",
+            "amount",
+            "category",
+            "account",
+            "notes",
+        ] {
+            assert!(!text.contains(forbidden), "cache leaked {forbidden}");
+        }
+    }
+
+    #[test]
+    fn failed_delivery_does_not_silence_the_index() {
+        use crate::device_settings::{DeviceSettings, ReminderIndexEntry};
+        let mut settings = DeviceSettings::default();
+        settings.replace_reminders(
+            "p",
+            "Sam",
+            vec![ReminderIndexEntry {
+                opaque_id: "a".into(),
+                due_date: "2026-09-20".into(),
+                last_notified: None,
+            }],
+        );
+        deliver_index_reminders(&mut settings, None, day("2026-09-18"), |_| Err("offline".into()));
+        assert_eq!(settings.reminder_index["p"].entries[0].last_notified, None);
+        let mut messages = vec![];
+        deliver_index_reminders(&mut settings, None, day("2026-09-18"), |body| {
+            messages.push(body.to_owned());
+            Ok(())
+        });
+        assert_eq!(messages, vec!["A bill is due soon in Sam"]);
+        assert_eq!(settings.reminder_index["p"].entries[0].last_notified.as_deref(), Some("2026-09-18"));
+    }
 
     fn reminder(merchant: &str, amount: &str, due: &str) -> BillReminder {
         BillReminder {
@@ -304,12 +492,8 @@ mod tests {
         assert_eq!(reminder_body(&r, today, false), "A bill is due soon.");
     }
 
-    // reminder_body's own tests above prove the wording is right *given* show_names — they say
-    // nothing about how show_names itself gets decided. check_reminders can't be unit tested at all
-    // (it needs a live AppHandle, no precedent for that anywhere in this codebase), so a mutation
-    // that hard-codes show_names to true there would slip past every test above. Extracting the
-    // one-line decision itself into should_show_bill_names closes that gap without needing a fake
-    // AppHandle — everything check_reminders does with it is then just calling an already-proven fn.
+    // The live worker and compiled-app tests cover delivery; this matrix separately guards
+    // the opt-in rule so protected profiles never inherit unprotected full-text defaults.
     #[test]
     fn should_show_bill_names_matrix() {
         assert!(should_show_bill_names(false, false), "unprotected: always real names, setting ignored");

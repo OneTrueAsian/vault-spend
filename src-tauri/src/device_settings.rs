@@ -10,9 +10,36 @@ use std::sync::Mutex;
 
 pub const DEVICE_SETTINGS_FILENAME: &str = "device-settings.json";
 
+/// Deliberately no financial fields or database row ids in this on-disk cache.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReminderIndexEntry {
+    pub opaque_id: String,
+    pub due_date: String,
+    pub last_notified: Option<String>,
+}
+
+impl ReminderIndexEntry {
+    pub fn is_due(&self, today: chrono::NaiveDate, window: i64) -> bool {
+        self.last_notified.is_none()
+            && self.due_date.parse::<chrono::NaiveDate>().is_ok_and(|due| {
+                let days = (due - today).num_days();
+                days >= 0 && days <= window
+            })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileReminders {
+    pub profile_name: String,
+    pub entries: Vec<ReminderIndexEntry>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DeviceSettings {
+    pub reminder_index: BTreeMap<String, ProfileReminders>,
     pub tray_enabled: bool,
     pub autostart_enabled: bool,
     /// Each profile's second backup folder, keyed by its registry id.
@@ -42,6 +69,45 @@ pub struct LegacyProfileSettings {
 }
 
 impl DeviceSettings {
+    pub fn replace_reminders(&mut self, profile_id: &str, name: &str, mut entries: Vec<ReminderIndexEntry>) {
+        if let Some(old) = self.reminder_index.get(profile_id) {
+            for entry in &mut entries {
+                if let Some(previous) = old
+                    .entries
+                    .iter()
+                    .find(|p| p.opaque_id == entry.opaque_id && p.due_date == entry.due_date)
+                {
+                    if entry.last_notified.is_none() {
+                        entry.last_notified.clone_from(&previous.last_notified);
+                    }
+                }
+            }
+        }
+        self.reminder_index.insert(
+            profile_id.to_owned(),
+            ProfileReminders {
+                profile_name: name.to_owned(),
+                entries,
+            },
+        );
+    }
+
+    pub fn mark_index_reminder_sent(&mut self, profile: &str, opaque_id: &str, due: &str, today: &str) -> bool {
+        let Some(row) = self
+            .reminder_index
+            .get_mut(profile)
+            .and_then(|p| p.entries.iter_mut().find(|r| r.opaque_id == opaque_id && r.due_date == due))
+        else {
+            return false;
+        };
+        row.last_notified = Some(today.to_owned());
+        true
+    }
+
+    pub fn remove_profile_reminders(&mut self, profile: &str) {
+        self.reminder_index.remove(profile);
+    }
+
     pub fn backup_mirror_dir(&self, profile_id: &str) -> Option<&str> {
         self.backup_mirror_dirs.get(profile_id).map(String::as_str)
     }
@@ -118,6 +184,68 @@ impl DeviceSettingsStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn indexed(id: &str, due: &str) -> ReminderIndexEntry {
+        ReminderIndexEntry {
+            opaque_id: id.into(),
+            due_date: due.into(),
+            last_notified: None,
+        }
+    }
+
+    #[test]
+    fn reminder_index_defaults_and_persists_only_allowed_fields() {
+        let old: DeviceSettings = serde_json::from_str(r#"{"tray_enabled":true}"#).unwrap();
+        assert!(old.reminder_index.is_empty());
+        let dir = temp_dir("reminder-shape");
+        let file = dir.join(DEVICE_SETTINGS_FILENAME);
+        let device = DeviceSettingsStore::load(file.clone());
+        device
+            .update(|s| s.replace_reminders("p", "Alex", vec![indexed("opaque", "2026-09-20")]))
+            .unwrap();
+        let json = serde_json::to_value(DeviceSettingsStore::load(file).snapshot()).unwrap();
+        assert_eq!(
+            json["reminder_index"],
+            serde_json::json!({"p": {
+                "profile_name":"Alex", "entries":[{"opaque_id":"opaque", "due_date":"2026-09-20", "last_notified":null}]
+            }})
+        );
+    }
+
+    #[test]
+    fn reminder_refresh_preserves_sent_occurrence_and_other_profiles() {
+        let mut s = DeviceSettings::default();
+        s.replace_reminders("p", "Alex", vec![indexed("a", "2026-09-20")]);
+        s.replace_reminders("q", "Sam", vec![indexed("b", "2026-09-21")]);
+        assert!(s.mark_index_reminder_sent("p", "a", "2026-09-20", "2026-09-18"));
+        s.replace_reminders("p", "New name", vec![indexed("a", "2026-09-20")]);
+        assert_eq!(s.reminder_index["p"].entries[0].last_notified.as_deref(), Some("2026-09-18"));
+        assert_eq!(s.reminder_index["p"].profile_name, "New name");
+        assert_eq!(s.reminder_index["q"].entries.len(), 1);
+        s.replace_reminders("p", "Alex", vec![indexed("a", "2026-10-20")]);
+        assert_eq!(s.reminder_index["p"].entries[0].last_notified, None);
+        assert!(!s.mark_index_reminder_sent("p", "a", "2026-09-20", "2026-09-18"));
+        s.remove_profile_reminders("p");
+        assert!(!s.reminder_index.contains_key("p"));
+        assert!(s.reminder_index.contains_key("q"));
+    }
+
+    #[test]
+    fn indexed_due_window_is_inclusive_and_never_repeats_a_sent_occurrence() {
+        let today = "2026-09-18".parse().unwrap();
+        for (due, expected) in [
+            ("2026-09-17", false),
+            ("2026-09-18", true),
+            ("2026-09-21", true),
+            ("2026-09-22", false),
+            ("bad", false),
+        ] {
+            let mut row = indexed("a", due);
+            assert_eq!(row.is_due(today, 3), expected);
+            row.last_notified = Some("2026-09-17".into());
+            assert!(!row.is_due(today, 3));
+        }
+    }
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("vaultspend-device-settings-test-{name}-{}", std::process::id()));

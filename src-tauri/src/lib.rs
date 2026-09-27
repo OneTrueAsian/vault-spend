@@ -395,6 +395,8 @@ pub fn run() {
             debug_commands::debug_apply_system_session_event,
             #[cfg(debug_assertions)]
             debug_commands::debug_set_main_window_visible,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_check_reminders,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

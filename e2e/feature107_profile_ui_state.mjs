@@ -4,16 +4,15 @@
 // the same computer never inherits it; and a `set_profile_ui_state` call carrying a generation from
 // before a profile switch is refused, never silently applied to whichever profile is open by then.
 //
-// Seeding localStorage has to happen in the narrow window between the app's page actually loading
-// (so it's on the right origin) and its own mount effect reading it — well before `launchApp`'s
-// default `ready: ".brand-word"` wait resolves, confirmed empirically while writing this spec: without
-// `beforeReady`, `is_ui_state_migrated` is already `true` (migration already ran and found nothing)
-// by the time `launchApp()` itself returns.
+// Seed at the profile selector, where App has not mounted and cannot migrate yet. The former
+// beforeReady hook ran after browser navigation and could lose to the first mount under load.
+// The migration assertions remain unchanged; only the fixture's ordering is made deterministic.
 //
 // Run with: node e2e/feature107_profile_ui_state.mjs
 
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, dismissFirstLaunchDialogs } from "./harness.mjs";
+import { seedProfiles } from "./lib/protection.mjs";
 
 async function invoke(browser, command, args = {}) {
   const result = await browser.executeAsync((command, args, done) => {
@@ -25,13 +24,16 @@ async function invoke(browser, command, args = {}) {
 const LEGACY_KEY = "meadow-saved-ledger-filters";
 const LEGACY_VALUE = '[{"name":"Groceries only"}]';
 
-const app = await launchApp({
-  beforeReady: async (browser) => {
-    await browser.execute((key, value) => localStorage.setItem(key, value), LEGACY_KEY, LEGACY_VALUE);
-  },
-});
+const dbDir = await seedProfiles([{ name: "Default" }]);
+const app = await launchApp({ dbDir, ready: "[data-profile-selector]" });
 try {
   const { browser } = app;
+  assert.equal((await invoke(browser, "is_ui_state_migrated")).ok, false, "selector must precede the first migration");
+  await browser.execute((key, value) => localStorage.setItem(key, value), LEGACY_KEY, LEGACY_VALUE);
+  const selected = await invoke(browser, "select_profile", { id: "default-0" });
+  assert.equal(selected.error, undefined, `opening the seeded profile failed: ${JSON.stringify(selected)}`);
+  await browser.$(".brand-word").waitForExist({ timeout: 10000 });
+  await dismissFirstLaunchDialogs(browser);
 
   // 1. The value migrates into the database, and localStorage is cleared, on the very first launch.
   await browser.waitUntil(async () => (await invoke(browser, "is_ui_state_migrated")).ok === true, {
