@@ -50,6 +50,7 @@ export type Profile = {
   name: string;
   is_active: boolean;
   icon_key: string | null;
+  is_password_protected: boolean;
 };
 
 export type LivePriceProviderId = "alpha_vantage" | "finnhub" | "twelve_data" | "stockdata_org";
@@ -449,6 +450,13 @@ export type RolledAccount = {
   account_id: number;
   account_name: string;
   new_balance: string;
+};
+
+/** What opening a profile's housekeeping did, kept by the backend for the page to show once. */
+export type MaintenanceSummary = {
+  rolled: RolledAccount[];
+  contributions: SinkingFundContribution[];
+  warnings: string[];
 };
 
 export type BudgetAlert = {

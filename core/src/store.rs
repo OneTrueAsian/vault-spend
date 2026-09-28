@@ -6,6 +6,11 @@ use rust_decimal::Decimal;
 use std::path::Path;
 use std::str::FromStr;
 
+mod encryption;
+pub use self::encryption::{DatabaseKey, StoreOpenError, file_looks_encrypted};
+mod profile_ui_state;
+pub use self::profile_ui_state::UiStateKey;
+
 /// The starter categories offered before the user has created or used any
 /// of their own — seeded once into the `categories` table on a fresh
 /// database (see `Store::seed_default_categories_if_missing`).
@@ -512,6 +517,16 @@ pub struct BillReminder {
     pub due_date: NaiveDate,
 }
 
+/// Minimal open-database projection. The row id is used only to match live reminders;
+/// callers must persist only the opaque identity, due date, and sent date.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReminderProjection {
+    pub recurring_id: i64,
+    pub opaque_id: String,
+    pub due_date: NaiveDate,
+    pub last_notified: Option<NaiveDate>,
+}
+
 /// One cell of the Reports page's category-by-month table — see
 /// `Store::category_spending_by_month`.
 #[derive(Debug, Clone, PartialEq)]
@@ -907,6 +922,8 @@ pub struct Store {
     /// build type, since there's no sibling directory to put it in and no
     /// real user data to explain.
     activity_log_path: Option<std::path::PathBuf>,
+    /// The raw database key when this store was opened encrypted. Zeroized when the store drops.
+    db_key: Option<zeroize::Zeroizing<[u8; 32]>>,
 }
 
 impl Store {
@@ -920,6 +937,7 @@ impl Store {
         let store = Store {
             conn: Connection::open(path)?,
             activity_log_path,
+            db_key: None,
         };
         store.init_schema()?;
         Ok(store)
@@ -929,6 +947,7 @@ impl Store {
         let store = Store {
             conn: Connection::open_in_memory()?,
             activity_log_path: None,
+            db_key: None,
         };
         store.init_schema()?;
         Ok(store)
@@ -1223,11 +1242,26 @@ impl Store {
                 value TEXT NOT NULL,
                 PRIMARY KEY (account_id, date)
             );
+            CREATE TABLE IF NOT EXISTS reminder_identities (
+                recurring_id INTEGER PRIMARY KEY,
+                opaque_id TEXT NOT NULL UNIQUE
+            );
+            INSERT OR IGNORE INTO reminder_identities SELECT id, lower(hex(randomblob(16))) FROM recurring;
+            CREATE TRIGGER IF NOT EXISTS recurring_reminder_identity_insert AFTER INSERT ON recurring BEGIN
+                INSERT INTO reminder_identities VALUES (NEW.id, lower(hex(randomblob(16))));
+            END;
+            CREATE TRIGGER IF NOT EXISTS recurring_reminder_identity_delete AFTER DELETE ON recurring BEGIN
+                DELETE FROM reminder_identities WHERE recurring_id = OLD.id;
+            END;
             CREATE TABLE IF NOT EXISTS reminders_sent (
                 recurring_id INTEGER NOT NULL,
                 due_date TEXT NOT NULL,
                 sent_on TEXT NOT NULL,
                 PRIMARY KEY (recurring_id, due_date)
+            );
+            CREATE TABLE IF NOT EXISTS profile_ui_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
             );",
         )?;
         self.migrate_add_account_id_if_missing()?;
@@ -3922,10 +3956,10 @@ impl Store {
         choices: &std::collections::HashMap<String, ImportCategoryChoice>,
     ) -> Result<(), ImportCategoryError> {
         for choice in choices.values() {
-            if let ImportCategoryChoice::MapTo(target) = choice {
-                if self.find_category(target)?.is_none() {
-                    return Err(ImportCategoryError::UnknownCategory(target.trim().to_string()));
-                }
+            if let ImportCategoryChoice::MapTo(target) = choice
+                && self.find_category(target)?.is_none()
+            {
+                return Err(ImportCategoryError::UnknownCategory(target.trim().to_string()));
             }
         }
         for tx in txns.iter_mut() {
@@ -7530,6 +7564,38 @@ impl Store {
             .collect())
     }
 
+    /// One next occurrence for every active expense, including those outside the three-day
+    /// notification window. This read-only cache projection remains useful while locked as
+    /// future dates enter that window. It never projects a paid bill due today.
+    pub fn reminder_projection(&self, today: NaiveDate) -> rusqlite::Result<Vec<ReminderProjection>> {
+        let paid: std::collections::HashSet<i64> = self
+            .recurring_matches(today)?
+            .into_iter()
+            .filter(|m| m.state == "paid" && m.last_due == Some(today))
+            .map(|m| m.recurring_id)
+            .collect();
+        self.list_recurring(today)?
+            .into_iter()
+            .filter(|r| r.status != "canceled" && r.amount < Decimal::ZERO)
+            .filter(|r| !(r.next_date == today && paid.contains(&r.id)))
+            .map(|r| {
+                let (opaque_id, sent): (String, Option<String>) = self.conn.query_row(
+                    "SELECT i.opaque_id, s.sent_on FROM reminder_identities i
+                     LEFT JOIN reminders_sent s ON s.recurring_id = i.recurring_id AND s.due_date = ?2
+                     WHERE i.recurring_id = ?1",
+                    params![r.id, r.next_date.to_string()],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                Ok(ReminderProjection {
+                    recurring_id: r.id,
+                    opaque_id,
+                    due_date: r.next_date,
+                    last_notified: sent.and_then(|s| s.parse().ok()),
+                })
+            })
+            .collect()
+    }
+
     /// Records that the reminder for this bill and due date went out, so it
     /// isn't sent again. Recording twice is harmless.
     pub fn mark_reminder_sent(&self, recurring_id: i64, due_date: NaiveDate, today: NaiveDate) -> rusqlite::Result<()> {
@@ -7726,6 +7792,9 @@ impl Store {
     /// copied or the destination file's correctness.
     pub fn backup_to(&self, dest_path: impl AsRef<Path>) -> rusqlite::Result<()> {
         let mut dest = Connection::open(dest_path)?;
+        if let Some(key) = &self.db_key {
+            dest.execute_batch(&encryption::key_pragma(key))?;
+        }
         let backup = rusqlite::backup::Backup::new(&self.conn, &mut dest)?;
         backup.run_to_completion(i32::MAX, std::time::Duration::ZERO, None)?;
         Ok(())
@@ -19388,6 +19457,30 @@ mod tests {
     }
 
     // ---- Phase 2 / 18: background bill reminders ----
+
+    #[test]
+    fn reminder_projection_keeps_future_dates_and_stable_private_identity() {
+        let store = Store::open_in_memory().unwrap();
+        let id = bill(&store, "Secret merchant", "-123.45", "2026-09-30");
+        bill(&store, "Income", "3000", "2026-09-20");
+        let canceled = bill(&store, "Canceled", "-10", "2026-09-20");
+        store.set_recurring_status(canceled, "canceled").unwrap();
+        let rows = store.reminder_projection(day("2026-09-18")).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].due_date, day("2026-09-30"));
+        assert_eq!(rows[0].opaque_id.len(), 32);
+        let opaque = rows[0].opaque_id.clone();
+        assert_ne!(opaque, id.to_string());
+        store.mark_reminder_sent(id, day("2026-09-30"), day("2026-09-27")).unwrap();
+        let rows = store.reminder_projection(day("2026-09-28")).unwrap();
+        assert_eq!(rows[0].opaque_id, opaque);
+        assert_eq!(rows[0].last_notified, Some(day("2026-09-27")));
+        let rows = store.reminder_projection(day("2026-10-01")).unwrap();
+        assert_eq!(rows[0].opaque_id, opaque);
+        assert_eq!(rows[0].last_notified, None);
+        store.delete_recurring(id).unwrap();
+        assert!(store.reminder_projection(day("2026-09-18")).unwrap().is_empty());
+    }
 
     fn bill(store: &Store, merchant: &str, amount: &str, anchor: &str) -> i64 {
         store.create_recurring(merchant, None, dec(amount), "monthly", day(anchor), None).unwrap()

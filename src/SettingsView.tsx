@@ -6,6 +6,12 @@ import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { RulesManager } from "./RulesManager";
 import { CHANGELOG } from "./changelog";
 import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
+import { ProfileProtectionSection } from "./ProfileProtectionSection";
+import { ProtectionLeftovers } from "./ProtectionLeftovers";
+import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
+import { getCurrentGeneration } from "./profileUiState";
+import { ModalShell } from "./Modal";
+import { PasswordForm } from "./PasswordForm";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -105,6 +111,7 @@ function DataSection({
   onBrowseCopyDir,
   onDownloadSetupTemplate,
   onImportSetupData,
+  isProtected,
 }: {
   dataFileLocation: string | null;
   onRelocateDataFile: () => void;
@@ -112,12 +119,13 @@ function DataSection({
   onUseExistingDataFile: () => void;
   backups: Backup[];
   onCreateBackupNow: () => void;
-  onRestoreBackup: (filename: string) => void;
+  onRestoreBackup: (filename: string, password?: string) => void | Promise<void>;
   copyDir: string | null;
   onSetCopyDir: (dir: string | null) => void;
   onBrowseCopyDir: () => void;
   onDownloadSetupTemplate: () => void;
   onImportSetupData: () => void;
+  isProtected: boolean;
 }) {
   return (
     <div className="card" data-data-section>
@@ -134,6 +142,7 @@ function DataSection({
         backups={backups}
         onCreateBackupNow={onCreateBackupNow}
         onRestoreBackup={onRestoreBackup}
+        isProtected={isProtected}
         copyDir={copyDir}
         onSetCopyDir={onSetCopyDir}
         onBrowseCopyDir={onBrowseCopyDir}
@@ -209,22 +218,25 @@ function BackupCopySection({
 }
 
 /** The backup list and second-copy folder — the second block of the "Data" section. */
-function BackupsBlock({
+export function BackupsBlock({
   backups,
   onCreateBackupNow,
   onRestoreBackup,
   copyDir,
   onSetCopyDir,
   onBrowseCopyDir,
+  isProtected,
 }: {
   backups: Backup[];
   onCreateBackupNow: () => void;
-  onRestoreBackup: (filename: string) => void;
+  onRestoreBackup: (filename: string, password?: string) => void | Promise<void>;
   copyDir: string | null;
   onSetCopyDir: (dir: string | null) => void;
   onBrowseCopyDir: () => void;
+  isProtected: boolean;
 }) {
   const [confirmingRestoreFilename, setConfirmingRestoreFilename] = useState<string | null>(null);
+  const [passwordRestoreFilename, setPasswordRestoreFilename] = useState<string | null>(null);
 
   return (
     <div className="data-block" data-backups>
@@ -261,8 +273,9 @@ function BackupsBlock({
                     <button
                       type="button"
                       onClick={() => {
-                        onRestoreBackup(b.filename);
                         setConfirmingRestoreFilename(null);
+                        if (isProtected) setPasswordRestoreFilename(b.filename);
+                        else void onRestoreBackup(b.filename);
                       }}
                     >
                       Restore
@@ -285,6 +298,22 @@ function BackupsBlock({
           )}
         </tbody>
       </table>
+      {passwordRestoreFilename && (
+        <ModalShell title="Restore password-protected backup" onCancel={() => setPasswordRestoreFilename(null)}>
+          <p className="modal-message-secondary">
+            Enter the password that protected this backup when it was created. If you changed your password later,
+            this may be your old password. Restoring also makes that password current again.
+          </p>
+          <PasswordForm
+            submitLabel="Restore"
+            onCancel={() => setPasswordRestoreFilename(null)}
+            onSubmit={async (password) => {
+              await onRestoreBackup(passwordRestoreFilename, password);
+              setPasswordRestoreFilename(null);
+            }}
+          />
+        </ModalShell>
+      )}
     </div>
   );
 }
@@ -499,11 +528,15 @@ function BackgroundRemindersSection({
   onSetTray,
   onSetAutostart,
   onSendTest,
+  showBillNamesInReminders,
+  onSetShowBillNamesInReminders,
 }: {
   settings: BackgroundSettings | null;
   onSetTray: (enabled: boolean) => void;
   onSetAutostart: (enabled: boolean) => void;
   onSendTest: () => void;
+  showBillNamesInReminders: boolean;
+  onSetShowBillNamesInReminders: (enabled: boolean) => void;
 }) {
   if (!settings) return null;
   return (
@@ -545,6 +578,21 @@ function BackgroundRemindersSection({
             </span>
           </label>
         )}
+        <label className="feature-toggle-row">
+          <input
+            type="checkbox"
+            checked={showBillNamesInReminders}
+            onChange={(e) => onSetShowBillNamesInReminders(e.target.checked)}
+            data-show-bill-names-toggle
+          />
+          <span className="feature-toggle-text">
+            <span className="feature-toggle-label">Show bill names in reminders</span>
+            <span className="modal-message-secondary">
+              Only applies while a password-protected profile is unlocked — its reminders say "A bill is due soon" instead
+              of naming it, unless this is on. An unprotected profile always names the bill.
+            </span>
+          </span>
+        </label>
       </div>
     </div>
   );
@@ -673,7 +721,7 @@ function ProfileIconPopover({ anchorRect, onClose, children }: { anchorRect: DOM
   );
 }
 
-function ProfilesSection({
+export function ProfilesSection({
   profiles,
   onCreateProfile,
   onUseExistingDataFile,
@@ -681,6 +729,7 @@ function ProfilesSection({
   onRenameProfile,
   onSetProfileIcon,
   onDeleteProfile,
+  onProtected,
 }: {
   profiles: Profile[];
   onCreateProfile: (name: string) => void;
@@ -694,18 +743,25 @@ function ProfilesSection({
   onRenameProfile: (id: string, newName: string) => void;
   onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
+  onProtected: () => void;
 }) {
   const [newProfileName, setNewProfileName] = useState("");
+  const [protectNewProfile, setProtectNewProfile] = useState(false);
+  const [pendingProtectedProfile, setPendingProtectedProfile] = useState<{ name: string; generation: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
   const [editingIcon, setEditingIcon] = useState<{ id: string; anchorRect: DOMRect } | null>(null);
 
-  function handleCreateSubmit(e: FormEvent) {
+  async function handleCreateSubmit(e: FormEvent) {
     e.preventDefault();
     const trimmed = newProfileName.trim();
     if (!trimmed) return;
+    if (protectNewProfile) {
+      setPendingProtectedProfile({ name: trimmed, generation: await getCurrentGeneration() });
+      return;
+    }
     onCreateProfile(trimmed);
     setNewProfileName("");
   }
@@ -793,6 +849,11 @@ function ProfilesSection({
                 ) : (
                   <>
                     {p.name}
+                    {p.is_password_protected && (
+                      <span className="settings-profile-lock" aria-label="Password protected" title="Password protected">
+                        🔒
+                      </span>
+                    )}
                     {p.is_active && <span className="account-col"> (current)</span>}
                   </>
                 )}
@@ -845,6 +906,15 @@ function ProfilesSection({
         <button type="button" className="modal-secondary" onClick={onUseExistingDataFile}>
           Use existing file…
         </button>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            data-protect-new-profile
+            checked={protectNewProfile}
+            onChange={(event) => setProtectNewProfile(event.target.checked)}
+          />
+          Protect this profile with a password
+        </label>
       </form>
       <p className="modal-message-secondary">
         Moving to a new computer, or upgrading from an older version that used a different data file name? "Use
@@ -852,6 +922,20 @@ function ProfilesSection({
         checked for real account/transaction data before being adopted — a file that isn't actually a Vault Spend
         database is rejected with a clear reason.
       </p>
+      {pendingProtectedProfile && (
+        <ProtectionSetupDialog
+          targetProfileId={null}
+          newProfileName={pendingProtectedProfile.name}
+          expectedGeneration={pendingProtectedProfile.generation}
+          onDone={() => {
+            setPendingProtectedProfile(null);
+            setNewProfileName("");
+            setProtectNewProfile(false);
+            onProtected();
+          }}
+          onCancel={() => setPendingProtectedProfile(null)}
+        />
+      )}
     </div>
   );
 }
@@ -966,6 +1050,7 @@ export function SettingsView({
   onRenameProfile,
   onSetProfileIcon,
   onDeleteProfile,
+  onProtected,
   livePriceSettings,
   onSetLivePriceApiKey,
   onRefreshLivePrices,
@@ -985,6 +1070,8 @@ export function SettingsView({
   onSetTray,
   onSetAutostart,
   onSendTestReminder,
+  showBillNamesInReminders,
+  onSetShowBillNamesInReminders,
   categories,
   onRulesApplied,
   onMessage,
@@ -995,6 +1082,8 @@ export function SettingsView({
   onSetTray: (enabled: boolean) => void;
   onSetAutostart: (enabled: boolean) => void;
   onSendTestReminder: () => void;
+  showBillNamesInReminders: boolean;
+  onSetShowBillNamesInReminders: (enabled: boolean) => void;
   privacyAutoHide: boolean;
   onSetPrivacyAutoHide: (autoHide: boolean) => void;
   categories: string[];
@@ -1007,7 +1096,7 @@ export function SettingsView({
   onExportDatabase: () => void;
   backups: Backup[];
   onCreateBackupNow: () => void;
-  onRestoreBackup: (filename: string) => void;
+  onRestoreBackup: (filename: string, password?: string) => void | Promise<void>;
   backupCopyDir: string | null;
   onSetBackupCopyDir: (dir: string | null) => void;
   onBrowseBackupCopyDir: () => void;
@@ -1018,6 +1107,9 @@ export function SettingsView({
   onRenameProfile: (id: string, newName: string) => void;
   onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
+  /** Password-protection state changed. Refresh profile metadata and any Settings values whose
+   * backing files can move during a protection transition. */
+  onProtected: () => void;
   livePriceSettings: LivePriceSettings | null;
   onSetLivePriceApiKey: (provider: LivePriceProviderId, apiKey: string | null) => void;
   onRefreshLivePrices: () => void;
@@ -1048,7 +1140,10 @@ export function SettingsView({
         onRenameProfile={onRenameProfile}
         onSetProfileIcon={onSetProfileIcon}
         onDeleteProfile={onDeleteProfile}
+        onProtected={onProtected}
       />
+      <ProfileProtectionSection profiles={profiles} onProtected={onProtected} />
+      <ProtectionLeftovers profiles={profiles} />
       <DataSection
         dataFileLocation={dataFileLocation}
         onRelocateDataFile={onRelocateDataFile}
@@ -1062,12 +1157,15 @@ export function SettingsView({
         onBrowseCopyDir={onBrowseBackupCopyDir}
         onDownloadSetupTemplate={onDownloadSetupTemplate}
         onImportSetupData={onImportSetupData}
+        isProtected={profiles.find((profile) => profile.is_active)?.is_password_protected ?? false}
       />
       <BackgroundRemindersSection
         settings={backgroundSettings}
         onSetTray={onSetTray}
         onSetAutostart={onSetAutostart}
         onSendTest={onSendTestReminder}
+        showBillNamesInReminders={showBillNamesInReminders}
+        onSetShowBillNamesInReminders={onSetShowBillNamesInReminders}
       />
       <LivePricesSection
         settings={livePriceSettings}

@@ -1,18 +1,32 @@
+mod auto_lock;
 mod background;
 mod backups;
 mod commands;
 mod config;
+#[cfg(debug_assertions)]
+mod debug_commands;
+mod device_settings;
 mod finnhub;
+mod launch_commands;
 mod legacy_migration;
 mod live_price_provider;
 mod live_prices;
+mod maintenance;
 mod profiles;
+mod protection_commands;
+mod protection_leftovers;
+mod protection_lifecycle;
+mod protection_session;
+mod protection_transition;
+mod runtime;
+mod startup;
 mod stockdata;
+mod system_session;
 mod twelve_data;
 mod updater;
 mod window_state;
 
-use commands::{AppState, AppStateHandle};
+use commands::AppStateHandle;
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -22,7 +36,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .on_window_event(|window, event| background::handle_window_event(window, event))
+        .on_window_event(background::handle_window_event)
         .setup(|app| {
             // Identifier (tauri.conf.json) and this filename were renamed
             // from "com.joeyf.meadow" / "meadow.db" to "com.joeyf.pennywise"
@@ -47,7 +61,7 @@ pub fn run() {
             // The default directory is where config.json lives (the one
             // fixed, discoverable location) even after the user relocates
             // their actual database elsewhere via the Reports tab's
-            // Settings section — see config::resolve_db_path.
+            // Settings section — see startup::open_from_disk.
             //
             // **Debug builds default to a dev-only directory, never the
             // real AppData folder, even without VAULTSPEND_DB_DIR set** —
@@ -82,24 +96,24 @@ pub fn run() {
                 }
             }
             let config_path = default_dir.join("config.json");
-            let db_path = config::resolve_db_path(&config_path, &default_dir);
 
-            let state = AppState::open(&db_path).map_err(std::io::Error::other)?;
-
-            // A failed automatic backup (disk full, permissions, ...)
-            // must never block the user from opening the app — logged,
-            // not propagated with `?`.
-            let backups_dir = backups::backups_dir_for(&db_path);
-            if let Err(e) = backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
-                eprintln!("automatic backup failed (continuing anyway): {e}");
-            }
-
-            app.manage::<AppStateHandle>(Mutex::new(state));
+            // This computer's settings (tray, start at sign-in, second backup folders) live in a file
+            // beside config.json, so a start with no profile open can still decide what the tray and
+            // the window do without a database.
+            app.manage(device_settings::DeviceSettingsStore::load(default_dir.join(device_settings::DEVICE_SETTINGS_FILENAME)));
+            app.manage::<AppStateHandle>(runtime::AppRuntime::no_profile_open());
             app.manage(config::AppPaths {
-                config_path,
-                db_path: Mutex::new(db_path),
+                config_path: config_path.clone(),
+                db_path: Mutex::new(default_dir.join(config::DB_FILENAME)),
                 generation: std::sync::atomic::AtomicU64::new(0),
             });
+            app.manage(startup::LaunchStatus::new(default_dir.clone()));
+            app.manage(protection_session::Sessions::new());
+            app.manage(auto_lock::AutoLockController::new());
+
+            if let Err(error) = system_session::install(app.handle()) {
+                eprintln!("system session event hook could not be installed: {error}");
+            }
 
             // Restores the window to whatever size (never position — a
             // saved position could sit on a monitor that's no longer
@@ -113,26 +127,74 @@ pub fn run() {
             // the exact real-AppData leak that handling was written to fix.
             window_state::restore_and_track(app.handle(), &default_dir);
 
-            // The opt-in background behaviour: bring the tray icon up if it's
-            // switched on, start the reminder check, and stay out of the way
-            // when started from the sign-in entry.
+            // A profile that can't be opened never aborts the launch: the window shows why, and what the
+            // person can do about it (launch_commands.rs). Nothing quietly opens a different file instead.
+            // Resolved before anything else opens: an interrupted `enable_protection` (Phase C,
+            // Task 5) must either finish or fully unwind before `config.json`'s current db_path is
+            // trusted — see `protection_transition::recover_interrupted_operation`'s own doc
+            // comment. A journal that cannot even be read is left for the person to see rather than
+            // guessed at, the same "never silently open something else" treatment as a damaged
+            // profiles.json.
             let handle = app.handle().clone();
-            if app
-                .state::<AppStateHandle>()
-                .lock()
-                .map(|s| s.store.get_background_settings().map(|b| b.tray_enabled).unwrap_or(false))
-                .unwrap_or(false)
-            {
-                if let Err(e) = background::install_tray(&handle) {
-                    eprintln!("tray icon failed (continuing without it): {e}");
+            let protection_recovery = protection_transition::recover_interrupted_operation(&config_path)
+                .and_then(|()| protection_lifecycle::recover_interrupted_rotation(&config_path))
+                .and_then(|()| protection_lifecycle::recover_interrupted_removal(&config_path));
+            if let Err(reason) = protection_recovery {
+                eprintln!("couldn't recover an interrupted password-protection change: {reason}");
+                app.state::<startup::LaunchStatus>().set_error(startup::LaunchError {
+                    kind: startup::LaunchErrorKind::ProtectionJournalUnreadable,
+                    message: "Vault Spend found an unfinished password-protection change it couldn't safely resolve. Your data files have not been changed.".to_string(),
+                    details: reason,
+                    db_path: None,
+                    can_restore_registry: false,
+                    other_profiles: Vec::new(),
+                });
+                background::sync_tray_with_settings(&handle);
+            } else if !(profiles::registry_file_exists(&config_path) && profiles::registered_profiles_strict(&config_path).is_ok()) {
+                // No registry at all, OR one that exists but can't even be read: unchanged
+                // pre-Phase-C behavior either way — open whatever config.json (or the default
+                // location) names directly. `open_from_disk` below already surfaces a damaged
+                // registry as its own `RegistryUnreadable` launch error (it calls
+                // `registered_profiles_strict` itself), exactly as it always has; that path must
+                // keep running for a DAMAGED registry, only a genuinely READABLE one (found by
+                // checking here, a real bug caught by Task 9's own e2e suite: checking existence
+                // alone also skipped this for a damaged profiles.json, silently losing that error)
+                // should skip straight to the selector logic below instead. Once a registry is
+                // readable, ANY of its entries could be password protected, which can never be
+                // auto-opened without asking first — so nothing here is opened at all; the
+                // frontend's very first `get_startup_state` call (now registry-aware, see
+                // `launch_commands::current`) shows the selector, a locked profile, or the
+                // empty-registry escape instead, and opening only happens once the person actually
+                // picks one.
+                match startup::open_from_disk(&config_path, &default_dir) {
+                    Ok(opened) => startup::activate(&handle, opened),
+                    Err(error) => {
+                        eprintln!("no profile could be opened at launch: {}", error.message);
+                        app.state::<startup::LaunchStatus>().set_error(error);
+                        background::sync_tray_with_settings(&handle);
+                    }
                 }
+            } else {
+                // A real registry exists and nothing was opened above — still bring the tray up
+                // from this computer's settings, the same as every other no-profile-open branch,
+                // so it's available while the selector/lock screen is showing.
+                background::sync_tray_with_settings(&handle);
             }
             background::start_reminder_thread(handle.clone());
+            auto_lock::start_timer_thread(handle.clone());
             background::hide_if_started_minimized(&handle);
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            launch_commands::get_startup_state,
+            launch_commands::retry_startup,
+            launch_commands::restore_registry_backup,
+            launch_commands::open_profile_at_launch,
+            launch_commands::locate_data_file,
+            launch_commands::quit_app,
+            launch_commands::start_with_new_data_file,
+            launch_commands::start_with_new_profile_list,
             commands::write_text_file,
             commands::download_update_asset,
             commands::get_data_file_location,
@@ -154,6 +216,31 @@ pub fn run() {
             commands::rename_profile,
             commands::set_profile_icon,
             commands::delete_profile,
+            commands::get_profile_ui_state,
+            commands::set_profile_ui_state,
+            commands::mark_ui_state_migrated,
+            commands::is_ui_state_migrated,
+            commands::get_current_generation,
+            protection_commands::show_profile_selector,
+            protection_commands::select_profile,
+            protection_commands::unlock_profile,
+            protection_commands::lock_current_profile,
+            protection_commands::get_auto_lock_settings,
+            protection_commands::set_auto_lock_settings,
+            auto_lock::record_trusted_activity,
+            protection_commands::verify_current_password,
+            protection_commands::change_password,
+            protection_commands::begin_regenerate_recovery,
+            protection_commands::commit_regenerate_recovery,
+            protection_commands::remove_protection,
+            protection_commands::verify_recovery_code,
+            protection_commands::begin_recovery,
+            protection_commands::commit_recovery,
+            protection_commands::begin_protection_setup,
+            protection_commands::cancel_protection_setup,
+            protection_commands::commit_protection_setup,
+            protection_commands::list_protection_leftovers,
+            protection_commands::delete_protection_leftovers,
             commands::preview_setup_import,
             commands::commit_setup_import,
             commands::preview_import,
@@ -262,7 +349,6 @@ pub fn run() {
             commands::reconciliation_status,
             commands::finish_reconciliation,
             commands::last_reconciliation,
-            commands::record_portfolio_snapshot,
             commands::investment_accumulation,
             commands::list_investment_accumulation,
             commands::account_value_history,
@@ -296,9 +382,48 @@ pub fn run() {
             commands::net_worth_history,
             commands::account_contribution_deltas,
             commands::spending_this_month,
-            commands::check_monthly_rollover,
+            commands::take_maintenance_summary,
             commands::check_sinking_fund_contributions,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_process_id,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_recovery_code_unlocks,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_advance_auto_lock,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_apply_window_lock_trigger,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_apply_system_session_event,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_set_main_window_visible,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_check_reminders,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod release_registration_tests {
+    /// `debug_commands` only exists in debug builds, so every reference to it in the command handler
+    /// list must sit directly under a `#[cfg(debug_assertions)]` attribute. A missing one compiles in
+    /// every debug build (and passes every debug-driven test) but stops a release build from
+    /// compiling at all, so this keeps that class of mistake from reaching an installer.
+    #[test]
+    fn every_debug_command_registration_is_compiled_out_of_release_builds() {
+        let source = include_str!("lib.rs");
+        let lines: Vec<&str> = source.lines().map(str::trim).collect();
+        let registrations: Vec<usize> = (0..lines.len()).filter(|&i| lines[i].starts_with("debug_commands::")).collect();
+        assert!(
+            registrations.len() >= 7,
+            "expected to find the debug command registrations, found {}",
+            registrations.len()
+        );
+        let ungated: Vec<&str> = registrations
+            .into_iter()
+            .filter(|&i| i == 0 || lines[i - 1] != "#[cfg(debug_assertions)]")
+            .map(|i| lines[i])
+            .collect();
+        assert!(ungated.is_empty(), "these would stop a release build from compiling: {ungated:?}");
+    }
 }

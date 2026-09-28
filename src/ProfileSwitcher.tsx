@@ -11,10 +11,14 @@ export function ProfileSwitcher({
   profiles,
   onSwitchProfile,
   onManageProfiles,
+  onLock,
 }: {
   profiles: Profile[];
   onSwitchProfile: (id: string) => void;
   onManageProfiles: () => void;
+  /** Omitted (no button shown) when nothing about locking makes sense yet — e.g. no profile is
+   * password protected, so there is nothing for a lock action to guard. */
+  onLock?: () => void;
 }) {
   const { open, setOpen, rootRef, triggerRef } = usePopover();
 
@@ -63,6 +67,19 @@ export function ProfileSwitcher({
           >
             Manage profiles…
           </button>
+          {onLock && (
+            <button
+              type="button"
+              className="profile-switcher-manage"
+              data-profile-switcher-lock
+              onClick={() => {
+                setOpen(false);
+                onLock();
+              }}
+            >
+              Lock profile
+            </button>
+          )}
         </div>
       )}
     </div>

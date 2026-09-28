@@ -11,7 +11,7 @@
 //
 // Run with: node e2e/feature42_dashboard_whats_changed.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 function loanResetsFixture(name, varName, balances) {
@@ -43,7 +43,15 @@ try {
 
   const panel = await app.browser.$(".stat-detail-panel");
   await panel.waitForExist({ timeout: 5000 });
-  const panelText = await panel.getText();
+  // The panel is drawn from data the app loads after its shell appears, so it can open first with "No
+  // accounts contribute to this yet." — wait for the breakdown instead of reading it once.
+  const panelTextNow = async () => (await app.browser.$(".stat-detail-panel").getText());
+  await waitUntilOrDiagnose(app.browser, async () => (await panelTextNow()).includes("What changed"), {
+    timeout: 15000,
+    timeoutMsg: 'expected a "What changed" section in the Debt panel',
+    extra: async () => ({ panel: (await panelTextNow()).replace(/\s+/g, " ").slice(0, 200) }),
+  });
+  const panelText = await panelTextNow();
   console.log("debt detail panel:", panelText);
 
   if (!panelText.includes("What changed")) {

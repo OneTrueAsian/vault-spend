@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -30,25 +30,38 @@ try {
   const b = app.browser;
   await b.setWindowSize(960, 900);
   await transactions(b);
+  // Opens the Add-to menu and measures it. The menu is dismissed by blur by design, so if another
+  // spec's window takes OS foreground mid-way (the parallel runner does this constantly — see
+  // reclaimWindowFocus) it closes and this reports `missing`. The caller retries ONLY when the
+  // window actually lost focus; a menu missing in a focused window is a real failure.
+  async function openAndMeasureAddToMenu() {
+    await reclaimWindowFocus(b);
+    await (await b.$("#ledger-account-select")).click();
+    await b.$('[role="menu"][aria-label="Add to account"]').waitForExist({ timeout: 5000 }).catch(() => {});
+    await b.waitUntil(async () => b.execute(() => {
+      const reference = document.createElement('span');
+      reference.style.background = 'var(--surface-2)';
+      document.body.append(reference);
+      const expected = getComputedStyle(reference).backgroundColor;
+      reference.remove();
+      return getComputedStyle(document.querySelector('#ledger-account-select')).backgroundColor === expected;
+    }), { timeout: 5000, timeoutMsg: 'Add to hover should use the themed field surface, not the primary-action fill' });
+    return b.execute(() => {
+      const panel = document.querySelector('.account-destination-panel');
+      if (!panel) return { missing: true, menuStillOpen: Boolean(document.querySelector('[role="menu"]')), hasFocus: document.hasFocus(), active: document.activeElement?.id || document.activeElement?.tagName };
+      const rect = panel.getBoundingClientRect();
+      return { radius: getComputedStyle(panel).borderRadius, left: rect.left, right: rect.right, bottom: rect.bottom, width: innerWidth, height: innerHeight };
+    });
+  }
   for (const palette of ["classic", "futuristic", "transparent"]) {
     for (const theme of ["light", "dark"]) {
       await b.execute((palette, theme) => { document.documentElement.dataset.palette = palette; document.documentElement.dataset.theme = theme; }, palette, theme);
-      await (await b.$("#ledger-account-select")).click();
-      const panel = await b.$('[role="menu"][aria-label="Add to account"]');
-      await panel.waitForExist({ timeout: 5000 });
-      await b.waitUntil(async () => b.execute(() => {
-        const reference = document.createElement('span');
-        reference.style.background = 'var(--surface-2)';
-        document.body.append(reference);
-        const expected = getComputedStyle(reference).backgroundColor;
-        reference.remove();
-        return getComputedStyle(document.querySelector('#ledger-account-select')).backgroundColor === expected;
-      }), { timeout: 5000, timeoutMsg: 'Add to hover should use the themed field surface, not the primary-action fill' });
-      const geometry = await b.execute(() => {
-        const panel = document.querySelector('.account-destination-panel');
-        const rect = panel.getBoundingClientRect();
-        return { radius: getComputedStyle(panel).borderRadius, left: rect.left, right: rect.right, bottom: rect.bottom, width: innerWidth, height: innerHeight };
-      });
+      let geometry;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        geometry = await openAndMeasureAddToMenu();
+        if (!geometry.missing || geometry.hasFocus) break;
+      }
+      assert.ok(!geometry.missing, `the Add-to menu closed before it could be measured (${palette}/${theme}: ${JSON.stringify(geometry)})`);
       assert.equal(geometry.radius, "10px");
       assert.ok(geometry.left >= 0 && geometry.right <= geometry.width && geometry.bottom <= geometry.height);
       await b.keys("Escape");

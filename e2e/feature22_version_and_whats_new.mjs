@@ -12,7 +12,17 @@
 //
 // Run with: node e2e/feature22_version_and_whats_new.mjs
 
+import fs from "node:fs";
 import { launchApp } from "./harness.mjs";
+
+// The release version and its What's New bullets, read from the source of truth rather than
+// hard-coded, so the same spec verifies every release candidate.
+const expectedVersion = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+const changelogSource = fs.readFileSync("src/changelog.ts", "utf8");
+const entryMatch = new RegExp(`^  "${expectedVersion.replaceAll(".", "\\.")}": \\[\\r?\\n([\\s\\S]*?)^  \\],`, "m").exec(changelogSource);
+if (!entryMatch) throw new Error(`src/changelog.ts has no entry for ${expectedVersion}`);
+const expectedBullets = [...entryMatch[1].matchAll(/^    "(.*)",\s*$/gm)].map((m) => JSON.parse(`"${m[1]}"`));
+if (expectedBullets.length === 0) throw new Error(`the ${expectedVersion} changelog entry has no bullets`);
 
 const app = await launchApp();
 try {
@@ -22,6 +32,15 @@ try {
   console.log("sidebar version:", versionString);
   if (!/^v\d+\.\d+\.\d+$/.test(versionString)) {
     throw new Error(`expected a "vX.Y.Z" version string, got "${versionString}"`);
+  }
+  if (versionString !== `v${expectedVersion}`) {
+    throw new Error(`the sidebar shows ${versionString} but package.json says ${expectedVersion}`);
+  }
+  const nativeVersion = await app.browser.executeAsync((done) => {
+    window.__TAURI_INTERNALS__.invoke("plugin:app|version").then(done, (e) => done(`error: ${e}`));
+  });
+  if (nativeVersion !== expectedVersion) {
+    throw new Error(`the app itself reports version ${nativeVersion} but package.json says ${expectedVersion}`);
   }
 
   // Manufacture the "just updated" precondition: pretend this viewer last
@@ -43,6 +62,11 @@ try {
   const noteItems = await app.browser.$$(".modal-changelog-list li");
   if (noteItems.length === 0) throw new Error("expected at least one changelog bullet in the dialog");
   console.log(`dialog shows ${noteItems.length} changelog bullet(s)`);
+  const shownBullets = [];
+  for (const item of noteItems) shownBullets.push((await item.getText()).trim());
+  if (JSON.stringify(shownBullets) !== JSON.stringify(expectedBullets)) {
+    throw new Error(`the dialog should show exactly the ${expectedVersion} entry.\nexpected: ${JSON.stringify(expectedBullets)}\nshown:    ${JSON.stringify(shownBullets)}`);
+  }
 
   const gotItBtn = await app.browser.$("button=Got it");
   await gotItBtn.click();

@@ -9,10 +9,12 @@ import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
 import { toCsv } from "./csv";
 import { buildSetupTemplate } from "./setupTemplate";
 import { CHANGELOG } from "./changelog";
+import { THEME_STORAGE_KEY, THEME_STYLE_STORAGE_KEY } from "./themeBootstrap";
 import {
   AddWidgetDialog,
   CategoryTransactionsDialog,
   ConfirmInvertDialog,
+  CsvExportWarningDialog,
   ManageCategoriesDialog,
   ManageFamilyMembersDialog,
   MonthExpenseDetailDialog,
@@ -21,12 +23,16 @@ import {
   NewTransactionDialog,
   TransferReviewDialog,
   AutoLinkedReviewDialog,
+  ChooseExistingDataSourceDialog,
+  SwitchToProtectedProfileDialog,
   UseExistingDataFileDialog,
   WelcomeDialog,
   WhatsNewDialog,
 } from "./Modal";
-import { loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
+import { DEFAULT_LAYOUT, loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
+import { lockCurrentProfile, unlockProfile } from "./protection";
+import { hasObservableUnsavedInput } from "./unsavedInput";
 import { TransferRow } from "./TransferRow";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
@@ -70,6 +76,7 @@ import { formatAmount, toLocalIsoDate } from "./format";
 import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
+import { ensureUiStateMigrated, getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import type {
   Account,
   AllocationTarget,
@@ -106,7 +113,7 @@ import type {
   RecurringTotals,
   Report,
   ReportBudgetLine,
-  RolledAccount,
+  MaintenanceSummary,
   SetupImportPreview,
   SetupImportSummary,
   SinkingFundContribution,
@@ -179,7 +186,8 @@ type PendingDialog =
       resolve: (result: NewAccountResult | null) => void;
     }
   | { kind: "newCategory"; resolve: (name: string | null) => void }
-  | { kind: "confirmInvert"; resolve: (invert: boolean) => void };
+  | { kind: "confirmInvert"; resolve: (invert: boolean) => void }
+  | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
 
 type Tab =
   | "dashboard"
@@ -284,10 +292,7 @@ const PINNED_NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
   { id: "help", label: "Help", icon: "help" },
 ];
 
-const THEME_STORAGE_KEY = "meadow-theme";
-const THEME_STYLE_STORAGE_KEY = "meadow-theme-style";
 const NAV_ORDER_STORAGE_KEY = "meadow-nav-order";
-const SAVED_FILTERS_STORAGE_KEY = "meadow-saved-ledger-filters";
 // Per-viewer, like the theme: how tall Transactions rows are. Compact is the
 // default — the comfortable layout stacked the tag box and Split button under
 // their cells and made every row ~75px tall.
@@ -348,24 +353,25 @@ type SavedLedgerFilter = {
   filterTag: string;
 };
 
-function loadSavedFilters(): SavedLedgerFilter[] {
+async function loadSavedFilters(): Promise<SavedLedgerFilter[]> {
   try {
-    const stored = localStorage.getItem(SAVED_FILTERS_STORAGE_KEY);
+    const stored = await getProfileUiState("saved_filters");
     if (stored) {
       const parsed: unknown = JSON.parse(stored);
       if (Array.isArray(parsed)) return parsed as SavedLedgerFilter[];
     }
   } catch {
-    // corrupt/unavailable storage — fall back to no saved filters
+    // corrupt/unavailable value — fall back to no saved filters
   }
   return [];
 }
 
-function saveSavedFilters(filters: SavedLedgerFilter[]) {
+async function saveSavedFilters(filters: SavedLedgerFilter[]) {
   try {
-    localStorage.setItem(SAVED_FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    const generation = await getCurrentGeneration();
+    await setProfileUiState("saved_filters", JSON.stringify(filters), generation);
   } catch {
-    // per-viewer preference only — fine to skip if storage is unavailable
+    // per-viewer preference only — fine to skip if the save fails
   }
 }
 
@@ -469,7 +475,10 @@ function App({
   });
   const [navOrder, setNavOrder] = useState<Tab[]>(loadNavOrder);
   const [dragNavTab, setDragNavTab] = useState<Tab | null>(null);
-  const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(loadDashboardLayout);
+  const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(DEFAULT_LAYOUT);
+  // Set once the person changes the layout, so a slow first read of the saved one (it arrives
+  // asynchronously after mount) can't land afterwards and undo what they just did.
+  const layoutEditedRef = useRef(false);
   const [addWidgetModalOpen, setAddWidgetModalOpen] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [anomalyFlags, setAnomalyFlags] = useState<AnomalyFlag[]>([]);
@@ -480,9 +489,35 @@ function App({
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
   const [filterTag, setFilterTag] = useState("all");
-  const [savedFilters, setSavedFilters] = useState<SavedLedgerFilter[]>(loadSavedFilters);
+  const [savedFilters, setSavedFilters] = useState<SavedLedgerFilter[]>([]);
   const [savingFilter, setSavingFilter] = useState(false);
   const [newFilterName, setNewFilterName] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    ensureUiStateMigrated()
+      .catch(() => {}) // best effort — the same treatment every browser-storage read/write here already gets
+      .then(() => loadSavedFilters())
+      .then((filters) => {
+        if (!cancelled) setSavedFilters(filters);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    ensureUiStateMigrated()
+      .catch(() => {}) // best effort — the same treatment every browser-storage read/write here already gets
+      .then(() => loadDashboardLayout())
+      .then((widgets) => {
+        if (!cancelled && !layoutEditedRef.current) setLayoutWidgetsState(widgets);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function saveCurrentFilter() {
     const name = newFilterName.trim();
@@ -565,6 +600,24 @@ function App({
       .then(setBackgroundSettings)
       .catch(() => undefined);
   }, []);
+  // Off by default for every profile; only meaningfully different once the profile is protected
+  // (decision 9) — shown in Settings unconditionally so the value is already correct if the profile
+  // is protected later, rather than hidden and then defaulted for an already-configured profile.
+  const [showBillNamesInReminders, setShowBillNamesInReminders] = useState(false);
+  useEffect(() => {
+    getProfileUiState("show_bill_names_in_reminders")
+      .then((v) => setShowBillNamesInReminders(v === "true"))
+      .catch(() => undefined);
+  }, []);
+  async function handleSetShowBillNamesInReminders(enabled: boolean) {
+    setShowBillNamesInReminders(enabled);
+    try {
+      const generation = await getCurrentGeneration();
+      await setProfileUiState("show_bill_names_in_reminders", enabled ? "true" : "false", generation);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
   const refreshBackups = useCallback(async () => {
     setBackups(await invoke<Backup[]>("list_backups"));
     setBackupCopyDir(await invoke<string | null>("get_backup_copy_dir"));
@@ -572,6 +625,10 @@ function App({
 
   const refreshProfiles = useCallback(async () => {
     setProfiles(await invoke<Profile[]>("list_profiles"));
+  }, []);
+
+  const refreshDataFileLocation = useCallback(async () => {
+    setDataFileLocation(await invoke<string>("get_data_file_location"));
   }, []);
 
   const refreshLivePriceSettings = useCallback(async () => {
@@ -583,12 +640,20 @@ function App({
   }, []);
 
   useEffect(() => {
-    invoke<string>("get_data_file_location").then(setDataFileLocation).catch((e) => setStatus(String(e)));
+    refreshDataFileLocation().catch((e) => setStatus(String(e)));
     refreshBackups().catch((e) => setStatus(String(e)));
     refreshProfiles().catch((e) => setStatus(String(e)));
     refreshLivePriceSettings().catch((e) => setStatus(String(e)));
     refreshAppSettings().catch((e) => setStatus(String(e)));
-  }, [refreshBackups, refreshProfiles, refreshLivePriceSettings, refreshAppSettings]);
+  }, [refreshBackups, refreshProfiles, refreshDataFileLocation, refreshLivePriceSettings, refreshAppSettings]);
+
+  const refreshProtectionState = useCallback(async () => {
+    try {
+      await Promise.all([refreshProfiles(), refreshDataFileLocation(), refreshBackups()]);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }, [refreshBackups, refreshDataFileLocation, refreshProfiles]);
 
   // Once live prices are enabled for the active profile, refresh right away
   // and then every 2 hours for as long as the app stays open. Keyed on
@@ -675,12 +740,14 @@ function App({
     }
   }
 
-  async function handleRestoreBackup(filename: string) {
+  async function handleRestoreBackup(filename: string, password?: string) {
     try {
-      await invoke("restore_backup", { filename });
+      const expectedGeneration = await getCurrentGeneration();
+      await invoke("restore_backup", { filename, password: password ?? null, expectedGeneration });
       onDataFileChanged(`Restored ${filename} — your prior data was backed up first.`);
     } catch (e) {
       setStatus(String(e));
+      if (password !== undefined) throw e;
     }
   }
 
@@ -696,9 +763,14 @@ function App({
   }
 
   async function handleExportDatabase() {
+    const isProtected = profiles.find((profile) => profile.is_active)?.is_password_protected ?? false;
     const path = await save({
-      defaultPath: `vaultspend-export-${toLocalIsoDate(new Date())}.db`,
-      filters: [{ name: "Vault Spend Database", extensions: ["db"] }],
+      defaultPath: `vaultspend-export-${toLocalIsoDate(new Date())}.${isProtected ? "vaultspend" : "db"}`,
+      filters: [
+        isProtected
+          ? { name: "Vault Spend Protected Package", extensions: ["vaultspend"] }
+          : { name: "Vault Spend Database", extensions: ["db"] },
+      ],
     });
     if (!path) return;
     try {
@@ -723,26 +795,68 @@ function App({
    * split the same way `handleRelocateDataFile` splits picking a folder
    * from the backend call, except a name has to come from the user first. */
   async function handlePickExistingDataFile() {
+    setChoosingExistingSource(true);
+  }
+
+  async function handlePickExistingDatabase() {
     const path = await open({ multiple: false, filters: [{ name: "Vault Spend Database", extensions: ["db"] }] });
     if (!path || Array.isArray(path)) return;
+    setChoosingExistingSource(false);
+    setPendingExistingIsProtected(false);
     setPendingExistingDbPath(path);
   }
 
-  async function handleAddExistingProfile(name: string) {
+  async function handlePickProtectedPackage() {
+    const path = await open({ directory: true, multiple: false, title: "Choose a .vaultspend package folder" });
+    if (!path || Array.isArray(path)) return;
+    setChoosingExistingSource(false);
+    setPendingExistingIsProtected(true);
+    setPendingExistingDbPath(path);
+  }
+
+  async function handleAddExistingProfile(name: string, password?: string) {
     if (!pendingExistingDbPath) return;
     try {
-      const added = await invoke<string>("add_existing_profile", { name, dbPath: pendingExistingDbPath });
+      const expectedGeneration = await getCurrentGeneration();
+      const added = await invoke<string>("add_existing_profile", {
+        name,
+        dbPath: pendingExistingDbPath,
+        password: password ?? null,
+        expectedGeneration,
+      });
       setPendingExistingDbPath(null);
+      setPendingExistingIsProtected(false);
       onDataFileChanged(`Switched to "${added}".`);
+    } catch (e) {
+      setStatus(String(e));
+      if (pendingExistingIsProtected) throw e;
+    }
+  }
+
+  async function handleSwitchProfile(id: string) {
+    const target = profiles.find((p) => p.id === id);
+    if (target?.is_password_protected) {
+      setPendingProtectedSwitch({ id, name: target.name });
+      return;
+    }
+    try {
+      const switched = await invoke<string>("switch_profile", { id });
+      onDataFileChanged(`Switched to "${switched}".`);
     } catch (e) {
       setStatus(String(e));
     }
   }
 
-  async function handleSwitchProfile(id: string) {
+  // Locking never disturbs any other profile's data (there is nothing to touch — this just drops
+  // the live connection) — StartupGate's own profile-lock-state-changed subscription swaps the
+  // screen over to ProfileLockScreen on its own, so there is nothing else to do here afterward.
+  async function handleLockProfile() {
+    if (hasObservableUnsavedInput() && !window.confirm("Locking now will discard anything you haven't saved. Lock anyway?")) {
+      return;
+    }
     try {
-      const switched = await invoke<string>("switch_profile", { id });
-      onDataFileChanged(`Switched to "${switched}".`);
+      const generation = await getCurrentGeneration();
+      await lockCurrentProfile(generation);
     } catch (e) {
       setStatus(String(e));
     }
@@ -979,6 +1093,9 @@ function App({
   const [manageFamilyMembersOpen, setManageFamilyMembersOpen] = useState(false);
   const [newTransactionOpen, setNewTransactionOpen] = useState(false);
   const [pendingExistingDbPath, setPendingExistingDbPath] = useState<string | null>(null);
+  const [pendingExistingIsProtected, setPendingExistingIsProtected] = useState(false);
+  const [choosingExistingSource, setChoosingExistingSource] = useState(false);
+  const [pendingProtectedSwitch, setPendingProtectedSwitch] = useState<{ id: string; name: string } | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const { shouldRender: moreMenuShouldRender, closing: moreMenuClosing } = useDelayedVisibility(moreMenuOpen);
@@ -1278,6 +1395,7 @@ function App({
   }
 
   function setLayoutWidgets(next: WidgetId[]) {
+    layoutEditedRef.current = true;
     setLayoutWidgetsState(next);
     saveDashboardLayout(next);
   }
@@ -1347,6 +1465,9 @@ function App({
   function askConfirmInvert(): Promise<boolean> {
     return new Promise((resolve) => setDialog({ kind: "confirmInvert", resolve }));
   }
+  function askCsvExportWarning(): Promise<boolean> {
+    return new Promise((resolve) => setDialog({ kind: "csvExportWarning", resolve }));
+  }
 
   // Bumped by every refetch below that follows a real mutation (never by
   // `refreshDashboard`/`refreshReport` themselves, which only ever *read*)
@@ -1388,16 +1509,25 @@ function App({
     dataVersionRef.current++;
   }, []);
 
-  // The first time the app opens in a new calendar month, every account's
-  // balance rolls forward into a fresh baseline automatically (see
-  // `Store::roll_forward_monthly_balances`) — this just surfaces a
-  // one-time note when that happens; it's a no-op on every later refresh
-  // this month.
-  const checkMonthlyRollover = useCallback(async () => {
-    const rolled = await invoke<RolledAccount[]>("check_monthly_rollover");
-    if (rolled.length > 0) {
-      const names = rolled.map((r) => r.account_name).join(", ");
-      setStatus(`Rolled forward this month's starting balance for ${rolled.length} account(s): ${names}.`, "success");
+  // The first time a profile opens in a new calendar month, every account's
+  // balance rolls forward into a fresh baseline and each sinking-fund bucket
+  // gets its automatic contribution, and today's point is left on the value
+  // chart. That housekeeping runs in the backend as the profile opens (see
+  // `startup::after_profile_opened`), so this page never starts a write on its
+  // own; it only shows the one-time notes the backend kept for it, and nothing
+  // the second time.
+  const showMaintenanceSummary = useCallback(async () => {
+    const summary = await invoke<MaintenanceSummary>("take_maintenance_summary");
+    if (summary.rolled.length > 0) {
+      const names = summary.rolled.map((r) => r.account_name).join(", ");
+      setStatus(`Rolled forward this month's starting balance for ${summary.rolled.length} account(s): ${names}.`, "success");
+    }
+    if (summary.contributions.length > 0) {
+      const names = summary.contributions.map((a) => a.bucket_name).join(", ");
+      setStatus(`Added this month's automatic contribution for ${summary.contributions.length} bucket(s): ${names}.`, "success");
+    }
+    if (summary.warnings.length > 0) {
+      setStatus(summary.warnings.join(" "));
     }
   }, []);
 
@@ -1701,7 +1831,6 @@ function App({
     // date, window open or not), so this launch-time path steps aside — and
     // waits until it knows which case it's in.
     if (backgroundSettings === null || backgroundSettings.tray_enabled) return;
-    const NOTIFIED_KEY = "vaultspend-notified-bills";
     const DUE_SOON_DAYS = 3;
 
     (async () => {
@@ -1714,9 +1843,10 @@ function App({
       });
       if (dueSoon.length === 0) return;
 
+      const generation = await ensureUiStateMigrated().catch(() => getCurrentGeneration().catch(() => 0));
       let notified: Record<string, string> = {};
       try {
-        notified = JSON.parse(localStorage.getItem(NOTIFIED_KEY) ?? "{}");
+        notified = JSON.parse((await getProfileUiState("notified_bills")) ?? "{}");
       } catch {
         notified = {};
       }
@@ -1729,19 +1859,21 @@ function App({
       }
       if (!granted) return;
 
+      const isPasswordProtected = profiles.find((p) => p.is_active)?.is_password_protected ?? false;
+      const showNames = !isPasswordProtected || showBillNamesInReminders;
       for (const r of toNotify) {
-        sendNotification({ title: "Upcoming bill", body: `${r.merchant} — ${formatAmount(r.amount)} due ${r.next_date}` });
+        const body = showNames ? `${r.merchant} — ${formatAmount(r.amount)} due ${r.next_date}` : "A bill is due soon.";
+        sendNotification({ title: "Upcoming bill", body });
         notified[String(r.id)] = todayIso;
       }
       try {
-        localStorage.setItem(NOTIFIED_KEY, JSON.stringify(notified));
+        await setProfileUiState("notified_bills", JSON.stringify(notified), generation);
       } catch {
-        // localStorage can throw (private window, blocked site data) — a
-        // missed dedup write just means this bill might notify again next
-        // launch, not a functional failure worth surfacing to the user.
+        // a missed dedup write just means this bill might notify again next launch, not a
+        // functional failure worth surfacing to the user.
       }
     })();
-  }, [recurring, backgroundSettings]);
+  }, [recurring, backgroundSettings, profiles, showBillNamesInReminders]);
 
   const [budgetMonthActuals, setBudgetMonthActuals] = useState<ReportBudgetLine[]>([]);
   const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlert[]>([]);
@@ -1792,30 +1924,19 @@ function App({
   );
 
   useEffect(() => {
-    checkMonthlyRollover()
-      .catch((e) => setStatus(String(e)))
-      .finally(() => {
-        refresh().catch((e) => setStatus(String(e)));
-      });
-    checkSinkingFundContributions()
-      .catch((e) => setStatus(String(e)))
-      .finally(() => {
-        refreshBuckets().catch((e) => setStatus(String(e)));
-      });
+    // The housekeeping already ran before this page mounted, so the reads below
+    // don't have to wait for it.
+    showMaintenanceSummary().catch((e) => setStatus(String(e)));
+    refresh().catch((e) => setStatus(String(e)));
+    refreshBuckets().catch((e) => setStatus(String(e)));
     refreshRecurring().catch((e) => setStatus(String(e)));
     refreshRecurringTotals().catch((e) => setStatus(String(e)));
     refreshRecurringCandidates().catch((e) => setStatus(String(e)));
-    // Leave today's point on the value chart even if nothing is repriced.
-    invoke("record_portfolio_snapshot")
-      .catch(() => undefined)
-      .finally(() => {
-        refreshHoldings().catch((e) => setStatus(String(e)));
-      });
+    refreshHoldings().catch((e) => setStatus(String(e)));
     refreshAssets().catch((e) => setStatus(String(e)));
   }, [
-    checkMonthlyRollover,
+    showMaintenanceSummary,
     refresh,
-    checkSinkingFundContributions,
     refreshBuckets,
     refreshRecurring,
     refreshRecurringTotals,
@@ -2052,6 +2173,12 @@ function App({
       { id: "action:backup", kind: "action", label: "Back up now", keywords: "backup save copy data" },
       { id: "action:shortcuts", kind: "action", label: "Keyboard shortcuts", keywords: "keys help hotkeys" },
     );
+    // Locking only makes sense for a profile that actually has a password to unlock it again — a
+    // locked-but-unprotected profile has no way back in except Switch profile, so this is never
+    // offered unless the active profile really is protected.
+    if (profiles.find((p) => p.is_active)?.is_password_protected) {
+      entries.push({ id: "action:lock", kind: "action", label: "Lock profile", keywords: "password protected security signout" });
+    }
     if (inboxCount > 0) {
       entries.push({ id: "action:inbox", kind: "action", label: `Review inbox (${inboxCount})`, keywords: "triage uncategorized duplicates large" });
     }
@@ -2068,7 +2195,7 @@ function App({
     }
     return entries;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderedNavItems.map((i) => i.id).join(","), privacyPrefs.hidden, inboxCount, accounts, buckets, transactions]);
+  }, [orderedNavItems.map((i) => i.id).join(","), privacyPrefs.hidden, inboxCount, accounts, buckets, transactions, profiles]);
 
   function runPaletteEntry(entry: PaletteEntry) {
     setPaletteOpen(false);
@@ -2107,6 +2234,8 @@ function App({
       setShortcutsOpen(true);
     } else if (entry.id === "action:inbox") {
       openInbox();
+    } else if (entry.id === "action:lock") {
+      void handleLockProfile();
     }
   }
 
@@ -3122,6 +3251,7 @@ function App({
   }
 
   async function handleExportReportsCsv() {
+    if (profiles.find((p) => p.is_active)?.is_password_protected && !(await askCsvExportWarning())) return;
     const path = await save({
       defaultPath: `reports-export-${toLocalIsoDate()}.csv`,
       filters: [{ name: "CSV", extensions: ["csv"] }],
@@ -3145,6 +3275,7 @@ function App({
   }
 
   async function handleExportLedgerCsv() {
+    if (profiles.find((p) => p.is_active)?.is_password_protected && !(await askCsvExportWarning())) return;
     const path = await save({
       defaultPath: `transactions-export-${toLocalIsoDate()}.csv`,
       filters: [{ name: "CSV", extensions: ["csv"] }],
@@ -3503,6 +3634,7 @@ function App({
           profiles={profiles}
           onSwitchProfile={handleSwitchProfile}
           onManageProfiles={() => setActiveTab("settings")}
+          onLock={profiles.find((p) => p.is_active)?.is_password_protected ? handleLockProfile : undefined}
         />
         {NAV_GROUP_ORDER.map((group) => (
           <div className="nav-group" key={group}>
@@ -5059,6 +5191,7 @@ function App({
           onRenameProfile={handleRenameProfile}
           onSetProfileIcon={handleSetProfileIcon}
           onDeleteProfile={handleDeleteProfile}
+          onProtected={() => void refreshProtectionState()}
           livePriceSettings={livePriceSettings}
           onSetLivePriceApiKey={handleSetLivePriceApiKey}
           onRefreshLivePrices={handleRefreshLivePrices}
@@ -5078,6 +5211,8 @@ function App({
           onSetTray={handleSetTray}
           onSetAutostart={handleSetAutostart}
           onSendTestReminder={handleSendTestReminder}
+          showBillNamesInReminders={showBillNamesInReminders}
+          onSetShowBillNamesInReminders={handleSetShowBillNamesInReminders}
           categories={usedCategories}
           onRulesApplied={() => void refresh()}
           onMessage={(text, kind) => setStatus(text, kind)}
@@ -5118,6 +5253,18 @@ function App({
       )}
       {dialog?.kind === "confirmInvert" && (
         <ConfirmInvertDialog
+          onCancel={() => {
+            dialog.resolve(false);
+            setDialog(null);
+          }}
+          onConfirm={() => {
+            dialog.resolve(true);
+            setDialog(null);
+          }}
+        />
+      )}
+      {dialog?.kind === "csvExportWarning" && (
+        <CsvExportWarningDialog
           onCancel={() => {
             dialog.resolve(false);
             setDialog(null);
@@ -5195,11 +5342,40 @@ function App({
           onDelete={handleDeleteFamilyMember}
         />
       )}
+      {choosingExistingSource && (
+        <ChooseExistingDataSourceDialog
+          onCancel={() => setChoosingExistingSource(false)}
+          onDatabase={() => void handlePickExistingDatabase()}
+          onPackage={() => void handlePickProtectedPackage()}
+        />
+      )}
       {pendingExistingDbPath && (
         <UseExistingDataFileDialog
           path={pendingExistingDbPath}
-          onCancel={() => setPendingExistingDbPath(null)}
+          isProtectedPackage={pendingExistingIsProtected}
+          onCancel={() => {
+            setPendingExistingDbPath(null);
+            setPendingExistingIsProtected(false);
+          }}
           onSubmit={handleAddExistingProfile}
+        />
+      )}
+      {pendingProtectedSwitch && (
+        <SwitchToProtectedProfileDialog
+          profileName={pendingProtectedSwitch.name}
+          onCancel={() => setPendingProtectedSwitch(null)}
+          onSubmit={async (password) => {
+            // unlock_profile only ever resolves once it has already hot-swapped the live backend
+            // connection to the new profile — onDataFileChanged (not the profile-lock-state-changed
+            // broadcast, which StartupGate alone listens to) is what actually remounts this App
+            // instance so it refetches everything for the newly-active profile: StartupGate stays on
+            // its own "open" status across this whole switch, so its event subscription never fires
+            // a re-render that would change what it renders.
+            await unlockProfile(pendingProtectedSwitch.id, password);
+            const name = pendingProtectedSwitch.name;
+            setPendingProtectedSwitch(null);
+            onDataFileChanged(`Switched to "${name}".`);
+          }}
         />
       )}
       {newTransactionOpen && (

@@ -174,7 +174,7 @@ try {
   // but with nothing rendered into `.page` yet it briefly holds only the
   // floating status toast — including, once in a while, the one-time
   // "Rolled forward this month's starting balance" note `App.tsx`'s
-  // `checkMonthlyRollover` fires on a fresh database — so a `.page` text
+  // `showMaintenanceSummary` shows on a fresh database — so a `.page` text
   // read that lands in that gap sees the toast instead of the budget rows
   // and fails despite nothing actually being wrong. Waiting for `.cat-list`
   // (BudgetView's own category-rows container) instead — the same "wait

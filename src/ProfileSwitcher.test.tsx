@@ -15,8 +15,8 @@ it("closes on Escape and returns focus to its trigger like other dropdowns", () 
   root = createRoot(container);
   const onSwitch = vi.fn();
   act(() => root.render(<ProfileSwitcher profiles={[
-    { id: "a", name: "Alex", is_active: true, icon_key: null },
-    { id: "b", name: "Blair", is_active: false, icon_key: null },
+    { id: "a", name: "Alex", is_active: true, icon_key: null, is_password_protected: false },
+    { id: "b", name: "Blair", is_active: false, icon_key: null, is_password_protected: false },
   ]} onSwitchProfile={onSwitch} onManageProfiles={vi.fn()} />));
   const trigger = container.querySelector<HTMLButtonElement>(".profile-switcher-toggle")!;
   act(() => trigger.click());

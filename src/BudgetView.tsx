@@ -5,6 +5,7 @@ import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { Sparkline } from "./charts";
 import { budgetAllocation, effectiveBudget, monthElapsed } from "./budgetPlan";
 import { BudgetSuggestDialog, type AppliedSuggestion } from "./BudgetSuggestDialog";
+import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 
 type MonthElapsed = NonNullable<ReturnType<typeof monthElapsed>>;
 
@@ -44,31 +45,31 @@ const GROUP_LABELS: Record<Group, string> = {
   nonmonthly: "Non-Monthly",
 };
 
-const CATEGORY_ORDER_STORAGE_KEY = "meadow-budget-category-order";
-
-/** A per-viewer display preference (same as theme/nav order) — one flat
- * list covering every category ever manually positioned, regardless of
- * group. Filtering it down to one group's categories naturally keeps
- * their relative order, so a single stored list is enough to give every
- * group its own independent ordering without a separate array each. */
-function loadCategoryOrder(): string[] {
+/** A per-profile display preference (same mechanism as saved filters — see
+ * profileUiState.ts) — one flat list covering every category ever manually
+ * positioned, regardless of group. Filtering it down to one group's
+ * categories naturally keeps their relative order, so a single stored list
+ * is enough to give every group its own independent ordering without a
+ * separate array each. */
+async function loadCategoryOrder(): Promise<string[]> {
   try {
-    const stored = localStorage.getItem(CATEGORY_ORDER_STORAGE_KEY);
+    const stored = await getProfileUiState("category_order");
     if (stored) {
       const parsed: unknown = JSON.parse(stored);
       if (Array.isArray(parsed)) return parsed.filter((c): c is string => typeof c === "string");
     }
   } catch {
-    // corrupt/unavailable storage — fall back to the default order
+    // corrupt/unavailable value — fall back to the default order
   }
   return [];
 }
 
-function saveCategoryOrder(order: string[]) {
+async function saveCategoryOrder(order: string[]) {
   try {
-    localStorage.setItem(CATEGORY_ORDER_STORAGE_KEY, JSON.stringify(order));
+    const generation = await getCurrentGeneration();
+    await setProfileUiState("category_order", JSON.stringify(order), generation);
   } catch {
-    // per-viewer preference only — fine to skip if storage is unavailable
+    // per-viewer preference only — fine to skip if the save fails
   }
 }
 
@@ -460,8 +461,18 @@ export function BudgetView({
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDelete, () => setConfirmingDelete(null));
   const [editingAmount, setEditingAmount] = useState<{ category: string; value: string } | null>(null);
-  const [categoryOrder, setCategoryOrder] = useState<string[]>(loadCategoryOrder);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
   const [dragCategory, setDragCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadCategoryOrder().then((order) => {
+      if (!cancelled) setCategoryOrder(order);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Every row shown comes straight from this month's own budget_actuals —
   // no separate global budget list, since a category's budgeted amount is

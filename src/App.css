@@ -5463,6 +5463,35 @@ button:disabled {
   font-size: 12.5px;
 }
 
+.choice-card-list {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+
+.choice-card {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+}
+
+.choice-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.choice-card span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
 .modal-changelog-list {
   margin: 0 0 16px 0;
   padding-left: 20px;
@@ -5548,7 +5577,8 @@ button:disabled {
   color: var(--accent-soft-text);
 }
 
-.icon-credits-disclosure summary {
+.icon-credits-disclosure summary,
+.third-party-notices summary {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -5558,11 +5588,13 @@ button:disabled {
   list-style: none;
 }
 
-.icon-credits-disclosure summary::-webkit-details-marker {
+.icon-credits-disclosure summary::-webkit-details-marker,
+.third-party-notices summary::-webkit-details-marker {
   display: none;
 }
 
-.icon-credits-disclosure summary::before {
+.icon-credits-disclosure summary::before,
+.third-party-notices summary::before {
   content: "▸";
   display: inline-block;
   color: var(--text-muted);
@@ -5570,7 +5602,8 @@ button:disabled {
   transition: transform 0.15s ease;
 }
 
-.icon-credits-disclosure[open] summary::before {
+.icon-credits-disclosure[open] summary::before,
+.third-party-notices[open] summary::before {
   transform: rotate(90deg);
 }
 
@@ -5586,6 +5619,31 @@ button:disabled {
 
 .icon-credits-disclosure[open] > ul {
   display: block;
+}
+
+/* Same explicit open/closed handling as the icon credits above: a closed <details> can still paint
+   its child in this WebView2, so the notices text is shown only from the [open] attribute. */
+.third-party-notices > pre {
+  display: none;
+}
+
+.third-party-notices[open] > pre {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  margin: 12px 0 0;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.protection-new-badge {
+  margin-inline-start: 0.5rem;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.75em;
 }
 
 .modal-field {
@@ -5662,7 +5720,7 @@ button:disabled {
   margin-bottom: 14px;
 }
 
-.category-create-form input {
+.category-create-form input:not([type="checkbox"]):not([type="radio"]) {
   flex: 1;
   font-family: inherit;
   font-size: 13.5px;
@@ -5671,6 +5729,33 @@ button:disabled {
   border: 1px solid var(--border-strong);
   background: var(--surface);
   color: inherit;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.category-create-form .checkbox-label input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.settings-profile-lock {
+  margin-left: 6px;
+  font-size: 12px;
 }
 
 .category-create-form button {
@@ -6060,15 +6145,339 @@ button:disabled {
   color: var(--text);
 }
 
-.transfer-review-details { padding: 8px 4px 12px; font-size: 13px; }
-.transfer-review-details summary { width: fit-content; color: var(--accent); cursor: pointer; border-radius: 4px; }
-.transfer-review-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Launch error screen: shown instead of the app when no profile could be opened. */
+.launch-error {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.launch-error-card {
+  width: min(560px, 100%);
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.launch-error-card h1 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  line-height: 1.25;
+  outline: none;
+}
+
+.launch-error-card h2 {
+  margin: 22px 0 8px;
+  font-size: 15px;
+}
+
+.launch-error-card p {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.launch-error-card details {
+  margin: 0 0 14px;
+}
+
+.launch-error-card pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.launch-error-problem {
+  min-height: 1.5em;
+  color: var(--negative);
+}
+
+/* Nothing to say: keep the live region in the page but take no room. */
+.launch-error-problem:empty {
+  min-height: 0;
+  margin: 0;
+}
+
+.launch-error-actions,
+.launch-error-profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.launch-error-confirm {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  outline: none;
+}
+
+.launch-error-confirm h2 {
+  margin-top: 0;
+}
+
+/* The profile selector and lock screen ("choose a profile" / "sign in") — a dedicated look on top of
+   the same full-screen-gate idea as .launch-error above, still entirely token-driven so it looks
+   correct in all six theme/mode combinations. */
+.profile-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.profile-gate-card {
+  width: min(400px, 100%);
+  padding: 32px 28px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-gate-card h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  line-height: 1.25;
+  text-align: center;
+  outline: none;
+}
+
+.profile-gate-subtitle {
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.profile-selector-card {
+  width: min(640px, 100%);
+}
+
+.profile-card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 140px;
+  padding: 16px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.profile-card-open {
+  /* The global button rule is white-space: nowrap; a long profile name must wrap inside its card
+     instead of running across the neighbouring one (feature120). */
+  white-space: normal;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.profile-card-open:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.profile-card-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+/* The Lucide fallback (no avatar picked yet) renders as a bare <svg>, not an <img> like the bundled
+   avatar pictures — same treatment as .profile-switcher-icon's own fallback, sized up. */
+svg.profile-card-avatar {
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.profile-card-name {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 14px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.profile-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.profile-card-editing,
+.profile-card-new-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* Nested inside an ordinary .profile-card (still 140px), so width: 100% fills that — unlike
+   .profile-card-new-form below, which replaces the "Add profile" tile directly in the flex row. */
+.profile-card-editing {
+  align-items: center;
+  width: 100%;
+}
+
+/* Capped, not open-ended: a plain width: 100% here would resolve against the flex row itself (it's
+   not nested inside a fixed-width parent the way .profile-card-editing is), stretching to fill the
+   whole grid's remaining width on a wide window — a real layout bug an actual screenshot caught.
+   Deliberately wider than a 140px card, though: typing a name needs more room than renaming an
+   already-short existing one does. */
+.profile-card-new-form {
+  width: min(260px, 100%);
+}
+
+.profile-card-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 140px;
+  min-height: 118px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.profile-card-add:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.profile-card-add-icon {
+  font-size: 20px;
+  line-height: 1;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  display: grid;
+  place-items: center;
+}
+
+.profile-gate-switch,
+.profile-gate-forgot,
+.profile-gate-forgot-remove {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.profile-gate-forgot-remove {
+  font-size: 0.85em;
+}
+
+.profile-gate-remove-confirm {
+  display: block;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.profile-gate-remove-confirm .profile-card-actions {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.password-form-field {
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.password-form-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.password-form-field .text-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+/* Full-bleed only when it's the form's sole action (the sign-in/unlock screens) — the in-app
+   switch-to-protected-profile prompt (Modal.tsx) also renders a Cancel button alongside it, where
+   forcing 100% width would fight the Cancel button for space instead of sharing the row. */
+.password-form-submit:only-child {
+  width: 100%;
+}
+
+/* Keep the protection wizard aligned with the existing password form and modal themes. */
+.modal-panel:has(.protection-setup) {
+  width: 420px;
+}
+
+.transfer-review-details {
+  padding: 8px 4px 12px;
+  font-size: 13px;
+}
+
+.transfer-review-details summary {
+  width: fit-content;
+  color: var(--accent);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.transfer-review-details summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .transfer-review-transactions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 12px;
   margin-top: 10px;
 }
+
 .transfer-review-transaction {
   display: flex;
   flex-direction: column;
@@ -6080,9 +6489,58 @@ button:disabled {
   overflow-wrap: anywhere;
   min-width: 0;
 }
-.price-alert-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 
-/* Shared control appearance. Compact ledger editors retain their denser geometry. */
+.price-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.protection-setup-step {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.protection-setup .password-form-field {
+  margin-bottom: 16px;
+}
+
+.protection-setup .text-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.protection-setup-hint {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.protection-setup-error {
+  color: var(--negative);
+}
+
+.protection-setup .modal-actions {
+  margin-top: 24px;
+}
+
+.protection-setup .protection-setup-key {
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.8;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+
+/* Shared control appearance. Compact ledger editors keep their denser geometry;
+   native controls outside a form wrapper still inherit the active app theme. */
 :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]), select, textarea) {
   font-family: inherit;
   font-size: 13px;
@@ -6095,12 +6553,14 @@ button:disabled {
   min-width: 0;
   max-width: 100%;
 }
+
+/* Full-size fields and filter triggers share the same spacing and typography. */
 :is(.text-input, .bucket-new-form input, .bucket-new-form select,
     .bucket-contribution-form input, .bucket-contribution-form select,
     .labeled-field input, .labeled-field select, .ledger-filters input,
     .ledger-filters select, .rules-controls select, .account-filter-toggle,
     .account-select, .month-select, .saved-filter-form input, .help-search,
-    .category-create-form input) {
+    .category-create-form input:not([type="checkbox"]):not([type="radio"])) {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.4;
@@ -6109,29 +6569,86 @@ button:disabled {
   color: var(--text);
   min-height: 36px;
 }
-.modal-panel :is(.modal-field input:not([type="checkbox"]), .modal-field select, .text-input) {
+
+/* Dialog fields remain a comfortable larger size, including password forms. */
+.modal-panel :is(.modal-field input:not([type="checkbox"]), .modal-field select, .text-input),
+.password-form-field .text-input {
   font-size: 14px;
   padding: 8px 10px;
 }
-:where(input, select, textarea, button, summary, a):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-:where(input, select, textarea):disabled { opacity: 0.6; cursor: not-allowed; }
-:is(input, select, textarea)[aria-invalid="true"] { border-color: var(--negative); }
-:where(input, textarea)::placeholder { color: var(--text-muted); opacity: 1; }
-select option, select optgroup { background: var(--status-base); color: var(--text); }
-input::-webkit-calendar-picker-indicator { cursor: pointer; }
-input:disabled::-webkit-calendar-picker-indicator { cursor: not-allowed; }
-input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
-.grid-2 > *, .card-head > * { min-width: 0; }
-.card-head, .donut-with-legend, .saved-filter-form { flex-wrap: wrap; }
-.account-filter-toggle { max-width: 100%; text-align: left; }
+
+:where(input, select, textarea, button, summary, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+:where(input, select, textarea):disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+:is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--negative);
+}
+
+:where(input, textarea)::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* Native select menus need an opaque surface even in the Transparent palette. */
+select option, select optgroup {
+  background: var(--status-base);
+  color: var(--text);
+}
+
+input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+input:disabled::-webkit-calendar-picker-indicator {
+  cursor: not-allowed;
+}
+
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+.grid-2 > *, .card-head > * {
+  min-width: 0;
+}
+
+.card-head {
+  flex-wrap: wrap;
+}
+
+.donut-with-legend {
+  flex-wrap: wrap;
+}
+
+.account-filter-toggle {
+  max-width: 100%;
+  text-align: left;
+}
+
 .account-filter-panel, .profile-switcher-panel, .more-menu-panel, .bucket-contribute-panel {
   max-width: calc(100vw - 32px);
   max-height: min(340px, 65vh);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.account-filter-option, .profile-switcher-option { overflow-wrap: anywhere; }
-.bucket-contribute-panel .text-input { width: 100%; }
+
+.account-filter-option, .profile-switcher-option {
+  overflow-wrap: anywhere;
+}
+
+.saved-filter-form {
+  flex-wrap: wrap;
+}
+
+.bucket-contribute-panel .text-input {
+  width: 100%;
+}
 
 .account-destination { min-width: 0; max-width: 100%; }
 .account-destination .account-filter-toggle {
@@ -6162,7 +6679,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 }
 .account-destination-option:hover, .account-destination-option[aria-checked="true"] { background: var(--surface-2); }
 .account-destination-new { margin-top: 6px; border-top: 1px solid var(--border); }
-
 .inbox-controls { min-width: 0; padding: 0; margin: 0; border: 0; }
 .inbox-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; }
 .inbox-selection { display: flex; align-items: center; gap: 6px; }

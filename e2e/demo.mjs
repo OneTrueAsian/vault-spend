@@ -1,10 +1,17 @@
 // `npm run demo` — opens the REAL compiled app (not a mock, not the dev
-// server) on a freshly seeded demo database, so a phase of the enhancement
-// program can be tried out by hand with realistic data. The data is rebuilt
-// from scratch every launch, relative to today's date, so every run starts
-// the same and nothing you do in the demo can leak into real data: it uses a
+// server) on freshly seeded demo data, so a phase of the enhancement program
+// can be tried out by hand with realistic data. The data is rebuilt from
+// scratch every launch, relative to today's date, so every run starts the
+// same and nothing you do in the demo can leak into real data: it uses a
 // throwaway folder (`.demo-data/`, gitignored) through the same
 // VAULTSPEND_DB_DIR switch the e2e suite uses, never your real AppData file.
+//
+// Since Phase C: seeds a real two-profile registry (Default, the full
+// feature-rich dataset every earlier phase's demo has used; Sam, a smaller
+// real profile with two plaintext backups, ready to turn password protection
+// on for live) — so the app opens on the profile selector first, not
+// straight into Default. That's the correct, intended behavior once a real
+// profiles.json exists (see the Phase C plan's Task 9 note).
 //
 // Usage:
 //   npm run demo                # rebuild the demo data, launch the app
@@ -18,7 +25,7 @@ import { spawn, spawnSync, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { seedDemoDatabase } from "./lib/demo-seed.mjs";
+import { seedDemoRegistry } from "./lib/demo-seed.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 process.chdir(repoRoot); // seed.mjs resolves target/debug/init_db.exe relative to cwd
@@ -56,11 +63,11 @@ try {
   /* the check is best-effort — carry on */
 }
 
-if (!args.has("--keep") || !fs.existsSync(path.join(demoDir, "vaultspend.db"))) {
+if (!args.has("--keep") || !fs.existsSync(path.join(demoDir, "profiles.json"))) {
   fs.rmSync(demoDir, { recursive: true, force: true });
   fs.mkdirSync(demoDir, { recursive: true });
   console.log("Seeding demo data (relative to today)...");
-  await seedDemoDatabase(demoDir);
+  await seedDemoRegistry(demoDir);
 }
 
 // Things to point the Phase 2 features at: a folder for the second backup copy,
@@ -95,5 +102,6 @@ const child = spawn(exe, [], {
 child.unref();
 console.log(`Second backup folder to try:  ${path.join(demoDir, "second-copy")}`);
 console.log(`Sample file to import:        ${path.join(demoDir, "sample-import.csv")}`);
+console.log("Two profiles are set up: Default (full data) and Sam (real, still plaintext — try turning on password protection for it).");
 console.log("Vault Spend is open. This is throwaway demo data — change anything you like.");
 console.log("Re-run `npm run demo` any time for a fresh copy.\n");

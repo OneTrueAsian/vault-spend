@@ -19,7 +19,7 @@
 //
 // Run with: node e2e/feature89_sankey_and_heatmap.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -141,29 +141,42 @@ try {
   };
   const statusText = async () => (await (await browser.$("[data-heatmap-status]")).getText()).trim();
 
-  await (await cellFor(2)).moveTo();
-  await browser.waitUntil(async () => (await statusText()).includes("$1,200.00"), {
-    timeout: 5000,
-    timeoutMsg: `hovering the Rent day should show its $1,200.00 total in the live status line (got "${await statusText()}")`,
-  });
-  await (await cellFor(5)).moveTo();
-  await browser.waitUntil(async () => (await statusText()).includes("$450.00"), {
-    timeout: 5000,
-    timeoutMsg: `hovering the Groceries day should show $450.00 (got "${await statusText()}")`,
-  });
+  // A day's readout comes from mouseenter / focus, and both stop firing when another spec's app window
+  // takes OS foreground from this one (the parallel runner does that constantly — see
+  // reclaimWindowFocus in harness.mjs; reproduced by launching windows during this spec). So reclaim
+  // focus first, and retry ONLY when the window really lost focus: a readout that fails to appear in
+  // a focused window is a genuine failure and is reported as one. Each retry moves the pointer off
+  // the cell first so a dropped mouseenter can fire again.
+  async function expectReadout(act, needle, failure) {
+    let seen = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await reclaimWindowFocus(browser);
+      await act();
+      try {
+        await browser.waitUntil(async () => (seen = await statusText()).includes(needle), { timeout: 3000 });
+        return;
+      } catch {
+        if (await browser.execute(() => document.hasFocus())) break;
+      }
+    }
+    throw new Error(`${failure} (got "${seen}")`);
+  }
+  const hoverDay = (day) => async () => {
+    await (await browser.$("[data-heatmap-status]")).moveTo();
+    await (await cellFor(day)).moveTo();
+  };
+
+  await expectReadout(hoverDay(2), "$1,200.00", "hovering the Rent day should show its $1,200.00 total in the live status line");
+  await expectReadout(hoverDay(5), "$450.00", "hovering the Groceries day should show $450.00");
   // The $500 transfer day is not spending.
-  await (await cellFor(10)).moveTo();
-  await browser.waitUntil(async () => (await statusText()).includes("$0.00"), {
-    timeout: 5000,
-    timeoutMsg: `the day of the transfer should read $0.00 (got "${await statusText()}")`,
-  });
+  await expectReadout(hoverDay(10), "$0.00", "the day of the transfer should read $0.00");
 
   // Keyboard: focusing a day (Tab lands on it) reads out the same total.
-  await browser.execute((sel) => document.querySelector(sel).focus(), `[data-heatmap-day='${isoDay(8)}']`);
-  await browser.waitUntil(async () => (await statusText()).includes("$100.00"), {
-    timeout: 5000,
-    timeoutMsg: `focusing the Dining Out day should show $100.00 (got "${await statusText()}")`,
-  });
+  await expectReadout(
+    () => browser.execute((sel) => document.querySelector(sel).focus(), `[data-heatmap-day='${isoDay(8)}']`),
+    "$100.00",
+    "focusing the Dining Out day should show $100.00",
+  );
 
   // --- Labels: full width, then the half-window widths, with no sideways page scroll ---
   await assertSankeyLabels(browser, 1440, 5);

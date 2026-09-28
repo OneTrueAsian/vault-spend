@@ -1,0 +1,59 @@
+name: macOS build check
+
+# Builds and tests Vault Spend on a GitHub-hosted macOS runner WITHOUT touching any
+# tag or release. Unlike build-macos.yml (which publishes a release), this only
+# proves a change works on macOS before it is released: it runs the Rust tests and
+# builds the universal bundle, then uploads the .dmg as a workflow artifact that can
+# be downloaded from the run page. Read-only token, so it cannot publish anything.
+#
+# Runs on manual dispatch ("Run workflow") and on pushes to the branches below.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - profile-password-protection
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # The Tauri crate embeds the built frontend, so it has to exist before the
+      # Rust workspace compiles.
+      - name: Build the frontend
+        run: npm run build
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Build the universal macOS bundle (not released)
+        run: npx tauri build --target universal-apple-darwin
+
+      - name: Upload the .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: vault-spend-macos-universal
+          path: target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error

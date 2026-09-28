@@ -56,9 +56,14 @@ try {
   const backUpNowBtn = await app.browser.$("button*=Back up now");
   await backUpNowBtn.click();
 
+  // Wait for the backup's own confirmation, not just "some status": a note from launch (the one-time
+  // month roll-forward) can already be on screen, and the backups list already holds the automatic
+  // launch backup, so neither proves this backup finished. Closing the app while it is still being
+  // written leaves a partial file that lists as the newest backup, and the restore below would then
+  // restore an empty database.
   await app.browser.waitUntil(
-    async () => (await app.browser.$(".status").getText()).length > 0,
-    { timeout: 10000, timeoutMsg: "expected some status message after Back up now" },
+    async () => (await app.browser.$(".status").getText()).includes("Backup created"),
+    { timeout: 10000, timeoutMsg: "expected the \"Backup created\" confirmation after Back up now" },
   );
   console.log("status right after Back up now:", await (await app.browser.$(".status")).getText());
 

@@ -8,6 +8,27 @@
 
 import { launchApp } from "./harness.mjs";
 
+async function invoke(browser, command, args = {}) {
+  return browser.executeAsync((command, args, done) => {
+    window.__TAURI_INTERNALS__.invoke(command, args).then(done, (e) => done({ error: String(e) }));
+  }, command, args);
+}
+
+// The persisted layout now lands via two backend round trips (get_current_generation, then
+// set_profile_ui_state) instead of a synchronous localStorage write, so a click's own promise chain
+// can resolve slightly before the write lands. Poll instead of reading once immediately after the click.
+async function waitForPersistedLayout(browser, predicate, timeoutMsg) {
+  let last;
+  await browser.waitUntil(
+    async () => {
+      last = JSON.parse(await invoke(browser, "get_profile_ui_state", { key: "dashboard_layout" }));
+      return predicate(last);
+    },
+    { timeout: 5000, timeoutMsg: () => `${timeoutMsg}, got ${JSON.stringify(last)}` },
+  );
+  return last;
+}
+
 const app = await launchApp();
 try {
   // Default layout, default preset.
@@ -23,12 +44,11 @@ try {
   const widgetCountBefore = removeButtons.length;
   await removeButtons[4].click(); // remove "runway" — 5th control in the default layout, after the 4 stat cards
 
-  const layoutAfterRemove = await app.browser.execute(() =>
-    JSON.parse(localStorage.getItem("meadow-dashboard-layout")),
+  const layoutAfterRemove = await waitForPersistedLayout(
+    app.browser,
+    (layout) => !layout.includes("runway"),
+    'expected "runway" to be removed from the layout',
   );
-  if (layoutAfterRemove.includes("runway")) {
-    throw new Error(`expected "runway" to be removed from the layout, got ${JSON.stringify(layoutAfterRemove)}`);
-  }
   console.log("removed a widget — layout is now", layoutAfterRemove);
 
   presetValue = await app.browser.execute(() => document.querySelector(".dashboard-toolbar select").value);
@@ -63,10 +83,11 @@ try {
   const doneButton = await modalActions.$("button=Done");
   await doneButton.click();
 
-  const layoutAfterAdd = await app.browser.execute(() => JSON.parse(localStorage.getItem("meadow-dashboard-layout")));
-  if (!layoutAfterAdd.includes("allocation")) {
-    throw new Error(`expected "allocation" to be added to the layout, got ${JSON.stringify(layoutAfterAdd)}`);
-  }
+  const layoutAfterAdd = await waitForPersistedLayout(
+    app.browser,
+    (layout) => layout.includes("allocation"),
+    'expected "allocation" to be added to the layout',
+  );
   console.log("added the Allocation widget via the modal — layout is now", layoutAfterAdd);
 
   const allocationWidget = await app.browser.$("//span[contains(@class,'reports-section-title')][text()='Allocation']");
