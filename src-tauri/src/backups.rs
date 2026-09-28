@@ -41,7 +41,7 @@ fn backup_filename(now: NaiveDateTime) -> String {
 /// another; second-precision filenames alone can't tell them apart.
 fn unique_backup_path(backups_dir: &Path, now: NaiveDateTime) -> PathBuf {
     let base = backups_dir.join(backup_filename(now));
-    if !base.exists() {
+    if !name_is_taken(&base) {
         return base;
     }
     // `_N` rather than `-N`: filenames sort lexicographically wherever
@@ -54,11 +54,17 @@ fn unique_backup_path(backups_dir: &Path, now: NaiveDateTime) -> PathBuf {
     let mut n = 2;
     loop {
         let candidate = backups_dir.join(format!("{BACKUP_PREFIX}{}_{n}{BACKUP_SUFFIX}", now.format("%Y%m%d-%H%M%S")));
-        if !candidate.exists() {
+        if !name_is_taken(&candidate) {
             return candidate;
         }
         n += 1;
     }
+}
+
+/// A backup name is taken by a database *or* by a leftover key file: publication refuses to
+/// replace either, and an orphan key from an interrupted publication must not capture the name.
+fn name_is_taken(db_path: &Path) -> bool {
+    db_path.exists() || budget_core::protection::keyfile::key_file_path_for(db_path).exists()
 }
 
 /// A disambiguating `_N` suffix (see `unique_backup_path`) may follow the
@@ -105,6 +111,97 @@ fn list_backup_filenames(backups_dir: &Path) -> std::io::Result<Vec<String>> {
         }
     }
     Ok(result)
+}
+
+/// Staging files never match `list_backup_filenames` (they don't start with `vaultspend-`), so a
+/// half-written copy can never be listed, pruned around, or restored as a backup.
+const STAGING_PREFIX: &str = ".vaultspend-backup-";
+const STAGING_SUFFIX: &str = ".partial";
+
+/// A unique staging path inside `dir` (the destination folder, so the publishing rename never
+/// crosses a filesystem), outside the recognized backup filename pattern.
+fn staging_path(dir: &Path) -> PathBuf {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    dir.join(format!("{STAGING_PREFIX}{}-{nanos}-{n}{STAGING_SUFFIX}", std::process::id()))
+}
+
+/// Removes this operation's own staging artifacts: the staged database, its staged key, and any
+/// SQLite sidecar a verifying open may have left. Never touches anything else.
+fn remove_staged(staged_db: &Path) {
+    let _ = std::fs::remove_file(budget_core::protection::keyfile::key_file_path_for(staged_db));
+    for suffix in ["", "-journal", "-wal", "-shm"] {
+        let mut name = staged_db.as_os_str().to_os_string();
+        name.push(suffix);
+        let _ = std::fs::remove_file(PathBuf::from(name));
+    }
+}
+
+/// Best-effort flush of a finished file to stable storage before it is renamed into place. Errors
+/// are ignored: a flush is defence in depth, and the rename below is what makes a backup visible.
+fn flush_to_disk(path: &Path) {
+    if let Ok(file) = std::fs::OpenOptions::new().write(true).open(path) {
+        let _ = file.sync_all();
+    }
+}
+
+/// Publishes a finished, verified, closed staged backup as `final_db`. The key (when there is
+/// one) goes first and the database last, so a listed `.db` always has its key; a crash between
+/// the two renames leaves only an orphan key, which nothing lists. Never replaces an existing
+/// database or key file. Two renames are not one atomic transaction, and the flush is best-effort:
+/// this defends against the process dying, not against every power failure.
+fn publish_staged_backup(staged_db: &Path, final_db: &Path) -> Result<(), String> {
+    publish_with_checkpoints(staged_db, final_db, "backup_after_key_publication", "backup_after_database_publication")
+}
+
+fn publish_with_checkpoints(staged_db: &Path, final_db: &Path, after_key: &str, after_database: &str) -> Result<(), String> {
+    let staged_key = budget_core::protection::keyfile::key_file_path_for(staged_db);
+    let final_key = budget_core::protection::keyfile::key_file_path_for(final_db);
+    if final_db.exists() || final_key.exists() {
+        return Err(format!("{} already exists, so the backup was not published over it", final_db.display()));
+    }
+    let has_key = staged_key.exists();
+    flush_to_disk(staged_db);
+    if has_key {
+        flush_to_disk(&staged_key);
+        std::fs::rename(&staged_key, &final_key).map_err(|e| format!("couldn't publish the backup's key file: {e}"))?;
+    }
+    crate::protection_transition::debug_failpoint(after_key);
+    if let Err(e) = std::fs::rename(staged_db, final_db) {
+        if has_key {
+            let _ = std::fs::remove_file(&final_key);
+        }
+        return Err(format!("couldn't publish the backup: {e}"));
+    }
+    crate::protection_transition::debug_failpoint(after_database);
+    Ok(())
+}
+
+/// Whether two files hold exactly the same bytes, streamed so a large database is never held whole.
+fn files_identical(a: &Path, b: &Path) -> std::io::Result<bool> {
+    use std::io::Read;
+    if std::fs::metadata(a)?.len() != std::fs::metadata(b)?.len() {
+        return Ok(false);
+    }
+    let (mut fa, mut fb) = (
+        std::io::BufReader::new(std::fs::File::open(a)?),
+        std::io::BufReader::new(std::fs::File::open(b)?),
+    );
+    let (mut ba, mut bb) = (vec![0u8; 64 * 1024], vec![0u8; 64 * 1024]);
+    loop {
+        let n = fa.read(&mut ba)?;
+        if n == 0 {
+            return Ok(true);
+        }
+        fb.read_exact(&mut bb[..n])?;
+        if ba[..n] != bb[..n] {
+            return Ok(false);
+        }
+    }
 }
 
 fn prune_to_disk(backups_dir: &Path, keep: usize) -> Result<(), String> {
@@ -208,28 +305,51 @@ pub fn check_copy_dir(backups_dir: &Path, copy_dir: &Path) -> Result<(), String>
     Ok(())
 }
 
-/// Copies the backup `filename` from `backups_dir` into `copy_dir`, confirms
-/// the copy is the same size, and trims `copy_dir` to the newest
-/// `DEFAULT_KEEP` backups (only files named like ours — anything else in the
-/// folder is never touched). Returns the copy's path.
+/// Copies the backup `filename` from `backups_dir` into `copy_dir` (staged, proven identical byte
+/// for byte, then published — never over an existing file of the same name unless that file already
+/// is the identical copy), and trims `copy_dir` to the newest `DEFAULT_KEEP` backups (only files
+/// named like ours — anything else in the folder is never touched). Returns the copy's path.
 pub fn mirror_backup(backups_dir: &Path, filename: &str, copy_dir: &Path) -> Result<PathBuf, String> {
     check_copy_dir(backups_dir, copy_dir)?;
     let source = backups_dir.join(filename);
     let dest = copy_dir.join(filename);
-    std::fs::copy(&source, &dest).map_err(|e| format!("couldn't copy to {}: {e}", dest.display()))?;
-    let expected = std::fs::metadata(&source).map_err(|e| e.to_string())?.len();
-    let actual = std::fs::metadata(&dest).map_err(|e| e.to_string())?.len();
-    if expected != actual {
-        let _ = std::fs::remove_file(&dest);
-        return Err(format!(
-            "the copy in {} came out {actual} bytes instead of {expected}",
-            copy_dir.display()
-        ));
-    }
     let source_key = budget_core::protection::keyfile::key_file_path_for(&source);
-    if source_key.exists() {
+
+    // Already there, byte for byte (e.g. the same folder chosen again): nothing to publish.
+    if dest.exists() && files_identical(&source, &dest).unwrap_or(false) {
         let dest_key = budget_core::protection::keyfile::key_file_path_for(&dest);
-        std::fs::copy(&source_key, &dest_key).map_err(|e| format!("couldn't mirror the backup's key file: {e}"))?;
+        let key_matches = !source_key.exists() || (dest_key.exists() && files_identical(&source_key, &dest_key).unwrap_or(false));
+        if key_matches {
+            prune_to_disk(copy_dir, DEFAULT_KEEP)?;
+            return Ok(dest);
+        }
+    }
+
+    // Stage an exact copy of the already verified local files inside the destination folder, prove
+    // it byte for byte, and only then publish it: an unplugged drive or a kill mid-copy leaves
+    // nothing that lists as a backup, and an existing file of the same name is never replaced.
+    let staged = staging_path(copy_dir);
+    let staged_key = budget_core::protection::keyfile::key_file_path_for(&staged);
+    let stage = || -> Result<(), String> {
+        std::fs::copy(&source, &staged).map_err(|e| format!("couldn't copy to {}: {e}", dest.display()))?;
+        if source_key.exists() {
+            std::fs::copy(&source_key, &staged_key).map_err(|e| format!("couldn't mirror the backup's key file: {e}"))?;
+        }
+        let same_db = files_identical(&source, &staged).map_err(|e| e.to_string())?;
+        let same_key = !source_key.exists() || files_identical(&source_key, &staged_key).map_err(|e| e.to_string())?;
+        if !(same_db && same_key) {
+            return Err(format!("the copy in {} did not match the backup it was made from", copy_dir.display()));
+        }
+        Ok(())
+    };
+    if let Err(e) = stage() {
+        remove_staged(&staged);
+        return Err(e);
+    }
+    crate::protection_transition::debug_failpoint("mirror_after_staged_copy");
+    if let Err(e) = publish_with_checkpoints(&staged, &dest, "mirror_after_key_publication", "mirror_after_database_publication") {
+        remove_staged(&staged);
+        return Err(e);
     }
     prune_to_disk(copy_dir, DEFAULT_KEEP)?;
     Ok(dest)
@@ -264,26 +384,38 @@ pub fn create_backup_full(
 
 fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path, now: NaiveDateTime) -> Result<String, String> {
     std::fs::create_dir_all(backups_dir).map_err(|e| e.to_string())?;
-    let dest_path = unique_backup_path(backups_dir, now);
-    let filename = dest_path.file_name().expect("just built from a filename").to_string_lossy().to_string();
-    let dest_key_path = budget_core::protection::keyfile::key_file_path_for(&dest_path);
+    let final_path = unique_backup_path(backups_dir, now);
+    let filename = final_path.file_name().expect("just built from a filename").to_string_lossy().to_string();
+
+    // Build and verify the snapshot under a staging name no listing recognizes, and publish it only
+    // once it is complete (see `publish_staged_backup`): an error or a kill at any earlier point can
+    // never leave something that lists as a backup.
+    let staged = staging_path(backups_dir);
+    let staged_key = budget_core::protection::keyfile::key_file_path_for(&staged);
 
     const MAX_ATTEMPTS: u32 = 3;
     let mut last_error = String::new();
     for attempt in 1..=MAX_ATTEMPTS {
-        let _ = std::fs::remove_file(&dest_path);
-        let _ = std::fs::remove_file(&dest_key_path);
-        let _ = std::fs::remove_file(dest_path.with_extension("db-journal"));
-        store.backup_to(&dest_path).map_err(|e| e.to_string())?;
+        remove_staged(&staged);
+        if let Err(e) = store.backup_to(&staged) {
+            remove_staged(&staged);
+            return Err(e.to_string());
+        }
         if store.is_encrypted() {
             let source_key_path = budget_core::protection::keyfile::key_file_path_for(source_db_path);
-            if let Err(e) = std::fs::copy(&source_key_path, &dest_key_path) {
-                let _ = std::fs::remove_file(&dest_path);
+            if let Err(e) = std::fs::copy(&source_key_path, &staged_key) {
+                remove_staged(&staged);
                 return Err(format!("couldn't write the backup's key file: {e}"));
             }
         }
-        match verify_backup(store, &dest_path) {
+        crate::protection_transition::debug_failpoint("backup_after_staged_copy");
+        match verify_backup(store, &staged) {
             Ok(()) => {
+                crate::protection_transition::debug_failpoint("backup_after_verification");
+                if let Err(e) = publish_staged_backup(&staged, &final_path) {
+                    remove_staged(&staged);
+                    return Err(e);
+                }
                 prune_to_disk(backups_dir, DEFAULT_KEEP)?;
                 return Ok(filename);
             }
@@ -295,8 +427,7 @@ fn create_local_backup(store: &Store, source_db_path: &Path, backups_dir: &Path,
             }
         }
     }
-    let _ = std::fs::remove_file(&dest_path);
-    let _ = std::fs::remove_file(&dest_key_path);
+    remove_staged(&staged);
     Err(format!("backup did not verify after {MAX_ATTEMPTS} attempts: {last_error}"))
 }
 
@@ -393,6 +524,12 @@ pub fn restore_backup_with_key(
     let backup_path = backups_dir.join(filename);
     if !backup_path.exists() {
         return Err(format!("backup \"{filename}\" not found"));
+    }
+
+    // A zero-byte file would otherwise open "successfully": `Store::open` heals it into a valid but
+    // empty database, and restoring that would silently replace the person's data with nothing.
+    if std::fs::metadata(&backup_path).map_err(|e| e.to_string())?.len() == 0 {
+        return Err(format!("backup \"{filename}\" is empty or damaged and can't be restored"));
     }
 
     let today = chrono::Local::now().date_naive();
@@ -1071,5 +1208,294 @@ mod tests {
                 assert!(!key_file_path.exists(), "a pruned backup's key file must go with it: {filename}");
             }
         }
+    }
+
+    // ---- interrupted-copy safety (Phase F, Task 1): only complete backups are ever published ----
+
+    /// Every entry in `dir` that is neither a recognized backup nor its key — i.e. staging debris.
+    fn stray_files(dir: &Path) -> Vec<String> {
+        let mut strays: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .filter(|name| !(name.starts_with(BACKUP_PREFIX) && (name.ends_with(BACKUP_SUFFIX) || name.ends_with(".db.key"))))
+            .collect();
+        strays.sort();
+        strays
+    }
+
+    #[test]
+    fn staging_files_and_orphan_key_files_are_never_listed_as_backups() {
+        let dir = temp_dir("list-ignores-debris");
+        std::fs::write(dir.join(".vaultspend-backup-test.partial"), b"partial").unwrap();
+        std::fs::write(dir.join("vaultspend-20260927-120000.db.key"), b"orphan").unwrap();
+
+        assert!(list_backup_filenames(&dir).unwrap().is_empty());
+        assert!(list_backups(&dir, true).unwrap().is_empty());
+        assert!(list_backups(&dir, false).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_successful_backup_leaves_no_staging_files_behind() {
+        let dir = temp_dir("publish-clean");
+        let store = seeded_store(&dir);
+        let backups_dir = dir.join("backups");
+
+        create_backup(&store, &dir.join("live.db"), &backups_dir, None, dt("2026-09-27 10:00:00")).unwrap();
+
+        assert!(stray_files(&backups_dir).is_empty(), "found {:?}", stray_files(&backups_dir));
+    }
+
+    #[test]
+    fn publishing_a_plaintext_staged_backup_moves_it_to_the_final_name() {
+        let dir = temp_dir("publish-plain");
+        let staged = dir.join(".vaultspend-backup-1.partial");
+        let final_db = dir.join("vaultspend-20260927-100000.db");
+        std::fs::write(&staged, b"complete snapshot").unwrap();
+
+        publish_staged_backup(&staged, &final_db).unwrap();
+
+        assert_eq!(std::fs::read(&final_db).unwrap(), b"complete snapshot");
+        assert!(!staged.exists());
+        assert!(!keyfile::key_file_path_for(&final_db).exists());
+    }
+
+    #[test]
+    fn publishing_a_protected_staged_backup_publishes_the_pair() {
+        let dir = temp_dir("publish-pair");
+        let staged = dir.join(".vaultspend-backup-1.partial");
+        let final_db = dir.join("vaultspend-20260927-100000.db");
+        std::fs::write(&staged, b"encrypted snapshot").unwrap();
+        std::fs::write(keyfile::key_file_path_for(&staged), b"key material").unwrap();
+
+        publish_staged_backup(&staged, &final_db).unwrap();
+
+        assert_eq!(std::fs::read(&final_db).unwrap(), b"encrypted snapshot");
+        assert_eq!(std::fs::read(keyfile::key_file_path_for(&final_db)).unwrap(), b"key material");
+        assert!(stray_files(&dir).is_empty(), "found {:?}", stray_files(&dir));
+    }
+
+    #[test]
+    fn publishing_never_replaces_an_existing_backup() {
+        let dir = temp_dir("publish-collision");
+        let staged = dir.join(".vaultspend-backup-1.partial");
+        let final_db = dir.join("vaultspend-20260927-100000.db");
+        std::fs::write(&final_db, b"the earlier good backup").unwrap();
+        std::fs::write(&staged, b"new snapshot").unwrap();
+        std::fs::write(keyfile::key_file_path_for(&staged), b"new key").unwrap();
+
+        let result = publish_staged_backup(&staged, &final_db);
+
+        assert!(result.unwrap_err().contains("already exists"));
+        assert_eq!(std::fs::read(&final_db).unwrap(), b"the earlier good backup");
+        assert!(
+            !keyfile::key_file_path_for(&final_db).exists(),
+            "a refused publication must not leave its key behind"
+        );
+    }
+
+    #[test]
+    fn publishing_never_replaces_an_existing_key_file() {
+        let dir = temp_dir("publish-key-collision");
+        let staged = dir.join(".vaultspend-backup-1.partial");
+        let final_db = dir.join("vaultspend-20260927-100000.db");
+        let final_key = keyfile::key_file_path_for(&final_db);
+        std::fs::write(&final_key, b"someone else's key").unwrap();
+        std::fs::write(&staged, b"new snapshot").unwrap();
+        std::fs::write(keyfile::key_file_path_for(&staged), b"new key").unwrap();
+
+        let result = publish_staged_backup(&staged, &final_db);
+
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&final_key).unwrap(), b"someone else's key");
+        assert!(!final_db.exists(), "the database must not be published without owning its key");
+    }
+
+    #[test]
+    fn a_failed_database_publication_removes_only_the_key_this_attempt_published() {
+        let dir = temp_dir("publish-db-fails");
+        let staged = dir.join(".vaultspend-backup-1.partial");
+        let final_db = dir.join("vaultspend-20260927-100000.db");
+        // The staged key exists but the staged database is gone, so the second rename fails.
+        std::fs::write(keyfile::key_file_path_for(&staged), b"new key").unwrap();
+        std::fs::write(dir.join("vaultspend-20260101-000000.db"), b"an unrelated earlier backup").unwrap();
+
+        let result = publish_staged_backup(&staged, &final_db);
+
+        assert!(result.is_err());
+        assert!(!final_db.exists());
+        assert!(
+            !keyfile::key_file_path_for(&final_db).exists(),
+            "no orphan key may remain from this attempt"
+        );
+        assert_eq!(
+            std::fs::read(dir.join("vaultspend-20260101-000000.db")).unwrap(),
+            b"an unrelated earlier backup"
+        );
+    }
+
+    #[test]
+    fn a_backup_that_cannot_write_its_key_file_publishes_nothing_and_keeps_earlier_backups() {
+        let dir = temp_dir("key-copy-fails");
+        let key = [0x77u8; 32];
+        let (store, source_path) = encrypted_store_with_key(&dir, &key);
+        let backups_dir = backups_dir_for(&source_path, true);
+        let earlier = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-26 09:00:00")).unwrap();
+        std::fs::remove_file(keyfile::key_file_path_for(&source_path)).unwrap();
+
+        let result = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-27 09:00:00"));
+
+        assert!(result.is_err());
+        let listed = list_backups(&backups_dir, true).unwrap();
+        assert_eq!(listed.len(), 1, "only the earlier backup may be listed");
+        assert_eq!(listed[0].filename, earlier);
+        assert!(Store::open_with_key(backups_dir.join(&earlier), DatabaseKey::Raw(&key)).is_ok());
+        assert!(stray_files(&backups_dir).is_empty(), "found {:?}", stray_files(&backups_dir));
+    }
+
+    #[test]
+    fn an_orphan_key_file_does_not_capture_the_next_backup_name() {
+        let dir = temp_dir("orphan-key-name");
+        std::fs::write(dir.join("vaultspend-20260927-100000.db.key"), b"orphan from a crash").unwrap();
+
+        let path = unique_backup_path(&dir, dt("2026-09-27 10:00:00"));
+
+        assert_ne!(path, dir.join("vaultspend-20260927-100000.db"));
+        assert!(!keyfile::key_file_path_for(&path).exists());
+    }
+
+    #[test]
+    fn a_second_folder_name_collision_is_reported_and_leaves_the_other_file_alone() {
+        let dir = temp_dir("mirror-collision");
+        let store = seeded_store(&dir);
+        let backups_dir = dir.join("backups");
+        let copy_dir = dir.join("second");
+        std::fs::create_dir_all(&copy_dir).unwrap();
+        let existing = copy_dir.join("vaultspend-20260918-100000.db");
+        std::fs::write(&existing, b"someone else's file with this name").unwrap();
+
+        let outcome = create_backup_full(&store, &dir.join("live.db"), &backups_dir, Some(&copy_dir), dt("2026-09-18 10:00:00")).unwrap();
+
+        assert_eq!(outcome.filename, "vaultspend-20260918-100000.db");
+        assert!(outcome.copied_to.is_none());
+        assert!(outcome.copy_error.unwrap().contains("already exists"));
+        assert_eq!(std::fs::read(&existing).unwrap(), b"someone else's file with this name");
+        assert_eq!(list_backups(&backups_dir, false).unwrap().len(), 1, "the local backup is still good");
+        assert!(stray_files(&copy_dir).is_empty(), "no staging debris, found {:?}", stray_files(&copy_dir));
+    }
+
+    #[test]
+    fn mirroring_a_backup_the_second_folder_already_holds_identically_is_a_success() {
+        // Choosing the same folder again after "Stop copying" re-mirrors the newest backup, which
+        // may already be there byte for byte — that must not turn into a refusal.
+        let dir = temp_dir("mirror-identical");
+        let key = [0xAAu8; 32];
+        let (store, source_path) = encrypted_store_with_key(&dir, &key);
+        let backups_dir = backups_dir_for(&source_path, true);
+        let copy_dir = dir.join("second");
+        std::fs::create_dir_all(&copy_dir).unwrap();
+        let filename = create_backup(&store, &source_path, &backups_dir, None, dt("2026-09-27 09:00:00")).unwrap();
+        let first = mirror_backup(&backups_dir, &filename, &copy_dir).unwrap();
+
+        let again = mirror_backup(&backups_dir, &filename, &copy_dir).unwrap();
+
+        assert_eq!(first, again);
+        assert!(Store::open_with_key(&again, DatabaseKey::Raw(&key)).is_ok());
+        assert!(stray_files(&copy_dir).is_empty(), "found {:?}", stray_files(&copy_dir));
+    }
+
+    #[test]
+    fn a_second_folder_key_collision_publishes_no_database_and_keeps_the_local_backup() {
+        let dir = temp_dir("mirror-key-collision");
+        let key = [0x88u8; 32];
+        let (store, source_path) = encrypted_store_with_key(&dir, &key);
+        let backups_dir = backups_dir_for(&source_path, true);
+        let copy_dir = dir.join("second");
+        std::fs::create_dir_all(&copy_dir).unwrap();
+        let orphan_key = copy_dir.join("vaultspend-20260927-090000.db.key");
+        std::fs::write(&orphan_key, b"orphan key at the destination").unwrap();
+
+        let outcome = create_backup_full(&store, &source_path, &backups_dir, Some(&copy_dir), dt("2026-09-27 09:00:00")).unwrap();
+
+        assert!(outcome.copy_error.is_some());
+        assert!(
+            !copy_dir.join(&outcome.filename).exists(),
+            "no database may be published next to a foreign key"
+        );
+        assert_eq!(std::fs::read(&orphan_key).unwrap(), b"orphan key at the destination");
+        assert!(Store::open_with_key(backups_dir.join(&outcome.filename), DatabaseKey::Raw(&key)).is_ok());
+    }
+
+    #[test]
+    fn a_protected_second_copy_is_a_usable_pair_and_leaves_no_staging_files() {
+        let dir = temp_dir("mirror-pair");
+        let key = [0x99u8; 32];
+        let (store, source_path) = encrypted_store_with_key(&dir, &key);
+        let backups_dir = backups_dir_for(&source_path, true);
+        let copy_dir = dir.join("second");
+        std::fs::create_dir_all(&copy_dir).unwrap();
+
+        let outcome = create_backup_full(&store, &source_path, &backups_dir, Some(&copy_dir), dt("2026-09-27 09:00:00")).unwrap();
+
+        let copied = outcome.copied_to.expect("the second copy should have been made");
+        assert_eq!(
+            std::fs::read(&copied).unwrap(),
+            std::fs::read(backups_dir.join(&outcome.filename)).unwrap()
+        );
+        assert_eq!(
+            std::fs::read(keyfile::key_file_path_for(&copied)).unwrap(),
+            std::fs::read(keyfile::key_file_path_for(&backups_dir.join(&outcome.filename))).unwrap()
+        );
+        assert!(Store::open_with_key(&copied, DatabaseKey::Raw(&key)).is_ok());
+        assert!(stray_files(&copy_dir).is_empty(), "found {:?}", stray_files(&copy_dir));
+    }
+
+    fn assert_restore_refuses_damaged_snapshot(name: &str, damage: impl Fn(&Path)) {
+        let dir = temp_dir(name);
+        let store = seeded_store(&dir);
+        let backups_dir = dir.join("backups");
+        std::fs::create_dir_all(&backups_dir).unwrap();
+        let damaged = backups_dir.join("vaultspend-20260101-000000.db");
+        damage(&damaged);
+        let live = dir.join("live.db");
+        let accounts_before = store.list_accounts(chrono::Local::now().date_naive()).unwrap().len();
+
+        let result = restore_backup(&store, &backups_dir, None, "vaultspend-20260101-000000.db", &live);
+
+        assert!(result.is_err(), "a damaged legacy snapshot must be refused, got {result:?}");
+        assert_eq!(
+            store.list_accounts(chrono::Local::now().date_naive()).unwrap().len(),
+            accounts_before,
+            "the active data is untouched"
+        );
+        let restored: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .filter(|n| n.starts_with("vaultspend-restored-"))
+            .collect();
+        assert!(restored.is_empty(), "no restored file may be left behind: {restored:?}");
+    }
+
+    #[test]
+    fn restoring_a_legacy_snapshot_of_garbage_bytes_is_refused() {
+        assert_restore_refuses_damaged_snapshot("restore-garbage", |p| std::fs::write(p, b"this was never a database").unwrap());
+    }
+
+    #[test]
+    fn restoring_a_legacy_snapshot_of_zero_bytes_is_refused_not_healed_into_an_empty_database() {
+        assert_restore_refuses_damaged_snapshot("restore-zero", |p| std::fs::write(p, b"").unwrap());
+    }
+
+    #[test]
+    fn restoring_a_truncated_legacy_snapshot_is_refused() {
+        assert_restore_refuses_damaged_snapshot("restore-truncated", |p| {
+            let source_dir = p.parent().unwrap().parent().unwrap().join("source-for-truncation");
+            std::fs::create_dir_all(&source_dir).unwrap();
+            let store = Store::open(source_dir.join("real.db")).unwrap();
+            store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+            store.backup_to(p).unwrap();
+            drop(store);
+            let bytes = std::fs::read(p).unwrap();
+            std::fs::write(p, &bytes[..bytes.len() / 2]).unwrap();
+        });
     }
 }
