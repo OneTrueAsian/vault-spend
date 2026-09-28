@@ -43,7 +43,8 @@ try {
 
   await searchFor(
     "recovery key",
-    (text) => text.includes("lose my recovery key") && text.includes("removed from the profile list") && unrelatedGone(text),
+    (text) =>
+      text.includes("lose my recovery key") && text.includes("Forgot your password?") && text.includes("removed from the profile list") && unrelatedGone(text),
     "forgotten-password and lost-recovery-key guidance should be searchable",
   );
 

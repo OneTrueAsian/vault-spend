@@ -670,8 +670,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
     answer: (
       <>
         <p>
-          On the lock screen, use the recovery option and enter your recovery key to choose a new password; a new
-          recovery key is issued at the same time, so save that one. The password and the recovery key are each enough
+          On the lock screen, choose <strong>Forgot your password?</strong> and enter your recovery key to choose a
+          new password; a new recovery key is issued at the same time, so save that one. The password and the recovery key are each enough
           to get in, and nothing else is: Vault Spend cannot reset either for you, and there is no back door.
         </p>
         <p>
