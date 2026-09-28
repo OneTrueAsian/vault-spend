@@ -476,6 +476,9 @@ function App({
   const [navOrder, setNavOrder] = useState<Tab[]>(loadNavOrder);
   const [dragNavTab, setDragNavTab] = useState<Tab | null>(null);
   const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(DEFAULT_LAYOUT);
+  // Set once the person changes the layout, so a slow first read of the saved one (it arrives
+  // asynchronously after mount) can't land afterwards and undo what they just did.
+  const layoutEditedRef = useRef(false);
   const [addWidgetModalOpen, setAddWidgetModalOpen] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [anomalyFlags, setAnomalyFlags] = useState<AnomalyFlag[]>([]);
@@ -509,7 +512,7 @@ function App({
       .catch(() => {}) // best effort — the same treatment every browser-storage read/write here already gets
       .then(() => loadDashboardLayout())
       .then((widgets) => {
-        if (!cancelled) setLayoutWidgetsState(widgets);
+        if (!cancelled && !layoutEditedRef.current) setLayoutWidgetsState(widgets);
       });
     return () => {
       cancelled = true;
@@ -1392,6 +1395,7 @@ function App({
   }
 
   function setLayoutWidgets(next: WidgetId[]) {
+    layoutEditedRef.current = true;
     setLayoutWidgetsState(next);
     saveDashboardLayout(next);
   }
