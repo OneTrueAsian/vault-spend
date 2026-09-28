@@ -114,7 +114,8 @@ describe("StartupGate", () => {
   });
 
   it("swaps to the app once Try again succeeds", async () => {
-    startup.getStartupState.mockResolvedValue(brokenState);
+    // Broken at launch; open by the time the retry has succeeded.
+    startup.getStartupState.mockResolvedValueOnce(brokenState).mockResolvedValue({ status: "open" });
     startup.retryStartup.mockResolvedValue({ status: "open" });
     await mount();
 
@@ -124,6 +125,50 @@ describe("StartupGate", () => {
 
     expect(container.querySelector("[data-app]")).not.toBeNull();
     expect(container.querySelector("[data-launch-error]")).toBeNull();
+  });
+
+  // An unlock, a retry or a select comes back as a command's return value, which can reach the page after
+  // an automatic lock (focus loss, tray, Windows lock) has already locked the profile again and broadcast
+  // that. Applying the older "open" over the newer "locked" left the app on screen over a locked profile.
+  it("does not leave the app showing when the backend has locked again by the time an open result arrives", async () => {
+    startup.getStartupState
+      .mockResolvedValueOnce(brokenState)
+      .mockResolvedValue({ status: "locked", profile_id: "a", profile_name: "Alex" });
+    startup.retryStartup.mockResolvedValue({ status: "open" });
+    await mount();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-launch-action='retry']")!.click();
+    });
+
+    expect(container.querySelector("[data-profile-lock-screen] h1")?.textContent).toContain("Alex is locked");
+    expect(container.querySelector("[data-app]")).toBeNull();
+  });
+
+  it("lets a broadcast that arrives after an open result win over the re-check of that result", async () => {
+    let emit: ((state: unknown) => void) | undefined;
+    listenMock.mockImplementation((_event: string, handler: (e: { payload: unknown }) => void) =>
+      Promise.resolve().then(() => {
+        emit = (payload) => handler({ payload });
+        return () => {};
+      }),
+    );
+    let answerRecheck: ((state: unknown) => void) | undefined;
+    startup.getStartupState.mockResolvedValueOnce(brokenState).mockImplementationOnce(
+      () => new Promise((resolve) => (answerRecheck = resolve)),
+    );
+    startup.retryStartup.mockResolvedValue({ status: "open" });
+    await mount();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("[data-launch-action='retry']")!.click();
+    });
+    // While the re-check is still in flight, a newer broadcast says the profile is locked...
+    await act(async () => emit!({ status: "locked", profile_id: "a", profile_name: "Alex" }));
+    // ...and the re-check then answers with what was true before it.
+    await act(async () => answerRecheck!({ status: "open" }));
+
+    expect(container.querySelector("[data-profile-lock-screen] h1")?.textContent).toContain("Alex is locked");
   });
 
   it("puts the saved appearance on the page before anything else is shown", async () => {
