@@ -913,7 +913,8 @@ svg.profile-switcher-icon {
   min-width: 200px;
   max-height: 260px;
   overflow-y: auto;
-  background: var(--surface);
+  /* This menu floats over navigation; glass surfaces let its labels bleed through. */
+  background: var(--status-base);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 10px;
