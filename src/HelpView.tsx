@@ -616,34 +616,175 @@ type FaqEntry = {
 const FAQ_ENTRIES: FaqEntry[] = [
   {
     question: "How does password protection work?",
-    tags: ["password", "protection", "recovery key", "recover", "locked", "encryption", "profile", "backup", "export"],
+    tags: [
+      "password",
+      "protection",
+      "password protection",
+      "recovery key",
+      "recover",
+      "locked",
+      "lock",
+      "encryption",
+      "encrypt",
+      "profile",
+      "backup",
+      "export",
+      "change password",
+      "regenerate",
+      "remove protection",
+      "vaultspend package",
+      "portable",
+      "move to another computer",
+    ],
     answer: (
       <>
         <p>
-          Password protection encrypts that profile&apos;s data on disk and asks for its password when you open it.
-          Profile names and icons remain visible so you can choose which profile to unlock. Keep the recovery key
-          somewhere safe: if you forget the password, it is the only way to regain access. You can change the
-          password, regenerate the recovery key, or remove protection under <strong>Settings → Profile protection</strong>.
+          Password protection encrypts a profile&apos;s data on disk and asks for its password whenever you open it.
+          Each profile is protected on its own, so you can protect some and leave others as they are. Turn it on under{" "}
+          <strong>Settings → Profile protection</strong> (<strong>Turn on password protection…</strong>), or tick the
+          protection box when you add a new profile. Setup shows a one-time recovery key and only finishes once you
+          have typed two of its groups back, so you know it was saved. Profile names and icons stay visible so you can
+          choose which profile to unlock.
         </p>
         <p>
-          Backups and Vault Spend package exports from a protected profile stay encrypted. CSV exports are plain
-          text, so Vault Spend warns before creating one. If neither the password nor recovery key is available,
-          the profile can only be removed from the profile list; its files are left on disk. Protection secures
-          stored data, but it cannot protect information while the profile is unlocked from malware, an administrator,
-          or someone viewing the screen.
+          Lock a profile any time with <strong>Lock profile</strong> in the profile switcher (or the command palette);
+          it can also lock itself, see &quot;When does a protected profile lock automatically?&quot; below. Under
+          Settings → Profile protection you can change the password (which issues a new recovery key), regenerate the
+          recovery key, or remove protection.
+        </p>
+        <p>
+          A protected profile exports as a <strong>.vaultspend</strong> folder: the encrypted data, its key file and a
+          manifest. On any computer running Vault Spend, Windows or macOS, choose <strong>Use existing file</strong>{" "}
+          when adding a profile, pick that folder and enter the password. Keep the files in the folder together.
+          Protection secures stored data, but it cannot protect information while the profile is unlocked from
+          malware, an administrator, or someone viewing the screen. Versions of Vault Spend before 1.2.8 can&apos;t
+          open a protected profile.
+        </p>
+      </>
+    ),
+  },
+  {
+    question: "What if I forget my password or lose my recovery key?",
+    tags: ["forgot password", "forgotten password", "lost recovery key", "recovery key", "recover", "reset password", "locked out", "password protection"],
+    answer: (
+      <>
+        <p>
+          On the lock screen, use the recovery option and enter your recovery key to choose a new password; a new
+          recovery key is issued at the same time, so save that one. The password and the recovery key are each enough
+          to get in, and nothing else is: Vault Spend cannot reset either for you, and there is no back door.
+        </p>
+        <p>
+          If you have lost the recovery key but can still unlock the profile, regenerate it under{" "}
+          <strong>Settings → Profile protection</strong>. If you have neither the password nor the recovery key, the
+          profile&apos;s data can&apos;t be read, and the profile can only be removed from the profile list. That
+          removes the list entry only; its files stay on disk untouched, so deleting them is up to you.
+        </p>
+      </>
+    ),
+  },
+  {
+    question: "Which copies of my data stay unencrypted?",
+    tags: ["plaintext copies", "plaintext", "unencrypted", "csv", "export", "second copy", "second folder", "leftover", "original file", "safety copy", "password protection"],
+    answer: (
+      <>
+        <p>
+          Turning protection on makes a new encrypted file and leaves the original, unprotected file and its older
+          backups where they were, still readable by anyone with access to this computer. Settings then shows a{" "}
+          <strong>Plaintext files left behind</strong> card with <strong>Delete plaintext copies now</strong> and{" "}
+          <strong>Keep for now</strong>. Older unprotected copies in your second backup folder are only deleted if you
+          tick the box for them.
+        </p>
+        <p>
+          Before turning protection on, you may want a separate plaintext safety copy of your data (for example an
+          export) kept somewhere private, and you should never delete the only backup you can open. Backups and Vault
+          Spend package exports made after protection stay encrypted, including copies in the second backup folder,
+          which travel with their key file. CSV exports are always plain text, so Vault Spend warns before creating
+          one, and any plain file you make or keep yourself is outside protection.
+        </p>
+      </>
+    ),
+  },
+  {
+    question: "Can I restore an old backup after changing my password?",
+    tags: ["old password", "older password", "restore", "backup", "change password", "restore backup", "protected backup"],
+    answer: (
+      <p>
+        It depends where the backup is. Changing the password re-protects the backups in the profile&apos;s own
+        backups folder, so those open with the new password. A backup copy you kept somewhere else, or set aside
+        before the change, still needs the older password it was made under: restoring it asks for that password, and
+        once restored, that older password is the profile&apos;s current password again, with the recovery key that
+        came with it. Restoring first backs up your current data, so it can be undone.
+      </p>
+    ),
+  },
+  {
+    question: "When does a protected profile lock automatically?",
+    tags: [
+      "automatic lock",
+      "automatic locking",
+      "auto-lock",
+      "auto lock",
+      "idle",
+      "inactivity",
+      "timeout",
+      "tray",
+      "focus",
+      "windows session",
+      "windows lock",
+      "sleep",
+      "suspend",
+      "lock screen",
+    ],
+    answer: (
+      <>
+        <p>
+          Automatic locking is set for each protected profile under{" "}
+          <strong>Settings → Profile protection → Automatic locking</strong>. By default a profile locks after 15
+          minutes without activity (choose Off, 1, 5, 15, 30 or 60 minutes). A 10-second warning appears first with a{" "}
+          <strong>Stay unlocked</strong> button; when the lock happens, anything you were typing but hadn&apos;t saved
+          is discarded.
+        </p>
+        <p>
+          Two more triggers are on by default: <strong>Lock when hidden to the tray</strong> (when the tray option is
+          on) and <strong>Lock when Windows locks or sleeps</strong>. <strong>Lock when the window loses focus</strong>{" "}
+          is off by default; turn it on if switching to another app should lock the profile. macOS has no equivalent
+          of the Windows lock/sleep trigger, so that option is Windows-only. Locking closes the profile&apos;s data connection and returns to the password
+          screen, taking a backup first if one is due.
+        </p>
+      </>
+    ),
+  },
+  {
+    question: "Do bill reminders work while a profile is locked?",
+    tags: ["reminders", "reminder", "bill reminders", "locked", "notification", "privacy", "tray", "quit", "maintenance", "recurring"],
+    answer: (
+      <>
+        <p>
+          Reminders need Vault Spend to be running. With the tray option on, closing the window keeps it running, and
+          choosing Quit from the tray menu stops reminders. While a protected profile is locked, or no profile is
+          open, a reminder only says &quot;A bill is due soon in&quot; that profile&apos;s name: no bill name and no
+          amount. It comes from the upcoming bills Vault Spend already knew about the last time that profile was
+          open, so it does not work out new recurrences while locked.
+        </p>
+        <p>
+          When a profile is open, an unprotected one names the bill; a protected one does so only if you turn on{" "}
+          <strong>Show bill names in reminders</strong> in Settings. Routine housekeeping, such as rolling a month
+          forward, automatic sinking-fund contributions and the daily portfolio snapshot, also waits until you unlock
+          and then runs.
         </p>
       </>
     ),
   },
   {
     question: "Is my data private?",
-    tags: ["privacy", "data", "local", "cloud", "security", "offline", "account"],
+    tags: ["privacy", "data", "local", "cloud", "security", "offline", "account", "network", "internet", "updates", "live prices"],
     answer: (
       <p>
-        Yes. Everything is stored in one file on your own computer, created
-        fresh the first time you launch the app. There's no account, no
-        server, and nothing is ever uploaded — a fresh install on someone
-        else's computer starts completely empty, never with your data.
+        Yes. Each profile&apos;s data is stored in files on your own computer, created fresh the first time you
+        launch the app, and nothing you enter is ever uploaded, so a fresh install on someone else&apos;s computer
+        starts completely empty. There&apos;s no account and no server. The only network requests Vault Spend makes
+        are a check for a newer version on GitHub when it opens, and live investment prices if you set up a price
+        provider. You can also password-protect any profile (see above).
       </p>
     ),
   },
@@ -952,8 +1093,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
         next to you. It hides the numbers, not the shapes of charts or what
         a hover tooltip says. In Settings → Privacy you can also have the
         amounts hidden automatically whenever the window isn't in front.
-        It's a screen privacy aid — your data file itself isn't encrypted or
-        changed.
+        Hide amounts changes only what is shown on screen. Use password
+        protection to encrypt a profile's stored data.
       </p>
     ),
   },

@@ -2,9 +2,12 @@
 
 *Own your Data, Own your Money!*
 
-A local, private budgeting and transaction ledger for Windows. There's no
-account, no cloud sync, and no subscription — everything lives in a single
-file on your own computer, and nothing is ever sent anywhere else.
+A local, private budgeting and transaction ledger for Windows and macOS.
+There's no service account, no cloud synchronization, and no subscription —
+your data lives in files on your own computer, in independent profiles you
+can each password-protect. Vault Spend only reaches out to the internet for
+two things: a check on GitHub for a newer version when it opens, and live
+investment prices if you set up a price provider.
 
 Vault Spend is an independent open-source project and is not affiliated
 with, endorsed by, or partnered with any external financial services or
@@ -19,6 +22,14 @@ wallet providers.
 3. Launch Vault Spend from the Start Menu. It starts completely empty — no
    sample data, nothing pre-loaded — ready for your own accounts and
    transactions.
+
+On macOS, open the `.dmg` and drag Vault Spend into Applications. The build
+isn't signed, so macOS asks you to approve the first launch (System Settings →
+Privacy & Security → **Open Anyway**).
+
+**Upgrading?** Your existing data opens exactly as before, unprotected, and
+nothing is protected unless you turn it on. If you plan to protect a profile,
+read "Password protection and automatic locking" below first.
 
 ## Getting started
 
@@ -224,14 +235,49 @@ the two buttons in **Settings → Data → Setup data**:
   current Reports view — choose "Save as PDF" as the destination if you
   want a file instead of a physical printout.
 
+## Password protection and automatic locking
+
+Each profile can be password-protected on its own, under **Settings → Profile
+protection** or with the protection box when you add a profile. A protected
+profile's data file, its backups and its exports are encrypted (SQLCipher),
+and Vault Spend asks for the password whenever you open it. Setup shows a
+one-time **recovery key** and only finishes once you type two of its groups
+back. Profile names and icons stay visible so you can pick which profile to
+unlock. The password and the recovery key are each enough to get in and
+nothing else is, so keep the recovery key somewhere safe.
+
+- **Locking.** Lock a profile from the profile switcher, or let it lock
+  itself: by default after 15 minutes of inactivity (Off/1/5/15/30/60) with a
+  10-second warning, when the window is hidden to the tray, and (Windows only)
+  when Windows locks or sleeps. Locking when the window loses focus is opt-in.
+  While a profile is locked, reminders only say "A bill is due soon in
+  <profile name>".
+- **Portability.** A protected profile exports as a `.vaultspend` folder
+  (encrypted data, key file, manifest) that you can import on Windows or macOS
+  with **Use existing file** and the password. Keep a database and its key
+  file together.
+- **What stays unencrypted.** Turning protection on leaves the original file
+  and its older backups on disk until you delete them (Settings offers to).
+  CSV exports and any plain files you keep yourself are outside protection.
+  Consider a separate, private plaintext safety copy before you first protect a
+  profile, and never delete the only backup you can open.
+- **Limits.** Protection secures stored data; it can't protect a profile while
+  it is unlocked from malware, an administrator, or someone viewing the
+  screen. There is no downgrade path: versions before 1.2.8 can't open a
+  protected profile. A backup made before a password change may need the older
+  password to restore.
+
 ## FAQ
 
 **Is my data private?**
-Yes. Everything is stored in one SQLite file on your own computer
-(`%APPDATA%\com.joeyf.vaultspend\vaultspend.db`), created fresh the first
-time you launch the app. There's no account, no server, and nothing is
-ever uploaded — a fresh install on someone else's computer starts
-completely empty, never with your data.
+Yes. Each profile's data is stored in a SQLite file on your own computer
+(by default `%APPDATA%\com.joeyf.vaultspend\vaultspend.db` on Windows),
+created fresh the first time you launch the app. There's no account and no
+server, and nothing you enter is ever uploaded — a fresh install on someone
+else's computer starts completely empty, never with your data. The only
+network requests are the update check and, if you set up a provider, live
+investment prices. Any profile can also be password-protected (see
+"Password protection and automatic locking" above).
 
 **I got a "Windows protected your PC" warning — is this safe?**
 That's Windows SmartScreen, and it appears because this installer isn't
@@ -361,7 +407,8 @@ you press it again, so you can open Vault Spend with someone next to you.
 It hides the numbers, not the shapes of charts or what a hover tooltip
 says. In Settings → Privacy you can also have the amounts hidden
 automatically whenever the window isn't in front. It's a screen privacy
-aid — your data file itself isn't encrypted or changed.
+aid. Hide amounts changes only what is shown on screen; use password
+protection to encrypt a profile's stored data.
 
 **Are there keyboard shortcuts?**
 **Ctrl+K** opens a command palette: type to jump to any tab, account,

@@ -9,7 +9,7 @@
 //
 // Run with: node e2e/feature26_help_search.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture("");
@@ -67,6 +67,7 @@ try {
   // `.setValue("")` doesn't reliably clear a controlled React input in this
   // WebView — same class of issue as the inline-rename race documented in
   // feature18_recurring_edit.mjs. Select-all + Backspace is what works.
+  await reclaimWindowFocus(app.browser);
   await searchInput.click();
   await app.browser.keys(["Control", "a"]);
   await app.browser.keys("Backspace");
@@ -86,6 +87,7 @@ try {
   );
   console.log("password protection has a searchable Help topic");
 
+  await reclaimWindowFocus(app.browser);
   await searchInput.click();
   await app.browser.keys(["Control", "a"]);
   await app.browser.keys("Backspace");

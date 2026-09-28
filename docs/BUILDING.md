@@ -26,3 +26,10 @@ cargo test --workspace                # Rust tests
 ```
 
 See `AGENTS.md` for which checks to run for which kind of change, and `e2e/README.md` before touching the end-to-end suite. A release build is `npx tauri build`.
+
+## Testing notes
+
+- **Windows shell.** Run cargo and `npx tauri build` from PowerShell (or another shell where Strawberry Perl comes first on `PATH`). Git Bash resolves `perl` to Git's own copy, which breaks the OpenSSL build.
+- **Build before you drive the app.** The end-to-end specs drive the compiled app, so run `npx tauri build --debug --no-bundle` after any frontend or backend change, then the specs. To build into a different folder, set a *short* `CARGO_TARGET_DIR` and point `VAULTSPEND_EXE` at that build.
+- **Isolated data.** Every spec launches the app with its own throwaway `VAULTSPEND_DB_DIR`; set it yourself when you launch a build for manual testing so it never touches your real profiles.
+- **Platforms.** The end-to-end suite uses Windows WebDriver (`tauri-driver` with Edge WebDriver) and runs on Windows only. macOS builds are compiled and unit-tested in CI (`.github/workflows/build-macos-check.yml`), and their behavior is checked by hand on a real Mac; there is no automated macOS UI test.
