@@ -8,7 +8,7 @@
 // Run with: node e2e/feature101_profile_selector.mjs
 
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedProfiles } from "./lib/protection.mjs";
 
 // A real WebView2/tauri-driver quirk, found writing this spec: `elementSendKeys` (what `.setValue()`
@@ -21,17 +21,32 @@ import { seedProfiles } from "./lib/protection.mjs";
 // screen that was already mounted. Setting the value directly (the same technique jsdom unit tests
 // already use) works reliably; `browser.keys()` for Enter is unaffected since it targets whatever
 // currently has focus at the session level, not a specific element lookup.
+// Returns false when the field is already gone (see the rename step below for why that can happen).
 async function typeIntoFreshInput(browser, selector, value) {
-  await browser.execute(
+  return browser.execute(
     (sel, val) => {
       const el = document.querySelector(sel);
+      if (!el) return false;
       const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
       setValue.call(el, val);
       el.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
     },
     selector,
     value,
   );
+}
+
+// Presses Enter in a field by dispatching the key-down on it inside the page, in one step. A real key press
+// (browser.keys) is several WebDriver commands sent to whatever holds keyboard focus by then, and another
+// spec's window launching in a parallel run takes OS focus away in between: the field commits when it loses
+// focus, vanishes, and the Enter lands on the profile's Open button instead. The field's Enter handling is
+// what is under test here (the real key path is covered by ProfileSelector.test.tsx), so send it straight to
+// the field. A field that is already gone has been committed another way; there is nothing left to press.
+async function pressEnterIn(browser, selector) {
+  await browser.execute((sel) => {
+    document.querySelector(sel)?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  }, selector);
 }
 
 // 1. Fresh install: no registry at all, no selector.
@@ -110,23 +125,37 @@ async function typeIntoFreshInput(browser, selector, value) {
   const app = await launchApp({ dbDir, ready: "[data-profile-selector]" });
   try {
     const { browser } = app;
-    let renameBtn;
-    for (const card of await browser.$$("[data-profile-card]")) {
-      if ((await card.getText()).includes("Alex")) {
-        renameBtn = await card.$("button=Rename");
-        break;
+    // Opening the field and typing into it is one unit. The field also commits when it loses focus, so if
+    // another spec's window takes OS focus at that moment the edit ends before anything is typed (and the
+    // field is gone). That is the field working as designed; start the edit again, up to three times.
+    let typed = false;
+    for (let attempt = 1; attempt <= 3 && !typed; attempt++) {
+      await reclaimWindowFocus(browser);
+      let renameBtn;
+      for (const card of await browser.$$("[data-profile-card]")) {
+        if ((await card.getText()).includes("Alex")) {
+          renameBtn = await card.$("button=Rename");
+          break;
+        }
+      }
+      assert.ok(renameBtn, "expected a Rename button on Alex's card");
+      await renameBtn.click();
+      if (await browser.$(".profile-card-editing input").waitForExist({ timeout: 3000 }).then(() => true, () => false)) {
+        typed = await typeIntoFreshInput(browser, ".profile-card-editing input", "Alexandra");
       }
     }
-    assert.ok(renameBtn, "expected a Rename button on Alex's card");
-    await renameBtn.click();
-    await browser.$(".profile-card-editing input").waitForExist({ timeout: 5000 });
-    await typeIntoFreshInput(browser, ".profile-card-editing input", "Alexandra");
-    await browser.keys("Enter");
-    await browser.waitUntil(async () => {
-      const options = await browser.$$("[data-profile-option]");
-      for (const o of options) if ((await o.getText()).includes("Alexandra")) return true;
-      return false;
-    }, { timeout: 5000, timeoutMsg: "expected the card to show the new name without leaving the selector" });
+    assert.ok(typed, "clicking Rename should open the name field, and it should stay open long enough to type in");
+    await pressEnterIn(browser, ".profile-card-editing input");
+    const cardNames = async () => {
+      const names = [];
+      for (const o of await browser.$$("[data-profile-option]")) names.push((await o.getText()).replace(/\s+/g, " "));
+      return names;
+    };
+    await waitUntilOrDiagnose(browser, async () => (await cardNames()).some((n) => n.includes("Alexandra")), {
+      timeout: 10000,
+      timeoutMsg: "expected the card to show the new name without leaving the selector",
+      extra: async () => ({ cards: await cardNames(), stillEditing: await browser.$(".profile-card-editing input").isExisting() }),
+    });
     assert.ok(await browser.$("[data-profile-selector]").isExisting(), "renaming should not navigate away from the selector");
   } finally {
     await app.close();
@@ -167,7 +196,7 @@ async function typeIntoFreshInput(browser, selector, value) {
     await (await browser.$("[data-add-profile]")).click();
     await browser.$(".profile-card-new-form input").waitForExist({ timeout: 5000 });
     await typeIntoFreshInput(browser, ".profile-card-new-form input", "Casey");
-    await browser.keys("Enter");
+    await pressEnterIn(browser, ".profile-card-new-form input");
     await browser.$(".brand-word").waitForExist({ timeout: 10000, timeoutMsg: "adding a profile from the selector should open it" });
   } finally {
     await app.close();

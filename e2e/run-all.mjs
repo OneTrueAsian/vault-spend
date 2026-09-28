@@ -180,6 +180,10 @@ const failed = results.filter((r) => r.code !== 0);
 console.log(`\n${results.length - failed.length}/${results.length} passed in ${totalSeconds}s (concurrency ${concurrency})`);
 const slowest = [...results].sort((a, b) => b.durationMs - a.durationMs).slice(0, 5);
 console.log("Slowest specs: " + slowest.map((r) => `${r.name} ${(r.durationMs / 1000).toFixed(1)}s`).join(", "));
+// A launch that stalls before its page loads is retried by harness.mjs. That is worth knowing about even
+// when every spec then passes, so count the reports the specs printed.
+const launchRetries = results.reduce((n, r) => n + (r.output.match(/\[harness\] launch retry/g)?.length ?? 0), 0);
+if (launchRetries > 0) console.log(`Launch retries this run: ${launchRetries} (a driver/webview stall before any page loaded; see e2e/harness.mjs)`);
 if (failed.length > 0) {
   console.log("\nFAILURES:");
   for (const f of failed) {

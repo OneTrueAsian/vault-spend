@@ -99,8 +99,50 @@ shared UI infrastructure, persistence, or the E2E harness. This keeps routine
 feedback short without treating a targeted run as full regression coverage.
 
 If a spec ever *does* fail only when run concurrently (never in isolation),
-that's a real isolation bug worth fixing, not a race to paper over —
-re-run it alone (or at `--concurrency=1`) first to confirm it's not simply
-a flaky assertion, then look for accidental shared state (a hardcoded port,
-a fixed temp path, anything read from the real AppData folder instead of
-`VAULTSPEND_DB_DIR`).
+that's worth fixing properly, not a race to paper over — re-run it alone (or
+at `--concurrency=1`) first to confirm it's not simply a flaky assertion,
+then look for accidental shared state (a hardcoded port, a fixed temp path,
+anything read from the real AppData folder instead of `VAULTSPEND_DB_DIR`).
+Shared state has not been the cause so far; four other causes have been.
+
+## Failures that only happen in parallel runs
+
+Every one of these passed alone and failed only under load. Each was
+reproduced on demand and fixed at its cause, not retried away.
+
+- **Another spec's window takes OS focus.** A launching window takes
+  foreground, so `document.hasFocus()` flips to false in the others. Call
+  `reclaimWindowFocus(browser)` before keyboard input or a focus-sensitive
+  check. Also do not let a spec's own outcome depend on the window keeping
+  focus: `feature121` turns on "Lock when the window loses focus", so the app
+  correctly locks the profile when another window steals focus, and the spec
+  unlocks and retries when (and only when) the lock screen is what stopped it.
+- **Reading once.** The app loads its data after its shell appears. A spec
+  that clicks and then reads the page once sees the empty state when the
+  machine is busy. Wait for the state you assert on and give the wait a
+  message that reports what the window looked like: `waitUntilOrDiagnose` in
+  `harness.mjs` (features 24, 42, 95, 121, 101 use it). Never assert on a
+  single read.
+- **Fixtures the app is right to change.** `feature127` pinned a dashboard
+  widget for an investment account that did not exist, and the app is meant
+  to drop such pins once its data loads, so the layout it read back depended
+  on timing. A fixture must describe a state the app keeps.
+- **Launch failures before any page loads.** In roughly 1 launch in 100 under
+  load the driver layer either creates a session whose first navigation never
+  returns, or reports "invalid session id" as soon as it starts. Nothing of the
+  spec has run at that point, and the app started directly is fine (180
+  launches, no exits). `launchApp` gives the launch 15 seconds to load a
+  page, kills that attempt's process tree, and tries once more. A retry
+  prints `[harness] launch retry` and `run-all.mjs` totals them, so a run that
+  needed one says so.
+
+To reproduce a load-dependent failure and to show a fix works, use
+`e2e/stress.mjs`:
+
+```
+node e2e/stress.mjs e2e/feature121_auto_lock_settings.mjs 8 6 12   # 8 rounds, 6 copies at once, 12 CPU hogs
+```
+
+It reports the pass rate and each distinct failure, and saves the full output
+of failing runs (`STRESS_OUT`, default the temp folder). A fix should turn a
+measured failure rate into zero, not just pass once.

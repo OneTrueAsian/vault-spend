@@ -65,6 +65,15 @@ try {
     anchorDate,
     accountId: null,
   });
+  // The pinned widget must point at a REAL investment account with a holding: the app drops a pin whose
+  // account has no holdings as soon as its data loads (App.tsx prunes stale pins), which used to race
+  // this spec's later "the layout survives an unlock unchanged" read and made it fail intermittently in
+  // busy parallel runs. With a real one the pin is valid for the whole run, so the leak checks below
+  // exercise the value they claim to.
+  const brokerage = await invoke(browser, "create_account", { name: INVESTMENT_NAME, accountType: "investment", startingBalance: "0.00", institution: null, mask: null, iconKey: null });
+  assert.equal(brokerage.error, undefined, `creating the investment account failed: ${JSON.stringify(brokerage)}`);
+  const holding = await invoke(browser, "create_holding", { accountId: brokerage.ok, symbol: "ZZY", name: "ZZY Test Fund", shares: "1", price: "100.00", costBasis: "100.00", assetClass: null });
+  assert.equal(holding.error, undefined, `creating the holding failed: ${JSON.stringify(holding)}`);
   const generation = (await invoke(browser, "get_current_generation")).ok;
   const setState = await invoke(browser, "set_profile_ui_state", {
     key: "dashboard_layout",

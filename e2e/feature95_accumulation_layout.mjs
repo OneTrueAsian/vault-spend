@@ -15,7 +15,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { diagnose, launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { SUMMARY_FIXTURE_PY } from "./lib/accumulation-fixture.mjs";
 import { nav, openDetails, waitForAccumulation } from "./lib/accumulation.mjs";
@@ -221,16 +221,23 @@ try {
       for (const p of await layoutProblems()) contrastProblems.push(`${label} ${mode}: ${p}`);
       // The chart's tooltip sits over the lines, so its background must be opaque in every look (Transparent's
       // --surface is a 68-72% wash: the lines showed through the tooltip's text). Shown with the keyboard.
+      // Keyboard input needs this window to hold OS focus (another spec's window launching takes it away —
+      // see reclaimWindowFocus in harness.mjs), and the tooltip is drawn a moment after the key, so reclaim
+      // focus first and wait for the tooltip instead of reading it the instant the key returns.
+      await reclaimWindowFocus(browser);
       await browser.execute(() => document.querySelector("[data-accumulation] [data-series-chart]").focus());
       await browser.keys("End");
-      const tooltipAlpha = await browser.execute(() => {
-        const bg = document.querySelector("[data-accumulation] [data-series-chart] svg rect[rx='8']");
-        if (!bg) return null;
-        const fill = getComputedStyle(bg).fill;
-        const m = fill.match(/\/\s*([\d.]+)\s*\)/) ?? fill.match(/rgba\([^)]*,\s*([\d.]+)\)/);
-        return m ? Number(m[1]) : 1;
-      });
-      if (tooltipAlpha === null) contrastProblems.push(`${label} ${mode}: the keyboard should bring up the chart's tooltip`);
+      const readTooltipAlpha = () =>
+        browser.execute(() => {
+          const bg = document.querySelector("[data-accumulation] [data-series-chart] svg rect[rx='8']");
+          if (!bg) return null;
+          const fill = getComputedStyle(bg).fill;
+          const m = fill.match(/\/\s*([\d.]+)\s*\)/) ?? fill.match(/rgba\([^)]*,\s*([\d.]+)\)/);
+          return m ? Number(m[1]) : 1;
+        });
+      await browser.waitUntil(async () => (await readTooltipAlpha()) !== null, { timeout: 5000 }).catch(() => {});
+      const tooltipAlpha = await readTooltipAlpha();
+      if (tooltipAlpha === null) contrastProblems.push(`${label} ${mode}: the keyboard should bring up the chart's tooltip (window=${JSON.stringify(await diagnose(browser))})`);
       else if (tooltipAlpha < 1) contrastProblems.push(`${label} ${mode}: the chart tooltip's background is see-through (opacity ${tooltipAlpha}), so lines show through its text`);
       await browser.keys("Escape");
       await nav(browser, "Investments");
