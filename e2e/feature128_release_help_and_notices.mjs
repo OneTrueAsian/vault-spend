@@ -37,7 +37,13 @@ try {
 
   await searchFor(
     "automatic lock",
-    (text) => text.includes("15 minutes") && text.includes("10-second warning") && text.includes("Stay unlocked") && text.includes("macOS") && unrelatedGone(text),
+    (text) =>
+      text.includes("15 minutes") &&
+      text.includes("10-second warning") &&
+      text.includes("Stay unlocked") &&
+      text.includes("macOS") &&
+      text.includes("Settings → Password protection → Automatic locking") &&
+      unrelatedGone(text),
     "automatic-lock guidance should be searchable, with its defaults and warning",
   );
 
@@ -125,6 +131,9 @@ try {
   const badge = await browser.$(".protection-new-badge");
   await badge.waitForExist({ timeout: 10000, timeoutMsg: "Settings should mark password protection as new" });
   if ((await badge.getText()).trim() !== "New") throw new Error("the label should read New");
+  // Help sends people to "Settings → Password protection": that heading must be the one the badge sits in.
+  const cardTitle = await badge.parentElement().getText();
+  if (!cardTitle.startsWith("Password protection")) throw new Error(`Help names the "Password protection" heading, but Settings shows "${cardTitle}"`);
   if (await badge.parentElement().$("button").isExisting()) throw new Error("the New label must not be interactive");
 
   console.log("FEATURE 128 E2E TEST PASSED");

@@ -642,7 +642,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         <p>
           Password protection encrypts a profile&apos;s data on disk and asks for its password whenever you open it.
           Each profile is protected on its own, so you can protect some and leave others as they are. Turn it on under{" "}
-          <strong>Settings → Profile protection</strong> (<strong>Turn on password protection…</strong>), or tick the
+          <strong>Settings → Password protection</strong> (<strong>Turn on password protection…</strong>), or tick the
           protection box when you add a new profile. Setup shows a one-time recovery key and only finishes once you
           have typed two of its groups back, so you know it was saved. Profile names and icons stay visible so you can
           choose which profile to unlock.
@@ -650,7 +650,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         <p>
           Lock a profile any time with <strong>Lock profile</strong> in the profile switcher (or the command palette);
           it can also lock itself, see &quot;When does a protected profile lock automatically?&quot; below. Under
-          Settings → Profile protection you can change the password (which issues a new recovery key), regenerate the
+          Settings → Password protection you can change the password (which issues a new recovery key), regenerate the
           recovery key, or remove protection.
         </p>
         <p>
@@ -676,7 +676,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         </p>
         <p>
           If you have lost the recovery key but can still unlock the profile, regenerate it under{" "}
-          <strong>Settings → Profile protection</strong>. If you have neither the password nor the recovery key, the
+          <strong>Settings → Password protection</strong>. If you have neither the password nor the recovery key, the
           profile&apos;s data can&apos;t be read, and the profile can only be removed from the profile list. That
           removes the list entry only; its files stay on disk untouched, so deleting them is up to you.
         </p>
@@ -740,7 +740,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <>
         <p>
           Automatic locking is set for each protected profile under{" "}
-          <strong>Settings → Profile protection → Automatic locking</strong>. By default a profile locks after 15
+          <strong>Settings → Password protection → Automatic locking</strong>. By default a profile locks after 15
           minutes without activity (choose Off, 1, 5, 15, 30 or 60 minutes). A 10-second warning appears first with a{" "}
           <strong>Stay unlocked</strong> button; when the lock happens, anything you were typing but hadn&apos;t saved
           is discarded.
