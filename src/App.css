@@ -5576,7 +5576,8 @@ button:disabled {
   color: var(--accent-soft-text);
 }
 
-.icon-credits-disclosure summary {
+.icon-credits-disclosure summary,
+.third-party-notices summary {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -5586,11 +5587,13 @@ button:disabled {
   list-style: none;
 }
 
-.icon-credits-disclosure summary::-webkit-details-marker {
+.icon-credits-disclosure summary::-webkit-details-marker,
+.third-party-notices summary::-webkit-details-marker {
   display: none;
 }
 
-.icon-credits-disclosure summary::before {
+.icon-credits-disclosure summary::before,
+.third-party-notices summary::before {
   content: "▸";
   display: inline-block;
   color: var(--text-muted);
@@ -5598,7 +5601,8 @@ button:disabled {
   transition: transform 0.15s ease;
 }
 
-.icon-credits-disclosure[open] summary::before {
+.icon-credits-disclosure[open] summary::before,
+.third-party-notices[open] summary::before {
   transform: rotate(90deg);
 }
 
@@ -5614,6 +5618,31 @@ button:disabled {
 
 .icon-credits-disclosure[open] > ul {
   display: block;
+}
+
+/* Same explicit open/closed handling as the icon credits above: a closed <details> can still paint
+   its child in this WebView2, so the notices text is shown only from the [open] attribute. */
+.third-party-notices > pre {
+  display: none;
+}
+
+.third-party-notices[open] > pre {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  margin: 12px 0 0;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.protection-new-badge {
+  margin-inline-start: 0.5rem;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.75em;
 }
 
 .modal-field {

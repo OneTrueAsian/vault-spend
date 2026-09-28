@@ -1,4 +1,5 @@
 import { Fragment, ReactNode, useState } from "react";
+import thirdPartyNotices from "../docs/THIRD-PARTY-NOTICES.txt?raw";
 
 /** One filterable unit of help content. `tags` drives search — always
  * include the entry's own visible name/heading among them (so searching
@@ -751,6 +752,23 @@ const FAQ_ENTRIES: FaqEntry[] = [
           of the Windows lock/sleep trigger, so that option is Windows-only. Locking closes the profile&apos;s data connection and returns to the password
           screen, taking a backup first if one is due.
         </p>
+      </>
+    ),
+  },
+  {
+    question: "Which open-source components does Vault Spend include?",
+    tags: ["third-party notices", "notices", "license", "licenses", "open source", "sqlcipher", "openssl", "encryption library", "credits"],
+    answer: (
+      <>
+        <p>
+          Vault Spend encrypts protected profiles with SQLCipher, which is built on SQLite and uses OpenSSL. Their
+          license and copyright notices are included here in full, so you can read them offline. Icon credits are in
+          Settings.
+        </p>
+        <details className="third-party-notices">
+          <summary>Read third-party notices</summary>
+          <pre>{thirdPartyNotices}</pre>
+        </details>
       </>
     ),
   },

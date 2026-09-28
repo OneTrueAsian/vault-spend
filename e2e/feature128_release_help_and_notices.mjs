@@ -73,6 +73,59 @@ try {
     "the Hide amounts FAQ should no longer say the data file isn't encrypted",
   );
 
+  // The third-party notices: findable by component name, opened from the keyboard, complete and
+  // readable inside a narrow window, and available without any network request.
+  await searchFor(
+    "sqlcipher",
+    (text) => text.includes("Read third-party notices") && unrelatedGone(text),
+    "the third-party notices should be searchable by component name",
+  );
+  await searchFor(
+    "openssl",
+    (text) => text.includes("Read third-party notices") && unrelatedGone(text),
+    "the third-party notices should be searchable by OpenSSL too",
+  );
+  await browser.setWindowSize(390, 900);
+  const resourcesBefore = await browser.execute(() => performance.getEntriesByType("resource").length);
+  const summary = await browser.$(".third-party-notices summary");
+  await summary.scrollIntoView();
+  await reclaimWindowFocus(browser);
+  if (await browser.$(".third-party-notices pre").isDisplayed()) throw new Error("the notices should start collapsed");
+  await browser.execute(() => document.querySelector(".third-party-notices summary").focus());
+  await browser.keys("Enter");
+  await browser.waitUntil(async () => (await browser.$(".third-party-notices pre").isDisplayed()), {
+    timeout: 5000,
+    timeoutMsg: "pressing Enter on the summary should open the notices",
+  });
+  const notices = await browser.$(".third-party-notices pre").getText();
+  for (const expected of [
+    "SQLCipher 4.5.7",
+    "Zetetic LLC",
+    "Redistributions in binary form must reproduce the above copyright",
+    "OpenSSL 3.6.3",
+    "Apache License",
+    "Version 2.0, January 2004",
+    "END OF TERMS AND CONDITIONS",
+  ]) {
+    if (!notices.includes(expected)) throw new Error(`the notices should contain "${expected}"`);
+  }
+  const fit = await browser.execute(() => {
+    const pre = document.querySelector(".third-party-notices pre");
+    return { preScroll: pre.scrollWidth, preClient: pre.clientWidth, docScroll: document.documentElement.scrollWidth, docClient: document.documentElement.clientWidth };
+  });
+  if (fit.preScroll > fit.preClient + 1) throw new Error(`the notices must wrap instead of scrolling sideways: ${JSON.stringify(fit)}`);
+  if (fit.docScroll > fit.docClient + 1) throw new Error(`opening the notices must not make the page scroll sideways: ${JSON.stringify(fit)}`);
+  const resourcesAfter = await browser.execute(() => performance.getEntriesByType("resource").length);
+  if (resourcesAfter !== resourcesBefore) throw new Error(`opening the notices must not load anything (${resourcesBefore} -> ${resourcesAfter} resources)`);
+
+  // Settings marks password protection as new — for a profile that has not turned it on too.
+  await browser.setWindowSize(1300, 1000);
+  await (await browser.$("button*=Settings")).click();
+  const badge = await browser.$(".protection-new-badge");
+  await badge.waitForExist({ timeout: 10000, timeoutMsg: "Settings should mark password protection as new" });
+  if ((await badge.getText()).trim() !== "New") throw new Error("the label should read New");
+  if (await badge.parentElement().$("button").isExisting()) throw new Error("the New label must not be interactive");
+
   console.log("FEATURE 128 E2E TEST PASSED");
 } finally {
   await app.close();

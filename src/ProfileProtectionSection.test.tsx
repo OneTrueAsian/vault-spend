@@ -97,6 +97,20 @@ describe("ProfileProtectionSection", () => {
     expect(button("Turn on password protection…")).not.toBeUndefined();
   });
 
+  it.each([
+    ["an unprotected", UNPROTECTED],
+    ["a protected", PROTECTED],
+  ])("marks password protection as new with a plain, non-interactive label for %s profile", (_label, profile) => {
+    show(profile);
+
+    const badge = container.querySelector<HTMLElement>(".card-head .protection-new-badge");
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe("New");
+    expect(badge!.closest("button, a, [role='button']")).toBeNull();
+    expect(badge!.getAttribute("tabindex")).toBeNull();
+    expect(badge!.parentElement!.textContent).toBe("Password protection New");
+  });
+
   it('shows "On" and offers password changes for a protected active profile', () => {
     show(PROTECTED);
 

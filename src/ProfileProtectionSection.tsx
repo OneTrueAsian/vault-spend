@@ -34,7 +34,9 @@ export function ProfileProtectionSection({
   return (
     <div className="card">
       <div className="card-head">
-        <span className="reports-section-title">Password protection</span>
+        <span className="reports-section-title">
+          Password protection <span className="protection-new-badge">New</span>
+        </span>
       </div>
       <p className="modal-message-secondary">
         Password protection: {active.is_password_protected ? "On" : "Off"}
