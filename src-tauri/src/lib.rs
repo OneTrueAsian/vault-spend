@@ -386,6 +386,7 @@ pub fn run() {
             commands::check_sinking_fund_contributions,
             #[cfg(debug_assertions)]
             debug_commands::debug_process_id,
+            #[cfg(debug_assertions)]
             debug_commands::debug_recovery_code_unlocks,
             #[cfg(debug_assertions)]
             debug_commands::debug_advance_auto_lock,
@@ -400,4 +401,29 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod release_registration_tests {
+    /// `debug_commands` only exists in debug builds, so every reference to it in the command handler
+    /// list must sit directly under a `#[cfg(debug_assertions)]` attribute. A missing one compiles in
+    /// every debug build (and passes every debug-driven test) but stops a release build from
+    /// compiling at all, so this keeps that class of mistake from reaching an installer.
+    #[test]
+    fn every_debug_command_registration_is_compiled_out_of_release_builds() {
+        let source = include_str!("lib.rs");
+        let lines: Vec<&str> = source.lines().map(str::trim).collect();
+        let registrations: Vec<usize> = (0..lines.len()).filter(|&i| lines[i].starts_with("debug_commands::")).collect();
+        assert!(
+            registrations.len() >= 7,
+            "expected to find the debug command registrations, found {}",
+            registrations.len()
+        );
+        let ungated: Vec<&str> = registrations
+            .into_iter()
+            .filter(|&i| i == 0 || lines[i - 1] != "#[cfg(debug_assertions)]")
+            .map(|i| lines[i])
+            .collect();
+        assert!(ungated.is_empty(), "these would stop a release build from compiling: {ungated:?}");
+    }
 }
