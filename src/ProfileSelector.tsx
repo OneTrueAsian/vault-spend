@@ -126,7 +126,12 @@ export function ProfileSelector({
                     onChange={(e) => setDraftName(e.target.value)}
                     onBlur={() => commitRename(p.id, p.name)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") commitRename(p.id, p.name);
+                      if (e.key === "Enter") {
+                        // The commit re-renders this card and the selected profile's Open button takes focus;
+                        // without this, the key's follow-on character event lands on that button and opens the profile.
+                        e.preventDefault();
+                        commitRename(p.id, p.name);
+                      }
                       if (e.key === "Escape") setEditingId(null);
                     }}
                   />

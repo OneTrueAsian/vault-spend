@@ -156,6 +156,26 @@ describe("ProfileSelector", () => {
     expect(onResolved).not.toHaveBeenCalled();
   });
 
+  it("Enter in the rename field commits the rename and does nothing else", async () => {
+    invokeMock.mockResolvedValue(undefined);
+    show(THREE);
+
+    await act(async () => {
+      [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Rename" && b.closest("[data-profile-card]")?.textContent?.includes("Alex"))!.click();
+    });
+    typeInto(container.querySelector<HTMLInputElement>(".profile-card-editing input")!, "Alexandra");
+    // Committing re-renders the card, and the selected profile's Open button takes focus. Left alone, the
+    // key's follow-on character event would then land on that button and open the profile instead of just
+    // renaming it, so the key-down's default action has to be cancelled.
+    const enter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    await act(async () => {
+      container.querySelector<HTMLInputElement>(".profile-card-editing input")!.dispatchEvent(enter);
+    });
+
+    expect(enter.defaultPrevented).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith("rename_profile", { id: "a", newName: "Alexandra" });
+  });
+
   it("deleting a profile needs a second click to confirm, then calls delete_profile and removes the card", async () => {
     invokeMock.mockResolvedValue(undefined);
     show(THREE);
