@@ -6,7 +6,7 @@
 //
 // Run with: node e2e/feature23_family_members.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -60,16 +60,28 @@ try {
   await detailsToggle.click();
   const detailsPanel = await app.browser.$(".ledger-details-row");
   await detailsPanel.waitForExist({ timeout: 5000 });
-  const memberTrigger = await detailsPanel.$("[aria-label*='Family member for']");
-  await memberTrigger.click();
-  const alexOption = await app.browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Alex']]");
-  await alexOption.waitForExist({ timeout: 5000 });
-  await alexOption.click();
-
-  await app.browser.waitUntil(async () => (await (await app.browser.$(".ledger-details-row")).getText()).includes("Alex"), {
-    timeout: 10000,
-    timeoutMsg: "expected the ledger row's member editor to hold Alex after assignment",
-  });
+  // The popover is dismissed by outside-click/blur by design; under
+  // parallel load another spec's window can steal OS focus at any point
+  // between opening it and the click landing, closing it before the
+  // assignment takes (see e2e/README's "Another spec's window takes OS
+  // focus" and feature112_inbox_bulk_review.mjs's own retry loop for the
+  // identical class of race on a sibling popover) — retry the whole
+  // open-click-verify sequence, not just the open, since the menu can
+  // close at any step under heavy load.
+  let assigned = false;
+  for (let attempt = 0; attempt < 4 && !assigned; attempt++) {
+    await reclaimWindowFocus(app.browser);
+    const memberTrigger = await (await app.browser.$(".ledger-details-row")).$("[aria-label*='Family member for']");
+    await memberTrigger.click();
+    const alexOption = await app.browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Alex']]");
+    if (!(await alexOption.isExisting())) continue;
+    await alexOption.click().catch(() => {});
+    assigned = await app.browser
+      .waitUntil(async () => (await (await app.browser.$(".ledger-details-row")).getText()).includes("Alex"), { timeout: 3000 })
+      .then(() => true)
+      .catch(() => false);
+  }
+  if (!assigned) throw new Error("expected the ledger row's member editor to hold Alex after assignment, even after retrying the popover interaction");
   console.log("transaction assigned to Alex");
 
   // The member filter dropdown should now offer Alex, and unchecking her
