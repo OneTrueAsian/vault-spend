@@ -1207,6 +1207,11 @@ impl Store {
                 in_transaction_id INTEGER NOT NULL,
                 PRIMARY KEY (out_transaction_id, in_transaction_id)
             );
+            CREATE TABLE IF NOT EXISTS transfer_candidate_dismissals (
+                out_transaction_id INTEGER NOT NULL,
+                in_transaction_id INTEGER NOT NULL,
+                PRIMARY KEY (out_transaction_id, in_transaction_id)
+            );
             CREATE TABLE IF NOT EXISTS live_price_settings (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 api_key TEXT,
@@ -3661,12 +3666,20 @@ impl Store {
     /// candidate pairs are taken closest-date-first (then by id), so when a
     /// $500 out could match two $500 ins, the nearer one wins. Never
     /// includes `apply_debt_payment`'s generated bookkeeping rows or deleted
-    /// transactions.
+    /// transactions. A pair someone has explicitly dismissed (see
+    /// `dismiss_transfer_candidates`) is excluded before the one-match-per-
+    /// transaction reduction runs, so dismissing the shown pair for a leg
+    /// with more than one possible match surfaces its next-closest
+    /// alternative rather than hiding that leg entirely.
     pub fn transfer_candidates(&self) -> rusqlite::Result<Vec<TransferCandidate>> {
+        let dismissed = self.dismissed_transfer_pairs()?;
         let pairs = self.transfer_candidate_pairs()?;
         let mut used = std::collections::HashSet::new();
         let mut result = Vec::new();
         for (_, out_id, in_id) in pairs {
+            if dismissed.contains(&(out_id, in_id)) {
+                continue;
+            }
             if used.contains(&out_id) || used.contains(&in_id) {
                 continue;
             }
@@ -3676,6 +3689,110 @@ impl Store {
         }
         result.sort_by_key(|c| c.out_id);
         Ok(result)
+    }
+
+    /// Every currently undismissed way two unlinked transactions could be
+    /// the legs of one transfer — the full raw set `transfer_candidates`
+    /// draws from, *before* its one-match-per-transaction reduction. Used by
+    /// "Dismiss all": the reduced `transfer_candidates` list can hide a
+    /// second, equally valid pairing behind whichever match won the
+    /// closest-date tiebreak, and dismissing only what's shown would leave
+    /// that alternate to resurface as a new suggestion the moment its
+    /// sibling is dismissed. Dismissing this whole set instead exhausts
+    /// every possible pairing at once.
+    pub fn list_all_transfer_candidate_pairs(&self) -> rusqlite::Result<Vec<TransferCandidate>> {
+        let dismissed = self.dismissed_transfer_pairs()?;
+        let mut result: Vec<TransferCandidate> = self
+            .transfer_candidate_pairs()?
+            .into_iter()
+            .map(|(_, out_id, in_id)| TransferCandidate { out_id, in_id })
+            .filter(|c| !dismissed.contains(&(c.out_id, c.in_id)))
+            .collect();
+        result.sort_by_key(|c| (c.out_id, c.in_id));
+        Ok(result)
+    }
+
+    /// Every pair a person has told Vault Spend to stop suggesting as a
+    /// transfer (see `dismiss_transfer_candidates`).
+    fn dismissed_transfer_pairs(&self) -> rusqlite::Result<std::collections::HashSet<(i64, i64)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT out_transaction_id, in_transaction_id FROM transfer_candidate_dismissals")?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))?;
+        rows.collect()
+    }
+
+    /// Records that a person explicitly wants these exact pairs to stop
+    /// being suggested as transfers — never touches either transaction's
+    /// category, amount, tags or income/spending totals, and never deletes
+    /// anything; that's what Link does. Distinct from
+    /// `transfer_link_rejections` (which remembers an *Unlink* so
+    /// auto-linking won't redo it).
+    ///
+    /// Each pair is normalized to (out, in) by sign, so either leg's id may
+    /// be passed in either position. A pair naming a transaction id that
+    /// doesn't exist at all fails the *entire* batch — nothing is persisted
+    /// — since that can only mean a caller bug, never a normal state race.
+    /// A pair that's merely no longer eligible (already linked, or either
+    /// leg deleted since it was shown) is skipped rather than erroring the
+    /// batch: the review dialog only sends pairs it just displayed, and a
+    /// concurrent change to one of them mid-review is exactly the kind of
+    /// benign race this defends against. An already-dismissed pair is
+    /// skipped too. Returns only the pairs newly inserted this call, so
+    /// Undo can restore exactly those and no others.
+    pub fn dismiss_transfer_candidates(&self, pairs: &[(i64, i64)]) -> rusqlite::Result<Vec<TransferCandidate>> {
+        let sql_tx = self.conn.unchecked_transaction()?;
+        let mut newly = Vec::new();
+        for &(a, b) in pairs {
+            let amount_of = |id: i64| -> rusqlite::Result<Decimal> {
+                sql_tx.query_row("SELECT amount FROM transactions WHERE id = ?1", params![id], |row| {
+                    row.get::<_, String>(0)
+                })
+                .map(|s| s.parse::<Decimal>().unwrap_or(Decimal::ZERO))
+            };
+            let amount_a = amount_of(a)?;
+            let amount_b = amount_of(b)?;
+            let (out_id, in_id) = if amount_a < Decimal::ZERO && amount_b > Decimal::ZERO {
+                (a, b)
+            } else if amount_b < Decimal::ZERO && amount_a > Decimal::ZERO {
+                (b, a)
+            } else {
+                // Same sign (or a zero amount) — not a shape dismissal makes sense for; skip rather
+                // than guess an orientation, but this is defense in depth, not the expected path.
+                continue;
+            };
+            let already_linked: bool = sql_tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM transfer_links WHERE out_transaction_id IN (?1, ?2) OR in_transaction_id IN (?1, ?2))",
+                params![out_id, in_id],
+                |row| row.get(0),
+            )?;
+            if already_linked {
+                continue;
+            }
+            let inserted = sql_tx.execute(
+                "INSERT OR IGNORE INTO transfer_candidate_dismissals (out_transaction_id, in_transaction_id) VALUES (?1, ?2)",
+                params![out_id, in_id],
+            )?;
+            if inserted > 0 {
+                newly.push(TransferCandidate { out_id, in_id });
+            }
+        }
+        sql_tx.commit()?;
+        Ok(newly)
+    }
+
+    /// Undoes exactly the named dismissals — an already-dismissed pair not
+    /// in this list is left alone. Powers Undo after `dismiss_transfer_candidates`.
+    pub fn restore_transfer_candidates(&self, pairs: &[(i64, i64)]) -> rusqlite::Result<()> {
+        let sql_tx = self.conn.unchecked_transaction()?;
+        for &(out_id, in_id) in pairs {
+            sql_tx.execute(
+                "DELETE FROM transfer_candidate_dismissals WHERE out_transaction_id = ?1 AND in_transaction_id = ?2",
+                params![out_id, in_id],
+            )?;
+        }
+        sql_tx.commit()?;
+        Ok(())
     }
 
     /// Every way two unlinked transactions could be the legs of one transfer
@@ -3767,11 +3884,12 @@ impl Store {
             let rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))?;
             rows.collect::<rusqlite::Result<_>>()?
         };
+        let dismissed = self.dismissed_transfer_pairs()?;
         let pairs: Vec<(i64, i64)> = self
             .transfer_candidate_pairs()?
             .into_iter()
             .map(|(_, out_id, in_id)| (out_id, in_id))
-            .filter(|pair| !rejected.contains(pair))
+            .filter(|pair| !rejected.contains(pair) && !dismissed.contains(pair))
             .collect();
         let mut matches_per_out: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();
         let mut matches_per_in: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();
@@ -16596,6 +16714,147 @@ mod tests {
         let candidates = store.transfer_candidates().unwrap();
 
         assert_eq!(candidates, vec![TransferCandidate { out_id, in_id: same_day_in }]);
+    }
+
+    // Transfer candidate dismissal — "stop suggesting this exact pair" (the
+    // Dismiss actions in TransferReviewDialog). Distinct from
+    // transfer_link_rejections (remembers an Unlink so auto-linking won't
+    // redo it); a dismissal only ever affects candidate/auto-link
+    // suggestions, never a transaction's data or totals.
+
+    #[test]
+    fn dismissing_a_pair_removes_it_from_candidates_and_survives_repeated_requests() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
+        assert_eq!(store.transfer_candidates().unwrap(), vec![TransferCandidate { out_id, in_id }]);
+
+        let newly = store.dismiss_transfer_candidates(&[(out_id, in_id)]).unwrap();
+        assert_eq!(newly, vec![TransferCandidate { out_id, in_id }]);
+        assert!(store.transfer_candidates().unwrap().is_empty());
+        assert!(store.auto_link_transfers().unwrap().is_empty(), "auto-linking must also honor an explicit dismissal");
+
+        let newly_again = store.dismiss_transfer_candidates(&[(out_id, in_id)]).unwrap();
+        assert!(newly_again.is_empty(), "a pair already dismissed should not be reported as newly dismissed again");
+
+        assert_eq!(store.all_transactions().unwrap().len(), 2, "dismissal must never touch the transactions themselves");
+    }
+
+    #[test]
+    fn dismissal_accepts_either_leg_order_and_persists_across_reopen() {
+        let dir = std::env::temp_dir().join(format!("vaultspend-dismiss-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        if db_path.exists() {
+            std::fs::remove_file(&db_path).unwrap();
+        }
+        {
+            let store = Store::open(&db_path).unwrap();
+            let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
+            // Incoming leg passed first — orientation must be normalized by sign, not argument order.
+            store.dismiss_transfer_candidates(&[(in_id, out_id)]).unwrap();
+        }
+
+        let reopened = Store::open(&db_path).unwrap();
+        assert!(reopened.transfer_candidates().unwrap().is_empty(), "the dismissal must survive reopening the database");
+        drop(reopened);
+        std::fs::remove_file(&db_path).unwrap();
+    }
+
+    #[test]
+    fn dismissing_one_alternate_pair_leaves_the_other_leg_available() {
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        let backup = store.get_or_create_account("Backup Savings", AccountType::Savings).unwrap();
+        store.save_transactions(checking, &[tx("2026-08-10", "Emergency transfer", "-300.00")]).unwrap();
+        store.save_transactions(savings, &[tx("2026-08-10", "From checking A", "300.00")]).unwrap();
+        store.save_transactions(backup, &[tx("2026-08-10", "From checking B", "300.00")]).unwrap();
+        let out_id = id_of(&store, "Emergency transfer", "2026-08-10");
+        let in_a = id_of(&store, "From checking A", "2026-08-10");
+        let in_b = id_of(&store, "From checking B", "2026-08-10");
+
+        assert_eq!(store.transfer_candidates().unwrap(), vec![TransferCandidate { out_id, in_id: in_a }], "closest/first match wins by default");
+
+        store.dismiss_transfer_candidates(&[(out_id, in_a)]).unwrap();
+
+        assert_eq!(
+            store.transfer_candidates().unwrap(),
+            vec![TransferCandidate { out_id, in_id: in_b }],
+            "dismissing A\u{2192}B must not dismiss A\u{2192}C \u{2014} the alternate pairing must surface"
+        );
+    }
+
+    #[test]
+    fn dismiss_all_scope_includes_alternates_hidden_by_closest_match_selection() {
+        let store = Store::open_in_memory().unwrap();
+        let (checking, savings) = checking_and_savings(&store);
+        let backup = store.get_or_create_account("Backup Savings", AccountType::Savings).unwrap();
+        store.save_transactions(checking, &[tx("2026-08-10", "Emergency transfer", "-300.00")]).unwrap();
+        store.save_transactions(savings, &[tx("2026-08-10", "From checking A", "300.00")]).unwrap();
+        store.save_transactions(backup, &[tx("2026-08-10", "From checking B", "300.00")]).unwrap();
+        let out_id = id_of(&store, "Emergency transfer", "2026-08-10");
+        let in_a = id_of(&store, "From checking A", "2026-08-10");
+        let in_b = id_of(&store, "From checking B", "2026-08-10");
+
+        let mut all_pairs = store.list_all_transfer_candidate_pairs().unwrap();
+        all_pairs.sort_by_key(|c| c.in_id);
+        assert_eq!(
+            all_pairs,
+            vec![TransferCandidate { out_id, in_id: in_a }, TransferCandidate { out_id, in_id: in_b }],
+            "the full eligible set must include the alternate pairing hidden by closest-match selection"
+        );
+
+        let pairs_to_dismiss: Vec<(i64, i64)> = all_pairs.iter().map(|c| (c.out_id, c.in_id)).collect();
+        store.dismiss_transfer_candidates(&pairs_to_dismiss).unwrap();
+
+        assert!(
+            store.transfer_candidates().unwrap().is_empty(),
+            "dismissing the complete eligible set must really clear the list, alternates included"
+        );
+    }
+
+    #[test]
+    fn dismissal_skips_a_pair_that_is_no_longer_eligible_without_erroring_the_batch() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
+        let (out_id2, in_id2) = seed_transfer_pair(&store, "2026-09-01", "2026-09-02");
+        assert!(store.link_transfer(out_id2, in_id2).unwrap(), "the second pair is now linked \u{2014} no longer an eligible candidate");
+
+        let newly = store.dismiss_transfer_candidates(&[(out_id, in_id), (out_id2, in_id2)]).unwrap();
+
+        assert_eq!(newly, vec![TransferCandidate { out_id, in_id }], "an already-linked pair must be skipped, not dismissed");
+        assert!(store.transfer_candidates().unwrap().is_empty());
+    }
+
+    #[test]
+    fn dismissal_of_a_nonexistent_transaction_rolls_back_the_whole_batch() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
+
+        let result = store.dismiss_transfer_candidates(&[(out_id, in_id), (999_999, 999_998)]);
+
+        assert!(result.is_err(), "a pair naming a transaction that doesn't exist at all must fail the whole batch");
+        assert_eq!(
+            store.transfer_candidates().unwrap(),
+            vec![TransferCandidate { out_id, in_id }],
+            "nothing from the batch should have been persisted \u{2014} including the otherwise-valid pair"
+        );
+    }
+
+    #[test]
+    fn restore_transfer_candidates_undoes_only_the_named_pairs() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
+        let (out_id2, in_id2) = seed_transfer_pair(&store, "2026-09-01", "2026-09-02");
+        store.dismiss_transfer_candidates(&[(out_id, in_id), (out_id2, in_id2)]).unwrap();
+        assert!(store.transfer_candidates().unwrap().is_empty());
+
+        store.restore_transfer_candidates(&[(out_id, in_id)]).unwrap();
+
+        assert_eq!(
+            store.transfer_candidates().unwrap(),
+            vec![TransferCandidate { out_id, in_id }],
+            "restoring one pair must not also restore the other"
+        );
     }
 
     // Auto-linking transfers (opt-in) and the review list.

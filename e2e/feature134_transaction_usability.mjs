@@ -121,17 +121,35 @@ try {
   await nav("Transactions");
   await (await browser.$("table.ledger")).waitForExist({ timeout: 10000 });
 
-  // Issue 1 — possible transfers cannot be cleared: no Dismiss action exists,
-  // only Not now (temporary) and Link.
-  await check("transfer review dialog offers a Dismiss action", async () => {
+  // Issue 1 — possible transfers cannot be cleared: real functional check
+  // (not just presence) once Task 2 lands. Fixture has 3 suggested pairs
+  // (2 ordinary + 1 from the ambiguous "Emergency transfer" trio); dismiss
+  // one and confirm the chip's count actually drops, then close and reopen
+  // to prove it's really gone, not just hidden by unmounting.
+  await check("dismissing a transfer pair really removes it, not just Not now", async () => {
     const chip = await browser.$("button.transfer-suggestion");
     await chip.waitForExist({ timeout: 10000 });
+    const before = await chip.getText();
     await chip.click();
     const dialog = await browser.$("[role='dialog']");
     await dialog.waitForExist({ timeout: 10000 });
-    const dismissButtons = await dialog.$$("button*=Dismiss");
-    await (await dialog.$("button=Not now")).click();
+    const dismissButtons = await dialog.$$(".transfer-review-dismiss");
     assert.ok(dismissButtons.length > 0, "expected a Dismiss action in the transfer review dialog, found none (only Not now / Link)");
+    await dismissButtons[0].click();
+    await browser.waitUntil(
+      async () => (await dialog.$$(".transfer-review-dismiss")).length === dismissButtons.length - 1,
+      { timeout: 5000, timeoutMsg: "the dismissed pair should disappear from the open dialog" },
+    );
+    const closeBtn = await dialog.$("button=Not now");
+    if (await closeBtn.isExisting()) await closeBtn.click();
+    else await (await dialog.$("button=Close")).click();
+    await browser.waitUntil(
+      async () => {
+        const chipNow = await browser.$("button.transfer-suggestion");
+        return !(await chipNow.isExisting()) || (await chipNow.getText()) !== before;
+      },
+      { timeout: 5000, timeoutMsg: "the suggestion count must actually decrease after dismissing, not revert" },
+    );
   });
 
   // Issue 2 — no way to add notes to a transaction.

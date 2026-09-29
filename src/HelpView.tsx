@@ -182,6 +182,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "link",
       "unlink",
       "possible transfers",
+      "dismiss",
       "auto-link",
       "auto-linked",
       "review inbox",
@@ -202,7 +203,11 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         be <strong>linked as a transfer</strong>: Vault Spend suggests likely
         pairs ("N possible transfers — review"), or tick two rows and choose
         "Link as transfer". A linked pair shows as one row and never counts
-        as income or spending. Prefer not to review each one? Turn on{" "}
+        as income or spending. Don't want a particular pair suggested again?
+        Choose <strong>Dismiss</strong> on it (or Dismiss selected/Dismiss
+        all) — it stops that pair being suggested for good, without changing
+        either transaction; Link and manual linking still work on it any
+        time. Prefer not to review each one? Turn on{" "}
         <strong>Link matching transfers automatically</strong> in Settings;
         the pairs it links are listed under "N auto-linked — review". After an
         import (and any time from{" "}

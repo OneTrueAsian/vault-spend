@@ -1270,6 +1270,46 @@ function App({
   // the data changes, so a fresh import or manual entry surfaces its own.
   const [transferCandidates, setTransferCandidates] = useState<{ out_id: number; in_id: number }[]>([]);
   const [transferReviewOpen, setTransferReviewOpen] = useState(false);
+  // Own state (like `undoToast`) so a routine status message can't clobber
+  // an active Undo window, and — since this whole component remounts on a
+  // profile switch/lock (see `onDataFileChanged`) — a stale Undo can never
+  // be applied to a different profile.
+  const [dismissUndoToast, setDismissUndoToast] = useState<{ text: string; pairs: { out_id: number; in_id: number }[] } | null>(null);
+  useEffect(() => {
+    if (!dismissUndoToast) return;
+    const timer = setTimeout(() => setDismissUndoToast(null), 10000);
+    return () => clearTimeout(timer);
+  }, [dismissUndoToast]);
+  async function refreshTransferCandidates() {
+    try {
+      setTransferCandidates(await invoke<{ out_id: number; in_id: number }[]>("list_transfer_candidates"));
+    } catch {
+      /* a missing suggestion is never worth an error banner */
+    }
+  }
+  async function handleDismissTransferCandidates(pairs: { out_id: number; in_id: number }[]) {
+    const newly = await invoke<{ out_id: number; in_id: number }[]>("dismiss_transfer_candidates", { pairs });
+    await refreshTransferCandidates();
+    if (newly.length > 0) {
+      setDismissUndoToast({ text: `Dismissed ${newly.length} possible transfer${newly.length === 1 ? "" : "s"}.`, pairs: newly });
+    }
+  }
+  async function handleDismissAllTransferCandidates() {
+    const all = await invoke<{ out_id: number; in_id: number }[]>("list_all_transfer_candidate_pairs");
+    await handleDismissTransferCandidates(all);
+  }
+  async function handleUndoDismissTransferCandidates() {
+    if (!dismissUndoToast) return;
+    const pairs = dismissUndoToast.pairs;
+    setDismissUndoToast(null);
+    try {
+      await invoke("restore_transfer_candidates", { pairs });
+      await refreshTransferCandidates();
+      setStatus(`Restored ${pairs.length} possible transfer${pairs.length === 1 ? "" : "s"}.`, "success");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
   useEffect(() => {
     if (activeTab !== "ledger") return;
     let cancelled = false;
@@ -3856,6 +3896,14 @@ function App({
               onDismiss={() => setUndoToast(null)}
             />
           )}
+          {dismissUndoToast && (
+            <StatusBanner
+              text={dismissUndoToast.text}
+              kind="info"
+              action={{ label: "Undo", onClick: handleUndoDismissTransferCandidates }}
+              onDismiss={() => setDismissUndoToast(null)}
+            />
+          )}
           {similarToast && (
             <StatusBanner
               text={similarToast.text}
@@ -5336,6 +5384,8 @@ function App({
         <TransferReviewDialog
           pairs={transferCandidatePairs}
           onLink={handleLinkTransfers}
+          onDismiss={handleDismissTransferCandidates}
+          onDismissAll={handleDismissAllTransferCandidates}
           onCancel={() => setTransferReviewOpen(false)}
         />
       )}

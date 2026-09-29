@@ -1902,7 +1902,7 @@ pub fn list_transactions(state: tauri::State<AppStateHandle>) -> Result<Vec<Tran
         .collect())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct TransferCandidateDto {
     pub out_id: i64,
     pub in_id: i64,
@@ -1946,6 +1946,36 @@ pub fn list_auto_linked_transfers(state: tauri::State<AppStateHandle>) -> Result
 pub fn mark_auto_links_reviewed(out_ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
     let state = state.lock()?;
     state.store.mark_transfer_links_reviewed(&out_ids).map_err(|e| e.to_string())
+}
+
+/// The complete current set of possible transfer pairs, including
+/// alternates hidden by `list_transfer_candidates`' one-match-per-transaction
+/// reduction — what "Dismiss all" dismisses, so it really clears the list.
+#[tauri::command]
+pub fn list_all_transfer_candidate_pairs(state: tauri::State<AppStateHandle>) -> Result<Vec<TransferCandidateDto>, String> {
+    let state = state.lock()?;
+    let pairs = state.store.list_all_transfer_candidate_pairs().map_err(|e| e.to_string())?;
+    Ok(pairs.into_iter().map(|c| TransferCandidateDto { out_id: c.out_id, in_id: c.in_id }).collect())
+}
+
+/// Tells Vault Spend to stop suggesting these exact pairs as transfers.
+/// Never touches either transaction's data or totals. Returns only the
+/// pairs newly dismissed (already-dismissed pairs in the batch are
+/// omitted), for the frontend's Undo to restore exactly those.
+#[tauri::command]
+pub fn dismiss_transfer_candidates(pairs: Vec<TransferCandidateDto>, state: tauri::State<AppStateHandle>) -> Result<Vec<TransferCandidateDto>, String> {
+    let state = state.lock()?;
+    let pairs: Vec<(i64, i64)> = pairs.into_iter().map(|p| (p.out_id, p.in_id)).collect();
+    let newly = state.store.dismiss_transfer_candidates(&pairs).map_err(|e| e.to_string())?;
+    Ok(newly.into_iter().map(|c| TransferCandidateDto { out_id: c.out_id, in_id: c.in_id }).collect())
+}
+
+/// Undoes the named dismissals (Undo after `dismiss_transfer_candidates`).
+#[tauri::command]
+pub fn restore_transfer_candidates(pairs: Vec<TransferCandidateDto>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    let pairs: Vec<(i64, i64)> = pairs.into_iter().map(|p| (p.out_id, p.in_id)).collect();
+    state.store.restore_transfer_candidates(&pairs).map_err(|e| e.to_string())
 }
 
 /// Links two transactions as the two legs of one transfer, so neither
