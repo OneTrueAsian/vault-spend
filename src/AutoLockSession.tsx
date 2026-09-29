@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   getCurrentGeneration,
@@ -16,12 +16,33 @@ export function AutoLockSession() {
   const [seconds, setSeconds] = useState(0);
   const [stayingUnlocked, setStayingUnlocked] = useState(false);
   const [error, setError] = useState("");
+  // This component stays mounted across an in-place swap (turning on protection, a password
+  // change, restore, relocate, a `.vaultspend` import, switching profiles) — none of those unmount
+  // it, unlike a lock or a return to the selector. Each one bumps the generation, so a value fetched
+  // once at mount goes stale the moment any of them happens: every later activity report would be
+  // rejected by the backend's generation check, silently stopping ordinary typing/clicking from
+  // resetting the idle timer or cancelling its warning. Keeping the latest known generation in a
+  // ref — refreshed at mount and again on every `profile-lock-state-changed` broadcast — means
+  // activity reports always use a current value, and an incoming countdown/cancellation event for
+  // a generation that's no longer current (a stale race, or a leftover from a profile just switched
+  // away from) is recognized and ignored rather than shown or acted on.
+  const currentGeneration = useRef<number | null>(null);
 
   useEffect(() => {
     let disposed = false;
     let cleanupActivity = () => {};
+    const refreshGeneration = () =>
+      getCurrentGeneration()
+        .then((generation) => {
+          if (!disposed) currentGeneration.current = generation;
+        })
+        .catch(() => {
+          // Best effort — StartupGate owns session availability, and the next successful refresh
+          // (or the countdown/cancellation payloads themselves) will recover.
+        });
+
     const unlistenWarning = listen<AutoLockCountdownPayload>("profile-lock-countdown", ({ payload }) => {
-      if (disposed) return;
+      if (disposed || payload.generation !== currentGeneration.current) return;
       setError("");
       setSeconds(payload.seconds);
       setCountdown({ ...payload, receivedAt: Date.now() });
@@ -32,22 +53,25 @@ export function AutoLockSession() {
         current?.profile_id === payload.profile_id && current.generation === payload.generation ? null : current,
       );
     });
+    const unlistenIdentityChange = listen("profile-lock-state-changed", () => {
+      if (!disposed) void refreshGeneration();
+    });
 
-    getCurrentGeneration()
-      .then((generation) => {
-        if (!disposed) {
-          cleanupActivity = installTrustedActivityReporter(() => recordTrustedActivity(generation));
-        }
-      })
-      .catch(() => {
-        // StartupGate owns session availability. A failed generation read has no safe value to send.
-      });
+    refreshGeneration().then(() => {
+      if (!disposed) {
+        cleanupActivity = installTrustedActivityReporter(async () => {
+          const generation = currentGeneration.current ?? (await getCurrentGeneration());
+          await recordTrustedActivity(generation);
+        });
+      }
+    });
 
     return () => {
       disposed = true;
       cleanupActivity();
       unlistenWarning.then((unlisten) => unlisten());
       unlistenCancellation.then((unlisten) => unlisten());
+      unlistenIdentityChange.then((unlisten) => unlisten());
     };
   }, []);
 

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { pickDefaultAccountId } from "./accountGroups";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "./nativeDialog";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
 import { toCsv } from "./csv";
@@ -803,6 +803,18 @@ function App({
     if (!path || Array.isArray(path)) return;
     setChoosingExistingSource(false);
     setPendingExistingIsProtected(false);
+    // A bare, in-place `.db` can still be encrypted — e.g. a profile removed from the list
+    // ("forgot the password? remove it" or a plain Delete) leaves exactly this shape on disk. Ask
+    // the backend rather than guessing from the filename, so the dialog knows to show a password
+    // field before the person ever hits "Use this file" and gets a confusing refusal.
+    let requiresPassword = false;
+    try {
+      requiresPassword = await invoke<boolean>("path_looks_password_protected", { path });
+    } catch {
+      /* best effort — worst case the dialog omits the password field and the backend's own
+         "That password didn't work for this profile" surfaces if it turns out to be needed */
+    }
+    setPendingExistingRequiresPassword(requiresPassword);
     setPendingExistingDbPath(path);
   }
 
@@ -811,6 +823,7 @@ function App({
     if (!path || Array.isArray(path)) return;
     setChoosingExistingSource(false);
     setPendingExistingIsProtected(true);
+    setPendingExistingRequiresPassword(false);
     setPendingExistingDbPath(path);
   }
 
@@ -826,10 +839,11 @@ function App({
       });
       setPendingExistingDbPath(null);
       setPendingExistingIsProtected(false);
+      setPendingExistingRequiresPassword(false);
       onDataFileChanged(`Switched to "${added}".`);
     } catch (e) {
       setStatus(String(e));
-      if (pendingExistingIsProtected) throw e;
+      if (pendingExistingIsProtected || pendingExistingRequiresPassword) throw e;
     }
   }
 
@@ -1094,6 +1108,7 @@ function App({
   const [newTransactionOpen, setNewTransactionOpen] = useState(false);
   const [pendingExistingDbPath, setPendingExistingDbPath] = useState<string | null>(null);
   const [pendingExistingIsProtected, setPendingExistingIsProtected] = useState(false);
+  const [pendingExistingRequiresPassword, setPendingExistingRequiresPassword] = useState(false);
   const [choosingExistingSource, setChoosingExistingSource] = useState(false);
   const [pendingProtectedSwitch, setPendingProtectedSwitch] = useState<{ id: string; name: string } | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -5353,9 +5368,11 @@ function App({
         <UseExistingDataFileDialog
           path={pendingExistingDbPath}
           isProtectedPackage={pendingExistingIsProtected}
+          requiresPassword={pendingExistingRequiresPassword}
           onCancel={() => {
             setPendingExistingDbPath(null);
             setPendingExistingIsProtected(false);
+            setPendingExistingRequiresPassword(false);
           }}
           onSubmit={handleAddExistingProfile}
         />

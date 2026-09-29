@@ -97,6 +97,15 @@ fn should_create_backup(existing: &[String], now: NaiveDateTime, interval_hours:
     }
 }
 
+/// Whether `name` is shaped like one of ours (`vaultspend-YYYYMMDD-HHMMSS[_N].db`) — the same test
+/// `list_backup_filenames`/`prune_to_disk` already use to decide what a backups folder or a second
+/// copy folder is allowed to touch, exposed so other modules that scan those same folders (e.g.
+/// `protection_leftovers`) can apply the identical "only files named like ours" rule rather than a
+/// looser one of their own.
+pub(crate) fn is_our_backup_filename(name: &str) -> bool {
+    name.starts_with(BACKUP_PREFIX) && name.ends_with(BACKUP_SUFFIX)
+}
+
 fn list_backup_filenames(backups_dir: &Path) -> std::io::Result<Vec<String>> {
     if !backups_dir.exists() {
         return Ok(Vec::new());
@@ -105,7 +114,7 @@ fn list_backup_filenames(backups_dir: &Path) -> std::io::Result<Vec<String>> {
     for entry in std::fs::read_dir(backups_dir)? {
         let name = entry?.file_name();
         if let Some(name) = name.to_str() {
-            if name.starts_with(BACKUP_PREFIX) && name.ends_with(BACKUP_SUFFIX) {
+            if is_our_backup_filename(name) {
                 result.push(name.to_string());
             }
         }

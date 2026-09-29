@@ -5,7 +5,7 @@ use crate::profiles::{self, AutoLockSettings};
 use crate::startup::{self, StartupState};
 use serde::Serialize;
 #[cfg(debug_assertions)]
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
@@ -40,13 +40,24 @@ pub enum SystemSessionEvent {
     Resumed,
 }
 
-pub fn window_lock_reason(profile_open: bool, is_protected: bool, settings: AutoLockSettings, trigger: WindowLockTrigger) -> Option<LockReason> {
+/// `dialog_open` is true while a native save/open dialog (an owned window) is up — it defocuses the
+/// main window the same way a real alt-tab does, so `FocusLost` is suppressed while one is open, or
+/// opting into "lock on focus loss" would lock the profile out from under an in-progress Export,
+/// Relocate, or "Use existing file…". A dialog never hides the main window, so it can't have caused
+/// `HiddenToTray` and never suppresses it.
+pub fn window_lock_reason(
+    profile_open: bool,
+    is_protected: bool,
+    settings: AutoLockSettings,
+    trigger: WindowLockTrigger,
+    dialog_open: bool,
+) -> Option<LockReason> {
     if !profile_open || !is_protected {
         return None;
     }
     match trigger {
         WindowLockTrigger::HiddenToTray if settings.lock_when_hidden => Some(LockReason::HiddenToTray),
-        WindowLockTrigger::FocusLost if settings.lock_on_focus_loss => Some(LockReason::FocusLost),
+        WindowLockTrigger::FocusLost if settings.lock_on_focus_loss && !dialog_open => Some(LockReason::FocusLost),
         WindowLockTrigger::HiddenToTray | WindowLockTrigger::FocusLost | WindowLockTrigger::FocusGained | WindowLockTrigger::Quit => None,
     }
 }
@@ -225,9 +236,10 @@ impl TimerState {
         TimerAction::None
     }
 
-    fn window_lock_request(&self, trigger: WindowLockTrigger) -> Option<LockRequest> {
+    fn window_lock_request(&self, trigger: WindowLockTrigger, dialog_open: bool) -> Option<LockRequest> {
         let armed = self.armed.as_ref()?;
-        window_lock_reason(true, true, armed.settings, trigger).map(|reason| LockRequest::window(&armed.profile_id, armed.generation, reason))
+        window_lock_reason(true, true, armed.settings, trigger, dialog_open)
+            .map(|reason| LockRequest::window(&armed.profile_id, armed.generation, reason))
     }
 
     fn system_session_lock_request(&self, event: SystemSessionEvent) -> Option<LockRequest> {
@@ -241,6 +253,10 @@ pub struct AutoLockController {
     #[cfg(debug_assertions)]
     debug_offset_seconds: AtomicU64,
     timer: Mutex<TimerState>,
+    /// Set by the frontend around every native save/open dialog call (`note_native_dialog_state`) —
+    /// see `window_lock_reason`'s doc comment for why `FocusLost` must be suppressed while this is
+    /// true.
+    dialog_open: AtomicBool,
 }
 
 impl AutoLockController {
@@ -250,7 +266,16 @@ impl AutoLockController {
             #[cfg(debug_assertions)]
             debug_offset_seconds: AtomicU64::new(0),
             timer: Mutex::new(TimerState::default()),
+            dialog_open: AtomicBool::new(false),
         }
+    }
+
+    pub fn set_dialog_open(&self, open: bool) {
+        self.dialog_open.store(open, Ordering::SeqCst);
+    }
+
+    fn is_dialog_open(&self) -> bool {
+        self.dialog_open.load(Ordering::SeqCst)
     }
 
     fn now_seconds(&self) -> u64 {
@@ -288,7 +313,10 @@ impl AutoLockController {
     }
 
     fn window_lock_request(&self, trigger: WindowLockTrigger) -> Option<LockRequest> {
-        self.timer.lock().unwrap_or_else(|e| e.into_inner()).window_lock_request(trigger)
+        self.timer
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .window_lock_request(trigger, self.is_dialog_open())
     }
 
     fn system_session_lock_request(&self, event: SystemSessionEvent) -> Option<LockRequest> {
@@ -483,6 +511,14 @@ pub fn record_trusted_activity(
     Ok(())
 }
 
+/// The frontend calls this immediately before, and (in a `finally`) immediately after, every native
+/// save/open dialog invocation — see `window_lock_reason`'s doc comment. Never gated on whether a
+/// profile is even protected: harmless either way, and simpler than tracking that here too.
+#[tauri::command]
+pub fn note_native_dialog_state(open: bool, app: tauri::AppHandle) {
+    app.state::<AutoLockController>().set_dialog_open(open);
+}
+
 #[cfg(debug_assertions)]
 pub fn advance_debug_clock(app: &tauri::AppHandle, seconds: u64) -> Result<(), String> {
     if seconds > 3_600 {
@@ -627,17 +663,17 @@ mod tests {
     fn window_trigger_decision_covers_open_protected_settings_and_quit() {
         let defaults = AutoLockSettings::default();
         assert_eq!(
-            window_lock_reason(false, true, defaults, WindowLockTrigger::HiddenToTray),
+            window_lock_reason(false, true, defaults, WindowLockTrigger::HiddenToTray, false),
             None,
             "no open profile means there is no session to lock"
         );
         assert_eq!(
-            window_lock_reason(true, false, defaults, WindowLockTrigger::HiddenToTray),
+            window_lock_reason(true, false, defaults, WindowLockTrigger::HiddenToTray, false),
             None,
             "an unprotected open profile stays open"
         );
         assert_eq!(
-            window_lock_reason(true, true, defaults, WindowLockTrigger::HiddenToTray),
+            window_lock_reason(true, true, defaults, WindowLockTrigger::HiddenToTray, false),
             Some(LockReason::HiddenToTray)
         );
         assert_eq!(
@@ -649,12 +685,13 @@ mod tests {
                     ..defaults
                 },
                 WindowLockTrigger::HiddenToTray,
+                false,
             ),
             None,
             "the per-profile hide setting is respected"
         );
         assert_eq!(
-            window_lock_reason(true, true, defaults, WindowLockTrigger::FocusLost),
+            window_lock_reason(true, true, defaults, WindowLockTrigger::FocusLost, false),
             None,
             "focus-loss locking is off by default"
         );
@@ -667,11 +704,62 @@ mod tests {
                     ..defaults
                 },
                 WindowLockTrigger::FocusLost,
+                false,
             ),
             Some(LockReason::FocusLost)
         );
-        assert_eq!(window_lock_reason(true, true, defaults, WindowLockTrigger::FocusGained), None);
-        assert_eq!(window_lock_reason(true, true, defaults, WindowLockTrigger::Quit), None);
+        assert_eq!(window_lock_reason(true, true, defaults, WindowLockTrigger::FocusGained, false), None);
+        assert_eq!(window_lock_reason(true, true, defaults, WindowLockTrigger::Quit, false), None);
+    }
+
+    #[test]
+    fn a_native_dialog_being_open_suppresses_only_the_focus_loss_trigger() {
+        // A native save/open dialog is an owned window: taking it up defocuses the main window the
+        // same way a real alt-tab does, which would otherwise lock mid-Export/mid-Relocate/etc. for
+        // anyone who has opted into "lock on focus loss." Tray-hide is unaffected — a dialog never
+        // hides the main window, so there is nothing to suppress there.
+        let opted_in = AutoLockSettings {
+            lock_on_focus_loss: true,
+            lock_when_hidden: true,
+            ..AutoLockSettings::default()
+        };
+        assert_eq!(
+            window_lock_reason(true, true, opted_in, WindowLockTrigger::FocusLost, true),
+            None,
+            "focus lost while a dialog is open must not lock, even with the setting on"
+        );
+        assert_eq!(
+            window_lock_reason(true, true, opted_in, WindowLockTrigger::FocusLost, false),
+            Some(LockReason::FocusLost),
+            "focus lost with no dialog open still locks exactly as before"
+        );
+        assert_eq!(
+            window_lock_reason(true, true, opted_in, WindowLockTrigger::HiddenToTray, true),
+            Some(LockReason::HiddenToTray),
+            "a dialog being open must not suppress tray-hide locking, which it can't have caused"
+        );
+    }
+
+    #[test]
+    fn the_controller_suppresses_a_focus_loss_request_while_a_dialog_is_marked_open() {
+        let controller = AutoLockController::new();
+        controller.arm(
+            "alpha",
+            1,
+            AutoLockSettings {
+                lock_on_focus_loss: true,
+                ..AutoLockSettings::default()
+            },
+        );
+
+        controller.set_dialog_open(true);
+        assert_eq!(controller.window_lock_request(WindowLockTrigger::FocusLost), None);
+
+        controller.set_dialog_open(false);
+        assert_eq!(
+            controller.window_lock_request(WindowLockTrigger::FocusLost),
+            Some(LockRequest::window("alpha", 1, LockReason::FocusLost))
+        );
     }
 
     #[test]

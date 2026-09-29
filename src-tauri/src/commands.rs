@@ -58,6 +58,7 @@ pub fn get_data_file_location(paths: tauri::State<crate::config::AppPaths>) -> S
 #[tauri::command]
 pub fn relocate_data_file(
     new_dir: String,
+    app: tauri::AppHandle,
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<String, String> {
@@ -91,6 +92,14 @@ pub fn relocate_data_file(
         &state.store,
         chrono::Local::now().date_naive(),
     ));
+    // Must run after `state` (the open-session guard) is released: `arm_current_profile` calls
+    // `runtime.is_open()`, which locks the very same mutex `state` is still holding — calling it
+    // any earlier deadlocks this command forever.
+    drop(state);
+    // The generation just bumped above — the automatic-lock timer must be re-armed against the new
+    // one (same as `startup::activate`/`set_auto_lock_settings`), or every lock trigger from here on
+    // is rejected as stale and automatic locking silently stops for the rest of this session.
+    crate::auto_lock::arm_current_profile(&app);
 
     Ok(new_db_path.to_string_lossy().to_string())
 }
@@ -387,10 +396,12 @@ pub fn set_backup_copy_dir(
 /// — same in-place hot-swap as `relocate_data_file`, and for the same
 /// reason (see its doc comment).
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn restore_backup(
     filename: String,
     password: Option<String>,
     expected_generation: u64,
+    app: tauri::AppHandle,
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
@@ -465,6 +476,12 @@ pub fn restore_backup(
         &state.store,
         chrono::Local::now().date_naive(),
     ));
+    // See `relocate_data_file`'s identical comments — `state` must be released before calling
+    // `arm_current_profile` (it locks the same mutex `state` still holds) — the generation just
+    // bumped above and the automatic-lock timer must be re-armed against it, or lock triggers
+    // silently stop working.
+    drop(state);
+    crate::auto_lock::arm_current_profile(&app);
     Ok(())
 }
 
@@ -604,6 +621,20 @@ pub fn switch_profile(
     Ok(target.name)
 }
 
+/// Whether `path` is an encrypted Vault Spend database, so the frontend's "Use existing file…"
+/// picker knows to ask for a password before calling `add_existing_profile` — without this, a
+/// protected profile that was removed from the list (or a `.db` copied in from a backup) could
+/// never be re-added even with the right password, since the picker never offered a password field
+/// for a bare file (only for a `.vaultspend` package folder).
+#[tauri::command]
+pub fn path_looks_password_protected(path: String) -> Result<bool, String> {
+    let path = std::path::PathBuf::from(path);
+    if path.is_dir() || !path.exists() {
+        return Ok(false);
+    }
+    budget_core::store::file_looks_encrypted(&path).map_err(|e| e.to_string())
+}
+
 /// Adopts a database file the user picked from somewhere else on disk (a
 /// copy brought over from another machine, an external drive, a synced
 /// folder) as a new profile — the counterpart to `create_profile`, which
@@ -621,6 +652,7 @@ pub fn add_existing_profile(
     db_path: String,
     password: Option<String>,
     expected_generation: u64,
+    app: tauri::AppHandle,
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
@@ -701,10 +733,74 @@ pub fn add_existing_profile(
             chrono::Local::now().naive_local(),
         );
         runtime.set_notice(summary);
+        // See `relocate_data_file`'s identical comments — `state` must be released first (it holds
+        // the same mutex `arm_current_profile` locks internally) — the generation just bumped
+        // above, and this is a newly-imported *protected* profile switching in for the first time,
+        // so the timer must be armed for it now or automatic locking never engages for it at all
+        // this session.
+        drop(state);
+        crate::auto_lock::arm_current_profile(&app);
         return Ok(name);
     }
     if budget_core::store::file_looks_encrypted(&picked_path).map_err(|e| e.to_string())? {
-        return Err("Choose the .vaultspend package folder, not a bare encrypted database file.".to_string());
+        let key_file_path = budget_core::protection::keyfile::key_file_path_for(&picked_path);
+        if !key_file_path.exists() {
+            return Err(
+                "Choose the .vaultspend package folder, or a database with its matching .key file, not a bare encrypted database file.".to_string(),
+            );
+        }
+        // A profile removed from the list ("forgot the password? remove this profile" or a plain
+        // Delete) leaves exactly this shape on disk — an encrypted `.db` with its `.key` beside it,
+        // no manifest — and the lock screen's own wording says it "can't be opened without the
+        // password or recovery key", so re-adding it here with the right one must actually work.
+        let attempt_id = format!("existing-encrypted:{}", picked_path.to_string_lossy().to_lowercase());
+        let remaining = sessions.delay_remaining(&attempt_id);
+        if !remaining.is_zero() {
+            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+        }
+        let key_file = budget_core::protection::keyfile::KeyFile::read(&key_file_path).map_err(|e| e.to_string())?;
+        let dek = match key_file.unlock_with_password(password.as_deref().unwrap_or_default()) {
+            Ok(dek) => {
+                sessions.record_success(&attempt_id);
+                dek
+            }
+            Err(_) => {
+                sessions.record_failure(&attempt_id);
+                return Err("That password didn't work for this profile.".to_string());
+            }
+        };
+        let new_state = AppState::open_with_key(&picked_path, budget_core::store::DatabaseKey::Raw(dek.as_bytes()))
+            .map_err(|e| format!("Couldn't open {} as a Vault Spend data file: {e}", picked_path.display()))?;
+
+        let runtime = &*state;
+        let mut state = runtime.lock()?;
+        let live_db_path = current_db_path(&paths);
+        let profile = crate::profiles::add_existing_profile(
+            &paths.config_path,
+            &live_db_path,
+            &name,
+            &picked_path,
+            Some(crate::profiles::Protection::new(budget_core::protection::keyfile::FORMAT)),
+            chrono::Local::now().naive_local(),
+        )?;
+
+        crate::config::write_db_location_config(&paths.config_path, &picked_path).map_err(|e| e.to_string())?;
+        *state = new_state;
+        *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
+        paths.bump_generation();
+
+        let summary = crate::startup::after_profile_opened(
+            &paths.config_path,
+            &picked_path,
+            &state.store,
+            &device,
+            chrono::Local::now().naive_local(),
+        );
+        runtime.set_notice(summary);
+        // `state` must be released before `arm_current_profile` — see the identical comment above.
+        drop(state);
+        crate::auto_lock::arm_current_profile(&app);
+        return Ok(profile.name);
     }
     // Checked *before* AppState::open, which runs schema migrations that
     // create any table found missing — by the time it succeeds, even an
@@ -719,7 +815,14 @@ pub fn add_existing_profile(
     let runtime = &*state;
     let mut state = runtime.lock()?;
     let live_db_path = current_db_path(&paths);
-    let profile = crate::profiles::add_existing_profile(&paths.config_path, &live_db_path, &name, &picked_path, chrono::Local::now().naive_local())?;
+    let profile = crate::profiles::add_existing_profile(
+        &paths.config_path,
+        &live_db_path,
+        &name,
+        &picked_path,
+        None,
+        chrono::Local::now().naive_local(),
+    )?;
 
     // Config written before the live-state swap — see `create_profile`'s
     // comment on the same ordering. `new_state` was already proven openable

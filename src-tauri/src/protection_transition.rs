@@ -102,6 +102,12 @@ pub fn enable_protection_with_recovery(
     if store.is_encrypted() {
         return Err("This profile is already password protected.".to_string());
     }
+    // A journal left by an earlier failed attempt in this same session (or process) must be
+    // unwound before starting a new one — otherwise this attempt's own converted backups can
+    // collide with orphans the earlier attempt never got to clean up (`export_encrypted_copy`
+    // refuses to overwrite an existing file).
+    recover_interrupted_operation(config_path)?;
+
     let created_at = now.and_utc().to_rfc3339();
     let protection =
         keyfile::create_protection_with_recovery(password, recovery_code, &KdfParams::PRODUCTION, &created_at).map_err(|e| e.to_string())?;
@@ -118,37 +124,46 @@ pub fn enable_protection_with_recovery(
     debug_failpoint("before_journal");
     write_journal(config_path, &journal)?;
 
-    store
-        .export_encrypted_copy(&target_db_path, protection.dek.as_bytes())
-        .map_err(|e| e.to_string())?;
-    store
-        .verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes()))
-        .map_err(|e| e.to_string())?;
-    protection.key_file.write_to(&target_key_path).map_err(|e| e.to_string())?;
-    debug_failpoint("after_export");
-
-    let plaintext_backups_dir = backups::backups_dir_for(source_db_path, false);
-    let protected_backups_dir = backups::backups_dir_for(source_db_path, true);
-    std::fs::create_dir_all(&protected_backups_dir).map_err(|e| e.to_string())?;
-    for info in backups::list_backups(&plaintext_backups_dir, false)? {
-        let filename = info.filename;
-        let source_backup = plaintext_backups_dir.join(&filename);
-        let converted_backup = protected_backups_dir.join(&filename);
-        let historical = Store::open(&source_backup).map_err(|e| format!("{filename}: couldn't open this historical backup: {e}"))?;
-        historical
-            .export_encrypted_copy(&converted_backup, protection.dek.as_bytes())
-            .map_err(|e| format!("{filename}: {e}"))?;
-        historical
-            .verify_copy(&converted_backup, DatabaseKey::Raw(protection.dek.as_bytes()))
-            .map_err(|e| format!("{filename}: {e}"))?;
-        protection
-            .key_file
-            .write_to(&keyfile::key_file_path_for(&converted_backup))
+    let pre_commit_result = (|| -> Result<(), String> {
+        store
+            .export_encrypted_copy(&target_db_path, protection.dek.as_bytes())
             .map_err(|e| e.to_string())?;
-        journal.owned_backup_pairs.push(converted_backup.display().to_string());
-        write_journal(config_path, &journal)?;
+        store
+            .verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes()))
+            .map_err(|e| e.to_string())?;
+        protection.key_file.write_to(&target_key_path).map_err(|e| e.to_string())?;
+        debug_failpoint("after_export");
+
+        let plaintext_backups_dir = backups::backups_dir_for(source_db_path, false);
+        let protected_backups_dir = backups::backups_dir_for(source_db_path, true);
+        std::fs::create_dir_all(&protected_backups_dir).map_err(|e| e.to_string())?;
+        for info in backups::list_backups(&plaintext_backups_dir, false)? {
+            let filename = info.filename;
+            let source_backup = plaintext_backups_dir.join(&filename);
+            let converted_backup = protected_backups_dir.join(&filename);
+            let historical = Store::open(&source_backup).map_err(|e| format!("{filename}: couldn't open this historical backup: {e}"))?;
+            historical
+                .export_encrypted_copy(&converted_backup, protection.dek.as_bytes())
+                .map_err(|e| format!("{filename}: {e}"))?;
+            historical
+                .verify_copy(&converted_backup, DatabaseKey::Raw(protection.dek.as_bytes()))
+                .map_err(|e| format!("{filename}: {e}"))?;
+            protection
+                .key_file
+                .write_to(&keyfile::key_file_path_for(&converted_backup))
+                .map_err(|e| e.to_string())?;
+            journal.owned_backup_pairs.push(converted_backup.display().to_string());
+            write_journal(config_path, &journal)?;
+        }
+        debug_failpoint("after_backups");
+        Ok(())
+    })();
+    if let Err(error) = pre_commit_result {
+        // Nothing has been committed yet — unwind right now, exactly as startup recovery would,
+        // instead of leaving orphaned files for a same-session retry to collide with.
+        let _ = recover_interrupted_operation(config_path);
+        return Err(error);
     }
-    debug_failpoint("after_backups");
 
     // A single atomic write moves the registry's db_path to the new file AND records protection
     // together — see `profiles::commit_protection_conversion`'s own doc comment for why splitting
@@ -459,9 +474,59 @@ mod tests {
             None,
             "never committed"
         );
+        // A pre-commit failure is unwound immediately, in this same call — not left on disk for the
+        // next app launch to clean up. Waiting until then would mean any retry attempted in this same
+        // session collides with this attempt's own orphaned files (see the test below).
         assert!(
-            std::fs::read_to_string(config_path.parent().unwrap().join("protection-journal.json")).is_ok(),
-            "left for recovery to clean up, not swallowed silently"
+            !config_path.parent().unwrap().join("protection-journal.json").exists(),
+            "the journal should be cleaned up immediately, not left for a later restart"
+        );
+        assert!(
+            !dir.join("vaultspend-protected.db").exists(),
+            "the partial target database should be removed too"
+        );
+    }
+
+    #[test]
+    fn retrying_in_the_same_session_after_a_failed_attempt_does_not_collide_with_its_orphans() {
+        let dir = temp_dir("retry-after-bad-backup");
+        let (store, db_path) = populated_profile(&dir);
+        let config_path = dir.join("config.json");
+        let profile_id = register(&config_path, &db_path);
+        let plaintext_backups_dir = backups::backups_dir_for(&db_path, false);
+        // `populated_profile` makes two backups, at now()-2d and now()-1d; conversion processes
+        // newest first (`list_backups` sorts newest-first), so corrupting the OLDER one means the
+        // newer one is fully converted (and left as an orphan) before the failure is reached.
+        let older = plaintext_backups_dir.join("vaultspend-20260919-090000.db");
+        assert!(older.exists(), "fixture assumption: this is the older of the two backups");
+        std::fs::write(&older, b"not a database").unwrap();
+
+        let first_attempt = enable_protection(&config_path, &profile_id, &db_path, &store, "correct horse battery staple", now());
+        assert!(first_attempt.is_err(), "the corrupted backup should still stop the first attempt");
+
+        // The person moves the unreadable backup out of the way (the workaround Decision 10 itself
+        // names) and tries again in the same running session.
+        std::fs::remove_file(&older).unwrap();
+        let (key_file, _, target_path) = enable_protection(&config_path, &profile_id, &db_path, &store, "correct horse battery staple", now())
+            .expect("a retry after removing the bad backup should succeed, not collide with the first attempt's own orphaned files");
+
+        let opened = Store::open_with_key(
+            &target_path,
+            DatabaseKey::Raw(key_file.unlock_with_password("correct horse battery staple").unwrap().as_bytes()),
+        )
+        .unwrap();
+        assert!(opened
+            .all_transactions()
+            .unwrap()
+            .iter()
+            .any(|t| t.transaction.description == "Market Basket"));
+        assert_eq!(
+            profiles::list_profiles(&config_path, &target_path)
+                .iter()
+                .find(|p| p.id == profile_id)
+                .unwrap()
+                .protection,
+            Some(profiles::Protection::new(keyfile::FORMAT))
         );
     }
 

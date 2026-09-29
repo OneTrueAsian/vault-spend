@@ -445,6 +445,11 @@ pub fn commit_recovery(
         new_recovery_code,
         chrono::Local::now().naive_local(),
     )?;
+    // On Windows, SQLite opens a file without delete-sharing, so `complete_committed_rotation`
+    // below would fail to remove the old database while this connection to it is still alive — the
+    // old file (and the recovery key that was just invalidated) would then survive on disk until
+    // the next launch. Drop it now, the same way `change_password`'s own test already knows to.
+    drop(opened);
     let new_dek = new_key_file.unlock_with_password(&new_password).map_err(|e| e.to_string())?;
     let state = AppState::open_with_key(&target_path, DatabaseKey::Raw(new_dek.as_bytes())).map_err(|e| e.to_string())?;
     startup::activate(&app, startup::OpenedProfile { state, db_path: target_path });
@@ -543,8 +548,18 @@ pub fn list_protection_leftovers(
 }
 
 #[tauri::command]
-pub fn delete_protection_leftovers(paths_to_delete: Vec<String>, paths: tauri::State<AppPaths>) -> Result<Vec<String>, String> {
-    crate::protection_leftovers::delete_leftovers(&paths_to_delete, &current_db_path(&paths))
+pub fn delete_protection_leftovers(
+    paths_to_delete: Vec<String>,
+    paths: tauri::State<AppPaths>,
+    device: tauri::State<DeviceSettingsStore>,
+) -> Result<Vec<String>, String> {
+    let db_path = current_db_path(&paths);
+    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    let Some(former_path) = profiles::former_plaintext_path_for(&paths.config_path, &db_path, &profile_id) else {
+        return Ok(paths_to_delete);
+    };
+    let mirror = device.snapshot().backup_mirror_dir(&profile_id).map(std::path::PathBuf::from);
+    crate::protection_leftovers::delete_leftovers(&paths_to_delete, &former_path, mirror.as_deref(), &db_path)
 }
 
 #[cfg(test)]

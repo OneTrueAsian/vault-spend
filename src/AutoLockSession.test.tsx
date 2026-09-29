@@ -92,6 +92,36 @@ describe("AutoLockSession", () => {
     expect(document.querySelector("[data-auto-lock-countdown]")).toBeNull();
   });
 
+  it("reports activity with a freshly re-fetched generation after the identity changes, not the one cached at mount", async () => {
+    autoLock.getCurrentGeneration.mockResolvedValueOnce(4).mockResolvedValueOnce(9);
+    await mount();
+    // Any in-place swap (turning on protection, restore, relocate, a profile switch — none of which
+    // unmount this component) broadcasts this event once it's done, carrying no generation of its
+    // own; the session is expected to re-fetch the current one, not keep using whatever it saw at
+    // mount.
+    await emit("profile-lock-state-changed", { status: "open" });
+
+    const report = autoLock.installTrustedActivityReporter.mock.calls[0][0] as () => void | Promise<void>;
+    await act(async () => {
+      await report();
+    });
+
+    expect(autoLock.recordTrustedActivity).toHaveBeenCalledWith(9);
+    expect(autoLock.recordTrustedActivity).not.toHaveBeenCalledWith(4);
+  });
+
+  it("ignores a countdown event whose generation no longer matches the current one", async () => {
+    autoLock.getCurrentGeneration.mockResolvedValueOnce(4).mockResolvedValueOnce(9);
+    await mount();
+    await emit("profile-lock-state-changed", { status: "open" });
+
+    await emit("profile-lock-countdown", { profile_id: "alpha", generation: 4, seconds: 10, reason: "inactivity" });
+    expect(document.querySelector("[data-auto-lock-countdown]")).toBeNull();
+
+    await emit("profile-lock-countdown", { profile_id: "beta", generation: 9, seconds: 10, reason: "inactivity" });
+    expect(document.querySelector("[data-auto-lock-countdown]")).not.toBeNull();
+  });
+
   it("cleans up activity and backend event listeners on unmount", async () => {
     const cleanupActivity = vi.fn();
     autoLock.installTrustedActivityReporter.mockReturnValue(cleanupActivity);
@@ -101,7 +131,7 @@ describe("AutoLockSession", () => {
     await act(async () => Promise.resolve());
 
     expect(cleanupActivity).toHaveBeenCalledTimes(1);
-    expect(unlisten).toHaveBeenCalledTimes(2);
+    expect(unlisten).toHaveBeenCalledTimes(3);
     root = createRoot(container);
   });
 });

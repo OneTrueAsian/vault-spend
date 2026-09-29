@@ -158,6 +158,11 @@ fn rotate_dek(
     }
     .map_err(|_| proof_error(&proof))?;
 
+    // A journal left by an earlier failed attempt in this same session (or process) must be
+    // unwound before starting a new one — otherwise this attempt's own staged backups can collide
+    // with orphans the earlier attempt never got to clean up (see the pre-commit unwind below).
+    recover_interrupted_rotation(config_path)?;
+
     let protection = keyfile::create_protection_with_recovery(new_password, recovery_code, &KdfParams::PRODUCTION, &now.and_utc().to_rfc3339())
         .map_err(|e| e.to_string())?;
     let target_db_path = unique_protected_path(live_db_path);
@@ -176,44 +181,60 @@ fn rotate_dek(
 
     crate::protection_transition::debug_failpoint("rotation_before_journal");
     write_rotation_journal(config_path, &journal)?;
-    store
-        .export_encrypted_copy(&target_db_path, protection.dek.as_bytes())
-        .map_err(|e| e.to_string())?;
-    store
-        .verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes()))
-        .map_err(|e| e.to_string())?;
-    protection.key_file.write_to(&target_key_path).map_err(|e| e.to_string())?;
-    crate::protection_transition::debug_failpoint("rotation_after_export");
 
-    if protected_backups_dir.exists() {
-        std::fs::create_dir_all(&staging_dir).map_err(|e| e.to_string())?;
-        let old_dek = store
-            .db_key_bytes()
-            .ok_or_else(|| "This profile is not password protected.".to_string())?;
-        for info in backups::list_backups(&protected_backups_dir, true)? {
-            let source_backup = protected_backups_dir.join(&info.filename);
-            let staged_backup = staging_dir.join(&info.filename);
-            let historical = Store::open_with_key(&source_backup, DatabaseKey::Raw(old_dek))
-                .map_err(|e| format!("{}: couldn't open this backup: {e}", info.filename))?;
-            historical
-                .export_encrypted_copy(&staged_backup, protection.dek.as_bytes())
-                .map_err(|e| format!("{}: {e}", info.filename))?;
-            historical
-                .verify_copy(&staged_backup, DatabaseKey::Raw(protection.dek.as_bytes()))
-                .map_err(|e| format!("{}: {e}", info.filename))?;
-            protection
-                .key_file
-                .write_to(&keyfile::key_file_path_for(&staged_backup))
-                .map_err(|e| e.to_string())?;
-            journal.staged_backup_filenames.push(info.filename);
-            write_rotation_journal(config_path, &journal)?;
+    let pre_commit_result = (|| -> Result<(), String> {
+        store
+            .export_encrypted_copy(&target_db_path, protection.dek.as_bytes())
+            .map_err(|e| e.to_string())?;
+        store
+            .verify_copy(&target_db_path, DatabaseKey::Raw(protection.dek.as_bytes()))
+            .map_err(|e| e.to_string())?;
+        protection.key_file.write_to(&target_key_path).map_err(|e| e.to_string())?;
+        crate::protection_transition::debug_failpoint("rotation_after_export");
+
+        if protected_backups_dir.exists() {
+            std::fs::create_dir_all(&staging_dir).map_err(|e| e.to_string())?;
+            let old_dek = store
+                .db_key_bytes()
+                .ok_or_else(|| "This profile is not password protected.".to_string())?;
+            for info in backups::list_backups(&protected_backups_dir, true)? {
+                let source_backup = protected_backups_dir.join(&info.filename);
+                let staged_backup = staging_dir.join(&info.filename);
+                let historical = Store::open_with_key(&source_backup, DatabaseKey::Raw(old_dek))
+                    .map_err(|e| format!("{}: couldn't open this backup: {e}", info.filename))?;
+                historical
+                    .export_encrypted_copy(&staged_backup, protection.dek.as_bytes())
+                    .map_err(|e| format!("{}: {e}", info.filename))?;
+                historical
+                    .verify_copy(&staged_backup, DatabaseKey::Raw(protection.dek.as_bytes()))
+                    .map_err(|e| format!("{}: {e}", info.filename))?;
+                protection
+                    .key_file
+                    .write_to(&keyfile::key_file_path_for(&staged_backup))
+                    .map_err(|e| e.to_string())?;
+                journal.staged_backup_filenames.push(info.filename);
+                write_rotation_journal(config_path, &journal)?;
+            }
         }
+        crate::protection_transition::debug_failpoint("rotation_after_staging");
+        Ok(())
+    })();
+    if let Err(error) = pre_commit_result {
+        // Nothing has been committed yet — unwind right now, exactly as startup recovery would,
+        // instead of leaving orphaned staged files for a same-session retry to collide with.
+        let _ = recover_interrupted_rotation(config_path);
+        return Err(error);
     }
-    crate::protection_transition::debug_failpoint("rotation_after_staging");
 
     profiles::update_active_db_path(config_path, live_db_path, &target_db_path)?;
     crate::protection_transition::debug_failpoint("rotation_after_registry_write");
-    finish_rotation(config_path, &journal)?;
+    // The commit above already succeeded: the registry and the new password are already in force.
+    // A failure finishing up (installing staged backups, retiring the old file) must not be reported
+    // as a failed password change — the caller would never hot-swap to the already-live new file,
+    // and startup recovery (`recover_interrupted_rotation`) safely resumes this on next launch.
+    if let Err(reason) = finish_rotation(config_path, &journal) {
+        eprintln!("password rotation committed; finishing (backup install / config write) will resume on restart: {reason}");
+    }
     Ok((protection.key_file, protection.recovery_code, target_db_path))
 }
 
@@ -289,6 +310,12 @@ pub fn remove_protection(
     current_password: &str,
     now: NaiveDateTime,
 ) -> Result<PathBuf, String> {
+    // A journal left by an earlier failed attempt in this same session (or process) must be
+    // unwound before starting a new one — otherwise its orphaned plaintext export is never cleaned
+    // up (a fresh attempt always picks a new unique target path, so it would never collide, but
+    // would also never notice and remove the leak).
+    recover_interrupted_removal(config_path)?;
+
     let old_key_path = keyfile::key_file_path_for(live_db_path);
     KeyFile::read(&old_key_path)
         .map_err(|e| e.to_string())?
@@ -305,11 +332,25 @@ pub fn remove_protection(
         target_db_path: target_db_path.display().to_string(),
     };
     write_removal_journal(config_path, &journal)?;
-    store.export_plaintext_copy(&target_db_path).map_err(|e| e.to_string())?;
-    store.verify_copy(&target_db_path, DatabaseKey::Plaintext)?;
+    if let Err(error) = store
+        .export_plaintext_copy(&target_db_path)
+        .map_err(|e| e.to_string())
+        .and_then(|()| store.verify_copy(&target_db_path, DatabaseKey::Plaintext))
+    {
+        // Nothing has been committed yet — unwind right now, exactly as startup recovery would,
+        // instead of leaving an orphaned plaintext export on disk.
+        let _ = recover_interrupted_removal(config_path);
+        return Err(error);
+    }
     crate::protection_transition::debug_failpoint("removal_after_export");
     profiles::commit_protection_removal(config_path, live_db_path, profile_id, &target_db_path)?;
-    config::write_db_location_config(config_path, &target_db_path).map_err(|e| e.to_string())?;
+    // The commit above already succeeded: the registry no longer marks this profile protected. A
+    // failure writing config.json here must not be reported as a failed removal — the caller would
+    // never hot-swap to the already-committed plaintext file, and startup recovery
+    // (`recover_interrupted_removal`) safely resumes this on next launch (finding 4).
+    if let Err(reason) = config::write_db_location_config(config_path, &target_db_path) {
+        eprintln!("protection removal committed; config write will resume on restart: {reason}");
+    }
     crate::protection_transition::debug_failpoint("removal_after_registry_write");
     Ok(target_db_path)
 }
@@ -506,6 +547,81 @@ mod tests {
     }
 
     #[test]
+    fn retrying_a_password_change_after_a_bad_backup_does_not_collide_with_its_staged_orphan() {
+        let dir = temp_dir("retry-rotation-after-bad-backup");
+        let config_path = dir.join("config.json");
+        let (id, live_db_path, store) = protected_profile(&dir);
+        let backups_dir = backups::backups_dir_for(&live_db_path, true);
+        // `protected_profile` already left one good backup at now()-1d; add an older one that will be
+        // corrupted. Staging processes newest first, so the good one stages successfully before the
+        // corrupted, older one is reached and fails.
+        backups::create_backup(&store, &live_db_path, &backups_dir, None, now() - chrono::Duration::days(2)).unwrap();
+        let older = backups_dir.join("vaultspend-20260922-090000.db");
+        assert!(older.exists(), "fixture assumption: this is the older of the two backups");
+        std::fs::write(&older, b"not a database").unwrap();
+
+        let first_attempt = rotate_password(
+            &config_path,
+            &id,
+            &live_db_path,
+            &store,
+            "old password 123",
+            "brand new password!!",
+            now(),
+        );
+        assert!(first_attempt.is_err(), "the corrupted backup should still stop the first attempt");
+
+        std::fs::remove_file(&older).unwrap();
+        let (new_key_file, _, target_path) = rotate_password(
+            &config_path,
+            &id,
+            &live_db_path,
+            &store,
+            "old password 123",
+            "brand new password!!",
+            now(),
+        )
+        .expect("a retry after removing the bad backup should succeed, not collide with the first attempt's own staged orphan");
+
+        let new_dek = new_key_file.unlock_with_password("brand new password!!").unwrap();
+        let opened = Store::open_with_key(&target_path, DatabaseKey::Raw(new_dek.as_bytes())).unwrap();
+        assert!(opened
+            .all_transactions()
+            .unwrap()
+            .iter()
+            .any(|t| t.transaction.description == "Market Basket"));
+    }
+
+    #[test]
+    fn a_change_password_commit_still_reports_success_when_finishing_afterward_fails() {
+        // `finish_rotation`'s own work (installing staged backups, then writing config.json) runs
+        // INSIDE `rotate_dek`, after the real commit (`update_active_db_path`). A failure there must
+        // not be reported as a failed password change — the new password is already in force, and
+        // reporting failure here would leave the caller never hot-swapping to the new file while the
+        // old one keeps taking edits startup recovery will delete out from under it (finding 4).
+        let dir = temp_dir("rotation-finish-fails");
+        let config_path = dir.join("config.json");
+        let (id, live_db_path, store) = protected_profile(&dir);
+        // `finish_rotation`'s backup-install step doesn't touch config_path at all, so making
+        // config_path a directory isolates the failure to its final `write_db_location_config` call.
+        std::fs::create_dir_all(&config_path).unwrap();
+
+        let (new_key_file, _, target_path) = rotate_password(
+            &config_path,
+            &id,
+            &live_db_path,
+            &store,
+            "old password 123",
+            "brand new password!!",
+            now(),
+        )
+        .expect("the password change itself must still be reported as successful");
+
+        let new_dek = new_key_file.unlock_with_password("brand new password!!").unwrap();
+        assert!(Store::open_with_key(&target_path, DatabaseKey::Raw(new_dek.as_bytes())).is_ok(), "the new encrypted file must exist and open");
+    }
+
+    #[test]
     fn regenerating_the_recovery_key_uses_the_confirmed_code_and_leaves_the_database_untouched() {
         let dir = temp_dir("regenerate");
         let (_, live_db_path, store) = protected_profile(&dir);
@@ -581,6 +697,67 @@ mod tests {
         assert_eq!(error, "That password didn't work.");
         assert!(live_db_path.exists());
         assert!(!removal_journal_path_for(&config_path).exists());
+    }
+
+    #[test]
+    fn a_stale_removal_journal_from_an_earlier_failed_attempt_is_cleaned_up_before_a_new_one_starts() {
+        let dir = temp_dir("remove-stale-journal-cleanup");
+        let config_path = dir.join("config.json");
+        let (id, live_db_path, store) = protected_profile(&dir);
+        // Hand-crafts the exact shape a kill or an early return between `write_removal_journal` and
+        // the commit would leave: a written, never-registered orphan plaintext export plus its
+        // journal — the same technique `pre_commit_removal_recovery_discards_the_plaintext_export`
+        // uses below, just left in place instead of recovered directly, to prove a fresh call to
+        // `remove_protection` cleans it up on its own rather than leaking it forever.
+        let orphaned_target = unique_plaintext_path(&live_db_path);
+        store.export_plaintext_copy(&orphaned_target).unwrap();
+        write_removal_journal(
+            &config_path,
+            &RemovalJournal {
+                format: 1,
+                profile_id: id.clone(),
+                old_db_path: live_db_path.display().to_string(),
+                old_key_path: keyfile::key_file_path_for(&live_db_path).display().to_string(),
+                target_db_path: orphaned_target.display().to_string(),
+            },
+        )
+        .unwrap();
+        assert!(orphaned_target.exists(), "fixture assumption: the orphan is really there");
+
+        let target_path = remove_protection(&config_path, &id, &live_db_path, &store, "old password 123", now()).unwrap();
+
+        // `unique_plaintext_path` always tries this exact name first. If the stale orphan were left
+        // in place (never cleaned up), this call would have skipped straight past it to
+        // `vaultspend-2.db` instead, leaving the orphan sitting there forever, untouched, under a
+        // name nothing will ever look at again. Getting the SAME name back proves recovery actually
+        // freed it, not just that a plaintext file happens to exist at the end.
+        assert_eq!(
+            target_path, orphaned_target,
+            "recovery should have freed this exact name for reuse, not skipped past the stale orphan"
+        );
+        assert!(Store::open(&target_path).unwrap().all_transactions().is_ok());
+    }
+
+    #[test]
+    fn a_remove_protection_commit_still_reports_success_when_finishing_afterward_fails() {
+        // Same reasoning as rotate_dek's equivalent test: the commit (`commit_protection_removal`)
+        // already flipped the registry before the trailing `write_db_location_config` call, so a
+        // failure there must not be reported as a failed removal (finding 4).
+        let dir = temp_dir("remove-finish-fails");
+        let config_path = dir.join("config.json");
+        let (id, live_db_path, store) = protected_profile(&dir);
+        std::fs::create_dir_all(&config_path).unwrap();
+
+        let target_path = remove_protection(&config_path, &id, &live_db_path, &store, "old password 123", now())
+            .expect("removing protection must still be reported as successful");
+
+        let opened = Store::open(&target_path).unwrap();
+        assert!(!opened.is_encrypted());
+        assert!(opened
+            .all_transactions()
+            .unwrap()
+            .iter()
+            .any(|row| row.transaction.description == "Market Basket"));
     }
 
     #[test]

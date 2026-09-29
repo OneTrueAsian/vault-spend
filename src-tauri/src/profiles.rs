@@ -405,6 +405,7 @@ pub fn add_existing_profile(
     live_db_path: &Path,
     name: &str,
     existing_db_path: &Path,
+    protection: Option<Protection>,
     now: NaiveDateTime,
 ) -> Result<Profile, String> {
     let mut entries = entries_or_synthesize(config_path, live_db_path);
@@ -431,7 +432,7 @@ pub fn add_existing_profile(
         name: name.to_string(),
         db_path: existing_db_path.to_string_lossy().to_string(),
         icon_key: None,
-        protection: None,
+        protection,
         former_plaintext_path: None,
     });
     write_registry(config_path, &Registry { profiles: entries })?;
@@ -442,7 +443,7 @@ pub fn add_existing_profile(
         db_path: existing_db_path.to_path_buf(),
         is_active: false,
         icon_key: None,
-        protection: None,
+        protection,
     })
 }
 
@@ -808,12 +809,40 @@ mod tests {
         let live_db_path = dir.join("vaultspend.db");
         let brought_over = dir.join("from-old-laptop").join("vaultspend.db");
 
-        let profile = add_existing_profile(&config_path, &live_db_path, "Old Laptop", &brought_over, dt("2026-09-02 09:00:00")).unwrap();
+        let profile = add_existing_profile(&config_path, &live_db_path, "Old Laptop", &brought_over, None, dt("2026-09-02 09:00:00")).unwrap();
 
         assert_eq!(profile.db_path, brought_over);
+        assert!(profile.protection.is_none());
         assert!(
             !dir.join("profiles").exists(),
             "must never create a profiles_dir subdirectory for an existing file"
+        );
+    }
+
+    #[test]
+    fn add_existing_profile_registers_a_protected_profile_when_given_protection_metadata() {
+        let dir = temp_dir("add-existing-protected");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("vaultspend.db");
+        let brought_over = dir.join("from-old-laptop").join("vaultspend.db");
+
+        let profile = add_existing_profile(
+            &config_path,
+            &live_db_path,
+            "Old Laptop",
+            &brought_over,
+            Some(Protection::new(7)),
+            dt("2026-09-02 09:00:00"),
+        )
+        .unwrap();
+
+        assert_eq!(profile.protection, Some(Protection::new(7)));
+        let listed = list_profiles(&config_path, &live_db_path);
+        let reloaded = listed.iter().find(|p| p.id == profile.id).expect("just-added profile should be listed");
+        assert_eq!(
+            reloaded.protection,
+            Some(Protection::new(7)),
+            "protection metadata must survive being re-read from disk"
         );
     }
 
@@ -824,7 +853,7 @@ mod tests {
         let live_db_path = dir.join("vaultspend.db");
         let brought_over = dir.join("brought-over.db");
 
-        add_existing_profile(&config_path, &live_db_path, "Old Laptop", &brought_over, dt("2026-09-02 09:00:00")).unwrap();
+        add_existing_profile(&config_path, &live_db_path, "Old Laptop", &brought_over, None, dt("2026-09-02 09:00:00")).unwrap();
 
         let profiles = list_profiles(&config_path, &live_db_path);
         assert_eq!(profiles.len(), 2, "expected the seeded Default plus the new Old Laptop profile");
@@ -843,6 +872,7 @@ mod tests {
             &live_db_path,
             "ALEX",
             &dir.join("brought-over.db"),
+            None,
             dt("2026-09-02 09:00:01"),
         );
 
@@ -856,7 +886,7 @@ mod tests {
         let live_db_path = dir.join("vaultspend.db");
         let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-09-02 09:00:00")).unwrap();
 
-        let result = add_existing_profile(&config_path, &live_db_path, "Alex Again", &alex.db_path, dt("2026-09-02 09:00:01"));
+        let result = add_existing_profile(&config_path, &live_db_path, "Alex Again", &alex.db_path, None, dt("2026-09-02 09:00:01"));
 
         let err = result.unwrap_err();
         assert!(err.contains("Alex"), "error should name the profile already using that file: {err}");
@@ -874,7 +904,14 @@ mod tests {
         // targets, Windows and macOS both default to case-insensitive).
         let differently_cased = PathBuf::from(alex.db_path.to_string_lossy().to_uppercase());
 
-        let result = add_existing_profile(&config_path, &live_db_path, "Alex Again", &differently_cased, dt("2026-09-02 09:00:01"));
+        let result = add_existing_profile(
+            &config_path,
+            &live_db_path,
+            "Alex Again",
+            &differently_cased,
+            None,
+            dt("2026-09-02 09:00:01"),
+        );
 
         let err = result.unwrap_err();
         assert!(err.contains("Alex"), "error should name the profile already using that file: {err}");

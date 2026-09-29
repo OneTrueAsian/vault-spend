@@ -1077,14 +1077,21 @@ export function CategoryTransactionsDialog({
 export function UseExistingDataFileDialog({
   path,
   isProtectedPackage = false,
+  requiresPassword = false,
   onCancel,
   onSubmit,
 }: {
   path: string;
   isProtectedPackage?: boolean;
+  /** A bare, in-place `.db` that's encrypted (its `.key` sits beside it) — unlike a `.vaultspend`
+   * package, nothing is copied, but a password is still needed to open it. Lets a profile removed
+   * from the list ("forgot the password? remove it" or a plain Delete) be re-added with the correct
+   * password or recovery key, matching what the lock screen's own wording already promises. */
+  requiresPassword?: boolean;
   onCancel: () => void;
   onSubmit: (name: string, password?: string) => void | Promise<void>;
 }) {
+  const needsPassword = isProtectedPackage || requiresPassword;
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1092,11 +1099,11 @@ export function UseExistingDataFileDialog({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim() || (isProtectedPackage && !password)) return;
+    if (!name.trim() || (needsPassword && !password)) return;
     setBusy(true);
     setError("");
     try {
-      await onSubmit(name.trim(), isProtectedPackage ? password : undefined);
+      await onSubmit(name.trim(), needsPassword ? password : undefined);
     } catch (e) {
       setError(String(e));
       setPassword("");
@@ -1125,9 +1132,9 @@ export function UseExistingDataFileDialog({
             placeholder='e.g. "Old Laptop"'
           />
         </label>
-        {isProtectedPackage && (
+        {needsPassword && (
           <label className="modal-field">
-            <span>Package password</span>
+            <span>{isProtectedPackage ? "Package password" : "Password"}</span>
             <input
               type="password"
               autoComplete="current-password"
@@ -1142,7 +1149,7 @@ export function UseExistingDataFileDialog({
           <button type="button" className="modal-secondary" onClick={onCancel} disabled={busy}>
             Cancel
           </button>
-          <button type="submit" disabled={busy || !name.trim() || (isProtectedPackage && !password)}>
+          <button type="submit" disabled={busy || !name.trim() || (needsPassword && !password)}>
             {isProtectedPackage ? "Import profile" : "Use this file"}
           </button>
         </div>

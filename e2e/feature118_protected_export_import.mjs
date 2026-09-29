@@ -63,6 +63,47 @@ try {
     (await invoke(browser, "verify_current_password", { password: "wrong password", expectedGeneration: importedGeneration })).error,
     /didn't work/,
   );
+
+  // A protected profile removed from the list ("forgot the password? remove it" or a plain Delete)
+  // leaves exactly this shape on disk: an encrypted `.db` with its `.key` beside it, no manifest.
+  // The lock screen's own wording says re-adding it with the right password should work. Get there
+  // through `export_database` (the SQLite online-backup API, already safe against the live
+  // connection — the same thing `packagePath` above used) rather than a raw filesystem copy of the
+  // still-open live file, then pull the package's own `.db`/`.key` — by now finished, static files,
+  // safe to copy plainly — out to a bare path with no manifest beside them.
+  const secondPackagePath = path.join(testDbDir, "portable-profile-2.vaultspend");
+  assert.equal((await invoke(browser, "export_database", { destination: secondPackagePath })).error, undefined);
+  const recoveredCopyPath = path.join(testDbDir, "recovered-copy.db");
+  fs.copyFileSync(path.join(secondPackagePath, "vaultspend.db"), recoveredCopyPath);
+  fs.copyFileSync(path.join(secondPackagePath, "vaultspend.db.key"), `${recoveredCopyPath}.key`);
+
+  const wrongPasswordAttempt = await invoke(browser, "add_existing_profile", {
+    name: "Should not register",
+    dbPath: recoveredCopyPath,
+    password: "not the right password",
+    expectedGeneration: await invoke(browser, "get_current_generation").then((r) => r.ok),
+  });
+  assert.match(wrongPasswordAttempt.error, /didn't work/, "a wrong password must not register anything");
+  assert.ok(
+    (await invoke(browser, "list_profiles")).ok.every((p) => p.name !== "Should not register"),
+    "the failed attempt must not have registered a profile",
+  );
+
+  const recovered = await invoke(browser, "add_existing_profile", {
+    name: "Recovered profile",
+    dbPath: recoveredCopyPath,
+    password: PASSWORD,
+    expectedGeneration: await invoke(browser, "get_current_generation").then((r) => r.ok),
+  });
+  assert.equal(recovered.error, undefined, `re-adding a removed protected profile with its real password should work: ${recovered.error}`);
+  assert.equal(recovered.ok, "Recovered profile");
+  const recoveredProfile = (await invoke(browser, "list_profiles")).ok.find((p) => p.name === "Recovered profile");
+  assert.equal(recoveredProfile?.is_active, true);
+  assert.equal(recoveredProfile?.is_password_protected, true);
+  assert.ok(
+    (await invoke(browser, "list_transactions")).ok.some((row) => row.description === "Market Basket"),
+    "the recovered profile's data should be intact",
+  );
 } finally {
   await app.close();
 }
