@@ -187,6 +187,9 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "auto-linked",
       "review inbox",
       "inbox",
+      "note",
+      "notes",
+      "annotate",
     ],
     node: (
       <li>
@@ -214,7 +217,11 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         <strong>Review inbox</strong>), a review dialog lists transactions
         worth a second look — uncategorized, a low-confidence guess, a
         possible duplicate, or an unusually large charge — with a suggested
-        category you can accept, change, or skip.
+        category you can accept, change, or skip. Any transaction can also
+        carry a freeform <strong>note</strong> — click "+ Add note" (or the
+        note preview, once one exists) on its row; a linked transfer shows
+        one note action per leg, since each side is still its own
+        transaction.
       </li>
     ),
   },

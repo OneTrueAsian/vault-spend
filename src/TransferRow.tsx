@@ -8,13 +8,43 @@ import { formatAmount } from "./format";
  * outgoing leg and the incoming leg `collapseTransferPairs` paired up.
  * Deliberately not editable inline: to change either side's date, amount or
  * description, unlink it first — the two transactions are then ordinary rows
- * again. Selecting the row selects both legs. */
+ * again. Selecting the row selects both legs. Each leg is still its own
+ * transaction underneath, though, so each keeps its own note action. */
+
+/** One leg's note action — its own account label, its own transaction, never
+ * the other leg's. Mirrors the plain row's Add note/Edit note button so the
+ * two look and behave the same, just addressed at one specific leg. */
+function LegNoteAction({ leg, role, onEditNote }: { leg: Transaction; role: "outgoing" | "incoming"; onEditNote: (t: Transaction) => void }) {
+  const preview = leg.notes && leg.notes.length > 28 ? `${leg.notes.slice(0, 28)}…` : leg.notes;
+  return leg.notes ? (
+    <button
+      type="button"
+      className="modal-secondary btn-sm transaction-note-preview"
+      onClick={() => onEditNote(leg)}
+      title={leg.notes}
+      aria-label={`Edit note for ${leg.account_name} (${role} leg)`}
+    >
+      {leg.account_name}: {preview}
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="modal-secondary btn-sm transaction-note-add"
+      onClick={() => onEditNote(leg)}
+      aria-label={`Add note for ${leg.account_name} (${role} leg)`}
+    >
+      {leg.account_name}: + Add note
+    </button>
+  );
+}
+
 export function TransferRow({
   out,
   incoming,
   selected,
   onToggleSelected,
   onUnlink,
+  onEditNote,
   showDebtColumn,
 }: {
   out: Transaction;
@@ -22,6 +52,8 @@ export function TransferRow({
   selected: boolean;
   onToggleSelected: () => void;
   onUnlink: () => void;
+  /** Each leg is still its own transaction, so notes are edited per leg. */
+  onEditNote: (t: Transaction) => void;
   /** Whether the ledger has its (empty here) Debt column, so this row lines up. */
   showDebtColumn: boolean;
 }) {
@@ -45,6 +77,10 @@ export function TransferRow({
           </span>
           <span>{out.description}</span>
         </span>
+        <div className="transfer-row-notes">
+          <LegNoteAction leg={out} role="outgoing" onEditNote={onEditNote} />
+          <LegNoteAction leg={incoming} role="incoming" onEditNote={onEditNote} />
+        </div>
       </td>
       <td className="amount-col">
         <span className="transfer-amount">{formatAmount(incoming.amount)}</span>

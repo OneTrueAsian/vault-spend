@@ -55,6 +55,11 @@ try {
     timeoutMsg: "expected the Category select to hold Dining Out after selecting it",
   });
 
+  // The optional Note field in the creation dialog itself — set alongside
+  // the rest of the atomic creation, not edited afterward.
+  const notesInput = await dialogPanel.$("textarea");
+  await notesInput.setValue("Split with Jordan");
+
   const submitBtn = await dialogPanel.$("button=Add transaction");
   await submitBtn.click();
   await dialog.waitForExist({ timeout: 5000, reverse: true });
@@ -80,6 +85,15 @@ try {
     timeoutMsg: 'expected the explicitly-picked category "Dining Out" to be set on this row',
   });
   console.log("first transaction correctly categorized as Dining Out");
+
+  // The note typed into the creation dialog should have been saved
+  // atomically with the rest of the transaction, and shows as a preview
+  // button on the row (not the raw "+ Add note" prompt for a note-less row).
+  const coffeeNoteButton = await coffeeRow.$("button*=Split with Jordan");
+  if (!(await coffeeNoteButton.isExisting())) {
+    throw new Error('expected the note typed while creating the transaction ("Split with Jordan") to appear as a preview on its row');
+  }
+  console.log("note typed during manual creation was saved and previews on the row");
 
   // Second transaction: leave Category on "Auto-categorize" — nothing
   // matches this made-up description, so it should land on Uncategorized

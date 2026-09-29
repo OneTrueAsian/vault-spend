@@ -3665,6 +3665,13 @@ button:disabled {
   color: var(--text-muted);
 }
 
+.transfer-row-notes {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
 .ledger-row-transfer td {
   background: var(--surface-muted, transparent);
 }
@@ -5657,7 +5664,8 @@ button:disabled {
 }
 
 .modal-field input,
-.modal-field select {
+.modal-field select,
+.modal-field textarea {
   font-family: inherit;
   font-size: 14px;
   font-weight: 400;
@@ -5668,8 +5676,26 @@ button:disabled {
   background: var(--surface);
 }
 
-.modal-field input[aria-invalid="true"] {
+.modal-field textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+.modal-field input[aria-invalid="true"],
+.modal-field textarea[aria-invalid="true"] {
   border-color: var(--negative);
+}
+
+.notes-char-count {
+  margin: -8px 0 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.notes-char-count-over {
+  color: var(--negative);
+  font-weight: 600;
 }
 
 /* A checkbox + its sentence on one line, inside a dialog. */

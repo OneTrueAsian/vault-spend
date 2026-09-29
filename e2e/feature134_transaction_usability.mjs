@@ -152,10 +152,25 @@ try {
     );
   });
 
-  // Issue 2 — no way to add notes to a transaction.
+  // Issue 2 — no way to add notes to a transaction: real functional check
+  // (not just presence) once Task 4 lands — add one through the real
+  // "+ Add note" button and confirm it actually saved, not just that a
+  // button with the word "note" exists somewhere on the page.
   await check("a transaction row offers a notes action", async () => {
-    const notesButtons = await browser.$$("button*=note");
-    assert.ok(notesButtons.length > 0, "expected an Add note / Edit note action on a transaction row, found none");
+    const row = await browser.$("//tr[td[contains(.,'Green Leaf Grocers')]]");
+    const addBtn = await row.$("button[aria-label*='Add note for']");
+    assert.ok(await addBtn.isExisting(), "expected an Add note action on the Green Leaf Grocers row, found none");
+    await addBtn.click();
+    const dialogHeading = await browser.$("//h2[contains(@class,'modal-title')][contains(text(),'Note for')]");
+    await dialogHeading.waitForExist({ timeout: 5000, timeoutMsg: "expected the note dialog to open" });
+    const panel = await browser.$(".modal-panel");
+    await (await panel.$("textarea")).setValue("Price looked off, double-check receipt");
+    await (await panel.$("button=Save")).click();
+    await panel.waitForExist({ timeout: 5000, reverse: true });
+    await browser.waitUntil(
+      async () => (await (await browser.$("//tr[td[contains(.,'Green Leaf Grocers')]]")).getText()).includes("Price looked off"),
+      { timeout: 5000, timeoutMsg: "expected the saved note to preview on the row, not just close the dialog" },
+    );
   });
 
   // Issue 3 — category filter is a bare native <select>, unlike its

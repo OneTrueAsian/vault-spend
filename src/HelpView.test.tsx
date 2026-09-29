@@ -33,4 +33,14 @@ describe("HelpView", () => {
     expect(text).toContain("Settings → Password protection");
     expect(text).toContain("Settings → Password protection → Automatic locking");
   });
+
+  it("finds the Transactions entry when searching for \"note\"", () => {
+    const input = container.querySelector<HTMLInputElement>("input[type=search], input[placeholder*=earch]")!;
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "note");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("Transactions");
+  });
 });

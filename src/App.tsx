@@ -29,6 +29,7 @@ import {
   WelcomeDialog,
   WhatsNewDialog,
 } from "./Modal";
+import { TransactionNotesDialog } from "./TransactionNotesDialog";
 import { DEFAULT_LAYOUT, loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 import { lockCurrentProfile, unlockProfile } from "./protection";
@@ -561,6 +562,7 @@ function App({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [allTags, setAllTags] = useState<string[]>([]);
   const [newTagText, setNewTagText] = useState<Record<number, string>>({});
+  const [notesDialogFor, setNotesDialogFor] = useState<Transaction | null>(null);
   const [bulkTagText, setBulkTagText] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
@@ -3489,6 +3491,11 @@ function App({
     }
   }
 
+  async function handleSaveNotes(transactionId: number, notes: string | null) {
+    await invoke("update_transaction_notes", { transactionId, notes });
+    await refresh();
+  }
+
   async function handleAddTag(id: number, tag: string) {
     const trimmed = tag.trim();
     if (!trimmed) return;
@@ -4411,6 +4418,7 @@ function App({
                   selected={selectedIds.has(t.id)}
                   onToggleSelected={() => toggleSelectedMany([t.id, inLeg.id])}
                   onUnlink={() => handleUnlinkTransfer(t.id)}
+                  onEditNote={setNotesDialogFor}
                   showDebtColumn={appSettings.apply_to_debt_enabled}
                 />
               );
@@ -4519,6 +4527,26 @@ function App({
                     }}
                   />
                 </div>
+                {t.notes ? (
+                  <button
+                    type="button"
+                    className="modal-secondary btn-sm transaction-note-preview"
+                    onClick={() => setNotesDialogFor(t)}
+                    title={t.notes}
+                    aria-label={`Edit note for "${t.description}"`}
+                  >
+                    {t.notes.length > 40 ? `${t.notes.slice(0, 40)}…` : t.notes}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="modal-secondary btn-sm transaction-note-add"
+                    onClick={() => setNotesDialogFor(t)}
+                    aria-label={`Add note for "${t.description}"`}
+                  >
+                    + Add note
+                  </button>
+                )}
               </td>
               <td className="amount-col">
                 {editingAmount?.id === t.id ? (
@@ -5388,6 +5416,13 @@ function App({
           onDismiss={handleDismissTransferCandidates}
           onDismissAll={handleDismissAllTransferCandidates}
           onCancel={() => setTransferReviewOpen(false)}
+        />
+      )}
+      {notesDialogFor && (
+        <TransactionNotesDialog
+          transaction={notesDialogFor}
+          onSave={(notes) => handleSaveNotes(notesDialogFor.id, notes)}
+          onClose={() => setNotesDialogFor(null)}
         />
       )}
       {autoLinkReviewOpen && (

@@ -450,6 +450,7 @@ export function NewTransactionDialog({
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [memberId, setMemberId] = useState("");
+  const [notes, setNotes] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const amountTrimmed = amount.trim();
@@ -465,7 +466,15 @@ export function NewTransactionDialog({
     e.preventDefault();
     setSubmitAttempted(true);
     if (!valid) return;
-    onSubmit(Number(accountId), date, description.trim(), amountTrimmed, category || null, memberId ? Number(memberId) : null, null);
+    onSubmit(
+      Number(accountId),
+      date,
+      description.trim(),
+      amountTrimmed,
+      category || null,
+      memberId ? Number(memberId) : null,
+      notes.trim() === "" ? null : notes,
+    );
   }
 
   return (
@@ -550,6 +559,10 @@ export function NewTransactionDialog({
             </select>
           </label>
         )}
+        <label className="modal-field">
+          <span>Note (optional)</span>
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </label>
         <div className="modal-actions">
           <button type="button" className="modal-secondary" onClick={onCancel}>
             Cancel
