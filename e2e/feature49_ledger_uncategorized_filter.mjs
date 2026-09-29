@@ -50,13 +50,21 @@ try {
   }
   console.log('"Needs a category" correctly ignores a category-present/source-null row');
 
-  const categorySelect = await app.browser.$(".ledger-filters select");
+  const categoryTrigger = await app.browser.$(".ledger-filters .category-filter-toggle");
   const ledgerPage = await app.browser.$(".page");
 
-  // Selecting "Uncategorized" from the dropdown should show only Speedway
+  async function chooseCategoryFilter(label) {
+    await categoryTrigger.click();
+    const menu = await app.browser.$(".ledger-filters .category-filter-panel");
+    await menu.waitForExist({ timeout: 5000 });
+    const option = await menu.$(`.//button[.//span[normalize-space()='${label}']]`);
+    await option.click();
+  }
+
+  // Selecting "Uncategorized" from the menu should show only Speedway
   // 47096 (the NULL-category row) — not Pizza Night, and not Mortgage
   // Import (it has a real category, just no recorded source).
-  await categorySelect.selectByVisibleText("Uncategorized");
+  await chooseCategoryFilter("Uncategorized");
   await app.browser.waitUntil(
     async () => {
       const text = await ledgerPage.getText();
@@ -64,10 +72,10 @@ try {
     },
     { timeout: 5000, timeoutMsg: 'expected the "Uncategorized" filter to show only the genuinely uncategorized transaction' },
   );
-  console.log('dropdown "Uncategorized" option correctly isolates the one uncategorized transaction');
+  console.log('menu "Uncategorized" option correctly isolates the one uncategorized transaction');
 
   // Back to "All categories" — all three rows should reappear.
-  await categorySelect.selectByVisibleText("All categories");
+  await chooseCategoryFilter("All categories");
   await app.browser.waitUntil(
     async () => {
       const text = await ledgerPage.getText();
@@ -78,7 +86,7 @@ try {
 
   // Clicking the stat itself should apply the same filter as a shortcut.
   await uncategorizedStat.click();
-  await app.browser.waitUntil(async () => (await categorySelect.getValue()) === "__uncategorized__", {
+  await app.browser.waitUntil(async () => (await categoryTrigger.getText()).includes("Uncategorized"), {
     timeout: 5000,
     timeoutMsg: 'expected clicking the "Needs a category" stat to set the category filter to Uncategorized',
   });
@@ -93,7 +101,7 @@ try {
 
   // Clicking it again toggles back to "all".
   await uncategorizedStat.click();
-  await app.browser.waitUntil(async () => (await categorySelect.getValue()) === "all", {
+  await app.browser.waitUntil(async () => (await categoryTrigger.getText()).includes("All categories"), {
     timeout: 5000,
     timeoutMsg: "expected clicking the stat a second time to clear the filter back to all categories",
   });

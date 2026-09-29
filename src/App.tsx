@@ -35,6 +35,7 @@ import { ProfileSwitcher } from "./ProfileSwitcher";
 import { lockCurrentProfile, unlockProfile } from "./protection";
 import { hasObservableUnsavedInput } from "./unsavedInput";
 import { TransferRow } from "./TransferRow";
+import { CategoryFilterDropdown } from "./CategoryFilterDropdown";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
 import { SortableTh } from "./SortableTh";
@@ -1185,6 +1186,14 @@ function App({
   // category, and anything created or assigned by hand, so it's the
   // complete, single source of truth for every category picker in the app.
   const categoryOptions = usedCategories;
+  const categoryFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "All categories" },
+      { value: UNCATEGORIZED_FILTER, label: "Uncategorized" },
+      ...categoryOptions.map((c) => ({ value: c, label: c })),
+    ],
+    [categoryOptions],
+  );
 
   // Name → explicit icon override, for the handful of places that render a
   // `<CategoryIcon>` against a real stored category (not just a name typed
@@ -4177,15 +4186,7 @@ function App({
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
           />
-          <select aria-label="Filter by category" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-            <option value="all">All categories</option>
-            <option value={UNCATEGORIZED_FILTER}>Uncategorized</option>
-            {categoryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <CategoryFilterDropdown options={categoryFilterOptions} value={filterCategory} onChange={setFilterCategory} />
           <AccountFilterDropdown accounts={accounts} value={filterAccountIds} onChange={setFilterAccountIds} />
           <MemberFilterDropdown members={familyMembers} value={filterMemberIds} onChange={setFilterMemberIds} />
           <MoreFiltersPopover

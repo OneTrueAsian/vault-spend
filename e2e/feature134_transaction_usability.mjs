@@ -181,34 +181,57 @@ try {
   });
 
   // Issue 4 — dropdown menus are translucent in the Transparent theme
-  // (measured composited alpha, not just the CSS token string).
-  await check("account filter panel is opaque in the Transparent theme", async () => {
+  // (measured composited alpha, not just the CSS token string). Checked
+  // across all 6 palette/mode combinations, and both distinct Transactions
+  // toolbar popovers (account filter, category filter) that share the
+  // `.account-filter-panel` CSS class the fix targets — not just one.
+  const PALETTES = [null, "futuristic", "transparent"];
+  const MODES = ["light", "dark"];
+  await check("every Transactions toolbar menu panel is opaque across every palette/mode combination", async () => {
+    const combosFailing = [];
+    for (const palette of PALETTES) {
+      for (const mode of MODES) {
+        await browser.execute(
+          (p, m) => {
+            if (p) document.documentElement.dataset.palette = p;
+            else delete document.documentElement.dataset.palette;
+            document.documentElement.dataset.theme = m;
+          },
+          palette,
+          mode,
+        );
+        await browser.pause(150);
+        // Scoped selectors: CategoryFilterDropdown's trigger also carries the
+        // shared `account-filter-toggle` class, so an unqualified query for
+        // "the account filter toggle" can resolve to the wrong one.
+        for (const [name, triggerSelector] of [
+          ["account filter", ".ledger-filters .account-filter-toggle:not(.category-filter-toggle)"],
+          ["category filter", ".ledger-filters .category-filter-toggle"],
+        ]) {
+          const trigger = await browser.$(triggerSelector);
+          await trigger.click();
+          const panel = await browser.$(".ledger-filters .account-filter-panel");
+          await panel.waitForDisplayed({ timeout: 5000 });
+          const alpha = await browser.execute((sel) => {
+            const el = document.querySelector(sel);
+            const css = getComputedStyle(el);
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = 1;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = css.backgroundColor;
+            ctx.fillRect(0, 0, 1, 1);
+            return ctx.getImageData(0, 0, 1, 1).data[3];
+          }, ".ledger-filters .account-filter-panel");
+          await trigger.click();
+          if (alpha !== 255) combosFailing.push(`${name} panel, palette=${palette ?? "classic"} theme=${mode}: alpha ${alpha}/255`);
+        }
+      }
+    }
     await browser.execute(() => {
-      document.documentElement.dataset.palette = "transparent";
+      delete document.documentElement.dataset.palette;
+      delete document.documentElement.dataset.theme;
     });
-    await browser.pause(200);
-    // Scoped to .ledger-filters: AccountDestinationDropdown reuses the same
-    // "account-filter-panel" class elsewhere in the DOM for shared styling,
-    // and an unscoped query can match that unrelated panel instead.
-    const trigger = await browser.$(".ledger-filters .account-filter-toggle");
-    await trigger.click();
-    const panel = await browser.$(".ledger-filters .account-filter-panel");
-    await panel.waitForDisplayed({ timeout: 5000 });
-    const alpha = await browser.execute(() => {
-      const el = document.querySelector(".ledger-filters .account-filter-panel");
-      const css = getComputedStyle(el);
-      const canvas = document.createElement("canvas");
-      canvas.width = canvas.height = 1;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = css.backgroundColor;
-      ctx.fillRect(0, 0, 1, 1);
-      return ctx.getImageData(0, 0, 1, 1).data[3];
-    });
-    await trigger.click();
-    await browser.execute(() => {
-      document.documentElement.dataset.palette = "classic";
-    });
-    assert.equal(alpha, 255, `account filter panel must be opaque in the Transparent theme, measured composited alpha ${alpha}/255`);
+    assert.deepEqual(combosFailing, [], `expected every combination opaque, found:\n${combosFailing.join("\n")}`);
   });
 
   // Issue 5 — long account/category names are clipped in the row's native

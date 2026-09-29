@@ -3272,7 +3272,13 @@ button:disabled {
   min-width: 220px;
   max-height: 340px;
   overflow-y: auto;
-  background: var(--surface);
+  /* --status-base, not --surface: Transparent's --surface is deliberately
+     translucent (the "Liquid Glass" look), which left this menu panel
+     showing the ledger table through it — a composited alpha of 173/255,
+     measured against the real compiled app. --status-base is the same
+     token toasts already use for the identical reason and is just
+     --surface everywhere else, so this is a no-op outside Transparent. */
+  background: var(--status-base);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow-sm);
