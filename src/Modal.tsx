@@ -439,6 +439,7 @@ export function NewTransactionDialog({
     amount: string,
     category: string | null,
     memberId: number | null,
+    notes: string | null,
   ) => void;
 }) {
   const [accountId, setAccountId] = useState(
@@ -464,7 +465,7 @@ export function NewTransactionDialog({
     e.preventDefault();
     setSubmitAttempted(true);
     if (!valid) return;
-    onSubmit(Number(accountId), date, description.trim(), amountTrimmed, category || null, memberId ? Number(memberId) : null);
+    onSubmit(Number(accountId), date, description.trim(), amountTrimmed, category || null, memberId ? Number(memberId) : null, null);
   }
 
   return (

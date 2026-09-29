@@ -114,6 +114,10 @@ export type Transaction = {
   tags: string[];
   member_id: number | null;
   member_name: string | null;
+  /** A person's own freeform annotation on this transaction — never used
+   * for categorization, transfer matching, or import dedup. `null` means
+   * no note. See `update_transaction_notes`. */
+  notes: string | null;
 };
 
 export type TransactionSplit = {

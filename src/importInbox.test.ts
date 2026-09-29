@@ -19,6 +19,7 @@ function txn(over: Partial<Transaction> & Pick<Transaction, "id">): Transaction 
     tags: [],
     member_id: null,
     member_name: null,
+    notes: null,
     ...over,
   };
 }

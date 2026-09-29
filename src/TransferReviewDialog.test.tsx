@@ -30,6 +30,7 @@ function txn(overrides: Partial<Transaction> & { id: number; description: string
     tags: [],
     member_id: null,
     member_name: null,
+    notes: null,
     ...overrides,
   } as Transaction;
 }

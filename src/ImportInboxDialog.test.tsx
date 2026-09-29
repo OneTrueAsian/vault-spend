@@ -20,7 +20,7 @@ afterEach(() => { act(() => root.unmount()); host.remove(); });
 function item(id: number, category: string | null, kinds: InboxItem["reasons"][number]["kind"][]): InboxItem {
   return { transaction: { id, account_id: 1, date: "2026-09-23", description: `Merchant ${id}`, amount: "-10.00",
     account_name: "Checking", category, category_source: "user", confidence: null, transfer_counterpart_id: null,
-    applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null },
+    applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null },
     reasons: kinds.map((kind) => ({ kind, detail: kind })), suggestion: null };
 }
 function mount(items: InboxItem[], setCategory = vi.fn().mockResolvedValue(undefined)) {

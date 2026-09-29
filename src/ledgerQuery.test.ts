@@ -39,6 +39,7 @@ function tx(overrides: Partial<Transaction> = {}): Transaction {
     tags: [],
     member_id: null,
     member_name: null,
+    notes: null,
     ...overrides,
   };
 }

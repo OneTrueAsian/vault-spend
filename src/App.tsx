@@ -3042,9 +3042,10 @@ function App({
     amount: string,
     category: string | null,
     memberId: number | null,
+    notes: string | null,
   ) {
     try {
-      const newId = await invoke<number>("create_manual_transaction", { accountId, date, description, amount, category, memberId });
+      const newId = await invoke<number>("create_manual_transaction", { accountId, date, description, amount, category, memberId, notes });
       setLastUsedAccountId(accountId);
       await refresh();
       setNewTransactionOpen(false);
@@ -3337,8 +3338,8 @@ function App({
     });
     if (!path) return;
     const csv = toCsv(
-      ["Date", "Description", "Amount", "Account", "Category", "Tags"],
-      sortedTransactions.map((t) => [t.date, t.description, t.amount, t.account_name, t.category ?? "", t.tags.join("; ")]),
+      ["Date", "Description", "Amount", "Account", "Category", "Tags", "Notes"],
+      sortedTransactions.map((t) => [t.date, t.description, t.amount, t.account_name, t.category ?? "", t.tags.join("; "), t.notes ?? ""]),
     );
     try {
       await invoke("write_text_file", { path, content: csv });

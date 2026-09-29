@@ -294,6 +294,7 @@ pub fn run() {
             commands::update_transaction_account,
             commands::update_transaction_date,
             commands::update_transaction_description,
+            commands::update_transaction_notes,
             commands::delete_transaction,
             commands::restore_transactions,
             commands::apply_debt_payment,

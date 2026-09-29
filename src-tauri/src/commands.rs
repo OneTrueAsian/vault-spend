@@ -1009,6 +1009,7 @@ pub struct TransactionDto {
     pub tags: Vec<String>,
     pub member_id: Option<i64>,
     pub member_name: Option<String>,
+    pub notes: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1409,7 +1410,9 @@ pub fn commit_import(
         tx.category = settled.category;
     }
 
-    let mut by_account: std::collections::HashMap<i64, Vec<(budget_core::models::Transaction, Vec<String>)>> = std::collections::HashMap::new();
+    // One imported row plus its optional Tags/Notes columns, grouped by destination account.
+    type PendingRow = (budget_core::models::Transaction, Vec<String>, Option<String>);
+    let mut by_account: std::collections::HashMap<i64, Vec<PendingRow>> = std::collections::HashMap::new();
     for (index, tx) in selected {
         let account_id = if let Some(explicit) = account_overrides.get(&index).copied() {
             explicit
@@ -1422,19 +1425,31 @@ pub fn commit_import(
             default_account_id
         };
         let tags = loaded.tags.get(index).cloned().unwrap_or_default();
-        by_account.entry(account_id).or_default().push((tx, tags));
+        let notes = loaded.notes.get(index).cloned().flatten();
+        by_account.entry(account_id).or_default().push((tx, tags, notes));
     }
 
     let mut inserted = 0;
     let mut inserted_ids: Vec<i64> = Vec::new();
     for (account_id, rows) in by_account {
-        let (txns, tags_per_row): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
+        let (txns, tags_per_row, notes_per_row): (Vec<_>, Vec<_>, Vec<_>) = rows.into_iter().fold(
+            (Vec::new(), Vec::new(), Vec::new()),
+            |(mut txns, mut tags, mut notes), (tx, row_tags, row_notes)| {
+                txns.push(tx);
+                tags.push(row_tags);
+                notes.push(row_notes);
+                (txns, tags, notes)
+            },
+        );
         let ids = state.store.save_transactions_with_ids(account_id, &txns).map_err(|e| e.to_string())?;
         inserted += ids.len();
         inserted_ids.extend(ids.iter().copied());
-        for (id, tags) in ids.into_iter().zip(tags_per_row) {
+        for ((id, tags), notes) in ids.into_iter().zip(tags_per_row).zip(notes_per_row) {
             for tag in tags {
                 state.store.add_tag(id, &tag).map_err(|e| e.to_string())?;
+            }
+            if let Some(notes) = notes {
+                state.store.update_transaction_notes(id, Some(&notes)).map_err(|e| e.to_string())?;
             }
         }
     }
@@ -1459,6 +1474,7 @@ pub fn commit_import(
 /// an un-categorized manual entry gets auto-categorized the same way an
 /// imported row would; passing one skips that guesswork entirely.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn create_manual_transaction(
     account_id: i64,
     date: String,
@@ -1466,6 +1482,7 @@ pub fn create_manual_transaction(
     amount: String,
     category: Option<String>,
     member_id: Option<i64>,
+    notes: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
     let mut state = state.lock()?;
@@ -1479,7 +1496,10 @@ pub fn create_manual_transaction(
         amount,
         category,
     };
-    let id = state.store.create_transaction(account_id, &tx).map_err(|e| e.to_string())?;
+    let id = state
+        .store
+        .create_transaction(account_id, &tx, notes.as_deref())
+        .map_err(|e| e.to_string())?;
     if !has_category {
         categorize_uncategorized(&mut state)?;
     }
@@ -1898,6 +1918,7 @@ pub fn list_transactions(state: tauri::State<AppStateHandle>) -> Result<Vec<Tran
             tags: s.tags,
             member_id: s.member_id,
             member_name: s.member_name,
+            notes: s.notes,
         })
         .collect())
 }
@@ -2331,6 +2352,19 @@ pub fn update_transaction_principal_amount(id: i64, principal_amount: Option<Str
     state
         .store
         .update_transaction_principal_amount(id, principal_amount)
+        .map_err(|e| e.to_string())
+}
+
+/// Sets, changes or clears (`null`) a transaction's own freeform note. See
+/// `Store::update_transaction_notes` for the validation/whitespace rules
+/// and why a missing/deleted transaction is a real error here, not a
+/// silent no-op like most `update_transaction_*` commands.
+#[tauri::command]
+pub fn update_transaction_notes(transaction_id: i64, notes: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    state
+        .store
+        .update_transaction_notes(transaction_id, notes.as_deref())
         .map_err(|e| e.to_string())
 }
 

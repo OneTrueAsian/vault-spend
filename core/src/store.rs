@@ -80,6 +80,10 @@ pub struct StoredTransaction {
     pub tags: Vec<String>,
     pub member_id: Option<i64>,
     pub member_name: Option<String>,
+    /// A person's own freeform annotation on this transaction — never used
+    /// for categorization, transfer matching, or the import fingerprint.
+    /// `None` means no note. See `Store::update_transaction_notes`.
+    pub notes: Option<String>,
 }
 
 /// Which debt account this transaction's amount was applied toward paying
@@ -774,6 +778,52 @@ impl From<rusqlite::Error> for PlanError {
     }
 }
 
+/// The most Unicode scalar values (`.chars().count()`, matching JS
+/// `Array.from(value).length`) a transaction's notes may hold.
+pub const NOTES_MAX_CHARS: usize = 4_000;
+
+/// `update_transaction_notes`/`create_transaction` were refused (over the
+/// length limit, or no such transaction/it's deleted), with a message meant
+/// to be shown as-is, or the database itself errored.
+#[derive(Debug)]
+pub enum NotesError {
+    Invalid(String),
+    Db(rusqlite::Error),
+}
+
+impl std::fmt::Display for NotesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NotesError::Invalid(message) => write!(f, "{message}"),
+            NotesError::Db(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for NotesError {}
+
+impl From<rusqlite::Error> for NotesError {
+    fn from(e: rusqlite::Error) -> Self {
+        NotesError::Db(e)
+    }
+}
+
+/// Whitespace-only (including empty) becomes `None`; otherwise the text is
+/// trimmed of leading/trailing whitespace (internal whitespace/newlines are
+/// preserved exactly) and rejected — without truncating — if it's over
+/// `NOTES_MAX_CHARS` Unicode scalar values.
+fn normalize_notes(notes: Option<&str>) -> Result<Option<String>, NotesError> {
+    let Some(raw) = notes else { return Ok(None) };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.chars().count() > NOTES_MAX_CHARS {
+        return Err(NotesError::Invalid(format!("Notes can be at most {NOTES_MAX_CHARS} characters.")));
+    }
+    Ok(Some(trimmed.to_string()))
+}
+
 /// A manually-tracked asset outside the accounts model — real estate, a
 /// vehicle, or anything else with a value worth counting toward net worth
 /// but no transaction history of its own. See `Store::total_assets_value`
@@ -1308,6 +1358,7 @@ impl Store {
         self.migrate_add_default_rules_seeded_if_missing()?;
         self.migrate_flip_loan_transaction_signs_if_needed()?;
         self.migrate_add_principal_amount_if_missing()?;
+        self.migrate_add_notes_to_transactions_if_missing()?;
         // These reference columns only guaranteed to exist once every
         // migration above has run — a database from before those columns
         // existed has a table the initial `CREATE TABLE IF NOT EXISTS` up
@@ -2314,6 +2365,31 @@ impl Store {
         }
 
         self.conn.execute("ALTER TABLE transactions ADD COLUMN principal_amount TEXT", [])?;
+        Ok(())
+    }
+
+    /// Same pattern again: a database from before optional transaction notes
+    /// existed has no `notes` column. `NULL` (no note) is already correct
+    /// for every existing row.
+    fn migrate_add_notes_to_transactions_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(transactions)")?;
+        let mut rows = stmt.query([])?;
+        let mut has_notes = false;
+        while let Some(row) = rows.next()? {
+            let column_name: String = row.get(1)?;
+            if column_name == "notes" {
+                has_notes = true;
+                break;
+            }
+        }
+        drop(rows);
+        drop(stmt);
+
+        if has_notes {
+            return Ok(());
+        }
+
+        self.conn.execute("ALTER TABLE transactions ADD COLUMN notes TEXT", [])?;
         Ok(())
     }
 
@@ -4318,9 +4394,20 @@ impl Store {
     /// default-member assignment stay identical to an imported row, and
     /// returns the new row's id, matching every other single-entity
     /// creation method in this app (`create_holding`, `create_bucket`, ...).
-    pub fn create_transaction(&self, account_id: i64, tx: &Transaction) -> rusqlite::Result<i64> {
+    /// `notes` is written in the same transaction as the insert — never a
+    /// separate follow-up write, so a rejected note (over the length limit)
+    /// leaves no orphaned transaction behind and a mid-write failure can't
+    /// leave one committed with the other lost.
+    pub fn create_transaction(&self, account_id: i64, tx: &Transaction, notes: Option<&str>) -> Result<i64, NotesError> {
+        let normalized_notes = normalize_notes(notes)?;
+        let sql_tx = self.conn.unchecked_transaction()?;
         self.save_transactions(account_id, std::slice::from_ref(tx))?;
-        Ok(self.conn.last_insert_rowid())
+        let id = self.conn.last_insert_rowid();
+        if let Some(n) = &normalized_notes {
+            self.conn.execute("UPDATE transactions SET notes = ?1 WHERE id = ?2", params![n, id])?;
+        }
+        sql_tx.commit()?;
+        Ok(id)
     }
 
     /// Every transaction, except the synthetic ones `apply_debt_payment`
@@ -4337,7 +4424,7 @@ impl Store {
                     dp.debt_account_id, da.name, dp.amount,
                     (SELECT COUNT(*) FROM transaction_splits ts WHERE ts.transaction_id = t.id),
                     GROUP_CONCAT(tt.tag, char(31)),
-                    t.member_id, fm.name, t.principal_amount,
+                    t.member_id, fm.name, t.principal_amount, t.notes,
                     COALESCE(
                         (SELECT l.in_transaction_id FROM transfer_links l
                          JOIN transactions o ON o.id = l.in_transaction_id
@@ -4375,7 +4462,8 @@ impl Store {
                 row.get::<_, Option<i64>>(14)?,
                 row.get::<_, Option<String>>(15)?,
                 row.get::<_, Option<String>>(16)?,
-                row.get::<_, Option<i64>>(17)?,
+                row.get::<_, Option<String>>(17)?,
+                row.get::<_, Option<i64>>(18)?,
             ))
         })?;
 
@@ -4399,6 +4487,7 @@ impl Store {
                 member_id,
                 member_name,
                 principal_amount_str,
+                notes,
                 transfer_counterpart_id,
             ) = row?;
             let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
@@ -4432,6 +4521,7 @@ impl Store {
                 tags,
                 member_id,
                 member_name,
+                notes,
             });
         }
         Ok(result)
@@ -4581,6 +4671,24 @@ impl Store {
             describe(&old_principal_str),
             describe(&principal_amount.map(|a| a.to_string())),
         ));
+        Ok(())
+    }
+
+    /// Sets, changes or clears (`None`) a transaction's own freeform note —
+    /// never its category, amount, tags, transfer link, or the import
+    /// fingerprint; a notes-only edit changes nothing else about the row.
+    /// Unlike most `update_transaction_*` methods, a missing or (soft-)
+    /// deleted id is a real error here, not a silent no-op: the notes
+    /// dialog needs to know its target vanished rather than quietly losing
+    /// the edit. See `normalize_notes` for the whitespace/length rules.
+    pub fn update_transaction_notes(&self, id: i64, notes: Option<&str>) -> Result<(), NotesError> {
+        let normalized = normalize_notes(notes)?;
+        let affected = self
+            .conn
+            .execute("UPDATE transactions SET notes = ?1 WHERE id = ?2 AND deleted_at IS NULL", params![normalized, id])?;
+        if affected == 0 {
+            return Err(NotesError::Invalid("This transaction no longer exists.".to_string()));
+        }
         Ok(())
     }
 
@@ -10860,7 +10968,7 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let checking = test_account(&store);
 
-        let id = store.create_transaction(checking, &tx("2026-08-01", "Cash tip", "-20.00")).unwrap();
+        let id = store.create_transaction(checking, &tx("2026-08-01", "Cash tip", "-20.00"), None).unwrap();
 
         let all = store.all_transactions().unwrap();
         assert_eq!(all.len(), 1);
@@ -10875,7 +10983,7 @@ mod tests {
         let checking = test_account(&store);
         store.set_account_member(checking, Some(member)).unwrap();
 
-        store.create_transaction(checking, &tx("2026-08-01", "Cash tip", "-20.00")).unwrap();
+        store.create_transaction(checking, &tx("2026-08-01", "Cash tip", "-20.00"), None).unwrap();
 
         assert_eq!(store.all_transactions().unwrap()[0].member_id, Some(member));
     }
@@ -11378,6 +11486,231 @@ mod tests {
 
         drop(store);
         std::fs::remove_file(&db_path).unwrap();
+    }
+
+    // Transaction notes — freeform per-transaction annotations, never used
+    // for categorization, transfer matching, or the import fingerprint.
+
+    #[test]
+    fn opening_a_pre_notes_database_migrates_it_twice_without_losing_data() {
+        // Simulates a real database created before transaction notes
+        // existed: no `notes` column, already holding a linked transfer
+        // pair, a split, and a tag — every kind of data the migration must
+        // not disturb.
+        let dir = std::env::temp_dir().join(format!("vaultspend-notes-migration-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("pre_notes.db");
+        if db_path.exists() {
+            std::fs::remove_file(&db_path).unwrap();
+        }
+
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE accounts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    account_type TEXT NOT NULL
+                );
+                CREATE TABLE transactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_id INTEGER NOT NULL,
+                    date TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    amount TEXT NOT NULL,
+                    category TEXT,
+                    category_source TEXT,
+                    confidence REAL,
+                    fingerprint TEXT
+                );
+                CREATE TABLE transaction_splits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    transaction_id INTEGER NOT NULL,
+                    category TEXT,
+                    amount TEXT NOT NULL,
+                    note TEXT
+                );
+                CREATE TABLE transaction_tags (
+                    transaction_id INTEGER NOT NULL,
+                    tag TEXT NOT NULL COLLATE NOCASE,
+                    PRIMARY KEY (transaction_id, tag)
+                );
+                CREATE TABLE transfer_links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    out_transaction_id INTEGER NOT NULL UNIQUE,
+                    in_transaction_id INTEGER NOT NULL UNIQUE,
+                    auto INTEGER NOT NULL DEFAULT 0,
+                    reviewed INTEGER NOT NULL DEFAULT 1
+                );",
+            )
+            .unwrap();
+            conn.execute("INSERT INTO accounts (name, account_type) VALUES ('Everyday Checking', 'checking')", [])
+                .unwrap();
+            conn.execute("INSERT INTO accounts (name, account_type) VALUES ('Savings', 'savings')", []).unwrap();
+            conn.execute(
+                "INSERT INTO transactions (account_id, date, description, amount, fingerprint) VALUES (1, '2026-08-05', 'Costco', '-150.00', 'fp-costco')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO transaction_splits (transaction_id, category, amount) VALUES (1, 'Groceries', '-100.00')",
+                [],
+            )
+            .unwrap();
+            conn.execute("INSERT INTO transaction_tags (transaction_id, tag) VALUES (1, 'reimbursable')", [])
+                .unwrap();
+            conn.execute(
+                "INSERT INTO transactions (account_id, date, description, amount, fingerprint) VALUES (1, '2026-08-06', 'Move out', '-500.00', 'fp-out')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO transactions (account_id, date, description, amount, fingerprint) VALUES (2, '2026-08-06', 'Move in', '500.00', 'fp-in')",
+                [],
+            )
+            .unwrap();
+            conn.execute("INSERT INTO transfer_links (out_transaction_id, in_transaction_id) VALUES (2, 3)", [])
+                .unwrap();
+        } // old-style connection dropped here
+
+        let store = Store::open(&db_path).unwrap();
+        drop(store);
+        // Reopen a second time — the migration must be idempotent, not just survivable once.
+        let store = Store::open(&db_path).unwrap();
+        let transactions = store.all_transactions().unwrap();
+
+        let costco = transactions.iter().find(|t| t.transaction.description == "Costco").unwrap();
+        assert_eq!(costco.id, 1, "ids must survive the migration");
+        assert_eq!(costco.transaction.amount, "-150.00".parse().unwrap());
+        assert_eq!(costco.split_count, 1, "the split must survive");
+        assert_eq!(costco.tags, vec!["reimbursable".to_string()], "the tag must survive");
+        assert_eq!(costco.notes, None, "a pre-existing row must default to no note, not a corrupted/garbage value");
+
+        let move_out = transactions.iter().find(|t| t.transaction.description == "Move out").unwrap();
+        assert!(move_out.transfer_counterpart_id.is_some(), "the transfer link must survive");
+
+        drop(store);
+        std::fs::remove_file(&db_path).unwrap();
+    }
+
+    #[test]
+    fn notes_validation_maps_empty_and_whitespace_to_null_and_trims() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = store.create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), None).unwrap();
+
+        for input in [Some(""), Some("   "), None] {
+            store.update_transaction_notes(id, input).unwrap();
+            assert_eq!(store.all_transactions().unwrap()[0].notes, None, "input {input:?} must store as NULL");
+        }
+
+        store.update_transaction_notes(id, Some("  padded on both sides  ")).unwrap();
+        assert_eq!(store.all_transactions().unwrap()[0].notes, Some("padded on both sides".to_string()));
+    }
+
+    #[test]
+    fn notes_preserve_internal_newlines_exactly() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = store.create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), None).unwrap();
+
+        store.update_transaction_notes(id, Some("Receipt checked\nReimbursed by Sam")).unwrap();
+
+        assert_eq!(store.all_transactions().unwrap()[0].notes, Some("Receipt checked\nReimbursed by Sam".to_string()));
+    }
+
+    #[test]
+    fn notes_at_exactly_the_limit_are_accepted_one_over_is_rejected_and_leaves_the_old_value() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = store.create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), None).unwrap();
+        let at_limit = "\u{e9}".repeat(NOTES_MAX_CHARS); // multi-byte char: proves this counts Unicode scalar values, not bytes
+        store.update_transaction_notes(id, Some(&at_limit)).unwrap();
+        assert_eq!(store.all_transactions().unwrap()[0].notes, Some(at_limit.clone()));
+
+        let over_limit = "\u{e9}".repeat(NOTES_MAX_CHARS + 1);
+        let result = store.update_transaction_notes(id, Some(&over_limit));
+
+        assert!(result.is_err(), "one character over the limit must be rejected");
+        assert_eq!(
+            store.all_transactions().unwrap()[0].notes,
+            Some(at_limit),
+            "a rejected update must leave the old value untouched, not truncate"
+        );
+    }
+
+    #[test]
+    fn update_transaction_notes_rejects_a_missing_or_deleted_transaction() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = store.create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), None).unwrap();
+
+        assert!(store.update_transaction_notes(999_999, Some("note")).is_err(), "an id that never existed must error");
+
+        store.delete_transaction(id, test_now()).unwrap();
+        assert!(store.update_transaction_notes(id, Some("note")).is_err(), "a soft-deleted transaction must error, not silently succeed");
+    }
+
+    #[test]
+    fn create_transaction_with_an_over_limit_note_creates_nothing_at_all() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let over_limit = "x".repeat(NOTES_MAX_CHARS + 1);
+
+        let result = store.create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), Some(&over_limit));
+
+        assert!(result.is_err());
+        assert!(store.all_transactions().unwrap().is_empty(), "the whole insert must roll back, not create a noteless row");
+    }
+
+    #[test]
+    fn create_transaction_atomically_saves_the_note_with_the_row() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+
+        let id = store
+            .create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), Some("Split with Jordan"))
+            .unwrap();
+
+        assert_eq!(store.all_transactions().unwrap()[0].id, id);
+        assert_eq!(store.all_transactions().unwrap()[0].notes, Some("Split with Jordan".to_string()));
+    }
+
+    #[test]
+    fn a_notes_only_edit_changes_nothing_else_about_the_transaction() {
+        let store = Store::open_in_memory().unwrap();
+        let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
+        store.link_transfer(out_id, in_id).unwrap();
+        let before = store.all_transactions().unwrap().into_iter().find(|t| t.id == out_id).unwrap();
+        let before_fingerprint: String = store
+            .conn
+            .query_row("SELECT fingerprint FROM transactions WHERE id = ?1", params![out_id], |row| row.get(0))
+            .unwrap();
+
+        store.update_transaction_notes(out_id, Some("just a note")).unwrap();
+
+        let after = store.all_transactions().unwrap().into_iter().find(|t| t.id == out_id).unwrap();
+        let after_fingerprint: String = store
+            .conn
+            .query_row("SELECT fingerprint FROM transactions WHERE id = ?1", params![out_id], |row| row.get(0))
+            .unwrap();
+        assert_eq!(after.transaction.amount, before.transaction.amount);
+        assert_eq!(after.transaction.category, before.transaction.category);
+        assert_eq!(after.transfer_counterpart_id, before.transfer_counterpart_id, "the transfer link must survive a notes-only edit");
+        assert_eq!(after_fingerprint, before_fingerprint, "the import fingerprint must not depend on notes");
+        assert_eq!(after.notes, Some("just a note".to_string()));
+    }
+
+    #[test]
+    fn notes_survive_soft_delete_and_undo() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = store.create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), Some("keep me")).unwrap();
+
+        store.delete_transaction(id, test_now()).unwrap();
+        store.restore_transactions(&[id]).unwrap();
+
+        assert_eq!(store.all_transactions().unwrap()[0].notes, Some("keep me".to_string()));
     }
 
     #[test]
