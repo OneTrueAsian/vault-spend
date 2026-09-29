@@ -5,7 +5,8 @@ use crate::profiles::{self, AutoLockSettings};
 use crate::startup::{self, StartupState};
 use serde::Serialize;
 #[cfg(debug_assertions)]
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
