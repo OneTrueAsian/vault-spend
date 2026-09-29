@@ -48,14 +48,27 @@ try {
   const doneButton = await modalPanel.$("button=Done");
   await doneButton.click();
 
-  // Assign the seeded transaction to Alex from the Ledger row.
-  const memberSelect = await app.browser.$(".member-col select");
-  await memberSelect.waitForExist({ timeout: 10000 });
-  await memberSelect.selectByVisibleText("Alex");
+  // Assign the seeded transaction to Alex from the Ledger row. The row's
+  // account/member/category editors are a RowFieldDropdown popover now,
+  // not a native <select> — and at this window's default width (800px,
+  // the app's own launch default) the ledger is in its narrow layout, so
+  // Member sits behind the row's "Details" toggle rather than its own
+  // column.
+  const groceryRow = await app.browser.$("//tr[td[contains(.,'Grocery Run')]]");
+  const detailsToggle = await groceryRow.$("button=Details");
+  await detailsToggle.waitForExist({ timeout: 10000 });
+  await detailsToggle.click();
+  const detailsPanel = await app.browser.$(".ledger-details-row");
+  await detailsPanel.waitForExist({ timeout: 5000 });
+  const memberTrigger = await detailsPanel.$("[aria-label*='Family member for']");
+  await memberTrigger.click();
+  const alexOption = await app.browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Alex']]");
+  await alexOption.waitForExist({ timeout: 5000 });
+  await alexOption.click();
 
-  await app.browser.waitUntil(async () => (await memberSelect.getValue()) !== "", {
+  await app.browser.waitUntil(async () => (await (await app.browser.$(".ledger-details-row")).getText()).includes("Alex"), {
     timeout: 10000,
-    timeoutMsg: "expected the ledger row's member select to hold Alex's id after assignment",
+    timeoutMsg: "expected the ledger row's member editor to hold Alex after assignment",
   });
   console.log("transaction assigned to Alex");
 

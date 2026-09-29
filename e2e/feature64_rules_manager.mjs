@@ -46,8 +46,13 @@ async function nav(label) {
   }
   throw new Error(`no nav button "${label}"`);
 }
-async function selectCount(value) {
-  return browser.execute((v) => [...document.querySelectorAll("table.ledger select")].filter((s) => s.value === v).length, value);
+// The row's category editor is a RowFieldDropdown trigger now, not a
+// native <select> — count rows whose trigger currently reads `value`.
+async function categoryCount(value) {
+  return browser.execute(
+    (v) => [...document.querySelectorAll('table.ledger [aria-label^="Category for"]')].filter((el) => el.textContent.includes(v)).length,
+    value,
+  );
 }
 try {
   await browser.setWindowSize(1440, 1000);
@@ -81,20 +86,26 @@ try {
 
   await nav("Transactions");
   await (await browser.$("table.ledger")).waitForExist({ timeout: 10000 });
-  await browser.waitUntil(async () => (await selectCount("Dining Out")) === 3, { timeout: 10000, timeoutMsg: "the 3 uncategorized Ferrywood rows should now be Dining Out" });
-  if ((await selectCount("Groceries")) !== 2) throw new Error("the user's own Groceries choices must be left alone");
+  await browser.waitUntil(async () => (await categoryCount("Dining Out")) === 3, { timeout: 10000, timeoutMsg: "the 3 uncategorized Ferrywood rows should now be Dining Out" });
+  if ((await categoryCount("Groceries")) !== 2) throw new Error("the user's own Groceries choices must be left alone");
 
   // 3. Fix one Corner Cart -> the toast offers the other two.
-  // The row also has Account and Member dropdowns — pick the one that offers categories.
-  const cartSelect = await browser.$("//tr[td[contains(.,'Corner Cart')]]//select[option[normalize-space()='Groceries']]");
-  await cartSelect.selectByVisibleText("Entertainment");
+  // The row also has Account and Member editors alongside Category — the
+  // aria-label already distinguishes them, so no need to pick the select
+  // that happens to offer "Groceries" as the old native <select> version did.
+  const cartRow = await browser.$("//tr[td[contains(.,'Corner Cart')]]");
+  await cartRow.waitForExist({ timeout: 10000 });
+  await (await cartRow.$('[aria-label^="Category for"]')).click();
+  const entertainmentOption = await browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Entertainment']]");
+  await entertainmentOption.waitForExist({ timeout: 5000 });
+  await entertainmentOption.click();
   const toast = await browser.$(".toast-stack");
   await browser.waitUntil(async () => /2 similar transactions could use it too/.test(await toast.getText()), {
     timeout: 10000,
     timeoutMsg: "expected the offer to apply the new rule to the 2 identical transactions",
   });
   await (await toast.$("button*=Apply to 2")).click();
-  await browser.waitUntil(async () => (await selectCount("Entertainment")) === 3, {
+  await browser.waitUntil(async () => (await categoryCount("Entertainment")) === 3, {
     timeout: 10000,
     timeoutMsg: "all three Corner Cart rows should now be Entertainment",
   });

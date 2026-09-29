@@ -36,6 +36,7 @@ import { lockCurrentProfile, unlockProfile } from "./protection";
 import { hasObservableUnsavedInput } from "./unsavedInput";
 import { TransferRow } from "./TransferRow";
 import { CategoryFilterDropdown } from "./CategoryFilterDropdown";
+import { RowFieldDropdown } from "./RowFieldDropdown";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
 import { SortableTh } from "./SortableTh";
@@ -1180,6 +1181,38 @@ function App({
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Below this container width (not window width — the sidebar eats into
+  // that), Member/Source/Debt/Account/Category move out of the table into
+  // a per-row expandable Details panel instead of squeezing every column
+  // down until headers overlap and controls clip. One threshold rather
+  // than the two the brief sketches (1100px moving Member/Source/Debt,
+  // 850px also moving Account/Category) — ledgered as a scope reduction,
+  // using the brief's own tighter 850px tier so a genuinely ordinary
+  // desktop window (1280px, measured at ~985px content width once the
+  // page's own vertical scrollbar is present) stays in the wide layout;
+  // this app's own tested widths (1440/1280 wide, 960/800 narrow) don't
+  // actually exercise the 850-1100 gap between the brief's two tiers.
+  const LEDGER_NARROW_BREAKPOINT = 850;
+  const [ledgerNarrow, setLedgerNarrow] = useState(false);
+  // A plain ref's `.current` doesn't trigger a re-render or effect when it
+  // changes, so a `useEffect(..., [])` that reads it at mount time missed
+  // the container entirely whenever the app first loaded on a tab other
+  // than Transactions (the usual case) — the ledger's own div didn't exist
+  // yet, the observer was never attached, and `ledgerNarrow` stayed false
+  // forever after. A callback ref re-fires this effect exactly when the
+  // div actually mounts (switching onto the tab) or unmounts (off it).
+  const [ledgerScrollEl, setLedgerScrollEl] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!ledgerScrollEl || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width !== undefined) setLedgerNarrow(width < LEDGER_NARROW_BREAKPOINT);
+    });
+    observer.observe(ledgerScrollEl);
+    return () => observer.disconnect();
+  }, [ledgerScrollEl]);
+  const [detailsOpenId, setDetailsOpenId] = useState<number | null>(null);
+
   // `usedCategories` now comes straight from the backend's category
   // registry (`list_categories`, refetched alongside the rest of the
   // transaction data) — it already includes the standard suggestions, every budgeted
@@ -1376,7 +1409,9 @@ function App({
   // The Debt column is the only one of the three feature toggles that's a
   // whole dedicated table column — Split lives inside the Category cell,
   // so hiding it doesn't change the column count.
-  const ledgerColumnCount = appSettings.apply_to_debt_enabled ? 10 : 9;
+  // select, date, description, amount, actions — plus, when not narrow,
+  // account, member, category, source, and debt (if enabled).
+  const ledgerColumnCount = ledgerNarrow ? 5 : appSettings.apply_to_debt_enabled ? 10 : 9;
 
   // a filter/page-size change can leave `currentPage` pointing past the end
   // (or the transaction list can shrink out from under it) — snap back rather than
@@ -3897,7 +3932,7 @@ function App({
           </div>
         </header>
 
-        <div className="page">
+        <div className={activeTab === "ledger" ? "page page-ledger" : "page"}>
 
       <UpdateBanner />
       {/* Body level, like the dialogs: `position: fixed` inside `.page` is laid out
@@ -4372,8 +4407,44 @@ function App({
       )}
 
       {activeTab === "ledger" && (
-      <div className="ledger-table-scroll">
+      <>
+      {ledgerNarrow && (
+        <div className="ledger-sort-by">
+          <label className="labeled-field">
+            <span className="labeled-field-label">Sort by</span>
+            <select aria-label="Sort by" value={sortColumn} onChange={(e) => setSortColumn(e.target.value as LedgerSortColumn)}>
+              <option value="date">Date</option>
+              <option value="description">Description</option>
+              <option value="amount">Amount</option>
+              <option value="account">Account</option>
+              <option value="category">Category</option>
+              <option value="source">Source</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="modal-secondary"
+            onClick={() => setSortDirection((d) => (d === "asc" ? "desc" : "asc"))}
+            aria-label={`Sort direction: ${sortDirection === "asc" ? "ascending" : "descending"}`}
+          >
+            {sortDirection === "asc" ? "▲ Ascending" : "▼ Descending"}
+          </button>
+        </div>
+      )}
+      <div className="ledger-table-scroll" ref={setLedgerScrollEl}>
       <table className={ledgerDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
+        <colgroup>
+          <col style={{ width: ledgerNarrow ? "6%" : "3%" }} />
+          <col style={{ width: ledgerNarrow ? "16%" : "7%" }} />
+          <col style={{ width: ledgerNarrow ? "43%" : "23%" }} />
+          <col style={{ width: ledgerNarrow ? "16%" : "8%" }} />
+          {!ledgerNarrow && <col style={{ width: "14%" }} />}
+          {!ledgerNarrow && <col style={{ width: "11%" }} />}
+          {!ledgerNarrow && <col style={{ width: "14%" }} />}
+          {!ledgerNarrow && <col style={{ width: "5%" }} />}
+          {!ledgerNarrow && appSettings.apply_to_debt_enabled && <col style={{ width: "8%" }} />}
+          <col style={{ width: ledgerNarrow ? "19%" : "7%" }} />
+        </colgroup>
         <thead>
           <tr>
             <th className="select-col">
@@ -4393,17 +4464,23 @@ function App({
             <SortableTh column="amount" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} className="amount-col">
               Amount
             </SortableTh>
-            <SortableTh column="account" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-              Account
-            </SortableTh>
-            <th>Member</th>
-            <SortableTh column="category" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-              Category
-            </SortableTh>
-            <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-              Source
-            </SortableTh>
-            {appSettings.apply_to_debt_enabled && <th>Debt</th>}
+            {!ledgerNarrow && (
+              <SortableTh column="account" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+                Account
+              </SortableTh>
+            )}
+            {!ledgerNarrow && <th>Member</th>}
+            {!ledgerNarrow && (
+              <SortableTh column="category" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+                Category
+              </SortableTh>
+            )}
+            {!ledgerNarrow && (
+              <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+                Source
+              </SortableTh>
+            )}
+            {!ledgerNarrow && appSettings.apply_to_debt_enabled && <th>Debt</th>}
             <th className="actions-col"></th>
           </tr>
         </thead>
@@ -4421,9 +4498,138 @@ function App({
                   onUnlink={() => handleUnlinkTransfer(t.id)}
                   onEditNote={setNotesDialogFor}
                   showDebtColumn={appSettings.apply_to_debt_enabled}
+                  narrow={ledgerNarrow}
+                  detailsOpen={detailsOpenId === t.id}
+                  onToggleDetails={() => setDetailsOpenId(detailsOpenId === t.id ? null : t.id)}
                 />
               );
             }
+            // Extracted once per row so the same live editor — same
+            // component, same handlers — can render either as its own
+            // column (normal width) or folded into the row's Details panel
+            // (narrow width), never both, without duplicating the editing
+            // logic itself.
+            const accountField = (
+              <RowFieldDropdown
+                ariaLabel={`Account for "${t.description}"`}
+                value={String(t.account_id)}
+                options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
+                onChange={(value) => handleAccountChangeForTransaction(t.id, value)}
+              />
+            );
+            const memberField = (
+              <RowFieldDropdown
+                ariaLabel={`Family member for "${t.description}"`}
+                value={t.member_id !== null ? String(t.member_id) : ""}
+                options={[
+                  { value: "", label: "Unassigned" },
+                  ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+                ]}
+                onChange={(value) => handleMemberChangeForTransaction(t.id, value)}
+              />
+            );
+            const categoryField = (
+              <>
+                {t.split_count > 0 ? (
+                  <span className="split-summary">Split ({t.split_count})</span>
+                ) : (
+                  <RowFieldDropdown
+                    ariaLabel={`Category for "${t.description}"`}
+                    value={t.category ?? ""}
+                    options={[
+                      { value: "", label: "Uncategorized" },
+                      ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
+                      ...categoryOptions.map((c) => ({ value: c, label: c })),
+                      { value: "__new__", label: "+ New category…" },
+                    ]}
+                    onChange={(value) => handleCategoryChange(t.id, value)}
+                  />
+                )}
+                {appSettings.split_purchases_enabled && (
+                  <button type="button" className="modal-secondary split-toggle" onClick={() => toggleSplitEditor(t)}>
+                    {t.split_count > 0 ? "Edit splits" : "Split →"}
+                  </button>
+                )}
+              </>
+            );
+            const sourceField = (
+              <>
+                {t.category_source ?? ""}
+                {t.confidence !== null && <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>}
+              </>
+            );
+            const debtField = accounts.find((a) => a.id === t.account_id)?.account_type === "loan" ? (
+              editingPrincipalId === t.id ? (
+                <span className="debt-apply-form">
+                  <input
+                    className="debt-apply-amount"
+                    value={principalDraft}
+                    onChange={(e) => setPrincipalDraft(e.target.value)}
+                    title="How much of this transaction counts toward what's owed (e.g. just the principal on a mortgage payment)"
+                  />
+                  <button type="button" className="debt-apply-confirm" onClick={() => handleSetPrincipalAmount(t.id)}>
+                    Save
+                  </button>
+                  <button type="button" className="modal-secondary" onClick={() => setEditingPrincipalId(null)}>
+                    Cancel
+                  </button>
+                </span>
+              ) : t.principal_amount !== null ? (
+                <span className="debt-applied-badge">
+                  Principal: {formatAmount(t.principal_amount)}
+                  <button type="button" className="modal-secondary" onClick={() => handleResetPrincipalAmount(t.id)}>
+                    Reset
+                  </button>
+                </span>
+              ) : (
+                <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startEditingPrincipal(t)}>
+                  Split principal →
+                </button>
+              )
+            ) : t.applied_to_debt ? (
+              <span className="debt-applied-badge">
+                → {t.applied_to_debt.debt_account_name} ({formatAmount(t.applied_to_debt.amount)})
+                <button type="button" className="modal-secondary" onClick={() => handleUnapplyDebtPayment(t.id)}>
+                  Undo
+                </button>
+              </span>
+            ) : applyingDebtId === t.id ? (
+              <span className="debt-apply-form">
+                <select
+                  aria-label={`Debt account to apply "${t.description}" toward`}
+                  value={applyDebtForm.accountId}
+                  onChange={(e) => setApplyDebtForm({ ...applyDebtForm, accountId: e.target.value })}
+                >
+                  {debtAccounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="debt-apply-amount"
+                  value={applyDebtForm.amount}
+                  onChange={(e) => setApplyDebtForm({ ...applyDebtForm, amount: e.target.value })}
+                  title="How much of this payment counts toward the debt (e.g. just the principal on a mortgage payment)"
+                />
+                <button type="button" className="debt-apply-confirm" onClick={() => handleApplyDebtPayment(t.id, t.date)}>
+                  Apply
+                </button>
+                <button type="button" className="modal-secondary" onClick={() => setApplyingDebtId(null)}>
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              // The loan case is already handled above — only credit
+              // (excluded, a payment there needs no principal split) and
+              // every non-debt account reach here.
+              debtAccounts.length > 0 &&
+              accounts.find((a) => a.id === t.account_id)?.account_type !== "credit" && (
+                <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startApplyingDebtPayment(t)}>
+                  Apply to a debt →
+                </button>
+              )
+            );
             return (
             <Fragment key={t.id}>
             <tr className={selectedIds.has(t.id) ? "ledger-row-selected" : undefined}>
@@ -4572,145 +4778,22 @@ function App({
                   </span>
                 )}
               </td>
-              <td className="account-col">
-                <select
-                  aria-label={`Account for "${t.description}"`}
-                  value={t.account_id}
-                  onChange={(e) => handleAccountChangeForTransaction(t.id, e.target.value)}
-                >
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="member-col">
-                <select
-                  aria-label={`Family member for "${t.description}"`}
-                  value={t.member_id ?? ""}
-                  onChange={(e) => handleMemberChangeForTransaction(t.id, e.target.value)}
-                >
-                  <option value="">Unassigned</option>
-                  {familyMembers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                {t.split_count > 0 ? (
-                  <span className="split-summary">Split ({t.split_count})</span>
-                ) : (
-                  <select
-                    aria-label={`Category for "${t.description}"`}
-                    value={t.category ?? ""}
-                    onChange={(e) => handleCategoryChange(t.id, e.target.value)}
+              {!ledgerNarrow && <td className="account-col">{accountField}</td>}
+              {!ledgerNarrow && <td className="member-col">{memberField}</td>}
+              {!ledgerNarrow && <td className="category-col">{categoryField}</td>}
+              {!ledgerNarrow && <td className="source-col">{sourceField}</td>}
+              {!ledgerNarrow && appSettings.apply_to_debt_enabled && <td className="debt-col">{debtField}</td>}
+              <td className="actions-col">
+                {ledgerNarrow && (
+                  <button
+                    type="button"
+                    className="modal-secondary"
+                    aria-expanded={detailsOpenId === t.id}
+                    onClick={() => setDetailsOpenId(detailsOpenId === t.id ? null : t.id)}
                   >
-                    <option value="" disabled>
-                      Uncategorized
-                    </option>
-                    {t.category && !categoryOptions.includes(t.category) && (
-                      <option value={t.category}>{t.category}</option>
-                    )}
-                    {categoryOptions.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                    <option value="__new__">+ New category…</option>
-                  </select>
-                )}
-                {appSettings.split_purchases_enabled && (
-                  <button type="button" className="modal-secondary split-toggle" onClick={() => toggleSplitEditor(t)}>
-                    {t.split_count > 0 ? "Edit splits" : "Split →"}
+                    {detailsOpenId === t.id ? "Hide details" : "Details"}
                   </button>
                 )}
-              </td>
-              <td className="source-col">
-                {t.category_source ?? ""}
-                {t.confidence !== null && (
-                  <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>
-                )}
-              </td>
-              {appSettings.apply_to_debt_enabled && (
-                <td className="debt-col">
-                  {accounts.find((a) => a.id === t.account_id)?.account_type === "loan" ? (
-                    editingPrincipalId === t.id ? (
-                      <span className="debt-apply-form">
-                        <input
-                          className="debt-apply-amount"
-                          value={principalDraft}
-                          onChange={(e) => setPrincipalDraft(e.target.value)}
-                          title="How much of this transaction counts toward what's owed (e.g. just the principal on a mortgage payment)"
-                        />
-                        <button type="button" className="debt-apply-confirm" onClick={() => handleSetPrincipalAmount(t.id)}>
-                          Save
-                        </button>
-                        <button type="button" className="modal-secondary" onClick={() => setEditingPrincipalId(null)}>
-                          Cancel
-                        </button>
-                      </span>
-                    ) : t.principal_amount !== null ? (
-                      <span className="debt-applied-badge">
-                        Principal: {formatAmount(t.principal_amount)}
-                        <button type="button" className="modal-secondary" onClick={() => handleResetPrincipalAmount(t.id)}>
-                          Reset
-                        </button>
-                      </span>
-                    ) : (
-                      <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startEditingPrincipal(t)}>
-                        Split principal →
-                      </button>
-                    )
-                  ) : t.applied_to_debt ? (
-                    <span className="debt-applied-badge">
-                      → {t.applied_to_debt.debt_account_name} ({formatAmount(t.applied_to_debt.amount)})
-                      <button type="button" className="modal-secondary" onClick={() => handleUnapplyDebtPayment(t.id)}>
-                        Undo
-                      </button>
-                    </span>
-                  ) : applyingDebtId === t.id ? (
-                    <span className="debt-apply-form">
-                      <select
-                        aria-label={`Debt account to apply "${t.description}" toward`}
-                        value={applyDebtForm.accountId}
-                        onChange={(e) => setApplyDebtForm({ ...applyDebtForm, accountId: e.target.value })}
-                      >
-                        {debtAccounts.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        className="debt-apply-amount"
-                        value={applyDebtForm.amount}
-                        onChange={(e) => setApplyDebtForm({ ...applyDebtForm, amount: e.target.value })}
-                        title="How much of this payment counts toward the debt (e.g. just the principal on a mortgage payment)"
-                      />
-                      <button type="button" className="debt-apply-confirm" onClick={() => handleApplyDebtPayment(t.id, t.date)}>
-                        Apply
-                      </button>
-                      <button type="button" className="modal-secondary" onClick={() => setApplyingDebtId(null)}>
-                        Cancel
-                      </button>
-                    </span>
-                  ) : (
-                    // The loan case is already handled above — only credit
-                    // (excluded, a payment there needs no principal split)
-                    // and every non-debt account reach here.
-                    debtAccounts.length > 0 &&
-                    accounts.find((a) => a.id === t.account_id)?.account_type !== "credit" && (
-                      <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startApplyingDebtPayment(t)}>
-                        Apply to a debt →
-                      </button>
-                    )
-                  )}
-                </td>
-              )}
-              <td className="actions-col">
                 {confirmingDeleteId === t.id ? (
                   <span className="row-delete-confirm row-delete-confirm-detailed">
                     {(() => {
@@ -4733,6 +4816,36 @@ function App({
                 )}
               </td>
             </tr>
+            {ledgerNarrow && detailsOpenId === t.id && (
+              <tr className="ledger-details-row">
+                <td colSpan={ledgerColumnCount}>
+                  <div className="ledger-details">
+                    <label className="ledger-details-field">
+                      <span>Account</span>
+                      {accountField}
+                    </label>
+                    <label className="ledger-details-field">
+                      <span>Member</span>
+                      {memberField}
+                    </label>
+                    <label className="ledger-details-field">
+                      <span>Category</span>
+                      {categoryField}
+                    </label>
+                    <label className="ledger-details-field">
+                      <span>Source</span>
+                      {sourceField}
+                    </label>
+                    {appSettings.apply_to_debt_enabled && (
+                      <label className="ledger-details-field">
+                        <span>Debt</span>
+                        {debtField}
+                      </label>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )}
             {expandedSplitId === t.id && (
               <tr className="split-editor-row">
                 <td colSpan={ledgerColumnCount}>
@@ -4804,6 +4917,7 @@ function App({
         </tbody>
       </table>
       </div>
+      </>
       )}
 
       {activeTab === "ledger" && filteredTransactions.length > 0 && (

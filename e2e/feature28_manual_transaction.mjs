@@ -17,6 +17,11 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 
 const app = await launchApp({ dbDir });
 try {
+  // The app's own default launch size (800px, tauri.conf.json) sits below
+  // the ledger's narrow-layout breakpoint, where Account/Member/Category
+  // move behind a per-row "Details" toggle — this test isn't about that
+  // layout, so give it room for the normal wide columns instead.
+  await app.browser.setWindowSize(1280, 900);
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
@@ -70,17 +75,16 @@ try {
     { timeout: 10000, timeoutMsg: "expected the manually-added transaction to appear in the Ledger" },
   );
 
-  // Scope the category check to this specific row's own category <select>
+  // Scope the category check to this specific row's own category editor
   // (not just "Dining Out" appearing anywhere on the page — the toolbar's
   // category filter always lists every category regardless of what any
   // row is actually set to, so a page-wide text search would pass even if
-  // the row itself came back Uncategorized). Column order in a Ledger row
-  // is date/description/amount/account-select/member-select/category-select,
-  // so the category <select> is the 3rd <select> in the row.
+  // the row itself came back Uncategorized). The row's account/member/
+  // category editors are RowFieldDropdown triggers, not native <select>s;
+  // each carries its own aria-label naming the field.
   const coffeeRow = await app.browser.$("//tr[td[contains(.,'Local Coffee Shop')]]");
-  const coffeeRowSelects = await coffeeRow.$$("select");
-  const coffeeRowCategorySelect = coffeeRowSelects[2];
-  await app.browser.waitUntil(async () => (await coffeeRowCategorySelect.getValue()) === "Dining Out", {
+  const coffeeRowCategoryTrigger = await coffeeRow.$("[aria-label*='Category for']");
+  await app.browser.waitUntil(async () => (await coffeeRowCategoryTrigger.getText()).includes("Dining Out"), {
     timeout: 10000,
     timeoutMsg: 'expected the explicitly-picked category "Dining Out" to be set on this row',
   });
@@ -113,18 +117,16 @@ try {
     { timeout: 10000, timeoutMsg: "expected the second manually-added transaction to appear in the Ledger" },
   );
 
-  // Same precise per-row check: an empty category <select> value (the
-  // disabled "Uncategorized" placeholder option has value="") means
-  // nothing matched during categorize_uncategorized, as expected for this
-  // made-up description — not just the word "Uncategorized" appearing
-  // anywhere on the page (every row's select carries that placeholder
-  // option regardless of its actual value).
+  // Same precise per-row check: the row's own category editor reading
+  // "Uncategorized" means nothing matched during categorize_uncategorized,
+  // as expected for this made-up description — not just the word
+  // "Uncategorized" appearing anywhere on the page (the toolbar's category
+  // filter always lists it as an option regardless of any row's value).
   const zzyzxRow = await app.browser.$("//tr[td[contains(.,'Zzyzx Test Merchant')]]");
-  const zzyzxRowSelects = await zzyzxRow.$$("select");
-  const zzyzxRowCategorySelect = zzyzxRowSelects[2];
-  const zzyzxCategoryValue = await zzyzxRowCategorySelect.getValue();
-  if (zzyzxCategoryValue !== "") {
-    throw new Error(`expected the auto-categorize path to leave an unmatched transaction Uncategorized, got category "${zzyzxCategoryValue}"`);
+  const zzyzxRowCategoryTrigger = await zzyzxRow.$("[aria-label*='Category for']");
+  const zzyzxCategoryText = await zzyzxRowCategoryTrigger.getText();
+  if (!zzyzxCategoryText.includes("Uncategorized")) {
+    throw new Error(`expected the auto-categorize path to leave an unmatched transaction Uncategorized, got category "${zzyzxCategoryText}"`);
   }
   console.log("second transaction correctly left Uncategorized via the auto-categorize path");
 

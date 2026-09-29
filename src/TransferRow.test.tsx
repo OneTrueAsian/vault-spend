@@ -41,11 +41,13 @@ describe("TransferRow", () => {
   const onToggleSelected = vi.fn();
   const onUnlink = vi.fn();
   const onEditNote = vi.fn();
+  const onToggleDetails = vi.fn();
 
   beforeEach(() => {
     onToggleSelected.mockReset();
     onUnlink.mockReset();
     onEditNote.mockReset();
+    onToggleDetails.mockReset();
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -56,7 +58,7 @@ describe("TransferRow", () => {
     container.remove();
   });
 
-  function show(out: Transaction, incoming: Transaction) {
+  function show(out: Transaction, incoming: Transaction, opts: { narrow?: boolean; detailsOpen?: boolean } = {}) {
     act(() => {
       root.render(
         <table>
@@ -69,6 +71,9 @@ describe("TransferRow", () => {
               onUnlink={onUnlink}
               onEditNote={onEditNote}
               showDebtColumn={false}
+              narrow={opts.narrow ?? false}
+              detailsOpen={opts.detailsOpen ?? false}
+              onToggleDetails={onToggleDetails}
             />
           </tbody>
         </table>,
@@ -125,5 +130,39 @@ describe("TransferRow", () => {
     show(out, incoming);
     act(() => button("Unlink")!.click());
     expect(onUnlink).toHaveBeenCalledTimes(1);
+  });
+
+  describe("narrow layout", () => {
+    it("hides the account/category/source columns and offers a Details toggle instead", () => {
+      const out = txn({ id: 1, account_name: "Checking" });
+      const incoming = txn({ id: 2, account_name: "Savings" });
+      show(out, incoming, { narrow: true });
+      expect(container.textContent).not.toContain("Checking → Savings");
+      expect(button("Details")).not.toBeUndefined();
+    });
+
+    it("clicking Details calls onToggleDetails", () => {
+      const out = txn({ id: 1, account_name: "Checking" });
+      const incoming = txn({ id: 2, account_name: "Savings" });
+      show(out, incoming, { narrow: true });
+      act(() => button("Details")!.click());
+      expect(onToggleDetails).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows the account line, category, and source in the details panel when open", () => {
+      const out = txn({ id: 1, account_name: "Checking" });
+      const incoming = txn({ id: 2, account_name: "Savings" });
+      show(out, incoming, { narrow: true, detailsOpen: true });
+      expect(container.textContent).toContain("Checking → Savings");
+      expect(button("Hide details")).not.toBeUndefined();
+    });
+
+    it("still shows every column in wide layout, with no Details toggle", () => {
+      const out = txn({ id: 1, account_name: "Checking" });
+      const incoming = txn({ id: 2, account_name: "Savings" });
+      show(out, incoming, { narrow: false });
+      expect(container.textContent).toContain("Checking → Savings");
+      expect(button("Details")).toBeUndefined();
+    });
   });
 });

@@ -1008,6 +1008,7 @@ svg.profile-switcher-icon {
 .topbar-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
@@ -1104,6 +1105,15 @@ svg.profile-switcher-icon {
   padding: 24px 28px 64px;
   max-width: 1180px;
   margin: 0 auto;
+}
+
+/* Every other tab reads better capped at a comfortable line length; the
+   Transactions ledger is a wide table that should use whatever width the
+   window actually has (a 1920px window still stopped at 1180px, forcing a
+   sideways scrollbar the window had room to avoid). */
+.page-ledger {
+  max-width: none;
+  min-width: 0;
 }
 
 /* Per-view header — title, one-line description, and that page's primary
@@ -3482,6 +3492,14 @@ button:disabled {
 
 .ledger {
   width: 100%;
+  /* A deliberate column budget (the <colgroup> in App.tsx), not
+     content-based auto-sizing: auto-layout's min-content calculation uses
+     the widest unbreakable word in a column as a hard floor regardless of
+     available space (e.g. "reimbursements"), which kept forcing the table
+     wider than the window even after every cell was made to wrap. Fixed
+     layout gives every column a real, bounded share of the table's own
+     width instead. */
+  table-layout: fixed;
   border-collapse: collapse;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -3496,6 +3514,46 @@ button:disabled {
   text-align: left;
   font-size: 13.5px;
   border-bottom: 1px solid var(--border);
+}
+
+/* Below the ledger's narrow breakpoint (App.tsx's `ledgerNarrow`), an
+   accessible replacement for the sortable headers that move into Details —
+   clicking a header is no longer possible once it isn't rendered. */
+.ledger-sort-by {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* A row's Account/Member/Category/Source/Debt (or, for a merged transfer,
+   Accounts/Category/Source), expanded below the narrow breakpoint instead
+   of being squeezed into unreadably thin columns. Same live editors as the
+   wide layout, just laid out as labeled fields instead of table columns. */
+.ledger-details-row td {
+  background: var(--surface-2);
+}
+
+.ledger-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 6px 2px;
+}
+
+.ledger-details-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.ledger-details-field > span:first-child {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
 }
 
 /* Compact density (the default): one-line rows. The tag box and Split button
@@ -3533,31 +3591,25 @@ button:disabled {
   font-size: 12.5px;
 }
 
-/* The three per-row dropdowns are what made rows wrap: at full width they
-   left the description and category cells too narrow for their tag box and
-   Split button to sit beside them. */
-.ledger-compact .account-col select {
-  width: 118px;
-}
-
-.ledger-compact .member-col select {
-  width: 108px;
-}
-
-.ledger-compact td:has(> select[aria-label^="Category for"]) {
-  white-space: nowrap;
-}
-
-.ledger-compact td:has(> select[aria-label^="Category for"]) select {
-  width: 118px;
-}
-
 .ledger-compact .tag-input {
   width: 46px;
 }
 
-.ledger-compact .tag-pills {
-  flex-wrap: nowrap;
+/* Column budget: the row's own account/member/category editors are a
+   custom trigger now (RowFieldDropdown), not a native <select> clipped to
+   a fixed pixel width — let its label wrap across lines instead, so a long
+   account/category name (the reproduced defect) is fully readable. The
+   base `button` rule sets `white-space: nowrap`; undone here on purpose. */
+.ledger .row-field-toggle {
+  white-space: normal;
+  /* break-word (not anywhere): prefer wrapping at a word boundary, only
+     breaking mid-word when a single word can't fit — "anywhere" broke
+     ordinary words like "maintenance" into "maint"/"enanc"/"e" even though
+     wrapping at the surrounding spaces would have fit fine. */
+  overflow-wrap: break-word;
+  text-align: left;
+  width: 100%;
+  min-width: 0;
 }
 
 .ledger-compact .source-col {
@@ -4427,6 +4479,15 @@ button:disabled {
   white-space: nowrap;
 }
 
+/* The ledger table alone uses a fixed column budget (its own <colgroup>);
+   `.actions-col`'s shared `width: 1%; white-space: nowrap;` above is right
+   for every other table that reuses this class, but conflicts with it
+   here. */
+.ledger .actions-col {
+  width: auto;
+  white-space: normal;
+}
+
 .actions-col button,
 .row-delete-confirm button,
 .btn-sm {
@@ -4596,7 +4657,19 @@ button:disabled {
 }
 
 .debt-col {
-  white-space: nowrap;
+  /* Was a blanket nowrap; the fixed column budget (App.tsx's <colgroup>)
+     leaves this column too narrow for that to hold — the "Apply to a
+     debt →" trigger and the active edit form both need to wrap instead of
+     forcing the column, and the whole table, wider than the window. */
+  overflow-wrap: break-word;
+}
+
+.debt-apply-trigger {
+  /* The global `button` rule sets `white-space: nowrap`; undone here so
+     "Apply to a debt →" can wrap onto a second line in the narrow Debt
+     column instead of visually spilling into the next cell. */
+  white-space: normal;
+  text-align: left;
 }
 
 .anomaly-badge {
@@ -4679,12 +4752,14 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
   padding: 1px 6px 1px 8px;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-soft-text);
   font-size: 11px;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .tag-pill button {
@@ -4998,6 +5073,7 @@ button:disabled {
 
 .debt-apply-form {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }

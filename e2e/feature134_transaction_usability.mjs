@@ -234,39 +234,65 @@ try {
     assert.deepEqual(combosFailing, [], `expected every combination opaque, found:\n${combosFailing.join("\n")}`);
   });
 
-  // Issue 5 — long account/category names are clipped in the row's native
-  // selects (measured against the text the select would actually need).
+  // Issue 5 — long account/category names used to be clipped in the row's
+  // native <select> (a fixed pixel width with no wrapping possible in any
+  // engine). Task 6 replaced it with RowFieldDropdown, a custom trigger
+  // that wraps its label across lines instead — so the real check now is
+  // "the full name is present and not clipped horizontally or vertically",
+  // not "the box is wide enough for one unbroken line".
   await check("long account name is not clipped in the row's account select", async () => {
-    const { needed, rendered } = await browser.execute(() => {
-      const el = [...document.querySelectorAll("select")].find((s) => s.getAttribute("aria-label") === 'Account for "Green Leaf Grocers"');
+    const result = await browser.execute((longAccount) => {
+      const el = document.querySelector('[aria-label=\'Account for "Green Leaf Grocers"\']');
       if (!el) return { missing: true };
-      const opt = el.options[el.selectedIndex];
       const css = getComputedStyle(el);
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      ctx.font = `${css.fontSize} ${css.fontFamily}`;
-      return { needed: ctx.measureText(opt.textContent).width, rendered: el.getBoundingClientRect().width };
-    });
-    assert.ok(needed !== undefined, "expected to find the account select for Green Leaf Grocers");
-    assert.ok(rendered >= needed, `account select is ${Math.round(rendered)}px but needs ~${Math.round(needed)}px to show "${LONG_ACCOUNT}" without clipping`);
+      return {
+        text: el.textContent,
+        fullTextPresent: el.textContent.includes(longAccount),
+        noEllipsis: !(css.textOverflow === "ellipsis" && css.overflow === "hidden"),
+        noHorizontalClip: el.scrollWidth <= el.clientWidth + 1,
+        noVerticalClip: el.scrollHeight <= el.clientHeight + 1,
+      };
+    }, LONG_ACCOUNT);
+    assert.ok(!result.missing, "expected to find the account editor trigger for Green Leaf Grocers");
+    assert.ok(result.fullTextPresent, `expected the full account name in the trigger, got: "${result.text}"`);
+    assert.ok(result.noEllipsis, "the account editor trigger must not CSS-ellipsize its label");
+    assert.ok(result.noHorizontalClip, "the account editor trigger clips its label horizontally");
+    assert.ok(result.noVerticalClip, "the account editor trigger clips its label vertically (wrapped text taller than the box)");
   });
 
   // Issue 6 — the ledger table needs its own sideways scrollbar at a normal
-  // desktop window size.
+  // desktop window size. Extended (still one check) to every width the plan
+  // names, including its narrowest (800x900, below the narrow-layout
+  // breakpoint), and the page itself, not just the table (which already
+  // has its own scroll escape hatch — .main overflowing sideways would
+  // drag the whole app with it).
   await check("ledger table fits without its own sideways scrollbar at 1440x1000", async () => {
-    const overflow = await browser.execute(() => {
-      const el = document.querySelector(".ledger-table-scroll");
-      return el.scrollWidth - el.clientWidth;
-    });
-    assert.ok(overflow <= 1, `Transactions table overflows by ${overflow}px at 1440x1000`);
+    const widths = [1440, 1280, 960, 800];
+    const failures = [];
+    for (const w of widths) {
+      await browser.setWindowSize(w, 900);
+      await browser.pause(150);
+      const geometry = await browser.execute(() => {
+        const main = document.querySelector(".main");
+        const table = document.querySelector(".ledger-table-scroll");
+        return {
+          pageOverflow: main.scrollWidth - main.clientWidth,
+          tableOverflow: table.scrollWidth - table.clientWidth,
+        };
+      });
+      if (geometry.pageOverflow > 1) failures.push(`page overflows by ${geometry.pageOverflow}px at ${w}x900`);
+      if (geometry.tableOverflow > 1) failures.push(`table overflows by ${geometry.tableOverflow}px at ${w}x900`);
+    }
+    assert.deepEqual(failures, [], `expected no sideways scrolling at any named width, found:\n${failures.join("\n")}`);
   });
 
-  // Screenshot sweep: 3 viewports x 2 densities, with a menu open, for
+  // Screenshot sweep: 4 viewports x 2 densities, with a menu open, for
   // visual review alongside the assertions above.
   const viewports = [
     [1440, 1000],
     [1280, 900],
     [960, 900],
+    [800, 900],
   ];
   for (const [w, h] of viewports) {
     await browser.setWindowSize(w, h);

@@ -34,8 +34,13 @@ async function nav(label) {
   }
   throw new Error(`no nav button "${label}"`);
 }
-const selectCount = (value) =>
-  browser.execute((v) => [...document.querySelectorAll("table.ledger select")].filter((s) => s.value === v).length, value);
+// The row's own category editor is a RowFieldDropdown trigger now, not a
+// native <select> — count rows whose trigger currently reads `value`.
+const categoryCount = (value) =>
+  browser.execute(
+    (v) => [...document.querySelectorAll('table.ledger [aria-label^="Category for"]')].filter((el) => el.textContent.includes(v)).length,
+    value,
+  );
 async function tick(desc) {
   const box = await browser.$(`(//tr[td[contains(.,'${desc}')]]//input[@type='checkbox'])[1]`);
   await box.waitForExist({ timeout: 10000 });
@@ -57,7 +62,7 @@ try {
     timeoutMsg: "expected the offer to apply the new Corner Cart rule to the 2 identical uncategorized rows",
   });
   await (await toast.$("button*=Apply to 2")).click();
-  await browser.waitUntil(async () => (await selectCount("Entertainment")) === 3, { timeout: 10000, timeoutMsg: "all three Corner Cart rows should be Entertainment" });
+  await browser.waitUntil(async () => (await categoryCount("Entertainment")) === 3, { timeout: 10000, timeoutMsg: "all three Corner Cart rows should be Entertainment" });
 
   // ---- two merchants at once. Corner Cart's other two rows are now rule-sourced
   // (from the Apply above), so they are eligible again; Lunch Truck's two are
@@ -70,7 +75,7 @@ try {
     timeoutMsg: "expected one combined offer for the two merchants covering 4 similar transactions",
   });
   await (await toast.$("button*=Apply to 4")).click();
-  await browser.waitUntil(async () => (await selectCount("Dining Out")) === 6, {
+  await browser.waitUntil(async () => (await categoryCount("Dining Out")) === 6, {
     timeout: 10000,
     timeoutMsg: "all six rows (both merchants) should now be Dining Out",
   });
