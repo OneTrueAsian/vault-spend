@@ -8,6 +8,12 @@
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
+async function invoke(browser, command, args = {}) {
+  return browser.executeAsync((command, args, done) => {
+    window.__TAURI_INTERNALS__.invoke(command, args).then(done, (e) => done({ error: String(e) }));
+  }, command, args);
+}
+
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Brokerage', 'investment', '0')")
 brokerage_id = cur.lastrowid
@@ -34,10 +40,17 @@ try {
   if (!pinnedText.includes("Pinned")) throw new Error(`expected the button to flip to "Pinned", got "${pinnedText}"`);
   console.log("Allocation's Pin to Dashboard button flipped to:", pinnedText);
 
-  const layout = await app.browser.execute(() => JSON.parse(localStorage.getItem("meadow-dashboard-layout")));
-  if (!layout.includes("allocation")) {
-    throw new Error(`expected "allocation" in the persisted layout, got ${JSON.stringify(layout)}`);
-  }
+  // The persisted layout now lands via a backend round trip (get_current_generation, then
+  // set_profile_ui_state) instead of a synchronous localStorage write — poll rather than reading once
+  // immediately after the click resolves.
+  let layout;
+  await app.browser.waitUntil(
+    async () => {
+      layout = JSON.parse(await invoke(app.browser, "get_profile_ui_state", { key: "dashboard_layout" }));
+      return layout.includes("allocation");
+    },
+    { timeout: 5000, timeoutMsg: () => `expected "allocation" in the persisted layout, got ${JSON.stringify(layout)}` },
+  );
 
   const dashboardNav = await app.browser.$("button*=Dashboard");
   await dashboardNav.click();

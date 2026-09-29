@@ -21,6 +21,8 @@ const DEFAULT_PROFILE_NAME: &str = "Default";
 /// `flatIcons.ts` on the frontend) — `#[serde(default)]` so a
 /// `profiles.json` written before this field existed still deserializes
 /// (missing means "no icon picked yet", same as a brand-new profile).
+/// `protection` is `#[serde(default)]` for the same reason: every
+/// `profiles.json` written before Phase C existed has no such field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct ProfileEntry {
     id: String,
@@ -28,9 +30,69 @@ struct ProfileEntry {
     db_path: String,
     #[serde(default)]
     icon_key: Option<String>,
+    #[serde(default)]
+    protection: Option<Protection>,
+    /// The plaintext path this entry's `db_path` replaced, the one time a conversion actually
+    /// moved it (`commit_protection_conversion`) — `None` for every profile that has never been
+    /// converted, including one that was protected from creation (nothing was ever plaintext) and
+    /// every `profiles.json` written before this field existed. The only reader is `protection_
+    /// leftovers::list_leftovers` (via `former_plaintext_path_for`), which needs the ORIGINAL file
+    /// to look for leftovers next to — `db_path` itself is the new encrypted file by the time
+    /// anyone asks, so passing that instead would misreport the live database as its own leftover.
+    #[serde(default)]
+    former_plaintext_path: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+/// Whether a profile's database is encrypted. `None` (the common case) means unprotected. The key
+/// file itself lives at `budget_core::protection::keyfile::key_file_path_for(&db_path)` — this
+/// struct never stores a path, only the cached format number, so a stale copy of it can never
+/// disagree with that naming rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AutoLockSettings {
+    pub inactivity_minutes: u32,
+    pub lock_when_hidden: bool,
+    pub lock_on_focus_loss: bool,
+    pub lock_on_system_event: bool,
+}
+
+impl Default for AutoLockSettings {
+    fn default() -> Self {
+        Self {
+            inactivity_minutes: 15,
+            lock_when_hidden: true,
+            lock_on_focus_loss: false,
+            lock_on_system_event: true,
+        }
+    }
+}
+
+impl AutoLockSettings {
+    pub fn validate(self) -> Result<Self, String> {
+        if ![0, 1, 5, 15, 30, 60].contains(&self.inactivity_minutes) {
+            return Err("Choose Off, 1, 5, 15, 30, or 60 minutes for automatic locking.".to_string());
+        }
+        Ok(self)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Protection {
+    pub format: u32,
+    #[serde(default)]
+    pub auto_lock: AutoLockSettings,
+}
+
+impl Protection {
+    pub fn new(format: u32) -> Self {
+        Self {
+            format,
+            auto_lock: AutoLockSettings::default(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct Registry {
     profiles: Vec<ProfileEntry>,
 }
@@ -45,10 +107,25 @@ pub struct Profile {
     pub db_path: PathBuf,
     pub is_active: bool,
     pub icon_key: Option<String>,
+    pub protection: Option<Protection>,
+}
+
+impl Profile {
+    pub fn is_password_protected(&self) -> bool {
+        self.protection.is_some()
+    }
 }
 
 fn registry_path(config_path: &Path) -> PathBuf {
     config_path.parent().unwrap_or_else(|| Path::new(".")).join(REGISTRY_FILENAME)
+}
+
+/// Whether `profiles.json` exists at all — distinct from whether it lists any profiles. An absent
+/// file means nobody has ever touched profiles (open the default profile directly, unchanged); a
+/// present-but-empty file is a real, if unusual, state (`StartupState::EmptyRegistry`) that must
+/// not be treated the same way.
+pub fn registry_file_exists(config_path: &Path) -> bool {
+    registry_path(config_path).exists()
 }
 
 /// Where a new profile's own directory (and thus its `vaultspend.db` and
@@ -62,14 +139,117 @@ fn profiles_dir(config_path: &Path) -> PathBuf {
     config_path.parent().unwrap_or_else(|| Path::new(".")).join("profiles")
 }
 
+/// Why `profiles.json` could not be read, and whether an earlier good version (`.bak`) exists.
+#[derive(Debug)]
+pub struct RegistryProblem {
+    pub reason: String,
+    pub backup_available: bool,
+}
+
+fn registry_backup_is_usable(registry_file: &Path) -> bool {
+    let backup = registry_file.with_file_name(format!("{REGISTRY_FILENAME}.bak"));
+    std::fs::read_to_string(backup)
+        .ok()
+        .and_then(|text| serde_json::from_str::<Registry>(&text).ok())
+        .is_some()
+}
+
+/// `Ok(None)`: there is no registry (a normal state before a second profile exists).
+/// `Err`: there is one and it cannot be read. `read_registry` cannot tell these apart.
+fn read_registry_strict(config_path: &Path) -> Result<Option<Registry>, RegistryProblem> {
+    let path = registry_path(config_path);
+    let problem = |reason: String| RegistryProblem {
+        reason,
+        backup_available: registry_backup_is_usable(&path),
+    };
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(problem(e.to_string())),
+    };
+    serde_json::from_str(&text).map(Some).map_err(|e| problem(e.to_string()))
+}
+
 fn read_registry(config_path: &Path) -> Option<Registry> {
-    let content = std::fs::read_to_string(registry_path(config_path)).ok()?;
-    serde_json::from_str(&content).ok()
+    read_registry_strict(config_path).ok().flatten()
+}
+
+/// One entry of `profiles.json`, as stored.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegisteredProfile {
+    pub id: String,
+    pub name: String,
+    pub db_path: PathBuf,
+    pub protection: Option<Protection>,
+    pub icon_key: Option<String>,
+}
+
+/// The registered profiles, or none when there is no registry yet. Unlike `list_profiles` this never
+/// invents a Default entry and never hides a registry it could not read; the launch check relies on that.
+pub fn registered_profiles_strict(config_path: &Path) -> Result<Vec<RegisteredProfile>, RegistryProblem> {
+    Ok(read_registry_strict(config_path)?
+        .map(|registry| {
+            registry
+                .profiles
+                .into_iter()
+                .map(|p| RegisteredProfile {
+                    id: p.id,
+                    name: p.name,
+                    db_path: PathBuf::from(p.db_path),
+                    protection: p.protection,
+                    icon_key: p.icon_key,
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default())
+}
+
+/// The registry id of the profile whose data file is `db_path`: the Default profile's `"default"`
+/// when there is no registry, or when no entry names that file.
+pub fn profile_id_for(config_path: &Path, db_path: &Path) -> String {
+    entries_or_synthesize(config_path, db_path)
+        .into_iter()
+        .find(|p| Path::new(&p.db_path) == db_path)
+        .map(|p| p.id)
+        .unwrap_or_else(|| DEFAULT_PROFILE_ID.to_string())
+}
+
+/// Puts the previous profile list (`profiles.json.bak`) back in place of a damaged one. The damaged
+/// file is kept as `profiles.json.damaged`. Refuses when the backup is missing or unreadable.
+pub fn restore_registry_backup(config_path: &Path) -> Result<(), String> {
+    let registry_file = registry_path(config_path);
+    let backup_file = registry_file.with_file_name(format!("{REGISTRY_FILENAME}.bak"));
+    let text = std::fs::read_to_string(&backup_file).map_err(|_| "There is no earlier copy of the profile list to go back to.".to_string())?;
+    if serde_json::from_str::<Registry>(&text).is_err() {
+        return Err("The earlier copy of the profile list is damaged too, so it can't be used.".to_string());
+    }
+    if registry_file.exists() {
+        let _ = std::fs::rename(&registry_file, registry_file.with_file_name(format!("{REGISTRY_FILENAME}.damaged")));
+    }
+    budget_core::fsutil::write_atomic(&registry_file, text.as_bytes()).map_err(|e| e.to_string())
+}
+
+/// Moves the current profile list aside as `profiles.json.damaged` (replacing an earlier one), so
+/// starting over does not destroy it. The `.bak` stays where it is. A no-op when there is no list.
+pub fn set_aside_registry(config_path: &Path) -> Result<(), String> {
+    let registry_file = registry_path(config_path);
+    if !registry_file.exists() {
+        return Ok(());
+    }
+    std::fs::rename(&registry_file, registry_file.with_file_name(format!("{REGISTRY_FILENAME}.damaged")))
+        .map_err(|e| format!("couldn't set the profile list aside: {e}"))
 }
 
 fn write_registry(config_path: &Path, registry: &Registry) -> Result<(), String> {
     let json = serde_json::to_string_pretty(registry).expect("Registry always serializes");
-    std::fs::write(registry_path(config_path), json).map_err(|e| e.to_string())
+    let path = registry_path(config_path);
+    // Keep the previous version as `.bak`, but never copy a damaged file over a good backup.
+    let result = if read_registry_strict(config_path).is_ok() {
+        budget_core::fsutil::write_atomic_with_backup(&path, json.as_bytes())
+    } else {
+        budget_core::fsutil::write_atomic(&path, json.as_bytes())
+    };
+    result.map_err(|e| e.to_string())
 }
 
 fn default_entry(live_db_path: &Path) -> ProfileEntry {
@@ -78,6 +258,8 @@ fn default_entry(live_db_path: &Path) -> ProfileEntry {
         name: DEFAULT_PROFILE_NAME.to_string(),
         db_path: live_db_path.to_string_lossy().to_string(),
         icon_key: None,
+        protection: None,
+        former_plaintext_path: None,
     }
 }
 
@@ -140,6 +322,7 @@ pub fn list_profiles(config_path: &Path, live_db_path: &Path) -> Vec<Profile> {
                 db_path,
                 is_active,
                 icon_key: p.icon_key,
+                protection: p.protection,
             }
         })
         .collect()
@@ -153,28 +336,56 @@ pub fn list_profiles(config_path: &Path, live_db_path: &Path) -> Vec<Profile> {
 /// the caller's job (`commands::create_profile`), so a registry entry is
 /// only ever written for a profile whose storage the caller successfully
 /// initialized.
-pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<Profile, String> {
-    let mut entries = entries_or_synthesize(config_path, live_db_path);
+/// The id and directory a new profile named `name` would get, without writing anything — the first
+/// half of `create_profile`, split out so protected creation (Phase C, Task 6) can write the
+/// database file in between choosing the path and registering it: verify before registering, never
+/// the reverse.
+pub fn plan_new_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<(String, PathBuf), String> {
+    let entries = entries_or_synthesize(config_path, live_db_path);
     if entries.iter().any(|p| p.name.eq_ignore_ascii_case(name)) {
         return Err(format!("A profile named '{name}' already exists."));
     }
-
     let id = unique_profile_id(&entries, name, now);
     let db_path = profiles_dir(config_path).join(&id).join("vaultspend.db");
+    Ok((id, db_path))
+}
+
+/// Registers a profile at a path and protection state the caller already prepared and verified.
+/// Refuses a duplicate id (should not happen in practice — `plan_new_profile` computed a fresh one
+/// — but a caller that raced with another creation must not silently overwrite an entry).
+pub fn register_prepared_profile(
+    config_path: &Path,
+    live_db_path: &Path,
+    id: &str,
+    name: &str,
+    db_path: &Path,
+    protection: Option<Protection>,
+) -> Result<(), String> {
+    let mut entries = entries_or_synthesize(config_path, live_db_path);
+    if entries.iter().any(|p| p.id == id) {
+        return Err(format!("{id} is already registered."));
+    }
     entries.push(ProfileEntry {
-        id: id.clone(),
+        id: id.to_string(),
         name: name.to_string(),
         db_path: db_path.to_string_lossy().to_string(),
         icon_key: None,
+        protection,
+        former_plaintext_path: None,
     });
-    write_registry(config_path, &Registry { profiles: entries })?;
+    write_registry(config_path, &Registry { profiles: entries })
+}
 
+pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<Profile, String> {
+    let (id, db_path) = plan_new_profile(config_path, live_db_path, name, now)?;
+    register_prepared_profile(config_path, live_db_path, &id, name, &db_path, None)?;
     Ok(Profile {
         id,
         name: name.to_string(),
         db_path,
         is_active: false,
         icon_key: None,
+        protection: None,
     })
 }
 
@@ -194,6 +405,7 @@ pub fn add_existing_profile(
     live_db_path: &Path,
     name: &str,
     existing_db_path: &Path,
+    protection: Option<Protection>,
     now: NaiveDateTime,
 ) -> Result<Profile, String> {
     let mut entries = entries_or_synthesize(config_path, live_db_path);
@@ -220,6 +432,8 @@ pub fn add_existing_profile(
         name: name.to_string(),
         db_path: existing_db_path.to_string_lossy().to_string(),
         icon_key: None,
+        protection,
+        former_plaintext_path: None,
     });
     write_registry(config_path, &Registry { profiles: entries })?;
 
@@ -229,6 +443,7 @@ pub fn add_existing_profile(
         db_path: existing_db_path.to_path_buf(),
         is_active: false,
         icon_key: None,
+        protection,
     })
 }
 
@@ -273,18 +488,108 @@ pub fn set_profile_icon(config_path: &Path, live_db_path: &Path, id: &str, icon_
     write_registry(config_path, &Registry { profiles: entries })
 }
 
+/// Records (or clears, with `None`) a profile's protection summary, without touching its db_path —
+/// correct only when the path isn't moving (a brand-new protected profile, Task 6; conversion of an
+/// existing one moves the path too, via `commit_protection_conversion`). An unconditional update,
+/// not merge-only — same convention as `set_profile_icon`. Unknown id is a harmless no-op.
+#[allow(dead_code)] // not called until Task 6 (creating a brand-new protected profile)
+pub fn set_profile_protection(config_path: &Path, live_db_path: &Path, id: &str, protection: Option<Protection>) -> Result<(), String> {
+    let mut entries = entries_or_synthesize(config_path, live_db_path);
+    if !entries.iter().any(|p| p.id == id) {
+        return Ok(());
+    }
+    for p in entries.iter_mut() {
+        if p.id == id {
+            p.protection = protection;
+        }
+    }
+    write_registry(config_path, &Registry { profiles: entries })
+}
+
+pub fn auto_lock_settings_for(config_path: &Path, live_db_path: &Path, id: &str) -> Result<AutoLockSettings, String> {
+    let profile = entries_or_synthesize(config_path, live_db_path)
+        .into_iter()
+        .find(|profile| profile.id == id)
+        .ok_or_else(|| "That profile no longer exists.".to_string())?;
+    profile
+        .protection
+        .map(|protection| protection.auto_lock)
+        .ok_or_else(|| "Turn on password protection before configuring automatic locking.".to_string())
+}
+
+pub fn set_auto_lock_settings(config_path: &Path, live_db_path: &Path, id: &str, settings: AutoLockSettings) -> Result<(), String> {
+    let settings = settings.validate()?;
+    let mut entries = entries_or_synthesize(config_path, live_db_path);
+    let profile = entries
+        .iter_mut()
+        .find(|profile| profile.id == id)
+        .ok_or_else(|| "That profile no longer exists.".to_string())?;
+    let protection = profile
+        .protection
+        .as_mut()
+        .ok_or_else(|| "Turn on password protection before configuring automatic locking.".to_string())?;
+    protection.auto_lock = settings;
+    write_registry(config_path, &Registry { profiles: entries })
+}
+
+/// Marks a profile protected AND repoints its registry entry at the newly encrypted database, in
+/// one atomic write. The two must land together, never as two separate commits: a kill between
+/// them would otherwise leave the registry pointing at a file with no protection recorded (so
+/// `protection_transition::recover_interrupted_operation` would wrongly conclude the conversion
+/// never committed and delete the very file the registry now names), or leave it pointing at the
+/// stale plaintext original with no way back to the encrypted file that replaced it. Unknown id is
+/// a harmless no-op, same convention as `set_profile_protection`.
+pub fn commit_protection_conversion(
+    config_path: &Path,
+    live_db_path: &Path,
+    id: &str,
+    new_db_path: &Path,
+    protection: Protection,
+) -> Result<(), String> {
+    let mut entries = entries_or_synthesize(config_path, live_db_path);
+    if !entries.iter().any(|p| p.id == id) {
+        return Ok(());
+    }
+    for p in entries.iter_mut() {
+        if p.id == id {
+            p.former_plaintext_path = Some(std::mem::replace(&mut p.db_path, new_db_path.to_string_lossy().to_string()));
+            p.protection = Some(protection);
+        }
+    }
+    write_registry(config_path, &Registry { profiles: entries })
+}
+
+/// The plaintext path `id`'s database used to live at, before a conversion moved it to an encrypted
+/// file — `None` if it was never converted (including a profile that was protected from creation,
+/// where nothing was ever plaintext). See `ProfileEntry::former_plaintext_path`'s own doc comment
+/// for why `protection_leftovers::list_leftovers` needs this rather than the profile's current
+/// (already-encrypted) `db_path`.
+pub fn former_plaintext_path_for(config_path: &Path, live_db_path: &Path, id: &str) -> Option<PathBuf> {
+    entries_or_synthesize(config_path, live_db_path)
+        .into_iter()
+        .find(|p| p.id == id)
+        .and_then(|p| p.former_plaintext_path)
+        .map(PathBuf::from)
+}
+
 /// Removes a profile from the registry — the file it points at is left on
 /// disk untouched (matching `relocate_data_file`'s "old file left in
 /// place" philosophy: deleting a profile removes it from the list, it
 /// doesn't destroy data). Refuses to delete whichever profile is currently
-/// active (`db_path == live_db_path`) — there's nothing to hot-swap to.
+/// OPEN (`db_path == live_db_path` AND `currently_open`) — there's an active
+/// connection to hot-swap away from and nothing to hot-swap to. `AppPaths`'
+/// own `db_path` still names a merely LOCKED profile too (locking closes the
+/// connection but never repoints `db_path` — nothing else to point it at),
+/// so the caller must pass `currently_open: false` for that case: deleting a
+/// locked profile's registry entry is safe (no open connection holds it) and
+/// is exactly what the "forgot password, remove this profile" escape needs.
 /// Unknown id is a harmless no-op.
-pub fn delete_profile(config_path: &Path, live_db_path: &Path, id: &str) -> Result<(), String> {
+pub fn delete_profile(config_path: &Path, live_db_path: &Path, currently_open: bool, id: &str) -> Result<(), String> {
     let entries = entries_or_synthesize(config_path, live_db_path);
     let Some(target) = entries.iter().find(|p| p.id == id) else {
         return Ok(());
     };
-    if &target.db_path == live_db_path {
+    if currently_open && &target.db_path == live_db_path {
         return Err("Can't delete the profile you're currently using — switch to another one first.".to_string());
     }
     let remaining: Vec<ProfileEntry> = entries.into_iter().filter(|p| p.id != id).collect();
@@ -425,6 +730,54 @@ mod tests {
     }
 
     #[test]
+    fn plan_new_profile_computes_the_same_path_create_profile_would_without_writing_anything() {
+        let dir = temp_dir("plan-only");
+        let live = dir.join("v.db");
+
+        let (id, db_path) = plan_new_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+
+        assert!(!dir.join("profiles.json").exists(), "planning alone must not register anything");
+        assert_eq!(db_path, profiles_dir(&dir.join("config.json")).join(&id).join("vaultspend.db"));
+    }
+
+    #[test]
+    fn register_prepared_profile_adds_exactly_the_entry_given_including_protection() {
+        let dir = temp_dir("register-prepared");
+        let live = dir.join("v.db");
+        let (id, db_path) = plan_new_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+
+        register_prepared_profile(&dir.join("config.json"), &live, &id, "Alex", &db_path, Some(Protection::new(1))).unwrap();
+
+        let profile = list_profiles(&dir.join("config.json"), &live).into_iter().find(|p| p.id == id).unwrap();
+        assert_eq!(profile.db_path, db_path);
+        assert_eq!(profile.protection, Some(Protection::new(1)));
+    }
+
+    #[test]
+    fn registering_the_same_id_twice_is_refused() {
+        let dir = temp_dir("register-twice");
+        let live = dir.join("v.db");
+        let (id, db_path) = plan_new_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        register_prepared_profile(&dir.join("config.json"), &live, &id, "Alex", &db_path, None).unwrap();
+
+        assert!(register_prepared_profile(&dir.join("config.json"), &live, &id, "Alex", &db_path, None).is_err());
+    }
+
+    #[test]
+    fn create_profile_still_behaves_exactly_as_before_the_split() {
+        // The full pre-existing test suite for create_profile (name collisions, id disambiguation,
+        // returned Profile shape) already covers this — this one just confirms the refactor didn't
+        // change create_profile's own contract.
+        let dir = temp_dir("create-profile-unchanged");
+        let live = dir.join("v.db");
+
+        let profile = create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+
+        assert_eq!(profile.protection, None);
+        assert!(!profile.is_active);
+    }
+
+    #[test]
     fn create_profile_rejects_a_duplicate_name_case_insensitively() {
         let dir = temp_dir("create-rejects-duplicate");
         let config_path = dir.join("config.json");
@@ -456,12 +809,40 @@ mod tests {
         let live_db_path = dir.join("vaultspend.db");
         let brought_over = dir.join("from-old-laptop").join("vaultspend.db");
 
-        let profile = add_existing_profile(&config_path, &live_db_path, "Old Laptop", &brought_over, dt("2026-09-02 09:00:00")).unwrap();
+        let profile = add_existing_profile(&config_path, &live_db_path, "Old Laptop", &brought_over, None, dt("2026-09-02 09:00:00")).unwrap();
 
         assert_eq!(profile.db_path, brought_over);
+        assert!(profile.protection.is_none());
         assert!(
             !dir.join("profiles").exists(),
             "must never create a profiles_dir subdirectory for an existing file"
+        );
+    }
+
+    #[test]
+    fn add_existing_profile_registers_a_protected_profile_when_given_protection_metadata() {
+        let dir = temp_dir("add-existing-protected");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("vaultspend.db");
+        let brought_over = dir.join("from-old-laptop").join("vaultspend.db");
+
+        let profile = add_existing_profile(
+            &config_path,
+            &live_db_path,
+            "Old Laptop",
+            &brought_over,
+            Some(Protection::new(7)),
+            dt("2026-09-02 09:00:00"),
+        )
+        .unwrap();
+
+        assert_eq!(profile.protection, Some(Protection::new(7)));
+        let listed = list_profiles(&config_path, &live_db_path);
+        let reloaded = listed.iter().find(|p| p.id == profile.id).expect("just-added profile should be listed");
+        assert_eq!(
+            reloaded.protection,
+            Some(Protection::new(7)),
+            "protection metadata must survive being re-read from disk"
         );
     }
 
@@ -472,7 +853,7 @@ mod tests {
         let live_db_path = dir.join("vaultspend.db");
         let brought_over = dir.join("brought-over.db");
 
-        add_existing_profile(&config_path, &live_db_path, "Old Laptop", &brought_over, dt("2026-09-02 09:00:00")).unwrap();
+        add_existing_profile(&config_path, &live_db_path, "Old Laptop", &brought_over, None, dt("2026-09-02 09:00:00")).unwrap();
 
         let profiles = list_profiles(&config_path, &live_db_path);
         assert_eq!(profiles.len(), 2, "expected the seeded Default plus the new Old Laptop profile");
@@ -491,6 +872,7 @@ mod tests {
             &live_db_path,
             "ALEX",
             &dir.join("brought-over.db"),
+            None,
             dt("2026-09-02 09:00:01"),
         );
 
@@ -504,7 +886,7 @@ mod tests {
         let live_db_path = dir.join("vaultspend.db");
         let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-09-02 09:00:00")).unwrap();
 
-        let result = add_existing_profile(&config_path, &live_db_path, "Alex Again", &alex.db_path, dt("2026-09-02 09:00:01"));
+        let result = add_existing_profile(&config_path, &live_db_path, "Alex Again", &alex.db_path, None, dt("2026-09-02 09:00:01"));
 
         let err = result.unwrap_err();
         assert!(err.contains("Alex"), "error should name the profile already using that file: {err}");
@@ -522,7 +904,14 @@ mod tests {
         // targets, Windows and macOS both default to case-insensitive).
         let differently_cased = PathBuf::from(alex.db_path.to_string_lossy().to_uppercase());
 
-        let result = add_existing_profile(&config_path, &live_db_path, "Alex Again", &differently_cased, dt("2026-09-02 09:00:01"));
+        let result = add_existing_profile(
+            &config_path,
+            &live_db_path,
+            "Alex Again",
+            &differently_cased,
+            None,
+            dt("2026-09-02 09:00:01"),
+        );
 
         let err = result.unwrap_err();
         assert!(err.contains("Alex"), "error should name the profile already using that file: {err}");
@@ -664,7 +1053,7 @@ mod tests {
         std::fs::create_dir_all(alex.db_path.parent().unwrap()).unwrap();
         std::fs::write(&alex.db_path, b"fake db content").unwrap();
 
-        delete_profile(&config_path, &live_db_path, &alex.id).unwrap();
+        delete_profile(&config_path, &live_db_path, true, &alex.id).unwrap();
 
         let profiles = list_profiles(&config_path, &live_db_path);
         assert!(!profiles.iter().any(|p| p.id == alex.id), "the registry entry must be gone");
@@ -672,14 +1061,14 @@ mod tests {
     }
 
     #[test]
-    fn delete_profile_refuses_to_delete_the_currently_active_profile() {
+    fn delete_profile_refuses_to_delete_the_currently_open_profile() {
         let dir = temp_dir("delete-refuses-active");
         let config_path = dir.join("config.json");
         let live_db_path = dir.join("vaultspend.db");
         let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-08-30 12:00:00")).unwrap();
 
-        // "Switch" to Alex by treating her path as the live one.
-        let result = delete_profile(&config_path, &alex.db_path, &alex.id);
+        // "Switch" to Alex by treating her path as the live one, genuinely open.
+        let result = delete_profile(&config_path, &alex.db_path, true, &alex.id);
 
         assert!(result.is_err());
         let profiles = list_profiles(&config_path, &alex.db_path);
@@ -690,12 +1079,30 @@ mod tests {
     }
 
     #[test]
+    fn delete_profile_allows_deleting_a_merely_locked_not_open_profile() {
+        // AppPaths::db_path still names a locked (not open) profile too — locking closes the
+        // connection but never repoints db_path — so `currently_open: false` must let the delete
+        // through even though db_path still matches. This is exactly the "forgot password, remove
+        // this profile" escape's own scenario (Phase D, Task 5): the profile it's removing is always
+        // the one currently sitting locked, never one that's genuinely open.
+        let dir = temp_dir("delete-allows-locked");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("vaultspend.db");
+        let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-08-30 12:00:00")).unwrap();
+
+        delete_profile(&config_path, &alex.db_path, false, &alex.id).unwrap();
+
+        let profiles = list_profiles(&config_path, &alex.db_path);
+        assert!(!profiles.iter().any(|p| p.id == alex.id), "a locked (not open) profile must be deletable");
+    }
+
+    #[test]
     fn delete_profile_on_an_unknown_id_is_a_harmless_no_op() {
         let dir = temp_dir("delete-unknown-id");
         let config_path = dir.join("config.json");
         let live_db_path = dir.join("vaultspend.db");
 
-        let result = delete_profile(&config_path, &live_db_path, "no-such-id");
+        let result = delete_profile(&config_path, &live_db_path, true, "no-such-id");
 
         assert!(result.is_ok());
         assert!(!registry_path(&config_path).exists(), "a no-op delete must not materialize the registry");
@@ -737,4 +1144,456 @@ mod tests {
             "must never materialize the registry for the plain Default profile"
         );
     }
+
+    fn bak_path(config_path: &Path) -> PathBuf {
+        registry_path(config_path).with_file_name("profiles.json.bak")
+    }
+
+    fn leftover_temp_files(dir: &Path) -> usize {
+        std::fs::read_dir(dir)
+            .unwrap()
+            .filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-"))
+            .count()
+    }
+
+    fn registry_of(dir: &Path, db_file: &str) -> Registry {
+        Registry {
+            profiles: vec![default_entry(&dir.join(db_file))],
+        }
+    }
+
+    #[test]
+    fn writing_the_registry_keeps_the_previous_version_as_bak_and_leaves_no_temp_file() {
+        let dir = temp_dir("registry-bak");
+        let config_path = dir.join("config.json");
+
+        write_registry(&config_path, &registry_of(&dir, "first.db")).unwrap();
+        assert!(!bak_path(&config_path).exists(), "nothing to back up on the first write");
+        write_registry(&config_path, &registry_of(&dir, "second.db")).unwrap();
+
+        let previous: Registry = serde_json::from_str(&std::fs::read_to_string(bak_path(&config_path)).unwrap()).unwrap();
+        assert!(previous.profiles[0].db_path.ends_with("first.db"));
+        let current = read_registry_strict(&config_path).unwrap().unwrap();
+        assert!(current.profiles[0].db_path.ends_with("second.db"));
+        assert_eq!(leftover_temp_files(&dir), 0);
+    }
+
+    #[test]
+    fn the_strict_reader_tells_a_missing_registry_from_a_damaged_one() {
+        let dir = temp_dir("registry-strict");
+        let config_path = dir.join("config.json");
+        assert!(read_registry_strict(&config_path).unwrap().is_none(), "no registry is not an error");
+
+        write_registry(&config_path, &registry_of(&dir, "a.db")).unwrap();
+        assert_eq!(read_registry_strict(&config_path).unwrap().unwrap().profiles.len(), 1);
+
+        std::fs::write(registry_path(&config_path), b"{ this is not json").unwrap();
+        let damaged = read_registry_strict(&config_path).unwrap_err();
+        assert!(!damaged.reason.is_empty());
+        assert!(!damaged.backup_available, "there is no earlier version yet");
+    }
+
+    #[test]
+    fn a_damaged_registry_reports_a_usable_backup_and_never_replaces_it() {
+        let dir = temp_dir("registry-damaged-bak");
+        let config_path = dir.join("config.json");
+        write_registry(&config_path, &registry_of(&dir, "one.db")).unwrap();
+        write_registry(&config_path, &registry_of(&dir, "two.db")).unwrap(); // .bak now holds one.db
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+        assert!(read_registry_strict(&config_path).unwrap_err().backup_available);
+
+        write_registry(&config_path, &registry_of(&dir, "three.db")).unwrap();
+
+        let backup: Registry = serde_json::from_str(&std::fs::read_to_string(bak_path(&config_path)).unwrap()).unwrap();
+        assert!(
+            backup.profiles[0].db_path.ends_with("one.db"),
+            "the good backup must survive a write over a damaged file"
+        );
+    }
+
+    #[test]
+    fn a_damaged_registry_still_lists_only_the_default_because_startup_refuses_to_run_with_one() {
+        // Characterization: list_profiles stays lenient; startup::open_from_disk is what refuses to run with a damaged registry.
+        let dir = temp_dir("registry-lenient");
+        let config_path = dir.join("config.json");
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+
+        let profiles = list_profiles(&config_path, &dir.join("vaultspend.db"));
+
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].id, "default");
+    }
+
+    #[test]
+    fn registered_profiles_strict_lists_the_registry_and_calls_no_registry_empty() {
+        let dir = temp_dir("strict-list");
+        let config_path = dir.join("config.json");
+        assert!(
+            registered_profiles_strict(&config_path).unwrap().is_empty(),
+            "no registry is not an error and invents nothing"
+        );
+
+        create_profile(&config_path, &dir.join("vaultspend.db"), "Alex", dt("2026-08-30 12:00:00")).unwrap();
+        let listed = registered_profiles_strict(&config_path).unwrap();
+
+        assert_eq!(listed.len(), 2);
+        assert_eq!(listed[0].id, "default");
+        assert_eq!(listed[0].db_path, dir.join("vaultspend.db"));
+        assert!(listed.iter().any(|p| p.name == "Alex"));
+    }
+
+    #[test]
+    fn registered_profiles_strict_carries_icon_key_through() {
+        // The selector's card grid needs a real icon per profile, not the hardcoded `None` it was
+        // stuck with before — `RegisteredProfile` itself never carried this field, so there was
+        // nothing for the selector's own construction to read regardless of what the frontend asked
+        // for. This is the layer that gap actually lived in.
+        let dir = temp_dir("strict-icon");
+        let config_path = dir.join("config.json");
+        create_profile(&config_path, &dir.join("vaultspend.db"), "Alex", dt("2026-08-30 12:00:00")).unwrap();
+        let alex = registered_profiles_strict(&config_path)
+            .unwrap()
+            .into_iter()
+            .find(|p| p.name == "Alex")
+            .unwrap();
+        set_profile_icon(&config_path, &dir.join("vaultspend.db"), &alex.id, Some("cat")).unwrap();
+
+        let listed = registered_profiles_strict(&config_path).unwrap();
+
+        let updated = listed.iter().find(|p| p.name == "Alex").unwrap();
+        assert_eq!(updated.icon_key.as_deref(), Some("cat"));
+        let untouched = listed.iter().find(|p| p.id == "default").unwrap();
+        assert_eq!(
+            untouched.icon_key, None,
+            "a profile that never had an icon set should report None, not a made-up default"
+        );
+    }
+
+    #[test]
+    fn registered_profiles_strict_reports_a_damaged_registry_instead_of_inventing_a_default() {
+        let dir = temp_dir("strict-damaged");
+        let config_path = dir.join("config.json");
+        std::fs::write(registry_path(&config_path), b"{ not json").unwrap();
+
+        let problem = registered_profiles_strict(&config_path).unwrap_err();
+
+        assert!(!problem.reason.is_empty());
+        assert!(!problem.backup_available);
+    }
+
+    #[test]
+    fn profile_id_for_names_the_registered_profile_that_owns_the_file() {
+        let dir = temp_dir("id-for");
+        let config_path = dir.join("config.json");
+        let default_db = dir.join("vaultspend.db");
+        let alex = create_profile(&config_path, &default_db, "Alex", dt("2026-08-30 12:00:00")).unwrap();
+
+        assert_eq!(profile_id_for(&config_path, &default_db), "default");
+        assert_eq!(profile_id_for(&config_path, &alex.db_path), alex.id);
+    }
+
+    #[test]
+    fn profile_id_for_is_default_without_a_registry_or_for_an_unregistered_file() {
+        let dir = temp_dir("id-for-none");
+        let config_path = dir.join("config.json");
+        assert_eq!(profile_id_for(&config_path, &dir.join("vaultspend.db")), "default");
+
+        create_profile(&config_path, &dir.join("vaultspend.db"), "Alex", dt("2026-08-30 12:00:00")).unwrap();
+
+        assert_eq!(profile_id_for(&config_path, &dir.join("somewhere-else.db")), "default");
+    }
+
+    #[test]
+    fn restoring_the_registry_backup_brings_back_the_earlier_list_and_keeps_the_damaged_file() {
+        let dir = temp_dir("restore-registry");
+        let config_path = dir.join("config.json");
+        write_registry(&config_path, &registry_of(&dir, "one.db")).unwrap();
+        write_registry(&config_path, &registry_of(&dir, "two.db")).unwrap(); // .bak now holds one.db
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+
+        restore_registry_backup(&config_path).unwrap();
+
+        let restored = read_registry_strict(&config_path).unwrap().unwrap();
+        assert!(restored.profiles[0].db_path.ends_with("one.db"));
+        let damaged = registry_path(&config_path).with_file_name("profiles.json.damaged");
+        assert_eq!(std::fs::read(damaged).unwrap(), b"garbage", "what was there is kept, not destroyed");
+        assert!(bak_path(&config_path).exists(), "the backup stays in place");
+    }
+
+    #[test]
+    fn restoring_the_registry_backup_refuses_when_there_is_no_usable_backup() {
+        let dir = temp_dir("restore-registry-none");
+        let config_path = dir.join("config.json");
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+
+        assert!(restore_registry_backup(&config_path).is_err(), "no backup at all");
+        assert_eq!(
+            std::fs::read(registry_path(&config_path)).unwrap(),
+            b"garbage",
+            "the file is left as it was"
+        );
+
+        std::fs::write(bak_path(&config_path), b"also garbage").unwrap();
+        assert!(restore_registry_backup(&config_path).is_err(), "a damaged backup is no use either");
+    }
+
+    #[test]
+    fn setting_the_registry_aside_keeps_its_content_and_the_backup() {
+        let dir = temp_dir("set-aside");
+        let config_path = dir.join("config.json");
+        write_registry(&config_path, &registry_of(&dir, "one.db")).unwrap();
+        write_registry(&config_path, &registry_of(&dir, "two.db")).unwrap(); // .bak now holds one.db
+        std::fs::write(registry_path(&config_path), b"garbage").unwrap();
+
+        set_aside_registry(&config_path).unwrap();
+
+        assert!(!registry_path(&config_path).exists());
+        let damaged = registry_path(&config_path).with_file_name("profiles.json.damaged");
+        assert_eq!(std::fs::read(damaged).unwrap(), b"garbage");
+        assert!(bak_path(&config_path).exists());
+        assert!(read_registry_strict(&config_path).unwrap().is_none(), "no list is not an error");
+    }
+
+    #[test]
+    fn setting_aside_a_registry_that_is_not_there_is_fine() {
+        let dir = temp_dir("set-aside-none");
+
+        assert!(set_aside_registry(&dir.join("config.json")).is_ok());
+    }
+
+    // ---- password protection metadata (Phase C, Task 1) ----
+
+    #[test]
+    fn a_profile_with_no_protection_field_reads_as_unprotected() {
+        let dir = temp_dir("no-protection-field");
+        std::fs::write(
+            dir.join("profiles.json"),
+            r#"{"profiles":[{"id":"default","name":"Default","db_path":"C:\\v.db"}]}"#,
+        )
+        .unwrap();
+
+        let profiles = list_profiles(&dir.join("config.json"), Path::new("C:\\v.db"));
+
+        assert_eq!(profiles[0].protection, None);
+        assert!(!profiles[0].is_password_protected());
+    }
+
+    #[test]
+    fn old_protection_metadata_gets_safe_auto_lock_defaults() {
+        let dir = temp_dir("old-auto-lock-defaults");
+        let registry = dir.join("profiles.json");
+        let original = r#"{"profiles":[{"id":"default","name":"Default","db_path":"C:\\v.db","protection":{"format":1}}]}"#;
+        std::fs::write(&registry, original).unwrap();
+
+        let profiles = list_profiles(&dir.join("config.json"), Path::new("C:\\v.db"));
+        let settings = profiles[0].protection.unwrap().auto_lock;
+
+        assert_eq!(settings.inactivity_minutes, 15);
+        assert!(settings.lock_when_hidden);
+        assert!(!settings.lock_on_focus_loss);
+        assert!(settings.lock_on_system_event);
+        assert_eq!(
+            std::fs::read_to_string(registry).unwrap(),
+            original,
+            "reading defaults must not rewrite the registry"
+        );
+    }
+
+    #[test]
+    fn auto_lock_settings_accept_only_the_documented_intervals() {
+        for minutes in [0, 1, 5, 15, 30, 60] {
+            assert!(AutoLockSettings {
+                inactivity_minutes: minutes,
+                ..AutoLockSettings::default()
+            }
+            .validate()
+            .is_ok());
+        }
+        assert!(AutoLockSettings {
+            inactivity_minutes: 2,
+            ..AutoLockSettings::default()
+        }
+        .validate()
+        .is_err());
+    }
+
+    #[test]
+    fn updating_auto_lock_settings_changes_only_the_selected_protected_profile() {
+        let dir = temp_dir("set-auto-lock");
+        let config = dir.join("config.json");
+        let live = dir.join("v.db");
+        create_profile(&config, &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let profiles = list_profiles(&config, &live);
+        let default_id = profiles[0].id.clone();
+        let alex_id = profiles[1].id.clone();
+        set_profile_protection(&config, &live, &default_id, Some(Protection::new(1))).unwrap();
+        set_profile_protection(&config, &live, &alex_id, Some(Protection::new(1))).unwrap();
+        let changed = AutoLockSettings {
+            inactivity_minutes: 30,
+            lock_when_hidden: false,
+            lock_on_focus_loss: true,
+            lock_on_system_event: false,
+        };
+
+        set_auto_lock_settings(&config, &live, &alex_id, changed).unwrap();
+
+        let after = list_profiles(&config, &live);
+        assert_eq!(after.iter().find(|p| p.id == alex_id).unwrap().protection.unwrap().auto_lock, changed);
+        assert_eq!(
+            after.iter().find(|p| p.id == default_id).unwrap().protection.unwrap().auto_lock,
+            AutoLockSettings::default()
+        );
+    }
+
+    #[test]
+    fn an_unprotected_profile_cannot_save_auto_lock_settings() {
+        let dir = temp_dir("set-auto-lock-unprotected");
+        let config = dir.join("config.json");
+        let live = dir.join("v.db");
+
+        let error = set_auto_lock_settings(&config, &live, "default", AutoLockSettings::default()).unwrap_err();
+
+        assert!(error.contains("password protection"), "{error}");
+        assert!(!dir.join("profiles.json").exists());
+    }
+
+    #[test]
+    fn set_profile_protection_records_and_clears_it() {
+        let dir = temp_dir("set-protection");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+
+        set_profile_protection(&dir.join("config.json"), &live, &id, Some(Protection::new(1))).unwrap();
+        let after_set = list_profiles(&dir.join("config.json"), &live);
+        assert_eq!(after_set.iter().find(|p| p.id == id).unwrap().protection, Some(Protection::new(1)));
+
+        set_profile_protection(&dir.join("config.json"), &live, &id, None).unwrap();
+        let after_clear = list_profiles(&dir.join("config.json"), &live);
+        assert_eq!(after_clear.iter().find(|p| p.id == id).unwrap().protection, None);
+    }
+
+    #[test]
+    fn setting_protection_on_an_unknown_id_is_a_harmless_no_op() {
+        let dir = temp_dir("set-protection-unknown");
+        let live = dir.join("v.db");
+
+        set_profile_protection(&dir.join("config.json"), &live, "nobody", Some(Protection::new(1))).unwrap();
+
+        assert!(
+            !dir.join("profiles.json").exists(),
+            "a plain Default profile must not be materialized by this"
+        );
+    }
+
+    #[test]
+    fn commit_protection_conversion_moves_the_path_and_sets_protection_together() {
+        let dir = temp_dir("commit-conversion");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+        let new_path = dir.join("v-protected.db");
+
+        commit_protection_conversion(&dir.join("config.json"), &live, &id, &new_path, Protection::new(1)).unwrap();
+
+        let after = list_profiles(&dir.join("config.json"), &new_path);
+        let entry = after.iter().find(|p| p.id == id).unwrap();
+        assert_eq!(entry.db_path, new_path);
+        assert_eq!(entry.protection, Some(Protection::new(1)));
+    }
+
+    #[test]
+    fn commit_protection_removal_clears_protection_and_repoints_the_path_together() {
+        let dir = temp_dir("commit-removal");
+        let config_path = dir.join("config.json");
+        let live = dir.join("v.db");
+        create_profile(&config_path, &live, "Sam", dt("2026-09-24 09:00:00")).unwrap();
+        let id = list_profiles(&config_path, &live)[1].id.clone();
+        set_profile_protection(&config_path, &live, &id, Some(Protection::new(1))).unwrap();
+        let new_path = dir.join("vaultspend.db");
+
+        commit_protection_removal(&config_path, &live, &id, &new_path).unwrap();
+
+        let entry = list_profiles(&config_path, &new_path)
+            .into_iter()
+            .find(|profile| profile.id == id)
+            .unwrap();
+        assert_eq!(entry.protection, None);
+        assert_eq!(entry.db_path, new_path);
+    }
+
+    #[test]
+    fn commit_protection_conversion_remembers_the_plaintext_path_it_replaced() {
+        // Mirrors the real call site (`protection_commands::enable_profile_protection`): the
+        // profile being converted is always the one that's currently open, so its own current
+        // `db_path` — not the `live_db_path` parameter, which only matters for the no-registry
+        // synthesize fallback — is the plaintext path that must be remembered.
+        let dir = temp_dir("commit-conversion-remembers-former-path");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let alex = list_profiles(&dir.join("config.json"), &live)[1].clone();
+        let new_path = dir.join("v-protected.db");
+
+        commit_protection_conversion(&dir.join("config.json"), &alex.db_path, &alex.id, &new_path, Protection::new(1)).unwrap();
+
+        assert_eq!(
+            former_plaintext_path_for(&dir.join("config.json"), &new_path, &alex.id),
+            Some(alex.db_path)
+        );
+    }
+
+    #[test]
+    fn a_profile_with_no_conversion_behind_it_has_no_former_plaintext_path() {
+        let dir = temp_dir("no-former-path");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+
+        assert_eq!(former_plaintext_path_for(&dir.join("config.json"), &live, &id), None);
+    }
+
+    #[test]
+    fn commit_protection_conversion_on_an_unknown_id_is_a_harmless_no_op() {
+        let dir = temp_dir("commit-conversion-unknown");
+        let live = dir.join("v.db");
+        let new_path = dir.join("v-protected.db");
+
+        commit_protection_conversion(&dir.join("config.json"), &live, "nobody", &new_path, Protection::new(1)).unwrap();
+
+        assert!(
+            !dir.join("profiles.json").exists(),
+            "a plain Default profile must not be materialized by this"
+        );
+    }
+
+    #[test]
+    fn registered_profiles_strict_carries_protection_through_too() {
+        let dir = temp_dir("registered-strict-protection");
+        let live = dir.join("v.db");
+        create_profile(&dir.join("config.json"), &live, "Sam", dt("2026-09-21 09:00:00")).unwrap();
+        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+        set_profile_protection(&dir.join("config.json"), &live, &id, Some(Protection::new(1))).unwrap();
+
+        let registered = registered_profiles_strict(&dir.join("config.json")).unwrap();
+
+        assert_eq!(registered.iter().find(|p| p.id == id).unwrap().protection, Some(Protection::new(1)));
+    }
+}
+
+/// Clears protection and repoints the profile at its plaintext replacement in one atomic registry
+/// write. A crash must never expose only half of this state transition.
+#[allow(clippy::items_after_test_module)]
+pub fn commit_protection_removal(config_path: &Path, live_db_path: &Path, id: &str, new_db_path: &Path) -> Result<(), String> {
+    let mut entries = entries_or_synthesize(config_path, live_db_path);
+    if !entries.iter().any(|profile| profile.id == id) {
+        return Ok(());
+    }
+    for profile in &mut entries {
+        if profile.id == id {
+            profile.db_path = new_db_path.to_string_lossy().to_string();
+            profile.protection = None;
+            profile.former_plaintext_path = None;
+        }
+    }
+    write_registry(config_path, &Registry { profiles: entries })
 }

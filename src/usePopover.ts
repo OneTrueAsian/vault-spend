@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** Shared open/close plumbing for a toggle-button + panel popover (the
  * account/member filter dropdowns, "More filters") — before this, all
@@ -16,6 +16,49 @@ export function usePopover() {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const panel = rootRef.current?.querySelector<HTMLElement>(
+      ".account-filter-panel, .profile-switcher-panel, .bucket-contribute-panel",
+    );
+    if (!panel) return;
+
+    function placePanel() {
+      const trigger = triggerRef.current?.getBoundingClientRect();
+      if (!trigger || trigger.height === 0 || !panel) return;
+      // Measure the normal CSS size first; all offsets remain relative to the
+      // existing container, including Transparent's backdrop-filter containers.
+      for (const property of ["left", "right", "top", "bottom", "max-height"]) panel.style.removeProperty(property);
+      const header = rootRef.current?.closest(".main")?.querySelector(".topbar")?.getBoundingClientRect();
+      const topEdge = Math.max(8, header?.bottom ?? 8);
+      const below = Math.max(0, window.innerHeight - trigger.bottom - 12);
+      const above = Math.max(0, trigger.top - topEdge - 12);
+      const wanted = Math.min(panel.scrollHeight + 2, parseFloat(getComputedStyle(panel).maxHeight) || 340);
+      const useAbove = (below < wanted && above > below) ||
+        (panel.classList.contains("bucket-contribute-panel") && above >= wanted);
+      panel.style.top = useAbove ? "auto" : "calc(100% + 6px)";
+      panel.style.bottom = useAbove ? "calc(100% + 6px)" : "auto";
+      panel.style.maxHeight = `${Math.min(wanted, useAbove ? above : below)}px`;
+      const rect = panel.getBoundingClientRect();
+      const shift = rect.left < 8 ? 8 - rect.left : Math.min(0, window.innerWidth - 8 - rect.right);
+      if (shift) {
+        panel.style.left = `${panel.offsetLeft + shift}px`;
+        panel.style.right = "auto";
+      }
+    }
+    function onScroll(event: Event) {
+      if (event.target instanceof Node && panel?.contains(event.target)) return;
+      placePanel();
+    }
+    placePanel();
+    window.addEventListener("resize", placePanel);
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", placePanel);
+      document.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;

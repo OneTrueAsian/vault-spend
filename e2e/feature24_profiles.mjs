@@ -13,7 +13,7 @@
 //
 // Run with: node e2e/feature24_profiles.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -29,10 +29,14 @@ const app = await launchApp({ dbDir });
 try {
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
-  const seededLedgerText = await (await app.browser.$(".page")).getText();
-  if (!seededLedgerText.includes("Default Profile Groceries")) {
-    throw new Error(`expected the seeded fixture data to be visible before touching profiles, got:\n${seededLedgerText}`);
-  }
+  // The app loads its data after the shell appears, so wait for the seeded row instead of reading once —
+  // under a busy parallel run the first read used to land on the empty "0 transactions" state.
+  const ledgerPage = await app.browser.$(".page");
+  await waitUntilOrDiagnose(app.browser, async () => (await ledgerPage.getText()).includes("Default Profile Groceries"), {
+    timeout: 15000,
+    timeoutMsg: "expected the seeded fixture data to be visible before touching profiles",
+    extra: async () => ({ ledger: (await ledgerPage.getText()).replace(/\s+/g, " ").slice(0, 200) }),
+  });
 
   const settingsNav = await app.browser.$("button*=Settings");
   await settingsNav.click();

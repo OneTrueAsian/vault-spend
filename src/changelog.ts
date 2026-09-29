@@ -164,4 +164,11 @@ export const CHANGELOG: Record<string, string[]> = {
     "Fixed: the sortable headings on Transactions couldn't be reached with the keyboard or announced by a screen reader — they can now. The new projection charts can also be read with the arrow keys, not only with the mouse.",
     "Fixed: toasts were see-through in the Transparent theme, which made them hard to read over busy content.",
   ],
+  "1.2.8": [
+    "Password-protect individual profiles, with encrypted data files, backups and Vault Spend exports, plus a required recovery key.",
+    "Lock profiles manually or automatically when idle, hidden to the tray, or on Windows lock/sleep; optional focus-loss locking is available in Settings.",
+    "Bill reminders stay private while a profile is locked, and profile layouts and saved filters stay with their own profile.",
+    "Interrupted backup copies no longer appear as completed backups.",
+    "Improved import-category handling and scrolling in the rules list.",
+  ],
 };

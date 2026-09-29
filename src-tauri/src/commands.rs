@@ -4,11 +4,10 @@ use budget_core::importer;
 use budget_core::learner;
 use budget_core::models::AccountType;
 use budget_core::rules::RuleSet;
-use budget_core::store::{CategorySource, Store};
+use budget_core::store::{CategorySource, ImportCategoryChoice, Store};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use std::sync::Mutex;
 
 /// Writes arbitrary text (CSV export content) to a path the user already
 /// picked via a native save dialog on the frontend — the frontend builds
@@ -24,13 +23,18 @@ use std::sync::Mutex;
 /// Returns the currently-resolved data file path, for display on the
 /// Reports tab's Settings section.
 /// The data file path this session is actually using right now — may
-/// differ from what `resolve_db_path` computed at launch, since
+/// differ from what `startup::open_from_disk` opened at launch, since
 /// `relocate_data_file`/`restore_backup` update it in place rather than
 /// requiring a restart. A poisoned lock (only possible if an earlier panic
 /// happened mid-update) still yields a usable path rather than taking down
 /// every command that reads it.
 fn current_db_path(paths: &crate::config::AppPaths) -> std::path::PathBuf {
     paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// The registry id of the profile this session has open (`"default"` before any profile was created).
+fn active_profile_id(paths: &crate::config::AppPaths) -> String {
+    crate::profiles::profile_id_for(&paths.config_path, &current_db_path(paths))
 }
 
 #[tauri::command]
@@ -54,6 +58,7 @@ pub fn get_data_file_location(paths: tauri::State<crate::config::AppPaths>) -> S
 #[tauri::command]
 pub fn relocate_data_file(
     new_dir: String,
+    app: tauri::AppHandle,
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<String, String> {
@@ -65,10 +70,15 @@ pub fn relocate_data_file(
         return Err(format!("{} already has a vaultspend.db — pick an empty folder.", new_dir.display()));
     }
 
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    state.store.backup_to(&new_db_path).map_err(|e| e.to_string())?;
+    let runtime = &*state;
+    let mut state = runtime.lock()?;
+    copy_database_for_relocation(&state.store, &old_live_path, &new_db_path)?;
     crate::config::write_db_location_config(&paths.config_path, &new_db_path).map_err(|e| e.to_string())?;
-    *state = AppState::open(&new_db_path)?;
+    let reopened = match state.store.db_key_bytes() {
+        Some(key) => AppState::open_with_key(&new_db_path, budget_core::store::DatabaseKey::Raw(key))?,
+        None => AppState::open(&new_db_path)?,
+    };
+    *state = reopened;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = new_db_path.clone();
     paths.bump_generation();
     // If the profile that was just live is a registered profile (not the
@@ -77,8 +87,34 @@ pub fn relocate_data_file(
     // silently reopen the stale pre-relocate copy. A no-op when
     // profiles.json doesn't exist yet.
     crate::profiles::update_active_db_path(&paths.config_path, &old_live_path, &new_db_path)?;
+    // The page remounts after this and no longer runs the month's housekeeping itself.
+    runtime.set_notice(crate::maintenance::run_open_profile_maintenance(
+        &state.store,
+        chrono::Local::now().date_naive(),
+    ));
+    // Must run after `state` (the open-session guard) is released: `arm_current_profile` calls
+    // `runtime.is_open()`, which locks the very same mutex `state` is still holding — calling it
+    // any earlier deadlocks this command forever.
+    drop(state);
+    // The generation just bumped above — the automatic-lock timer must be re-armed against the new
+    // one (same as `startup::activate`/`set_auto_lock_settings`), or every lock trigger from here on
+    // is rejected as stale and automatic locking silently stops for the rest of this session.
+    crate::auto_lock::arm_current_profile(&app);
 
     Ok(new_db_path.to_string_lossy().to_string())
+}
+
+fn copy_database_for_relocation(store: &Store, old_live_path: &std::path::Path, new_db_path: &std::path::Path) -> Result<(), String> {
+    store.backup_to(new_db_path).map_err(|e| e.to_string())?;
+    if store.is_encrypted() {
+        let source_key = budget_core::protection::keyfile::key_file_path_for(old_live_path);
+        let destination_key = budget_core::protection::keyfile::key_file_path_for(new_db_path);
+        if let Err(error) = std::fs::copy(&source_key, &destination_key) {
+            let _ = std::fs::remove_file(new_db_path);
+            return Err(format!("couldn't move the profile's key file: {error}"));
+        }
+    }
+    Ok(())
 }
 
 /// Copies the live database to an exact file path the user picked via a
@@ -88,9 +124,103 @@ pub fn relocate_data_file(
 /// Safe against the live connection (`Store::backup_to`'s SQLite online
 /// backup API), so nothing needs to pause or lock while this runs.
 #[tauri::command]
-pub fn export_database(destination: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+pub fn export_database(destination: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    if state.store.is_encrypted() {
+        let live_path = current_db_path(&paths);
+        let profile_name = crate::profiles::list_profiles(&paths.config_path, &live_path)
+            .into_iter()
+            .find(|profile| profile.is_active)
+            .map(|profile| profile.name)
+            .unwrap_or_else(|| "Default".to_string());
+        return export_protected_package(
+            std::path::Path::new(&destination),
+            &profile_name,
+            &live_path,
+            &state.store,
+            &chrono::Utc::now().to_rfc3339(),
+        );
+    }
     state.store.backup_to(&destination).map_err(|e| e.to_string())
+}
+
+fn export_protected_package(
+    destination: &std::path::Path,
+    profile_name: &str,
+    source_db_path: &std::path::Path,
+    store: &Store,
+    exported_at: &str,
+) -> Result<(), String> {
+    use budget_core::protection::package::{sha256_file, DATABASE_FILENAME, MANIFEST_FILENAME};
+    use budget_core::protection::{PackageManifest, PACKAGE_FORMAT};
+
+    if destination.exists() {
+        return Err(format!("{} already exists. Choose a new package name.", destination.display()));
+    }
+    std::fs::create_dir_all(destination).map_err(|e| e.to_string())?;
+    let result = (|| {
+        let database_path = destination.join(DATABASE_FILENAME);
+        store.backup_to(&database_path).map_err(|e| e.to_string())?;
+        let source_key_path = budget_core::protection::keyfile::key_file_path_for(source_db_path);
+        let destination_key_path = budget_core::protection::keyfile::key_file_path_for(&database_path);
+        std::fs::copy(&source_key_path, &destination_key_path).map_err(|e| format!("couldn't copy the profile's key file: {e}"))?;
+        let key_file = budget_core::protection::keyfile::KeyFile::read(&destination_key_path).map_err(|e| e.to_string())?;
+        let manifest = PackageManifest {
+            format: PACKAGE_FORMAT,
+            profile_name: profile_name.to_string(),
+            protection_format: key_file.format,
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            schema_user_version: store.schema_user_version().map_err(|e| e.to_string())?,
+            database_sha256: sha256_file(&database_path)?,
+            exported_at: exported_at.to_string(),
+        };
+        std::fs::write(destination.join(MANIFEST_FILENAME), manifest.to_json()).map_err(|e| e.to_string())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_dir_all(destination);
+    }
+    result
+}
+
+struct ValidatedProtectedPackage {
+    manifest: budget_core::protection::PackageManifest,
+    key_file: budget_core::protection::keyfile::KeyFile,
+    dek: budget_core::protection::keyfile::UnlockedKey,
+}
+
+fn validate_protected_package(package_dir: &std::path::Path, password: &str) -> Result<ValidatedProtectedPackage, String> {
+    use budget_core::protection::package::{sha256_file, DATABASE_FILENAME, MANIFEST_FILENAME};
+    use budget_core::protection::PACKAGE_FORMAT;
+
+    if !package_dir.is_dir() {
+        return Err(format!("{} isn't a Vault Spend package folder.", package_dir.display()));
+    }
+    let manifest = budget_core::protection::PackageManifest::from_json(
+        &std::fs::read_to_string(package_dir.join(MANIFEST_FILENAME)).map_err(|e| format!("couldn't read this package's manifest: {e}"))?,
+    )?;
+    if manifest.format != PACKAGE_FORMAT {
+        return Err(format!(
+            "This package uses format {}, but this Vault Spend supports format {PACKAGE_FORMAT}.",
+            manifest.format
+        ));
+    }
+    let database_path = package_dir.join(DATABASE_FILENAME);
+    let actual_hash = sha256_file(&database_path).map_err(|e| format!("couldn't read this package's database: {e}"))?;
+    if actual_hash != manifest.database_sha256 {
+        return Err("This package's database doesn't match its manifest. It may be damaged or incomplete.".to_string());
+    }
+    if !budget_core::store::file_looks_encrypted(&database_path).map_err(|e| e.to_string())? {
+        return Err("This protected package contains a plaintext database.".to_string());
+    }
+    let key_file_path = budget_core::protection::keyfile::key_file_path_for(&database_path);
+    let key_file = budget_core::protection::keyfile::KeyFile::read(&key_file_path).map_err(|e| e.to_string())?;
+    if key_file.format != manifest.protection_format {
+        return Err("This package's protection information doesn't match its manifest.".to_string());
+    }
+    let dek = key_file
+        .unlock_with_password(password)
+        .map_err(|_| "That password didn't work.".to_string())?;
+    Ok(ValidatedProtectedPackage { manifest, key_file, dek })
 }
 
 #[derive(Serialize)]
@@ -101,9 +231,10 @@ pub struct BackupDto {
 }
 
 #[tauri::command]
-pub fn list_backups(paths: tauri::State<crate::config::AppPaths>) -> Result<Vec<BackupDto>, String> {
-    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
-    Ok(crate::backups::list_backups(&backups_dir)?
+pub fn list_backups(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<Vec<BackupDto>, String> {
+    let is_encrypted = state.lock()?.store.is_encrypted();
+    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths), is_encrypted);
+    Ok(crate::backups::list_backups(&backups_dir, is_encrypted)?
         .into_iter()
         .map(|b| BackupDto {
             filename: b.filename,
@@ -122,24 +253,25 @@ pub struct BackgroundSettingsDto {
 }
 
 #[tauri::command]
-pub fn get_background_settings(state: tauri::State<AppStateHandle>) -> Result<BackgroundSettingsDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let s = state.store.get_background_settings().map_err(|e| e.to_string())?;
-    Ok(BackgroundSettingsDto {
-        tray_enabled: s.tray_enabled,
-        autostart_enabled: s.autostart_enabled,
+pub fn get_background_settings(device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> BackgroundSettingsDto {
+    let settings = device.snapshot();
+    BackgroundSettingsDto {
+        tray_enabled: settings.tray_enabled,
+        autostart_enabled: settings.autostart_enabled,
         autostart_supported: cfg!(windows),
-    })
+    }
 }
 
 /// Turns "keep running in the tray and remind me about bills" on or off —
-/// the tray icon appears or disappears straight away.
+/// the tray icon appears or disappears straight away. A setting of this
+/// computer, saved beside `config.json`.
 #[tauri::command]
-pub fn set_tray_enabled(enabled: bool, app: tauri::AppHandle, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    {
-        let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-        state.store.set_tray_enabled(enabled).map_err(|e| e.to_string())?;
-    }
+pub fn set_tray_enabled(
+    enabled: bool,
+    app: tauri::AppHandle,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
+    device.update(|settings| settings.tray_enabled = enabled)?;
     if enabled {
         crate::background::install_tray(&app).map_err(|e| e.to_string())
     } else {
@@ -151,10 +283,9 @@ pub fn set_tray_enabled(enabled: bool, app: tauri::AppHandle, state: tauri::Stat
 /// Starts (or stops) Vault Spend at sign-in. The setting is only saved once
 /// the operating system accepted the change.
 #[tauri::command]
-pub fn set_autostart_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn set_autostart_enabled(enabled: bool, device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> Result<(), String> {
     crate::background::set_autostart(enabled)?;
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    state.store.set_autostart_enabled(enabled).map_err(|e| e.to_string())
+    device.update(|settings| settings.autostart_enabled = enabled)
 }
 
 /// Sends a sample reminder so the user can see what one looks like and that
@@ -181,10 +312,25 @@ pub struct BackupNowDto {
 /// throttle (`backups::create_backup_if_due`, called only at launch). Also
 /// copies it to the second backup folder when one is set.
 #[tauri::command]
-pub fn create_backup_now(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<BackupNowDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
-    let outcome = crate::backups::create_backup_full(&state.store, &backups_dir, chrono::Local::now().naive_local())?;
+pub fn create_backup_now(
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<BackupNowDto, String> {
+    let state = state.lock()?;
+    let db_path = current_db_path(&paths);
+    let backups_dir = crate::backups::backups_dir_for(&db_path, state.store.is_encrypted());
+    let copy_dir = device
+        .snapshot()
+        .backup_mirror_dir(&active_profile_id(&paths))
+        .map(std::path::PathBuf::from);
+    let outcome = crate::backups::create_backup_full(
+        &state.store,
+        &db_path,
+        &backups_dir,
+        copy_dir.as_deref(),
+        chrono::Local::now().naive_local(),
+    )?;
     Ok(BackupNowDto {
         filename: outcome.filename,
         copied_to: outcome.copied_to.map(|p| p.parent().map(|d| d.display().to_string()).unwrap_or_default()),
@@ -192,11 +338,13 @@ pub fn create_backup_now(paths: tauri::State<crate::config::AppPaths>, state: ta
     })
 }
 
-/// The second folder every backup is also copied to, if one is set.
+/// The second folder every backup of this profile is also copied to, if one is set.
 #[tauri::command]
-pub fn get_backup_copy_dir(state: tauri::State<AppStateHandle>) -> Result<Option<String>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    state.store.get_backup_copy_dir().map_err(|e| e.to_string())
+pub fn get_backup_copy_dir(
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<Option<String>, String> {
+    Ok(device.snapshot().backup_mirror_dir(&active_profile_id(&paths)).map(str::to_string))
 }
 
 /// Sets (or clears, with `None`) the second backup folder. A folder is
@@ -209,18 +357,22 @@ pub fn set_backup_copy_dir(
     dir: Option<String>,
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<String, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let profile_id = active_profile_id(&paths);
     let dir = dir.map(|d| d.trim().to_string()).filter(|d| !d.is_empty());
     let Some(dir) = dir else {
-        state.store.set_backup_copy_dir(None).map_err(|e| e.to_string())?;
+        device.update(|settings| {
+            settings.backup_mirror_dirs.remove(&profile_id);
+        })?;
         return Ok("Backups will no longer be copied to a second folder.".to_string());
     };
 
-    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths));
+    let is_encrypted = state.lock()?.store.is_encrypted();
+    let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths), is_encrypted);
     let copy_dir = std::path::Path::new(&dir);
     crate::backups::check_copy_dir(&backups_dir, copy_dir)?;
-    let newest = crate::backups::list_backups(&backups_dir)?.into_iter().next();
+    let newest = crate::backups::list_backups(&backups_dir, is_encrypted)?.into_iter().next();
     let copied_now = match newest {
         Some(b) => {
             crate::backups::mirror_backup(&backups_dir, &b.filename, copy_dir)?;
@@ -228,7 +380,9 @@ pub fn set_backup_copy_dir(
         }
         None => false,
     };
-    state.store.set_backup_copy_dir(Some(&dir)).map_err(|e| e.to_string())?;
+    device.update(|settings| {
+        settings.backup_mirror_dirs.insert(profile_id.clone(), dir.clone());
+    })?;
     Ok(if copied_now {
         format!("Every backup will also be copied to {dir}. The latest one is there now.")
     } else {
@@ -242,18 +396,92 @@ pub fn set_backup_copy_dir(
 /// — same in-place hot-swap as `relocate_data_file`, and for the same
 /// reason (see its doc comment).
 #[tauri::command]
-pub fn restore_backup(filename: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+#[allow(clippy::too_many_arguments)]
+pub fn restore_backup(
+    filename: String,
+    password: Option<String>,
+    expected_generation: u64,
+    app: tauri::AppHandle,
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+    sessions: tauri::State<crate::protection_session::Sessions>,
+) -> Result<(), String> {
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the backup could be restored.".to_string());
+    }
+    let runtime = &*state;
+    let mut state = runtime.lock()?;
     let live_db_path = current_db_path(&paths);
-    let backups_dir = crate::backups::backups_dir_for(&live_db_path);
-    let restored_path = crate::backups::restore_backup(&state.store, &backups_dir, &filename, &live_db_path)?;
+    let is_encrypted = state.store.is_encrypted();
+    let backups_dir = crate::backups::backups_dir_for(&live_db_path, is_encrypted);
+    let copy_dir = device
+        .snapshot()
+        .backup_mirror_dir(&active_profile_id(&paths))
+        .map(std::path::PathBuf::from);
+    let profile_id = active_profile_id(&paths);
+    let mut restored_key_file = None;
+    let restored_dek = if is_encrypted {
+        let remaining = sessions.delay_remaining(&profile_id);
+        if !remaining.is_zero() {
+            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+        }
+        let backup_path = backups_dir.join(&filename);
+        let key_file = budget_core::protection::keyfile::KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&backup_path))
+            .map_err(|e| e.to_string())?;
+        match key_file.unlock_with_password(password.as_deref().unwrap_or_default()) {
+            Ok(dek) => {
+                sessions.record_success(&profile_id);
+                restored_key_file = Some(key_file);
+                Some(dek)
+            }
+            Err(_) => {
+                sessions.record_failure(&profile_id);
+                return Err("That password didn't work for this backup.".to_string());
+            }
+        }
+    } else {
+        None
+    };
+    let restored_path = match restored_dek.as_ref() {
+        Some(dek) => crate::backups::restore_backup_with_key(
+            &state.store,
+            &backups_dir,
+            copy_dir.as_deref(),
+            &filename,
+            &live_db_path,
+            budget_core::store::DatabaseKey::Raw(dek.as_bytes()),
+        )?,
+        None => crate::backups::restore_backup(&state.store, &backups_dir, copy_dir.as_deref(), &filename, &live_db_path)?,
+    };
+    if let Some(key_file) = restored_key_file {
+        key_file
+            .write_to(&budget_core::protection::keyfile::key_file_path_for(&restored_path))
+            .map_err(|e| e.to_string())?;
+    }
     crate::config::write_db_location_config(&paths.config_path, &restored_path).map_err(|e| e.to_string())?;
-    *state = AppState::open(&restored_path)?;
+    let reopened = match restored_dek.as_ref() {
+        Some(dek) => AppState::open_with_key(&restored_path, budget_core::store::DatabaseKey::Raw(dek.as_bytes()))?,
+        None => AppState::open(&restored_path)?,
+    };
+    *state = reopened;
     // Same registry-sync reasoning as `relocate_data_file` — do this before
     // `restored_path` is moved into `paths.db_path` below.
     crate::profiles::update_active_db_path(&paths.config_path, &live_db_path, &restored_path)?;
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = restored_path;
     paths.bump_generation();
+    // The page remounts after this and no longer runs the month's housekeeping itself. A backup from
+    // an earlier month needs this month's roll-forward as much as a freshly opened profile does.
+    runtime.set_notice(crate::maintenance::run_open_profile_maintenance(
+        &state.store,
+        chrono::Local::now().date_naive(),
+    ));
+    // See `relocate_data_file`'s identical comments — `state` must be released before calling
+    // `arm_current_profile` (it locks the same mutex `state` still holds) — the generation just
+    // bumped above and the automatic-lock timer must be re-armed against it, or lock triggers
+    // silently stop working.
+    drop(state);
+    crate::auto_lock::arm_current_profile(&app);
     Ok(())
 }
 
@@ -263,6 +491,7 @@ pub struct ProfileDto {
     pub name: String,
     pub is_active: bool,
     pub icon_key: Option<String>,
+    pub is_password_protected: bool,
 }
 
 #[tauri::command]
@@ -270,6 +499,7 @@ pub fn list_profiles(paths: tauri::State<crate::config::AppPaths>) -> Vec<Profil
     crate::profiles::list_profiles(&paths.config_path, &current_db_path(&paths))
         .into_iter()
         .map(|p| ProfileDto {
+            is_password_protected: p.is_password_protected(),
             id: p.id,
             name: p.name,
             is_active: p.is_active,
@@ -290,9 +520,22 @@ pub fn set_profile_icon(id: String, icon_key: Option<String>, paths: tauri::Stat
 /// subfolder — see `profiles::create_profile`) and hot-swaps to it
 /// immediately, same in-place mechanism as `relocate_data_file`/
 /// `restore_backup` — creating a profile means "start using it now."
+///
+/// Deliberately does NOT require a profile to already be open (`runtime.install`, not `.lock()?`
+/// followed by a swap): the in-app Settings "New profile" button always has one open, but
+/// `EmptyRegistryScreen` (Phase C) calls this exact command with NOTHING open — a registry that
+/// exists but lists no profiles. `install` drops whatever was there and installs fresh either way,
+/// so both callers get the same "now open on the new profile" result regardless of where they
+/// started. Found via a real e2e launch (Task 9): no unit test calls the real Tauri command layer,
+/// so `state.lock()?` unconditionally failing with `NO_PROFILE_OPEN` for the empty-registry path
+/// was invisible to every jsdom/Rust test already covering the two pieces separately.
 #[tauri::command]
-pub fn create_profile(name: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<String, String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+pub fn create_profile(
+    name: String,
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<String, String> {
     let live_db_path = current_db_path(&paths);
     let profile = crate::profiles::create_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
 
@@ -303,18 +546,19 @@ pub fn create_profile(name: String, paths: tauri::State<crate::config::AppPaths>
     // live on the old profile instead of silently drifting out of sync with
     // `config.json`.
     crate::config::write_db_location_config(&paths.config_path, &profile.db_path).map_err(|e| e.to_string())?;
-    *state = AppState::open(&profile.db_path)?;
+    state.install(AppState::open(&profile.db_path)?);
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = profile.db_path.clone();
     paths.bump_generation();
 
-    // Best-effort, matching `setup()`'s own treatment — a profile left
-    // untouched for a long time and then switched into mid-session should
-    // still get automatic backup coverage without waiting for a full
-    // restart, but a failure here must never block using the app.
-    let backups_dir = crate::backups::backups_dir_for(&profile.db_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
-        eprintln!("automatic backup failed (continuing anyway): {e}");
-    }
+    let session = state.lock()?;
+    let summary = crate::startup::after_profile_opened(
+        &paths.config_path,
+        &profile.db_path,
+        &session.store,
+        &device,
+        chrono::Local::now().naive_local(),
+    );
+    state.set_notice(summary);
 
     Ok(profile.name)
 }
@@ -327,8 +571,14 @@ pub fn create_profile(name: String, paths: tauri::State<crate::config::AppPaths>
 /// `backups::verify_backup`'s doc comment for why that's a real risk in
 /// this codebase, not a hypothetical one.
 #[tauri::command]
-pub fn switch_profile(id: String, paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<String, String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+pub fn switch_profile(
+    id: String,
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<String, String> {
+    let runtime = &*state;
+    let mut state = runtime.lock()?;
     let live_db_path = current_db_path(&paths);
     let target = crate::profiles::list_profiles(&paths.config_path, &live_db_path)
         .into_iter()
@@ -359,12 +609,30 @@ pub fn switch_profile(id: String, paths: tauri::State<crate::config::AppPaths>, 
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = target.db_path.clone();
     paths.bump_generation();
 
-    let backups_dir = crate::backups::backups_dir_for(&target.db_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
-        eprintln!("automatic backup failed (continuing anyway): {e}");
-    }
+    let summary = crate::startup::after_profile_opened(
+        &paths.config_path,
+        &target.db_path,
+        &state.store,
+        &device,
+        chrono::Local::now().naive_local(),
+    );
+    runtime.set_notice(summary);
 
     Ok(target.name)
+}
+
+/// Whether `path` is an encrypted Vault Spend database, so the frontend's "Use existing file…"
+/// picker knows to ask for a password before calling `add_existing_profile` — without this, a
+/// protected profile that was removed from the list (or a `.db` copied in from a backup) could
+/// never be re-added even with the right password, since the picker never offered a password field
+/// for a bare file (only for a `.vaultspend` package folder).
+#[tauri::command]
+pub fn path_looks_password_protected(path: String) -> Result<bool, String> {
+    let path = std::path::PathBuf::from(path);
+    if path.is_dir() || !path.exists() {
+        return Ok(false);
+    }
+    budget_core::store::file_looks_encrypted(&path).map_err(|e| e.to_string())
 }
 
 /// Adopts a database file the user picked from somewhere else on disk (a
@@ -378,15 +646,161 @@ pub fn switch_profile(id: String, paths: tauri::State<crate::config::AppPaths>, 
 /// now" convention as `create_profile`. The file itself is never copied or
 /// moved — it stays wherever the user pointed at it.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn add_existing_profile(
     name: String,
     db_path: String,
+    password: Option<String>,
+    expected_generation: u64,
+    app: tauri::AppHandle,
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+    sessions: tauri::State<crate::protection_session::Sessions>,
 ) -> Result<String, String> {
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before this profile could be added.".to_string());
+    }
     let picked_path = std::path::PathBuf::from(&db_path);
     if !picked_path.exists() {
         return Err(format!("{} doesn't exist.", picked_path.display()));
+    }
+    if picked_path.is_dir() {
+        let attempt_id = format!("package:{}", picked_path.to_string_lossy().to_lowercase());
+        let remaining = sessions.delay_remaining(&attempt_id);
+        if !remaining.is_zero() {
+            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+        }
+        let validated = match validate_protected_package(&picked_path, password.as_deref().unwrap_or_default()) {
+            Ok(package) => {
+                sessions.record_success(&attempt_id);
+                package
+            }
+            Err(error) => {
+                if error == "That password didn't work." {
+                    sessions.record_failure(&attempt_id);
+                }
+                return Err(error);
+            }
+        };
+        let live_db_path = current_db_path(&paths);
+        let (id, imported_db_path) = crate::profiles::plan_new_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
+        let imported_dir = imported_db_path.parent().ok_or_else(|| "invalid imported profile path".to_string())?;
+        std::fs::create_dir_all(imported_dir).map_err(|e| e.to_string())?;
+        let prepare_result = (|| {
+            let packaged_db = picked_path.join(budget_core::protection::package::DATABASE_FILENAME);
+            std::fs::copy(&packaged_db, &imported_db_path).map_err(|e| format!("couldn't copy the package database: {e}"))?;
+            let copied_hash = budget_core::protection::package::sha256_file(&imported_db_path)?;
+            if copied_hash != validated.manifest.database_sha256 {
+                return Err("The imported database copy did not verify.".to_string());
+            }
+            validated
+                .key_file
+                .write_to(&budget_core::protection::keyfile::key_file_path_for(&imported_db_path))
+                .map_err(|e| e.to_string())?;
+            AppState::open_with_key(&imported_db_path, budget_core::store::DatabaseKey::Raw(validated.dek.as_bytes()))
+        })();
+        let new_state = match prepare_result {
+            Ok(state) => state,
+            Err(error) => {
+                let _ = std::fs::remove_dir_all(imported_dir);
+                return Err(error);
+            }
+        };
+
+        let runtime = &*state;
+        let mut state = runtime.lock()?;
+        if let Err(error) = crate::profiles::register_prepared_profile(
+            &paths.config_path,
+            &live_db_path,
+            &id,
+            &name,
+            &imported_db_path,
+            Some(crate::profiles::Protection::new(validated.manifest.protection_format)),
+        ) {
+            let _ = std::fs::remove_dir_all(imported_dir);
+            return Err(error);
+        }
+        crate::config::write_db_location_config(&paths.config_path, &imported_db_path).map_err(|e| e.to_string())?;
+        *state = new_state;
+        *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = imported_db_path.clone();
+        paths.bump_generation();
+        let summary = crate::startup::after_profile_opened(
+            &paths.config_path,
+            &imported_db_path,
+            &state.store,
+            &device,
+            chrono::Local::now().naive_local(),
+        );
+        runtime.set_notice(summary);
+        // See `relocate_data_file`'s identical comments — `state` must be released first (it holds
+        // the same mutex `arm_current_profile` locks internally) — the generation just bumped
+        // above, and this is a newly-imported *protected* profile switching in for the first time,
+        // so the timer must be armed for it now or automatic locking never engages for it at all
+        // this session.
+        drop(state);
+        crate::auto_lock::arm_current_profile(&app);
+        return Ok(name);
+    }
+    if budget_core::store::file_looks_encrypted(&picked_path).map_err(|e| e.to_string())? {
+        let key_file_path = budget_core::protection::keyfile::key_file_path_for(&picked_path);
+        if !key_file_path.exists() {
+            return Err(
+                "Choose the .vaultspend package folder, or a database with its matching .key file, not a bare encrypted database file.".to_string(),
+            );
+        }
+        // A profile removed from the list ("forgot the password? remove this profile" or a plain
+        // Delete) leaves exactly this shape on disk — an encrypted `.db` with its `.key` beside it,
+        // no manifest — and the lock screen's own wording says it "can't be opened without the
+        // password or recovery key", so re-adding it here with the right one must actually work.
+        let attempt_id = format!("existing-encrypted:{}", picked_path.to_string_lossy().to_lowercase());
+        let remaining = sessions.delay_remaining(&attempt_id);
+        if !remaining.is_zero() {
+            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+        }
+        let key_file = budget_core::protection::keyfile::KeyFile::read(&key_file_path).map_err(|e| e.to_string())?;
+        let dek = match key_file.unlock_with_password(password.as_deref().unwrap_or_default()) {
+            Ok(dek) => {
+                sessions.record_success(&attempt_id);
+                dek
+            }
+            Err(_) => {
+                sessions.record_failure(&attempt_id);
+                return Err("That password didn't work for this profile.".to_string());
+            }
+        };
+        let new_state = AppState::open_with_key(&picked_path, budget_core::store::DatabaseKey::Raw(dek.as_bytes()))
+            .map_err(|e| format!("Couldn't open {} as a Vault Spend data file: {e}", picked_path.display()))?;
+
+        let runtime = &*state;
+        let mut state = runtime.lock()?;
+        let live_db_path = current_db_path(&paths);
+        let profile = crate::profiles::add_existing_profile(
+            &paths.config_path,
+            &live_db_path,
+            &name,
+            &picked_path,
+            Some(crate::profiles::Protection::new(budget_core::protection::keyfile::FORMAT)),
+            chrono::Local::now().naive_local(),
+        )?;
+
+        crate::config::write_db_location_config(&paths.config_path, &picked_path).map_err(|e| e.to_string())?;
+        *state = new_state;
+        *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
+        paths.bump_generation();
+
+        let summary = crate::startup::after_profile_opened(
+            &paths.config_path,
+            &picked_path,
+            &state.store,
+            &device,
+            chrono::Local::now().naive_local(),
+        );
+        runtime.set_notice(summary);
+        // `state` must be released before `arm_current_profile` — see the identical comment above.
+        drop(state);
+        crate::auto_lock::arm_current_profile(&app);
+        return Ok(profile.name);
     }
     // Checked *before* AppState::open, which runs schema migrations that
     // create any table found missing — by the time it succeeds, even an
@@ -398,9 +812,17 @@ pub fn add_existing_profile(
     budget_core::store::looks_like_a_vault_spend_database(&picked_path)?;
     let new_state = AppState::open(&picked_path).map_err(|e| format!("Couldn't open {} as a Vault Spend data file: {e}", picked_path.display()))?;
 
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let runtime = &*state;
+    let mut state = runtime.lock()?;
     let live_db_path = current_db_path(&paths);
-    let profile = crate::profiles::add_existing_profile(&paths.config_path, &live_db_path, &name, &picked_path, chrono::Local::now().naive_local())?;
+    let profile = crate::profiles::add_existing_profile(
+        &paths.config_path,
+        &live_db_path,
+        &name,
+        &picked_path,
+        None,
+        chrono::Local::now().naive_local(),
+    )?;
 
     // Config written before the live-state swap — see `create_profile`'s
     // comment on the same ordering. `new_state` was already proven openable
@@ -410,30 +832,101 @@ pub fn add_existing_profile(
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
     paths.bump_generation();
 
-    // Best-effort, matching `create_profile`'s/`switch_profile`'s own
-    // treatment — a file that hasn't been backed up in a while should still
-    // get automatic coverage right away, but this must never block using
-    // the app.
-    let backups_dir = crate::backups::backups_dir_for(&picked_path);
-    if let Err(e) = crate::backups::create_backup_if_due(&state.store, &backups_dir, chrono::Local::now().naive_local()) {
-        eprintln!("automatic backup failed (continuing anyway): {e}");
-    }
+    let summary = crate::startup::after_profile_opened(
+        &paths.config_path,
+        &picked_path,
+        &state.store,
+        &device,
+        chrono::Local::now().naive_local(),
+    );
+    runtime.set_notice(summary);
 
     Ok(profile.name)
 }
 
 #[tauri::command]
-pub fn rename_profile(id: String, new_name: String, paths: tauri::State<crate::config::AppPaths>) -> Result<(), String> {
-    crate::profiles::rename_profile(&paths.config_path, &current_db_path(&paths), &id, &new_name)
+pub fn rename_profile(
+    id: String,
+    new_name: String,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
+    let mut result = Ok(());
+    device.update(|settings| {
+        result = crate::profiles::rename_profile(&paths.config_path, &current_db_path(&paths), &id, &new_name);
+        if result.is_ok() {
+            if let Some(cached) = settings.reminder_index.get_mut(&id) {
+                cached.profile_name = new_name.trim().to_owned();
+            }
+        }
+    })?;
+    result
 }
 
 /// Registry-only — the profile's own file is left on disk untouched (same
 /// "old file left in place" philosophy as `relocate_data_file`). Refuses to
-/// delete whichever profile is currently active — see
-/// `profiles::delete_profile`.
+/// delete whichever profile is currently OPEN, but allows deleting one that's
+/// merely LOCKED (its connection already closed the moment it was locked —
+/// `AppPaths::db_path` still names it either way, so the runtime's own
+/// status, not just the path, decides) — see `profiles::delete_profile`.
 #[tauri::command]
-pub fn delete_profile(id: String, paths: tauri::State<crate::config::AppPaths>) -> Result<(), String> {
-    crate::profiles::delete_profile(&paths.config_path, &current_db_path(&paths), &id)
+pub fn delete_profile(
+    id: String,
+    paths: tauri::State<crate::config::AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
+    let currently_open = runtime.status() == crate::runtime::RuntimeStatus::Open;
+    let mut result = Ok(());
+    device.update(|settings| {
+        result = crate::profiles::delete_profile(&paths.config_path, &current_db_path(&paths), currently_open, &id);
+        if result.is_ok() {
+            settings.remove_profile_reminders(&id);
+        }
+    })?;
+    result
+}
+
+/// The four settings moved out of global browser storage into the profile database (plan v2
+/// §4.12) — a bounded, typed set of keys, never an arbitrary storage passthrough.
+#[tauri::command]
+pub fn get_profile_ui_state(key: String, state: tauri::State<AppStateHandle>) -> Result<Option<String>, String> {
+    let key = budget_core::store::UiStateKey::parse(&key).ok_or_else(|| format!("unknown UI state key: {key}"))?;
+    let state = state.lock()?;
+    state.store.get_ui_state(key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_profile_ui_state(
+    key: String,
+    value: String,
+    expected_generation: u64,
+    paths: tauri::State<crate::config::AppPaths>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<(), String> {
+    let key = budget_core::store::UiStateKey::parse(&key).ok_or_else(|| format!("unknown UI state key: {key}"))?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before this could be saved.".to_string());
+    }
+    let state = state.lock()?;
+    state.store.set_ui_state(key, &value).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn mark_ui_state_migrated(device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> Result<(), String> {
+    device.update(|s| s.ui_state_migrated = true)
+}
+
+#[tauri::command]
+pub fn is_ui_state_migrated(device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> bool {
+    device.snapshot().ui_state_migrated
+}
+
+/// The frontend had no reason to know its own copy of `AppPaths::generation` before Phase C —
+/// `set_profile_ui_state`'s staleness guard is the first frontend-initiated write that needs it.
+#[tauri::command]
+pub fn get_current_generation(paths: tauri::State<crate::config::AppPaths>) -> u64 {
+    paths.current_generation()
 }
 
 #[tauri::command]
@@ -472,7 +965,7 @@ pub struct AppState {
     pub rules: RuleSet,
 }
 
-pub type AppStateHandle = Mutex<AppState>;
+pub type AppStateHandle = crate::runtime::AppRuntime;
 
 impl AppState {
     pub fn open(db_path: impl AsRef<std::path::Path>) -> Result<Self, String> {
@@ -481,6 +974,16 @@ impl AppState {
         // `Store::seed_default_rules_once`) rather than faked in memory
         // whenever the table is empty, so the rules manager can show and
         // delete every one of them and "delete them all" sticks.
+        store.seed_default_rules_once().map_err(|e| e.to_string())?;
+        let rules = store.load_rules().map_err(|e| e.to_string())?;
+        Ok(AppState { store, rules })
+    }
+
+    /// The keyed counterpart to `open`, used once a password has unwrapped a profile's database
+    /// key (Phase C). Refuses a missing file rather than silently creating one — see
+    /// `budget_core::store::encryption::Store::open_with_key`'s own doc comment.
+    pub fn open_with_key(db_path: impl AsRef<std::path::Path>, key: budget_core::store::DatabaseKey<'_>) -> Result<Self, String> {
+        let store = Store::open_with_key(db_path, key).map_err(|e| e.to_string())?;
         store.seed_default_rules_once().map_err(|e| e.to_string())?;
         let rules = store.load_rules().map_err(|e| e.to_string())?;
         Ok(AppState { store, rules })
@@ -584,12 +1087,46 @@ pub struct ImportRow {
     /// account if it doesn't exist yet) unless the user picks a different
     /// one for it on the review screen.
     pub account_name: Option<String>,
+    /// The row's own Category column, when the file has one (a bank's CSV export does) —
+    /// what the file calls it, not necessarily a category the person has.
+    pub category: Option<String>,
 }
 
 #[derive(Serialize)]
 pub struct ImportPreview {
     pub rows: Vec<ImportRow>,
     pub row_errors: usize,
+    /// Category names the file uses that the person doesn't have. Nothing is created for
+    /// these unless the review screen sends back a `Create` choice for them.
+    pub unmatched_categories: Vec<UnmatchedCategoryDto>,
+}
+
+#[derive(Serialize)]
+pub struct UnmatchedCategoryDto {
+    pub name: String,
+    pub count: usize,
+}
+
+/// What the review screen decided for one unmatched file category (see `commit_import`).
+#[derive(Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
+pub enum CategoryChoiceDto {
+    /// File the rows under this existing category.
+    MapTo { category: String },
+    /// Add the file's category to the person's list.
+    Create,
+    /// Import the rows without a category.
+    Skip,
+}
+
+impl From<CategoryChoiceDto> for ImportCategoryChoice {
+    fn from(choice: CategoryChoiceDto) -> Self {
+        match choice {
+            CategoryChoiceDto::MapTo { category } => ImportCategoryChoice::MapTo(category),
+            CategoryChoiceDto::Create => ImportCategoryChoice::Create,
+            CategoryChoiceDto::Skip => ImportCategoryChoice::Skip,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -712,11 +1249,15 @@ fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
             continue;
         }
         if let Some((category, source, confidence)) = categorizer::categorize(&stored.transaction.description, &state.rules, Some(&classifier)) {
-            state
+            // A guess is only ever filed under a category the person already has — it must
+            // not add one to their list.
+            let applied = state
                 .store
-                .set_category(stored.id, &category, source, confidence)
+                .set_category_if_registered(stored.id, &category, source, confidence)
                 .map_err(|e| e.to_string())?;
-            categorized_ids.push(stored.id);
+            if applied {
+                categorized_ids.push(stored.id);
+            }
         }
     }
     Ok(categorized_ids)
@@ -731,7 +1272,7 @@ fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
 /// exactly those rows to review and correct.
 #[tauri::command]
 pub fn recategorize_uncategorized(state: tauri::State<AppStateHandle>) -> Result<Vec<i64>, String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let mut state = state.lock()?;
     categorize_uncategorized(&mut state)
 }
 
@@ -753,7 +1294,7 @@ pub fn recategorize_uncategorized(state: tauri::State<AppStateHandle>) -> Result
 /// contradicting what committing that same row actually does.
 #[tauri::command]
 pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<ImportPreview, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
 
     let loaded = importer::load_transactions(&path, invert_amounts).map_err(|e| e.to_string())?;
     let row_errors = loaded.errors.len();
@@ -792,10 +1333,26 @@ pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state
             amount: tx.amount.to_string(),
             is_duplicate: *is_duplicate,
             account_name: loaded.account_names.get(index).cloned().flatten(),
+            category: tx.category.as_deref().map(str::trim).filter(|c| !c.is_empty()).map(str::to_string),
         })
         .collect();
 
-    Ok(ImportPreview { rows, row_errors })
+    let unmatched_categories = state
+        .store
+        .unmatched_import_categories(&loaded.transactions)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|u| UnmatchedCategoryDto {
+            name: u.name,
+            count: u.count,
+        })
+        .collect();
+
+    Ok(ImportPreview {
+        rows,
+        row_errors,
+        unmatched_categories,
+    })
 }
 
 /// Inserts exactly the rows the user chose to keep on the review screen.
@@ -818,19 +1375,42 @@ pub fn commit_import(
     default_account_id: i64,
     included_indices: Vec<usize>,
     account_overrides: std::collections::HashMap<usize, i64>,
+    category_choices: Option<std::collections::HashMap<String, CategoryChoiceDto>>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<ImportSummary, String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let mut state = state.lock()?;
 
     let loaded = importer::load_transactions(&path, invert_amounts).map_err(|e| e.to_string())?;
     let row_errors = loaded.errors.len();
 
     let included: std::collections::HashSet<usize> = included_indices.into_iter().collect();
+    let mut selected: Vec<(usize, budget_core::models::Transaction)> = loaded
+        .transactions
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| included.contains(index))
+        .collect();
+
+    // An import only lands in categories the person already has. A category the file brings
+    // that they don't have is mapped, created or skipped as the review screen chose (skipped
+    // when it wasn't asked about) — never adopted on its own. Settled for the rows being
+    // imported only, before anything is written, so a bad choice changes nothing.
+    let choices: std::collections::HashMap<String, ImportCategoryChoice> = category_choices
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, choice)| (name, choice.into()))
+        .collect();
+    let mut settled: Vec<budget_core::models::Transaction> = selected.iter().map(|(_, tx)| tx.clone()).collect();
+    state
+        .store
+        .reconcile_import_categories(&mut settled, &choices)
+        .map_err(|e| e.to_string())?;
+    for ((_, tx), settled) in selected.iter_mut().zip(settled) {
+        tx.category = settled.category;
+    }
+
     let mut by_account: std::collections::HashMap<i64, Vec<(budget_core::models::Transaction, Vec<String>)>> = std::collections::HashMap::new();
-    for (index, tx) in loaded.transactions.into_iter().enumerate() {
-        if !included.contains(&index) {
-            continue;
-        }
+    for (index, tx) in selected {
         let account_id = if let Some(explicit) = account_overrides.get(&index).copied() {
             explicit
         } else if let Some(name) = loaded.account_names.get(index).and_then(|o| o.as_deref()) {
@@ -888,7 +1468,7 @@ pub fn create_manual_transaction(
     member_id: Option<i64>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let mut state = state.lock()?;
     let date = parse_date(&date)?;
     let amount = parse_amount(&amount)?;
     let category = category.filter(|c| !c.trim().is_empty());
@@ -1001,7 +1581,7 @@ fn current_month_key() -> String {
 /// is written. Same convention as `preview_import`'s duplicate flags.
 #[tauri::command]
 pub fn preview_setup_import(path: String, state: tauri::State<AppStateHandle>) -> Result<SetupImportPreviewDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let data = budget_core::setup_import::load_setup_csv(&path).map_err(|e| e.to_string())?;
 
     let today = chrono::Local::now().date_naive();
@@ -1104,7 +1684,7 @@ pub fn commit_setup_import(
     included_holdings: Vec<usize>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<SetupImportSummaryDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let mut data = budget_core::setup_import::load_setup_csv(&path).map_err(|e| e.to_string())?;
     let row_errors = data.errors.len();
 
@@ -1145,7 +1725,7 @@ pub fn create_account(
     icon_key: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let account_type = AccountType::parse(&account_type).unwrap_or(AccountType::Other);
     // Validated *before* the account is created — an invalid balance must
     // fail cleanly with nothing written, not leave a zero-balance orphan
@@ -1170,7 +1750,7 @@ pub fn create_account(
 
 #[tauri::command]
 pub fn list_accounts(state: tauri::State<AppStateHandle>) -> Result<Vec<AccountDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let accounts = state.store.list_accounts(today).map_err(|e| e.to_string())?;
 
@@ -1196,20 +1776,20 @@ pub fn list_accounts(state: tauri::State<AppStateHandle>) -> Result<Vec<AccountD
 
 #[tauri::command]
 pub fn set_account_interest_rate(id: i64, rate: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let rate = rate.map(|r| parse_amount(&r)).transpose()?;
     state.store.set_account_interest_rate(id, rate).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_account_excluded_from_debt_payoff(id: i64, excluded: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_account_excluded_from_debt_payoff(id, excluded).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_account_details(id: i64, institution: Option<String>, mask: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state
         .store
         .set_account_details(id, institution.as_deref(), mask.as_deref())
@@ -1218,7 +1798,7 @@ pub fn set_account_details(id: i64, institution: Option<String>, mask: Option<St
 
 #[tauri::command]
 pub fn set_account_starting_balance(id: i64, balance: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let balance = parse_amount(&balance)?;
     state.store.set_account_starting_balance(id, balance).map_err(|e| e.to_string())
 }
@@ -1227,7 +1807,7 @@ pub fn set_account_starting_balance(id: i64, balance: String, state: tauri::Stat
 /// existing transaction — see `Store::set_account_balance_override`.
 #[tauri::command]
 pub fn set_account_balance_override(id: i64, balance: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let balance = parse_amount(&balance)?;
     let today = chrono::Local::now().date_naive();
     state.store.set_account_balance_override(id, balance, today).map_err(|e| e.to_string())
@@ -1235,32 +1815,32 @@ pub fn set_account_balance_override(id: i64, balance: String, state: tauri::Stat
 
 #[tauri::command]
 pub fn update_account_type(id: i64, account_type: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let account_type = AccountType::parse(&account_type).unwrap_or(AccountType::Other);
     state.store.update_account_type(id, account_type).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_account_icon(id: i64, icon_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_account_icon(id, icon_key.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn delete_account(id: i64, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.delete_account(id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_account_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_account_member(id, member_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn create_family_member(name: String, state: tauri::State<AppStateHandle>) -> Result<i64, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.create_family_member(&name).map_err(|e| {
         let msg = e.to_string();
         if msg.contains("UNIQUE constraint failed") {
@@ -1273,26 +1853,26 @@ pub fn create_family_member(name: String, state: tauri::State<AppStateHandle>) -
 
 #[tauri::command]
 pub fn list_family_members(state: tauri::State<AppStateHandle>) -> Result<Vec<FamilyMemberDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let members = state.store.list_family_members().map_err(|e| e.to_string())?;
     Ok(members.into_iter().map(|m| FamilyMemberDto { id: m.id, name: m.name }).collect())
 }
 
 #[tauri::command]
 pub fn rename_family_member(id: i64, new_name: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.rename_family_member(id, &new_name).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn delete_family_member(id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.delete_family_member(id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn list_transactions(state: tauri::State<AppStateHandle>) -> Result<Vec<TransactionDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let stored = state.store.all_transactions().map_err(|e| e.to_string())?;
 
     Ok(stored
@@ -1333,7 +1913,7 @@ pub struct TransferCandidateDto {
 /// different accounts, within 3 days) and aren't linked yet.
 #[tauri::command]
 pub fn list_transfer_candidates(state: tauri::State<AppStateHandle>) -> Result<Vec<TransferCandidateDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let candidates = state.store.transfer_candidates().map_err(|e| e.to_string())?;
     Ok(candidates
         .into_iter()
@@ -1349,7 +1929,7 @@ pub fn list_transfer_candidates(state: tauri::State<AppStateHandle>) -> Result<V
 /// its outgoing leg.
 #[tauri::command]
 pub fn list_auto_linked_transfers(state: tauri::State<AppStateHandle>) -> Result<Vec<TransferCandidateDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let linked = state.store.auto_linked_transfers_to_review().map_err(|e| e.to_string())?;
     Ok(linked
         .into_iter()
@@ -1364,7 +1944,7 @@ pub fn list_auto_linked_transfers(state: tauri::State<AppStateHandle>) -> Result
 /// review list. The links stay. Returns how many were marked.
 #[tauri::command]
 pub fn mark_auto_links_reviewed(out_ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.mark_transfer_links_reviewed(&out_ids).map_err(|e| e.to_string())
 }
 
@@ -1372,7 +1952,7 @@ pub fn mark_auto_links_reviewed(out_ids: Vec<i64>, state: tauri::State<AppStateH
 /// counts as income or spending.
 #[tauri::command]
 pub fn link_transfer(a: i64, b: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     if state.store.link_transfer(a, b).map_err(|e| e.to_string())? {
         Ok(())
     } else {
@@ -1384,43 +1964,43 @@ pub fn link_transfer(a: i64, b: i64, state: tauri::State<AppStateHandle>) -> Res
 /// income/spending again.
 #[tauri::command]
 pub fn unlink_transfer(transaction_id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.unlink_transfer(transaction_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn add_tag(transaction_id: i64, tag: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.add_tag(transaction_id, &tag).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn remove_tag(transaction_id: i64, tag: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.remove_tag(transaction_id, &tag).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn list_all_tags(state: tauri::State<AppStateHandle>) -> Result<Vec<String>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.list_all_tags().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_transaction_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_transaction_member(id, member_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn bulk_set_transaction_member(ids: Vec<i64>, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.bulk_set_transaction_member(&ids, member_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn get_transaction_splits(transaction_id: i64, state: tauri::State<AppStateHandle>) -> Result<Vec<TransactionSplitDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let splits = state.store.list_transaction_splits(transaction_id).map_err(|e| e.to_string())?;
     Ok(splits
         .into_iter()
@@ -1439,7 +2019,7 @@ pub fn set_transaction_splits(
     splits: Vec<(String, String, Option<String>)>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let splits = splits
         .into_iter()
         .map(|(category, amount, note)| Ok((category, parse_amount(&amount)?, note)))
@@ -1449,7 +2029,7 @@ pub fn set_transaction_splits(
 
 #[tauri::command]
 pub fn correct_category(id: i64, category: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let mut state = state.lock()?;
 
     let description = state
         .store
@@ -1480,7 +2060,7 @@ pub fn correct_category(id: i64, category: String, state: tauri::State<AppStateH
 /// same "harmless no-op" convention as the rest of this file.
 #[tauri::command]
 pub fn bulk_correct_category(ids: Vec<i64>, category: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let mut state = state.lock()?;
 
     let transactions = state.store.all_transactions().map_err(|e| e.to_string())?;
     for id in ids {
@@ -1506,7 +2086,7 @@ pub fn bulk_correct_category(ids: Vec<i64>, category: String, state: tauri::Stat
 /// with exactly what was deleted, without tracking that set itself.
 #[tauri::command]
 pub fn bulk_delete_transactions(ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<Vec<i64>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let now = chrono::Local::now().naive_local();
     for &id in &ids {
         state.store.delete_transaction(id, now).map_err(|e| e.to_string())?;
@@ -1525,8 +2105,14 @@ pub fn bulk_delete_transactions(ids: Vec<i64>, state: tauri::State<AppStateHandl
 /// matches any transaction is skipped rather than failing the whole batch.
 /// Returns how many were created, for the confirmation message.
 #[tauri::command]
-pub fn bulk_create_recurring_from_transactions(ids: Vec<i64>, cadence: String, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+pub fn bulk_create_recurring_from_transactions(
+    ids: Vec<i64>,
+    cadence: String,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<usize, String> {
+    let state = state.lock()?;
     let transactions = state.store.all_transactions().map_err(|e| e.to_string())?;
 
     let mut created = 0;
@@ -1545,6 +2131,7 @@ pub fn bulk_create_recurring_from_transactions(ids: Vec<i64>, cadence: String, s
                 Some(t.account_id),
             )
             .map_err(|e| e.to_string())?;
+        refresh_open_reminders(&state.store, &paths, &device);
         created += 1;
     }
     Ok(created)
@@ -1576,7 +2163,7 @@ pub struct RulePreviewDto {
 /// transactions its pattern touches — Settings' rules manager list.
 #[tauri::command]
 pub fn list_rules(state: tauri::State<AppStateHandle>) -> Result<Vec<RuleDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let rules = state.store.list_rules().map_err(|e| e.to_string())?;
     Ok(rules
         .into_iter()
@@ -1598,7 +2185,7 @@ pub fn preview_rule(
     replacing: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<RulePreviewDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let preview = state
         .store
         .preview_rule(&pattern, &category, replacing.as_deref())
@@ -1620,7 +2207,7 @@ pub fn save_rule(
     apply_to_existing: bool,
     state: tauri::State<AppStateHandle>,
 ) -> Result<usize, String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let mut state = state.lock()?;
     let pattern = pattern.trim().to_string();
     let category = category.trim().to_string();
     if pattern.is_empty() {
@@ -1648,20 +2235,20 @@ pub fn save_rule(
 /// Removes a rule. Transactions it already categorized keep their category.
 #[tauri::command]
 pub fn delete_rule(pattern: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let mut state = state.lock()?;
     state.store.delete_rule(&pattern).map_err(|e| e.to_string())?;
     reload_rules(&mut state)
 }
 
 #[tauri::command]
 pub fn list_categories(state: tauri::State<AppStateHandle>) -> Result<Vec<String>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.list_categories().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn list_categories_with_icons(state: tauri::State<AppStateHandle>) -> Result<Vec<CategoryDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let categories = state.store.list_categories_with_icons().map_err(|e| e.to_string())?;
     Ok(categories
         .into_iter()
@@ -1674,19 +2261,19 @@ pub fn list_categories_with_icons(state: tauri::State<AppStateHandle>) -> Result
 
 #[tauri::command]
 pub fn create_category(name: String, icon_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.create_category(&name, icon_key.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_category_icon(name: String, icon_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_category_icon(&name, icon_key.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn rename_category(old_name: String, new_name: String, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let mut state = state.lock()?;
     let affected = state.store.rename_category(&old_name, &new_name).map_err(|e| e.to_string())?;
     reload_rules(&mut state)?;
     Ok(affected)
@@ -1694,7 +2281,7 @@ pub fn rename_category(old_name: String, new_name: String, state: tauri::State<A
 
 #[tauri::command]
 pub fn delete_category(name: String, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
-    let mut state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let mut state = state.lock()?;
     let affected = state.store.delete_category(&name).map_err(|e| e.to_string())?;
     reload_rules(&mut state)?;
     Ok(affected)
@@ -1702,14 +2289,14 @@ pub fn delete_category(name: String, state: tauri::State<AppStateHandle>) -> Res
 
 #[tauri::command]
 pub fn update_transaction_amount(id: i64, amount: String, state: tauri::State<AppStateHandle>) -> Result<bool, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let amount = parse_amount(&amount)?;
     state.store.update_transaction_amount(id, amount).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn update_transaction_principal_amount(id: i64, principal_amount: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let principal_amount = principal_amount.map(|a| parse_amount(&a)).transpose()?;
     state
         .store
@@ -1719,20 +2306,20 @@ pub fn update_transaction_principal_amount(id: i64, principal_amount: Option<Str
 
 #[tauri::command]
 pub fn update_transaction_account(id: i64, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.update_transaction_account(id, account_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn update_transaction_date(id: i64, date: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let date = parse_date(&date)?;
     state.store.update_transaction_date(id, date).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn update_transaction_description(id: i64, description: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     if description.trim().is_empty() {
         return Err("Description can't be empty.".to_string());
     }
@@ -1744,7 +2331,7 @@ pub fn update_transaction_description(id: i64, description: String, state: tauri
 
 #[tauri::command]
 pub fn delete_transaction(id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let now = chrono::Local::now().naive_local();
     state.store.delete_transaction(id, now).map_err(|e| e.to_string())
 }
@@ -1754,7 +2341,7 @@ pub fn delete_transaction(id: i64, state: tauri::State<AppStateHandle>) -> Resul
 /// were deleted.
 #[tauri::command]
 pub fn restore_transactions(ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.restore_transactions(&ids).map_err(|e| e.to_string())
 }
 
@@ -1766,7 +2353,7 @@ pub fn apply_debt_payment(
     date: String,
     state: tauri::State<AppStateHandle>,
 ) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let amount = parse_amount(&amount)?;
     let date = parse_date(&date)?;
     state
@@ -1777,7 +2364,7 @@ pub fn apply_debt_payment(
 
 #[tauri::command]
 pub fn unapply_debt_payment(source_transaction_id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.unapply_debt_payment(source_transaction_id).map_err(|e| e.to_string())
 }
 
@@ -1796,7 +2383,7 @@ pub fn create_bucket(
     icon_key: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let target_amount = target_amount.map(|a| parse_amount(&a)).transpose()?;
     let target_date = target_date.map(|d| parse_date(&d)).transpose()?;
     let sinking_amount = sinking_amount.map(|a| parse_amount(&a)).transpose()?;
@@ -1816,7 +2403,7 @@ pub fn create_bucket(
 
 #[tauri::command]
 pub fn list_buckets(state: tauri::State<AppStateHandle>) -> Result<Vec<BucketDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let buckets = state.store.list_buckets_as_of(today).map_err(|e| e.to_string())?;
     Ok(buckets
@@ -1844,7 +2431,7 @@ pub fn list_buckets(state: tauri::State<AppStateHandle>) -> Result<Vec<BucketDto
 /// goal — see `Store::set_bucket_tracks_account`.
 #[tauri::command]
 pub fn set_bucket_tracks_account(id: i64, tracks_account: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_bucket_tracks_account(id, tracks_account).map_err(|e| e.to_string())
 }
 
@@ -1861,7 +2448,7 @@ pub fn update_bucket_details(
     icon_key: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let target_amount = target_amount.map(|a| parse_amount(&a)).transpose()?;
     let target_date = target_date.map(|d| parse_date(&d)).transpose()?;
     let sinking_amount = sinking_amount.map(|a| parse_amount(&a)).transpose()?;
@@ -1881,11 +2468,12 @@ pub fn update_bucket_details(
 
 /// Auto-contributes each sinking-fund bucket's fixed monthly amount if this
 /// is the first time it's happened this calendar month — see
-/// `Store::apply_sinking_fund_contributions`. Safe to call on every app
-/// launch, same convention as `check_monthly_rollover`.
+/// `Store::apply_sinking_fund_contributions`. The page calls this when a
+/// bucket gains a sinking amount so it takes effect right away; the run that
+/// happens as a profile opens is `maintenance::run_open_profile_maintenance`.
 #[tauri::command]
 pub fn check_sinking_fund_contributions(state: tauri::State<AppStateHandle>) -> Result<Vec<SinkingFundContributionDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let applied = state.store.apply_sinking_fund_contributions(today).map_err(|e| e.to_string())?;
     Ok(applied
@@ -1898,7 +2486,7 @@ pub fn check_sinking_fund_contributions(state: tauri::State<AppStateHandle>) -> 
         .collect())
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SinkingFundContributionDto {
     pub bucket_id: i64,
     pub bucket_name: String,
@@ -1907,7 +2495,7 @@ pub struct SinkingFundContributionDto {
 
 #[tauri::command]
 pub fn set_bucket_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_bucket_member(id, member_id).map_err(|e| e.to_string())
 }
 
@@ -1919,7 +2507,7 @@ pub fn add_bucket_contribution(
     note: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let date = parse_date(&date)?;
     let amount = parse_amount(&amount)?;
     state
@@ -1930,7 +2518,7 @@ pub fn add_bucket_contribution(
 
 #[tauri::command]
 pub fn delete_bucket(id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.delete_bucket(id).map_err(|e| e.to_string())
 }
 
@@ -1948,7 +2536,7 @@ pub fn set_budget(
     budget_group: String,
     state: tauri::State<AppStateHandle>,
 ) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let monthly_amount = parse_amount(&monthly_amount)?;
     state
         .store
@@ -1958,7 +2546,7 @@ pub fn set_budget(
 
 #[tauri::command]
 pub fn delete_budget(category: String, period: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.delete_budget(&category, &period).map_err(|e| e.to_string())
 }
 
@@ -1966,7 +2554,7 @@ pub fn delete_budget(category: String, period: String, state: tauri::State<AppSt
 pub fn get_report(state: tauri::State<AppStateHandle>) -> Result<ReportDto, String> {
     use chrono::Datelike;
 
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let (year, month) = (today.year(), today.month());
 
@@ -2001,7 +2589,7 @@ pub fn get_report(state: tauri::State<AppStateHandle>) -> Result<ReportDto, Stri
 /// pinned to the current month for the Reports dashboard.
 #[tauri::command]
 pub fn budget_actuals_for_month(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<ReportBudgetLineDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let actuals = state.store.monthly_budget_actuals(year, month).map_err(|e| e.to_string())?;
     Ok(actuals
         .into_iter()
@@ -2021,7 +2609,7 @@ pub fn budget_actuals_for_month(year: i32, month: u32, state: tauri::State<AppSt
 /// budget forward — see `Store::set_budget_rollover`.
 #[tauri::command]
 pub fn set_budget_rollover(category: String, period: String, rollover_enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state
         .store
         .set_budget_rollover(&category, &period, rollover_enabled)
@@ -2042,7 +2630,7 @@ pub struct MemberBudgetActualDto {
 /// `Store::monthly_budget_actuals_by_member`.
 #[tauri::command]
 pub fn monthly_budget_actuals_by_member(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<MemberBudgetActualDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let actuals = state.store.monthly_budget_actuals_by_member(year, month).map_err(|e| e.to_string())?;
     Ok(actuals
         .into_iter()
@@ -2061,7 +2649,7 @@ pub fn monthly_budget_actuals_by_member(year: i32, month: u32, state: tauri::Sta
 /// threshold — see `Store::set_budget_cap`.
 #[tauri::command]
 pub fn set_budget_cap(category: String, period: String, cap_enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_budget_cap(&category, &period, cap_enabled).map_err(|e| e.to_string())
 }
 
@@ -2084,7 +2672,7 @@ pub struct BudgetSuggestionsDto {
 /// the user applies rows through `set_budget`.
 #[tauri::command]
 pub fn suggest_budgets(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<BudgetSuggestionsDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let suggestions = state.store.suggest_budgets_from_average(year, month, 3).map_err(|e| e.to_string())?;
     Ok(BudgetSuggestionsDto {
         months_used: suggestions.months_used,
@@ -2126,7 +2714,7 @@ pub struct MonthReviewDto {
 /// `Store::month_review`.
 #[tauri::command]
 pub fn month_review(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<MonthReviewDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let r = state.store.month_review(year, month).map_err(|e| e.to_string())?;
     Ok(MonthReviewDto {
         year: r.year,
@@ -2152,14 +2740,14 @@ pub fn month_review(year: i32, month: u32, state: tauri::State<AppStateHandle>) 
 
 #[tauri::command]
 pub fn set_month_reviewed(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_month_reviewed(year, month).map_err(|e| e.to_string())
 }
 
 /// Every month whose review was finished, as "YYYY-MM".
 #[tauri::command]
 pub fn list_reviewed_months(state: tauri::State<AppStateHandle>) -> Result<Vec<String>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.list_reviewed_months().map_err(|e| e.to_string())
 }
 
@@ -2182,7 +2770,7 @@ pub fn budget_actuals_trend(
     months: u32,
     state: tauri::State<AppStateHandle>,
 ) -> Result<Vec<BudgetTrendPointDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let trend = state
         .store
         .budget_actuals_trend(&category, year, month, months)
@@ -2217,7 +2805,7 @@ pub fn transactions_for_category(
     month: u32,
     state: tauri::State<AppStateHandle>,
 ) -> Result<Vec<CategoryTransactionDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let items = state
         .store
         .transactions_for_category_in_month(&category, year, month)
@@ -2249,7 +2837,7 @@ pub struct BudgetAlertDto {
 
 #[tauri::command]
 pub fn budget_alerts_for_month(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<BudgetAlertDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let alerts = state.store.budget_alerts_for_month(year, month).map_err(|e| e.to_string())?;
     Ok(alerts
         .into_iter()
@@ -2274,7 +2862,7 @@ pub struct InsightDto {
 
 #[tauri::command]
 pub fn dashboard_insights(state: tauri::State<AppStateHandle>) -> Result<Vec<InsightDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let insights = state.store.dashboard_insights(today).map_err(|e| e.to_string())?;
     Ok(insights
@@ -2316,7 +2904,7 @@ pub fn debt_payoff_projection(
     minimums: Vec<MinimumPaymentInput>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<DebtPayoffPlanDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let extra_payment = parse_amount(&extra_payment)?;
     let mut minimum_payments = Vec::with_capacity(minimums.len());
     for m in minimums {
@@ -2354,13 +2942,13 @@ pub struct AnomalyFlagDto {
 /// The user looked at a flag and it's fine — see `Store::dismiss_anomaly`.
 #[tauri::command]
 pub fn dismiss_anomaly_flag(transaction_id: i64, kind: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.dismiss_anomaly(transaction_id, &kind).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn list_anomaly_flags(state: tauri::State<AppStateHandle>) -> Result<Vec<AnomalyFlagDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let flags = state.store.open_anomaly_flags().map_err(|e| e.to_string())?;
     Ok(flags
         .into_iter()
@@ -2374,7 +2962,7 @@ pub fn list_anomaly_flags(state: tauri::State<AppStateHandle>) -> Result<Vec<Ano
 
 #[tauri::command]
 pub fn get_stats(state: tauri::State<AppStateHandle>) -> Result<Stats, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let all = state.store.all_transactions().map_err(|e| e.to_string())?;
 
     let mut stats = Stats {
@@ -2404,7 +2992,22 @@ pub fn get_stats(state: tauri::State<AppStateHandle>) -> Result<Stats, String> {
     Ok(stats)
 }
 
+fn refresh_open_reminders(store: &Store, paths: &crate::config::AppPaths, device: &crate::device_settings::DeviceSettingsStore) {
+    if crate::background::refresh_reminder_index(
+        &paths.config_path,
+        &current_db_path(paths),
+        store,
+        device,
+        chrono::Local::now().date_naive(),
+    )
+    .is_err()
+    {
+        eprintln!("Could not refresh bill reminders after a recurring change.");
+    }
+}
+
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // recurring fields plus managed runtime/cache state
 pub fn create_recurring(
     merchant: String,
     category: Option<String>,
@@ -2413,19 +3016,23 @@ pub fn create_recurring(
     anchor_date: String,
     account_id: Option<i64>,
     state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<i64, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let amount = parse_amount(&amount)?;
     let anchor_date = parse_date(&anchor_date)?;
-    state
+    let result = state
         .store
         .create_recurring(&merchant, category.as_deref(), amount, &cadence, anchor_date, account_id)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(result)
 }
 
 #[tauri::command]
 pub fn list_recurring(state: tauri::State<AppStateHandle>) -> Result<Vec<RecurringDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let items = state.store.list_recurring(today).map_err(|e| e.to_string())?;
     Ok(items
@@ -2448,15 +3055,30 @@ pub fn list_recurring(state: tauri::State<AppStateHandle>) -> Result<Vec<Recurri
 }
 
 #[tauri::command]
-pub fn delete_recurring(id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    state.store.delete_recurring(id).map_err(|e| e.to_string())
+pub fn delete_recurring(
+    id: i64,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
+    let state = state.lock()?;
+    state.store.delete_recurring(id).map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn set_recurring_status(id: i64, status: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    state.store.set_recurring_status(id, &status).map_err(|e| e.to_string())
+pub fn set_recurring_status(
+    id: i64,
+    status: String,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
+    let state = state.lock()?;
+    state.store.set_recurring_status(id, &status).map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -2479,7 +3101,7 @@ pub struct RecurringMatchDto {
 /// `Store::recurring_matches`.
 #[tauri::command]
 pub fn recurring_matches(state: tauri::State<AppStateHandle>) -> Result<Vec<RecurringMatchDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let matches = state.store.recurring_matches(today).map_err(|e| e.to_string())?;
     Ok(matches
@@ -2500,7 +3122,7 @@ pub fn recurring_matches(state: tauri::State<AppStateHandle>) -> Result<Vec<Recu
 
 #[tauri::command]
 pub fn recurring_totals(state: tauri::State<AppStateHandle>) -> Result<RecurringTotalsDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let totals = state.store.recurring_totals().map_err(|e| e.to_string())?;
     Ok(RecurringTotalsDto {
         monthly_expense: totals.monthly_expense.to_string(),
@@ -2522,25 +3144,37 @@ pub fn update_recurring(
     anchor_date: String,
     account_id: Option<i64>,
     state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let amount = parse_amount(&amount)?;
     let anchor_date = parse_date(&anchor_date)?;
     state
         .store
         .update_recurring(id, &merchant, category.as_deref(), amount, &cadence, anchor_date, account_id)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn set_recurring_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    state.store.set_recurring_member(id, member_id).map_err(|e| e.to_string())
+pub fn set_recurring_member(
+    id: i64,
+    member_id: Option<i64>,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+) -> Result<(), String> {
+    let state = state.lock()?;
+    state.store.set_recurring_member(id, member_id).map_err(|e| e.to_string())?;
+    refresh_open_reminders(&state.store, &paths, &device);
+    Ok(())
 }
 
 #[tauri::command]
 pub fn list_recurring_candidates(state: tauri::State<AppStateHandle>) -> Result<Vec<RecurringCandidateDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let candidates = state.store.detect_recurring_candidates(today).map_err(|e| e.to_string())?;
     Ok(candidates
@@ -2558,7 +3192,7 @@ pub fn list_recurring_candidates(state: tauri::State<AppStateHandle>) -> Result<
 
 #[tauri::command]
 pub fn dismiss_recurring_candidate(merchant: String, amount: String, cadence: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let amount = parse_amount(&amount)?;
     state
         .store
@@ -2579,7 +3213,7 @@ pub fn create_holding(
     asset_class: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let shares = parse_amount(&shares)?;
     let price = parse_amount(&price)?;
     let cost_basis = parse_amount(&cost_basis)?;
@@ -2603,7 +3237,7 @@ pub fn create_holding(
 
 #[tauri::command]
 pub fn list_holdings(state: tauri::State<AppStateHandle>) -> Result<Vec<HoldingDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let holdings = state.store.list_holdings(today).map_err(|e| e.to_string())?;
     Ok(holdings
@@ -2644,7 +3278,7 @@ pub fn category_spending_by_month(
     to_month: u32,
     state: tauri::State<AppStateHandle>,
 ) -> Result<Vec<CategoryMonthAmountDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let rows = state
         .store
         .category_spending_by_month(from_year, from_month, to_year, to_month)
@@ -2676,7 +3310,7 @@ pub fn daily_spending(
     to_month: u32,
     state: tauri::State<AppStateHandle>,
 ) -> Result<Vec<DailySpendAmountDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let rows = state
         .store
         .daily_spending(from_year, from_month, to_year, to_month)
@@ -2700,7 +3334,7 @@ pub struct BalancePointDto {
 /// today — see `Store::account_balance_history`.
 #[tauri::command]
 pub fn account_balance_history(account_id: i64, months: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<BalancePointDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let history = state
         .store
@@ -2740,7 +3374,7 @@ fn account_transaction_dtos(rows: Vec<budget_core::store::AccountTransaction>) -
 
 #[tauri::command]
 pub fn list_account_transactions(account_id: i64, limit: usize, state: tauri::State<AppStateHandle>) -> Result<Vec<AccountTransactionDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let rows = state.store.list_account_transactions(account_id, limit).map_err(|e| e.to_string())?;
     Ok(account_transaction_dtos(rows))
 }
@@ -2753,7 +3387,7 @@ pub fn reconcile_candidates(
     statement_date: String,
     state: tauri::State<AppStateHandle>,
 ) -> Result<Vec<AccountTransactionDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let date = parse_date(&statement_date)?;
     let rows = state.store.reconcile_candidates(account_id, date).map_err(|e| e.to_string())?;
     Ok(account_transaction_dtos(rows))
@@ -2761,7 +3395,7 @@ pub fn reconcile_candidates(
 
 #[tauri::command]
 pub fn set_transactions_cleared(ids: Vec<i64>, cleared: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_transactions_cleared(&ids, cleared).map_err(|e| e.to_string())
 }
 
@@ -2778,7 +3412,7 @@ pub fn reconciliation_status(
     statement_balance: String,
     state: tauri::State<AppStateHandle>,
 ) -> Result<ReconciliationStatusDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let statement_balance = parse_amount(&statement_balance)?;
     let status = state
         .store
@@ -2800,7 +3434,7 @@ pub fn finish_reconciliation(
     statement_balance: String,
     state: tauri::State<AppStateHandle>,
 ) -> Result<bool, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let date = parse_date(&statement_date)?;
     let balance = parse_amount(&statement_balance)?;
     state
@@ -2817,7 +3451,7 @@ pub struct LastReconciliationDto {
 
 #[tauri::command]
 pub fn last_reconciliation(account_id: i64, state: tauri::State<AppStateHandle>) -> Result<Option<LastReconciliationDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let last = state.store.last_reconciliation(account_id).map_err(|e| e.to_string())?;
     Ok(last.map(|(date, balance)| LastReconciliationDto {
         statement_date: date.to_string(),
@@ -2834,7 +3468,7 @@ pub struct PortfolioPointDto {
 /// The portfolio's recorded value over time — see `Store::record_portfolio_snapshot`.
 #[tauri::command]
 pub fn portfolio_history(state: tauri::State<AppStateHandle>) -> Result<Vec<PortfolioPointDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let history = state.store.portfolio_history().map_err(|e| e.to_string())?;
     Ok(history
         .into_iter()
@@ -2843,15 +3477,6 @@ pub fn portfolio_history(state: tauri::State<AppStateHandle>) -> Result<Vec<Port
             value: value.to_string(),
         })
         .collect())
-}
-
-/// Records today's portfolio value — the app calls it at launch so a quiet
-/// week still leaves a point on the chart.
-#[tauri::command]
-pub fn record_portfolio_snapshot(state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let today = chrono::Local::now().date_naive();
-    state.store.record_portfolio_snapshot(today).map(|_| ()).map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -2918,7 +3543,7 @@ fn accumulation_dto(store: &Store, account_id: i64, today: chrono::NaiveDate) ->
 /// `Store::account_contributions` and `Store::get_investment_plan`.
 #[tauri::command]
 pub fn investment_accumulation(account_id: i64, state: tauri::State<AppStateHandle>) -> Result<InvestmentAccumulationDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     accumulation_dto(&state.store, account_id, chrono::Local::now().date_naive())
 }
 
@@ -2926,7 +3551,7 @@ pub fn investment_accumulation(account_id: i64, state: tauri::State<AppStateHand
 /// tab's summary table.
 #[tauri::command]
 pub fn list_investment_accumulation(state: tauri::State<AppStateHandle>) -> Result<Vec<InvestmentAccumulationDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let accounts = state.store.list_accounts(today).map_err(|e| e.to_string())?;
     accounts
@@ -2940,7 +3565,7 @@ pub fn list_investment_accumulation(state: tauri::State<AppStateHandle>) -> Resu
 /// only, see `Store::account_value_history`.
 #[tauri::command]
 pub fn account_value_history(account_id: i64, state: tauri::State<AppStateHandle>) -> Result<Vec<PortfolioPointDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let history = state.store.account_value_history(account_id).map_err(|e| e.to_string())?;
     Ok(history
         .into_iter()
@@ -2966,7 +3591,7 @@ pub fn set_investment_plan(
     inflation_pct: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let monthly_contribution = match monthly_contribution.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         Some(s) => Some(s.parse::<Decimal>().map_err(|_| "The monthly amount has to be a number.".to_string())?),
         None => None,
@@ -3001,10 +3626,9 @@ pub fn set_investment_plan(
 /// The inflation percentage behind "today's dollars" (3 until edited).
 #[tauri::command]
 pub fn get_inflation_pct(state: tauri::State<AppStateHandle>) -> Result<String, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.get_inflation_pct().map(|d| d.to_string()).map_err(|e| e.to_string())
 }
-
 
 #[derive(Serialize)]
 pub struct AllocationTargetDto {
@@ -3014,7 +3638,7 @@ pub struct AllocationTargetDto {
 
 #[tauri::command]
 pub fn list_allocation_targets(state: tauri::State<AppStateHandle>) -> Result<Vec<AllocationTargetDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let targets = state.store.list_allocation_targets().map_err(|e| e.to_string())?;
     Ok(targets
         .into_iter()
@@ -3028,14 +3652,14 @@ pub fn list_allocation_targets(state: tauri::State<AppStateHandle>) -> Result<Ve
 /// Sets (or, at 0, clears) one asset class's target share — see `Store::set_allocation_target`.
 #[tauri::command]
 pub fn set_allocation_target(asset_class: String, percent: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let percent = parse_amount(&percent)?;
     state.store.set_allocation_target(&asset_class, percent).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn update_holding_price(id: i64, price: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let price = parse_amount(&price)?;
     if price <= Decimal::ZERO {
         return Err("Price must be greater than zero.".to_string());
@@ -3048,7 +3672,7 @@ pub fn update_holding_price(id: i64, price: String, state: tauri::State<AppState
 
 #[tauri::command]
 pub fn delete_holding(id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.delete_holding(id).map_err(|e| e.to_string())?;
     let _ = state.store.record_portfolio_snapshot(chrono::Local::now().date_naive());
     Ok(())
@@ -3073,7 +3697,7 @@ pub struct LivePriceSettingsDto {
 /// command.
 #[tauri::command]
 pub fn get_live_price_settings(state: tauri::State<AppStateHandle>) -> Result<LivePriceSettingsDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let settings = state.store.get_live_price_settings().map_err(|e| e.to_string())?;
     let today = chrono::Local::now().date_naive();
     let requests_used_today = state.store.live_price_requests_used_today(today).map_err(|e| e.to_string())?;
@@ -3095,7 +3719,7 @@ pub fn get_live_price_settings(state: tauri::State<AppStateHandle>) -> Result<Li
 /// provider's own error message.
 #[tauri::command]
 pub fn set_live_price_settings(provider: String, api_key: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let provider =
         crate::live_price_provider::LivePriceProvider::parse(&provider).ok_or_else(|| format!("unknown live-price provider: {provider}"))?;
     let api_key = api_key.filter(|k| !k.trim().is_empty());
@@ -3119,7 +3743,7 @@ pub struct AppSettingsDto {
 
 #[tauri::command]
 pub fn get_app_settings(state: tauri::State<AppStateHandle>) -> Result<AppSettingsDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let settings = state.store.get_app_settings().map_err(|e| e.to_string())?;
     Ok(AppSettingsDto {
         apply_to_debt_enabled: settings.apply_to_debt_enabled,
@@ -3132,19 +3756,19 @@ pub fn get_app_settings(state: tauri::State<AppStateHandle>) -> Result<AppSettin
 
 #[tauri::command]
 pub fn set_apply_to_debt_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_apply_to_debt_enabled(enabled).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_split_purchases_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_split_purchases_enabled(enabled).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn set_envelope_caps_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_envelope_caps_enabled(enabled).map_err(|e| e.to_string())
 }
 
@@ -3153,7 +3777,7 @@ pub fn set_envelope_caps_enabled(enabled: bool, state: tauri::State<AppStateHand
 /// category's own choice.
 #[tauri::command]
 pub fn set_rollover_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_rollover_enabled(enabled).map_err(|e| e.to_string())
 }
 
@@ -3163,7 +3787,7 @@ pub fn set_rollover_enabled(enabled: bool, state: tauri::State<AppStateHandle>) 
 /// and leaves existing links alone.
 #[tauri::command]
 pub fn set_auto_link_transfers(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_auto_link_transfers(enabled).map_err(|e| e.to_string())?;
     if enabled {
         Ok(state.store.auto_link_transfers().map_err(|e| e.to_string())?.len())
@@ -3195,7 +3819,7 @@ pub async fn fetch_live_quote(
     let today = chrono::Local::now().date_naive();
     let generation = paths.current_generation();
     let (api_key, provider, used_today) = {
-        let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+        let state = state.lock()?;
         let settings = state.store.get_live_price_settings().map_err(|e| e.to_string())?;
         let used_today = state.store.live_price_requests_used_today(today).map_err(|e| e.to_string())?;
         (settings.api_key, settings.provider, used_today)
@@ -3230,7 +3854,7 @@ pub async fn fetch_live_quote(
         return Ok(None);
     }
     {
-        let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+        let state = state.lock()?;
         if paths.current_generation() != generation {
             return Ok(None);
         }
@@ -3292,7 +3916,7 @@ pub async fn refresh_live_prices(
     let today = chrono::Local::now().date_naive();
     let generation = paths.current_generation();
     let (api_key, provider, symbols, used_today) = {
-        let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+        let state = state.lock()?;
         let settings = state.store.get_live_price_settings().map_err(|e| e.to_string())?;
         let symbols = state.store.list_distinct_holding_symbols().map_err(|e| e.to_string())?;
         let used_today = state.store.live_price_requests_used_today(today).map_err(|e| e.to_string())?;
@@ -3380,7 +4004,7 @@ pub async fn refresh_live_prices(
 
     let mut updated = Vec::new();
     {
-        let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+        let state = state.lock()?;
         if paths.current_generation() != generation {
             return Ok(LivePriceRefreshSummary {
                 updated: Vec::new(),
@@ -3437,7 +4061,7 @@ pub fn create_asset(
     notes: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let value = parse_amount(&value)?;
     if value < Decimal::ZERO {
         return Err("Value can't be negative.".to_string());
@@ -3451,7 +4075,7 @@ pub fn create_asset(
 
 #[tauri::command]
 pub fn list_assets(state: tauri::State<AppStateHandle>) -> Result<Vec<AssetDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let assets = state.store.list_assets().map_err(|e| e.to_string())?;
     Ok(assets
         .into_iter()
@@ -3470,7 +4094,7 @@ pub fn list_assets(state: tauri::State<AppStateHandle>) -> Result<Vec<AssetDto>,
 
 #[tauri::command]
 pub fn update_asset_value(id: i64, value: String, valued_on: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let value = parse_amount(&value)?;
     if value < Decimal::ZERO {
         return Err("Value can't be negative.".to_string());
@@ -3481,13 +4105,13 @@ pub fn update_asset_value(id: i64, value: String, valued_on: String, state: taur
 
 #[tauri::command]
 pub fn set_asset_member(id: i64, member_id: Option<i64>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.set_asset_member(id, member_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn delete_asset(id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     state.store.delete_asset(id).map_err(|e| e.to_string())
 }
 
@@ -3528,7 +4152,7 @@ pub struct CashFlowDto {
 pub fn get_cash_flow(months: u32, state: tauri::State<AppStateHandle>) -> Result<CashFlowDto, String> {
     use chrono::Datelike;
 
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
 
     let mut year_months = Vec::with_capacity(months as usize);
@@ -3668,7 +4292,7 @@ pub fn cash_flow_for_range(
     to_month: u32,
     state: tauri::State<AppStateHandle>,
 ) -> Result<CashFlowDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let month_totals = month_totals_for_range(&state.store, from_year, from_month, to_year, to_month, "%b '%y")?;
 
     let mut total_income = Decimal::ZERO;
@@ -3721,7 +4345,7 @@ pub fn cash_flow_for_range(
 /// top-6 cut.
 #[tauri::command]
 pub fn category_spending_for_month(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<CategoryAmountDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(|| format!("invalid month: {year:04}-{month:02}"))?;
     let end_date = last_day_of_month(year, month);
     Ok(state
@@ -3759,7 +4383,7 @@ pub struct MonthExpenseDetailDto {
 /// this to answer "what drove this month's number."
 #[tauri::command]
 pub fn month_expense_detail(year: i32, month: u32, state: tauri::State<AppStateHandle>) -> Result<MonthExpenseDetailDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(|| format!("invalid month: {year:04}-{month:02}"))?;
     let end_date = last_day_of_month(year, month);
 
@@ -3816,7 +4440,7 @@ pub fn year_over_year_cash_flow(
     to_month: u32,
     state: tauri::State<AppStateHandle>,
 ) -> Result<YoyCashFlowDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let current = month_totals_for_range(&state.store, from_year, from_month, to_year, to_month, "%b")?;
     let prior_year = month_totals_for_range(&state.store, from_year - 1, from_month, to_year - 1, to_month, "%b")?;
     Ok(YoyCashFlowDto { current, prior_year })
@@ -3830,7 +4454,7 @@ pub struct ForecastPointDto {
 
 #[tauri::command]
 pub fn cash_flow_forecast(days: i64, state: tauri::State<AppStateHandle>) -> Result<Vec<ForecastPointDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let points = state.store.cash_flow_forecast(today, days).map_err(|e| e.to_string())?;
     Ok(points
@@ -3865,7 +4489,7 @@ pub struct BillAwareForecastDto {
 /// nothing active.
 #[tauri::command]
 pub fn bill_aware_forecast(days: i64, state: tauri::State<AppStateHandle>) -> Result<BillAwareForecastDto, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let forecast = state.store.bill_aware_forecast(today, days).map_err(|e| e.to_string())?;
     Ok(BillAwareForecastDto {
@@ -3896,7 +4520,7 @@ pub fn bill_aware_forecast(days: i64, state: tauri::State<AppStateHandle>) -> Re
 /// Dashboard's runway stat ("liquid savings ÷ average monthly spend").
 #[tauri::command]
 pub fn average_monthly_spend(state: tauri::State<AppStateHandle>) -> Result<String, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     state.store.average_monthly_spend(today).map(|d| d.to_string()).map_err(|e| e.to_string())
 }
@@ -3933,7 +4557,7 @@ pub struct NetWorthPointDto {
 pub fn net_worth_history(months: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<NetWorthPointDto>, String> {
     use chrono::Datelike;
 
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
 
     let mut year_months = Vec::with_capacity(months as usize);
@@ -3992,7 +4616,7 @@ pub fn account_contribution_deltas(
 ) -> Result<Vec<AccountContributionDeltaDto>, String> {
     let from = chrono::NaiveDate::parse_from_str(&from, "%Y-%m-%d").map_err(|e| e.to_string())?;
     let to = chrono::NaiveDate::parse_from_str(&to, "%Y-%m-%d").map_err(|e| e.to_string())?;
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let deltas = state.store.account_contribution_deltas(from, to).map_err(|e| e.to_string())?;
     Ok(deltas
         .into_iter()
@@ -4014,7 +4638,7 @@ pub fn account_contribution_deltas(
 pub fn spending_this_month(state: tauri::State<AppStateHandle>) -> Result<Vec<CategoryAmountDto>, String> {
     use chrono::Datelike;
 
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
+    let state = state.lock()?;
     let today = chrono::Local::now().date_naive();
     let start_of_month = chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("the 1st of the current month must be valid");
 
@@ -4030,30 +4654,151 @@ pub fn spending_this_month(state: tauri::State<AppStateHandle>) -> Result<Vec<Ca
         .collect())
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RolledAccountDto {
     pub account_id: i64,
     pub account_name: String,
     pub new_balance: String,
 }
 
-/// Rolls every account's balance forward into a fresh monthly reset if
-/// this is the first time it's happened this calendar month (see
-/// `Store::roll_forward_monthly_balances`) — safe to call on every app
-/// launch. Returns only the accounts that just got a *fresh* reset in
-/// this call, so the UI can show a one-time "here's what changed" note
-/// instead of nagging every time the app opens.
+/// What opening the profile's housekeeping did (this month's roll-forward, automatic sinking-fund
+/// contributions), for the page's one-time "here's what changed" notes. The work itself runs in
+/// `startup::after_profile_opened`, never from the page; this hands the result over once and needs
+/// an open profile like every other read.
 #[tauri::command]
-pub fn check_monthly_rollover(state: tauri::State<AppStateHandle>) -> Result<Vec<RolledAccountDto>, String> {
-    let state = state.lock().map_err(|_| "app state poisoned".to_string())?;
-    let today = chrono::Local::now().date_naive();
-    let rolled = state.store.roll_forward_monthly_balances(today).map_err(|e| e.to_string())?;
-    Ok(rolled
-        .into_iter()
-        .map(|(account_id, account_name, new_balance)| RolledAccountDto {
-            account_id,
-            account_name,
-            new_balance: new_balance.to_string(),
-        })
-        .collect())
+pub fn take_maintenance_summary(state: tauri::State<AppStateHandle>) -> Result<crate::maintenance::MaintenanceSummary, String> {
+    state.take_notice()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn protected_store_for_package_test(dir: &std::path::Path, password: &str) -> (Store, std::path::PathBuf) {
+        use budget_core::protection::{kdf::KdfParams, keyfile};
+        use budget_core::store::DatabaseKey;
+
+        let plain_path = dir.join("plain.db");
+        let protected_path = dir.join("protected.db");
+        let plain = Store::open(&plain_path).unwrap();
+        let protection = keyfile::create_protection(password, &KdfParams::FAST_FOR_TESTS, "2026-09-23T00:00:00Z").unwrap();
+        plain.export_encrypted_copy(&protected_path, protection.dek.as_bytes()).unwrap();
+        protection.key_file.write_to(&keyfile::key_file_path_for(&protected_path)).unwrap();
+        (
+            Store::open_with_key(&protected_path, DatabaseKey::Raw(protection.dek.as_bytes())).unwrap(),
+            protected_path,
+        )
+    }
+
+    #[test]
+    fn exporting_a_protected_profile_writes_a_complete_package() {
+        let dir = std::env::temp_dir().join(format!("vaultspend-package-export-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (store, source_path) = protected_store_for_package_test(&dir, "package password");
+        let destination = dir.join("Sam.vaultspend");
+
+        export_protected_package(&destination, "Sam", &source_path, &store, "2026-09-24T09:00:00Z").unwrap();
+
+        let database_path = destination.join(budget_core::protection::package::DATABASE_FILENAME);
+        let manifest = budget_core::protection::PackageManifest::from_json(
+            &std::fs::read_to_string(destination.join(budget_core::protection::package::MANIFEST_FILENAME)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(manifest.profile_name, "Sam");
+        assert_eq!(manifest.protection_format, 1);
+        assert_eq!(
+            manifest.database_sha256,
+            budget_core::protection::package::sha256_file(&database_path).unwrap()
+        );
+        assert!(budget_core::protection::keyfile::key_file_path_for(&database_path).exists());
+        assert!(budget_core::store::file_looks_encrypted(&database_path).unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn importing_a_protected_package_requires_its_password_and_intact_database() {
+        let dir = std::env::temp_dir().join(format!("vaultspend-package-import-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (store, source_path) = protected_store_for_package_test(&dir, "package password");
+        let package = dir.join("Sam.vaultspend");
+        export_protected_package(&package, "Sam", &source_path, &store, "2026-09-24T09:00:00Z").unwrap();
+
+        assert!(validate_protected_package(&package, "wrong password").is_err());
+        assert!(validate_protected_package(&package, "package password").is_ok());
+        std::fs::write(package.join(budget_core::protection::package::DATABASE_FILENAME), b"damaged").unwrap();
+        assert!(validate_protected_package(&package, "package password")
+            .err()
+            .unwrap()
+            .contains("doesn't match"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn relocating_an_encrypted_database_copies_its_key_file() {
+        use budget_core::protection::{kdf::KdfParams, keyfile};
+        use budget_core::store::DatabaseKey;
+
+        let dir = std::env::temp_dir().join(format!("vaultspend-relocate-protected-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let source_path = dir.join("source.db");
+        let destination_path = dir.join("moved").join("vaultspend.db");
+        std::fs::create_dir_all(destination_path.parent().unwrap()).unwrap();
+        let plain = Store::open(dir.join("plain.db")).unwrap();
+        let protection = keyfile::create_protection("same password", &KdfParams::FAST_FOR_TESTS, "2026-09-23T00:00:00Z").unwrap();
+        plain.export_encrypted_copy(&source_path, protection.dek.as_bytes()).unwrap();
+        protection.key_file.write_to(&keyfile::key_file_path_for(&source_path)).unwrap();
+        let encrypted = Store::open_with_key(&source_path, DatabaseKey::Raw(protection.dek.as_bytes())).unwrap();
+
+        copy_database_for_relocation(&encrypted, &source_path, &destination_path).unwrap();
+
+        let copied_key = keyfile::KeyFile::read(&keyfile::key_file_path_for(&destination_path)).unwrap();
+        let copied_dek = copied_key.unlock_with_password("same password").unwrap();
+        assert!(Store::open_with_key(&destination_path, DatabaseKey::Raw(copied_dek.as_bytes())).is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // The import review screen sends one choice per unfamiliar file category, keyed by the
+    // file's name for it. This is the exact shape the frontend (`CategoryChoice` in
+    // ImportCategoryReconcile.tsx) produces.
+    #[test]
+    fn the_review_screens_category_choices_are_read_as_sent() {
+        let sent = r#"{
+            "Dining": { "action": "map_to", "category": "Dining Out" },
+            "Pet Care": { "action": "create" },
+            "Merchandise": { "action": "skip" }
+        }"#;
+
+        let mut choices: std::collections::HashMap<String, CategoryChoiceDto> = serde_json::from_str(sent).unwrap();
+
+        assert_eq!(
+            ImportCategoryChoice::from(choices.remove("Dining").unwrap()),
+            ImportCategoryChoice::MapTo("Dining Out".to_string())
+        );
+        assert_eq!(
+            ImportCategoryChoice::from(choices.remove("Pet Care").unwrap()),
+            ImportCategoryChoice::Create
+        );
+        assert_eq!(
+            ImportCategoryChoice::from(choices.remove("Merchandise").unwrap()),
+            ImportCategoryChoice::Skip
+        );
+    }
+
+    #[test]
+    fn a_choice_with_an_unknown_action_is_refused_rather_than_guessed() {
+        let result: Result<std::collections::HashMap<String, CategoryChoiceDto>, _> = serde_json::from_str(r#"{"Dining": {"action": "adopt"}}"#);
+        assert!(result.is_err());
+    }
+}
+
+#[tauri::command]
+pub fn dismiss_recurring_price_change(id: i64, from: String, to: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    state
+        .store
+        .dismiss_recurring_price_change(id, parse_amount(&from)?, parse_amount(&to)?)
+        .map_err(|e| e.to_string())
 }

@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+import { invoke } from "@tauri-apps/api/core";
+
 import {
   DEFAULT_LAYOUT,
   LAYOUT_PRESETS,
@@ -17,10 +21,8 @@ import {
   type WidgetId,
 } from "./dashboardLayout";
 
-const STORAGE_KEY = "meadow-dashboard-layout";
-
 beforeEach(() => {
-  localStorage.clear();
+  vi.mocked(invoke).mockReset();
 });
 
 describe("WIDGET_CATALOG / DEFAULT_LAYOUT", () => {
@@ -45,13 +47,17 @@ describe("WIDGET_CATALOG / DEFAULT_LAYOUT", () => {
 });
 
 describe("loadDashboardLayout", () => {
-  it("returns the default layout when nothing is saved", () => {
-    expect(loadDashboardLayout()).toEqual(DEFAULT_LAYOUT);
+  it("returns the default layout when nothing is saved", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+
+    expect(await loadDashboardLayout()).toEqual(DEFAULT_LAYOUT);
+    expect(invoke).toHaveBeenCalledWith("get_profile_ui_state", { key: "dashboard_layout" });
   });
 
-  it("expands a legacy combined 'stats' entry into the 4 new ids, in place", () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(["needs_a_look", "stats", "runway"]));
-    expect(loadDashboardLayout()).toEqual([
+  it("expands a legacy combined 'stats' entry into the 4 new ids, in place", async () => {
+    vi.mocked(invoke).mockResolvedValue(JSON.stringify(["needs_a_look", "stats", "runway"]));
+
+    expect(await loadDashboardLayout()).toEqual([
       "needs_a_look",
       "stat_net_worth",
       "stat_cash",
@@ -61,15 +67,37 @@ describe("loadDashboardLayout", () => {
     ]);
   });
 
-  it("drops unrecognized ids and falls back to default if nothing valid remains", () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(["not_a_real_widget"]));
-    expect(loadDashboardLayout()).toEqual(DEFAULT_LAYOUT);
+  it("drops unrecognized ids and falls back to default if nothing valid remains", async () => {
+    vi.mocked(invoke).mockResolvedValue(JSON.stringify(["not_a_real_widget"]));
+
+    expect(await loadDashboardLayout()).toEqual(DEFAULT_LAYOUT);
   });
 
-  it("round-trips a layout already using the new per-stat ids", () => {
-    const layout = ["stat_debt", "stat_cash", "recent_transactions"] as const;
-    saveDashboardLayout([...layout]);
-    expect(loadDashboardLayout()).toEqual([...layout]);
+  it("falls back to default on a corrupt/unreadable value instead of throwing", async () => {
+    vi.mocked(invoke).mockRejectedValue(new Error("PROFILE_LOCKED: This profile is locked."));
+
+    expect(await loadDashboardLayout()).toEqual(DEFAULT_LAYOUT);
+  });
+
+  it("saves through set_profile_ui_state with the current generation", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd) => (cmd === "get_current_generation" ? 7 : undefined));
+
+    await saveDashboardLayout(["stat_debt", "stat_cash", "recent_transactions"]);
+
+    expect(invoke).toHaveBeenCalledWith("set_profile_ui_state", {
+      key: "dashboard_layout",
+      value: JSON.stringify(["stat_debt", "stat_cash", "recent_transactions"]),
+      expectedGeneration: 7,
+    });
+  });
+
+  it("saving never lands in localStorage — the whole point of the move to the backend", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd) => (cmd === "get_current_generation" ? 1 : undefined));
+    localStorage.clear();
+
+    await saveDashboardLayout([accountWidgetId(1), investmentWidgetId("Brokerage")]);
+
+    expect(localStorage.getItem("meadow-dashboard-layout")).toBeNull();
   });
 });
 
@@ -93,9 +121,21 @@ describe("parameterized widget ids", () => {
     expect(parseWidgetId("stat_cash")).toEqual({ kind: "fixed", id: "stat_cash" });
   });
 
-  it("survives a round trip through loadDashboardLayout/saveDashboardLayout", () => {
-    saveDashboardLayout(["stat_cash", accountWidgetId(7), bucketWidgetId(3), investmentWidgetId("Brokerage")]);
-    expect(loadDashboardLayout()).toEqual(["stat_cash", "account:7", "bucket:3", "investment:Brokerage"]);
+  it("survives a round trip through loadDashboardLayout/saveDashboardLayout", async () => {
+    let stored: string | null = null;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "get_current_generation") return 1;
+      if (cmd === "set_profile_ui_state") {
+        stored = (args as { value: string }).value;
+        return undefined;
+      }
+      if (cmd === "get_profile_ui_state") return stored;
+      return undefined;
+    });
+
+    await saveDashboardLayout(["stat_cash", accountWidgetId(7), bucketWidgetId(3), investmentWidgetId("Brokerage")]);
+
+    expect(await loadDashboardLayout()).toEqual(["stat_cash", "account:7", "bucket:3", "investment:Brokerage"]);
   });
 });
 
@@ -120,29 +160,54 @@ describe("matchingLayoutPreset", () => {
 });
 
 describe("loadCustomLayoutPresets / saveCustomLayoutPresets", () => {
-  it("returns an empty list when nothing is saved", () => {
-    expect(loadCustomLayoutPresets()).toEqual([]);
+  it("returns an empty list when nothing is saved", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+
+    expect(await loadCustomLayoutPresets()).toEqual([]);
+    expect(invoke).toHaveBeenCalledWith("get_profile_ui_state", { key: "dashboard_custom_layouts" });
   });
 
-  it("round-trips a saved custom preset", () => {
+  it("round-trips a saved custom preset", async () => {
+    let stored: string | null = null;
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd === "get_current_generation") return 1;
+      if (cmd === "set_profile_ui_state") {
+        stored = (args as { value: string }).value;
+        return undefined;
+      }
+      if (cmd === "get_profile_ui_state") return stored;
+      return undefined;
+    });
     const presets = [{ name: "Weekly check-in", widgets: ["stat_net_worth", "runway"] as WidgetId[] }];
-    saveCustomLayoutPresets(presets);
-    expect(loadCustomLayoutPresets()).toEqual(presets);
+
+    await saveCustomLayoutPresets(presets);
+
+    expect(await loadCustomLayoutPresets()).toEqual(presets);
   });
 
-  it("drops unrecognized widget ids from a saved preset, and drops the whole preset if nothing valid remains", () => {
-    localStorage.setItem(
-      "meadow-dashboard-custom-layouts",
+  it("drops unrecognized widget ids from a saved preset, and drops the whole preset if nothing valid remains", async () => {
+    vi.mocked(invoke).mockResolvedValue(
       JSON.stringify([
         { name: "Half valid", widgets: ["stat_cash", "not_a_real_widget"] },
         { name: "All invalid", widgets: ["not_a_real_widget"] },
       ]),
     );
-    expect(loadCustomLayoutPresets()).toEqual([{ name: "Half valid", widgets: ["stat_cash"] }]);
+
+    expect(await loadCustomLayoutPresets()).toEqual([{ name: "Half valid", widgets: ["stat_cash"] }]);
   });
 
-  it("ignores malformed entries instead of throwing", () => {
-    localStorage.setItem("meadow-dashboard-custom-layouts", JSON.stringify("not an array"));
-    expect(loadCustomLayoutPresets()).toEqual([]);
+  it("ignores malformed entries instead of throwing", async () => {
+    vi.mocked(invoke).mockResolvedValue(JSON.stringify("not an array"));
+
+    expect(await loadCustomLayoutPresets()).toEqual([]);
+  });
+
+  it("saving never lands in localStorage", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd) => (cmd === "get_current_generation" ? 1 : undefined));
+    localStorage.clear();
+
+    await saveCustomLayoutPresets([{ name: "Weekly", widgets: ["runway"] }]);
+
+    expect(localStorage.getItem("meadow-dashboard-custom-layouts")).toBeNull();
   });
 });

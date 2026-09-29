@@ -15,6 +15,9 @@
 // Run with: node e2e/feature38_theme_style.mjs
 
 import { launchApp } from "./harness.mjs";
+import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
 
 // WebdriverIO's `tag*=text` reverse-text shorthand is unreliable outside a
 // bare tag selector (see explore.mjs's header comment for the descendant-
@@ -156,6 +159,33 @@ try {
   palette = await app.browser.execute(() => document.documentElement.getAttribute("data-palette"));
   if (palette !== null) throw new Error(`expected data-palette to be cleared back to Slate after Transparent, got "${palette}"`);
   console.log("Slate: data-palette cleared after Transparent — OK");
+
+  // A floating profile menu must mask the navigation underneath, even in
+  // Transparent. Check the rendered color rather than a particular CSS token.
+  for (const palette of ["classic", "futuristic", "transparent"]) {
+    for (const theme of ["light", "dark"]) {
+      await app.browser.execute((palette, theme) => {
+        document.documentElement.dataset.palette = palette;
+        document.documentElement.dataset.theme = theme;
+      }, palette, theme);
+      await (await app.browser.$(".profile-switcher-toggle")).click();
+      await app.browser.$(".profile-switcher-panel").waitForDisplayed();
+      const surface = await app.browser.execute(() => {
+        const panel = document.querySelector(".profile-switcher-panel");
+        const css = getComputedStyle(panel);
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = css.backgroundColor;
+        ctx.fillRect(0, 0, 1, 1);
+        return { color: css.backgroundColor, alpha: ctx.getImageData(0, 0, 1, 1).data[3] };
+      });
+      await app.browser.saveScreenshot(path.join(os.tmpdir(), `vault-profile-menu-${palette}-${theme}.png`));
+      assert.equal(surface.alpha, 255, `${palette}/${theme}: profile menu must hide underlying navigation (${surface.color})`);
+      await (await app.browser.$(".profile-switcher-toggle")).click();
+      console.log(`${palette}/${theme}: profile menu is opaque — OK`);
+    }
+  }
 
   console.log("FEATURE 38 E2E TEST PASSED");
 } finally {

@@ -103,7 +103,8 @@ try {
 
   // Focus moved on to Mystery Vendor. Pick a category by hand, then accept.
   if ((await activeDescription()) !== "Mystery Vendor") throw new Error(`focus should move on to Mystery Vendor, got ${await activeDescription()}`);
-  await (await (await row("Mystery Vendor")).$("select")).selectByVisibleText("Groceries");
+  await (await (await row("Mystery Vendor")).$(".inbox-category-trigger")).click();
+  await (await (await browser.$(".inbox-category-menu")).$("button*=Groceries")).click();
   await (await (await row("Mystery Vendor")).$("[data-inbox-accept]")).click();
   await browser.waitUntil(async () => (await stateOf("Mystery Vendor")) === "done", { timeout: 10000 });
 

@@ -1,16 +1,28 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BillAwareForecast } from "./types";
 import { formatAmount, toLocalIsoDate } from "./format";
 import { safeToSpend } from "./safeToSpend";
+import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 
-const BUFFER_STORAGE_KEY = "vaultspend-safe-to-spend-buffer";
+function parseBuffer(stored: string | null): number {
+  const parsed = parseFloat(stored ?? "");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
 
-function loadBuffer(): number {
+async function loadBuffer(): Promise<number> {
   try {
-    const parsed = parseFloat(localStorage.getItem(BUFFER_STORAGE_KEY) ?? "");
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    return parseBuffer(await getProfileUiState("safe_to_spend_buffer"));
   } catch {
-    return 0; // private window, blocked site data, etc. — just no buffer
+    return 0; // unavailable/corrupt value — just no buffer
+  }
+}
+
+async function saveBuffer(value: number) {
+  try {
+    const generation = await getCurrentGeneration();
+    await setProfileUiState("safe_to_spend_buffer", String(value), generation);
+  } catch {
+    // a failed write only means the buffer isn't remembered next launch
   }
 }
 
@@ -26,19 +38,23 @@ export function SafeToSpendCard({
   forecast: BillAwareForecast;
   onOpenRecurring: () => void;
 }) {
-  const [bufferText, setBufferText] = useState(() => {
-    const saved = loadBuffer();
-    return saved > 0 ? String(saved) : "";
-  });
+  const [bufferText, setBufferText] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    loadBuffer().then((saved) => {
+      if (!cancelled && saved > 0) setBufferText(String(saved));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const buffer = Math.max(0, parseFloat(bufferText) || 0);
 
   function changeBuffer(text: string) {
     setBufferText(text);
-    try {
-      localStorage.setItem(BUFFER_STORAGE_KEY, String(Math.max(0, parseFloat(text) || 0)));
-    } catch {
-      // a failed write only means the buffer isn't remembered next launch
-    }
+    saveBuffer(Math.max(0, parseFloat(text) || 0));
   }
 
   const cash = parseFloat(forecast.start_balance);

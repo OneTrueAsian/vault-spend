@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Check, Info, Leaf, LineChart as LineChartIcon, MessageCircleQuestion } from "lucide-react";
 import { CategoryIcon, BudgetGroupIcon, AccountTypeIcon, BucketIcon, IconEntryGlyph, flatIconEntry } from "./icons";
 import type {
@@ -38,6 +38,7 @@ import {
   type WidgetId,
 } from "./dashboardLayout";
 import { answerLedgerQuestion, LEDGER_QA_EXAMPLES, type QaResult } from "./ledgerQa";
+import { ensureUiStateMigrated } from "./profileUiState";
 import { attentionItems, type AttentionKind } from "./needsAttention";
 import { effectiveBudget } from "./budgetPlan";
 import { SafeToSpendCard } from "./SafeToSpendCard";
@@ -285,9 +286,28 @@ export function DashboardView({
   const [checklistDismissed, setChecklistDismissed] = useState(loadChecklistDismissed);
   const [customizeMode, setCustomizeMode] = useState(false);
   const [dragWidgetId, setDragWidgetId] = useState<WidgetId | null>(null);
-  const [customPresets, setCustomPresets] = useState<SavedLayoutPreset[]>(loadCustomLayoutPresets);
+  const [customPresets, setCustomPresets] = useState<SavedLayoutPreset[]>([]);
   const [savingLayout, setSavingLayout] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState("");
+
+  // DashboardView remounts fresh whenever App does (a profile switch/lock changes App's own React
+  // `key`), so this load can never hand one profile's presets to another. React fires child effects
+  // before parent effects, so this can run before App's own migration effect — `ensureUiStateMigrated`
+  // is safe to call from more than one place at once (see profileUiState.ts), and calling it here too
+  // is what makes a first-launch-after-upgrade legacy preset show up on this very render instead of
+  // only after the next reload.
+  useEffect(() => {
+    let cancelled = false;
+    ensureUiStateMigrated()
+      .catch(() => {}) // best effort — the same treatment every browser-storage read/write here already gets
+      .then(() => loadCustomLayoutPresets())
+      .then((presets) => {
+        if (!cancelled) setCustomPresets(presets);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function saveCurrentLayout() {
     const name = newLayoutName.trim();

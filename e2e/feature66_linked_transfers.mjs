@@ -10,6 +10,8 @@
 // Run with: node e2e/feature66_linked_transfers.mjs
 
 import { launchApp } from "./harness.mjs";
+import os from "node:os";
+import path from "node:path";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -78,6 +80,25 @@ try {
   await chip.click();
   const dialog = await browser.$("[role='dialog']");
   await dialog.waitForExist({ timeout: 10000 });
+  const details = await dialog.$$(".transfer-review-details");
+  if (details.length !== 2) throw new Error("each suggested pair must offer transaction details");
+  for (const detail of details) await (await detail.$("summary")).click();
+  let detailText = "";
+  for (const detail of details) detailText += `${await detail.getText()}\n`;
+  for (const description of ["Move to savings", "Deposit from checking", "Sent to brother", "Brother paid me back"]) {
+    if (!detailText.includes(description)) throw new Error(`missing transaction detail: ${description}`);
+  }
+  for (const detail of details) {
+    const text = await detail.getText();
+    if (!text.includes("Money out") || !text.includes("Money in") || !text.includes("Category:")) {
+      throw new Error(`incomplete transaction details: ${text}`);
+    }
+  }
+  const selections = await dialog.$$(".transfer-review-row input");
+  for (const selection of selections) {
+    if (!(await selection.isSelected())) throw new Error("opening details must not toggle pair selection");
+  }
+  await browser.saveScreenshot(path.join(os.tmpdir(), "vault-transfer-details.png"));
   await browser.waitUntil(async () => /Possible transfers/.test(await dialog.getText()), { timeout: 10000 });
   const dialogText = await dialog.getText();
   if (!dialogText.includes("Everyday Checking → High-Yield Savings")) throw new Error(`expected the pair described as A → B, got:\n${dialogText}`);

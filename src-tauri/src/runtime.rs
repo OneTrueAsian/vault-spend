@@ -1,0 +1,346 @@
+//! The one place that decides whether a profile's data is available. `AppRuntime` replaces the
+//! always-open `Mutex<AppState>`: it can hold no profile (the launch error screen, later the
+//! selector), a locked profile (later phases) or an open one. Every command reaches its state
+//! through `lock()`, which fails the same way for the first two. Design: plan v2 section 4.4.
+use crate::commands::AppState;
+use crate::maintenance::MaintenanceSummary;
+use std::ops::{Deref, DerefMut};
+use std::sync::{Mutex, MutexGuard};
+
+/// The error text of a command that needs an open profile and finds it locked starts with this.
+pub const PROFILE_LOCKED: &str = "PROFILE_LOCKED";
+/// The error text of a command that needs an open profile and finds none starts with this.
+pub const NO_PROFILE_OPEN: &str = "NO_PROFILE_OPEN";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuntimeStatus {
+    NoProfileOpen,
+    Locked { profile_id: String },
+    Open,
+}
+
+enum Slot {
+    NoProfileOpen,
+    Locked { profile_id: String },
+    Open(AppState),
+}
+
+pub struct AppRuntime {
+    slot: Mutex<Slot>,
+    /// What opening the current profile's housekeeping did, waiting for the page to show it once.
+    /// Cleared whenever the slot changes hands, so it can never reach another profile or a locked one.
+    notice: Mutex<MaintenanceSummary>,
+}
+
+/// The open state, held under the runtime's lock for as long as this value lives.
+pub struct OpenSession<'a> {
+    guard: MutexGuard<'a, Slot>,
+}
+
+impl Deref for OpenSession<'_> {
+    type Target = AppState;
+
+    fn deref(&self) -> &AppState {
+        match &*self.guard {
+            Slot::Open(state) => state,
+            _ => unreachable!("an OpenSession is only created while the slot is open"),
+        }
+    }
+}
+
+impl DerefMut for OpenSession<'_> {
+    fn deref_mut(&mut self) -> &mut AppState {
+        match &mut *self.guard {
+            Slot::Open(state) => state,
+            _ => unreachable!("an OpenSession is only created while the slot is open"),
+        }
+    }
+}
+
+impl AppRuntime {
+    pub fn no_profile_open() -> Self {
+        AppRuntime {
+            slot: Mutex::new(Slot::NoProfileOpen),
+            notice: Mutex::new(MaintenanceSummary::default()),
+        }
+    }
+
+    fn clear_notice(&self) {
+        *self.notice.lock().unwrap_or_else(|e| e.into_inner()) = MaintenanceSummary::default();
+    }
+
+    /// Keeps what opening the profile just did until the page asks for it. Replaces any earlier one.
+    pub fn set_notice(&self, summary: MaintenanceSummary) {
+        *self.notice.lock().unwrap_or_else(|e| e.into_inner()) = summary;
+    }
+
+    /// Hands the pending notice to the page, once. Needs an open profile like every other read.
+    pub fn take_notice(&self) -> Result<MaintenanceSummary, String> {
+        let _session = self.lock()?;
+        Ok(std::mem::take(&mut *self.notice.lock().unwrap_or_else(|e| e.into_inner())))
+    }
+
+    /// The open state, or `NO_PROFILE_OPEN: ...` / `PROFILE_LOCKED: ...`. Meant to be used as
+    /// `let state = state.lock()?;` in a command that returns `Result<_, String>`.
+    pub fn lock(&self) -> Result<OpenSession<'_>, String> {
+        let guard = self.slot.lock().map_err(|_| "app state poisoned".to_string())?;
+        if matches!(&*guard, Slot::Open(_)) {
+            return Ok(OpenSession { guard });
+        }
+        match &*guard {
+            Slot::Locked { .. } => Err(format!("{PROFILE_LOCKED}: This profile is locked. Unlock it to continue.")),
+            _ => Err(format!("{NO_PROFILE_OPEN}: No profile is open.")),
+        }
+    }
+
+    /// Makes `state` the open profile, dropping whatever was there (its connection closes).
+    pub fn install(&self, state: AppState) {
+        self.clear_notice();
+        *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Open(state);
+    }
+
+    /// Drops the open profile's state (its connection closes) and remembers which profile is locked.
+    #[allow(dead_code)] // used by the lock screen and auto-lock in Phases C and E
+    pub fn lock_profile(&self, profile_id: &str) {
+        self.clear_notice();
+        *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Locked { profile_id: profile_id.to_string() };
+    }
+
+    /// Atomically finishes work that needs the open database and replaces it with a locked slot.
+    /// `still_current` must only inspect state that does not need this runtime mutex. Its second
+    /// check closes the gap between a timer taking a profile snapshot and actually acquiring the
+    /// runtime. A best-effort `before_drop` failure is returned to the caller for logging, but the
+    /// state is still dropped and locked.
+    pub fn lock_open_profile<V, F>(&self, profile_id: &str, still_current: V, before_drop: F) -> Result<Option<String>, String>
+    where
+        V: FnOnce() -> bool,
+        F: FnOnce(&AppState) -> Option<String>,
+    {
+        let mut guard = self.slot.lock().map_err(|_| "app state poisoned".to_string())?;
+        let state = match &*guard {
+            Slot::Open(state) => state,
+            Slot::Locked { .. } => return Err(format!("{PROFILE_LOCKED}: This profile is already locked.")),
+            Slot::NoProfileOpen => return Err(format!("{NO_PROFILE_OPEN}: No profile is open.")),
+        };
+        if !still_current() {
+            return Err("Something else already changed which profile is open.".to_string());
+        }
+        let before_drop_error = before_drop(state);
+        self.clear_notice();
+        *guard = Slot::Locked {
+            profile_id: profile_id.to_string(),
+        };
+        Ok(before_drop_error)
+    }
+
+    /// Abandons a locked slot, going back to `NoProfileOpen` — the lock screen's "Switch profile"
+    /// button's only way to actually reach the selector again (found by a real UAT walk: without
+    /// this, `show_profile_selector` re-derived state through the same registry check every other
+    /// caller uses, which checks `Locked` first and so could only ever hand the lock screen straight
+    /// back to itself). A no-op on `Open` or `NoProfileOpen` — this must never be able to silently
+    /// discard a real open session; only a genuinely locked slot is ever released.
+    pub fn release_lock(&self) {
+        let mut guard = self.slot.lock().unwrap_or_else(|e| e.into_inner());
+        if matches!(&*guard, Slot::Locked { .. }) {
+            *guard = Slot::NoProfileOpen;
+        }
+    }
+
+    pub fn status(&self) -> RuntimeStatus {
+        match &*self.slot.lock().unwrap_or_else(|e| e.into_inner()) {
+            Slot::NoProfileOpen => RuntimeStatus::NoProfileOpen,
+            Slot::Locked { profile_id } => RuntimeStatus::Locked { profile_id: profile_id.clone() },
+            Slot::Open(_) => RuntimeStatus::Open,
+        }
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.status() == RuntimeStatus::Open
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::AppState;
+    use std::path::PathBuf;
+
+    fn temp_db(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("vaultspend-runtime-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join("test.db")
+    }
+
+    fn open_state(name: &str) -> AppState {
+        AppState::open(temp_db(name)).unwrap()
+    }
+
+    fn open_runtime(state: AppState) -> AppRuntime {
+        let runtime = AppRuntime::no_profile_open();
+        runtime.install(state);
+        runtime
+    }
+
+    fn one_rolled_account() -> crate::maintenance::MaintenanceSummary {
+        let mut summary = crate::maintenance::MaintenanceSummary::default();
+        summary.rolled.push(crate::commands::RolledAccountDto {
+            account_id: 1,
+            account_name: "Checking".to_string(),
+            new_balance: "10.00".to_string(),
+        });
+        summary
+    }
+
+    #[test]
+    fn the_open_session_receives_its_startup_notice_exactly_once() {
+        let runtime = open_runtime(open_state("notice-once"));
+        runtime.set_notice(one_rolled_account());
+
+        let first = runtime.take_notice().unwrap();
+        let second = runtime.take_notice().unwrap();
+
+        assert_eq!(first.rolled.len(), 1);
+        assert_eq!(second, MaintenanceSummary::default(), "a second read must not repeat the toast");
+    }
+
+    #[test]
+    fn a_locked_or_empty_runtime_cannot_read_the_notice() {
+        let runtime = open_runtime(open_state("notice-locked"));
+        runtime.lock_profile("work");
+        assert!(runtime.take_notice().unwrap_err().starts_with(PROFILE_LOCKED));
+
+        let none = AppRuntime::no_profile_open();
+        assert!(none.take_notice().unwrap_err().starts_with(NO_PROFILE_OPEN));
+    }
+
+    #[test]
+    fn an_unread_notice_never_survives_a_lock_or_another_profile() {
+        let runtime = open_runtime(open_state("notice-lock-a"));
+        runtime.set_notice(one_rolled_account());
+        runtime.lock_open_profile("a", || true, |_| None).unwrap();
+        runtime.install(open_state("notice-lock-b"));
+        assert_eq!(
+            runtime.take_notice().unwrap(),
+            MaintenanceSummary::default(),
+            "an unlocked profile must not inherit the old one's notice"
+        );
+
+        runtime.set_notice(one_rolled_account());
+        runtime.install(open_state("notice-lock-c"));
+        assert_eq!(
+            runtime.take_notice().unwrap(),
+            MaintenanceSummary::default(),
+            "installing a profile discards a stale notice"
+        );
+
+        runtime.set_notice(one_rolled_account());
+        runtime.lock_profile("c");
+        runtime.release_lock();
+        runtime.install(open_state("notice-lock-d"));
+        assert_eq!(runtime.take_notice().unwrap(), MaintenanceSummary::default());
+    }
+
+    #[test]
+    fn an_open_runtime_hands_out_the_state() {
+        let runtime = open_runtime(open_state("open"));
+
+        assert_eq!(runtime.status(), RuntimeStatus::Open);
+        assert!(runtime.is_open());
+        let session = runtime.lock().expect("an open runtime can be locked for use");
+        assert!(session.store.get_background_settings().is_ok());
+    }
+
+    #[test]
+    fn no_profile_open_refuses_with_its_code() {
+        let runtime = AppRuntime::no_profile_open();
+
+        let message = runtime.lock().err().expect("nothing is open");
+
+        assert!(message.starts_with(NO_PROFILE_OPEN), "{message}");
+        assert_eq!(runtime.status(), RuntimeStatus::NoProfileOpen);
+        assert!(!runtime.is_open());
+    }
+
+    #[test]
+    fn a_locked_runtime_refuses_with_its_own_code_and_drops_the_state() {
+        let runtime = open_runtime(open_state("locked"));
+
+        runtime.lock_profile("work");
+
+        let message = runtime.lock().err().expect("a locked profile has no usable state");
+        assert!(message.starts_with(PROFILE_LOCKED), "{message}");
+        assert!(!message.starts_with(NO_PROFILE_OPEN));
+        assert_eq!(runtime.status(), RuntimeStatus::Locked { profile_id: "work".to_string() });
+    }
+
+    #[test]
+    fn installing_opens_a_runtime_that_had_nothing() {
+        let runtime = AppRuntime::no_profile_open();
+
+        runtime.install(open_state("install"));
+
+        assert_eq!(runtime.status(), RuntimeStatus::Open);
+        assert!(runtime.lock().is_ok());
+    }
+
+    #[test]
+    fn a_locked_runtime_can_be_opened_again() {
+        let runtime = open_runtime(open_state("relock"));
+        runtime.lock_profile("work");
+
+        runtime.install(open_state("relock-second"));
+
+        assert_eq!(runtime.status(), RuntimeStatus::Open);
+    }
+
+    #[test]
+    fn releasing_a_lock_goes_back_to_no_profile_open() {
+        // The only real caller: the lock screen's "Switch profile" button, which must be able to
+        // abandon a locked profile and reach the selector — not just re-report the same lock,
+        // which is what happened before this method existed (found by a real UAT walk, not a test).
+        let runtime = open_runtime(open_state("release"));
+        runtime.lock_profile("work");
+
+        runtime.release_lock();
+
+        assert_eq!(runtime.status(), RuntimeStatus::NoProfileOpen);
+    }
+
+    #[test]
+    fn releasing_a_lock_on_an_open_runtime_leaves_it_open() {
+        // Must never be able to silently discard a real open session — only a genuinely locked
+        // slot is ever released.
+        let runtime = open_runtime(open_state("release-open"));
+
+        runtime.release_lock();
+
+        assert_eq!(runtime.status(), RuntimeStatus::Open);
+    }
+
+    #[test]
+    fn a_freshly_locked_profile_has_no_delay() {
+        // A baseline guard, not a new behavior: attempt-delay bookkeeping (Phase C, Task 2) lives
+        // in the separate `protection_session::Sessions`, not here — `AppRuntime` itself carries no
+        // deadline state. This just pins down that locking alone still reports the plain Locked
+        // status, so a later change that tries to fold delay state into this slot is caught here.
+        let runtime = open_runtime(open_state("fresh-lock"));
+
+        runtime.lock_profile("work");
+
+        assert_eq!(runtime.status(), RuntimeStatus::Locked { profile_id: "work".to_string() });
+    }
+
+    #[test]
+    fn the_session_lets_a_command_swap_the_state_in_place() {
+        // relocate_data_file, restore_backup and switch_profile do `*state = AppState::open(..)?`.
+        let runtime = open_runtime(open_state("swap-first"));
+
+        {
+            let mut session = runtime.lock().ok().unwrap();
+            *session = open_state("swap-second");
+        }
+
+        assert!(runtime.lock().is_ok());
+    }
+}

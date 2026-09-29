@@ -6,6 +6,11 @@ use rust_decimal::Decimal;
 use std::path::Path;
 use std::str::FromStr;
 
+mod encryption;
+pub use self::encryption::{DatabaseKey, StoreOpenError, file_looks_encrypted};
+mod profile_ui_state;
+pub use self::profile_ui_state::UiStateKey;
+
 /// The starter categories offered before the user has created or used any
 /// of their own — seeded once into the `categories` table on a fresh
 /// database (see `Store::seed_default_categories_if_missing`).
@@ -189,6 +194,50 @@ pub struct StoredBucket {
 pub struct StoredCategory {
     pub name: String,
     pub icon_key: Option<String>,
+}
+
+/// What to do with a category name that came in on an import file but isn't one of
+/// the person's own categories. Nothing is ever created unless they pick `Create`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportCategoryChoice {
+    /// Use one of the person's existing categories instead.
+    MapTo(String),
+    /// Add the file's category to their list.
+    Create,
+    /// Import those rows without a category (the categorizer may still fill one in).
+    Skip,
+}
+
+/// A category name an import file uses that the person doesn't have, with how many
+/// rows use it — see `Store::unmatched_import_categories`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnmatchedImportCategory {
+    pub name: String,
+    pub count: usize,
+}
+
+#[derive(Debug)]
+pub enum ImportCategoryError {
+    /// A choice mapped a file category to a category that doesn't exist.
+    UnknownCategory(String),
+    Db(rusqlite::Error),
+}
+
+impl std::fmt::Display for ImportCategoryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ImportCategoryError::UnknownCategory(name) => write!(f, "There's no category called \"{name}\" to move those rows into."),
+            ImportCategoryError::Db(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for ImportCategoryError {}
+
+impl From<rusqlite::Error> for ImportCategoryError {
+    fn from(e: rusqlite::Error) -> Self {
+        ImportCategoryError::Db(e)
+    }
 }
 
 /// SQL yielding the id of every transaction that is a leg of a *linked
@@ -466,6 +515,16 @@ pub struct BillReminder {
     /// Negative, like the bill itself.
     pub amount: Decimal,
     pub due_date: NaiveDate,
+}
+
+/// Minimal open-database projection. The row id is used only to match live reminders;
+/// callers must persist only the opaque identity, due date, and sent date.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReminderProjection {
+    pub recurring_id: i64,
+    pub opaque_id: String,
+    pub due_date: NaiveDate,
+    pub last_notified: Option<NaiveDate>,
 }
 
 /// One cell of the Reports page's category-by-month table — see
@@ -863,6 +922,8 @@ pub struct Store {
     /// build type, since there's no sibling directory to put it in and no
     /// real user data to explain.
     activity_log_path: Option<std::path::PathBuf>,
+    /// The raw database key when this store was opened encrypted. Zeroized when the store drops.
+    db_key: Option<zeroize::Zeroizing<[u8; 32]>>,
 }
 
 impl Store {
@@ -876,6 +937,7 @@ impl Store {
         let store = Store {
             conn: Connection::open(path)?,
             activity_log_path,
+            db_key: None,
         };
         store.init_schema()?;
         Ok(store)
@@ -885,6 +947,7 @@ impl Store {
         let store = Store {
             conn: Connection::open_in_memory()?,
             activity_log_path: None,
+            db_key: None,
         };
         store.init_schema()?;
         Ok(store)
@@ -1032,6 +1095,12 @@ impl Store {
                 cadence TEXT NOT NULL,
                 PRIMARY KEY (merchant, amount, cadence)
             );
+            CREATE TABLE IF NOT EXISTS recurring_price_dismissals (
+                recurring_id INTEGER NOT NULL REFERENCES recurring(id) ON DELETE CASCADE,
+                from_amount TEXT NOT NULL,
+                to_amount TEXT NOT NULL,
+                PRIMARY KEY (recurring_id, from_amount, to_amount)
+            );
             CREATE TABLE IF NOT EXISTS holdings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 account_id INTEGER NOT NULL REFERENCES accounts(id),
@@ -1173,11 +1242,26 @@ impl Store {
                 value TEXT NOT NULL,
                 PRIMARY KEY (account_id, date)
             );
+            CREATE TABLE IF NOT EXISTS reminder_identities (
+                recurring_id INTEGER PRIMARY KEY,
+                opaque_id TEXT NOT NULL UNIQUE
+            );
+            INSERT OR IGNORE INTO reminder_identities SELECT id, lower(hex(randomblob(16))) FROM recurring;
+            CREATE TRIGGER IF NOT EXISTS recurring_reminder_identity_insert AFTER INSERT ON recurring BEGIN
+                INSERT INTO reminder_identities VALUES (NEW.id, lower(hex(randomblob(16))));
+            END;
+            CREATE TRIGGER IF NOT EXISTS recurring_reminder_identity_delete AFTER DELETE ON recurring BEGIN
+                DELETE FROM reminder_identities WHERE recurring_id = OLD.id;
+            END;
             CREATE TABLE IF NOT EXISTS reminders_sent (
                 recurring_id INTEGER NOT NULL,
                 due_date TEXT NOT NULL,
                 sent_on TEXT NOT NULL,
                 PRIMARY KEY (recurring_id, due_date)
+            );
+            CREATE TABLE IF NOT EXISTS profile_ui_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
             );",
         )?;
         self.migrate_add_account_id_if_missing()?;
@@ -3802,6 +3886,101 @@ impl Store {
         if let Some(icon_key) = icon_key {
             self.conn
                 .execute("UPDATE categories SET icon_key = ?1 WHERE name = ?2", params![icon_key, name])?;
+        }
+        Ok(())
+    }
+
+    /// The stored spelling of the category `name` refers to — matched ignoring case and
+    /// surrounding spaces — or `None` when the person has no such category. Never creates one.
+    pub fn find_category(&self, name: &str) -> rusqlite::Result<Option<String>> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Ok(None);
+        }
+        match self
+            .conn
+            .query_row("SELECT name FROM categories WHERE name = ?1", params![name], |row| row.get::<_, String>(0))
+        {
+            Ok(found) => Ok(Some(found)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// `set_category` for a *guess* (a rule or the classifier): applies the category only when
+    /// the person already has it, using their spelling, and returns whether it did. A guess
+    /// must never add a category to their list — `set_category` (a person typing a new name
+    /// for a transaction) is the one that may.
+    pub fn set_category_if_registered(&self, id: i64, category: &str, source: CategorySource, confidence: Option<f64>) -> rusqlite::Result<bool> {
+        let Some(existing) = self.find_category(category)? else {
+            return Ok(false);
+        };
+        self.conn.execute(
+            "UPDATE transactions SET category = ?1, category_source = ?2, confidence = ?3 WHERE id = ?4",
+            params![existing, source.as_str(), confidence, id],
+        )?;
+        Ok(true)
+    }
+
+    /// The category names in an import file that the person doesn't have — one entry per name
+    /// however it is cased (the file's first spelling), with the number of rows using it, the
+    /// most-used first. Names that match one of their categories, and rows with no category,
+    /// are left out. A pure read.
+    pub fn unmatched_import_categories(&self, txns: &[Transaction]) -> rusqlite::Result<Vec<UnmatchedImportCategory>> {
+        let mut seen: Vec<UnmatchedImportCategory> = Vec::new();
+        for tx in txns {
+            let Some(name) = tx.category.as_deref().map(str::trim).filter(|n| !n.is_empty()) else {
+                continue;
+            };
+            if self.find_category(name)?.is_some() {
+                continue;
+            }
+            match seen.iter_mut().find(|u| u.name.eq_ignore_ascii_case(name)) {
+                Some(existing) => existing.count += 1,
+                None => seen.push(UnmatchedImportCategory { name: name.to_string(), count: 1 }),
+            }
+        }
+        seen.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+        Ok(seen)
+    }
+
+    /// Settles every row's file-supplied category before the rows are saved, so an import only
+    /// ever lands in categories the person has. A category that matches one of theirs (any
+    /// casing) takes their spelling; one they don't have follows `choices` (keyed by the file's
+    /// name, any casing): `MapTo` an existing category, `Create` it (the only way an import adds
+    /// a category), or `Skip` — and a name with no choice is skipped too, never adopted. A
+    /// `MapTo` that names a category that doesn't exist is refused before anything is changed.
+    pub fn reconcile_import_categories(
+        &self,
+        txns: &mut [Transaction],
+        choices: &std::collections::HashMap<String, ImportCategoryChoice>,
+    ) -> Result<(), ImportCategoryError> {
+        for choice in choices.values() {
+            if let ImportCategoryChoice::MapTo(target) = choice
+                && self.find_category(target)?.is_none()
+            {
+                return Err(ImportCategoryError::UnknownCategory(target.trim().to_string()));
+            }
+        }
+        for tx in txns.iter_mut() {
+            let Some(name) = tx.category.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(str::to_string) else {
+                tx.category = None;
+                continue;
+            };
+            if let Some(existing) = self.find_category(&name)? {
+                tx.category = Some(existing);
+                continue;
+            }
+            let choice = choices.iter().find(|(key, _)| key.trim().eq_ignore_ascii_case(&name));
+            tx.category = match choice {
+                Some((_, ImportCategoryChoice::MapTo(target))) => self.find_category(target)?,
+                Some((key, ImportCategoryChoice::Create)) => {
+                    let spelling = key.trim();
+                    self.create_category(spelling, None)?;
+                    self.find_category(spelling)?
+                }
+                Some((_, ImportCategoryChoice::Skip)) | None => None,
+            };
         }
         Ok(())
     }
@@ -6467,16 +6646,36 @@ impl Store {
             };
 
             let amounts: Vec<Decimal> = matched.iter().map(|(_, _, a)| *a).collect();
+            let mut price_change = detect_price_change(&amounts, item.amount);
+            if let Some(change) = &price_change {
+                let dismissed: bool = self.conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM recurring_price_dismissals WHERE recurring_id = ?1 AND from_amount = ?2 AND to_amount = ?3)",
+                    params![item.id, change.from.normalize().to_string(), change.to.normalize().to_string()],
+                    |row| row.get(0),
+                )?;
+                if dismissed {
+                    price_change = None;
+                }
+            }
             result.push(RecurringMatch {
                 recurring_id: item.id,
                 state: state.to_string(),
                 last_due: Some(last_due),
                 last_paid_date: matched.last().map(|(_, posted, _)| *posted),
                 last_paid_amount: amounts.last().copied(),
-                price_change: detect_price_change(&amounts, item.amount),
+                price_change,
             });
         }
         Ok(result)
+    }
+
+    /// Ignore only this amount transition for this item, without changing its forecast amount.
+    pub fn dismiss_recurring_price_change(&self, id: i64, from: Decimal, to: Decimal) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO recurring_price_dismissals (recurring_id, from_amount, to_amount) VALUES (?1, ?2, ?3)",
+            params![id, from.normalize().to_string(), to.normalize().to_string()],
+        )?;
+        Ok(())
     }
 
     /// Removes a recurring item. An unknown id is a harmless no-op.
@@ -7365,6 +7564,38 @@ impl Store {
             .collect())
     }
 
+    /// One next occurrence for every active expense, including those outside the three-day
+    /// notification window. This read-only cache projection remains useful while locked as
+    /// future dates enter that window. It never projects a paid bill due today.
+    pub fn reminder_projection(&self, today: NaiveDate) -> rusqlite::Result<Vec<ReminderProjection>> {
+        let paid: std::collections::HashSet<i64> = self
+            .recurring_matches(today)?
+            .into_iter()
+            .filter(|m| m.state == "paid" && m.last_due == Some(today))
+            .map(|m| m.recurring_id)
+            .collect();
+        self.list_recurring(today)?
+            .into_iter()
+            .filter(|r| r.status != "canceled" && r.amount < Decimal::ZERO)
+            .filter(|r| !(r.next_date == today && paid.contains(&r.id)))
+            .map(|r| {
+                let (opaque_id, sent): (String, Option<String>) = self.conn.query_row(
+                    "SELECT i.opaque_id, s.sent_on FROM reminder_identities i
+                     LEFT JOIN reminders_sent s ON s.recurring_id = i.recurring_id AND s.due_date = ?2
+                     WHERE i.recurring_id = ?1",
+                    params![r.id, r.next_date.to_string()],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                Ok(ReminderProjection {
+                    recurring_id: r.id,
+                    opaque_id,
+                    due_date: r.next_date,
+                    last_notified: sent.and_then(|s| s.parse().ok()),
+                })
+            })
+            .collect()
+    }
+
     /// Records that the reminder for this bill and due date went out, so it
     /// isn't sent again. Recording twice is harmless.
     pub fn mark_reminder_sent(&self, recurring_id: i64, due_date: NaiveDate, today: NaiveDate) -> rusqlite::Result<()> {
@@ -7561,6 +7792,9 @@ impl Store {
     /// copied or the destination file's correctness.
     pub fn backup_to(&self, dest_path: impl AsRef<Path>) -> rusqlite::Result<()> {
         let mut dest = Connection::open(dest_path)?;
+        if let Some(key) = &self.db_key {
+            dest.execute_batch(&encryption::key_pragma(key))?;
+        }
         let backup = rusqlite::backup::Backup::new(&self.conn, &mut dest)?;
         backup.run_to_completion(i32::MAX, std::time::Duration::ZERO, None)?;
         Ok(())
@@ -9137,11 +9371,12 @@ mod tests {
 
     #[test]
     fn a_transactions_own_category_column_is_registered_immediately_on_import() {
-        // Simulates a file import: the bank's own "Category" column (e.g.
-        // Capital One's CSV export) lands straight on the transaction via
-        // `save_transactions`, the same insert path `commit_import` uses,
-        // never going through `set_category`/`create_category` directly —
-        // this must still make it selectable right away, no restart needed.
+        // The low-level insert: a category on a transaction handed to
+        // `save_transactions` lands on the row and is registered right away, no
+        // restart needed. This is NOT what stops an import adopting a bank's own
+        // "Category" column ("Merchandise", ...) — `commit_import` settles those with
+        // `reconcile_import_categories` first, so only categories the person has (or
+        // chose to add) ever reach this insert.
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
         let mut imported = tx("2026-09-02", "HOMEDEPOT.COM", "-1056.37");
@@ -9216,6 +9451,154 @@ mod tests {
         drop(reopened);
 
         std::fs::remove_file(&db_path).unwrap();
+    }
+
+    // ---- reconciling an import's own categories (1.2.8) ----
+    //
+    // A bank CSV's "Category" column ("Merchandise", "Gas/Automotive", ...) used to be
+    // adopted wholesale: every name in the file was registered as a new category.
+    // An import must now use the categories the person already has; a name they
+    // don't have is mapped, created, or skipped only when they say so.
+
+    fn tx_in(category: &str, description: &str) -> Transaction {
+        let mut t = tx("2026-09-02", description, "-10.00");
+        t.category = Some(category.to_string());
+        t
+    }
+
+    fn choices(pairs: &[(&str, ImportCategoryChoice)]) -> std::collections::HashMap<String, ImportCategoryChoice> {
+        pairs.iter().map(|(name, choice)| (name.to_string(), choice.clone())).collect()
+    }
+
+    #[test]
+    fn find_category_matches_any_casing_and_returns_the_stored_spelling() {
+        let store = Store::open_in_memory().unwrap();
+
+        assert_eq!(store.find_category("groceries").unwrap(), Some("Groceries".to_string()));
+        assert_eq!(store.find_category("  GROCERIES ").unwrap(), Some("Groceries".to_string()));
+        assert_eq!(store.find_category("Merchandise").unwrap(), None);
+        assert_eq!(store.find_category("   ").unwrap(), None);
+    }
+
+    #[test]
+    fn unmatched_import_categories_lists_only_names_the_person_does_not_have() {
+        let store = Store::open_in_memory().unwrap();
+        let rows = vec![
+            tx_in("Groceries", "exists"),
+            tx_in("groceries", "exists, other casing"),
+            tx_in("Gas/Automotive", "unknown"),
+            tx_in("Merchandise", "unknown"),
+            tx_in("merchandise", "same unknown name, other casing"),
+            tx("2026-09-02", "no category column value", "-1.00"),
+            tx_in("   ", "blank"),
+        ];
+
+        let unmatched = store.unmatched_import_categories(&rows).unwrap();
+
+        assert_eq!(
+            unmatched,
+            vec![
+                UnmatchedImportCategory { name: "Merchandise".to_string(), count: 2 },
+                UnmatchedImportCategory { name: "Gas/Automotive".to_string(), count: 1 },
+            ],
+            "biggest first, the file's own spelling, one entry per name however it is cased"
+        );
+    }
+
+    #[test]
+    fn reconciling_an_import_never_creates_a_category_on_its_own() {
+        let store = Store::open_in_memory().unwrap();
+        let before = store.list_categories().unwrap();
+        let mut rows = vec![tx_in("Merchandise", "HOMEDEPOT.COM")];
+
+        store.reconcile_import_categories(&mut rows, &choices(&[])).unwrap();
+
+        assert_eq!(rows[0].category, None, "a category the person doesn't have is left off, not adopted");
+        assert_eq!(store.list_categories().unwrap(), before, "and nothing was added to their list");
+    }
+
+    #[test]
+    fn a_file_category_that_matches_an_existing_one_uses_the_existing_spelling() {
+        let store = Store::open_in_memory().unwrap();
+        let mut rows = vec![tx_in("GROCERIES", "a"), tx_in("groceries", "b")];
+
+        store.reconcile_import_categories(&mut rows, &choices(&[])).unwrap();
+
+        assert_eq!(rows[0].category.as_deref(), Some("Groceries"));
+        assert_eq!(rows[1].category.as_deref(), Some("Groceries"));
+        assert_eq!(store.list_categories().unwrap().iter().filter(|c| c.eq_ignore_ascii_case("groceries")).count(), 1);
+    }
+
+    #[test]
+    fn mapping_a_file_category_to_an_existing_one_creates_nothing() {
+        let store = Store::open_in_memory().unwrap();
+        let before = store.list_categories().unwrap();
+        let mut rows = vec![tx_in("Dining", "a"), tx_in("dining", "b")];
+
+        store
+            .reconcile_import_categories(&mut rows, &choices(&[("Dining", ImportCategoryChoice::MapTo("Dining Out".to_string()))]))
+            .unwrap();
+
+        assert_eq!(rows[0].category.as_deref(), Some("Dining Out"));
+        assert_eq!(rows[1].category.as_deref(), Some("Dining Out"), "the choice covers every casing of the name");
+        assert_eq!(store.list_categories().unwrap(), before);
+    }
+
+    #[test]
+    fn skipping_a_file_category_imports_the_rows_without_one() {
+        let store = Store::open_in_memory().unwrap();
+        let before = store.list_categories().unwrap();
+        let mut rows = vec![tx_in("Merchandise", "a")];
+
+        store
+            .reconcile_import_categories(&mut rows, &choices(&[("Merchandise", ImportCategoryChoice::Skip)]))
+            .unwrap();
+
+        assert_eq!(rows[0].category, None);
+        assert_eq!(store.list_categories().unwrap(), before);
+    }
+
+    #[test]
+    fn creating_a_file_category_adds_it_once_with_the_files_spelling() {
+        let store = Store::open_in_memory().unwrap();
+        let mut rows = vec![tx_in("Pet Care", "a"), tx_in("pet care", "b")];
+
+        store
+            .reconcile_import_categories(&mut rows, &choices(&[("Pet Care", ImportCategoryChoice::Create)]))
+            .unwrap();
+
+        assert_eq!(rows[0].category.as_deref(), Some("Pet Care"));
+        assert_eq!(rows[1].category.as_deref(), Some("Pet Care"));
+        assert_eq!(store.list_categories().unwrap().iter().filter(|c| c.eq_ignore_ascii_case("pet care")).count(), 1);
+    }
+
+    #[test]
+    fn mapping_to_a_category_that_does_not_exist_is_refused_and_changes_nothing() {
+        let store = Store::open_in_memory().unwrap();
+        let before = store.list_categories().unwrap();
+        let mut rows = vec![tx_in("Dining", "a")];
+
+        let result = store.reconcile_import_categories(&mut rows, &choices(&[("Dining", ImportCategoryChoice::MapTo("Nope".to_string()))]));
+
+        assert!(result.is_err(), "a mapping can only point at a category that already exists");
+        assert_eq!(store.list_categories().unwrap(), before);
+    }
+
+    #[test]
+    fn set_category_if_registered_only_uses_categories_the_person_has() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let ids = store.save_transactions_with_ids(account, &[tx("2026-09-02", "STARBUCKS", "-4.50")]).unwrap();
+        let before = store.list_categories().unwrap();
+
+        let applied = store.set_category_if_registered(ids[0], "Coffee Runs", CategorySource::Rule, None).unwrap();
+        assert!(!applied, "an automatic guess must not invent a category");
+        assert_eq!(store.list_categories().unwrap(), before);
+        assert_eq!(store.all_transactions().unwrap()[0].transaction.category, None);
+
+        let applied = store.set_category_if_registered(ids[0], "dining out", CategorySource::Rule, None).unwrap();
+        assert!(applied);
+        assert_eq!(store.all_transactions().unwrap()[0].transaction.category.as_deref(), Some("Dining Out"));
     }
 
     #[test]
@@ -17625,6 +18008,25 @@ mod tests {
     }
 
     #[test]
+    fn ignored_recurring_price_change_keeps_amount_and_allows_a_different_change() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let id = netflix_with(&store, account, "-15.49", &[("2026-09-03", "-17.99")]);
+        store.dismiss_recurring_price_change(id, dec("-15.490"), dec("-17.990")).unwrap();
+        store.dismiss_recurring_price_change(id, dec("-15.49"), dec("-17.99")).unwrap();
+        let result = match_for(&store, "2026-09-05", id);
+        assert!(result.price_change.is_none());
+        assert_eq!(result.state, "paid");
+        assert_eq!(store.list_recurring(day("2026-09-05")).unwrap().iter().find(|r| r.id == id).unwrap().amount, dec("-15.49"));
+
+        // Another recurring item is not silenced by the same ignored amounts.
+        let other = store.create_recurring("NETFLIX", None, dec("-15.49"), "monthly", day("2026-09-03"), None).unwrap();
+        assert!(match_for(&store, "2026-09-05", other).price_change.is_some());
+        store.save_transactions(account, &[tx("2026-10-03", "NETFLIX.COM 866-579", "-19.99")]).unwrap();
+        assert_eq!(match_for(&store, "2026-10-05", id).price_change.unwrap().to, dec("-19.99"));
+    }
+
+    #[test]
     fn a_trivial_difference_is_not_a_price_change() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
@@ -19055,6 +19457,30 @@ mod tests {
     }
 
     // ---- Phase 2 / 18: background bill reminders ----
+
+    #[test]
+    fn reminder_projection_keeps_future_dates_and_stable_private_identity() {
+        let store = Store::open_in_memory().unwrap();
+        let id = bill(&store, "Secret merchant", "-123.45", "2026-09-30");
+        bill(&store, "Income", "3000", "2026-09-20");
+        let canceled = bill(&store, "Canceled", "-10", "2026-09-20");
+        store.set_recurring_status(canceled, "canceled").unwrap();
+        let rows = store.reminder_projection(day("2026-09-18")).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].due_date, day("2026-09-30"));
+        assert_eq!(rows[0].opaque_id.len(), 32);
+        let opaque = rows[0].opaque_id.clone();
+        assert_ne!(opaque, id.to_string());
+        store.mark_reminder_sent(id, day("2026-09-30"), day("2026-09-27")).unwrap();
+        let rows = store.reminder_projection(day("2026-09-28")).unwrap();
+        assert_eq!(rows[0].opaque_id, opaque);
+        assert_eq!(rows[0].last_notified, Some(day("2026-09-27")));
+        let rows = store.reminder_projection(day("2026-10-01")).unwrap();
+        assert_eq!(rows[0].opaque_id, opaque);
+        assert_eq!(rows[0].last_notified, None);
+        store.delete_recurring(id).unwrap();
+        assert!(store.reminder_projection(day("2026-09-18")).unwrap().is_empty());
+    }
 
     fn bill(store: &Store, merchant: &str, amount: &str, anchor: &str) -> i64 {
         store.create_recurring(merchant, None, dec(amount), "monthly", day(anchor), None).unwrap()

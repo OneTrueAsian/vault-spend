@@ -308,8 +308,9 @@ function ContributePopover({
             onChange={(e) => setAmount(e.target.value)}
             placeholder="Amount (negative = withdrawal)"
             aria-label="Contribution amount"
+            className="text-input"
           />
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" aria-label="Contribution note" />
+          <input className="text-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" aria-label="Contribution note" />
           <div className="bucket-new-form-actions">
             <button type="submit" disabled={!amount.trim()}>
               Add

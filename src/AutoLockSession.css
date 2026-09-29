@@ -1,0 +1,34 @@
+.auto-lock-countdown {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 110;
+  width: min(92vw, 560px);
+  transform: translateX(-50%);
+  margin: 0;
+  box-sizing: border-box;
+  box-shadow: var(--shadow-md);
+  background: linear-gradient(var(--info-soft), var(--info-soft)), var(--status-base);
+}
+
+.auto-lock-countdown-error {
+  display: block;
+  margin-top: 3px;
+  color: var(--negative);
+  font-weight: 500;
+}
+
+@media (max-width: 520px) {
+  .auto-lock-countdown {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .auto-lock-countdown .status-text {
+    flex-basis: calc(100% - 25px);
+  }
+
+  .auto-lock-countdown .status-action {
+    margin-left: 25px;
+  }
+}

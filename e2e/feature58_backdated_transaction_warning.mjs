@@ -83,6 +83,11 @@ try {
   await setDateField(app.browser, yesterday);
   const warning = await app.browser.$(".field-warning");
   await warning.waitForExist({ timeout: 5000 });
+  // WebView can expose the node before the modal entrance animation paints its text.
+  await app.browser.waitUntil(async () => (await warning.getText()).trim().length > 0, {
+    timeout: 5000,
+    timeoutMsg: "the backdated warning should become readable",
+  });
   const warningText = await warning.getText();
   console.log("warning text (backdated):", warningText);
   if (!warningText.includes("Checking") || !warningText.includes(yesterday)) {
