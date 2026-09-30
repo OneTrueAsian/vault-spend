@@ -3581,9 +3581,8 @@ button:disabled {
 }
 
 .ledger-compact .tag-pills {
-  display: inline-flex;
-  margin: 0 0 0 8px;
-  vertical-align: middle;
+  display: flex;
+  margin: 0;
 }
 
 .ledger-compact select {
@@ -4774,7 +4773,15 @@ button:disabled {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-  margin-top: 4px;
+  margin: 0;
+}
+
+.transaction-description-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .tag-pill {
