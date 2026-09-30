@@ -1650,7 +1650,7 @@ export function AccountEditDialog({
  * legs of one move of money between the user's own accounts (equal amounts,
  * opposite directions, different accounts, within a few days). Each starts
  * ticked; unticking one leaves it as ordinary spending/income for Link, and
- * for Dismiss selected. Dismiss (per-pair, selected, or all) tells Vault
+ * for Dismiss selected. Dismiss (selected, or all) tells Vault
  * Spend to stop suggesting a pair — it's a decision about the *suggestion*,
  * never the transactions themselves: nothing is deleted, no category or
  * amount changes, and totals are untouched. Not now just closes for this
@@ -1760,14 +1760,6 @@ export function TransferReviewDialog({
                   ))}
                 </div>
               </details>
-              <button
-                type="button"
-                className="modal-secondary btn-sm transfer-review-dismiss"
-                disabled={saving}
-                onClick={() => runDismiss(() => onDismiss([{ out_id: p.out.id, in_id: p.in.id }]))}
-              >
-                Dismiss
-              </button>
             </li>
           );
         })}

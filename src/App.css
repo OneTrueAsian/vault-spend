@@ -6604,11 +6604,6 @@ svg.profile-card-avatar {
   font-size: 13px;
 }
 
-.transfer-review-dismiss {
-  display: block;
-  margin: 0 4px 10px auto;
-}
-
 .transfer-review-details summary {
   width: fit-content;
   color: var(--accent);

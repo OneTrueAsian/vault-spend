@@ -133,11 +133,17 @@ try {
     await chip.click();
     const dialog = await browser.$("[role='dialog']");
     await dialog.waitForExist({ timeout: 10000 });
-    const dismissButtons = await dialog.$$(".transfer-review-dismiss");
-    assert.ok(dismissButtons.length > 0, "expected a Dismiss action in the transfer review dialog, found none (only Not now / Link)");
-    await dismissButtons[0].click();
+    // Every pair starts ticked; untick all but the first so "Dismiss N selected"
+    // dismisses exactly one. There is deliberately no per-row Dismiss button.
+    assert.equal((await dialog.$$(".transfer-review-dismiss")).length, 0, "the per-row Dismiss button was removed");
+    const rows = await dialog.$$(".transfer-review-row");
+    assert.ok(rows.length > 1, `expected several suggested pairs in the fixture, found ${rows.length}`);
+    for (const row of rows.slice(1)) await (await row.$("input[type=checkbox]")).click();
+    const dismissSelected = await dialog.$("[data-dismiss-selected]");
+    assert.match(await dismissSelected.getText(), /Dismiss 1 selected/, "only the first pair should be selected");
+    await dismissSelected.click();
     await browser.waitUntil(
-      async () => (await dialog.$$(".transfer-review-dismiss")).length === dismissButtons.length - 1,
+      async () => (await dialog.$$(".transfer-review-row")).length === rows.length - 1,
       { timeout: 5000, timeoutMsg: "the dismissed pair should disappear from the open dialog" },
     );
     const closeBtn = await dialog.$("button=Not now");

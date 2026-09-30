@@ -2,8 +2,9 @@
 //
 // TransferReviewDialog used to offer only "Not now" (a temporary close) and
 // "Link" — an unwanted suggestion always came back next time, with no way
-// to say "stop suggesting this pair." This covers the Dismiss / Dismiss
-// selected / Dismiss all actions added to close that gap: they never touch
+// to say "stop suggesting this pair." This covers the Dismiss selected /
+// Dismiss all actions added to close that gap (there is deliberately no
+// per-row Dismiss — it duplicated Dismiss selected): they never touch
 // a transaction's own data, only the suggestion list; a failed dismiss
 // keeps the dialog open with an inline error instead of losing the
 // person's place; and the dialog shows an explicit empty state once every
@@ -73,23 +74,33 @@ describe("TransferReviewDialog", () => {
     });
   }
 
-  it("still offers Not now and Link alongside the new Dismiss actions", () => {
+  it("still offers Not now and Link alongside the Dismiss selected / Dismiss all actions", () => {
     show();
     const text = document.body.textContent ?? "";
     expect(text).toContain("Not now");
     expect(text).toMatch(/Link 2 as transfers/);
-    expect(document.querySelectorAll(".transfer-review-dismiss").length).toBe(2);
+    expect(text).toContain("Dismiss 2 selected");
     expect(text).toContain("Dismiss all");
   });
 
-  it("dismissing one pair calls onDismiss with exactly that pair, not the other", async () => {
+  it("has no per-row Dismiss button — Dismiss selected and Dismiss all are the only dismiss actions", () => {
     show();
-    const dismissButtons = [...document.querySelectorAll<HTMLButtonElement>(".transfer-review-dismiss")];
+    expect(document.querySelectorAll(".transfer-review-dismiss").length).toBe(0);
+    const dismissButtons = [...document.querySelectorAll<HTMLButtonElement>("button")].filter((b) => /dismiss/i.test(b.textContent ?? ""));
+    expect(dismissButtons.map((b) => b.textContent?.trim())).toEqual(["Dismiss 2 selected", "Dismiss all"]);
+  });
+
+  it("with every pair ticked, Dismiss selected calls onDismiss with both pairs", async () => {
+    show();
+    const dismissSelected = document.querySelector<HTMLButtonElement>("[data-dismiss-selected]")!;
     await act(async () => {
-      dismissButtons[0].click();
+      dismissSelected.click();
     });
     expect(onDismiss).toHaveBeenCalledTimes(1);
-    expect(onDismiss).toHaveBeenCalledWith([{ out_id: 1, in_id: 2 }]);
+    expect(onDismiss).toHaveBeenCalledWith([
+      { out_id: 1, in_id: 2 },
+      { out_id: 3, in_id: 4 },
+    ]);
   });
 
   it("unchecking a pair excludes it from Dismiss selected — unchecked never means dismissed", async () => {
@@ -120,24 +131,24 @@ describe("TransferReviewDialog", () => {
       throw new Error("Write failed: disk full");
     });
     show();
-    const dismissButtons = [...document.querySelectorAll<HTMLButtonElement>(".transfer-review-dismiss")];
+    const dismissSelected = document.querySelector<HTMLButtonElement>("[data-dismiss-selected]")!;
     await act(async () => {
-      dismissButtons[0].click();
+      dismissSelected.click();
     });
     const alert = document.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain("disk full");
     // Still open, both pairs still shown — nothing was lost.
-    expect(document.querySelectorAll(".transfer-review-dismiss").length).toBe(2);
+    expect(document.querySelectorAll(".transfer-review-row").length).toBe(2);
   });
 
-  it("disables Dismiss/Dismiss all/Link while a dismiss is in flight", async () => {
+  it("disables Dismiss selected/Dismiss all/Link while a dismiss is in flight", async () => {
     let resolveDismiss: () => void = () => {};
     onDismiss.mockImplementation(() => new Promise<void>((resolve) => (resolveDismiss = resolve)));
     show();
-    const dismissButtons = [...document.querySelectorAll<HTMLButtonElement>(".transfer-review-dismiss")];
     act(() => {
-      dismissButtons[0].click();
+      document.querySelector<HTMLButtonElement>("[data-dismiss-selected]")!.click();
     });
+    expect(document.querySelector<HTMLButtonElement>("[data-dismiss-selected]")!.disabled).toBe(true);
     expect(document.querySelector<HTMLButtonElement>("[data-dismiss-all]")!.disabled).toBe(true);
     await act(async () => {
       resolveDismiss();
