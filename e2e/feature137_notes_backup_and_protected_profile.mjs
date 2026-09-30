@@ -90,15 +90,23 @@ try {
   console.log("note visible after initial seed");
 
   // ---- 1. Unprotected local backup/restore round trip ---------------------
+  // The note is changed *after* the backup and *before* the restore, so a
+  // restore that actually pulls from the backup (rather than a no-op that
+  // never touched the live file) is the only way this can pass: if restore
+  // did nothing, the changed text would still be showing afterward.
   const backupResult = await ok(browser, "create_backup_now");
   const backupFilename = backupResult.filename ?? backupResult;
   assert.ok(typeof backupFilename === "string" && backupFilename.length > 0, `expected a backup filename, got ${JSON.stringify(backupResult)}`);
+  const rentTxnId = (await ok(browser, "list_transactions")).find((t) => t.description === "Rent").id;
+  await ok(browser, "update_transaction_notes", { transactionId: rentTxnId, notes: "Changed after the backup" });
   const generation1 = await ok(browser, "get_current_generation");
   const restored1 = await invoke(browser, "restore_backup", { filename: backupFilename, password: null, expectedGeneration: generation1 });
   assert.equal(restored1.error, undefined, `unprotected restore should succeed: ${restored1.error}`);
   await browser.$(".brand-word").waitForExist({ timeout: 10000 });
   await assertNotePresent(browser);
-  console.log("note survives an unprotected backup/restore round trip");
+  const ledgerTextAfterRestore1 = await (await browser.$("table.ledger")).getText();
+  assert.ok(!ledgerTextAfterRestore1.includes("Changed after the backup"), "expected the post-backup edit to be gone — proves the restore actually ran, not a no-op");
+  console.log("note survives an unprotected backup/restore round trip (and the restore demonstrably did something)");
 
   // ---- 2. Turn on password protection, then lock/unlock -------------------
   await nav(browser, "Settings");
@@ -120,8 +128,11 @@ try {
   console.log("note survives turning on protection and a lock/unlock cycle");
 
   // ---- 3. Backup/restore round trip once protected -------------------------
+  // Same "prove it wasn't a no-op" shape as step 1.
   const protectedBackupResult = await ok(browser, "create_backup_now");
   const protectedBackupFilename = protectedBackupResult.filename ?? protectedBackupResult;
+  const rentTxnId2 = (await ok(browser, "list_transactions")).find((t) => t.description === "Rent").id;
+  await ok(browser, "update_transaction_notes", { transactionId: rentTxnId2, notes: "Changed after the protected backup" });
   const generation2 = await ok(browser, "get_current_generation");
   const restored2 = await invoke(browser, "restore_backup", {
     filename: protectedBackupFilename,
@@ -131,7 +142,9 @@ try {
   assert.equal(restored2.error, undefined, `protected restore should succeed: ${restored2.error}`);
   await browser.$(".brand-word").waitForExist({ timeout: 10000 });
   await assertNotePresent(browser);
-  console.log("note survives a backup/restore round trip on a protected profile");
+  const ledgerTextAfterRestore2 = await (await browser.$("table.ledger")).getText();
+  assert.ok(!ledgerTextAfterRestore2.includes("Changed after the protected backup"), "expected the post-backup edit to be gone — proves the protected restore actually ran, not a no-op");
+  console.log("note survives a backup/restore round trip on a protected profile (and the restore demonstrably did something)");
 
   // ---- 4. CSV import with a Notes column reaches the UI --------------------
   const csvDir = fs.mkdtempSync(path.join(testDbDir, "csv-"));
@@ -162,6 +175,35 @@ try {
     { timeout: 10000, timeoutMsg: "expected the CSV's Notes column to reach the imported transaction" },
   );
   console.log("a CSV Notes column reaches the imported transaction in the UI");
+
+  // ---- 5. A too-long note in one CSV row doesn't abort the whole import --
+  // Found by code review: update_transaction_notes used to run after every
+  // selected row was already inserted, so an over-limit note's rejection
+  // propagated out of commit_import as an error — with rows already
+  // committed, inserted_ids lost, and categorize_uncategorized/auto-link
+  // skipped. The bad row is now dropped as a row error instead, same as
+  // any other malformed row, and the rest of the import still succeeds.
+  const csvDir2 = fs.mkdtempSync(path.join(testDbDir, "csv2-"));
+  const csvPath2 = path.join(csvDir2, "bank2.csv");
+  const tooLongNote = "x".repeat(4001);
+  fs.writeFileSync(
+    csvPath2,
+    ["date,description,amount,notes", '2026-09-06,Good Row,-10.00,"fine"', `2026-09-07,Bad Row,-20.00,"${tooLongNote}"`, ""].join("\n"),
+  );
+  const commitResult = await ok(browser, "commit_import", {
+    path: csvPath2,
+    invertAmounts: false,
+    defaultAccountId: checkingId,
+    includedIndices: [0, 1],
+    accountOverrides: {},
+  });
+  assert.equal(commitResult.inserted, 1, `expected only the valid row to be inserted, got ${JSON.stringify(commitResult)}`);
+  assert.equal(commitResult.row_errors, 1, "expected the over-limit note to count as a row error, not abort the import");
+  assert.equal(commitResult.inserted_ids.length, 1, "expected inserted_ids to reflect only the row that actually landed");
+  const allTxns = await ok(browser, "list_transactions");
+  assert.ok(allTxns.some((t) => t.description === "Good Row"), "expected the valid row to be imported");
+  assert.ok(!allTxns.some((t) => t.description === "Bad Row"), "expected the row with the over-limit note to be skipped entirely, not half-imported without its note");
+  console.log("an over-limit note in one CSV row is skipped as a row error, not an import-aborting failure");
 
   console.log("FEATURE 137 E2E TEST PASSED");
 } finally {

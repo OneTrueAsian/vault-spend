@@ -1674,20 +1674,27 @@ export function TransferReviewDialog({
   onDismissAll: () => Promise<void>;
   onCancel: () => void;
 }) {
-  const [checked, setChecked] = useState<Set<number>>(() => new Set(pairs.map((p) => p.out.id)));
+  // Keyed by the *pair* (both legs), not just the out id: if dismissing one
+  // alternate surfaces another with the same out transaction but a
+  // different in leg, that's a different pair the user hasn't reviewed —
+  // keying by out id alone let it silently inherit whatever the old pair's
+  // checkbox happened to say (found by code review). A pair not in this
+  // set (new, or never explicitly toggled) reads as unchecked.
+  const pairKey = (p: { out: Transaction; in: Transaction }) => `${p.out.id}:${p.in.id}`;
+  const [checked, setChecked] = useState<Set<string>>(() => new Set(pairs.map(pairKey)));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function toggle(outId: number) {
+  function toggle(key: string) {
     setChecked((prev) => {
       const next = new Set(prev);
-      if (next.has(outId)) next.delete(outId);
-      else next.add(outId);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
-  const chosen = pairs.filter((p) => checked.has(p.out.id));
+  const chosen = pairs.filter((p) => checked.has(pairKey(p)));
 
   async function runDismiss(action: () => Promise<void>) {
     setSaving(true);
@@ -1732,7 +1739,7 @@ export function TransferReviewDialog({
           return (
             <li key={p.out.id}>
               <label className="transfer-review-row">
-                <input type="checkbox" checked={checked.has(p.out.id)} onChange={() => toggle(p.out.id)} />
+                <input type="checkbox" checked={checked.has(pairKey(p))} onChange={() => toggle(pairKey(p))} />
                 <span className="transfer-review-when">{p.out.date}</span>
                 <span className="transfer-review-what">
                   {p.out.account_name} → {p.in.account_name}

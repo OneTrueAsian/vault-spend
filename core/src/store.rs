@@ -4401,8 +4401,16 @@ impl Store {
     pub fn create_transaction(&self, account_id: i64, tx: &Transaction, notes: Option<&str>) -> Result<i64, NotesError> {
         let normalized_notes = normalize_notes(notes)?;
         let sql_tx = self.conn.unchecked_transaction()?;
-        self.save_transactions(account_id, std::slice::from_ref(tx))?;
-        let id = self.conn.last_insert_rowid();
+        // `save_transactions_with_ids`, not `save_transactions` +
+        // `last_insert_rowid()`: the latter isn't necessarily this row's id
+        // — `save_transactions` may itself run a later insert afterward
+        // (e.g. `set_category`'s own `INSERT OR IGNORE INTO categories`
+        // for a brand-new category name), which would make
+        // `last_insert_rowid()` return *that* row's id instead, silently
+        // writing this note onto the wrong transaction (found by code
+        // review; see `notes_are_written_to_the_right_row_even_when_the_
+        // insert_registers_a_brand_new_category` below).
+        let id = self.save_transactions_with_ids(account_id, std::slice::from_ref(tx))?[0];
         if let Some(n) = &normalized_notes {
             self.conn.execute("UPDATE transactions SET notes = ?1 WHERE id = ?2", params![n, id])?;
         }
@@ -11674,6 +11682,30 @@ mod tests {
 
         assert_eq!(store.all_transactions().unwrap()[0].id, id);
         assert_eq!(store.all_transactions().unwrap()[0].notes, Some("Split with Jordan".to_string()));
+    }
+
+    #[test]
+    fn notes_land_on_the_right_row_even_when_the_insert_also_registers_a_brand_new_category() {
+        // Found by code review: create_transaction used to read
+        // self.conn.last_insert_rowid() *after* calling save_transactions,
+        // which — whenever the transaction's own category doesn't already
+        // exist in the categories table — runs its own
+        // "INSERT OR IGNORE INTO categories" right after the transaction
+        // insert. last_insert_rowid() then returns the *category* table's
+        // rowid, not the transaction's, and the note gets written onto
+        // whatever transaction happens to already have that id (or onto
+        // nothing at all).
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let mut with_new_category = tx("2026-08-05", "Coffee", "-4.50");
+        with_new_category.category = Some("Brand New Category".to_string());
+
+        let id = store.create_transaction(account, &with_new_category, Some("Split with Jordan")).unwrap();
+
+        let saved = store.all_transactions().unwrap();
+        assert_eq!(saved.len(), 1, "exactly one transaction should exist");
+        assert_eq!(saved[0].id, id, "create_transaction must return this row's own id");
+        assert_eq!(saved[0].notes, Some("Split with Jordan".to_string()), "the note must land on the transaction that was actually created");
     }
 
     #[test]

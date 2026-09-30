@@ -4,7 +4,7 @@ use budget_core::importer;
 use budget_core::learner;
 use budget_core::models::AccountType;
 use budget_core::rules::RuleSet;
-use budget_core::store::{CategorySource, ImportCategoryChoice, Store};
+use budget_core::store::{CategorySource, ImportCategoryChoice, Store, NOTES_MAX_CHARS};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -1382,7 +1382,7 @@ pub fn commit_import(
     let mut state = state.lock()?;
 
     let loaded = importer::load_transactions(&path, invert_amounts).map_err(|e| e.to_string())?;
-    let row_errors = loaded.errors.len();
+    let mut row_errors = loaded.errors.len();
 
     let included: std::collections::HashSet<usize> = included_indices.into_iter().collect();
     let mut selected: Vec<(usize, budget_core::models::Transaction)> = loaded
@@ -1391,6 +1391,28 @@ pub fn commit_import(
         .enumerate()
         .filter(|(index, _)| included.contains(index))
         .collect();
+
+    // Validated before anything is written, same reasoning as the category
+    // choices below: a row whose note is over the limit used to reach
+    // `update_transaction_notes` only *after* its own transaction (and
+    // every other selected row's) was already inserted, so the length
+    // rejection aborted the whole command with rows already committed,
+    // `inserted_ids` lost (breaking the import-undo toast), and
+    // categorize_uncategorized/auto-link skipped — an error shown to the
+    // user while totals had already changed. Dropped here instead, same
+    // "skip the bad row, keep the rest" contract `row_errors` already
+    // gives every other kind of malformed row.
+    selected.retain(|(index, _)| {
+        let ok = loaded
+            .notes
+            .get(*index)
+            .and_then(|o| o.as_deref())
+            .is_none_or(|n| n.trim().chars().count() <= NOTES_MAX_CHARS);
+        if !ok {
+            row_errors += 1;
+        }
+        ok
+    });
 
     // An import only lands in categories the person already has. A category the file brings
     // that they don't have is mapped, created or skipped as the review screen chose (skipped

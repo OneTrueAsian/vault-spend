@@ -145,6 +145,23 @@ describe("TransferReviewDialog", () => {
     });
   });
 
+  it("a pair that surfaces later with the same out id but a different in id starts unchecked, not inheriting the old pair's tick", async () => {
+    // Simulates dismissing pair A's original match, which surfaces an
+    // alternate in-leg for the same out-transaction (found by code
+    // review: `checked` used to be keyed by out.id alone, so the new pair
+    // silently inherited whatever the old one's checkbox said).
+    show([pairA, pairB]);
+    const alternateInLeg = txn({ id: 5, description: "Alternate deposit", amount: "500.00", account_name: "Backup Savings" });
+    show([{ out: pairA.out, in: alternateInLeg }, pairB]);
+    const checkboxes = [...document.querySelectorAll<HTMLInputElement>(".transfer-review-row input[type=checkbox]")];
+    expect(checkboxes[0].checked).toBe(false);
+    const linkButton = [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.includes("Link"))!;
+    await act(async () => {
+      linkButton.click();
+    });
+    expect(onLink).toHaveBeenCalledWith([{ out_id: 3, in_id: 4 }]);
+  });
+
   it("shows an explicit empty state with a close control once every pair is gone", () => {
     show([]);
     const text = document.body.textContent ?? "";

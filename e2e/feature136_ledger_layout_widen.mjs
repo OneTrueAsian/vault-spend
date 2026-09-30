@@ -79,6 +79,47 @@ try {
   );
   console.log("row account editor: RowFieldDropdown, and picking an option saves it");
 
+  // ---- 2b. The category editor's "Uncategorized" placeholder is not a
+  //          real, pickable choice — a regression found by code review:
+  //          the native <select> it replaced had it as `<option disabled>`,
+  //          and picking it would set category="" (not NULL), register a
+  //          blank category, and save a rule sending this merchant to "".
+  const coffeeRowForCategory = await rowFor("Coffee Shop");
+  const categoryTriggerWide = await coffeeRowForCategory.$('[aria-label*="Category for"]');
+  await categoryTriggerWide.click();
+  const uncategorizedOption = await browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Uncategorized']]");
+  await uncategorizedOption.waitForExist({ timeout: 5000 });
+  assert.equal(await uncategorizedOption.getAttribute("aria-disabled"), "true", "expected the Uncategorized placeholder to be marked disabled");
+  const categoryBefore = await categoryTriggerWide.getText();
+  await uncategorizedOption.click();
+  await browser.pause(300);
+  assert.equal(await categoryTriggerWide.getText(), categoryBefore, "clicking the disabled Uncategorized placeholder must not change the row's category");
+  await browser.keys("Escape");
+  console.log("category editor: the Uncategorized placeholder is disabled, not a pickable choice");
+
+  // ---- 2c. A row menu escapes the ledger's own scrolling container -------
+  // .ledger-table-scroll sets overflow-x: auto, which per the CSS spec also
+  // clips vertically once either axis is non-visible — a menu absolutely
+  // positioned inside that subtree gets cut off wherever the table itself
+  // ends, even though the real browser window has room below it (found by
+  // code review, reproduced against the real compiled app).
+  const categoryTriggerForClip = await (await rowFor("Coffee Shop")).$('[aria-label*="Category for"]');
+  await categoryTriggerForClip.click();
+  const clipGeometry = await browser.execute(() => {
+    const scroller = document.querySelector(".ledger-table-scroll");
+    const panel = document.querySelector(".row-field-panel");
+    return {
+      panelParentIsBody: panel.parentElement === document.body,
+      panelFullyOnscreen: panel.getBoundingClientRect().bottom <= window.innerHeight && panel.getBoundingClientRect().top >= 0,
+      clippedByScroller: panel.getBoundingClientRect().bottom > scroller.getBoundingClientRect().bottom + 4,
+    };
+  });
+  assert.ok(clipGeometry.panelParentIsBody, "expected the row menu to portal to document.body, escaping the scroller's clipping");
+  assert.ok(clipGeometry.panelFullyOnscreen, "expected the row menu to be fully within the real browser window");
+  assert.ok(clipGeometry.clippedByScroller, "expected this fixture to actually extend past the scroller's own bottom edge — otherwise this check isn't exercising the bug it's named for");
+  await browser.keys("Escape");
+  console.log("row menu escapes the ledger's own scroll container:", JSON.stringify(clipGeometry));
+
   // ---- 3. Narrow layout: Details panel appears, fields still editable --
   await browser.setWindowSize(800, 900);
   await browser.pause(300);

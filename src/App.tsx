@@ -4537,7 +4537,13 @@ function App({
                     ariaLabel={`Category for "${t.description}"`}
                     value={t.category ?? ""}
                     options={[
-                      { value: "", label: "Uncategorized" },
+                      // Matches the old native select's `<option disabled>`
+                      // placeholder: describes the current "nothing chosen"
+                      // state without itself being pickable — choosing it
+                      // would otherwise write an empty category back as a
+                      // real, saved choice (and register "" as a category,
+                      // and save a rule sending this merchant to "").
+                      { value: "", label: "Uncategorized", disabled: true },
                       ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
                       ...categoryOptions.map((c) => ({ value: c, label: c })),
                       { value: "__new__", label: "+ New category…" },

@@ -3612,6 +3612,17 @@ button:disabled {
   min-width: 0;
 }
 
+/* RowFieldDropdown's menu is portaled to document.body and positioned from
+   the trigger's own getBoundingClientRect (see the component's own
+   comment for why: .ledger-table-scroll's overflow-x: auto also clips
+   vertically per the CSS spec, cutting off a menu opened near the bottom
+   of the table). Only `position` needs overriding here — top/left/bottom/
+   max-width are all set inline by the component, which wins over this
+   stylesheet regardless. */
+.row-field-panel-fixed {
+  position: fixed;
+}
+
 .ledger-compact .source-col {
   padding-left: 6px;
   padding-right: 6px;
