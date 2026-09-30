@@ -16,9 +16,12 @@ To continue:
 That's it — install and open the app as normal from there.
 
 One more thing worth knowing: Vault Spend runs entirely on your own
-computer. There's no account, no cloud sync, and nothing is ever sent
-anywhere else — your financial data stays on your machine, in a single
-file, for as long as you have the app installed.
+computer. There's no account and no cloud sync, and your financial data
+stays on your machine, in a single file, for as long as you have the app
+installed. The app does make a few small internet requests (its fonts from
+Google, a check on GitHub for a newer version, and live prices only if you turn
+them on); none of them sends your financial data. The legal notice, LEGAL-NOTICE.md
+in the project's repository and in the app's Help, lists them.
 
 Vault Spend is an independent open-source project and is not
 affiliated with, endorsed by, or partnered with any external

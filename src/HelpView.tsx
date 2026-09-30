@@ -1,5 +1,6 @@
 import { Fragment, ReactNode, useState } from "react";
 import thirdPartyNotices from "../docs/THIRD-PARTY-NOTICES.txt?raw";
+import { LegalNoticeHelp } from "./LegalNoticeHelp";
 
 /** One filterable unit of help content. `tags` drives search — always
  * include the entry's own visible name/heading among them (so searching
@@ -785,6 +786,11 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
+    question: "Where can I read the legal notice?",
+    tags: ["legal notice", "legal", "disclaimer", "terms", "conditions", "warranty", "liability", "privacy", "license", "mit", "advice", "estimates"],
+    answer: <LegalNoticeHelp />,
+  },
+  {
     question: "Do bill reminders work while a profile is locked?",
     tags: ["reminders", "reminder", "bill reminders", "locked", "notification", "privacy", "tray", "quit", "maintenance", "recurring"],
     answer: (
@@ -812,9 +818,11 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <p>
         Yes. Each profile&apos;s data is stored in files on your own computer, created fresh the first time you
         launch the app, and nothing you enter is ever uploaded, so a fresh install on someone else&apos;s computer
-        starts completely empty. There&apos;s no account and no server. The only network requests Vault Spend makes
-        are a check for a newer version on GitHub when it opens, and live investment prices if you set up a price
-        provider. You can also password-protect any profile (see above).
+        starts completely empty. There&apos;s no account and no server. Vault Spend makes three kinds of network
+        request, and none of them carries your transactions, balances or account names: it loads its typefaces from
+        Google Fonts when it opens, it checks GitHub for a newer version when it opens, and it fetches live
+        investment prices only if you set up a price provider. The legal notice lists them in full. You can also
+        password-protect any profile (see above).
       </p>
     ),
   },

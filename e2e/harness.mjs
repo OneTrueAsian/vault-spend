@@ -200,7 +200,7 @@ function killTree(pid) {
 }
 
 // One launch attempt. See launchApp below for the retry around it.
-async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady } = {}) {
+async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLegalNotice = false } = {}) {
   const ownDbDir = dbDir === undefined;
   const testDbDir = dbDir ?? freshTestDbDir();
   const PORT = await getFreePort();
@@ -209,7 +209,12 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady } = {})
   const driverProcess = spawn(
     TAURI_DRIVER,
     ["--port", String(PORT), "--native-port", String(NATIVE_PORT), "--native-driver", MSEDGEDRIVER],
-    { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, VAULTSPEND_DB_DIR: testDbDir } },
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+      // The legal notice would stop every spec at its screen. The app honours the skip only alongside
+      // VAULTSPEND_DB_DIR, so a real install cannot be affected. feature139 passes showLegalNotice.
+      env: { ...process.env, VAULTSPEND_DB_DIR: testDbDir, VAULTSPEND_SKIP_LEGAL_NOTICE: showLegalNotice ? "0" : "1" },
+    },
   );
   let driverLog = "";
   driverProcess.stdout.on("data", (d) => (driverLog += d.toString()));
