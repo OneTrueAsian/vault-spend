@@ -61,7 +61,7 @@ let editedLayout;
     }, READ_DELAY_MS);
 
     await openFirstProfile(browser);
-    const customize = await browser.$(".dashboard-toolbar button");
+    const customize = await (await browser.$(".dashboard-toolbar")).$("button*=Customize");
     await customize.waitForExist({ timeout: 10000 });
     await customize.click();
     const removeButtons = await browser.$$(".dashboard-widget-controls button:last-child");
@@ -75,7 +75,7 @@ let editedLayout;
 
     // Now let the slow (and stale) answer arrive, and give the page time to react to it.
     await browser.pause(READ_DELAY_MS + 1500);
-    assert.equal(await browser.execute(() => document.querySelector(".dashboard-toolbar select").value), "custom", "the late load must not flip the layout back to Default");
+    assert.equal(await browser.execute(() => document.querySelector(".layout-select-toggle").dataset.value), "custom", "the late load must not flip the layout back to Default");
     assert.equal((await browser.$$(".dashboard-widget-controls")).length, widgetCountBefore - 1, "the edited widget must stay removed on screen");
     assert.deepEqual(await persistedLayout(browser), editedLayout, "and the saved layout must be the edited one");
   } finally {
@@ -89,7 +89,7 @@ let editedLayout;
   try {
     const { browser } = app;
     await openFirstProfile(browser);
-    await browser.waitUntil(async () => (await browser.execute(() => document.querySelector(".dashboard-toolbar select")?.value)) === "custom", {
+    await browser.waitUntil(async () => (await browser.execute(() => document.querySelector(".layout-select-toggle")?.dataset.value)) === "custom", {
       timeout: 10000,
       timeoutMsg: "a normal start should read the saved layout back (the Layout dropdown shows Custom)",
     });

@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { dismissFirstLaunchDialogs, launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { dismissFirstLaunchDialogs, launchApp, waitUntilOrDiagnose, chooseMenuOption } from "./harness.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -46,7 +46,7 @@ const readControls = (browser) =>
     const focus = document.querySelector("[data-lock-on-focus-loss]");
     const system = document.querySelector("[data-lock-on-system-event]");
     if (!minutes || !hidden || !focus || !system || minutes.disabled) return null;
-    return { minutes: minutes.value, hidden: hidden.checked, focus: focus.checked, system: system.checked };
+    return { minutes: minutes.dataset.value, hidden: hidden.checked, focus: focus.checked, system: system.checked };
   });
 
 // The controls stay disabled until the profile shows as protected AND its settings have loaded. If that
@@ -100,7 +100,7 @@ try {
   assert.deepEqual(defaults, { minutes: "15", hidden: true, focus: false, system: true }, "protected profiles start on the documented defaults");
 
   const minutes = await browser.$("[data-auto-lock-minutes]");
-  await minutes.selectByAttribute("value", "30");
+  await chooseMenuOption(minutes, { value: "30" });
   // Each save briefly disables the controls, so wait for each to be usable again. The focus-loss toggle goes
   // last: once it is on, the profile may lock itself the moment this window loses OS focus.
   for (const marker of ["[data-lock-when-hidden]", "[data-lock-on-system-event]", "[data-lock-on-focus-loss]"]) {

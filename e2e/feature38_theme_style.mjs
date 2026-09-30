@@ -160,8 +160,9 @@ try {
   if (palette !== null) throw new Error(`expected data-palette to be cleared back to Slate after Transparent, got "${palette}"`);
   console.log("Slate: data-palette cleared after Transparent — OK");
 
-  // A floating profile menu must mask the navigation underneath, even in
-  // Transparent. Check the rendered color rather than a particular CSS token.
+  // A floating profile menu must keep the navigation underneath from reading through its labels. Solid
+  // in Slate and Futuristic; in Transparent it is frosted glass: at least 75% opaque with a blur behind.
+  // Check the rendered color rather than a particular CSS token.
   for (const palette of ["classic", "futuristic", "transparent"]) {
     for (const theme of ["light", "dark"]) {
       await app.browser.execute((palette, theme) => {
@@ -178,12 +179,17 @@ try {
         const ctx = canvas.getContext("2d");
         ctx.fillStyle = css.backgroundColor;
         ctx.fillRect(0, 0, 1, 1);
-        return { color: css.backgroundColor, alpha: ctx.getImageData(0, 0, 1, 1).data[3] };
+        return { color: css.backgroundColor, alpha: ctx.getImageData(0, 0, 1, 1).data[3], blur: css.backdropFilter || css.webkitBackdropFilter || "none" };
       });
       await app.browser.saveScreenshot(path.join(os.tmpdir(), `vault-profile-menu-${palette}-${theme}.png`));
-      assert.equal(surface.alpha, 255, `${palette}/${theme}: profile menu must hide underlying navigation (${surface.color})`);
+      if (palette === "transparent") {
+        assert.ok(surface.alpha >= 191, `${palette}/${theme}: profile menu glass is too see-through to read over navigation (${surface.color})`);
+        assert.ok(surface.blur.includes("blur"), `${palette}/${theme}: profile menu glass needs a blur behind it (backdrop-filter: ${surface.blur})`);
+      } else {
+        assert.equal(surface.alpha, 255, `${palette}/${theme}: profile menu must hide underlying navigation (${surface.color})`);
+      }
       await (await app.browser.$(".profile-switcher-toggle")).click();
-      console.log(`${palette}/${theme}: profile menu is opaque — OK`);
+      console.log(`${palette}/${theme}: profile menu is ${palette === "transparent" ? "readable glass" : "opaque"} — OK`);
     }
   }
 

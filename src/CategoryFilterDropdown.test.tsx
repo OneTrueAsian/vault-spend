@@ -107,7 +107,8 @@ describe("CategoryFilterDropdown", () => {
     show("all");
     openMenu();
     act(() => {
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      // The menu owns focus once open, so Escape arrives from inside it.
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
     expect(container.querySelector("[role='menu']")).toBeNull();
     expect(document.activeElement).toBe(trigger());
@@ -117,7 +118,7 @@ describe("CategoryFilterDropdown", () => {
     show("all");
     openMenu();
     act(() => {
-      document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
     });
     expect(container.querySelector("[role='menu']")).toBeNull();
   });

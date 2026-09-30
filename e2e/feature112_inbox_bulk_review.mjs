@@ -81,8 +81,8 @@ try {
   await b.keys("Enter");
   assert.ok((await b.$("#ledger-account-select").getText()).includes("Savings"));
   await (await b.$("button*=Add transaction")).click();
-  await b.$('.modal-field select').waitForExist({ timeout: 5000 });
-  assert.ok(await b.execute(() => [...document.querySelectorAll('.modal-panel select')].some((el) => el.selectedOptions[0]?.textContent.trim() === 'Savings')));
+  await b.$('.modal-field .menu-select-toggle').waitForExist({ timeout: 5000 });
+  assert.ok(await b.execute(() => [...document.querySelectorAll('.modal-panel .menu-select-toggle')].some((el) => el.textContent.replace('\u25be', '').trim() === 'Savings')));
   await b.keys("Escape");
   // Closing a modal hands focus back to its opener one tick after it unmounts.
   // Opening the dropdown before that lands means the restore steals focus from

@@ -12,6 +12,7 @@ import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
 import { getCurrentGeneration } from "./profileUiState";
 import { ModalShell } from "./Modal";
 import { PasswordForm } from "./PasswordForm";
+import { MenuSelect } from "./MenuSelect";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -398,18 +399,13 @@ function LivePricesSection({
         </>
       ) : (
         <>
-          <select
-            aria-label="Live price provider"
-            className="text-input"
+          <MenuSelect
+            ariaLabel="Live price provider"
             value={pickerProvider}
-            onChange={(e) => setPickerProvider(e.target.value as LivePriceProviderId)}
-          >
-            {(Object.keys(LIVE_PRICE_PROVIDERS) as LivePriceProviderId[]).map((id) => (
-              <option key={id} value={id}>
-                {LIVE_PRICE_PROVIDERS[id].label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setPickerProvider(v as LivePriceProviderId)}
+            options={(Object.keys(LIVE_PRICE_PROVIDERS) as LivePriceProviderId[]).map((id) => ({ value: id, label: LIVE_PRICE_PROVIDERS[id].label }))}
+            fill
+          />
           <p className="modal-message-secondary">
             Off by default — holding prices stay fully manual, edited directly on the Investments tab. Add a free{" "}
             {LIVE_PRICE_PROVIDERS[pickerProvider].label} API key to auto-fill prices for new holdings and keep

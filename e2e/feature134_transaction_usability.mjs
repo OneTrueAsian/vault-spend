@@ -193,7 +193,11 @@ try {
   // `.account-filter-panel` CSS class the fix targets — not just one.
   const PALETTES = [null, "futuristic", "transparent"];
   const MODES = ["light", "dark"];
-  await check("every Transactions toolbar menu panel is opaque across every palette/mode combination", async () => {
+  // Classic and Futuristic menus stay fully opaque. Transparent's are frosted glass: translucent on
+  // purpose (--menu-bg), but never below 75% (so the ledger rows underneath can't bleed through the
+  // labels) and always with a blur behind them.
+  const GLASS_FLOOR = 191; // 75% of 255
+  await check("every Transactions toolbar menu panel is solid, or readable frosted glass in Transparent, in every palette/mode combination", async () => {
     const combosFailing = [];
     for (const palette of PALETTES) {
       for (const mode of MODES) {
@@ -216,20 +220,27 @@ try {
         ]) {
           const trigger = await browser.$(triggerSelector);
           await trigger.click();
-          const panel = await browser.$(".ledger-filters .account-filter-panel");
+          const panel = await browser.$(".ledger-filters .account-filter-panel, .ledger-filters .menu-select-panel");
           await panel.waitForDisplayed({ timeout: 5000 });
-          const alpha = await browser.execute((sel) => {
+          const { alpha, blur } = await browser.execute((sel) => {
             const el = document.querySelector(sel);
             const css = getComputedStyle(el);
+            const blur = css.backdropFilter || css.webkitBackdropFilter || "none";
             const canvas = document.createElement("canvas");
             canvas.width = canvas.height = 1;
             const ctx = canvas.getContext("2d");
             ctx.fillStyle = css.backgroundColor;
             ctx.fillRect(0, 0, 1, 1);
-            return ctx.getImageData(0, 0, 1, 1).data[3];
-          }, ".ledger-filters .account-filter-panel");
+            return { alpha: ctx.getImageData(0, 0, 1, 1).data[3], blur };
+          }, ".ledger-filters .account-filter-panel, .ledger-filters .menu-select-panel");
           await trigger.click();
-          if (alpha !== 255) combosFailing.push(`${name} panel, palette=${palette ?? "classic"} theme=${mode}: alpha ${alpha}/255`);
+          const label = `${name} panel, palette=${palette ?? "classic"} theme=${mode}`;
+          if (palette === "transparent") {
+            if (alpha < GLASS_FLOOR) combosFailing.push(`${label}: alpha ${alpha}/255 is under the ${GLASS_FLOOR} floor`);
+            if (!blur.includes("blur")) combosFailing.push(`${label}: no blur behind the glass (backdrop-filter: ${blur})`);
+          } else if (alpha !== 255) {
+            combosFailing.push(`${label}: alpha ${alpha}/255, expected solid`);
+          }
         }
       }
     }
@@ -237,7 +248,7 @@ try {
       delete document.documentElement.dataset.palette;
       delete document.documentElement.dataset.theme;
     });
-    assert.deepEqual(combosFailing, [], `expected every combination opaque, found:\n${combosFailing.join("\n")}`);
+    assert.deepEqual(combosFailing, [], `expected solid menus (readable glass in Transparent), found:\n${combosFailing.join("\n")}`);
   });
 
   // Issue 5 — long account/category names used to be clipped in the row's

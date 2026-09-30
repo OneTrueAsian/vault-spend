@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature20_ledger_sort_and_filter.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -149,10 +149,10 @@ try {
   await moreFiltersToggle.waitForExist({ timeout: 5000 });
   await moreFiltersToggle.click();
 
-  const tagSelect = await app.browser.$("//label[.//span[text()='Tag']]/select");
+  const tagSelect = await app.browser.$("//label[.//span[text()='Tag']]//button[contains(@class,'menu-select-toggle')]");
   await tagSelect.waitForExist({ timeout: 5000 });
-  await tagSelect.selectByVisibleText("urgent");
-  await app.browser.waitUntil(async () => (await tagSelect.getValue()) === "urgent", {
+  await chooseMenuOption(tagSelect, { label: "urgent" });
+  await app.browser.waitUntil(async () => (await menuSelectValue(tagSelect)) === "urgent", {
     timeout: 5000,
     timeoutMsg: "expected the Tag select in More filters to hold 'urgent' after selecting it",
   });

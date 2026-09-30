@@ -5,6 +5,7 @@ import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { BUCKET_ICON_OPTIONS, BucketIcon, isBucketIconKey, type BucketIconKey } from "./icons";
 import { goalPlan, type GoalPlan } from "./goalPlan";
 import { usePopover } from "./usePopover";
+import { MenuSelect } from "./MenuSelect";
 
 const BUCKET_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9", "#B0526A", "#5FA85E"];
 
@@ -137,14 +138,16 @@ function NewBucketForm({
       <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. "Emergency Fund"' />
       <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Target amount (optional)" />
       <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} title="Target date" />
-      <select aria-label="Linked account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-        <option value="">No linked account</option>
-        {accounts.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name}
-          </option>
-        ))}
-      </select>
+      <MenuSelect
+        ariaLabel="Linked account"
+        value={accountId}
+        onChange={setAccountId}
+        options={[
+          { value: "", label: "No linked account" },
+          ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+        ]}
+        fill
+      />
       {accountId !== "" && (
         <label className="bucket-track-toggle">
           <input type="checkbox" checked={tracksAccount} onChange={(e) => setTracksAccount(e.target.checked)} />
@@ -152,14 +155,16 @@ function NewBucketForm({
         </label>
       )}
       {familyMembers.length > 0 && (
-        <select aria-label="Family member" value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-          <option value="">Unassigned</option>
-          {familyMembers.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
+        <MenuSelect
+          ariaLabel="Family member"
+          value={memberId}
+          onChange={setMemberId}
+          options={[
+            { value: "", label: "Unassigned" },
+            ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+          ]}
+          fill
+        />
       )}
       <input
         value={sinkingAmount}
@@ -232,14 +237,16 @@ function EditBucketForm({
         placeholder="Target amount (optional)"
       />
       <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} title="Target date" />
-      <select aria-label="Linked account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-        <option value="">No linked account</option>
-        {accounts.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name}
-          </option>
-        ))}
-      </select>
+      <MenuSelect
+        ariaLabel="Linked account"
+        value={accountId}
+        onChange={setAccountId}
+        options={[
+          { value: "", label: "No linked account" },
+          ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+        ]}
+        fill
+      />
       {accountId !== "" && (
         <label className="bucket-track-toggle">
           <input type="checkbox" checked={tracksAccount} onChange={(e) => setTracksAccount(e.target.checked)} />

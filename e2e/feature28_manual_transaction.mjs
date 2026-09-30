@@ -8,7 +8,7 @@
 //
 // Run with: node e2e/feature28_manual_transaction.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -44,7 +44,7 @@ try {
   // submitting — same pattern feature23_family_members.mjs uses for a
   // React-controlled <select>, since selecting and immediately clicking
   // Submit can race the onChange committing to state.
-  const selects = await dialogPanel.$$("select");
+  const selects = await dialogPanel.$$(".menu-select-toggle");
   let categoryField = null;
   for (const sel of selects) {
     const text = await sel.getText();
@@ -54,8 +54,8 @@ try {
     }
   }
   if (!categoryField) throw new Error("expected to find the Category select in the Add transaction dialog");
-  await categoryField.selectByVisibleText("Dining Out");
-  await app.browser.waitUntil(async () => (await categoryField.getValue()) === "Dining Out", {
+  await chooseMenuOption(categoryField, { label: "Dining Out" });
+  await app.browser.waitUntil(async () => (await menuSelectValue(categoryField)) === "Dining Out", {
     timeout: 5000,
     timeoutMsg: "expected the Category select to hold Dining Out after selecting it",
   });

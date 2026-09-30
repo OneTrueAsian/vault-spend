@@ -376,3 +376,45 @@ export async function launchApp(options = {}) {
     }
   }
 }
+
+// ---- MenuSelect helpers -------------------------------------------------------------------------
+// Every single-select in the app is a MenuSelect (a trigger button plus a popover menu), not a native
+// <select>, so WebdriverIO's selectByVisibleText / selectByAttribute / getValue do not apply. The trigger
+// carries `data-value`; the open menu's items carry `data-value` and their label text.
+
+/** The current value of a MenuSelect, given its trigger (what `select.getValue()` was). */
+export async function menuSelectValue(trigger) {
+  return trigger.getAttribute("data-value");
+}
+
+async function openMenu(trigger) {
+  const root = await trigger.parentElement();
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+  const menu = await root.$("[role='menu']");
+  await menu.waitForDisplayed({ timeout: 5000, timeoutMsg: "the menu should open" });
+  return menu;
+}
+
+const itemLabel = async (item) => (await item.getText()).replace(/\s*✓\s*$/, "").trim();
+
+/** Opens a MenuSelect and chooses the option with this `value` or this visible `label`. */
+export async function chooseMenuOption(trigger, { value, label }) {
+  const menu = await openMenu(trigger);
+  for (const item of await menu.$$("[role='menuitemradio']")) {
+    const matches = value !== undefined ? (await item.getAttribute("data-value")) === value : (await itemLabel(item)) === label;
+    if (matches) {
+      await item.click();
+      return;
+    }
+  }
+  throw new Error(`no menu option ${value !== undefined ? `with value "${value}"` : `labelled "${label}"`}`);
+}
+
+/** The visible labels of a MenuSelect's options, in order (opens the menu, reads it, closes it). */
+export async function menuOptionLabels(trigger) {
+  const menu = await openMenu(trigger);
+  const labels = [];
+  for (const item of await menu.$$("[role='menuitemradio']")) labels.push(await itemLabel(item));
+  await trigger.click();
+  return labels;
+}

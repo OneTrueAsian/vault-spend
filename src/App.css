@@ -23,6 +23,8 @@
   --surface-2: #eef1f7;
   /* What a toast is painted on; opaque. Transparent overrides it. */
   --status-base: var(--surface);
+  /* What dropdown menus are painted on. Solid here; Transparent makes it a blurred glass. */
+  --menu-bg: var(--status-base);
   --surface-hover: #e6e9f0;
   --sidebar-bg: #fbfbfd;
   --sidebar-bg-hover: #eef1f7;
@@ -318,10 +320,10 @@
    as SF-Symbols-ish, so no third icon variant is needed. */
 :root[data-palette="transparent"] {
   --bg: #eaebef;
-  --surface: rgba(255, 255, 255, 0.72);
-  --surface-2: rgba(255, 255, 255, 0.55);
+  --surface: rgba(255, 255, 255, 0.40);
+  --surface-2: rgba(255, 255, 255, 0.25);
   --surface-hover: rgba(120, 120, 128, 0.14);
-  --sidebar-bg: rgba(255, 255, 255, 0.55);
+  --sidebar-bg: rgba(255, 255, 255, 0.25);
   --sidebar-bg-hover: rgba(120, 120, 128, 0.14);
   --sidebar-bg-active: rgba(0, 122, 255, 0.16);
   --sidebar-text: #3a3a3c;
@@ -378,6 +380,8 @@
   /* Fully opaque: the colour a toast is painted on. --surface is a 72% wash
      in this style, and a toast floats over table rows and buttons. */
   --status-base: #ffffff;
+  /* Dropdown menus: translucent (lower the last number for more see-through), with a blur behind. */
+  --menu-bg: rgba(255, 255, 255, 0.80);
 
   color-scheme: light;
 }
@@ -430,6 +434,7 @@
     --topbar-glass-bg: rgba(30, 30, 34, 0.88);
 
     --status-base: #1c1c1e;
+    --menu-bg: rgba(28, 28, 30, 0.80);
 
     color-scheme: dark;
   }
@@ -482,6 +487,7 @@
   --topbar-glass-bg: rgba(30, 30, 34, 0.88);
 
   --status-base: #1c1c1e;
+  --menu-bg: rgba(28, 28, 30, 0.80);
 
   color-scheme: dark;
 }
@@ -913,8 +919,10 @@ svg.profile-switcher-icon {
   min-width: 200px;
   max-height: 260px;
   overflow-y: auto;
-  /* This menu floats over navigation; glass surfaces let its labels bleed through. */
-  background: var(--status-base);
+  /* Floats over navigation: --menu-bg is a blurred glass in Transparent, solid elsewhere. */
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1039,7 +1047,9 @@ svg.profile-switcher-icon {
   top: calc(100% + 6px);
   right: 0;
   min-width: 220px;
-  background: var(--surface);
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-md);
@@ -3269,6 +3279,12 @@ button:disabled {
   color: inherit;
 }
 
+/* The global button:hover would paint this toggle accent-blue with dark text. */
+.account-filter-toggle:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
 .account-filter-caret {
   color: var(--text-muted);
   font-size: 11px;
@@ -3287,8 +3303,12 @@ button:disabled {
      showing the ledger table through it — a composited alpha of 173/255,
      measured against the real compiled app. --status-base is the same
      token toasts already use for the identical reason and is just
-     --surface everywhere else, so this is a no-op outside Transparent. */
-  background: var(--status-base);
+     --surface everywhere else, so this is a no-op outside Transparent.
+     --menu-bg is that same solid fill everywhere but Transparent, where it is
+     a lighter glass with a blur behind it so the labels stay readable. */
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow-sm);
@@ -6804,7 +6824,7 @@ input[type="checkbox"], input[type="radio"] {
 }
 .account-destination .account-filter-toggle:hover { background: var(--surface-2); }
 .account-destination-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-destination-panel { background: var(--status-base); }
+.account-destination-panel { background: var(--menu-bg); -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5); }
 .account-destination-option {
   display: flex;
   justify-content: space-between;
@@ -6853,7 +6873,9 @@ input[type="checkbox"], input[type="radio"] {
   padding: 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--status-base);
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
   color: var(--text);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
@@ -6960,4 +6982,78 @@ input[type="checkbox"], input[type="radio"] {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* MenuSelect: the popover single-select that replaces a native <select>. The trigger shares the
+   account-filter-toggle look; the panel is a top-layer popover (positioned from the trigger in
+   MenuSelect.tsx), so dialogs, scrolling tables and backdrop-filter ancestors cannot clip it. */
+.menu-select {
+  position: relative;
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+/* Fills its field the way a native select does in a form. */
+.menu-select-fill {
+  display: block;
+  width: 100%;
+  /* `auto`, not a pixel basis: in a column form the basis would become the field's height. */
+  flex: 1 1 auto;
+  min-width: 100px;
+}
+
+.import-category-row .menu-select {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 320px;
+}
+
+.menu-select-toggle {
+  width: 100%;
+  justify-content: space-between;
+  background: var(--surface);
+  border-color: var(--border-strong);
+  text-align: left;
+  white-space: normal;
+}
+
+.menu-select-toggle:hover {
+  background: var(--surface-2);
+}
+
+.menu-select-toggle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.menu-select-placeholder > span:first-child {
+  color: var(--text-muted);
+}
+
+.menu-select-panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+}
+
+.menu-select-group {
+  padding: 8px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }

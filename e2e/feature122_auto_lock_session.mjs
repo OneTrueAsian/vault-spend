@@ -2,7 +2,7 @@
 // user keep working, locks at expiry, unmounts in-progress UI state, and closes the backend data
 // boundary. The clock seam used here exists only in debug builds.
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -24,7 +24,7 @@ try {
 
   const minutes = await browser.$("[data-auto-lock-minutes]");
   await minutes.waitForEnabled({ timeout: 10000 });
-  await minutes.selectByAttribute("value", "1");
+  await chooseMenuOption(minutes, { value: "1" });
   await browser.waitUntil(async () => (await invoke(browser, "get_auto_lock_settings")).ok?.inactivity_minutes === 1, {
     timeout: 10000,
     timeoutMsg: "the one-minute automatic-lock choice should be saved before exercising the timer",

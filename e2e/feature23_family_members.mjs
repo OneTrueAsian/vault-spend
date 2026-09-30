@@ -6,7 +6,7 @@
 //
 // Run with: node e2e/feature23_family_members.mjs
 
-import { launchApp, reclaimWindowFocus } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -122,9 +122,9 @@ try {
   await editButton.click();
   const editDialog = await app.browser.$("[role='dialog']");
   await editDialog.waitForExist({ timeout: 10000 });
-  const accountMemberSelect = await editDialog.$("//label[contains(.,'Family member')]//select");
+  const accountMemberSelect = await editDialog.$("//label[contains(.,'Family member')]//button[contains(@class,'menu-select-toggle')]");
   await accountMemberSelect.waitForExist({ timeout: 10000 });
-  await accountMemberSelect.selectByVisibleText("Alex");
+  await chooseMenuOption(accountMemberSelect, { label: "Alex" });
   await (await editDialog.$("button=Save changes")).click();
   await app.browser.waitUntil(async () => (await (await app.browser.$(".account-card")).getText()).includes("Alex"), {
     timeout: 10000,

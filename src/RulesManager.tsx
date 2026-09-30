@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { RuleEditorDialog } from "./Modal";
 import { SortableTh } from "./SortableTh";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
+import { MenuSelect } from "./MenuSelect";
 
 type Rule = { pattern: string; category: string; match_count: number };
 type SortColumn = "pattern" | "category" | "matches";
@@ -147,19 +148,16 @@ export function RulesManager({
           placeholder="Filter rules by text or category…"
           aria-label="Filter rules"
         />
-        <select
+        <MenuSelect
+          ariaLabel="Show rules for one category"
           value={activeCategory}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          aria-label="Show rules for one category"
-          data-rules-category-filter
-        >
-          <option value="">All categories</option>
-          {filterCategories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          onChange={setCategoryFilter}
+          options={[
+            { value: "", label: "All categories" },
+            ...filterCategories.map((c) => ({ value: c, label: c })),
+          ]}
+          triggerAttrs={{ "data-rules-category-filter": "" }}
+        />
         <span className="account-col rules-count" role="status">
           {countText}
         </span>

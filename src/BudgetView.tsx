@@ -6,6 +6,7 @@ import { Sparkline } from "./charts";
 import { budgetAllocation, effectiveBudget, monthElapsed } from "./budgetPlan";
 import { BudgetSuggestDialog, type AppliedSuggestion } from "./BudgetSuggestDialog";
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
+import { MenuSelect } from "./MenuSelect";
 
 type MonthElapsed = NonNullable<ReturnType<typeof monthElapsed>>;
 
@@ -120,20 +121,20 @@ function NewBudgetLineForm({
 
   return (
     <form className="bucket-new-form" onSubmit={handleSubmit}>
-      <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
-        {availableCategories.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
-      <select aria-label="Budget group" value={group} onChange={(e) => setGroup(e.target.value as Group)}>
-        {GROUP_ORDER.map((g) => (
-          <option key={g} value={g}>
-            {GROUP_LABELS[g]}
-          </option>
-        ))}
-      </select>
+      <MenuSelect
+        ariaLabel="Category"
+        value={category}
+        onChange={setCategory}
+        options={availableCategories.map((c) => ({ value: c, label: c }))}
+        fill
+      />
+      <MenuSelect
+        ariaLabel="Budget group"
+        value={group}
+        onChange={(v) => setGroup(v as Group)}
+        options={GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))}
+        fill
+      />
       <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Monthly amount" />
       <button type="submit" disabled={!category || !amount.trim()}>
         Save
@@ -340,18 +341,13 @@ function BudgetRow({
           )}
         </span>
       </div>
-      <select
-        aria-label={`Budget group for ${line.category}`}
-        className="cat-row-group"
+      <MenuSelect
+        ariaLabel={`Budget group for ${line.category}`}
         value={line.budget_group}
-        onChange={(e) => onSetBudget(line.category, line.budgeted, e.target.value)}
-      >
-        {GROUP_ORDER.map((g) => (
-          <option key={g} value={g}>
-            {GROUP_LABELS[g]}
-          </option>
-        ))}
-      </select>
+        onChange={(v) => onSetBudget(line.category, line.budgeted, v)}
+        options={GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))}
+        triggerClassName="cat-row-group"
+      />
       <div className="progress-track cat-row-bar">
         <div className={fillClass} style={{ width: `${pct}%` }} />
         {!isIncome && <PaceMarker elapsed={elapsed} />}

@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature65_compact_rows_and_account_edit.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -70,7 +70,7 @@ try {
   await nav("Accounts");
   const card = await accountCard("Test Checking");
   await card.waitForExist({ timeout: 10000 });
-  const cardSelects = await card.$$("select");
+  const cardSelects = await card.$$("select, .menu-select-toggle");
   if (cardSelects.length !== 0) throw new Error(`the account card should have no dropdowns, found ${cardSelects.length}`);
   const cardText = await card.getText();
   console.log("card:", cardText.replace(/\n/g, " | "));
@@ -84,7 +84,7 @@ try {
   await dialog.waitForExist({ timeout: 10000 });
   await browser.waitUntil(async () => /Edit Test Checking/.test(await dialog.getText()), { timeout: 10000 });
   await (await dialog.$("//label[contains(.,'Institution')]//input")).setValue("Ally");
-  await (await dialog.$("//label[contains(.,'Account type')]//select")).selectByVisibleText("Savings");
+  await chooseMenuOption(await dialog.$("//label[contains(.,'Account type')]//button[contains(@class,'menu-select-toggle')]"), { label: "Savings" });
   await (await dialog.$("button=Save changes")).click();
   await browser.waitUntil(
     async () => {

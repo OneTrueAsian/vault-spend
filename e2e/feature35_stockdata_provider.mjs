@@ -12,7 +12,7 @@
 //
 // Run with: node e2e/feature35_stockdata_provider.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture("");
@@ -25,11 +25,11 @@ try {
   const livePricesCard = await app.browser.$("//div[contains(@class,'card')][.//span[text()='Live stock prices']]");
   await livePricesCard.waitForExist({ timeout: 10000 });
 
-  const providerSelect = await livePricesCard.$("select");
+  const providerSelect = await livePricesCard.$(".menu-select-toggle");
   await providerSelect.waitForExist({ timeout: 5000 });
 
-  await providerSelect.selectByVisibleText("StockData.org");
-  await app.browser.waitUntil(async () => (await providerSelect.getValue()) === "stockdata_org", {
+  await chooseMenuOption(providerSelect, { label: "StockData.org" });
+  await app.browser.waitUntil(async () => (await menuSelectValue(providerSelect)) === "stockdata_org", {
     timeout: 10000,
     timeoutMsg: "expected the provider picker to switch to stockdata_org",
   });
@@ -77,7 +77,7 @@ try {
     timeoutMsg: "expected the card to return to the disabled/manual-only state after disabling",
   });
 
-  const rememberedProvider = await (await livePricesCard.$("select")).getValue();
+  const rememberedProvider = await menuSelectValue(await livePricesCard.$(".menu-select-toggle"));
   if (rememberedProvider !== "stockdata_org") {
     throw new Error(`expected the provider picker to remember StockData.org after disabling, got: ${rememberedProvider}`);
   }

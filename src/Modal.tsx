@@ -7,6 +7,7 @@ import { isBeforeAccountCheckpoint } from "./accountGroups";
 import { effectiveBudget } from "./budgetPlan";
 import { accountWidgetId, bucketWidgetId, investmentWidgetId, WIDGET_CATALOG, type WidgetId } from "./dashboardLayout";
 import { PasswordForm } from "./PasswordForm";
+import { MenuSelect } from "./MenuSelect";
 import {
   AccountTypeIcon,
   ACCOUNT_ICON_OPTIONS,
@@ -291,13 +292,13 @@ export function NewAccountDialog({
         </label>
         <label className="modal-field">
           <span>Account type</span>
-          <select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
-            {ACCOUNT_TYPE_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t[0].toUpperCase() + t.slice(1)}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Account type"
+            value={accountType}
+            onChange={setAccountType}
+            options={ACCOUNT_TYPE_OPTIONS.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+            fill
+          />
         </label>
         <label className="modal-field">
           <span>Icon (optional)</span>
@@ -327,14 +328,16 @@ export function NewAccountDialog({
         {familyMembers.length > 0 && (
           <label className="modal-field">
             <span>Family member (optional)</span>
-            <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-              <option value="">Unassigned</option>
-              {familyMembers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <MenuSelect
+              ariaLabel="Family member (optional)"
+              value={memberId}
+              onChange={setMemberId}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+              ]}
+              fill
+            />
           </label>
         )}
         <div className="modal-actions">
@@ -482,14 +485,16 @@ export function NewTransactionDialog({
       <form onSubmit={handleSubmit}>
         <label className="modal-field">
           <span>Account</span>
-          <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.length === 0 && <option value="">No accounts yet</option>}
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Account"
+            value={accountId}
+            onChange={setAccountId}
+            options={[
+              ...(accounts.length === 0 ? [{ value: "", label: "No accounts yet" }] : []),
+              ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+            ]}
+            fill
+          />
         </label>
         <label className="modal-field">
           <span>Date</span>
@@ -525,14 +530,16 @@ export function NewTransactionDialog({
         </label>
         <label className="modal-field">
           <span>Category</span>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">Auto-categorize</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Category"
+            value={category}
+            onChange={setCategory}
+            options={[
+              { value: "", label: "Auto-categorize" },
+              ...categories.map((c) => ({ value: c, label: c })),
+            ]}
+            fill
+          />
           {budgetImpact &&
             (() => {
               const budgeted = effectiveBudget(budgetImpact);
@@ -549,14 +556,16 @@ export function NewTransactionDialog({
         {familyMembers.length > 0 && (
           <label className="modal-field">
             <span>Family member (optional)</span>
-            <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-              <option value="">Unassigned</option>
-              {familyMembers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <MenuSelect
+              ariaLabel="Family member (optional)"
+              value={memberId}
+              onChange={setMemberId}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+              ]}
+              fill
+            />
           </label>
         )}
         <label className="modal-field">
@@ -987,17 +996,16 @@ export function CategoryTransactionsDialog({
           {selectedIds.size > 0 && (
             <div className="bulk-actions-bar">
               <span className="bulk-actions-count">{selectedIds.size} selected</span>
-              <select value="" onChange={(e) => handleBulkChange(e.target.value)}>
-                <option value="" disabled>
-                  Set category to…
-                </option>
-                {categoryOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-                <option value="__new__">+ New category…</option>
-              </select>
+              <MenuSelect
+                ariaLabel="Set category to…"
+                placeholder="Set category to…"
+                value={""}
+                onChange={handleBulkChange}
+                options={[
+                  ...categoryOptions.map((c) => ({ value: c, label: c })),
+                  { value: "__new__", label: "+ New category…" },
+                ]}
+              />
               <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
                 Clear selection
               </button>
@@ -1054,15 +1062,16 @@ export function CategoryTransactionsDialog({
                           {category}
                         </span>
                       ) : (
-                        <select value={category} onChange={(e) => onCorrectCategory(t.transaction_id, e.target.value)}>
-                          {!categoryOptions.includes(category) && <option value={category}>{category}</option>}
-                          {categoryOptions.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                          <option value="__new__">+ New category…</option>
-                        </select>
+                        <MenuSelect
+                          ariaLabel={`Category for "${t.description}"`}
+                          value={category}
+                          onChange={(v) => onCorrectCategory(t.transaction_id, v)}
+                          options={[
+                            ...(!categoryOptions.includes(category) ? [{ value: category, label: category }] : []),
+                            ...categoryOptions.map((c) => ({ value: c, label: c })),
+                            { value: "__new__", label: "+ New category…" },
+                          ]}
+                        />
                       )}
                     </td>
                   </tr>
@@ -1310,14 +1319,13 @@ function PinItemRow<T>({
         <span className="modal-message-secondary">None available</span>
       ) : (
         <>
-          <select value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)}>
-            <option value="">Choose…</option>
-            {options.map((o) => (
-              <option key={getKey(o)} value={getKey(o)}>
-                {getLabel(o)}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel={`Choose ${label}`}
+            placeholder="Choose…"
+            value={selectedKey}
+            onChange={setSelectedKey}
+            options={options.map((o) => ({ value: getKey(o), label: getLabel(o) }))}
+          />
           <button
             type="button"
             className="modal-secondary"
@@ -1589,25 +1597,27 @@ export function AccountEditDialog({
       <form onSubmit={handleSubmit}>
         <label className="modal-field">
           <span>Account type</span>
-          <select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
-            {ACCOUNT_TYPE_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t[0].toUpperCase() + t.slice(1)}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Account type"
+            value={accountType}
+            onChange={setAccountType}
+            options={ACCOUNT_TYPE_OPTIONS.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+            fill
+          />
         </label>
         {familyMembers.length > 0 && (
           <label className="modal-field">
             <span>Family member</span>
-            <select value={memberId ?? ""} onChange={(e) => setMemberId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">Unassigned</option>
-              {familyMembers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <MenuSelect
+              ariaLabel="Family member"
+              value={memberId == null ? "" : String(memberId)}
+              onChange={(v) => setMemberId(v ? Number(v) : null)}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+              ]}
+              fill
+            />
           </label>
         )}
         <label className="modal-field">

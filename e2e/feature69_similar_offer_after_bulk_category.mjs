@@ -6,7 +6,7 @@
 //
 // Run with: node e2e/feature69_similar_offer_after_bulk_category.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -53,9 +53,9 @@ try {
 
   // ---- one merchant, via the bulk bar
   await tick("Corner Cart");
-  const bulkSelect = await browser.$(".bulk-actions-bar select[aria-label='Set category to…']");
+  const bulkSelect = await browser.$(".bulk-actions-bar button[aria-label='Set category to…']");
   await bulkSelect.waitForExist({ timeout: 10000 });
-  await bulkSelect.selectByVisibleText("Entertainment");
+  await chooseMenuOption(bulkSelect, { label: "Entertainment" });
   const toast = await browser.$(".toast-stack");
   await browser.waitUntil(async () => /Saved a rule: "Corner Cart" → Entertainment\. 2 similar transactions could use it too\./.test(await toast.getText()), {
     timeout: 10000,
@@ -69,7 +69,7 @@ try {
   // still uncategorized: 2 + 2 = 4 similar transactions.
   await tick("Lunch Truck");
   await tick("Corner Cart");
-  await (await browser.$(".bulk-actions-bar select[aria-label='Set category to…']")).selectByVisibleText("Dining Out");
+  await chooseMenuOption(await browser.$(".bulk-actions-bar button[aria-label='Set category to…']"), { label: "Dining Out" });
   await browser.waitUntil(async () => /Saved rules for 2 merchants → Dining Out\. 4 similar transactions could use them too\./.test(await toast.getText()), {
     timeout: 10000,
     timeoutMsg: "expected one combined offer for the two merchants covering 4 similar transactions",

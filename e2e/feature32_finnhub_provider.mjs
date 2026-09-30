@@ -14,7 +14,7 @@
 //
 // Run with: node e2e/feature32_finnhub_provider.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture("");
@@ -27,16 +27,16 @@ try {
   const livePricesCard = await app.browser.$("//div[contains(@class,'card')][.//span[text()='Live stock prices']]");
   await livePricesCard.waitForExist({ timeout: 10000 });
 
-  const providerSelect = await livePricesCard.$("select");
+  const providerSelect = await livePricesCard.$(".menu-select-toggle");
   await providerSelect.waitForExist({ timeout: 5000 });
-  const initialProvider = await providerSelect.getValue();
+  const initialProvider = await menuSelectValue(providerSelect);
   if (initialProvider !== "alpha_vantage") {
     throw new Error(`expected the provider picker to default to alpha_vantage, got: ${initialProvider}`);
   }
   console.log("provider picker defaults to Alpha Vantage");
 
-  await providerSelect.selectByVisibleText("Finnhub");
-  await app.browser.waitUntil(async () => (await providerSelect.getValue()) === "finnhub", {
+  await chooseMenuOption(providerSelect, { label: "Finnhub" });
+  await app.browser.waitUntil(async () => (await menuSelectValue(providerSelect)) === "finnhub", {
     timeout: 10000,
     timeoutMsg: "expected the provider picker to switch to finnhub",
   });
@@ -81,7 +81,7 @@ try {
     timeoutMsg: "expected the card to return to the disabled/manual-only state after disabling",
   });
 
-  const rememberedProvider = await (await livePricesCard.$("select")).getValue();
+  const rememberedProvider = await menuSelectValue(await livePricesCard.$(".menu-select-toggle"));
   if (rememberedProvider !== "finnhub") {
     throw new Error(`expected the provider picker to remember Finnhub after disabling, got: ${rememberedProvider}`);
   }

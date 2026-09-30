@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature21_add_to_recurring.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -38,10 +38,8 @@ try {
     throw new Error(`expected an "Add to Recurring…" control, got:\n${barText}`);
   }
 
-  const recurringSelect = await app.browser.$(
-    "//div[contains(@class,'bulk-actions-bar')]//option[text()='Add to Recurring…']/parent::select",
-  );
-  await recurringSelect.selectByAttribute("value", "annual");
+  const recurringSelect = await app.browser.$(".bulk-actions-bar button[aria-label='Add to Recurring…']");
+  await chooseMenuOption(recurringSelect, { value: "annual" });
 
   await app.browser.waitUntil(
     async () => (await app.browser.$(".status").getText()).toLowerCase().includes("added 1"),

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { ImportCategoryReconcile, defaultCategoryChoices, type CategoryChoice } from "./ImportCategoryReconcile";
+import { menuOptions, menuValue, pickMenuOption } from "./menuSelectTestUtils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -42,14 +43,9 @@ describe("ImportCategoryReconcile", () => {
     });
   }
 
-  const selects = () => [...container.querySelectorAll<HTMLSelectElement>("select[data-import-category-choice]")];
+  const selects = () => [...container.querySelectorAll<HTMLButtonElement>("button[data-import-category-choice]")];
 
-  function pick(select: HTMLSelectElement, value: string) {
-    act(() => {
-      select.value = value;
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-  }
+  const pick = pickMenuOption;
 
   it("shows nothing when the file brings no category the person lacks", () => {
     show({}, []);
@@ -85,12 +81,12 @@ describe("ImportCategoryReconcile", () => {
       "Gas/Automotive": { action: "skip" },
     });
     show();
-    expect(selects().map((s) => s.value)).toEqual(["skip", "skip"]);
+    expect(selects().map(menuValue)).toEqual(["skip", "skip"]);
   });
 
   it("offers not using it, adding the file's category, or any of the person's own", () => {
     show();
-    const options = [...selects()[0].querySelectorAll("option")].map((o) => o.textContent);
+    const options = menuOptions(selects()[0]).map((o) => o.label);
     expect(options[0]).toBe("Don't use it");
     expect(options[1]).toBe("Add as a new category");
     expect(options.slice(2)).toEqual(mine);
@@ -111,7 +107,7 @@ describe("ImportCategoryReconcile", () => {
 
   it("reflects the current choices", () => {
     show({ Merchandise: { action: "map_to", category: "Groceries" }, "Gas/Automotive": { action: "create" } });
-    expect(selects().map((s) => s.value)).toEqual(["map:Groceries", "create"]);
+    expect(selects().map(menuValue)).toEqual(["map:Groceries", "create"]);
   });
 
   it("has one-click ways to not use any of them or to add them all", () => {

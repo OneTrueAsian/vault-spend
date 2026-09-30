@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getCurrentGeneration } from "./profileUiState";
+import { MenuSelect } from "./MenuSelect";
 import {
   getAutoLockSettings,
   setAutoLockSettings,
@@ -77,19 +78,14 @@ export function AutoLockSettings({ enabled }: { enabled: boolean }) {
       )}
       <div className="feature-toggle-list">
         <label className="feature-toggle-row">
-          <select
-            value={settings.inactivity_minutes}
+          <MenuSelect
+            ariaLabel="Lock after inactivity"
+            value={String(settings.inactivity_minutes)}
+            onChange={(v) => void save({ ...settings, inactivity_minutes: Number(v) as AutoLockSettingsValue["inactivity_minutes"] })}
+            options={MINUTE_OPTIONS.map((minutes) => ({ value: String(minutes), label: minutes === 0 ? "Off" : `${minutes} minute${minutes === 1 ? "" : "s"}` }))}
             disabled={controlsDisabled}
-            onChange={(event) => void save({ ...settings, inactivity_minutes: Number(event.target.value) as AutoLockSettingsValue["inactivity_minutes"] })}
-            data-auto-lock-minutes
-            aria-label="Lock after inactivity"
-          >
-            {MINUTE_OPTIONS.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {minutes === 0 ? "Off" : `${minutes} minute${minutes === 1 ? "" : "s"}`}
-              </option>
-            ))}
-          </select>
+            triggerAttrs={{ "data-auto-lock-minutes": "" }}
+          />
           <span className="feature-toggle-text">
             <span className="feature-toggle-label">Lock after inactivity</span>
             <span className="modal-message-secondary">A 10-second warning appears before Vault Spend locks.</span>

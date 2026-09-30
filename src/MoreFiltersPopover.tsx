@@ -1,4 +1,5 @@
 import { usePopover } from "./usePopover";
+import { MenuSelect } from "./MenuSelect";
 
 /** Collapses the Transactions tab's less-frequently-used filters (date range, tag)
  * behind one toggle — same toggle-button/click-outside/panel shape as
@@ -66,14 +67,15 @@ export function MoreFiltersPopover({
           </label>
           <label className="labeled-field">
             <span className="labeled-field-label">Tag</span>
-            <select value={filterTag} onChange={(e) => onSetTag(e.target.value)}>
-              <option value="all">All tags</option>
-              {allTags.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
+            <MenuSelect
+              ariaLabel="Tag"
+              value={filterTag}
+              onChange={onSetTag}
+              options={[
+                { value: "all", label: "All tags" },
+                ...allTags.map((tag) => ({ value: tag, label: tag })),
+              ]}
+            />
           </label>
         </div>
       )}

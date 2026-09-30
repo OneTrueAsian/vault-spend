@@ -8,7 +8,7 @@
 // Run with: node e2e/feature136_ledger_layout_widen.mjs
 
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -210,11 +210,11 @@ try {
 
   // ---- 4. An accessible Sort by control covers a column whose header has
   //         moved into Details, and reordering actually works -----------
-  const sortBy = await browser.$("select[aria-label='Sort by']");
+  const sortBy = await browser.$("button[aria-label^='Sort by']");
   await sortBy.waitForExist({ timeout: 10000, timeoutMsg: "expected a Sort by control once column headers move into Details" });
-  await sortBy.selectByAttribute("value", "account");
+  await chooseMenuOption(sortBy, { value: "account" });
   await browser.waitUntil(
-    async () => (await sortBy.getValue()) === "account",
+    async () => (await menuSelectValue(sortBy)) === "account",
     { timeout: 5000, timeoutMsg: "expected the Sort by control to hold Account after selecting it" },
   );
   const firstRowDescriptionByAccount = await browser.execute(() => document.querySelector("table.ledger tbody tr td:nth-child(3)")?.textContent);

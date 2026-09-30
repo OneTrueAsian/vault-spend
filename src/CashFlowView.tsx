@@ -6,6 +6,7 @@ import { formatAmount } from "./format";
 import { DebtPayoffPlannerSection } from "./ReportsView";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
+import { MenuSelect } from "./MenuSelect";
 
 const CATEGORY_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 const FORECAST_DAY_OPTIONS = [30, 60, 90];
@@ -301,19 +302,14 @@ export function CashFlowView({
               <div className="card-head">
                 <span className="reports-section-title">Top merchants</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <select
-                    aria-label="Month for top merchants and categories"
-                    className="month-select"
-                    value={topCategoriesMonth.month}
-                    onChange={(e) => onSetTopCategoriesMonth(topCategoriesMonth.year, Number(e.target.value))}
+                  <MenuSelect
+                    ariaLabel="Month for top merchants and categories"
+                    value={String(topCategoriesMonth.month)}
+                    onChange={(v) => onSetTopCategoriesMonth(topCategoriesMonth.year, Number(v))}
+                    options={monthOptions.map((opt) => ({ value: String(opt.month), label: opt.label }))}
                     title="Also changes the Top categories chart"
-                  >
-                    {monthOptions.map((opt) => (
-                      <option key={opt.month} value={opt.month}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                    triggerClassName="month-select"
+                  />
                   <PinToDashboardButton widgetId="top_merchants" layoutWidgets={layoutWidgets} onPin={onPinWidget} />
                 </div>
               </div>

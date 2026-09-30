@@ -9,6 +9,7 @@ import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
 import { StatDetailPanel } from "./StatDetailPanel";
 import { AccumulationSummaryCard } from "./AccumulationSection";
+import { MenuSelect } from "./MenuSelect";
 
 const CLASS_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 
@@ -63,13 +64,12 @@ function GoalProjectionCalculator({
         </label>
         <label className="labeled-field">
           <span className="labeled-field-label">Time horizon</span>
-          <select value={years} onChange={(e) => setYears(Number(e.target.value))}>
-            {PROJECTION_YEAR_OPTIONS.map((y) => (
-              <option key={y} value={y}>
-                {y} years
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Time horizon"
+            value={String(years)}
+            onChange={(v) => setYears(Number(v))}
+            options={PROJECTION_YEAR_OPTIONS.map((y) => ({ value: String(y), label: `${y} years` }))}
+          />
         </label>
       </form>
 
@@ -363,13 +363,12 @@ function NewHoldingForm({
     <form className="labeled-field-form" onSubmit={handleSubmit}>
       <label className="labeled-field">
         <span className="labeled-field-label">Account</span>
-        <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-          {investmentAccounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
+        <MenuSelect
+          ariaLabel="Account"
+          value={String(accountId)}
+          onChange={setAccountId}
+          options={investmentAccounts.map((a) => ({ value: String(a.id), label: a.name }))}
+        />
       </label>
       <label className="labeled-field">
         <span className="labeled-field-label">Symbol</span>

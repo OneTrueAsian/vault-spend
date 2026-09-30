@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { MenuSelect } from "./MenuSelect";
 import { Check, Info, Leaf, LineChart as LineChartIcon, MessageCircleQuestion } from "lucide-react";
 import { CategoryIcon, BudgetGroupIcon, AccountTypeIcon, BucketIcon, IconEntryGlyph, flatIconEntry } from "./icons";
 import type {
@@ -1222,13 +1223,16 @@ export function DashboardView({
       />
 
       <div className="dashboard-toolbar">
-        <select
-          aria-label="Dashboard layout"
-          className="month-select"
+        <MenuSelect
+          ariaLabel="Dashboard layout"
+          triggerClassName="layout-select-toggle"
           value={presetKey}
-          title="Layout"
-          onChange={(e) => {
-            const value = e.target.value;
+          options={[
+            ...(Object.keys(LAYOUT_PRESETS) as LayoutPresetKey[]).map((key) => ({ value: key, label: LAYOUT_PRESET_LABELS[key] })),
+            ...customPresets.map((p) => ({ value: `custom:${p.name}`, label: p.name })),
+            ...(presetKey === "custom" ? [{ value: "custom", label: "Custom (unsaved)", disabled: true }] : []),
+          ]}
+          onChange={(value) => {
             if (value.startsWith("custom:")) {
               const found = customPresets.find((p) => p.name === value.slice("custom:".length));
               if (found) onSetLayoutWidgets([...found.widgets]);
@@ -1236,23 +1240,7 @@ export function DashboardView({
               onSetLayoutWidgets([...LAYOUT_PRESETS[value as LayoutPresetKey]]);
             }
           }}
-        >
-          {(Object.keys(LAYOUT_PRESETS) as LayoutPresetKey[]).map((key) => (
-            <option key={key} value={key}>
-              {LAYOUT_PRESET_LABELS[key]}
-            </option>
-          ))}
-          {customPresets.map((p) => (
-            <option key={p.name} value={`custom:${p.name}`}>
-              {p.name}
-            </option>
-          ))}
-          {presetKey === "custom" && (
-            <option value="custom" disabled>
-              Custom (unsaved)
-            </option>
-          )}
-        </select>
+        />
         {presetKey === "custom" &&
           (savingLayout ? (
             <form

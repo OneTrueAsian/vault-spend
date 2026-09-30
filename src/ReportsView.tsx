@@ -21,6 +21,7 @@ import {
 } from "./reportRange";
 import { buildSankeyData, layoutSankey, sankeyRibbonPath, spreadLabelPositions, type SankeyNode } from "./sankey";
 import { buildHeatmapWeeks, heatmapBucket, heatmapScaleMax, type DailyAmount } from "./heatmap";
+import { MenuSelect } from "./MenuSelect";
 
 /** Savings rate — (income − expenses) ÷ income — trended over every month
  * with transaction history, trailing 12. A purely client-side reduction
@@ -174,13 +175,12 @@ export function DebtPayoffPlannerSection({
       <form className="labeled-field-form" onSubmit={(e) => { e.preventDefault(); handleCalculate(); }}>
         <label className="labeled-field">
           <span className="labeled-field-label">Strategy</span>
-          <select value={strategy} onChange={(e) => setStrategy(e.target.value)}>
-            {DEBT_STRATEGY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Strategy"
+            value={strategy}
+            onChange={setStrategy}
+            options={DEBT_STRATEGY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+          />
         </label>
         <label className="labeled-field">
           <span className="labeled-field-label">Extra monthly payment</span>

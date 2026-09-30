@@ -129,6 +129,7 @@ import type {
   YoyCashFlow,
 } from "./types";
 import "./App.css";
+import { MenuSelect } from "./MenuSelect";
 
 type ImportSummary = {
   inserted: number;
@@ -4142,17 +4143,12 @@ function App({
                         <td>{row.description}</td>
                         <td className="amount-col">{formatAmount(row.amount)}</td>
                         <td>
-                          <select
-                            aria-label={`Account for "${row.description}"`}
-                            value={accountOverrides.get(row.index) ?? pendingImport.defaultAccountId}
-                            onChange={(e) => setImportRowAccount(row.index, Number(e.target.value))}
-                          >
-                            {accounts.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.name}
-                              </option>
-                            ))}
-                          </select>
+                          <MenuSelect
+                            ariaLabel={`Account for "${row.description}"`}
+                            value={String(accountOverrides.get(row.index) ?? pendingImport.defaultAccountId)}
+                            onChange={(v) => setImportRowAccount(row.index, Number(v))}
+                            options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
+                          />
                           {row.account_name &&
                             !accounts.some((a) => a.name.toLowerCase() === row.account_name!.toLowerCase()) && (
                               <div className="account-col" title="No account by that name exists yet — it'll be created on import">
@@ -4201,24 +4197,17 @@ function App({
                         <td>{t.description}</td>
                         <td className="amount-col">{formatAmount(t.amount)}</td>
                         <td>
-                          <select
-                            aria-label={`Category for "${t.description}"`}
+                          <MenuSelect
+                            ariaLabel={`Category for "${t.description}"`}
                             value={t.category ?? ""}
-                            onChange={(e) => handleCategoryChange(t.id, e.target.value)}
-                          >
-                            <option value="" disabled>
-                              Uncategorized
-                            </option>
-                            {t.category && !categoryOptions.includes(t.category) && (
-                              <option value={t.category}>{t.category}</option>
-                            )}
-                            {categoryOptions.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                            <option value="__new__">+ New category…</option>
-                          </select>
+                            onChange={(v) => handleCategoryChange(t.id, v)}
+                            options={[
+                              { value: "", label: "Uncategorized", disabled: true },
+                              ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
+                              ...categoryOptions.map((c) => ({ value: c, label: c })),
+                              { value: "__new__", label: "+ New category…" },
+                            ]}
+                          />
                         </td>
                         <td className="source-col">
                           {t.category_source ?? ""}
@@ -4379,39 +4368,34 @@ function App({
           {activeTab === "ledger" && selectedIds.size > 0 && (
             <div className="bulk-actions-bar">
               <span className="bulk-actions-count">{selectedIds.size} selected</span>
-              <select aria-label="Set category to…" value="" onChange={(e) => handleBulkCategoryChange(e.target.value)}>
-                <option value="" disabled>
-                  Set category to…
-                </option>
-                {categoryOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-                <option value="__new__">+ New category…</option>
-              </select>
-              <select aria-label="Add to Recurring…" value="" onChange={(e) => handleAddSelectedToRecurring(e.target.value)}>
-                <option value="" disabled>
-                  Add to Recurring…
-                </option>
-                {CADENCE_OPTIONS.map((c) => (
-                  <option key={c} value={c}>
-                    {c[0].toUpperCase() + c.slice(1)}
-                  </option>
-                ))}
-              </select>
+              <MenuSelect
+                ariaLabel="Set category to…"
+                placeholder="Set category to…"
+                value={""}
+                onChange={(v) => handleBulkCategoryChange(v)}
+                options={[
+                  ...categoryOptions.map((c) => ({ value: c, label: c })),
+                  { value: "__new__", label: "+ New category…" },
+                ]}
+              />
+              <MenuSelect
+                ariaLabel="Add to Recurring…"
+                placeholder="Add to Recurring…"
+                value={""}
+                onChange={(v) => handleAddSelectedToRecurring(v)}
+                options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
+              />
               {familyMembers.length > 0 && (
-                <select aria-label="Set member to…" value="" onChange={(e) => handleBulkMemberChange(e.target.value)}>
-                  <option value="" disabled>
-                    Set member to…
-                  </option>
-                  <option value="__none__">Unassigned</option>
-                  {familyMembers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
+                <MenuSelect
+                  ariaLabel="Set member to…"
+                  placeholder="Set member to…"
+                  value={""}
+                  onChange={(v) => handleBulkMemberChange(v)}
+                  options={[
+                    { value: "__none__", label: "Unassigned" },
+                    ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+                  ]}
+                />
               )}
               <span className="bulk-tag-input">
                 <input
@@ -4466,14 +4450,19 @@ function App({
                 <div className="ledger-sort-by">
                   <label className="labeled-field">
                     <span className="labeled-field-label">Sort by</span>
-                    <select aria-label="Sort by" value={sortColumn} onChange={(e) => setSortColumn(e.target.value as LedgerSortColumn)}>
-                      <option value="date">Date</option>
-                      <option value="description">Description</option>
-                      <option value="amount">Amount</option>
-                      <option value="account">Account</option>
-                      <option value="category">Category</option>
-                      <option value="source">Source</option>
-                    </select>
+                    <MenuSelect
+                      ariaLabel="Sort by"
+                      value={sortColumn}
+                      onChange={(v) => setSortColumn(v as LedgerSortColumn)}
+                      options={[
+                        { value: "date", label: "Date" },
+                        { value: "description", label: "Description" },
+                        { value: "amount", label: "Amount" },
+                        { value: "account", label: "Account" },
+                        { value: "category", label: "Category" },
+                        { value: "source", label: "Source" },
+                      ]}
+                    />
                   </label>
                   <button
                     type="button"
@@ -4656,17 +4645,12 @@ function App({
                         </span>
                       ) : applyingDebtId === t.id ? (
                         <span className="debt-apply-form">
-                          <select
-                            aria-label={`Debt account to apply "${t.description}" toward`}
+                          <MenuSelect
+                            ariaLabel={`Debt account to apply "${t.description}" toward`}
                             value={applyDebtForm.accountId}
-                            onChange={(e) => setApplyDebtForm({ ...applyDebtForm, accountId: e.target.value })}
-                          >
-                            {debtAccounts.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.name}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(v) => setApplyDebtForm({ ...applyDebtForm, accountId: v })}
+                            options={debtAccounts.map((a) => ({ value: String(a.id), label: a.name }))}
+                          />
                           <input
                             className="debt-apply-amount"
                             value={applyDebtForm.amount}
@@ -4927,17 +4911,12 @@ function App({
                                 <div className="split-editor">
                                   {splitLines.map((line, i) => (
                                     <div className="split-editor-line" key={i}>
-                                      <select
-                                        aria-label={`Category for split ${i + 1} of "${t.description}"`}
+                                      <MenuSelect
+                                        ariaLabel={`Category for split ${i + 1} of "${t.description}"`}
                                         value={line.category}
-                                        onChange={(e) => updateSplitLine(i, { category: e.target.value })}
-                                      >
-                                        {categoryOptions.map((c) => (
-                                          <option key={c} value={c}>
-                                            {c}
-                                          </option>
-                                        ))}
-                                      </select>
+                                        onChange={(v) => updateSplitLine(i, { category: v })}
+                                        options={categoryOptions.map((c) => ({ value: c, label: c }))}
+                                      />
                                       <input
                                         className="debt-apply-amount"
                                         value={line.amount}
@@ -4999,11 +4978,16 @@ function App({
             <div className="ledger-pagination">
               <label className="ledger-page-size">
                 Show
-                <select aria-label="Rows per page" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
+                <MenuSelect
+                  ariaLabel="Rows per page"
+                  value={String(pageSize)}
+                  onChange={(v) => setPageSize(Number(v))}
+                  options={[
+                    { value: "10", label: "10" },
+                    { value: "25", label: "25" },
+                    { value: "50", label: "50" },
+                  ]}
+                />
                 per page
               </label>
               <div className="month-nav">

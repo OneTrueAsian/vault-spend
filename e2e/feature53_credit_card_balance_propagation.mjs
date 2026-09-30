@@ -9,7 +9,7 @@
 //
 // Run with: node e2e/feature53_credit_card_balance_propagation.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -54,8 +54,8 @@ async function addTransaction(app, { accountName, description, amount }) {
   const panel = await app.browser.$(".modal-panel");
 
   // "Account" is the dialog's first field/select, in document order.
-  const accountSelect = (await panel.$$("select"))[0];
-  await accountSelect.selectByVisibleText(accountName);
+  const accountSelect = (await panel.$$(".menu-select-toggle"))[0];
+  await chooseMenuOption(accountSelect, { label: accountName });
   await (await panel.$("input[placeholder='e.g. \"Coffee shop\"']")).setValue(description);
   await (await panel.$("input[placeholder='Negative = money out']")).setValue(amount);
 

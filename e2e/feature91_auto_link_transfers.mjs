@@ -14,7 +14,7 @@
 //
 // Run with: node e2e/feature91_auto_link_transfers.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -94,9 +94,7 @@ async function addTransaction({ account, description, amount, backDays }) {
   await (await browser.$("button*=Add transaction")).click();
   const panel = await browser.$(".modal-panel");
   await panel.waitForExist({ timeout: 8000 });
-  for (const sel of await panel.$$("select")) {
-    if ((await sel.getText()).includes(account)) await sel.selectByVisibleText(account);
-  }
+  await chooseMenuOption((await panel.$$(".menu-select-toggle"))[0], { label: account });
   const d = new Date();
   d.setDate(d.getDate() - backDays);
   const mmddyyyy = `${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}${d.getFullYear()}`;
