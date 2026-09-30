@@ -104,6 +104,15 @@ try {
   const uncategorizedOption = await browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Uncategorized']]");
   await uncategorizedOption.waitForExist({ timeout: 5000 });
   assert.equal(await uncategorizedOption.getAttribute("aria-disabled"), "true", "expected the Uncategorized placeholder to be marked disabled");
+  // Disabled must also *look* disabled — a screenshot found it reading as
+  // plain, ordinary (clickable-looking) text otherwise, with no visual
+  // cue that clicking it does nothing.
+  const disabledColors = await browser.execute(() => {
+    const opt = [...document.querySelectorAll("[role='menuitemradio']")].find((b) => b.textContent.includes("Uncategorized"));
+    const other = [...document.querySelectorAll("[role='menuitemradio']")].find((b) => !b.getAttribute("aria-disabled") && b.textContent.trim() !== "");
+    return { disabled: getComputedStyle(opt).color, ordinary: getComputedStyle(other).color };
+  });
+  assert.notEqual(disabledColors.disabled, disabledColors.ordinary, `expected the disabled placeholder to read visually distinct from an ordinary option, got the same color ${disabledColors.disabled} for both`);
   const categoryBefore = await categoryTriggerWide.getText();
   await uncategorizedOption.click();
   await browser.pause(300);

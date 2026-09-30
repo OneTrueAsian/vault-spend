@@ -6803,6 +6803,8 @@ input[type="checkbox"], input[type="radio"] {
   font-weight: 400;
 }
 .account-destination-option:hover, .account-destination-option[aria-checked="true"] { background: var(--surface-2); }
+.account-destination-option[aria-disabled="true"] { color: var(--text-muted); cursor: default; }
+.account-destination-option[aria-disabled="true"]:hover { background: transparent; }
 .account-destination-new { margin-top: 6px; border-top: 1px solid var(--border); }
 .inbox-controls { min-width: 0; padding: 0; margin: 0; border: 0; }
 .inbox-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; }
