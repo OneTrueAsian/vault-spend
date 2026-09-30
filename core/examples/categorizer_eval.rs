@@ -29,6 +29,7 @@ use std::collections::BTreeMap;
 const LOW_CONFIDENCE: f64 = 0.7;
 
 struct Txn {
+    month: String,
     description: String,
     category: String,
     scored: bool,
@@ -58,7 +59,7 @@ fn main() {
     let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).expect("open the database read-only");
     let mut stmt = conn
         .prepare(
-            "SELECT description, category, category_source FROM transactions
+            "SELECT description, category, category_source, substr(date, 1, 7) FROM transactions
              WHERE deleted_at IS NULL AND category IS NOT NULL AND category != ''
              ORDER BY date, id",
         )
@@ -66,7 +67,7 @@ fn main() {
     let txns: Vec<Txn> = stmt
         .query_map([], |row| {
             let source: Option<String> = row.get(2)?;
-            Ok(Txn { description: row.get(0)?, category: row.get(1)?, scored: source.as_deref() == Some("user") })
+            Ok(Txn { month: row.get(3)?, description: row.get(0)?, category: row.get(1)?, scored: source.as_deref() == Some("user") })
         })
         .expect("query")
         .map(|r| r.expect("row"))
@@ -87,7 +88,29 @@ fn main() {
     let scored_total = txns.iter().filter(|t| t.scored).count();
     let mut scored_seen = 0usize;
 
+    // Review workload: what every transaction, not just the ones the person set, would get on arrival.
+    // month -> (arrived, flagged or unanswered)
+    let mut workload: BTreeMap<String, (u32, u32)> = BTreeMap::new();
+    // why: no answer, a contested rule, an unsure classifier guess; and how many of each were right
+    let (mut why_none, mut why_rule, mut why_class) = (0u32, Tally::default(), Tally::default());
+
     for txn in &txns {
+        let arrival = categorize(&txn.description, &rules, &history, classifier.as_ref());
+        let needs_look = match &arrival {
+            None => true,
+            Some((_, _, confidence)) => confidence.is_some_and(|c| c < LOW_CONFIDENCE),
+        };
+        match &arrival {
+            None => why_none += 1,
+            Some((category, source, Some(c))) if *c < LOW_CONFIDENCE => {
+                let right = *category == txn.category;
+                if *source == CategorySource::Rule { why_rule.add(right) } else { why_class.add(right) }
+            }
+            _ => {}
+        }
+        let entry = workload.entry(txn.month.clone()).or_default();
+        entry.0 += 1;
+        entry.1 += u32::from(needs_look);
         if txn.scored {
             scored_seen += 1;
             let guess = categorize(&txn.description, &rules, &history, classifier.as_ref());
@@ -136,6 +159,13 @@ fn main() {
     }
 
     let answered = rule_t.n + class_t.n;
+    let (arrived, looks): (u32, u32) = workload.values().fold((0, 0), |(a, l), (x, y)| (a + x, l + y));
+    println!("Review workload over every transaction as it arrived: {looks} of {arrived} ({:.1}%) needed a look", pct(looks, arrived));
+    println!("  because: no answer {why_none}; contested rule {} ({} of them right); unsure classifier {} ({} right)", why_rule.n, why_rule.pct(), why_class.n, why_class.pct());
+    for (month, (a, l)) in &workload {
+        println!("  {month}: {l:>3} of {a:>3}");
+    }
+    println!();
     println!("transactions replayed: {}   scored (set by the person): {}", txns.len(), scored_total);
     println!();
     println!("Of the {} transactions the person categorized themselves:", scored_total);

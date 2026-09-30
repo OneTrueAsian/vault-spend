@@ -1,5 +1,5 @@
 use crate::classifier::Classifier;
-use crate::rules::RuleSet;
+use crate::rules::{Rule, RuleSet};
 use crate::store::CategorySource;
 
 /// Below this many labeled examples, the classifier is considered too thin
@@ -35,7 +35,7 @@ pub const CONTESTED_RULE_MAX_CONFIDENCE: f64 = 0.69;
 /// "Unsure" cutoff, and the person is asked to check it. A classifier guess always carries its confidence.
 pub fn categorize(description: &str, rules: &RuleSet, history: &[(String, String)], classifier: Option<&Classifier>) -> Option<(String, CategorySource, Option<f64>)> {
     if let Some(rule) = rules.best_match(description) {
-        let confidence = contested_confidence(&rule.pattern, &rule.category, history);
+        let confidence = contested_confidence(rule, history);
         return Some((rule.category.clone(), CategorySource::Rule, confidence));
     }
 
@@ -49,16 +49,15 @@ pub fn categorize(description: &str, rules: &RuleSet, history: &[(String, String
         .map(|(category, confidence)| (category, CategorySource::Classifier, Some(confidence)))
 }
 
-/// `Some(confidence)` when the history `pattern` matches (case-insensitive substring, exactly as the
-/// rule itself matches) is too split to trust `category`; `None` when the rule is reliable or there is
-/// too little history to say.
-fn contested_confidence(pattern: &str, category: &str, history: &[(String, String)]) -> Option<f64> {
-    let needle = pattern.to_lowercase();
+/// `Some(confidence)` when the history the rule matches (by `Rule::matches`, exactly as it matches a new
+/// transaction) is too split to trust its category; `None` when the rule is reliable or there is too
+/// little history to say.
+fn contested_confidence(rule: &Rule, history: &[(String, String)]) -> Option<f64> {
     let (mut matching, mut agreeing) = (0usize, 0usize);
     for (description, labeled) in history {
-        if description.to_lowercase().contains(&needle) {
+        if rule.matches(description) {
             matching += 1;
-            agreeing += usize::from(labeled == category);
+            agreeing += usize::from(*labeled == rule.category);
         }
     }
     if matching < MIN_HISTORY_TO_CONTEST_A_RULE {
@@ -207,6 +206,16 @@ mod tests {
         let (_, _, confidence) = categorize("sams club", &sams_rule(), &past, None).unwrap();
 
         assert!(confidence.is_some(), "mixed history under differently cased descriptions is still mixed");
+    }
+
+    #[test]
+    fn history_under_other_store_numbers_counts_toward_a_rule_learned_from_one() {
+        let rules = RuleSet::new(vec![Rule::new("SAMS CLUB #6359", "Gas")]);
+        let past = history(&[("SAMS CLUB #6359", "Gas", 2), ("SAMS CLUB 8812", "Groceries", 3)]);
+
+        let (_, _, confidence) = categorize("SAMS CLUB #6359", &rules, &past, None).unwrap();
+
+        assert!(confidence.is_some(), "the other store's Groceries history makes this merchant contested");
     }
 
     #[test]

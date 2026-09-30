@@ -3540,12 +3540,7 @@ impl Store {
             .rules()
             .iter()
             .map(|rule| {
-                let needle = rule.pattern.trim().to_lowercase();
-                let match_count = if needle.is_empty() {
-                    0
-                } else {
-                    descriptions.iter().filter(|d| d.contains(&needle)).count()
-                };
+                let match_count = descriptions.iter().filter(|d| rule.matches(d)).count();
                 StoredRule {
                     pattern: rule.pattern.clone(),
                     category: rule.category.clone(),
@@ -3602,7 +3597,7 @@ impl Store {
                 .collect(),
         );
         rules.upsert(pattern, category);
-        let needle = pattern.to_lowercase();
+        let candidate = Rule::new(pattern, category);
 
         let split_parents: std::collections::HashSet<i64> = {
             let mut stmt = self.conn.prepare("SELECT DISTINCT transaction_id FROM transaction_splits")?;
@@ -3627,7 +3622,7 @@ impl Store {
         let mut ids = Vec::new();
         for row in rows {
             let (id, description, current_category, source) = row?;
-            if !description.to_lowercase().contains(&needle) {
+            if !candidate.matches(&description) {
                 continue;
             }
             matching += 1;
@@ -16687,6 +16682,27 @@ mod tests {
         let coffee = rules.iter().find(|r| r.pattern == "ferrywood coffee").unwrap();
         assert_eq!(coffee.match_count, 2, "matching is case-insensitive substring, like RuleSet::categorize");
         assert_eq!(rules.iter().find(|r| r.pattern == "payroll").unwrap().match_count, 0);
+    }
+
+    #[test]
+    fn a_rules_match_count_and_preview_agree_with_how_the_categorizer_matches() {
+        // Learned from one store number, the rule categorizes every store; the rules manager's count and
+        // the "would change" preview must say the same, not just count exact-substring matches.
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[tx("2026-08-01", "SPEEDWAY 44289", "-40.00"), tx("2026-08-02", "SPEEDWAY 51230", "-35.00"), tx("2026-08-03", "Shell", "-20.00")],
+            )
+            .unwrap();
+        store.upsert_rule("SPEEDWAY 44289", "Gas").unwrap();
+
+        let listed = store.list_rules().unwrap();
+        assert_eq!(listed.iter().find(|r| r.pattern == "SPEEDWAY 44289").unwrap().match_count, 2);
+        let preview = store.preview_rule("SPEEDWAY 44289", "Gas", None).unwrap();
+        assert_eq!((preview.matching, preview.would_change), (2, 2));
+        assert!(store.load_rules().unwrap().categorize("SPEEDWAY 51230").is_some());
     }
 
     #[test]

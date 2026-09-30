@@ -879,7 +879,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         lightweight classifier also kicks in for transactions the rules
         don't cover. Anything neither can confidently place is left
         Uncategorized rather than guessing — setting it yourself teaches the
-        app for next time. If a merchant has been filed under more than one category, its rule still suggests your most recent choice but marks it Unsure, so it lands in the review inbox instead of being applied silently. Every rule, built-in and learned, is listed in{" "}
+        app for next time. Rules compare merchant names, ignoring store numbers, punctuation and card-processor prefixes such as "SQ *", so a rule learned from one Speedway also covers the others. If a merchant has been filed under more than one category, its rule still suggests your most recent choice but marks it Unsure, so it lands in the review inbox instead of being applied silently. Every rule, built-in and learned, is listed in{" "}
         <strong>Settings → Categorization rules</strong>, where you can add,
         edit, or delete them; before a new rule is saved you'll see how many
         existing transactions it would change and can apply it to them right

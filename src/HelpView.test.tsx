@@ -41,6 +41,10 @@ describe("HelpView", () => {
     expect(text).not.toContain("The only network requests Vault Spend makes");
   });
 
+  it("explains that rules ignore store numbers", () => {
+    expect(container.textContent).toContain("ignoring store numbers");
+  });
+
   it("explains that a split merchant's rule is flagged for review, not applied silently", () => {
     expect(container.textContent).toContain("filed under more than one category");
   });
