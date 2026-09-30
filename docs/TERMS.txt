@@ -1,0 +1,78 @@
+Vault Spend Terms and Conditions
+Version: 2026-09-30
+What changed: First version.
+
+=== SUMMARY ===
+
+The important bits, in everyday words. The full terms below are what count.
+
+- Vault Spend is free, open-source software. It is provided as it is, with no warranty.
+- Your financial data stays in a file on your own computer. There is no account and no cloud copy. Vault Spend does make a few internet requests, listed under "Your data and privacy".
+- Anything the app calculates (projections, debt payoff plans, totals, reports) is an estimate based on what you entered or imported. It is not financial, tax or legal advice.
+- You are responsible for your backups, your password and your recovery codes. If you lose both your password and your recovery codes, nobody can get your data back.
+- Vault Spend is an independent project. It is not connected to, or endorsed by, any bank, broker or financial company.
+- If you decline these terms you can still use the app, but you do so at your own risk. The project gives no warranty and accepts no responsibility for any loss. The MIT License's no-warranty terms apply either way.
+
+=== FULL TERMS ===
+
+1. What Vault Spend is
+
+Vault Spend ("the app") is a personal budgeting program for your computer, made and shared by the Vault Spend project and its contributors ("we", "us", "the project"). The app's source code is licensed under the MIT License (Copyright (c) 2026 OneTrueAsian), which is included with the app and in the project's repository. The MIT License governs your rights to the code. These terms cover how you use the app. If the two ever conflict about your rights to the code, the MIT License controls.
+
+2. Your data and privacy
+
+Your transactions, accounts, budgets and settings are stored in files on your own computer, one database file per profile. The project has no account system and receives none of that data. We do not collect, sell or share your financial information.
+
+Some features need the internet. These are the only times the app contacts another service:
+
+  a. Fonts. When the app opens, it loads its typefaces from Google Fonts (fonts.googleapis.com and fonts.gstatic.com). Google can see that request, including your IP address, under its own privacy policy.
+  b. Update check. Once when the app opens, it asks GitHub (api.github.com) whether a newer release exists. GitHub can see that request, including your IP address. If you choose to download an update, the installer is downloaded from GitHub.
+  c. Live investment prices. Only if you turn this on and enter your own API key, the app sends the stock or fund symbols you track, together with your key, to the price provider you chose: Alpha Vantage, Finnhub, StockData.org or Twelve Data. Those services have their own terms and privacy policies.
+
+The app sends no transaction, balance, account or profile data in any of these requests.
+
+3. Estimates, not advice
+
+The app's calculations, including investment projections (such as Roth or 529-style accumulation), debt payoff plans and payment figures, and balances, budgets, totals and reports, are estimates. They depend on the information you entered or imported, on assumptions you may have changed, and on the app working as intended. They can be wrong or out of date. Nothing in the app is financial, investment, tax or legal advice. Check important figures yourself, or with a qualified professional, before acting on them.
+
+4. Your responsibilities
+
+  a. Backups. The app can make local backups and an optional second copy, but keeping copies of your data safe is your job. We do not promise that backups will be complete or that your data will never be lost or corrupted.
+  b. Password and recovery codes. A profile you protect with a password is encrypted. If you lose the password and every recovery code, your data cannot be recovered by you, by us or by anyone else. Keep your recovery codes somewhere safe.
+  c. Imported files. Files you import (CSV, OFX, QIF) may be incomplete or wrong, and the app may read or categorize them incorrectly. Review what you import.
+  d. Shared packages. A .vaultspend export package contains your financial data. You decide who receives it and are responsible for how it is stored and shared.
+  e. Your computer. You are responsible for the security of the computer and account you use the app on.
+
+5. Third-party price providers
+
+Live prices come from services run by others. We do not control them. Their prices may be late, wrong, limited, or unavailable, they may change or end their service, and their own terms apply to your use of them, including any limits on your free key. We are not responsible for the prices they return or for any decision you make using them.
+
+6. The installer
+
+Vault Spend installers are not digitally signed, so Windows may show a "Windows protected your PC" (SmartScreen) warning. The warning appears because the installer is not signed with a certificate Windows already recognizes. You decide whether to run it. Download the app only from the project's official GitHub releases page.
+
+7. No affiliation
+
+Vault Spend is an independent open-source project. It is not affiliated with, endorsed by, or partnered with any bank, broker, credit union, card issuer, wallet provider, price provider or other financial company. Names of any such companies the app mentions belong to their owners.
+
+8. Contributions
+
+If you contribute code or other material to the project, you offer it under the same MIT License as the rest of the project, unless you say otherwise in writing when you contribute.
+
+9. No warranty and limit of liability
+
+The app is provided "as is" and "as available", without warranty of any kind, express or implied, including any warranty of merchantability, fitness for a particular purpose, accuracy, or non-infringement. To the fullest extent the law allows, the project and its contributors are not liable for any loss or damage of any kind arising from the app or from your use of it, including lost or corrupted data, incorrect figures, missed bills, lost profits, or financial decisions you make. Some places do not allow some of these limits, so some of them may not apply to you. This section is in addition to the no-warranty and no-liability terms of the MIT License.
+
+If you decline these terms, you may keep using the app, but you do so at your own risk. The project gives no warranty and accepts no responsibility for any loss, and the MIT License's no-warranty terms apply either way.
+
+10. Changes and ending
+
+We may change the app at any time, and we may stop developing or distributing it. We may also update these terms. Each version of the terms has a version date. When the terms change, the app shows them again once on your next start, with a short note on what changed. You can stop using the app and uninstall it at any time. Your data file stays on your computer until you delete it.
+
+11. Governing law
+
+These terms are governed by the laws of the State of Michigan, USA, without regard to its conflict-of-laws rules. Any dispute about these terms or the app will be brought in the state or federal courts located in Michigan.
+
+12. Contact
+
+Questions, problems or concerns about these terms or the app: open an issue at https://github.com/OneTrueAsian/vault-spend/issues.
