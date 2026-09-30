@@ -288,6 +288,34 @@ pub fn set_autostart_enabled(enabled: bool, device: tauri::State<crate::device_s
     device.update(|settings| settings.autostart_enabled = enabled)
 }
 
+#[derive(Serialize)]
+pub struct LegalNoticeAcknowledgementDto {
+    /// The notice version last acknowledged on this computer, if any.
+    pub version: Option<String>,
+    pub acknowledged_at: Option<String>,
+    /// True only for an e2e run that asked to start past the notice (see `legal_notice_skipped`).
+    pub skip: bool,
+}
+
+/// Which version of the legal notice this computer has acknowledged. Read before any profile opens.
+#[tauri::command]
+pub fn get_legal_notice_acknowledgement(device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> LegalNoticeAcknowledgementDto {
+    let settings = device.snapshot();
+    LegalNoticeAcknowledgementDto {
+        version: settings.legal_notice_version,
+        acknowledged_at: settings.legal_notice_acknowledged_at,
+        skip: crate::device_settings::legal_notice_skipped(std::env::var_os("VAULTSPEND_SKIP_LEGAL_NOTICE"), std::env::var_os("VAULTSPEND_DB_DIR")),
+    }
+}
+
+/// Records that the person has seen `version` of the legal notice. The time is stamped here, not taken
+/// from the page.
+#[tauri::command]
+pub fn acknowledge_legal_notice(version: String, device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> Result<(), String> {
+    let at = chrono::Utc::now().to_rfc3339();
+    device.update(|settings| settings.acknowledge_legal_notice(&version, &at))
+}
+
 /// Sends a sample reminder so the user can see what one looks like and that
 /// notifications get through.
 #[tauri::command]

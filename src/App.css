@@ -6866,3 +6866,98 @@ input[type="checkbox"], input[type="radio"] {
 .view-payment { margin-left: 8px; }
 .ledger tr.payment-row-highlight { outline: 2px solid var(--accent); outline-offset: -2px; }
 .ledger tr[data-payment-row]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Legal notice: shown once per version before the profile picker or any lock screen, and read again from Help. */
+.legal-notice {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.legal-notice-card {
+  width: min(720px, 100%);
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.legal-notice-card h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  line-height: 1.25;
+  outline: none;
+}
+
+.legal-notice-card h2 {
+  margin: 18px 0 8px;
+  font-size: 15px;
+}
+
+.legal-notice-card p,
+.legal-notice-card li {
+  line-height: 1.5;
+}
+
+.legal-notice-card p {
+  margin: 0 0 12px;
+}
+
+.legal-notice-version {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.legal-notice-changed {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.legal-notice-full {
+  margin: 14px 0;
+}
+
+.legal-notice-scroll {
+  max-height: 320px;
+  overflow: auto;
+  margin-top: 8px;
+  padding: 4px 14px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+
+.legal-notice-scroll h3 {
+  margin: 18px 0 6px;
+  font-size: 14px;
+}
+
+.legal-notice-scroll h4 {
+  margin: 14px 0 4px;
+  font-size: 13px;
+}
+
+.legal-notice-scroll p,
+.legal-notice-scroll ul {
+  margin: 0 0 10px;
+}
+
+.legal-notice-problem {
+  min-height: 1.5em;
+  color: var(--negative);
+}
+
+.legal-notice-problem:empty {
+  min-height: 0;
+  margin: 0;
+}
+
+.legal-notice-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

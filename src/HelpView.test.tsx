@@ -34,6 +34,23 @@ describe("HelpView", () => {
     expect(text).toContain("Settings → Password protection → Automatic locking");
   });
 
+  it("lists every network request the app makes in the privacy answer, including Google Fonts", () => {
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("Google Fonts");
+    expect(text).not.toContain("The only network requests Vault Spend makes");
+  });
+
+  it("finds the legal notice when searching for \"disclaimer\"", () => {
+    const input = container.querySelector<HTMLInputElement>("input[type=search], input[placeholder*=earch]")!;
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "disclaimer");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("legal notice");
+  });
+
   it("finds the Transactions entry when searching for \"note\"", () => {
     const input = container.querySelector<HTMLInputElement>("input[type=search], input[placeholder*=earch]")!;
     act(() => {

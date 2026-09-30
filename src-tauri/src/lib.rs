@@ -207,6 +207,8 @@ pub fn run() {
             commands::set_tray_enabled,
             commands::set_autostart_enabled,
             commands::send_test_reminder,
+            commands::get_legal_notice_acknowledgement,
+            commands::acknowledge_legal_notice,
             commands::set_backup_copy_dir,
             commands::restore_backup,
             commands::list_profiles,
