@@ -70,7 +70,9 @@ try {
   await browser.setWindowSize(1920, 1000);
   await browser.pause(200);
   const pageWidth = await browser.execute(() => document.querySelector(".page")?.getBoundingClientRect().width);
-  assert.ok(pageWidth > 1300, `expected the ledger page to use the extra width at 1920px, measured ${pageWidth}px (was capped at 1180px before)`);
+  // The ledger is wider than every other tab's 1180px cap, but deliberately
+  // stops at 1298px (.page-ledger) rather than stretching across the window.
+  assert.ok(pageWidth > 1180 && pageWidth <= 1298.5, `expected the ledger page to be wider than the old 1180px cap but held to 1298px at 1920px, measured ${pageWidth}px`);
   const wideOverflow = await browser.execute(() => {
     const el = document.querySelector(".ledger-table-scroll");
     return el.scrollWidth - el.clientWidth;
@@ -83,6 +85,9 @@ try {
   const groceryRow = await rowFor("Grocery Run");
   const accountTrigger = await groceryRow.$('[aria-label*="Account for"]');
   assert.ok(await accountTrigger.isExisting(), "expected a RowFieldDropdown trigger for the row's account, not a native select");
+  // The ledger may cut the label off with an ellipsis, so the full name must be on hover.
+  const tooltipMatchesLabel = await accountTrigger.execute((el) => el.title !== "" && el.title === el.querySelector("span").textContent);
+  assert.ok(tooltipMatchesLabel, "expected the row's account button to carry its full name as a tooltip");
   await accountTrigger.click();
   const savingsOption = await browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Savings']]");
   await savingsOption.waitForExist({ timeout: 5000 });

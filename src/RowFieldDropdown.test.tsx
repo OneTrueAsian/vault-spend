@@ -58,6 +58,13 @@ describe("RowFieldDropdown", () => {
     expect(trigger().textContent).toContain("Household checking — annual expenses and reimbursements");
   });
 
+  it("puts the selected option's full label in the trigger's tooltip, so a label the ledger cuts off is still readable on hover", () => {
+    show("2");
+    expect(trigger().title).toBe("Household checking — annual expenses and reimbursements");
+    show("1");
+    expect(trigger().title).toBe("Checking");
+  });
+
   it("carries the caller's own aria-label", () => {
     show("1");
     expect(trigger().getAttribute("aria-label")).toBe('Account for "Green Leaf Grocers"');

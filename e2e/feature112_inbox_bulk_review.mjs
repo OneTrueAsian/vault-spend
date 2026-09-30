@@ -38,6 +38,9 @@ try {
     await reclaimWindowFocus(b);
     await (await b.$("#ledger-account-select")).click();
     await b.$('[role="menu"][aria-label="Add to account"]').waitForExist({ timeout: 5000 }).catch(() => {});
+    // :hover stops applying once another window takes OS foreground, so a timeout here in an unfocused
+    // window is the same focus loss as a closed menu: report it as `missing` for the caller to retry.
+    let hoverSettled = true;
     await b.waitUntil(async () => b.execute(() => {
       const reference = document.createElement('span');
       reference.style.background = 'var(--surface-2)';
@@ -45,7 +48,11 @@ try {
       const expected = getComputedStyle(reference).backgroundColor;
       reference.remove();
       return getComputedStyle(document.querySelector('#ledger-account-select')).backgroundColor === expected;
-    }), { timeout: 5000, timeoutMsg: 'Add to hover should use the themed field surface, not the primary-action fill' });
+    }), { timeout: 5000, timeoutMsg: 'Add to hover should use the themed field surface, not the primary-action fill' }).catch(async (error) => {
+      if (await b.execute(() => document.hasFocus())) throw error;
+      hoverSettled = false;
+    });
+    if (!hoverSettled) return { missing: true, hasFocus: false };
     return b.execute(() => {
       const panel = document.querySelector('.account-destination-panel');
       if (!panel) return { missing: true, menuStillOpen: Boolean(document.querySelector('[role="menu"]')), hasFocus: document.hasFocus(), active: document.activeElement?.id || document.activeElement?.tagName };
@@ -77,6 +84,13 @@ try {
   await b.$('.modal-field select').waitForExist({ timeout: 5000 });
   assert.ok(await b.execute(() => [...document.querySelectorAll('.modal-panel select')].some((el) => el.selectedOptions[0]?.textContent.trim() === 'Savings')));
   await b.keys("Escape");
+  // Closing a modal hands focus back to its opener one tick after it unmounts.
+  // Opening the dropdown before that lands means the restore steals focus from
+  // the menu and its blur handler closes it, so wait for the hand-back first.
+  await b.waitUntil(
+    async () => b.execute(() => !document.querySelector(".modal-panel") && document.activeElement?.textContent?.startsWith("Add transaction")),
+    { timeout: 5000, timeoutMsg: "focus should return to the Add transaction button once its modal closes" },
+  );
   await (await b.$("#ledger-account-select")).click();
   await (await b.$('.account-destination-new')).click();
   await b.$(".modal-panel").waitForExist({ timeout: 5000 });

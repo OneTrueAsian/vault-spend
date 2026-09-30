@@ -108,6 +108,8 @@ export function RowFieldDropdown({
         ref={triggerRef}
         className="account-filter-toggle row-field-toggle"
         aria-label={ariaLabel}
+        // The ledger clips a long label with an ellipsis; this keeps the full name readable on hover.
+        title={selectedLabel}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
