@@ -1258,10 +1258,13 @@ pub struct Stats {
     pub uncategorized: usize,
 }
 
-fn build_classifier(state: &AppState) -> Result<Classifier, String> {
+/// The labeled history (what the classifier trains on, and what tells a rule whether its merchant has
+/// been filed under more than one category) together with the classifier trained from it.
+fn build_classifier(state: &AppState) -> Result<(Vec<(String, String)>, Classifier), String> {
     let history = state.store.labeled_history().map_err(|e| e.to_string())?;
     let examples: Vec<(&str, &str)> = history.iter().map(|(d, c)| (d.as_str(), c.as_str())).collect();
-    Ok(Classifier::train(&examples))
+    let classifier = Classifier::train(&examples);
+    Ok((history, classifier))
 }
 
 /// Runs the categorizer over every transaction that doesn't have a category
@@ -1271,14 +1274,14 @@ fn build_classifier(state: &AppState) -> Result<Classifier, String> {
 /// callers that need to show the user exactly what changed (see
 /// `recategorize_uncategorized`) don't have to separately diff the transactions.
 fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
-    let classifier = build_classifier(state)?;
+    let (history, classifier) = build_classifier(state)?;
     let all = state.store.all_transactions().map_err(|e| e.to_string())?;
     let mut categorized_ids = Vec::new();
     for stored in all {
         if stored.transaction.category.is_some() {
             continue;
         }
-        if let Some((category, source, confidence)) = categorizer::categorize(&stored.transaction.description, &state.rules, Some(&classifier)) {
+        if let Some((category, source, confidence)) = categorizer::categorize(&stored.transaction.description, &state.rules, &history, Some(&classifier)) {
             // A guess is only ever filed under a category the person already has — it must
             // not add one to their list.
             let applied = state

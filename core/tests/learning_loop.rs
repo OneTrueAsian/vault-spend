@@ -52,7 +52,7 @@ fn categorization_gets_more_efficient_after_learning_from_corrections() {
 
     for stored in store.all_transactions().unwrap() {
         let description = stored.transaction.description.clone();
-        match categorizer::categorize(&description, &rules, None) {
+        match categorizer::categorize(&description, &rules, &labeled_history, None) {
             Some((category, source, confidence)) => {
                 store.set_category(stored.id, &category, source, confidence).unwrap();
                 labeled_history.push((description, category));
@@ -105,7 +105,7 @@ fn categorization_gets_more_efficient_after_learning_from_corrections() {
             continue; // already handled above, from month 1
         }
         let description = stored.transaction.description.clone();
-        match categorizer::categorize(&description, &rules, Some(&classifier)) {
+        match categorizer::categorize(&description, &rules, &labeled_history, Some(&classifier)) {
             Some((category, source, confidence)) => {
                 store.set_category(stored.id, &category, source, confidence).unwrap();
                 month2_results.insert(description, (category, source));

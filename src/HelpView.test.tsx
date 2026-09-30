@@ -41,6 +41,10 @@ describe("HelpView", () => {
     expect(text).not.toContain("The only network requests Vault Spend makes");
   });
 
+  it("explains that a split merchant's rule is flagged for review, not applied silently", () => {
+    expect(container.textContent).toContain("filed under more than one category");
+  });
+
   it("finds the legal notice when searching for \"disclaimer\"", () => {
     const input = container.querySelector<HTMLInputElement>("input[type=search], input[placeholder*=earch]")!;
     act(() => {

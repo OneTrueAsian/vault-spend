@@ -102,11 +102,19 @@ export function buildInbox({
     if (transaction.category === null) {
       reasons.push({ kind: "uncategorized", detail: "No category yet" });
     } else if (
-      transaction.category_source === "classifier" &&
+      (transaction.category_source === "classifier" || transaction.category_source === "rule") &&
       transaction.confidence !== null &&
       transaction.confidence < LOW_CONFIDENCE
     ) {
-      reasons.push({ kind: "low_confidence", detail: `Guessed ${transaction.category} (${Math.round(transaction.confidence * 100)}% sure)` });
+      // A rule only has a confidence when the merchant's own history disagrees with it.
+      const sure = `${Math.round(transaction.confidence * 100)}% sure`;
+      reasons.push({
+        kind: "low_confidence",
+        detail:
+          transaction.category_source === "rule"
+            ? `Matched a rule for ${transaction.category}, but this merchant has been filed under more than one category (${sure})`
+            : `Guessed ${transaction.category} (${sure})`,
+      });
     }
     for (const flag of flagsByTransaction.get(transaction.id) ?? []) {
       reasons.push({ kind: flag.kind, detail: flag.detail });
