@@ -1,5 +1,6 @@
 import { ArrowLeftRight } from "lucide-react";
 import type { Transaction } from "./types";
+import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
 import { formatAmount } from "./format";
 
 /** One linked transfer shown as a single Transactions row instead of two —
@@ -40,6 +41,7 @@ function LegNoteAction({ leg, role, onEditNote }: { leg: Transaction; role: "out
 
 export function TransferRow({
   out,
+  highlighted = false,
   incoming,
   selected,
   onToggleSelected,
@@ -51,6 +53,7 @@ export function TransferRow({
   onToggleDetails,
 }: {
   out: Transaction;
+  highlighted?: boolean;
   incoming: Transaction;
   selected: boolean;
   onToggleSelected: () => void;
@@ -73,7 +76,7 @@ export function TransferRow({
   );
   return (
     <>
-      <tr className={selected ? "ledger-row-selected ledger-row-transfer" : "ledger-row-transfer"}>
+      <tr data-payment-row={out.id} tabIndex={-1} className={`ledger-row-transfer${selected ? " ledger-row-selected" : ""}${highlighted ? " payment-row-highlight" : ""}`}>
         <td className="select-col">
           <input
             type="checkbox"
@@ -92,6 +95,8 @@ export function TransferRow({
             </span>
             <span>{out.description}</span>
           </span>
+          <AppliedPaymentDetails transaction={out} />
+          <AppliedPaymentDetails transaction={incoming} />
           <div className="transfer-row-notes">
             <LegNoteAction leg={out} role="outgoing" onEditNote={onEditNote} />
             <LegNoteAction leg={incoming} role="incoming" onEditNote={onEditNote} />

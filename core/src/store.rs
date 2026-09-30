@@ -92,6 +92,7 @@ pub struct StoredTransaction {
 /// generated transaction it created on the debt account itself.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AppliedDebtPayment {
+    pub date: NaiveDate,
     pub debt_account_id: i64,
     pub debt_account_name: String,
     pub amount: Decimal,
@@ -565,6 +566,11 @@ pub struct ReconciliationStatus {
 /// One transaction as the account detail page and the reconcile list show it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AccountTransaction {
+    /// Only populated for a live original payment; generated row identity stays in `id`.
+    pub payment_source_id: Option<i64>,
+    pub payment_source_account_id: Option<i64>,
+    pub payment_source_account_name: Option<String>,
+    pub payment_source_date: Option<NaiveDate>,
     pub id: i64,
     pub date: NaiveDate,
     pub description: String,
@@ -2777,9 +2783,15 @@ impl Store {
         statement_date: Option<NaiveDate>,
     ) -> rusqlite::Result<Vec<AccountTransaction>> {
         let sql = format!(
-            "SELECT id, date, description, amount, category, cleared FROM transactions
-             WHERE account_id = ?1 AND deleted_at IS NULL {extra}
-             ORDER BY date DESC, id DESC LIMIT ?2"
+            "SELECT t.id, t.date, t.description, t.amount,
+                    CASE WHEN source.id IS NOT NULL THEN source.category ELSE t.category END,
+                    t.cleared, source.id, source.account_id, source_account.name, source.date
+             FROM transactions t
+             LEFT JOIN debt_payments dp ON dp.generated_transaction_id = t.id
+             LEFT JOIN transactions source ON source.id = dp.source_transaction_id AND source.deleted_at IS NULL
+             LEFT JOIN accounts source_account ON source_account.id = source.account_id
+             WHERE t.account_id = ?1 AND t.deleted_at IS NULL {extra}
+             ORDER BY t.date DESC, t.id DESC LIMIT ?2"
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let map_row = |row: &rusqlite::Row| {
@@ -2790,6 +2802,10 @@ impl Store {
                 row.get::<_, String>(3)?,
                 row.get::<_, Option<String>>(4)?,
                 row.get::<_, bool>(5)?,
+                row.get::<_, Option<i64>>(6)?,
+                row.get::<_, Option<i64>>(7)?,
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, Option<String>>(9)?,
             ))
         };
         let rows = match statement_date {
@@ -2802,7 +2818,11 @@ impl Store {
         };
         Ok(rows
             .into_iter()
-            .map(|(id, date, description, amount, category, cleared)| AccountTransaction {
+            .map(|(id, date, description, amount, category, cleared, payment_source_id, payment_source_account_id, payment_source_account_name, payment_source_date)| AccountTransaction {
+                payment_source_id,
+                payment_source_account_id,
+                payment_source_account_name,
+                payment_source_date: payment_source_date.map(|date| NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("stored date must be valid")),
                 id,
                 date: NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
                 description,
@@ -2827,8 +2847,8 @@ impl Store {
     pub fn reconcile_candidates(&self, account_id: i64, statement_date: NaiveDate) -> rusqlite::Result<Vec<AccountTransaction>> {
         let settled_through = self.last_reconciliation(account_id)?.map(|(date, _)| date);
         let extra = match settled_through {
-            Some(date) => format!("AND date <= ?3 AND (cleared = 0 OR date > '{date}')"),
-            None => "AND date <= ?3".to_string(),
+            Some(date) => format!("AND t.date <= ?3 AND (t.cleared = 0 OR t.date > '{date}')"),
+            None => "AND t.date <= ?3".to_string(),
         };
         self.account_transactions_where(account_id, &extra, i64::MAX, Some(statement_date))
     }
@@ -4440,7 +4460,7 @@ impl Store {
                         (SELECT l.out_transaction_id FROM transfer_links l
                          JOIN transactions o ON o.id = l.out_transaction_id
                          WHERE l.in_transaction_id = t.id AND o.deleted_at IS NULL)
-                    )
+                    ), dp.date
              FROM transactions t
              JOIN accounts a ON a.id = t.account_id
              LEFT JOIN debt_payments dp ON dp.source_transaction_id = t.id
@@ -4472,6 +4492,7 @@ impl Store {
                 row.get::<_, Option<String>>(16)?,
                 row.get::<_, Option<String>>(17)?,
                 row.get::<_, Option<i64>>(18)?,
+                row.get::<_, Option<String>>(19)?,
             ))
         })?;
 
@@ -4497,11 +4518,13 @@ impl Store {
                 principal_amount_str,
                 notes,
                 transfer_counterpart_id,
+                applied_date,
             ) = row?;
             let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
             let amount = Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
-            let applied_to_debt = match (debt_account_id, debt_account_name, applied_amount_str) {
-                (Some(debt_account_id), Some(debt_account_name), Some(applied_amount_str)) => Some(AppliedDebtPayment {
+            let applied_to_debt = match (debt_account_id, debt_account_name, applied_amount_str, applied_date) {
+                (Some(debt_account_id), Some(debt_account_name), Some(applied_amount_str), Some(applied_date)) => Some(AppliedDebtPayment {
+                    date: NaiveDate::parse_from_str(&applied_date, "%Y-%m-%d").expect("stored date must be valid"),
                     debt_account_id,
                     debt_account_name,
                     amount: Decimal::from_str(&applied_amount_str).expect("amount stored by this crate must be valid"),
@@ -19858,6 +19881,85 @@ mod tests {
             vec![coffee, deposit],
             "newest first, none after the statement date"
         );
+    }
+
+    #[test]
+    fn applied_payment_account_category_follows_source_without_rewriting_generated_row() {
+        let store = Store::open_in_memory().unwrap();
+        let checking = test_account(&store);
+        let card = store.get_or_create_account("Test Card", AccountType::Credit).unwrap();
+        let source = store.create_transaction(checking, &tx("2026-09-01", "Card payment", "-100.00"), None).unwrap();
+        store.set_category(source, "No Category", CategorySource::User, None).unwrap();
+        store.apply_debt_payment(source, card, dec("55.35"), day("2026-09-02")).unwrap();
+        let before = store.list_account_transactions(card, 10).unwrap()[0].clone();
+        let balance = store.account_balance_as_of(card, "credit", Decimal::ZERO, far_future()).unwrap();
+        store.set_category(source, "Payment/Credit", CategorySource::User, None).unwrap();
+        let after = store.list_account_transactions(card, 10).unwrap()[0].clone();
+        assert_eq!(after.category.as_deref(), Some("Payment/Credit"));
+        assert_eq!(after.id, before.id);
+        assert_eq!(after.amount, dec("55.35"));
+        assert_eq!(after.date, day("2026-09-02"));
+        assert_eq!(after.payment_source_id, Some(source));
+        assert_eq!(after.payment_source_account_id, Some(checking));
+        assert_eq!(after.payment_source_date, Some(day("2026-09-01")));
+        assert_eq!(store.all_transactions().unwrap()[0].applied_to_debt.as_ref().unwrap().date, day("2026-09-02"));
+        assert_eq!(store.account_balance_as_of(card, "credit", Decimal::ZERO, far_future()).unwrap(), balance);
+        assert_eq!(store.all_transactions().unwrap().len(), 1);
+        let stored: String = store.conn.query_row("SELECT category FROM transactions WHERE id = ?1", [after.id], |r| r.get(0)).unwrap();
+        assert_eq!(stored, "No Category");
+        store.conn.execute("UPDATE transactions SET category = NULL WHERE id = ?1", [source]).unwrap();
+        assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].category, None);
+        assert_eq!(store.reconcile_candidates(card, day("2026-09-01")).unwrap().len(), 0);
+        assert_eq!(store.reconcile_candidates(card, day("2026-09-02")).unwrap().len(), 1);
+        store.set_category(source, "Payment/Credit", CategorySource::User, None).unwrap();
+        store.rename_category("Payment/Credit", "Card payment").unwrap();
+        assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].category.as_deref(), Some("Card payment"));
+        store.delete_category("Card payment").unwrap();
+        assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].category, None);
+        store.create_category("Rule payment", None).unwrap();
+        store.set_category_if_registered(source, "Rule payment", CategorySource::Rule, None).unwrap();
+        assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].category.as_deref(), Some("Rule payment"));
+        store.delete_transaction(source, day("2026-09-03").and_hms_opt(0, 0, 0).unwrap()).unwrap();
+        assert!(store.list_account_transactions(card, 10).unwrap().is_empty());
+        store.restore_transactions(&[source]).unwrap();
+        assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].payment_source_id, Some(source));
+        store.conn.execute("UPDATE transactions SET deleted_at = '2026-09-03' WHERE id = ?1", [source]).unwrap();
+        let unavailable = store.list_account_transactions(card, 10).unwrap().remove(0);
+        assert_eq!(unavailable.payment_source_id, None);
+        assert_eq!(unavailable.category.as_deref(), Some("No Category"));
+        store.restore_transactions(&[source]).unwrap();
+        store.unapply_debt_payment(source).unwrap();
+        assert!(store.list_account_transactions(card, 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn applied_payment_category_survives_reopen_and_does_not_match_descriptions() {
+        let dir = std::env::temp_dir().join(format!("vault-payment-read-model-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("test.db");
+        let (source, card);
+        {
+            let store = Store::open(&path).unwrap();
+            let checking = test_account(&store);
+            card = store.get_or_create_account("Test Card", AccountType::Credit).unwrap();
+            source = store.create_transaction(checking, &tx("2026-09-01", "Card payment", "-100.00"), None).unwrap();
+            store.set_category(source, "No Category", CategorySource::User, None).unwrap();
+            store.apply_debt_payment(source, card, dec("55.35"), day("2026-09-02")).unwrap();
+            store.set_category(source, "Payment/Credit", CategorySource::User, None).unwrap();
+            let ordinary = store.create_transaction(card, &tx("2026-09-03", "Payment applied from: Card payment", "2.00"), None).unwrap();
+            store.set_category(ordinary, "Ordinary category", CategorySource::User, None).unwrap();
+        }
+        {
+            let store = Store::open(&path).unwrap();
+            let rows = store.list_account_transactions(card, 10).unwrap();
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0].category.as_deref(), Some("Ordinary category"));
+            assert_eq!(rows[0].payment_source_id, None);
+            assert_eq!(rows[1].category.as_deref(), Some("Payment/Credit"));
+            assert_eq!(rows[1].payment_source_id, Some(source));
+            assert_eq!(store.list_account_transactions(card, 1).unwrap().len(), 1);
+        }
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

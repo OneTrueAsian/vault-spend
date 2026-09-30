@@ -57,7 +57,7 @@ export function AccountFilterDropdown({
           : `${selectedCount} accounts`;
 
   return (
-    <div className="account-filter" ref={rootRef}>
+    <div className="account-filter payment-account-filter" ref={rootRef}>
       <button
         ref={triggerRef}
         type="button"
@@ -71,6 +71,7 @@ export function AccountFilterDropdown({
       </button>
       {open && (
         <div className="account-filter-panel">
+          <p className="payment-account-hint">Includes payments applied to selected accounts</p>
           <div className="account-filter-panel-actions">
             <button type="button" className="modal-secondary" onClick={() => onChange("all")}>
               Select all

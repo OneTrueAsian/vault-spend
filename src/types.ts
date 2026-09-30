@@ -90,6 +90,7 @@ export type Insight = {
 };
 
 export type AppliedDebtPayment = {
+  date: string;
   debt_account_id: number;
   debt_account_name: string;
   amount: string;
@@ -542,4 +543,18 @@ export type SetupImportSummary = {
   holdings_created: number;
   skipped: string[];
   row_errors: number;
+};
+
+/** Account-side identity and amounts, with live original-payment metadata. */
+export type AccountTransaction = {
+  id: number;
+  date: string;
+  description: string;
+  amount: string;
+  category: string | null;
+  cleared: boolean;
+  payment_source_id: number | null;
+  payment_source_account_id: number | null;
+  payment_source_account_name: string | null;
+  payment_source_date: string | null;
 };

@@ -1014,6 +1014,7 @@ pub struct TransactionDto {
 
 #[derive(Serialize)]
 pub struct AppliedDebtPaymentDto {
+    pub date: String,
     pub debt_account_id: i64,
     pub debt_account_name: String,
     pub amount: String,
@@ -1931,6 +1932,7 @@ pub fn list_transactions(state: tauri::State<AppStateHandle>) -> Result<Vec<Tran
             account_id: s.account_id,
             account_name: s.account_name,
             applied_to_debt: s.applied_to_debt.map(|d| AppliedDebtPaymentDto {
+                date: d.date.to_string(),
                 debt_account_id: d.debt_account_id,
                 debt_account_name: d.debt_account_name,
                 amount: d.amount.to_string(),
@@ -3437,6 +3439,10 @@ pub fn account_balance_history(account_id: i64, months: u32, state: tauri::State
 
 #[derive(Serialize)]
 pub struct AccountTransactionDto {
+    pub payment_source_id: Option<i64>,
+    pub payment_source_account_id: Option<i64>,
+    pub payment_source_account_name: Option<String>,
+    pub payment_source_date: Option<String>,
     pub id: i64,
     pub date: String,
     pub description: String,
@@ -3448,6 +3454,10 @@ pub struct AccountTransactionDto {
 fn account_transaction_dtos(rows: Vec<budget_core::store::AccountTransaction>) -> Vec<AccountTransactionDto> {
     rows.into_iter()
         .map(|t| AccountTransactionDto {
+            payment_source_id: t.payment_source_id,
+            payment_source_account_id: t.payment_source_account_id,
+            payment_source_account_name: t.payment_source_account_name,
+            payment_source_date: t.payment_source_date.map(|date| date.to_string()),
             id: t.id,
             date: t.date.to_string(),
             description: t.description,

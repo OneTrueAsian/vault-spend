@@ -81,6 +81,19 @@ describe("TransferRow", () => {
     });
   }
 
+  it("keeps applied-payment context visible in a collapsed transfer with the debt column disabled", () => {
+    const out = txn({ account_name: "Checking", applied_to_debt: { debt_account_id: 3, debt_account_name: "Card", amount: "55.35", date: "2026-08-11" } });
+    const incoming = txn({ id: 2, account_name: "Savings", amount: "150.00" });
+    for (const narrow of [false, true]) {
+      show(out, incoming, { narrow });
+      const details = container.querySelector(".applied-payment-details");
+      expect(details?.textContent).toContain("Checking → Card");
+      expect(details?.textContent).toContain("55.35");
+      expect(details?.textContent).toContain("2026-08-11");
+      expect(container.querySelector('[data-payment-row="1"]')).not.toBeNull();
+    }
+  });
+
   const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.includes(label));
 
   it("offers separate note actions for the outgoing and incoming legs, each labeled with its account", () => {

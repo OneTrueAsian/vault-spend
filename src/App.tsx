@@ -35,6 +35,9 @@ import { ProfileSwitcher } from "./ProfileSwitcher";
 import { lockCurrentProfile, unlockProfile } from "./protection";
 import { hasObservableUnsavedInput } from "./unsavedInput";
 import { TransferRow } from "./TransferRow";
+import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
+import { matchesPaymentAccount, paymentDisplayIndex } from "./paymentDiscovery";
+import { usePaymentSource } from "./usePaymentSource";
 import { CategoryFilterDropdown } from "./CategoryFilterDropdown";
 import { RowFieldDropdown } from "./RowFieldDropdown";
 import { MonthReviewDialog } from "./MonthReviewDialog";
@@ -486,6 +489,29 @@ function App({
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [anomalyFlags, setAnomalyFlags] = useState<AnomalyFlag[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [pendingPaymentId, setPendingPaymentId] = useState<number | null>(null);
+  const [highlightedPaymentRow, setHighlightedPaymentRow] = useState<number | null>(null);
+  const loadPaymentSource = usePaymentSource((source, fresh) => {
+    setTransactions(fresh);
+    setSearchText("");
+    setFilterCategory("all");
+    setFilterAccountIds("all");
+    setFilterMemberIds("all");
+    setFilterFrom("");
+    setFilterTo("");
+    setFilterTag("all");
+    setSelectedIds(new Set());
+    setPendingPaymentId(source.id);
+    setActiveTab("ledger");
+    setStatus(`Opened payment from ${source.account_name}.`, "info");
+  }, message => setStatus(message, "info"));
+
+  function openPayment(sourceId: number) {
+    setPendingPaymentId(null);
+    setHighlightedPaymentRow(null);
+    void loadPaymentSource(sourceId);
+  }
+
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterAccountIds, setFilterAccountIds] = useState<AccountFilterValue>("all");
   const [filterMemberIds, setFilterMemberIds] = useState<MemberFilterValue>("all");
@@ -1272,7 +1298,7 @@ function App({
         } else if (filterCategory !== "all" && t.category !== filterCategory) {
           return false;
         }
-        if (filterAccountIds !== "all" && !filterAccountIds.has(t.account_id)) return false;
+        if (!matchesPaymentAccount(t, filterAccountIds)) return false;
         if (filterMemberIds !== "all" && (t.member_id === null || !filterMemberIds.has(t.member_id))) return false;
         if (filterFrom && t.date < filterFrom) return false;
         if (filterTo && t.date > filterTo) return false;
@@ -1421,8 +1447,36 @@ function App({
   }, [currentPage, totalPages]);
 
   useEffect(() => {
-    setCurrentPage(1);
+    if (pendingPaymentId === null) setCurrentPage(1);
+    // Pending navigation owns pagination during the explicit filter reset.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag, pageSize]);
+
+  useEffect(() => {
+    if (pendingPaymentId === null) return;
+    if (activeTab !== "ledger") { setPendingPaymentId(null); return; }
+    const index = paymentDisplayIndex(displayTransactions, inLegByOutId, pendingPaymentId);
+    if (index < 0) {
+      setPendingPaymentId(null);
+      setStatus("Payment is no longer available.", "info");
+      return;
+    }
+    const page = Math.floor(index / pageSize) + 1;
+    if (currentPage !== page) { setCurrentPage(page); return; }
+    const rowId = displayTransactions[index].id;
+    setDetailsOpenId(rowId);
+    setHighlightedPaymentRow(rowId);
+    const row = document.querySelector<HTMLElement>(`[data-payment-row="${rowId}"]`);
+    row?.focus();
+    row?.scrollIntoView({ block: "center" });
+    setPendingPaymentId(null);
+  }, [pendingPaymentId, activeTab, displayTransactions, inLegByOutId, pageSize, currentPage]);
+
+  useEffect(() => {
+    if (highlightedPaymentRow === null) return;
+    const timer = setTimeout(() => setHighlightedPaymentRow(null), 5000);
+    return () => clearTimeout(timer);
+  }, [highlightedPaymentRow]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -4492,6 +4546,7 @@ function App({
                 <TransferRow
                   key={t.id}
                   out={t}
+                  highlighted={highlightedPaymentRow === t.id}
                   incoming={inLeg}
                   selected={selectedIds.has(t.id)}
                   onToggleSelected={() => toggleSelectedMany([t.id, inLeg.id])}
@@ -4638,7 +4693,7 @@ function App({
             );
             return (
             <Fragment key={t.id}>
-            <tr className={selectedIds.has(t.id) ? "ledger-row-selected" : undefined}>
+            <tr data-payment-row={t.id} tabIndex={-1} className={[selectedIds.has(t.id) ? "ledger-row-selected" : "", highlightedPaymentRow === t.id ? "payment-row-highlight" : ""].filter(Boolean).join(" ") || undefined}>
               <td className="select-col">
                 <input
                   type="checkbox"
@@ -4698,6 +4753,7 @@ function App({
                     </span>
                   )}
                 </span>
+                <AppliedPaymentDetails transaction={t} />
                 {(anomalyFlagsByTransaction.get(t.id) ?? []).map((flag, i) => (
                   <span
                     key={i}
@@ -5338,6 +5394,7 @@ function App({
           }}
           backLabel={detailReturnTab === "investments" ? "← Investments" : undefined}
           onOpenTransactions={() => setActiveTab("ledger")}
+          onOpenPayment={openPayment}
           onMessage={(text, kind) => setStatus(text, kind)}
         />
       )}
