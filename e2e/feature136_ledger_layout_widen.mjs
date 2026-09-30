@@ -20,6 +20,8 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 checking = cur.lastrowid
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Savings', 'savings', '1000.00')")
 savings = cur.lastrowid
+cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Home Loan', 'loan', '250000.00')")
+loan = cur.lastrowid
 cur.execute("INSERT INTO family_members (name) VALUES ('Alex')")
 
 def add(account_id, date, desc, amount, category, n):
@@ -27,10 +29,22 @@ def add(account_id, date, desc, amount, category, n):
         "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, ?, ?, ?, ?, 'user', ?)",
         (account_id, date, desc, amount, category, f"fp136-{n}"),
     )
+    return cur.lastrowid
 
 add(checking, days_ago(0), "Grocery Run", "-60.00", "Groceries", 1)
 add(checking, days_ago(1), "Coffee Shop", "-4.50", "Dining Out", 2)
 add(savings, days_ago(2), "Interest", "5.00", "Income", 3)
+
+# A debt payment already applied — the Debt column's "→ Home Loan (…) Undo"
+# badge is wider than its "Apply to a debt →" trigger sibling, and found (by
+# a UAT screenshot, not any assertion) to overlap the Actions column's
+# Delete button at a normal desktop width.
+debt_source = add(checking, days_ago(3), "Mortgage Payment", "-1800.00", "Housing", 4)
+debt_generated = add(loan, days_ago(3), "Mortgage payment applied", "-1800.00", "Transfer", 5)
+cur.execute(
+    "INSERT INTO debt_payments (source_transaction_id, debt_account_id, generated_transaction_id, amount, date) VALUES (?, ?, ?, '1800.00', ?)",
+    (debt_source, loan, debt_generated, days_ago(3)),
+)
 `);
 
 const app = await launchApp({ dbDir });
@@ -119,6 +133,29 @@ try {
   assert.ok(clipGeometry.clippedByScroller, "expected this fixture to actually extend past the scroller's own bottom edge — otherwise this check isn't exercising the bug it's named for");
   await browser.keys("Escape");
   console.log("row menu escapes the ledger's own scroll container:", JSON.stringify(clipGeometry));
+
+  // ---- 2d. An already-applied debt badge doesn't overlap the Delete button
+  // Found by a UAT screenshot, not any assertion: .debt-applied-badge's
+  // "Undo" button is wider than the plain "Apply to a debt →" trigger and
+  // didn't wrap, so it visually overlapped the Actions column's Delete
+  // button — reproduced at 1440px (an ordinary desktop width), not at the
+  // 1920px this check block otherwise runs at.
+  await browser.setWindowSize(1440, 1000);
+  await browser.pause(300);
+  const mortgageRow = await rowFor("Mortgage Payment");
+  await mortgageRow.scrollIntoView({ block: "center" });
+  const overlapGeometry = await browser.execute(() => {
+    const rows = [...document.querySelectorAll("tr")];
+    const row = rows.find((r) => r.textContent.includes("Mortgage Payment"));
+    const undoBtn = [...row.querySelectorAll("button")].find((b) => b.textContent.trim() === "Undo");
+    const deleteBtn = [...row.querySelectorAll("button")].find((b) => b.textContent.trim() === "Delete");
+    const a = undoBtn.getBoundingClientRect();
+    const b = deleteBtn.getBoundingClientRect();
+    const overlaps = a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    return { overlaps, undoRect: { left: a.left, right: a.right }, deleteRect: { left: b.left, right: b.right } };
+  });
+  assert.ok(!overlapGeometry.overlaps, `expected the debt-applied Undo button not to overlap Delete, got: ${JSON.stringify(overlapGeometry)}`);
+  console.log("debt-applied badge doesn't overlap the row's Delete button:", JSON.stringify(overlapGeometry));
 
   // ---- 3. Narrow layout: Details panel appears, fields still editable --
   await browser.setWindowSize(800, 900);
