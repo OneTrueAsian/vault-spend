@@ -67,11 +67,11 @@ impl Classifier {
         let scores = self.category_log_scores(description);
         let (winner, winner_score) = scores.iter().max_by(|(_, a), (_, b)| a.total_cmp(b)).map(|(c, s)| (c.clone(), *s))?;
 
-        // softmax, shifted by the max score for numerical stability — the
-        // shift cancels out in the ratio, so the result is unaffected.
+        // softmax over scores divided by CONFIDENCE_TEMPERATURE, shifted by the max score for
+        // numerical stability — the shift cancels out in the ratio, so the result is unaffected.
         let max_score = winner_score;
-        let sum_exp: f64 = scores.iter().map(|(_, s)| (s - max_score).exp()).sum();
-        let confidence = (winner_score - max_score).exp() / sum_exp;
+        let sum_exp: f64 = scores.iter().map(|(_, s)| ((s - max_score) / CONFIDENCE_TEMPERATURE).exp()).sum();
+        let confidence = 1.0 / sum_exp;
 
         Some((winner, confidence))
     }
@@ -111,14 +111,40 @@ impl Classifier {
     }
 }
 
+/// How much the log-scores are flattened before they become a probability. Naive Bayes counts every
+/// word, and now every overlapping piece of every word, as independent evidence, so its raw
+/// probabilities run far too high: replaying a real 1,061-transaction history at 1.0, guesses it called
+/// 90%+ sure were right only ~70% of the time. At 4.0 the stated confidence tracks reality where it
+/// matters (the review inbox applies anything stated 70%+ without asking): guesses stated 70%+ were
+/// right ~87% of the time, and silent mistakes were no more than before character pieces were added.
+/// Tuned with `core/examples/categorizer_eval.rs`; the winning category is unaffected, only how sure
+/// it claims to be.
+pub const CONFIDENCE_TEMPERATURE: f64 = 4.0;
+
+/// Words at least this long also contribute their overlapping pieces of `PIECE_LEN` letters.
+const MIN_WORD_LEN_FOR_PIECES: usize = 5;
+const PIECE_LEN: usize = 4;
+
 /// Lowercases and splits on non-alphanumeric characters, dropping purely
 /// numeric tokens (store numbers, dates) so "STARBUCKS #1001" and
 /// "starbucks #2002" share the signal that matters: `starbucks`.
+///
+/// Each word of `MIN_WORD_LEN_FOR_PIECES` letters or more is followed by its overlapping
+/// `PIECE_LEN`-letter pieces (`#star`, `#tarb`, ...), marked with a leading `#` so a piece can never be
+/// mistaken for a word. Bank exports clip long merchant names and vary spelling ("STARBUCK",
+/// "BLUEBOTTLE"), which would otherwise share no whole word with what was seen before; the pieces do.
 fn tokenize(text: &str) -> Vec<String> {
     text.to_lowercase()
         .split(|c: char| !c.is_alphanumeric())
         .filter(|token| !token.is_empty() && !token.chars().all(|c| c.is_ascii_digit()))
-        .map(|token| token.to_string())
+        .flat_map(|token| {
+            let mut tokens = vec![token.to_string()];
+            let letters: Vec<char> = token.chars().collect();
+            if letters.len() >= MIN_WORD_LEN_FOR_PIECES {
+                tokens.extend(letters.windows(PIECE_LEN).map(|piece| format!("#{}", piece.iter().collect::<String>())));
+            }
+            tokens
+        })
         .collect()
 }
 
@@ -206,5 +232,76 @@ mod tests {
             "a description with unambiguous keyword overlap should be more confident \
              ({clear_confidence}) than one decided purely by the category prior ({ambiguous_confidence})"
         );
+    }
+
+    // ---- first-seen variants of a known merchant (character n-grams) ----
+
+    fn lopsided_set() -> Vec<(&'static str, &'static str)> {
+        // Groceries dominates the prior, so a match on the coffee shop can only come from its name.
+        vec![
+            ("Green Leaf Grocers", "Groceries"),
+            ("Fresh Market Grocery", "Groceries"),
+            ("Downtown Farmers Market", "Groceries"),
+            ("Corner Grocery Stop", "Groceries"),
+            ("Riverside Grocery Co", "Groceries"),
+            ("Harbor Fresh Foods", "Groceries"),
+            ("STARBUCKS COFFEE", "Dining Out"),
+            ("Blue Bottle", "Dining Out"),
+        ]
+    }
+
+    #[test]
+    fn a_truncated_merchant_name_still_matches_the_full_one_seen_before() {
+        let classifier = Classifier::train(&lopsided_set());
+
+        // Bank exports clip long names: "STARBUCK" shares no whole word with "STARBUCKS".
+        assert_eq!(classifier.predict("STARBUCK 1234"), Some("Dining Out".to_string()));
+    }
+
+    #[test]
+    fn a_plural_or_spelling_variant_still_matches() {
+        let classifier = Classifier::train(&lopsided_set());
+
+        assert_eq!(classifier.predict("Bluebottle"), Some("Dining Out".to_string()));
+    }
+
+    #[test]
+    fn short_words_are_kept_whole_and_never_split() {
+        assert_eq!(tokenize("ab cd"), vec!["ab".to_string(), "cd".to_string()]);
+        assert_eq!(tokenize("shel"), vec!["shel".to_string()]);
+    }
+
+    #[test]
+    fn a_long_word_also_contributes_its_overlapping_four_letter_pieces() {
+        assert_eq!(tokenize("shell"), vec!["shell".to_string(), "#shel".to_string(), "#hell".to_string()]);
+    }
+
+    #[test]
+    fn store_numbers_still_produce_no_tokens_at_all() {
+        assert_eq!(tokenize("#1001 12345"), Vec::<String>::new());
+    }
+
+    // ---- calibrated confidence ----
+
+    #[test]
+    fn a_prediction_resting_on_one_shared_word_is_not_near_certain() {
+        // Every overlapping piece of a long word counts as separate evidence to naive Bayes, which
+        // would otherwise push a one-word match to ~100%. Real history showed a stated 90%+ being
+        // right only ~70% of the time.
+        let classifier = Classifier::train(&training_set());
+
+        let (_, confidence) = classifier.predict_with_confidence("Grocery").unwrap();
+
+        assert!(confidence < 0.9, "one matching word should not read as near-certain, got {confidence}");
+    }
+
+    #[test]
+    fn a_clear_match_is_still_more_confident_than_a_prior_only_win_after_calibration() {
+        let classifier = Classifier::train(&training_set());
+
+        let (_, clear) = classifier.predict_with_confidence("Sunny Grocery Market Grocers").unwrap();
+        let (_, prior_only) = classifier.predict_with_confidence("Xyzzy Quux Foobar").unwrap();
+
+        assert!(clear > prior_only);
     }
 }

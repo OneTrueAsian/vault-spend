@@ -389,6 +389,9 @@ export async function menuSelectValue(trigger) {
 
 async function openMenu(trigger) {
   const root = await trigger.parentElement();
+  // A menu closes when the window loses focus, and another spec's window launching in parallel takes OS
+  // foreground, so reclaim it first (a no-op when focus is already fine).
+  await reclaimWindowFocus(trigger.parent);
   if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
   const menu = await root.$("[role='menu']");
   await menu.waitForDisplayed({ timeout: 5000, timeoutMsg: "the menu should open" });

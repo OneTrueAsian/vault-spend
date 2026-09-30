@@ -78,9 +78,11 @@ fn main() {
 
     let (mut rule_t, mut class_t, mut overall) = (Tally::default(), Tally::default(), Tally::default());
     let (mut silent, mut flagged) = (Tally::default(), Tally::default());
+    let (mut silent_first, mut silent_second) = (Tally::default(), Tally::default());
     let mut abstained = 0u32;
     let (mut first_half, mut second_half) = (Tally::default(), Tally::default());
     let mut buckets: [Tally; 4] = [Tally::default(); 4];
+    let mut brier_sum = 0.0f64;
     let mut confusions: BTreeMap<(String, String), u32> = BTreeMap::new();
     let scored_total = txns.iter().filter(|t| t.scored).count();
     let mut scored_seen = 0usize;
@@ -98,12 +100,18 @@ fn main() {
                 }
                 Some((category, source, confidence)) => {
                     let correct = *category == txn.category;
-                    if confidence.is_some_and(|c| c < LOW_CONFIDENCE) { flagged.add(correct) } else { silent.add(correct) }
+                    if confidence.is_some_and(|c| c < LOW_CONFIDENCE) {
+                        flagged.add(correct)
+                    } else {
+                        silent.add(correct);
+                        if scored_seen * 2 <= scored_total { silent_first.add(correct) } else { silent_second.add(correct) }
+                    }
                     match source {
                         CategorySource::Rule => rule_t.add(correct),
                         _ => {
                             class_t.add(correct);
                             let c = confidence.unwrap_or(0.0);
+                            brier_sum += (c - f64::from(u8::from(correct))).powi(2);
                             let i = if c < 0.5 { 0 } else if c < 0.7 { 1 } else if c < 0.9 { 2 } else { 3 };
                             buckets[i].add(correct);
                         }
@@ -136,6 +144,7 @@ fn main() {
     println!("  no answer (Uncategorized) . {:5.1}%  ({})", pct(abstained, overall.n), abstained);
     println!();
     println!("  applied silently .. {:>4} answers, {} correct  -> {} silent mistakes", silent.n, silent.pct(), silent.n - silent.correct);
+    println!("  silent mistakes by half of history: first {} of {}, second {} of {}", silent_first.n - silent_first.correct, silent_first.n, silent_second.n - silent_second.correct, silent_second.n);
     println!("  flagged for review  {:>4} answers, {} correct  -> {} mistakes caught", flagged.n, flagged.pct(), flagged.n - flagged.correct);
     println!("  no answer ......... {:>4}", abstained);
     println!();
@@ -143,6 +152,7 @@ fn main() {
     println!("  by classifier ..... {:>4} answers, {} correct", class_t.n, class_t.pct());
     println!("  learning curve: first half {} correct, second half {} correct", pct_tally(&first_half), pct_tally(&second_half));
     println!();
+    println!("Classifier calibration (Brier score, lower is better; 0.25 = no better than a coin): {:.4}", if class_t.n == 0 { 0.0 } else { brier_sum / f64::from(class_t.n) });
     println!("Classifier accuracy by its own stated confidence:");
     for (label, t) in ["< 50%", "50-70%", "70-90%", ">= 90%"].iter().zip(buckets.iter()) {
         println!("  {label:>7}: {:>4} guesses, {} correct", t.n, t.pct());
