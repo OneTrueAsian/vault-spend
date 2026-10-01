@@ -6,7 +6,7 @@
 //
 // Run with: node e2e/feature69_similar_offer_after_bulk_category.mjs
 
-import { launchApp, chooseMenuOption } from "./harness.mjs";
+import { launchApp, chooseMenuOption, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -75,9 +75,16 @@ try {
     timeoutMsg: "expected one combined offer for the two merchants covering 4 similar transactions",
   });
   await (await toast.$("button*=Apply to 4")).click();
-  await browser.waitUntil(async () => (await categoryCount("Dining Out")) === 6, {
+  await waitUntilOrDiagnose(browser, async () => (await categoryCount("Dining Out")) === 6, {
     timeout: 10000,
     timeoutMsg: "all six rows (both merchants) should now be Dining Out",
+    // Seen once in a full run (2026-10-01) and not reproduced in 36 stressed runs: say what each row read.
+    extra: async () => ({
+      rows: await browser.execute(() =>
+        [...document.querySelectorAll("table.ledger tbody tr")].map((tr) => tr.textContent.replace(/\s+/g, " ").trim().slice(0, 80)),
+      ),
+      toast: (await toast.getText().catch(() => "")).slice(0, 160),
+    }),
   });
 
   console.log("FEATURE 69 E2E TEST PASSED");

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { chooseMenuOption, dismissFirstLaunchDialogs, menuOptionLabels, withFocusRetry } from "./harness.mjs";
+import { chooseMenuOption, dismissFirstLaunchDialogs, menuOptionLabels, pickFromMenu, reclaimWindowFocus, withFocusRetry } from "./harness.mjs";
 
 // Unit tests for the harness's own logic, against a stand-in for WebdriverIO: no app, no driver. The
 // stand-in models one MenuSelect (a trigger, its popover menu, the items) and lets a test make the menu
@@ -299,6 +299,140 @@ describe("withFocusRetry", () => {
       }),
     ).rejects.toThrow(/the menu closed.*3 attempt\(s\).*lost focus/s);
     expect(runs).toBe(3);
+  });
+});
+
+describe("reclaimWindowFocus", () => {
+  /** A window that behaves as measured on WebView2: resizing a maximized window only un-maximizes it,
+   * back to the size it was created at, ignoring the size asked for. */
+  function fakeWindow({ created = { width: 800, height: 600 }, size = { width: 1440, height: 1000 } } = {}) {
+    const state = { size: { ...size }, maximized: false, focused: false };
+    const browser = {
+      async execute(fn) {
+        globalThis.document = { hasFocus: () => state.focused };
+        return fn();
+      },
+      async getWindowSize() {
+        return state.maximized ? { width: 2560, height: 1400 } : { ...state.size };
+      },
+      async maximizeWindow() {
+        state.maximized = true;
+        state.focused = true;
+      },
+      async setWindowSize(width, height) {
+        if (state.maximized) {
+          state.maximized = false;
+          state.size = { ...created };
+        } else {
+          state.size = { width, height };
+        }
+      },
+      async waitUntil(condition, { timeoutMsg } = {}) {
+        for (let i = 0; i < 3; i++) if (await condition()) return true;
+        throw new Error(timeoutMsg ?? "waitUntil timed out");
+      },
+    };
+    return { browser, state };
+  }
+
+  it("gets focus back and leaves the window the size it was", async () => {
+    const { browser, state } = fakeWindow();
+    await reclaimWindowFocus(browser);
+    expect(state.focused).toBe(true);
+    expect(state.maximized).toBe(false);
+    expect(state.size).toEqual({ width: 1440, height: 1000 });
+  });
+
+  it("does nothing to a window that already has focus", async () => {
+    const { browser, state } = fakeWindow();
+    state.focused = true;
+    await reclaimWindowFocus(browser);
+    expect(state.size).toEqual({ width: 1440, height: 1000 });
+  });
+});
+
+describe("pickFromMenu", () => {
+  /** A blur-dismissed dropdown: `open` shows the option; focus theft (`stealOnOpen`) closes it again. */
+  function fakeDropdown({ stealOnOpen = 0 } = {}) {
+    const state = { open: false, opens: 0, picked: false, focused: true, blurListeners: [] };
+    const win = { addEventListener: (type, l) => type === "blur" && state.blurListeners.push(l) };
+    const steal = () => {
+      state.focused = false;
+      state.open = false;
+      globalThis.window = win;
+      state.blurListeners.forEach((l) => l());
+      delete globalThis.window;
+    };
+    const option = {
+      async waitForDisplayed({ timeoutMsg } = {}) {
+        if (!state.open) throw new Error(timeoutMsg ?? "not displayed");
+      },
+      async click() {
+        if (!state.open) throw new Error("element wasn't found");
+        state.picked = true;
+        state.open = false;
+      },
+    };
+    const trigger = {
+      async click() {
+        state.open = !state.open;
+        if (state.open && ++state.opens <= stealOnOpen) steal();
+      },
+    };
+    const browser = {
+      async $(selector) {
+        if (selector === "#trigger") return trigger;
+        if (selector === ".option") return option;
+        throw new Error(`unexpected selector ${selector}`);
+      },
+      async execute(fn, ...args) {
+        globalThis.window = win;
+        globalThis.document = { hasFocus: () => state.focused };
+        try {
+          return fn(...args);
+        } finally {
+          delete globalThis.window;
+        }
+      },
+      async getWindowSize() {
+        return { width: 1, height: 1 };
+      },
+      async maximizeWindow() {
+        state.focused = true;
+      },
+      async setWindowSize() {},
+      async waitUntil(condition, { timeoutMsg } = {}) {
+        for (let i = 0; i < 3; i++) if (await condition()) return true;
+        throw new Error(timeoutMsg ?? "waitUntil timed out");
+      },
+    };
+    return { browser, state };
+  }
+
+  it("opens the menu and clicks the option", async () => {
+    const { browser, state } = fakeDropdown();
+    await pickFromMenu(browser, "#trigger", ".option");
+    expect(state.picked).toBe(true);
+    expect(state.opens).toBe(1);
+  });
+
+  it("opens it again when another window's focus theft closed it before the click", async () => {
+    const { browser, state } = fakeDropdown({ stealOnOpen: 1 });
+    await pickFromMenu(browser, "#trigger", ".option");
+    expect(state.picked).toBe(true);
+    expect(state.opens).toBe(2);
+  });
+
+  it("reports an option that never shows in a window that kept its focus", async () => {
+    const { browser } = fakeDropdown();
+    browser.$ = async (selector) => ({
+      async click() {},
+      async waitForDisplayed({ timeoutMsg }) {
+        throw new Error(timeoutMsg);
+      },
+      selector,
+    });
+    await expect(pickFromMenu(browser, "#trigger", ".missing")).rejects.toThrow(/\.missing should show after clicking #trigger/);
   });
 });
 

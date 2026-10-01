@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { launchApp, reclaimWindowFocus } from "./harness.mjs";
+import { launchApp, pickFromMenu, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -91,8 +91,7 @@ try {
     async () => b.execute(() => !document.querySelector(".modal-panel") && document.activeElement?.textContent?.startsWith("Add transaction")),
     { timeout: 5000, timeoutMsg: "focus should return to the Add transaction button once its modal closes" },
   );
-  await (await b.$("#ledger-account-select")).click();
-  await (await b.$('.account-destination-new')).click();
+  await pickFromMenu(b, "#ledger-account-select", ".account-destination-new");
   await b.$(".modal-panel").waitForExist({ timeout: 5000 });
   await b.waitUntil(async () => (await b.$('.modal-panel').getText()).includes('New account'), { timeout: 5000 });
   await b.keys("Escape");

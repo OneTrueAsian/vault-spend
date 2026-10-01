@@ -147,7 +147,14 @@ export async function reclaimWindowFocus(browser) {
   if (await browser.execute(() => document.hasFocus())) return;
   const { width, height } = await browser.getWindowSize();
   await browser.maximizeWindow();
-  await browser.setWindowSize(width, height);
+  // Resizing a maximized window only un-maximizes it, back to the size it was created at (800x600), and
+  // ignores the size asked for — so a spec that had set 1440x1000 silently dropped to the narrow layout
+  // after every reclaim. Ask again until the size really is back.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await browser.setWindowSize(width, height);
+    const now = await browser.getWindowSize();
+    if (now.width === width && now.height === height) break;
+  }
   await browser.waitUntil(() => browser.execute(() => document.hasFocus()), {
     timeout: 5000,
     timeoutMsg: "the app window never regained focus (another window is holding OS foreground)",
@@ -180,6 +187,21 @@ export async function withFocusRetry(browser, step, { attempts = 3 } = {}) {
       }
     }
   }
+}
+
+// Opens a blur-dismissed dropdown (not a MenuSelect, which chooseMenuOption covers) and clicks one of its
+// options, through withFocusRetry: another spec's window taking focus between the two clicks closes the
+// menu. `trigger` and `option` are each a selector or an async function returning the element (a row's own
+// trigger is found inside its row).
+export async function pickFromMenu(browser, trigger, option) {
+  const find = async (target) => (typeof target === "function" ? target() : browser.$(target));
+  const label = (target) => (typeof target === "function" ? "the option" : target);
+  await withFocusRetry(browser, async () => {
+    await (await find(trigger)).click();
+    const element = await find(option);
+    await element.waitForDisplayed({ timeout: 3000, timeoutMsg: `${label(option)} should show after clicking ${label(trigger)}` });
+    await element.click();
+  });
 }
 
 // A snapshot of what the app window looks like right now, for failure messages: whether it has OS

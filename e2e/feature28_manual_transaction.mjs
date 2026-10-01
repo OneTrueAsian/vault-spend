@@ -8,7 +8,7 @@
 //
 // Run with: node e2e/feature28_manual_transaction.mjs
 
-import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -67,7 +67,12 @@ try {
 
   const submitBtn = await dialogPanel.$("button=Add transaction");
   await submitBtn.click();
-  await dialog.waitForExist({ timeout: 5000, reverse: true });
+  // Saving runs the categorizer and reloads the ledger before the dialog closes, which took over 5 s once
+  // under a full parallel run; if it is really stuck, the diagnosis shows the dialog and any status text.
+  await waitUntilOrDiagnose(app.browser, async () => !(await dialog.isExisting()), {
+    timeout: 15000,
+    timeoutMsg: "the Add transaction dialog should close once the transaction is saved",
+  });
 
   const ledgerPage = await app.browser.$(".page");
   await app.browser.waitUntil(

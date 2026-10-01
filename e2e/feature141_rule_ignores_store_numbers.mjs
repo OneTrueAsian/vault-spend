@@ -6,7 +6,7 @@
 // Run with: node e2e/run-all.mjs --spec=141
 
 import assert from "node:assert/strict";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, pickFromMenu, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -30,10 +30,7 @@ try {
   const first = await row("SPEEDWAY 44289");
   await first.waitForExist({ timeout: 10000 });
   // The row's category editor is a RowFieldDropdown, whose menu is portaled to the page body.
-  await (await first.$('[aria-label^="Category for"]')).click();
-  const gas = await browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Gas']]");
-  await gas.waitForExist({ timeout: 5000 });
-  await gas.click();
+  await pickFromMenu(browser, async () => first.$('[aria-label^="Category for"]'), "//button[@role='menuitemradio'][.//span[normalize-space()='Gas']]");
   await waitUntilOrDiagnose(browser, async () => (await (await row("SPEEDWAY 44289")).getText()).includes("Gas"), {
     timeout: 10000,
     timeoutMsg: "fixing the first store's category should save",

@@ -8,7 +8,7 @@
 // Run with: node e2e/feature136_ledger_layout_widen.mjs
 
 import assert from "node:assert/strict";
-import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue, pickFromMenu } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -88,10 +88,7 @@ try {
   // The ledger may cut the label off with an ellipsis, so the full name must be on hover.
   const tooltipMatchesLabel = await accountTrigger.execute((el) => el.title !== "" && el.title === el.querySelector("span").textContent);
   assert.ok(tooltipMatchesLabel, "expected the row's account button to carry its full name as a tooltip");
-  await accountTrigger.click();
-  const savingsOption = await browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Savings']]");
-  await savingsOption.waitForExist({ timeout: 5000 });
-  await savingsOption.click();
+  await pickFromMenu(browser, async () => accountTrigger, "//button[@role='menuitemradio'][.//span[normalize-space()='Savings']]");
   await browser.waitUntil(
     async () => (await (await rowFor("Grocery Run")).$('[aria-label*="Account for"]')).getText().then((t) => t.includes("Savings")),
     { timeout: 10000, timeoutMsg: "expected picking Savings from the row's account editor to actually move the transaction" },
@@ -198,10 +195,7 @@ try {
   // Edit the category from inside the open Details panel.
   const categoryTrigger = await detailsPanel.$('[aria-label*="Category for"]');
   assert.ok(await categoryTrigger.isExisting(), "expected the category editor inside the Details panel");
-  await categoryTrigger.click();
-  const groceriesOption = await browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Groceries']]");
-  await groceriesOption.waitForExist({ timeout: 5000 });
-  await groceriesOption.click();
+  await pickFromMenu(browser, async () => categoryTrigger, "//button[@role='menuitemradio'][.//span[normalize-space()='Groceries']]");
   await browser.waitUntil(
     async () => (await browser.$(".ledger-details-row").getText()).includes("Groceries"),
     { timeout: 10000, timeoutMsg: "expected editing the category from inside Details to save" },

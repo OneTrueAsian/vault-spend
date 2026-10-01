@@ -264,9 +264,26 @@ try {
   // "the full name is present and not clipped horizontally or vertically",
   // not "the box is wide enough for one unbroken line".
   await check("long account name is not clipped in the row's account select", async () => {
+    // Waited for, and reported if missing: in full runs it was missing because reclaiming focus left the
+    // window at 800x600 (the narrow layout has no account column) — fixed in reclaimWindowFocus.
+    await browser.$('[aria-label=\'Account for "Green Leaf Grocers"\']').waitForExist({ timeout: 10000 }).catch(() => {});
     const result = await browser.execute((longAccount) => {
       const el = document.querySelector('[aria-label=\'Account for "Green Leaf Grocers"\']');
-      if (!el) return { missing: true };
+      if (!el) {
+        const row = [...document.querySelectorAll("table.ledger tbody tr")].find((tr) => tr.textContent.includes("Green Leaf Grocers"));
+        return {
+          missing: true,
+          seen: {
+            visibility: document.visibilityState,
+            hasFocus: document.hasFocus(),
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            headings: [...document.querySelectorAll("table.ledger thead th")].map((th) => th.textContent.trim()).join("|"),
+            row: row ? row.textContent.replace(/\s+/g, " ").trim().slice(0, 160) : null,
+            rows: document.querySelectorAll("table.ledger tbody tr").length,
+            openPanels: document.querySelectorAll(".account-filter-panel, .menu-select-panel, .modal-panel").length,
+          },
+        };
+      }
       const css = getComputedStyle(el);
       return {
         text: el.textContent,
@@ -276,7 +293,7 @@ try {
         noVerticalClip: el.scrollHeight <= el.clientHeight + 1,
       };
     }, LONG_ACCOUNT);
-    assert.ok(!result.missing, "expected to find the account editor trigger for Green Leaf Grocers");
+    assert.ok(!result.missing, `expected to find the account editor trigger for Green Leaf Grocers; window: ${JSON.stringify(result.seen)}`);
     assert.ok(result.fullTextPresent, `expected the full account name in the trigger, got: "${result.text}"`);
     assert.ok(result.noEllipsis, "the account editor trigger must not CSS-ellipsize its label");
     assert.ok(result.noHorizontalClip, "the account editor trigger clips its label horizontally");

@@ -2,7 +2,7 @@
 // user keep working, locks at expiry, unmounts in-progress UI state, and closes the backend data
 // boundary. The clock seam used here exists only in debug builds.
 import assert from "node:assert/strict";
-import { launchApp, chooseMenuOption } from "./harness.mjs";
+import { launchApp, chooseMenuOption, withFocusRetry } from "./harness.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -47,9 +47,13 @@ try {
     true,
     "showing the warning must not steal keyboard focus",
   );
-  await browser.waitUntil(async () => /lock in [1-9] seconds/i.test(await countdown.getText()), {
-    timeout: 3000,
-    timeoutMsg: "the visible warning should count down locally between backend ticks",
+  // A window covered by another spec's newly launched one has its timers throttled, so the local countdown
+  // can stall then; withFocusRetry brings it back to the front and waits again (only if it really lost focus).
+  await withFocusRetry(browser, async () => {
+    let seen = "";
+    await browser.waitUntil(async () => /lock in [1-9] seconds/i.test((seen = await countdown.getText())), { timeout: 3000 }).catch(() => {
+      throw new Error(`the visible warning should count down locally between backend ticks (got "${seen}")`);
+    });
   });
 
   await (await browser.$("[data-stay-unlocked]")).click();

@@ -10,7 +10,7 @@
 //
 // Run with: node e2e/feature64_rules_manager.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, pickFromMenu } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -95,10 +95,7 @@ try {
   // that happens to offer "Groceries" as the old native <select> version did.
   const cartRow = await browser.$("//tr[td[contains(.,'Corner Cart')]]");
   await cartRow.waitForExist({ timeout: 10000 });
-  await (await cartRow.$('[aria-label^="Category for"]')).click();
-  const entertainmentOption = await browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Entertainment']]");
-  await entertainmentOption.waitForExist({ timeout: 5000 });
-  await entertainmentOption.click();
+  await pickFromMenu(browser, async () => cartRow.$('[aria-label^="Category for"]'), "//button[@role='menuitemradio'][.//span[normalize-space()='Entertainment']]");
   const toast = await browser.$(".toast-stack");
   await browser.waitUntil(async () => /2 similar transactions could use it too/.test(await toast.getText()), {
     timeout: 10000,

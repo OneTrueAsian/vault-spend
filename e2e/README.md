@@ -69,8 +69,12 @@ port per call instead of using a hardcoded one, its own `tauri-driver`
 instance — no two specs share any state, so there's nothing for
 parallel runs to race on. An earlier 52-spec benchmark measured 304.5s
 sequential, 86.7s at concurrency 4, and 50.9s at concurrency 8. The suite
-has grown since then; the default is now 6 because later measurements found
-little additional gain at 8 and signs of resource contention.
+has grown since then; the default is 6 because later measurements found
+little additional gain at 8 and signs of resource contention. On 2026-10-01
+(149 specs, 16 threads) six full runs at 6 and at 3 were equally clean once
+`reclaimWindowFocus` stopped shrinking windows to 800x600 (see below), so 6
+stays. A covered window was measured to keep full timer speed and stay
+`visible`: background throttling is not a cause here.
 
 ## Faster feedback during development
 
@@ -117,6 +121,23 @@ reproduced on demand and fixed at its cause, not retried away.
   focus: `feature121` turns on "Lock when the window loses focus", so the app
   correctly locks the profile when another window steals focus, and the spec
   unlocks and retries when (and only when) the lock screen is what stopped it.
+  Focus can also go and come back in the middle of a step, which closes any
+  open menu (they close on blur) and drops hover and key events. Use the
+  harness helpers rather than clicking a trigger and then its option:
+  `chooseMenuOption` / `menuOptionLabels` for a MenuSelect, `pickFromMenu`
+  for any other dropdown, and `withFocusRetry` around anything else
+  focus-sensitive (a hover readout, keys on a focused chart). They retry only
+  when the window really lost focus during the step.
+- **Reclaiming focus shrank the window.** `reclaimWindowFocus` maximizes and
+  then restores the size, but resizing a maximized window only un-maximizes
+  it, back to the app's 800x600 default. Every spec that had set a larger
+  window and then reclaimed focus silently switched to the narrow layout
+  (missing columns, moved controls), which failed whichever check came next.
+  It now sets the size again until it holds (`e2e/harness.test.mjs`).
+- **Counting IPC as loads.** Tauri sends every command as a fetch to
+  `ipc.localhost`, so `performance.getEntriesByType("resource")` grows
+  whenever a background command runs; leave those out when checking that
+  something loaded nothing (`feature128`).
 - **Reading once.** The app loads its data after its shell appears. A spec
   that clicks and then reads the page once sees the empty state when the
   machine is busy. Wait for the state you assert on and give the wait a
