@@ -11,7 +11,7 @@ vi.mock("./ProtectionSetupDialog", () => ({
   ),
 }));
 
-import { BackupsBlock, ProfilesSection } from "./SettingsView";
+import { AppearanceSection, BackupsBlock, ProfilesSection } from "./SettingsView";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -124,5 +124,60 @@ describe("Settings protected backup restore", () => {
       document.body.querySelector<HTMLButtonElement>("button.password-form-submit")!.click();
     });
     expect(onRestore).toHaveBeenCalledWith("old.db", "old password");
+  });
+});
+
+describe("Settings AppearanceSection", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function show(onSetThemeStyle = vi.fn(), themeStyle: Parameters<typeof AppearanceSection>[0]["themeStyle"] = "classic") {
+    act(() => {
+      root.render(<AppearanceSection themeStyle={themeStyle} onSetThemeStyle={onSetThemeStyle} />);
+    });
+    return onSetThemeStyle;
+  }
+
+  function optionLabels() {
+    return Array.from(container.querySelectorAll(".feature-toggle-label")).map((el) => el.textContent);
+  }
+
+  it("offers Retro as a fourth style after the three existing ones", () => {
+    show();
+    expect(optionLabels()).toEqual(["Slate", "Futuristic", "Transparent", "Retro"]);
+  });
+
+  it("describes Retro as a classic light look with a modern dark adaptation", () => {
+    show();
+    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.includes("Retro"))!;
+    expect(row.textContent).toMatch(/gray/i);
+    expect(row.textContent).toMatch(/dark/i);
+  });
+
+  it("selects the retro style id when the option is chosen", () => {
+    const onSet = show();
+    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.includes("Retro"))!;
+    act(() => {
+      (row.querySelector("input") as HTMLInputElement).click();
+    });
+    expect(onSet).toHaveBeenCalledWith("retro");
+  });
+
+  it("checks the Retro option when it is the saved style", () => {
+    show(vi.fn(), "retro");
+    const checked = Array.from(container.querySelectorAll<HTMLInputElement>("input[type=radio]")).filter((i) => i.checked);
+    expect(checked).toHaveLength(1);
+    expect(checked[0].closest(".feature-toggle-row")?.textContent).toContain("Retro");
   });
 });

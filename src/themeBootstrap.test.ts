@@ -23,6 +23,16 @@ describe("applyStoredTheme", () => {
     expect(document.documentElement.getAttribute("data-palette")).toBe("transparent");
   });
 
+  it("puts the saved Retro style on the page before the app has mounted", () => {
+    localStorage.setItem(THEME_STORAGE_KEY, "light");
+    localStorage.setItem(THEME_STYLE_STORAGE_KEY, "retro");
+
+    applyStoredTheme();
+
+    expect(document.documentElement.getAttribute("data-palette")).toBe("retro");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+  });
+
   it("leaves the system mode and the classic style as no attribute, the way the app does", () => {
     document.documentElement.setAttribute("data-theme", "dark");
     document.documentElement.setAttribute("data-palette", "futuristic");

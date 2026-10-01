@@ -69,13 +69,13 @@ try {
   const appearanceHeading = await app.browser.$("//span[contains(@class,'reports-section-title')][text()='Appearance']");
   await appearanceHeading.waitForExist({ timeout: 10000 });
 
-  // Exactly three theme options remain (Slate, Futuristic, Transparent) —
+  // Exactly four theme options (Slate, Futuristic, Transparent, Retro) —
   // catches a leftover Aurora/Midnight Emerald row surviving the removal,
-  // or a missing/duplicated Transparent row.
+  // or a missing/duplicated row.
   const optionCount = await app.browser.execute(
     () => document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row').length,
   );
-  if (optionCount !== 3) throw new Error(`expected exactly 3 theme options, found ${optionCount}`);
+  if (optionCount !== 4) throw new Error(`expected exactly 4 theme options, found ${optionCount}`);
 
   // Slate (the default, internal id "classic"): the header toggle is
   // present inside .topbar (not the sidebar), and no palette is set.
@@ -163,7 +163,7 @@ try {
   // A floating profile menu must keep the navigation underneath from reading through its labels. Solid
   // in Slate and Futuristic; in Transparent it is frosted glass: at least 75% opaque with a blur behind.
   // Check the rendered color rather than a particular CSS token.
-  for (const palette of ["classic", "futuristic", "transparent"]) {
+  for (const palette of ["classic", "futuristic", "transparent", "retro"]) {
     for (const theme of ["light", "dark"]) {
       await app.browser.execute((palette, theme) => {
         document.documentElement.dataset.palette = palette;

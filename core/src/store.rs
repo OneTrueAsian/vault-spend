@@ -692,6 +692,7 @@ pub struct StoredAppSettings {
     pub envelope_caps_enabled: bool,
     pub rollover_enabled: bool,
     pub auto_link_transfers: bool,
+    pub safe_to_spend_enabled: bool,
 }
 
 /// One calendar month of money moving in and out of one account — a row of
@@ -1288,6 +1289,7 @@ impl Store {
                 autostart_enabled INTEGER NOT NULL DEFAULT 0,
                 rollover_enabled INTEGER NOT NULL DEFAULT 1,
                 auto_link_transfers INTEGER NOT NULL DEFAULT 0,
+                safe_to_spend_enabled INTEGER NOT NULL DEFAULT 1,
                 inflation_pct TEXT NOT NULL DEFAULT '3'
             );
             CREATE TABLE IF NOT EXISTS investment_plans (
@@ -1344,6 +1346,7 @@ impl Store {
         self.migrate_add_cleared_to_transactions_if_missing()?;
         self.migrate_add_background_settings_if_missing()?;
         self.migrate_add_rollover_setting_if_missing()?;
+        self.migrate_add_safe_to_spend_setting_if_missing()?;
         self.migrate_add_auto_link_support_if_missing()?;
         self.migrate_add_inflation_setting_if_missing()?;
         self.migrate_add_bucket_icon_key_if_missing()?;
@@ -2031,6 +2034,16 @@ impl Store {
         if !has_column {
             self.conn
                 .execute("ALTER TABLE app_settings ADD COLUMN rollover_enabled INTEGER NOT NULL DEFAULT 1", [])?;
+        }
+        Ok(())
+    }
+
+    /// Existing profiles retain the Dashboard feature until they disable it.
+    fn migrate_add_safe_to_spend_setting_if_missing(&self) -> rusqlite::Result<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(app_settings)")?;
+        let columns = stmt.query_map([], |row| row.get::<_, String>(1))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        if !columns.iter().any(|column| column == "safe_to_spend_enabled") {
+            self.conn.execute("ALTER TABLE app_settings ADD COLUMN safe_to_spend_enabled INTEGER NOT NULL DEFAULT 1", [])?;
         }
         Ok(())
     }
@@ -6168,6 +6181,63 @@ impl Store {
         Ok(result)
     }
 
+    /// The expense lines behind a Dashboard or Cash Flow category slice.
+    /// Keep the exclusions and split attribution aligned with
+    /// `category_spending_by_month` so the rows reconcile to the chart.
+    pub fn spending_transactions_for_category_in_month(
+        &self,
+        category: &str,
+        year: i32,
+        month: u32,
+    ) -> rusqlite::Result<Vec<CategoryTransaction>> {
+        if category == "Transfer" {
+            return Ok(Vec::new());
+        }
+        let (first, next_first) = month_bounds(year, month);
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT t.id, t.date, t.description, t.amount, a.name, 0, NULL
+             FROM transactions t JOIN accounts a ON a.id = t.account_id
+             WHERE COALESCE(t.category, 'Uncategorized') = ?1 AND (t.category IS NULL OR t.category <> 'Transfer')
+                   AND t.date >= ?2 AND t.date < ?3
+                   AND t.id NOT IN (SELECT DISTINCT transaction_id FROM transaction_splits)
+                   AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL
+             UNION ALL
+             SELECT t.id, t.date, t.description, ts.amount, a.name, 1, ts.note
+             FROM transaction_splits ts
+             JOIN transactions t ON t.id = ts.transaction_id
+             JOIN accounts a ON a.id = t.account_id
+             WHERE COALESCE(ts.category, 'Uncategorized') = ?1 AND (ts.category IS NULL OR ts.category <> 'Transfer')
+                   AND t.date >= ?2 AND t.date < ?3
+                   AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+                   AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL}) AND t.deleted_at IS NULL
+             ORDER BY 2, 1"
+        ))?;
+        let rows = stmt.query_map(params![category, first.to_string(), next_first.to_string()], |row| {
+            Ok((
+                row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, bool>(5)?,
+                row.get::<_, Option<String>>(6)?,
+            ))
+        })?;
+        let mut result = Vec::new();
+        for row in rows {
+            let (transaction_id, date, description, amount, account_name, is_split, split_note) = row?;
+            let amount = Decimal::from_str(&amount).expect("amount stored by this crate must be valid");
+            if amount >= Decimal::ZERO { continue; }
+            result.push(CategoryTransaction {
+                transaction_id,
+                date: NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
+                description,
+                amount,
+                account_name,
+                is_split,
+                split_note,
+            });
+        }
+        Ok(result)
+    }
+
     /// Which budgeted categories are at or near their monthly limit —
     /// built on top of `monthly_budget_actuals`, no separate query. A
     /// category shows up once it's spent 80% or more of its budget
@@ -7659,7 +7729,7 @@ impl Store {
     /// before this setting existed.
     pub fn get_app_settings(&self) -> rusqlite::Result<StoredAppSettings> {
         let row = match self.conn.query_row(
-            "SELECT apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers FROM app_settings WHERE id = 1",
+            "SELECT apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers, safe_to_spend_enabled FROM app_settings WHERE id = 1",
             [],
             |row| {
                 Ok((
@@ -7668,6 +7738,7 @@ impl Store {
                     row.get::<_, bool>(2)?,
                     row.get::<_, bool>(3)?,
                     row.get::<_, bool>(4)?,
+                    row.get::<_, bool>(5)?,
                 ))
             },
         ) {
@@ -7676,14 +7747,15 @@ impl Store {
             Err(e) => return Err(e),
         };
         // Everything defaults on except auto-linking, which is opt-in.
-        let (apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers) =
-            row.unwrap_or((true, true, true, true, false));
+        let (apply_to_debt_enabled, split_purchases_enabled, envelope_caps_enabled, rollover_enabled, auto_link_transfers, safe_to_spend_enabled) =
+            row.unwrap_or((true, true, true, true, false, true));
         Ok(StoredAppSettings {
             apply_to_debt_enabled,
             split_purchases_enabled,
             envelope_caps_enabled,
             rollover_enabled,
             auto_link_transfers,
+            safe_to_spend_enabled,
         })
     }
 
@@ -7706,6 +7778,15 @@ impl Store {
         self.conn.execute(
             "INSERT INTO app_settings (id, rollover_enabled) VALUES (1, ?1)
              ON CONFLICT(id) DO UPDATE SET rollover_enabled = ?1",
+            params![enabled],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_safe_to_spend_enabled(&self, enabled: bool) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT INTO app_settings (id, safe_to_spend_enabled) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET safe_to_spend_enabled = ?1",
             params![enabled],
         )?;
         Ok(())
@@ -20347,5 +20428,48 @@ mod tests {
         store.set_tray_enabled(true).unwrap();
 
         assert!(!store.get_app_settings().unwrap().envelope_caps_enabled);
+    }
+
+    #[test]
+    fn safe_to_spend_setting_defaults_on_and_survives_schema_upgrade() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(store.get_app_settings().unwrap().safe_to_spend_enabled);
+        store.set_safe_to_spend_enabled(false).unwrap();
+        assert!(!store.get_app_settings().unwrap().safe_to_spend_enabled);
+        store.set_envelope_caps_enabled(false).unwrap();
+        store.conn.execute_batch("ALTER TABLE app_settings DROP COLUMN safe_to_spend_enabled;").unwrap();
+        store.init_schema().unwrap();
+        let settings = store.get_app_settings().unwrap();
+        assert!(settings.safe_to_spend_enabled);
+        assert!(!settings.envelope_caps_enabled);
+    }
+
+    #[test]
+    fn spending_drilldown_reconciles_split_lines_to_the_category_chart() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store.save_transactions(account, &[
+            tx("2026-08-05", "Market", "-100.00"),
+            tx("2026-08-06", "Grocer", "-25.00"),
+            tx("2026-08-07", "Refund", "10.00"),
+        ]).unwrap();
+        let market = id_of(&store, "Market", "2026-08-05");
+        store.set_category(market, "Groceries", CategorySource::User, None).unwrap();
+        store.set_transaction_splits(market, &[
+            ("Groceries".to_string(), dec("-60.00"), None),
+            ("Household".to_string(), dec("-40.00"), None),
+        ]).unwrap();
+        store.set_category(id_of(&store, "Grocer", "2026-08-06"), "Groceries", CategorySource::User, None).unwrap();
+        store.set_category(id_of(&store, "Refund", "2026-08-07"), "Groceries", CategorySource::User, None).unwrap();
+
+        let rows = store.spending_transactions_for_category_in_month("Groceries", 2026, 8).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().any(|row| row.is_split && row.amount == dec("-60.00")));
+        let detail_total: Decimal = rows.iter().map(|row| -row.amount).sum();
+        let chart_total = store.spending_by_category(day("2026-08-01"), day("2026-08-31")).unwrap()
+            .into_iter().find(|(category, _)| category == "Groceries").unwrap().1;
+        assert_eq!(detail_total, chart_total);
+        assert_eq!(chart_total, dec("85.00"));
+        assert!(store.spending_transactions_for_category_in_month("Groceries", 2026, 7).unwrap().is_empty());
     }
 }

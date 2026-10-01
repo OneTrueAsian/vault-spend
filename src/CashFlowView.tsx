@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPlan, YoyCashFlow } from "./types";
 import { lowestPoint } from "./safeToSpend";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "./charts";
@@ -7,6 +7,7 @@ import { DebtPayoffPlannerSection } from "./ReportsView";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
 import { MenuSelect } from "./MenuSelect";
+import { CategorySpendDialog } from "./CategorySpendDialog";
 
 const CATEGORY_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 const FORECAST_DAY_OPTIONS = [30, 60, 90];
@@ -79,6 +80,8 @@ export function CashFlowView({
   // same tab-btn/tab-btn-active pattern already on this page for the
   // 3/6-month toggle below.
   const [subTab, setSubTab] = useState<"overview" | "forecast" | "debt">("overview");
+  const [selectedSpendCategory, setSelectedSpendCategory] = useState<string | null>(null);
+  useEffect(() => setSelectedSpendCategory(null), [topCategoriesData]);
 
   if (!cashFlow) {
     return <p className="empty-state">Loading…</p>;
@@ -264,10 +267,11 @@ export function CashFlowView({
                       data={donutData}
                       size={132}
                       center={{ value: fmtMoneyShort(donutTotal), label: selectedMonthLabel }}
+                      onSelect={setSelectedSpendCategory}
                     />
                     <div>
                       {donutData.map((d) => (
-                        <div className="chart-legend-item" key={d.label} style={{ marginBottom: 8 }}>
+                        <button type="button" className="chart-legend-item chart-legend-button" key={d.label} style={{ marginBottom: 8 }} onClick={() => setSelectedSpendCategory(d.label)} aria-label={`Show ${d.label} spending, ${formatAmount(d.value.toFixed(2))}`}>
                           <span className="chart-legend-swatch" style={{ background: d.color }}></span>
                           {d.label}
                           <span className="account-col" style={{ marginLeft: "auto" }}>
@@ -289,13 +293,14 @@ export function CashFlowView({
                               {d.trend.isNew ? "New" : `${d.trend.pct > 0 ? "▲" : d.trend.pct < 0 ? "▼" : "–"} ${Math.abs(d.trend.pct).toFixed(0)}%`}
                             </span>
                           )}
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
                 ) : (
                   <p className="empty-state">No spending yet.</p>
                 )}
+                {selectedSpendCategory && <CategorySpendDialog category={selectedSpendCategory} year={topCategoriesMonth.year} month={topCategoriesMonth.month} onClose={() => setSelectedSpendCategory(null)} />}
               </div>
             </div>
             <div className="card">
@@ -305,7 +310,10 @@ export function CashFlowView({
                   <MenuSelect
                     ariaLabel="Month for top merchants and categories"
                     value={String(topCategoriesMonth.month)}
-                    onChange={(v) => onSetTopCategoriesMonth(topCategoriesMonth.year, Number(v))}
+                    onChange={(v) => {
+                      setSelectedSpendCategory(null);
+                      onSetTopCategoriesMonth(topCategoriesMonth.year, Number(v));
+                    }}
                     options={monthOptions.map((opt) => ({ value: String(opt.month), label: opt.label }))}
                     title="Also changes the Top categories chart"
                     triggerClassName="month-select"

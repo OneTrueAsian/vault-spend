@@ -622,7 +622,9 @@ function App({
     envelope_caps_enabled: true,
     rollover_enabled: true,
     auto_link_transfers: false, // the one opt-in switch
+    safe_to_spend_enabled: true,
   });
+  const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
 
   const [backupCopyDir, setBackupCopyDir] = useState<string | null>(null);
   const [backgroundSettings, setBackgroundSettings] = useState<BackgroundSettings | null>(null);
@@ -667,7 +669,9 @@ function App({
   }, []);
 
   const refreshAppSettings = useCallback(async () => {
-    setAppSettings(await invoke<AppSettings>("get_app_settings"));
+    const next = await invoke<AppSettings>("get_app_settings");
+    setAppSettings(next);
+    setAppSettingsLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -988,6 +992,16 @@ function App({
     }
   }
 
+  async function handleSetSafeToSpendEnabled(enabled: boolean) {
+    try {
+      await invoke("set_safe_to_spend_enabled", { enabled });
+      await refreshAppSettings();
+      if (!enabled) setSafeToSpendForecast(null);
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
   async function handleSetAutoLinkTransfers(enabled: boolean) {
     try {
       const linkedNow = await invoke<number>("set_auto_link_transfers", { enabled });
@@ -1196,15 +1210,17 @@ function App({
     const timer = setTimeout(() => setSimilarToast(null), 12000);
     return () => clearTimeout(timer);
   }, [similarToast]);
-  const [ledgerDensity, setLedgerDensityState] = useState<LedgerDensity>(loadLedgerDensity);
-  function setLedgerDensity(next: LedgerDensity) {
-    setLedgerDensityState(next);
-    try {
-      localStorage.setItem(LEDGER_DENSITY_STORAGE_KEY, next);
-    } catch {
-      // a failed write only means the choice isn't remembered next launch
-    }
-  }
+  // const [ledgerDensity, setLedgerDensityState] = useState<LedgerDensity>(loadLedgerDensity);
+  const [ledgerDensity] = useState<LedgerDensity>(loadLedgerDensity);
+  // Restore this setter with the Transactions density selector below.
+  // function setLedgerDensity(next: LedgerDensity) {
+  //   setLedgerDensityState(next);
+  //   try {
+  //     localStorage.setItem(LEDGER_DENSITY_STORAGE_KEY, next);
+  //   } catch {
+  //     // a failed write only means the choice isn't remembered next launch
+  //   }
+  // }
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -1858,7 +1874,7 @@ function App({
   // the Cash Flow tab's forecast window is whatever 30/60/90 the user picked.
   const [safeToSpendForecast, setSafeToSpendForecast] = useState<BillAwareForecast | null>(null);
   useEffect(() => {
-    if (activeTab !== "dashboard" || !layoutWidgets.includes("safe_to_spend")) return;
+    if (!appSettingsLoaded || !appSettings.safe_to_spend_enabled || activeTab !== "dashboard" || !layoutWidgets.includes("safe_to_spend")) return;
     let cancelled = false;
     invoke<BillAwareForecast>("bill_aware_forecast", { days: 45 })
       .then((f) => {
@@ -1870,7 +1886,7 @@ function App({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, layoutWidgets, transactions, recurring, accounts]);
+  }, [activeTab, appSettingsLoaded, appSettings.safe_to_spend_enabled, layoutWidgets, transactions, recurring, accounts]);
 
   useEffect(() => {
     if (activeTab === "cashflow") {
@@ -2032,18 +2048,25 @@ function App({
   }, [recurring, backgroundSettings, profiles, showBillNamesInReminders]);
 
   const [budgetMonthActuals, setBudgetMonthActuals] = useState<ReportBudgetLine[]>([]);
+  const [budgetMonthFlow, setBudgetMonthFlow] = useState<CashFlow | null>(null);
+  const budgetMonthRequestRef = useRef(0);
   const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlert[]>([]);
   const [memberBudgetActuals, setMemberBudgetActuals] = useState<MemberBudgetActual[]>([]);
 
   const refreshBudgetMonthActuals = useCallback(async (year: number, month: number) => {
+    const request = ++budgetMonthRequestRef.current;
+    setBudgetMonthFlow(null);
     const monthKey = `${year}-${month}`;
     const cachedAlerts = currentMonthAlertsRef.current?.month === monthKey ? currentMonthAlertsRef.current.alerts : null;
-    const [actuals, alerts] = await Promise.all([
+    const [actuals, alerts, flow] = await Promise.all([
       invoke<ReportBudgetLine[]>("budget_actuals_for_month", { year, month }),
       cachedAlerts ? Promise.resolve(cachedAlerts) : invoke<BudgetAlert[]>("budget_alerts_for_month", { year, month }),
+      invoke<CashFlow>("cash_flow_for_range", { fromYear: year, fromMonth: month, toYear: year, toMonth: month }),
     ]);
+    if (request !== budgetMonthRequestRef.current) return;
     currentMonthAlertsRef.current = { month: monthKey, alerts };
     setBudgetMonthActuals(actuals);
+    setBudgetMonthFlow(flow);
     setBudgetAlerts(alerts);
     // This one doubles as both a mutation-response (several budget edit
     // handlers call it alone, with no other refetch alongside) and a
@@ -4063,6 +4086,7 @@ function App({
                   setActiveTab("ledger");
                 }}
                 safeToSpendForecast={safeToSpendForecast}
+                safeToSpendEnabled={appSettingsLoaded && appSettings.safe_to_spend_enabled}
                 onAddTransaction={() => setNewTransactionOpen(true)}
                 onAddAccount={handleNewAccount}
               />
@@ -4349,6 +4373,7 @@ function App({
                   ⇄ {autoLinkedPairs.length} auto-linked — review
                 </button>
               )}
+              {/* Hidden by request; keep the original selector available to restore.
               <div className="density-toggle" role="group" aria-label="Row density">
                 {(["comfortable", "compact"] as LedgerDensity[]).map((d) => (
                   <button
@@ -4362,6 +4387,7 @@ function App({
                   </button>
                 ))}
               </div>
+              */}
             </div>
           )}
 
@@ -5036,6 +5062,7 @@ function App({
               <BudgetView
                 categories={usedCategories}
                 budgetActuals={budgetMonthActuals}
+                monthFlow={budgetMonthFlow}
                 budgetAlerts={budgetAlerts}
                 monthLabel={budgetMonthLabel}
                 year={budgetYear}
@@ -5151,7 +5178,10 @@ function App({
                 onMonthClick={handleMonthClick}
                 topCategoriesData={topCategoriesData}
                 topCategoriesMonth={topCategoriesMonth}
-                onSetTopCategoriesMonth={(year, month) => setTopCategoriesMonth({ year, month })}
+                onSetTopCategoriesMonth={(year, month) => {
+                  setTopCategoriesData(null);
+                  setTopCategoriesMonth({ year, month });
+                }}
                 previousMonthCategorySpending={previousMonthCategorySpending}
                 forecastData={forecastData}
                 forecastDays={forecastDays}
@@ -5468,6 +5498,7 @@ function App({
                 onSetEnvelopeCapsEnabled={handleSetEnvelopeCapsEnabled}
                 onSetRolloverEnabled={handleSetRolloverEnabled}
                 onSetAutoLinkTransfers={handleSetAutoLinkTransfers}
+                onSetSafeToSpendEnabled={handleSetSafeToSpendEnabled}
                 themeStyle={themeStyle}
                 onSetThemeStyle={setThemeStyle}
                 privacyAutoHide={privacyPrefs.autoHide}
@@ -5548,6 +5579,7 @@ function App({
               accounts={accounts}
               buckets={buckets}
               holdings={holdings}
+              safeToSpendEnabled={appSettingsLoaded && appSettings.safe_to_spend_enabled}
               onAdd={(id) => addWidgetToDashboard(id, false)}
               onCancel={() => setAddWidgetModalOpen(false)}
             />

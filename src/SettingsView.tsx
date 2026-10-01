@@ -454,9 +454,15 @@ const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string 
     description:
       "A frosted-glass reskin — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Also follows the header's Light/Dark/System toggle.",
   },
+  {
+    id: "retro",
+    label: "Retro",
+    description:
+      "A classic desktop reskin — gray raised and sunken controls, square corners, white document areas, and navy selection, set in Microsoft Sans Serif or Tahoma. Light is the classic gray; Dark is a modern adaptation of the same shapes. Also follows the header's Light/Dark/System toggle.",
+  },
 ];
 
-function AppearanceSection({
+export function AppearanceSection({
   themeStyle,
   onSetThemeStyle,
 }: {
@@ -630,6 +636,7 @@ function FeatureTogglesSection({
   onSetEnvelopeCapsEnabled,
   onSetRolloverEnabled,
   onSetAutoLinkTransfers,
+  onSetSafeToSpendEnabled,
 }: {
   appSettings: AppSettings;
   onSetApplyToDebtEnabled: (enabled: boolean) => void;
@@ -637,6 +644,7 @@ function FeatureTogglesSection({
   onSetEnvelopeCapsEnabled: (enabled: boolean) => void;
   onSetRolloverEnabled: (enabled: boolean) => void;
   onSetAutoLinkTransfers: (enabled: boolean) => void;
+  onSetSafeToSpendEnabled: (enabled: boolean) => void;
 }) {
   const toggles: { key: keyof AppSettings; label: string; description: string; onChange: (enabled: boolean) => void }[] = [
     {
@@ -671,6 +679,12 @@ function FeatureTogglesSection({
         "Off by default. When on, a pair of transactions that are clearly one move between your own accounts (equal amounts, opposite directions, different accounts, within 3 days, and no other possible match) is linked as soon as it arrives, instead of waiting in “possible transfers”. Every automatic link is listed on Transactions for you to review and unlink.",
       onChange: onSetAutoLinkTransfers,
     },
+    {
+      key: "safe_to_spend_enabled",
+      label: "Safe to spend",
+      description: "Shows the Safe to spend Dashboard widget. Turning this off keeps its saved position and buffer for when you turn it back on.",
+      onChange: onSetSafeToSpendEnabled,
+    },
   ];
 
   return (
@@ -684,7 +698,7 @@ function FeatureTogglesSection({
       </p>
       <div className="feature-toggle-list">
         {toggles.map((t) => (
-          <label key={t.key} className="feature-toggle-row">
+          <label key={t.key} className="feature-toggle-row" data-feature-toggle={t.key}>
             <input type="checkbox" checked={appSettings[t.key]} onChange={(e) => t.onChange(e.target.checked)} />
             <span className="feature-toggle-text">
               <span className="feature-toggle-label">{t.label}</span>
@@ -1056,6 +1070,7 @@ export function SettingsView({
   onSetEnvelopeCapsEnabled,
   onSetRolloverEnabled,
   onSetAutoLinkTransfers,
+  onSetSafeToSpendEnabled,
   themeStyle,
   onSetThemeStyle,
   privacyAutoHide,
@@ -1115,6 +1130,7 @@ export function SettingsView({
   onSetEnvelopeCapsEnabled: (enabled: boolean) => void;
   onSetRolloverEnabled: (enabled: boolean) => void;
   onSetAutoLinkTransfers: (enabled: boolean) => void;
+  onSetSafeToSpendEnabled: (enabled: boolean) => void;
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
 }) {
@@ -1175,6 +1191,7 @@ export function SettingsView({
         onSetEnvelopeCapsEnabled={onSetEnvelopeCapsEnabled}
         onSetRolloverEnabled={onSetRolloverEnabled}
         onSetAutoLinkTransfers={onSetAutoLinkTransfers}
+        onSetSafeToSpendEnabled={onSetSafeToSpendEnabled}
       />
       <RulesManager categories={categories} onRulesApplied={onRulesApplied} onMessage={onMessage} />
       <ReleaseNotesSection currentVersion={appVersion} />

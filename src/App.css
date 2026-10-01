@@ -623,6 +623,200 @@
    near `.sidebar`/`.nav-item`) rather than here — that positioning is load-
    bearing for a specificity tie against `.nav-item:hover`, not cosmetic. */
 
+/* Retro — the fourth optional reskin: a classic 1990s-desktop colour
+   scheme (gray control faces, white document panes, navy selection, square
+   corners, raised and sunken four-edge borders). Like the others it follows
+   the header's Light/Dark/System toggle, so it needs the same three-block
+   structure: Light is the historical palette; Dark is a modern adaptation of
+   the same geometry (candidates, not historical values). Text is local
+   "Microsoft Sans Serif"/Tahoma — no font file is bundled or downloaded.
+   Secondary text is #4a4a4a, not the historical #808080 (2.17:1 on #c0c0c0).
+   --status-base and --menu-bg stay opaque. The component geometry (raised
+   buttons, sunken fields, square corners) is in the "Retro" section at
+   the end of this file. */
+:root[data-palette="retro"] {
+  --retro-face: #c0c0c0;
+  --retro-window: #ffffff;
+  --retro-hl: #ffffff;
+  --retro-light: #dfdfdf;
+  --retro-shadow: #808080;
+  --retro-dark: #000000;
+  --retro-sel: #000080;
+  --retro-sel-text: #ffffff;
+
+  --bg: var(--retro-face);
+  --surface: var(--retro-face);
+  --surface-2: #dfdfdf;
+  --status-base: var(--retro-face);
+  --menu-bg: var(--retro-face);
+  --surface-hover: #d4d4d4;
+  --sidebar-bg: var(--retro-face);
+  --sidebar-bg-hover: #dfdfdf;
+  --sidebar-bg-active: var(--retro-sel);
+  --sidebar-text: #000000;
+  --sidebar-text-dim: #4a4a4a;
+  --sidebar-text-active: #000000;
+  --sidebar-border: #808080;
+
+  --text: #000000;
+  --text-muted: #4a4a4a;
+  --text-faint: #4a4a4a;
+  --border: #808080;
+  --border-strong: #404040;
+
+  --accent: #000080;
+  --accent-strong: #1010a0;
+  --accent-soft: #c8c8e0;
+  --accent-soft-text: #000080;
+  --on-accent: #ffffff;
+
+  --positive: #005000;
+  --positive-soft: #b8d4b8;
+  --negative: #a00000;
+  --negative-soft: #e0b8b8;
+  --warning: #6a4200;
+  --warning-soft: #d8d0a8;
+  --info: #004a80;
+  --info-soft: #b8ccd8;
+
+  --nav-active-shadow: none;
+
+  --shadow-sm: none;
+  --shadow-md: 1px 1px 0 #000000;
+  --shadow-lg: 2px 2px 0 rgba(0, 0, 0, 0.5);
+
+  --retro-raised: inset -1px -1px var(--retro-dark), inset 1px 1px var(--retro-hl),
+    inset -2px -2px var(--retro-shadow), inset 2px 2px var(--retro-light);
+  --retro-sunken: inset -1px -1px var(--retro-hl), inset 1px 1px var(--retro-shadow),
+    inset -2px -2px var(--retro-light), inset 2px 2px var(--retro-dark);
+
+  --font-display: "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
+  --font-body: "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
+  --font-mono: "Lucida Console", Consolas, "Courier New", monospace;
+
+  font-size: 13px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="retro"]:not([data-theme="light"]) {
+    --retro-face: #303030;
+    --retro-window: #121212;
+    --retro-hl: #626262;
+    --retro-light: #454545;
+    --retro-shadow: #181818;
+    --retro-dark: #000000;
+    --retro-sel: #304ea5;
+
+    --bg: #1b1b1b;
+    --surface-2: #3a3a3a;
+    --surface-hover: #424242;
+    --sidebar-bg-hover: #3a3a3a;
+    --sidebar-text: #f3f3f3;
+    --sidebar-text-dim: #c4c4c4;
+    --sidebar-text-active: #f3f3f3;
+    --sidebar-border: #000000;
+
+    --text: #f3f3f3;
+    --text-muted: #c4c4c4;
+    --text-faint: #c4c4c4;
+    --border: #626262;
+    --border-strong: #808080;
+
+    --accent: #8aa4f5;
+    --accent-strong: #a8bcf8;
+    --accent-soft: #2a3a6e;
+    --accent-soft-text: #c8d4ff;
+    --on-accent: #0b0b0b;
+
+    --positive: #5fd38d;
+    --positive-soft: #1f3d2b;
+    --negative: #ff8f8f;
+    --negative-soft: #4a2424;
+    --warning: #e8b84a;
+    --warning-soft: #4a3a14;
+    --info: #7fb2ff;
+    --info-soft: #1f3350;
+
+    --shadow-md: 1px 1px 0 #000000;
+    --shadow-lg: 2px 2px 0 #000000;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-palette="retro"][data-theme="dark"] {
+  --retro-face: #303030;
+  --retro-window: #121212;
+  --retro-hl: #626262;
+  --retro-light: #454545;
+  --retro-shadow: #181818;
+  --retro-dark: #000000;
+  --retro-sel: #304ea5;
+
+  --bg: #1b1b1b;
+  --surface-2: #3a3a3a;
+  --surface-hover: #424242;
+  --sidebar-bg-hover: #3a3a3a;
+  --sidebar-text: #f3f3f3;
+  --sidebar-text-dim: #c4c4c4;
+  --sidebar-text-active: #f3f3f3;
+  --sidebar-border: #000000;
+
+  --text: #f3f3f3;
+  --text-muted: #c4c4c4;
+  --text-faint: #c4c4c4;
+  --border: #626262;
+  --border-strong: #808080;
+
+  --accent: #8aa4f5;
+  --accent-strong: #a8bcf8;
+  --accent-soft: #2a3a6e;
+  --accent-soft-text: #c8d4ff;
+  --on-accent: #0b0b0b;
+
+  --positive: #5fd38d;
+  --positive-soft: #1f3d2b;
+  --negative: #ff8f8f;
+  --negative-soft: #4a2424;
+  --warning: #e8b84a;
+  --warning-soft: #4a3a14;
+  --info: #7fb2ff;
+  --info-soft: #1f3350;
+
+  --shadow-md: 1px 1px 0 #000000;
+  --shadow-lg: 2px 2px 0 #000000;
+
+  color-scheme: dark;
+}
+
+/* `:where()` keeps a plain <button> at one class of specificity, so any
+   class-based button (.modal-secondary, .nav-item, .stat…) still overrides
+   it by source order, the same trick Transparent's pill rule uses. Every
+   plain button is a gray raised face; the base accent fill doesn't apply. */
+[data-palette="retro"] :where(button) {
+  background-color: var(--retro-face);
+  color: var(--text);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised);
+  font-weight: 400;
+}
+
+[data-palette="retro"] :where(button):hover {
+  background-color: var(--retro-face);
+  border-color: transparent;
+}
+
+[data-palette="retro"] :where(button):active:not(:disabled) {
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] :where(button):disabled {
+  opacity: 1;
+  color: var(--text-muted);
+  text-shadow: 1px 1px 0 var(--retro-hl);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1272,6 +1466,8 @@ button:disabled {
 
 .view-toggle {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 3px;
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -2034,6 +2230,28 @@ button:disabled {
   gap: 7px;
   font-size: 12.5px;
 }
+
+.chart-legend-button {
+  width: 100%;
+  padding: 4px 6px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+}
+
+.chart-legend-button:hover,
+.chart-legend-button:focus-visible {
+  border-color: var(--border);
+  background: var(--surface-hover, var(--surface));
+}
+
+.donut-interactive-slice { cursor: pointer; }
+.donut-interactive-slice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.budget-net-summary { margin-bottom: 18px; }
+.budget-net-summary > .view-sub { margin: 0 0 12px; }
 
 .category-trend {
   font-size: 11px;
@@ -7056,4 +7274,233 @@ input[type="checkbox"], input[type="radio"] {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+/* ---------------------------- Retro ---------------------------- */
+/* Component geometry for the Retro style (tokens are defined near the
+   other palettes above). Every selector is scoped to data-palette="retro",
+   so the other styles are unaffected. Raised = light top/left, dark
+   bottom/right (--retro-raised); sunken is the inverse (--retro-sunken). */
+
+/* Square corners everywhere, pills and circles included. !important is the
+   deliberate blunt tool here: ~150 component rules each set their own radius
+   at varying specificity, and a retro control never has a rounded one. */
+[data-palette="retro"] :is(*, *::before, *::after) {
+  border-radius: 0 !important;
+}
+
+/* Shell and navigation */
+[data-palette="retro"] .sidebar {
+  border-right: 1px solid var(--retro-dark);
+  box-shadow: inset -1px 0 var(--retro-shadow), inset 1px 0 var(--retro-hl);
+}
+
+[data-palette="retro"] .topbar {
+  background: var(--retro-face);
+  border-bottom: 1px solid var(--retro-dark);
+  box-shadow: inset 0 -1px var(--retro-shadow), inset 0 1px var(--retro-hl);
+}
+
+[data-palette="retro"] .topbar h1,
+[data-palette="retro"] .brand-word {
+  font-weight: 700;
+}
+
+[data-palette="retro"] .nav-item {
+  font-size: 13px;
+  font-weight: 400;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+[data-palette="retro"] .nav-item:hover {
+  background: transparent;
+  box-shadow: var(--retro-raised);
+}
+
+[data-palette="retro"] .nav-item.nav-item-active {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+  box-shadow: none;
+  border: 1px dotted var(--retro-sel-text);
+  outline: 1px solid var(--retro-sel);
+  outline-offset: -1px;
+}
+
+[data-palette="retro"] .nav-item.nav-item-active .ico {
+  color: var(--retro-sel-text);
+}
+
+/* Panels and dialogs */
+[data-palette="retro"] .card,
+[data-palette="retro"] .modal-panel,
+[data-palette="retro"] .account-card,
+[data-palette="retro"] .legal-notice-card,
+[data-palette="retro"] .stat,
+[data-palette="retro"] .stat-hero {
+  background-color: var(--retro-face);
+  background-image: none;
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-palette="retro"] .modal-panel {
+  box-shadow: var(--retro-raised), var(--shadow-lg);
+}
+
+[data-palette="retro"] .modal-title {
+  font-weight: 700;
+}
+
+[data-palette="retro"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* Sunken fields: white (or, in the dark adaptation, near-black) interiors */
+[data-palette="retro"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+[data-palette="retro"] textarea,
+[data-palette="retro"] select {
+  background: var(--retro-window);
+  color: var(--text);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] input[aria-invalid="true"],
+[data-palette="retro"] select[aria-invalid="true"],
+[data-palette="retro"] textarea[aria-invalid="true"] {
+  outline: 1px solid var(--negative);
+}
+
+/* Dropdown triggers are sunken like a classic combo box; their panels are raised */
+[data-palette="retro"] .menu-select-toggle,
+[data-palette="retro"] .account-filter-toggle {
+  background: var(--retro-window);
+  color: var(--text);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-sunken);
+  font-weight: 400;
+}
+
+[data-palette="retro"] .menu-select-toggle:hover,
+[data-palette="retro"] .account-filter-toggle:hover,
+[data-palette="retro"] .account-destination .account-filter-toggle:hover {
+  background: var(--retro-window);
+  border-color: transparent;
+}
+
+[data-palette="retro"] .menu-select-panel,
+[data-palette="retro"] .profile-switcher-panel,
+[data-palette="retro"] .more-menu-panel,
+[data-palette="retro"] .account-destination-panel {
+  background: var(--retro-face);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised), var(--shadow-md);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-palette="retro"] .profile-switcher-option:hover,
+[data-palette="retro"] .account-filter-option:hover,
+[data-palette="retro"] .menu-select-panel [role="option"]:hover,
+[data-palette="retro"] .menu-select-panel [role="option"]:focus-visible {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+}
+
+/* Secondary buttons, tabs, and the Light/Dark/System toggle */
+[data-palette="retro"] .modal-secondary {
+  background: var(--retro-face);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised);
+}
+
+[data-palette="retro"] .modal-secondary:hover {
+  background: var(--retro-face);
+  border-color: transparent;
+}
+
+[data-palette="retro"] .tabs,
+[data-palette="retro"] .theme-toggle {
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 2px;
+}
+
+[data-palette="retro"] .tab-btn,
+[data-palette="retro"] .theme-toggle button {
+  background: var(--retro-face);
+  color: var(--text);
+  box-shadow: var(--retro-raised);
+  font-weight: 400;
+}
+
+[data-palette="retro"] .tab-btn:hover,
+[data-palette="retro"] .theme-toggle button:hover {
+  background: var(--retro-face);
+  color: var(--text);
+}
+
+[data-palette="retro"] .tab-btn-active,
+[data-palette="retro"] .theme-toggle button.theme-toggle-active {
+  background: var(--retro-face);
+  box-shadow: var(--retro-sunken);
+  font-weight: 700;
+}
+
+/* Tables: a sunken white document pane with button-like column headers */
+[data-palette="retro"] .ledger {
+  background: var(--retro-window);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] .ledger th {
+  background: var(--retro-face);
+  color: var(--text);
+  box-shadow: var(--retro-raised);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+[data-palette="retro"] .ledger td {
+  border-bottom-color: var(--retro-light);
+}
+
+[data-palette="retro"] .ledger-row-selected td {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+}
+
+/* Progress: a sunken track with a solid navy fill */
+[data-palette="retro"] .progress-track {
+  background: var(--retro-window);
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] .progress-fill {
+  background: var(--retro-sel);
+}
+
+[data-palette="retro"] .progress-fill.warn {
+  background: var(--warning);
+}
+
+[data-palette="retro"] .progress-fill.over {
+  background: var(--negative);
+}
+
+/* Toasts keep their opaque status tint over --status-base */
+[data-palette="retro"] .status {
+  box-shadow: var(--retro-raised);
+  border-color: var(--border-strong);
+}
+
+[data-palette="retro"] .toast-stack .status {
+  box-shadow: var(--retro-raised), var(--shadow-md);
 }

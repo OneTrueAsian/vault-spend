@@ -587,9 +587,15 @@ export function ReportsView({
   const [flow, setFlow] = useState<CashFlow | null>(null);
   const [daily, setDaily] = useState<DailyAmount[]>([]);
   const [loadedRange, setLoadedRange] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setCells([]);
+    setFlow(null);
+    setDaily([]);
+    setLoadedRange(null);
+    setLoadError(null);
     Promise.all([
       invoke<CategoryMonthCell[]>("category_spending_by_month", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
       invoke<CashFlow>("cash_flow_for_range", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
@@ -602,8 +608,11 @@ export function ReportsView({
         setDaily(dailySpend.map((d) => ({ date: d.date, amount: parseFloat(d.amount) })));
         setLoadedRange(rangeKey);
       })
-      .catch(() => {
-        if (!cancelled) setLoadedRange(rangeKey);
+      .catch((reason) => {
+        if (!cancelled) {
+          setLoadError(String(reason));
+          setLoadedRange(rangeKey);
+        }
       });
     return () => {
       cancelled = true;
@@ -671,6 +680,7 @@ export function ReportsView({
           </button>
         ))}
       </div>
+      {loadError && <p role="alert">Could not load this report range: {loadError}</p>}
 
       <div className="stats" data-report-summary style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         <div className="stat tint-blue">

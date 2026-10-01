@@ -43,6 +43,7 @@ import { ensureUiStateMigrated } from "./profileUiState";
 import { attentionItems, type AttentionKind } from "./needsAttention";
 import { effectiveBudget } from "./budgetPlan";
 import { SafeToSpendCard } from "./SafeToSpendCard";
+import { CategorySpendDialog } from "./CategorySpendDialog";
 
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
@@ -200,6 +201,7 @@ export function DashboardView({
   onOpenBuckets,
   onOpenUncategorized,
   safeToSpendForecast,
+  safeToSpendEnabled,
   onAddTransaction,
   onAddAccount,
 }: {
@@ -277,12 +279,15 @@ export function DashboardView({
   /** The bill-aware forecast the "Safe to spend" widget counts down with —
    * `null` until it loads. */
   safeToSpendForecast: BillAwareForecast | null;
+  safeToSpendEnabled: boolean;
   /** Quick actions panel — same triggers the Transactions toolbar's "Add
    * transaction…" button and Accounts' "Add account…" button already use. */
   onAddTransaction: () => void;
   onAddAccount: () => void;
 }) {
   const [expandedStat, setExpandedStat] = useState<StatKey | null>(null);
+  const [selectedSpendCategory, setSelectedSpendCategory] = useState<string | null>(null);
+  useEffect(() => setSelectedSpendCategory(null), [spendingThisMonth]);
   const [showBudgetAlerts, setShowBudgetAlerts] = useState(false);
   const [checklistDismissed, setChecklistDismissed] = useState(loadChecklistDismissed);
   const [customizeMode, setCustomizeMode] = useState(false);
@@ -455,16 +460,14 @@ export function DashboardView({
 
   const donutData = useMemo(
     () =>
-      spendingThisMonth.slice(0, 6).map((c, i) => ({
+      spendingThisMonth.map((c, i) => ({
         label: c.category,
         value: parseFloat(c.amount),
         color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
       })),
     [spendingThisMonth],
   );
-  // The center total matches what the ring itself visually sums to (the
-  // top 6 categories charted), not spendingThisMonth's full, possibly
-  // longer tail — so the number and the ring never disagree.
+  // The ring and center both represent the full categorized spend.
   const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
 
   const upcoming = useMemo(
@@ -660,7 +663,7 @@ export function DashboardView({
       </div>
     ),
 
-    safe_to_spend: safeToSpendForecast && <SafeToSpendCard forecast={safeToSpendForecast} onOpenRecurring={onOpenRecurring} />,
+    safe_to_spend: safeToSpendEnabled && safeToSpendForecast && <SafeToSpendCard forecast={safeToSpendForecast} onOpenRecurring={onOpenRecurring} />,
 
     needs_a_look: (
       <>
@@ -764,23 +767,25 @@ export function DashboardView({
                 data={donutData}
                 size={132}
                 center={{ value: fmtMoneyShort(donutTotal), label: "this month" }}
+                onSelect={setSelectedSpendCategory}
               />
               <div>
                 {donutData.map((d) => (
-                  <div className="chart-legend-item" key={d.label} style={{ marginBottom: 8 }}>
+                  <button type="button" className="chart-legend-item chart-legend-button" key={d.label} style={{ marginBottom: 8 }} onClick={() => setSelectedSpendCategory(d.label)} aria-label={`Show ${d.label} spending, ${formatAmount(d.value.toFixed(2))}`}>
                     <CategoryIcon category={d.label} iconKey={categoryIconMap[d.label] ?? null} className="category-legend-icon" />
                     <span className="chart-legend-swatch" style={{ background: d.color }}></span>
                     {d.label}
                     <span className="account-col" style={{ marginLeft: "auto" }}>
                       {fmtMoneyShort(d.value)}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
           ) : (
             <p className="empty-state">No spending yet this month.</p>
           )}
+          {selectedSpendCategory && <CategorySpendDialog category={selectedSpendCategory} year={new Date().getFullYear()} month={new Date().getMonth() + 1} onClose={() => setSelectedSpendCategory(null)} />}
         </div>
       </div>
     ),
@@ -1175,6 +1180,7 @@ export function DashboardView({
   const layoutRows = useMemo(() => {
     const rows: LayoutRow[] = [];
     layoutWidgets.forEach((id, index) => {
+      if (id === "safe_to_spend" && !safeToSpendEnabled) return;
       const compact = isCompactWidget(id);
       const last = rows[rows.length - 1];
       if (compact && last?.isCompactRow) {
@@ -1184,7 +1190,7 @@ export function DashboardView({
       }
     });
     return rows;
-  }, [layoutWidgets]);
+  }, [layoutWidgets, safeToSpendEnabled]);
 
   return (
     <div className="reports-view">

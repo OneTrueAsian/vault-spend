@@ -2943,6 +2943,32 @@ pub fn transactions_for_category(
         .collect())
 }
 
+#[tauri::command]
+pub fn spending_transactions_for_category(
+    category: String,
+    year: i32,
+    month: u32,
+    state: tauri::State<AppStateHandle>,
+) -> Result<Vec<CategoryTransactionDto>, String> {
+    if chrono::NaiveDate::from_ymd_opt(year, month, 1).is_none() {
+        return Err("invalid month".to_string());
+    }
+    let state = state.lock()?;
+    state.store.spending_transactions_for_category_in_month(&category, year, month)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|t| Ok(CategoryTransactionDto {
+            transaction_id: t.transaction_id,
+            date: t.date.to_string(),
+            description: t.description,
+            amount: t.amount.to_string(),
+            account_name: t.account_name,
+            is_split: t.is_split,
+            split_note: t.split_note,
+        }))
+        .collect()
+}
+
 #[derive(Serialize)]
 pub struct BudgetAlertDto {
     pub category: String,
@@ -3866,6 +3892,7 @@ pub struct AppSettingsDto {
     pub envelope_caps_enabled: bool,
     pub rollover_enabled: bool,
     pub auto_link_transfers: bool,
+    pub safe_to_spend_enabled: bool,
 }
 
 #[tauri::command]
@@ -3878,6 +3905,7 @@ pub fn get_app_settings(state: tauri::State<AppStateHandle>) -> Result<AppSettin
         envelope_caps_enabled: settings.envelope_caps_enabled,
         rollover_enabled: settings.rollover_enabled,
         auto_link_transfers: settings.auto_link_transfers,
+        safe_to_spend_enabled: settings.safe_to_spend_enabled,
     })
 }
 
@@ -3906,6 +3934,12 @@ pub fn set_envelope_caps_enabled(enabled: bool, state: tauri::State<AppStateHand
 pub fn set_rollover_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock()?;
     state.store.set_rollover_enabled(enabled).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_safe_to_spend_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    state.store.set_safe_to_spend_enabled(enabled).map_err(|e| e.to_string())
 }
 
 /// The opt-in "link matching transfers automatically" switch (Settings).

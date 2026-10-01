@@ -76,12 +76,13 @@ export type AppSettings = {
   rollover_enabled: boolean;
   /** Opt-in (off by default): link clear-cut transfer pairs automatically. */
   auto_link_transfers: boolean;
+  safe_to_spend_enabled: boolean;
 };
 
 /** Purely a per-viewer display preference (like `Theme` in App.tsx) — stored
- * in localStorage, never sent to the backend. All three styles follow the
+ * in localStorage, never sent to the backend. All four styles follow the
  * header's separate Light/Dark/System toggle — none of them is dark-only. */
-export type ThemeStyle = "classic" | "futuristic" | "transparent";
+export type ThemeStyle = "classic" | "futuristic" | "transparent" | "retro";
 
 export type Insight = {
   severity: "warning" | "info" | "positive";

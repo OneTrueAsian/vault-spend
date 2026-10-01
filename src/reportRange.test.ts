@@ -4,15 +4,17 @@ import { buildCategoryTable, inMonthRange, monthEndDate, monthHeading, monthKeys
 const TODAY = new Date(2026, 8, 18); // 2026-09-18
 
 describe("presetRange", () => {
-  it("covers the year so far, the trailing 12 or 6 months, or just last month", () => {
+  it("covers the year so far, trailing months, last month, and current month", () => {
     expect(presetRange("year_to_date", TODAY)).toEqual({ from: { year: 2026, month: 1 }, to: { year: 2026, month: 9 } });
     expect(presetRange("last_12", TODAY)).toEqual({ from: { year: 2025, month: 10 }, to: { year: 2026, month: 9 } });
     expect(presetRange("last_6", TODAY)).toEqual({ from: { year: 2026, month: 4 }, to: { year: 2026, month: 9 } });
     expect(presetRange("last_month", TODAY)).toEqual({ from: { year: 2026, month: 8 }, to: { year: 2026, month: 8 } });
+    expect(presetRange("current_month", TODAY)).toEqual({ from: { year: 2026, month: 9 }, to: { year: 2026, month: 9 } });
   });
 
   it("wraps last month across a year boundary", () => {
     expect(presetRange("last_month", new Date(2026, 0, 5))).toEqual({ from: { year: 2025, month: 12 }, to: { year: 2025, month: 12 } });
+    expect(presetRange("current_month", new Date(2026, 0, 5))).toEqual({ from: { year: 2026, month: 1 }, to: { year: 2026, month: 1 } });
   });
 });
 

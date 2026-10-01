@@ -460,6 +460,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "slate",
       "futuristic",
       "transparent",
+      "retro",
       "rules",
       "categorization rules",
       "privacy",
@@ -480,8 +481,8 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         independent data files you can create, switch, rename, and delete
         — see FAQ), your <strong>categorization rules</strong> (see FAQ), an
         optional live stock-price integration for the Investments tab, and{" "}
-        <strong>appearance</strong>: Light/Dark/System plus three visual
-        styles — Slate, Futuristic, and Transparent (see FAQ).{" "}
+        <strong>appearance</strong>: Light/Dark/System plus four visual
+        styles — Slate, Futuristic, Transparent, and Retro (see FAQ).{" "}
         <strong>Privacy</strong> can also hide your amounts whenever the
         window loses focus, and <strong>Background reminders</strong> keeps
         Vault Spend in the system tray (optionally starting when you sign in)
@@ -1255,16 +1256,18 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "Can I change how Vault Spend looks?",
-    tags: ["appearance", "theme", "dark mode", "light mode", "slate", "futuristic", "transparent", "glass", "style", "color"],
+    tags: ["appearance", "theme", "dark mode", "light mode", "slate", "futuristic", "transparent", "glass", "retro", "style", "color"],
     answer: (
       <p>
         Yes — the Settings tab has an Appearance section with a Light/Dark/
-        System toggle (now in the header) plus three visual styles:{" "}
+        System toggle (now in the header) plus four visual styles:{" "}
         <strong>Slate</strong> (the default look), <strong>Futuristic</strong>{" "}
         (a neon style with its own type and sidebar icons), and{" "}
         <strong>Transparent</strong> (a frosted-glass style with a
-        translucent, blurred sidebar and cards). All three follow the
-        Light/Dark/System toggle. Switching is instant and purely visual —
+        translucent, blurred sidebar and cards), and{" "}
+        <strong>Retro</strong> (gray raised and sunken controls, square
+        corners, and navy selection; its Dark mode is a modern adaptation of
+        the same look). All four follow the Light/Dark/System toggle. Switching is instant and purely visual —
         nothing about your data changes.
       </p>
     ),

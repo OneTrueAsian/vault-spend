@@ -1,9 +1,10 @@
 import { DragEvent, FormEvent, useEffect, useState } from "react";
-import type { BudgetAlert, BudgetSuggestions, ReportBudgetLine } from "./types";
+import type { BudgetAlert, BudgetSuggestions, CashFlow, ReportBudgetLine } from "./types";
 import { formatAmount } from "./format";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { Sparkline } from "./charts";
 import { budgetAllocation, effectiveBudget, monthElapsed } from "./budgetPlan";
+import { budgetNetSummary } from "./budgetNet";
 import { BudgetSuggestDialog, type AppliedSuggestion } from "./BudgetSuggestDialog";
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import { MenuSelect } from "./MenuSelect";
@@ -403,6 +404,7 @@ function BudgetRow({
 export function BudgetView({
   categories,
   budgetActuals,
+  monthFlow,
   budgetAlerts,
   monthLabel,
   year,
@@ -423,6 +425,7 @@ export function BudgetView({
 }: {
   categories: string[];
   budgetActuals: ReportBudgetLine[];
+  monthFlow: CashFlow | null;
   budgetAlerts: BudgetAlert[];
   monthLabel: string;
   /** The month `budgetActuals` is scoped to — only used to work out how
@@ -454,6 +457,11 @@ export function BudgetView({
   const alertByCategory = new Map(budgetAlerts.map((a) => [a.category, a.level]));
   const elapsed = monthElapsed(year, month, new Date());
   const allocation = budgetAllocation(budgetActuals);
+  const netSummary = monthFlow ? budgetNetSummary(budgetActuals, monthFlow.total_income, monthFlow.total_expense) : null;
+  const viewedMonth = year * 12 + month;
+  const today = new Date();
+  const currentMonth = today.getFullYear() * 12 + today.getMonth() + 1;
+  const actualLabel = viewedMonth < currentMonth ? "Actual net (final)" : viewedMonth > currentMonth ? "Actual net (future month)" : "Actual net to date";
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDelete, () => setConfirmingDelete(null));
   const [editingAmount, setEditingAmount] = useState<{ category: string; value: string } | null>(null);
@@ -575,6 +583,25 @@ export function BudgetView({
           ›
         </button>
       </div>
+
+      <section className="card budget-net-summary" aria-label="Monthly money left" data-budget-net-summary>
+        <div className="card-head"><h2 className="reports-section-title">Money left after income and spending</h2></div>
+        <p className="view-sub">Monthly net change for {monthLabel}. This is not an account balance.</p>
+        {netSummary ? (
+          <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+            <div className="stat tint-accent">
+              <span className={netSummary.plannedNet.startsWith("-") ? "stat-value report-over-budget" : "stat-value"} data-planned-net>{formatAmount(netSummary.plannedNet)}</span>
+              <span className="stat-label">Planned net</span>
+              <span className="view-sub">{formatAmount(netSummary.plannedIncome)} budgeted income − {formatAmount(netSummary.plannedExpense)} budgeted spending</span>
+            </div>
+            <div className="stat tint-blue">
+              <span className={netSummary.actualNet.startsWith("-") ? "stat-value report-over-budget" : "stat-value"} data-actual-net>{formatAmount(netSummary.actualNet)}</span>
+              <span className="stat-label">{actualLabel}</span>
+              <span className="view-sub">{formatAmount(netSummary.actualIncome)} recorded income − {formatAmount(netSummary.actualExpense)} recorded spending</span>
+            </div>
+          </div>
+        ) : <p className="empty-state">Loading monthly totals…</p>}
+      </section>
 
       {expenseSummaries.length > 0 && (
         <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>

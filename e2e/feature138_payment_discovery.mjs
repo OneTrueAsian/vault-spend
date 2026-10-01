@@ -108,12 +108,12 @@ try {
   assert.deepEqual((await invoke("list_accounts")).map(a => [a.id, a.current_balance]), balanceBefore);
   assert.equal((await invoke("list_transactions")).length, 61);
 
-  // Readable at both densities and narrow width, using real light/dark modes.
+  // Readable at wide and narrow widths in real light/dark modes. The row
+  // density selector is hidden; its saved preference is covered by feature65.
   for (const mode of ["Light", "Dark"]) {
     await (await browser.$(`button=${mode}`)).click();
-    for (const density of ["Comfortable", "Compact"]) {
-      await (await browser.$(`button=${density}`)).click();
-      await browser.setWindowSize(density === "Compact" ? 800 : 1440, 1000);
+    for (const width of [1440, 800]) {
+      await browser.setWindowSize(width, 1000);
       await browser.waitUntil(async () => (await (await browser.$('[data-payment-row="201"] .applied-payment-details')).isDisplayed()), { timeout: 5000 });
       await (await browser.$('[data-payment-row="201"]')).scrollIntoView({ block: "center" });
       const geometry = await browser.execute(() => {
@@ -122,7 +122,7 @@ try {
         return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: window.innerWidth, height: window.innerHeight, overflow: el.scrollWidth > el.clientWidth + 1 };
       });
       assert.ok(geometry.left >= 0 && geometry.right <= geometry.width && geometry.top >= 0 && geometry.bottom <= geometry.height && !geometry.overflow, JSON.stringify(geometry));
-      await browser.saveScreenshot(path.join(shots, `${mode}-${density}.png`));
+      await browser.saveScreenshot(path.join(shots, `${mode}-${width}.png`));
     }
   }
   // Bulk category changes reach the account read model without a category rewrite.

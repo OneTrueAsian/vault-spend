@@ -55,12 +55,14 @@ export function DonutChart({
   size = 132,
   stroke = 22,
   center,
+  onSelect,
 }: {
   data: { label: string; value: number; color: string }[];
   size?: number;
   stroke?: number;
   /** Optional total shown in the donut's hole, e.g. `{ value: "$1,510", label: "this month" }`. */
   center?: { value: string; label: string };
+  onSelect?: (label: string) => void;
 }) {
   const r = (size - stroke) / 2;
   const cx = size / 2;
@@ -87,6 +89,17 @@ export function DonutChart({
               strokeWidth={stroke}
               strokeDasharray={`${dash} ${circ - dash}`}
               transform={`rotate(${rotate} ${cx} ${cy})`}
+              role={onSelect ? "button" : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+              aria-label={onSelect ? `Show ${d.label} spending, ${d.value.toFixed(2)}` : undefined}
+              onClick={onSelect ? () => onSelect(d.label) : undefined}
+              onKeyDown={onSelect ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(d.label);
+                }
+              } : undefined}
+              className={onSelect ? "donut-interactive-slice" : undefined}
             />
           );
         })}

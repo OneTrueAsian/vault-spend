@@ -1358,6 +1358,7 @@ export function AddWidgetDialog({
   accounts,
   buckets,
   holdings,
+  safeToSpendEnabled,
   onAdd,
   onCancel,
 }: {
@@ -1365,11 +1366,12 @@ export function AddWidgetDialog({
   accounts: Account[];
   buckets: Bucket[];
   holdings: Holding[];
+  safeToSpendEnabled: boolean;
   onAdd: (id: WidgetId) => void;
   onCancel: () => void;
 }) {
   const groups: { title: string; items: typeof WIDGET_CATALOG }[] = [
-    { title: "Core widgets", items: WIDGET_CATALOG.filter((w) => w.group === "core") },
+    { title: "Core widgets", items: WIDGET_CATALOG.filter((w) => w.group === "core" && (safeToSpendEnabled || w.id !== "safe_to_spend")) },
     { title: "Pinned reports", items: WIDGET_CATALOG.filter((w) => w.group === "report") },
   ];
 
