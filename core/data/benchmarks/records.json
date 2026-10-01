@@ -1,0 +1,2338 @@
+[
+  {
+    "ageMax": 24,
+    "ageMin": 15,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:15-24",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!D54 (15 to 24 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "957"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "60870"
+  },
+  {
+    "ageMax": 29,
+    "ageMin": 25,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:25-29",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!F54 (25 to 29 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "2254"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "87640"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 30,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:30-34",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!G54 (30 to 34 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "844"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "101100"
+  },
+  {
+    "ageMax": 39,
+    "ageMin": 35,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:35-39",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!I54 (35 to 39 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "2072"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "110100"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 40,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:40-44",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!J54 (40 to 44 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "2147"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "119300"
+  },
+  {
+    "ageMax": 49,
+    "ageMin": 45,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:45-49",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!L54 (45 to 49 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "2044"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "120100"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 50,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:50-54",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!M54 (50 to 54 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "3374"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "120200"
+  },
+  {
+    "ageMax": 59,
+    "ageMin": 55,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:55-59",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!O54 (55 to 59 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "2730"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "109000"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 60,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:60-64",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!P54 (60 to 64 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "2040"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "89260"
+  },
+  {
+    "ageMax": 69,
+    "ageMin": 65,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:65-69",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!S54 (65 to 69 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1452"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "71400"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 70,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:70-74",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!T54 (70 to 74 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1747"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "66030"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_hinc02_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_hinc02_money_income_median:75-",
+    "metric": "income",
+    "mode": "household",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "Households by age of householder, total money income",
+    "reliability": "ok",
+    "sourceId": "cps_hinc02_2026",
+    "sourceLocator": "hinc02_1_1.xlsx!U54 (75 years and over)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "893"
+    },
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "50880"
+  },
+  {
+    "ageMax": 24,
+    "ageMin": 15,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:15-24",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS32 (..15 to 24 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "443"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "17420"
+  },
+  {
+    "ageMax": 29,
+    "ageMin": 25,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:25-29",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS34 (....25 to 29 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "857"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "49870"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 30,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:30-34",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS35 (....30 to 34 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "559"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "56980"
+  },
+  {
+    "ageMax": 39,
+    "ageMin": 35,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:35-39",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS37 (....35 to 39 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "586"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "61990"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 40,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:40-44",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS38 (....40 to 44 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1463"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "64500"
+  },
+  {
+    "ageMax": 49,
+    "ageMin": 45,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:45-49",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS40 (....45 to 49 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1177"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "65320"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 50,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:50-54",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS41 (....50 to 54 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "823"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "62110"
+  },
+  {
+    "ageMax": 59,
+    "ageMin": 55,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:55-59",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS43 (....55 to 59 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1494"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "59250"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 60,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:60-64",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS44 (....60 to 64 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "466"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "51060"
+  },
+  {
+    "ageMax": 69,
+    "ageMin": 65,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:65-69",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS47 (....65 to 69 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "874"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "37700"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 70,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:70-74",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS48 (....70 to 74 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "657"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "36180"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "definitionId": "cps_pinc01_money_income_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2025-07"
+    },
+    "geography": "US",
+    "id": "cps_pinc01_money_income_median:75-",
+    "metric": "income",
+    "mode": "individual",
+    "period": {
+      "from": "2025-01-01",
+      "kind": "flow",
+      "to": "2025-12-31"
+    },
+    "population": "People 15 and over with money income, all work experience, both sexes, all races",
+    "reliability": "ok",
+    "sourceId": "cps_pinc01_2026",
+    "sourceLocator": "pinc01_1_1_1.xlsx!AS49 (..75 years and over)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "378"
+    },
+    "unit": "usd_per_year",
+    "universe": "holders",
+    "value": "31640"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 15,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_credit_card_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_credit_card_debt_median:15-34",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with credit card debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!H18 (Less than 35 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "143"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "4000"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 35,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_credit_card_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_credit_card_debt_median:35-44",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with credit card debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!H19 (35 to 44 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "507.6"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "5300"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 45,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_credit_card_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_credit_card_debt_median:45-54",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with credit card debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!H20 (45 to 54 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "609.7"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "5000"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 55,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_credit_card_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_credit_card_debt_median:55-64",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with credit card debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!H21 (55 to 64 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "81.86"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "5000"
+  },
+  {
+    "ageMax": 69,
+    "ageMin": 65,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_credit_card_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_credit_card_debt_median:65-69",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with credit card debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!H23 (.65 to 69 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "437.1"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "5000"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 70,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_credit_card_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_credit_card_debt_median:70-74",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with credit card debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!H24 (.70 to 74 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "816.6"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "4730"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_credit_card_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_credit_card_debt_median:75-",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with credit card debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!H25 (.75 and over)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "487.4"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "2600"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 15,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_financial_institution_assets_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_financial_institution_assets_median:15-34",
+    "metric": "savings",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding assets at financial institutions (checking, savings, money market, CDs)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!D18 (Less than 35 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "616"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "8008"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 35,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_financial_institution_assets_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_financial_institution_assets_median:35-44",
+    "metric": "savings",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding assets at financial institutions (checking, savings, money market, CDs)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!D19 (35 to 44 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "753.8"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "9000"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 45,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_financial_institution_assets_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_financial_institution_assets_median:45-54",
+    "metric": "savings",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding assets at financial institutions (checking, savings, money market, CDs)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!D20 (45 to 54 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "811.8"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "8800"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 55,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_financial_institution_assets_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_financial_institution_assets_median:55-64",
+    "metric": "savings",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding assets at financial institutions (checking, savings, money market, CDs)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!D21 (55 to 64 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "737.6"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "11000"
+  },
+  {
+    "ageMax": 69,
+    "ageMin": 65,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_financial_institution_assets_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_financial_institution_assets_median:65-69",
+    "metric": "savings",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding assets at financial institutions (checking, savings, money market, CDs)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!D23 (.65 to 69 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1291"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "13470"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 70,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_financial_institution_assets_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_financial_institution_assets_median:70-74",
+    "metric": "savings",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding assets at financial institutions (checking, savings, money market, CDs)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!D24 (.70 to 74 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1866"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "15000"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_financial_institution_assets_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_financial_institution_assets_median:75-",
+    "metric": "savings",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding assets at financial institutions (checking, savings, money market, CDs)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!D25 (.75 and over)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1169"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "14000"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 15,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_home_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_home_debt_median:15-34",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with home debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!D18 (Less than 35 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "6115"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "215000"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 35,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_home_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_home_debt_median:35-44",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with home debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!D19 (35 to 44 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "9813"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "207000"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 45,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_home_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_home_debt_median:45-54",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with home debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!D20 (45 to 54 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "9123"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "170000"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 55,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_home_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_home_debt_median:55-64",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with home debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!D21 (55 to 64 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "4970"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "150000"
+  },
+  {
+    "ageMax": 69,
+    "ageMin": 65,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_home_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_home_debt_median:65-69",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with home debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!D23 (.65 to 69 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "6001"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "120000"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 70,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_home_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_home_debt_median:70-74",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with home debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!D24 (.70 to 74 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "8511"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "114000"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_home_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_home_debt_median:75-",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with home debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!D25 (.75 and over)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "5735"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "100000"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 15,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_retirement_accounts_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_retirement_accounts_median:15-34",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding retirement accounts (IRA, Keogh, 401(k), TSP)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!N18 (Less than 35 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1492"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "25000"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 35,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_retirement_accounts_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_retirement_accounts_median:35-44",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding retirement accounts (IRA, Keogh, 401(k), TSP)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!N19 (35 to 44 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "5434"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "79300"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 45,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_retirement_accounts_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_retirement_accounts_median:45-54",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding retirement accounts (IRA, Keogh, 401(k), TSP)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!N20 (45 to 54 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "9113"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "96900"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 55,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_retirement_accounts_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_retirement_accounts_median:55-64",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding retirement accounts (IRA, Keogh, 401(k), TSP)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!N21 (55 to 64 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "13130"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "150000"
+  },
+  {
+    "ageMax": 69,
+    "ageMin": 65,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_retirement_accounts_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_retirement_accounts_median:65-69",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding retirement accounts (IRA, Keogh, 401(k), TSP)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!N23 (.65 to 69 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "20410"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "211000"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 70,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_retirement_accounts_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_retirement_accounts_median:70-74",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding retirement accounts (IRA, Keogh, 401(k), TSP)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!N24 (.70 to 74 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "14280"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "200000"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_retirement_accounts_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_retirement_accounts_median:75-",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding retirement accounts (IRA, Keogh, 401(k), TSP)",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!N25 (.75 and over)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "12950"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "181300"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 15,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_stocks_mutual_funds_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_stocks_mutual_funds_median:15-34",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding stocks or mutual fund shares",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!H18 (Less than 35 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "1766"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "10000"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 35,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_stocks_mutual_funds_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_stocks_mutual_funds_median:35-44",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding stocks or mutual fund shares",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!H19 (35 to 44 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "4733"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "29500"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 45,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_stocks_mutual_funds_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_stocks_mutual_funds_median:45-54",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding stocks or mutual fund shares",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!H20 (45 to 54 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "6185"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "40000"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 55,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_stocks_mutual_funds_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_stocks_mutual_funds_median:55-64",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding stocks or mutual fund shares",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!H21 (55 to 64 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "8042"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "60000"
+  },
+  {
+    "ageMax": 69,
+    "ageMin": 65,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_stocks_mutual_funds_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_stocks_mutual_funds_median:65-69",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding stocks or mutual fund shares",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!H23 (.65 to 69 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "19230"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "116700"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 70,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_stocks_mutual_funds_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_stocks_mutual_funds_median:70-74",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding stocks or mutual fund shares",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!H24 (.70 to 74 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "29560"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "120000"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Median among households that own the asset; households without it are not in the base.",
+    "definitionId": "sipp_stocks_mutual_funds_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_stocks_mutual_funds_median:75-",
+    "metric": "investments",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households holding stocks or mutual fund shares",
+    "reliability": "ok",
+    "sourceId": "sipp_wealth_2024",
+    "sourceLocator": "wealth_tables_dy2024.xlsx!Table 1!H25 (.75 and over)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "10810"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "140000"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 15,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_student_loan_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_student_loan_median:15-34",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with student loans",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!I18 (Less than 35 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "3022"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "23000"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 35,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_student_loan_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_student_loan_median:35-44",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with student loans",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!I19 (35 to 44 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "3533"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "25000"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 45,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_student_loan_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_student_loan_median:45-54",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with student loans",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!I20 (45 to 54 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "3022"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "23000"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 55,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_student_loan_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_student_loan_median:55-64",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with student loans",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!I21 (55 to 64 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "3356"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "26000"
+  },
+  {
+    "ageMax": 69,
+    "ageMin": 65,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_student_loan_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_student_loan_median:65-69",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with student loans",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!I23 (.65 to 69 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "2619"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "16000"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 70,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_student_loan_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_student_loan_median:70-74",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with student loans",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!I24 (.70 to 74 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "4075"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "15000"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_student_loan_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_student_loan_median:75-",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with student loans",
+    "reliability": "unreliable",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!I25 (.75 and over)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "10110"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "24000"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 15,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_total_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_total_debt_median:15-34",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with any debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!B18 (Less than 35 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "6838"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "53000"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 35,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_total_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_total_debt_median:35-44",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with any debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!B19 (35 to 44 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "8837"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "128000"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 45,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_total_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_total_debt_median:45-54",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with any debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!B20 (45 to 54 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "6801"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "107500"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 55,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_total_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_total_debt_median:55-64",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with any debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!B21 (55 to 64 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "6372"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "70000"
+  },
+  {
+    "ageMax": 69,
+    "ageMin": 65,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_total_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_total_debt_median:65-69",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with any debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!B23 (.65 to 69 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "3940"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "50000"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 70,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_total_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_total_debt_median:70-74",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with any debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!B24 (.70 to 74 years)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "4413"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "35000"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Median among households that owe this debt type; households without it are not in the base.",
+    "definitionId": "sipp_total_debt_median",
+    "dollarBasis": {
+      "kind": "month",
+      "period": "2024-12"
+    },
+    "geography": "US",
+    "id": "sipp_total_debt_median:75-",
+    "metric": "debt",
+    "mode": "household",
+    "period": {
+      "from": "2024-12-31",
+      "kind": "stock",
+      "to": "2024-12-31"
+    },
+    "population": "Households with any debt",
+    "reliability": "ok",
+    "sourceId": "sipp_debt_2024",
+    "sourceLocator": "debt_tables_dy2024.xlsx!Table 1!B25 (.75 and over)",
+    "sourceUrl": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+    "statistic": "median",
+    "uncertainty": {
+      "kind": "se",
+      "value": "3019"
+    },
+    "unit": "usd_balance",
+    "universe": "holders",
+    "value": "20000"
+  }
+]

@@ -1,0 +1,165 @@
+import { useMemo, useState } from "react";
+import { MenuSelect } from "../MenuSelect";
+import { ModalShell } from "../Modal";
+import { toLocalIsoDate } from "../format";
+import { AgeField } from "./AgeField";
+import { saveComparisonSetup } from "./api";
+import { personLabel } from "./format";
+import { emptySetup, personKey, setAge, setInHousehold, setMode, setReferencePerson, syncPeople } from "./setupDraft";
+import type { AgeInput, ComparisonMode, ComparisonSetup, PersonRef } from "./types";
+
+type Member = { id: number; name: string };
+
+/** The light first-use setup: household or individual, whose age to use, and who shares the finances.
+ * Everything else (income, accounts, classifications, shares) is configured under Settings >
+ * Comparisons. Nothing is saved until Save; Cancel discards the draft. */
+export function ComparisonSetupDialog({
+  generation,
+  members,
+  onSaved,
+  onCancel,
+}: {
+  generation: number;
+  members: Member[];
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [mode, setModeState] = useState<ComparisonMode>("household");
+  const [subjectKey, setSubjectKey] = useState("owner");
+  const [outsiders, setOutsiders] = useState<Set<number>>(new Set());
+  const [age, setAgeState] = useState<AgeInput | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const everyone: PersonRef[] = useMemo(() => [{ kind: "owner" }, ...members.map((m): PersonRef => ({ kind: "member", id: m.id }))], [members]);
+  const inHousehold = everyone.filter((p) => p.kind === "owner" || !outsiders.has(p.id));
+  const choices = mode === "household" ? inHousehold : everyone;
+  const subject = choices.find((p) => personKey(p) === subjectKey) ?? choices[0];
+
+  function build(): ComparisonSetup {
+    let draft = syncPeople(setMode(emptySetup(mode), mode), members);
+    for (const id of outsiders) draft = setInHousehold(draft, { kind: "member", id }, false);
+    draft = setReferencePerson(draft, subject);
+    return age ? setAge(draft, subject, age, toLocalIsoDate()) : draft;
+  }
+
+  async function save() {
+    if (!age) {
+      setError("Enter an age or an age range so there is something to compare with.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await saveComparisonSetup(generation, 0, build());
+      if (response.status === "saved") {
+        onSaved();
+        return;
+      }
+      setError(
+        response.status === "conflict"
+          ? "Comparisons were already set up on this profile. Close this and reopen the page."
+          : response.problems.map((p) => p.message).join(" "),
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ModalShell
+      title="Set up comparisons"
+      onCancel={onCancel}
+      footer={
+        <div className="modal-actions">
+          <button type="button" className="modal-secondary" onClick={onCancel} disabled={saving}>
+            Cancel
+          </button>
+          <button type="button" onClick={save} disabled={saving} data-cmp-setup-save>
+            Save
+          </button>
+        </div>
+      }
+    >
+      <div className="cmp-setup" data-cmp-setup>
+        <p className="modal-message-secondary">
+          Compare your finances with published figures for people your age. Your numbers stay on this computer. You can fill in the rest under Settings →
+          Comparisons.
+        </p>
+        {error && (
+          <p className="launch-error-problem" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="modal-field">
+          <span>Compare</span>
+          <MenuSelect
+            ariaLabel="Compare"
+            fill
+            value={mode}
+            options={[
+              { value: "household", label: "My household" },
+              { value: "individual", label: "One person" },
+            ]}
+            onChange={(v) => setModeState(v as ComparisonMode)}
+          />
+        </div>
+
+        {mode === "household" && members.length > 0 && (
+          <fieldset className="cmp-members">
+            <legend>Who shares your finances?</legend>
+            <p className="modal-message-secondary">
+              Leave out anyone who lives with you but manages their own money, such as a roommate.
+            </p>
+            <label className="feature-toggle-row">
+              <input type="checkbox" checked disabled />
+              <span className="feature-toggle-text">Me</span>
+            </label>
+            {members.map((m) => (
+              <label key={m.id} className="feature-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={!outsiders.has(m.id)}
+                  onChange={(e) =>
+                    setOutsiders((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.delete(m.id);
+                      else next.add(m.id);
+                      return next;
+                    })
+                  }
+                />
+                <span className="feature-toggle-text">{m.name}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+
+        {choices.length > 1 && (
+          <div className="modal-field">
+            <span>{mode === "household" ? "Whose age should we use?" : "Whose finances are these?"}</span>
+            <MenuSelect
+              ariaLabel={mode === "household" ? "Reference person" : "Person"}
+              fill
+              value={personKey(subject)}
+              options={choices.map((p) => ({ value: personKey(p), label: personLabel(p, members) }))}
+              onChange={(key) => {
+                setSubjectKey(key);
+                setAgeState(null);
+              }}
+            />
+          </div>
+        )}
+
+        <AgeField key={personKey(subject)} label={`Age of ${personLabel(subject, members) === "Me" ? "me" : personLabel(subject, members)}`} value={age} onChange={setAgeState} />
+        <p className="modal-message-secondary">
+          Only the age is stored, with the date you confirmed it. Different figures use different published age groups, and each card shows the group it
+          used.
+        </p>
+      </div>
+    </ModalShell>
+  );
+}

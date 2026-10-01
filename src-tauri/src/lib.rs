@@ -2,6 +2,7 @@ mod auto_lock;
 mod background;
 mod backups;
 mod commands;
+mod comparison_commands;
 mod config;
 #[cfg(debug_assertions)]
 mod debug_commands;
@@ -224,6 +225,9 @@ pub fn run() {
             commands::mark_ui_state_migrated,
             commands::is_ui_state_migrated,
             commands::get_current_generation,
+            comparison_commands::get_comparison_setup,
+            comparison_commands::save_comparison_setup,
+            comparison_commands::get_financial_comparisons,
             protection_commands::show_profile_selector,
             protection_commands::select_profile,
             protection_commands::unlock_profile,

@@ -68,4 +68,15 @@ describe("HelpView", () => {
     });
     expect(container.textContent).toContain("Transactions");
   });
+  it("explains the age-based comparisons: gross income, age groups, past data, unavailable benchmarks and privacy", () => {
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("How do the age-based comparisons in Reports work?");
+    expect(text).toContain("Income is before tax");
+    expect(text).toContain("which published age group");
+    expect(text).toContain("past surveys");
+    expect(text).toContain("nothing is substituted");
+    expect(text).toContain("Your details");
+    expect(text).toContain("nothing you enter is");
+  });
 });

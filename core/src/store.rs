@@ -8,7 +8,10 @@ use std::str::FromStr;
 
 mod encryption;
 pub use self::encryption::{DatabaseKey, StoreOpenError, file_looks_encrypted};
+mod comparison_setup;
+mod comparison_snapshot;
 mod profile_ui_state;
+pub use self::comparison_setup::{ComparisonSetupError, StoredComparisonSetup};
 pub use self::profile_ui_state::UiStateKey;
 
 /// The starter categories offered before the user has created or used any
@@ -1321,6 +1324,13 @@ impl Store {
                 due_date TEXT NOT NULL,
                 sent_on TEXT NOT NULL,
                 PRIMARY KEY (recurring_id, due_date)
+            );
+            CREATE TABLE IF NOT EXISTS comparison_setup (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                format_version INTEGER NOT NULL,
+                revision INTEGER NOT NULL,
+                payload TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS profile_ui_state (
                 key TEXT PRIMARY KEY,

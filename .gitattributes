@@ -1,0 +1,2 @@
+# The benchmark package is checksummed byte for byte; never convert its line endings.
+core/data/benchmarks/* -text

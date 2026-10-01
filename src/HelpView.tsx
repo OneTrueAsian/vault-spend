@@ -813,6 +813,36 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
+    question: "How do the age-based comparisons in Reports work?",
+    tags: ["comparisons", "compare", "age", "peers", "benchmark", "income", "savings", "investments", "debt", "spending", "census", "survey", "gross", "take-home", "median", "unavailable"],
+    answer: (
+      <>
+        <p>
+          <strong>Reports → Comparisons</strong> lines your income, savings, investments and debt up against figures
+          published by public surveys for people your age. You enter an exact age or an age range once; each card then
+          says which published age group and which people it describes, because every survey draws its own groups. Where
+          your range spans several published groups you pick the one to compare with, and where none matches a
+          closely-related group is used only with a clear Approximate warning.
+        </p>
+        <p>
+          <strong>Income is before tax.</strong> Published incomes are gross, so you type your own; Vault Spend never
+          guesses it from your take-home pay. Savings, investments and debt come from your tracked accounts once you
+          confirm they are complete, and you can classify accounts or enter a total yourself in the{" "}
+          <strong>Your details</strong> panel under the cards on that same page, where you also switch between your
+          household and one person.
+        </p>
+        <p>
+          The published figures are medians or averages from past surveys, brought up to the latest prices on file. The
+          difference shown is how far you are from that figure, not where you rank. Some published figures only describe
+          people who hold the item (a retirement account, a mortgage), and those are labelled; if you hold none, the
+          card says it is not comparable instead of comparing you with zero. When no public source covers a comparison,
+          its card says so and nothing is substituted. Everything is calculated on your computer; nothing you enter is
+          sent anywhere, and Hide amounts covers these figures too.
+        </p>
+      </>
+    ),
+  },
+  {
     question: "Is my data private?",
     tags: ["privacy", "data", "local", "cloud", "security", "offline", "account", "network", "internet", "updates", "live prices"],
     answer: (

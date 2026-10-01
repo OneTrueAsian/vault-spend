@@ -3,7 +3,7 @@ import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPl
 import { lowestPoint } from "./safeToSpend";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "./charts";
 import { formatAmount } from "./format";
-import { DebtPayoffPlannerSection } from "./ReportsView";
+import { DebtPayoffPlannerSection } from "./ReportsOverview";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
 import { MenuSelect } from "./MenuSelect";
