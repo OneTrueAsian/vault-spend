@@ -8,14 +8,15 @@
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Everyday Checking', 'checking', '3000.00')")
 a = cur.lastrowid
 cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Gas')")
 cur.execute(f"""INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES
-  ({a}, '2026-09-01', 'SPEEDWAY 44289', -40.00, NULL, NULL, 'sw-1'),
-  ({a}, '2026-09-02', 'SPEEDWAY 51230', -35.00, NULL, NULL, 'sw-2')""")
+  ({a}, '${dateInMonth(-1, 1)}', 'SPEEDWAY 44289', -40.00, NULL, NULL, 'sw-1'),
+  ({a}, '${dateInMonth(-1, 2)}', 'SPEEDWAY 51230', -35.00, NULL, NULL, 'sw-2')""")
 `);
 
 const app = await launchApp({ dbDir });

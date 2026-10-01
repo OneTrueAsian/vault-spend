@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { seedFixtureInto } from "./seed.mjs";
+import { dateInMonth } from "./dates.mjs";
 
 const INIT_DB_EXE = path.resolve("target/debug/init_db.exe");
 
@@ -72,7 +73,7 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 checking_id = cur.lastrowid
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-20", "Market Basket", "-42.17", "Groceries", f"{checking_id}|2026-08-20|market basket|-42.17"),
+    (checking_id, "${dateInMonth(-2, 20)}", "Market Basket", "-42.17", "Groceries", f"{checking_id}|${dateInMonth(-2, 20)}|market basket|-42.17"),
 )
 `,
   );
@@ -108,8 +109,14 @@ export async function enableProtectionThroughUI(browser, password) {
   const label0 = await browser.$("label[for='protection-setup-answer-0']");
   await label0.waitForExist({ timeout: 5000 });
   const label1 = await browser.$("label[for='protection-setup-answer-1']");
-  const group0 = Number((await label0.getText()).match(/\d+/)[0]) - 1;
-  const group1 = Number((await label1.getText()).match(/\d+/)[0]) - 1;
+  // getText() reads "" while the step is still fading in, so wait for both group numbers to be there.
+  let texts = [];
+  await browser.waitUntil(async () => (texts = [await label0.getText(), await label1.getText()]).every((t) => /\d/.test(t)), {
+    timeout: 5000,
+    timeoutMsg: "the recovery-code challenge should name two group numbers",
+  });
+  const group0 = Number(texts[0].match(/\d+/)[0]) - 1;
+  const group1 = Number(texts[1].match(/\d+/)[0]) - 1;
   const groups = recoveryDisplay.split("-");
   await (await browser.$("#protection-setup-answer-0")).setValue(groups[group0]);
   await (await browser.$("#protection-setup-answer-1")).setValue(groups[group1]);

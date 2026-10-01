@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 function runSqlite(dbPath, pySnippet) {
   const script = `
@@ -37,7 +38,7 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 checking_id = cur.lastrowid
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-01", "Original", "-10.00", None, f"{checking_id}|2026-08-01|original|-10.00"),
+    (checking_id, "${dateInMonth(-2, 1)}", "Original", "-10.00", None, f"{checking_id}|${dateInMonth(-2, 1)}|original|-10.00"),
 )
 `);
 const dbPath = path.join(dbDir, "vaultspend.db");
@@ -87,7 +88,7 @@ cur.execute("SELECT id FROM accounts WHERE name = 'Checking'")
 checking_id = cur.fetchone()[0]
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-15", "Added After Backup", "-999.00", None, f"{checking_id}|2026-08-15|added after backup|-999.00"),
+    (checking_id, "${dateInMonth(-2, 15)}", "Added After Backup", "-999.00", None, f"{checking_id}|${dateInMonth(-2, 15)}|added after backup|-999.00"),
 )
 `,
 );

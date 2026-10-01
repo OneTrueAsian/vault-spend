@@ -10,9 +10,10 @@
 import assert from "node:assert/strict";
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 function history(description, category, count, startDay) {
-  return Array.from({ length: count }, (_, i) => `({a}, '2026-08-${String(startDay + i).padStart(2, "0")}', '${description}', -20.00, '${category}', 'user', '${description}-${category}-${i}')`).join(",\n  ");
+  return Array.from({ length: count }, (_, i) => `({a}, '${dateInMonth(-2, startDay + i)}', '${description}', -20.00, '${category}', 'user', '${description}-${category}-${i}')`).join(",\n  ");
 }
 
 const dbDir = await seedFixture(`
@@ -26,8 +27,8 @@ cur.execute(f"""INSERT INTO transactions (account_id, date, description, amount,
   ${history("SAMS CLUB #1", "Gas", 4, 1)},
   ${history("SAMS CLUB #1", "Groceries", 4, 10)},
   ${history("SPEEDWAY #1", "Gas", 5, 15)},
-  ({a}, '2026-09-01', 'SAMS CLUB #9', -31.00, NULL, NULL, 'new-sams'),
-  ({a}, '2026-09-02', 'SPEEDWAY #9', -28.00, NULL, NULL, 'new-speedway')""")
+  ({a}, '${dateInMonth(-1, 1)}', 'SAMS CLUB #9', -31.00, NULL, NULL, 'new-sams'),
+  ({a}, '${dateInMonth(-1, 2)}', 'SPEEDWAY #9', -28.00, NULL, NULL, 'new-speedway')""")
 `);
 
 const app = await launchApp({ dbDir });

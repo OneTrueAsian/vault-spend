@@ -18,21 +18,22 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
 checking_id = cur.lastrowid
 cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Dining Out')")
 cur.execute(
-    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '2026-09-05', 'Pizza Night', -33.09, 'Dining Out', 'user', 'fp1')",
+    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '${dateInMonth(-1, 5)}', 'Pizza Night', -33.09, 'Dining Out', 'user', 'fp1')",
     (checking_id,),
 )
 cur.execute(
-    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '2026-09-06', 'Speedway 47096', -35.39, NULL, NULL, 'fp2')",
+    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '${dateInMonth(-1, 6)}', 'Speedway 47096', -35.39, NULL, NULL, 'fp2')",
     (checking_id,),
 )
 cur.execute(
-    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '2026-09-01', 'Mortgage Import', -1200.00, 'Mortgage', NULL, 'fp3')",
+    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '${dateInMonth(-1, 1)}', 'Mortgage Import', -1200.00, 'Mortgage', NULL, 'fp3')",
     (checking_id,),
 )
 `);

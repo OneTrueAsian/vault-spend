@@ -19,6 +19,7 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -44,7 +45,7 @@ add(savings, days_ago(0), "Rent Share In", "300.00", 3)
 
 const csvDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-notes-import-"));
 const csvPath = path.join(csvDir, "bank.csv");
-fs.writeFileSync(csvPath, ["date,description,amount", "2026-09-01,Imported Widget Purchase,-25.00", ""].join("\n"));
+fs.writeFileSync(csvPath, ["date,description,amount", `${dateInMonth(-1, 1)},Imported Widget Purchase,-25.00`, ""].join("\n"));
 
 async function withApp(fn) {
   const app = await launchApp({ dbDir });

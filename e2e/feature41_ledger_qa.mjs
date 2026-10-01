@@ -11,22 +11,27 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth, monthFromNow } from "./lib/dates.mjs";
+
+// The dining-out spend is three months back; questions name its month and year ("July 2026") so the answer
+// never depends on which year a bare month name resolves to.
+const DINING_MONTH = new Date(`${monthFromNow(-3)}-15T12:00:00`).toLocaleString("en-US", { month: "long", year: "numeric" });
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Everyday Checking', 'checking', '3000.00')")
 checking_id = cur.lastrowid
 cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Dining Out')")
 cur.execute(
-    "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, '2026-07-05', 'Sushi Place', -60.00, 'Dining Out', 'fp1')",
+    "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, '${dateInMonth(-3, 5)}', 'Sushi Place', -60.00, 'Dining Out', 'fp1')",
     (checking_id,),
 )
 cur.execute(
-    "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, '2026-07-12', 'Pizza Night', -35.00, 'Dining Out', 'fp2')",
+    "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, '${dateInMonth(-3, 12)}', 'Pizza Night', -35.00, 'Dining Out', 'fp2')",
     (checking_id,),
 )
 cur.execute("INSERT INTO buckets (name, target_amount, color) VALUES ('Vacation Fund', '2000.00', '#8A5FB0')")
 vacation_id = cur.lastrowid
-cur.execute("INSERT INTO bucket_contributions (bucket_id, date, amount) VALUES (?, '2026-08-01', '500.00')", (vacation_id,))
+cur.execute("INSERT INTO bucket_contributions (bucket_id, date, amount) VALUES (?, '${dateInMonth(-2, 1)}', '500.00')", (vacation_id,))
 `);
 
 async function ask(app, question) {
@@ -49,7 +54,7 @@ async function ask(app, question) {
 
 const app = await launchApp({ dbDir });
 try {
-  const spendAnswer = await ask(app, "how much did I spend on dining out in July");
+  const spendAnswer = await ask(app, `how much did I spend on dining out in ${DINING_MONTH}`);
   console.log("spend question:", spendAnswer);
   if (!spendAnswer.includes("$95.00") || !spendAnswer.includes("Dining Out")) {
     throw new Error(`expected the answer to mention Dining Out and $95.00 (60+35), got "${spendAnswer}"`);
@@ -57,7 +62,7 @@ try {
 
   // New in the primitive-query-engine pass — confirms `resolveSpendQuery`/
   // `runQuery` are wired through the real UI, not just unit-tested.
-  const avgAnswer = await ask(app, "what's my average spend on dining out in July");
+  const avgAnswer = await ask(app, `what's my average spend on dining out in ${DINING_MONTH}`);
   console.log("average spend question:", avgAnswer);
   if (!avgAnswer.includes("$47.50") || !avgAnswer.includes("Dining Out")) {
     throw new Error(`expected the average to mention Dining Out and $47.50 ((60+35)/2), got "${avgAnswer}"`);

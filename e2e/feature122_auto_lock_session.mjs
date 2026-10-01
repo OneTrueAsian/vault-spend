@@ -39,7 +39,9 @@ try {
   await countdown.waitForExist({ timeout: 5000 });
   assert.equal(await countdown.getAttribute("role"), "status");
   assert.equal(await countdown.getAttribute("aria-live"), "polite");
-  assert.match(await countdown.getText(), /lock in 10 seconds/i);
+  // Raised with 10 seconds left, but it counts down in real time: on a loaded machine a second or more can
+  // pass before it is read, so "9 seconds" is the same correct warning.
+  assert.match(await countdown.getText(), /lock in ([7-9]|10) seconds/i);
   assert.equal(
     await browser.execute(() => document.activeElement?.getAttribute("data-auto-lock-minutes") !== null),
     true,

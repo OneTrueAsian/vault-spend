@@ -5,13 +5,19 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
+
+// Last month: the payment on the 1st, applied to the card on the 2nd, the purchases on the 20th.
+const PAYMENT_DATE = dateInMonth(-1, 1);
+const APPLIED_DATE = dateInMonth(-1, 2);
+const PURCHASE_DATE = dateInMonth(-1, 20);
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (id,name,account_type,starting_balance) VALUES (101,'Fixture Checking','checking','1000'),(102,'Fixture Card','credit','1000'),(103,'Other Savings','savings','0')")
 cur.execute("INSERT INTO categories (name) VALUES ('No Category')")
-cur.execute("INSERT INTO transactions (id,account_id,date,description,amount,category,fingerprint) VALUES (201,101,'2026-09-01','Card payment','-100.00','No Category','payment138')")
+cur.execute("INSERT INTO transactions (id,account_id,date,description,amount,category,fingerprint) VALUES (201,101,'${PAYMENT_DATE}','Card payment','-100.00','No Category','payment138')")
 for n in range(60):
-    cur.execute("INSERT INTO transactions (account_id,date,description,amount,category,fingerprint) VALUES (101,'2026-09-20',?,?,'No Category',?)", ('Card payment' if n == 0 else f'Ordinary purchase {n}', f'-{n + 1}.01', f'purchase138-{n}'))
+    cur.execute("INSERT INTO transactions (account_id,date,description,amount,category,fingerprint) VALUES (101,'${PURCHASE_DATE}',?,?,'No Category',?)", ('Card payment' if n == 0 else f'Ordinary purchase {n}', f'-{n + 1}.01', f'purchase138-{n}'))
 `);
 const app = await launchApp({ dbDir });
 const { browser } = app;
@@ -57,7 +63,7 @@ async function waitForPayment() {
 }
 try {
   await browser.setWindowSize(1440, 1000);
-  await invoke("apply_debt_payment", { sourceTransactionId: 201, debtAccountId: 102, amount: "55.35", date: "2026-09-02" });
+  await invoke("apply_debt_payment", { sourceTransactionId: 201, debtAccountId: 102, amount: "55.35", date: APPLIED_DATE });
   await invoke("correct_category", { id: 201, category: "Payment/Credit" });
   await invoke("set_apply_to_debt_enabled", { enabled: false });
   const balanceBefore = (await invoke("list_accounts")).map(a => [a.id, a.current_balance]);
@@ -75,7 +81,7 @@ try {
   let row = await waitForPayment();
   assert.equal((await browser.$$("[data-payment-row]")).length, 1);
   assert.match(await row.getText(), /Fixture Checking.*Fixture Card/s);
-  assert.match(await row.getText(), /Applied.*55\.35.*2026-09-02/s);
+  assert.match(await row.getText(), new RegExp(`Applied.*55\\.35.*${APPLIED_DATE}`, "s"));
   assert.match(await row.getText(), /-\$100\.00/);
   await accountFilter(["Fixture Checking", "Fixture Card"]);
   assert.equal((await browser.$$("[data-payment-row]")).length, 1);
@@ -88,12 +94,12 @@ try {
   // Leave conflicting category, account, description, and hidden date filters in place.
   await (await browser.$('[aria-label="Search description"]')).setValue("unrelated");
   await (await browser.$("button=More filters")).click();
-  await browser.execute(() => {
+  await browser.execute((purchaseDate) => {
     const input = document.querySelector('.ledger-filters input[type="date"]');
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, "2026-09-20");
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, purchaseDate);
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  }, PURCHASE_DATE);
   await (await (await browser.$(".ledger-filters")).$("button*=filter active")).click();
   await openCard();
   // Activate through the keyboard, then verify actual focus on the original ID.

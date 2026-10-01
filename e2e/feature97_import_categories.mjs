@@ -20,6 +20,7 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
@@ -34,12 +35,12 @@ fs.writeFileSync(
   csvPath,
   [
     "date,description,amount,category",
-    "2026-09-01,ZQX HARDWARE 1,-25.00,Merchandise",
-    "2026-09-02,ZQX HARDWARE 2,-30.00,merchandise",
-    "2026-09-03,ZQX FUEL 1,-40.00,Gas/Automotive",
-    "2026-09-04,ZQX BISTRO 1,-18.00,Dining",
-    "2026-09-05,ZQX MART 1,-60.00,GROCERIES",
-    "2026-09-06,ZQX PLAIN 1,-5.00,",
+    `${dateInMonth(-1, 1)},ZQX HARDWARE 1,-25.00,Merchandise`,
+    `${dateInMonth(-1, 2)},ZQX HARDWARE 2,-30.00,merchandise`,
+    `${dateInMonth(-1, 3)},ZQX FUEL 1,-40.00,Gas/Automotive`,
+    `${dateInMonth(-1, 4)},ZQX BISTRO 1,-18.00,Dining`,
+    `${dateInMonth(-1, 5)},ZQX MART 1,-60.00,GROCERIES`,
+    `${dateInMonth(-1, 6)},ZQX PLAIN 1,-5.00,`,
     "",
   ].join("\n"),
 );

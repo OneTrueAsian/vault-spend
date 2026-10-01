@@ -16,6 +16,7 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { monthFromNow } from "./lib/dates.mjs";
 
 async function checkDebtTile(dbDir, { expectClass, expectArrow, label }) {
   const app = await launchApp({ dbDir });
@@ -51,7 +52,9 @@ async function checkDebtTile(dbDir, { expectClass, expectArrow, label }) {
 }
 
 function loanResetsFixture(balances) {
-  const periods = ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08"];
+  // The five months before this one: the Dashboard/Accounts delta spans the trailing 6 months ending now, so a fixed
+  // calendar would slide out of the window as time passes.
+  const periods = [-5, -4, -3, -2, -1].map((offset) => monthFromNow(offset));
   const rows = periods
     .map((period, i) => `("${period}", "${period}-28", "${balances[i].toFixed(2)}")`)
     .join(", ");

@@ -16,6 +16,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { dateInMonth } from "./dates.mjs";
 
 const INIT_DB_EXE = path.resolve("target/debug/init_db.exe");
 
@@ -89,7 +90,7 @@ export async function seedFixtureInto(dbDir, pySnippet) {
  * Seeds a fresh test DB dir with:
  * - a "Checking" account (checking, starting balance 1000)
  * - a "Car Loan" account (loan, starting balance 10000)
- * - one transaction in Checking: "Loan Payment", -500.00, dated 2026-08-20
+ * - one transaction in Checking: "Loan Payment", -500.00, dated the 20th two months ago
  * Returns the dbDir.
  */
 export async function seedDebtPaymentFixture() {
@@ -105,7 +106,7 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 loan_id = cur.lastrowid
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-20", "Loan Payment", "-500.00", "Transfer", f"{checking_id}|2026-08-20|loan payment|-500.00"),
+    (checking_id, "${dateInMonth(-2, 20)}", "Loan Payment", "-500.00", "Transfer", f"{checking_id}|${dateInMonth(-2, 20)}|loan payment|-500.00"),
 )
 `,
   );

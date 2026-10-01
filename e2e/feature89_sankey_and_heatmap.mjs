@@ -19,7 +19,7 @@
 //
 // Run with: node e2e/feature89_sankey_and_heatmap.mjs
 
-import { launchApp, reclaimWindowFocus } from "./harness.mjs";
+import { launchApp, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -143,23 +143,17 @@ try {
 
   // A day's readout comes from mouseenter / focus, and both stop firing when another spec's app window
   // takes OS foreground from this one (the parallel runner does that constantly — see
-  // reclaimWindowFocus in harness.mjs; reproduced by launching windows during this spec). So reclaim
-  // focus first, and retry ONLY when the window really lost focus: a readout that fails to appear in
-  // a focused window is a genuine failure and is reported as one. Each retry moves the pointer off
-  // the cell first so a dropped mouseenter can fire again.
+  // withFocusRetry in harness.mjs; reproduced by launching windows during this spec), so a readout is
+  // retried ONLY when the window really lost focus: one that fails to appear in a focused window is a
+  // genuine failure. Each attempt moves the pointer off the cell first so a dropped mouseenter can fire.
   async function expectReadout(act, needle, failure) {
     let seen = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
-      await reclaimWindowFocus(browser);
+    await withFocusRetry(browser, async () => {
       await act();
-      try {
-        await browser.waitUntil(async () => (seen = await statusText()).includes(needle), { timeout: 3000 });
-        return;
-      } catch {
-        if (await browser.execute(() => document.hasFocus())) break;
-      }
-    }
-    throw new Error(`${failure} (got "${seen}")`);
+      await browser.waitUntil(async () => (seen = await statusText()).includes(needle), { timeout: 3000 }).catch(() => {
+        throw new Error(`${failure} (got "${seen}")`);
+      });
+    });
   }
   const hoverDay = (day) => async () => {
     await (await browser.$("[data-heatmap-status]")).moveTo();

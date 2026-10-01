@@ -113,7 +113,13 @@ async function connectWithRetries(options, { attempts = 20, delayMs = 100 } = {}
 export async function dismissFirstLaunchDialogs(browser) {
   const getStarted = await browser.$("button*=Just get started");
   if (await getStarted.isExisting()) {
-    await getStarted.click();
+    try {
+      await getStarted.click();
+    } catch (e) {
+      // It can go between the check and the click — e.g. feature121's focus-loss lock replaces the whole
+      // app with the lock screen. Gone is what this wanted; anything else is a real failure.
+      if (await getStarted.isExisting()) throw e;
+    }
   }
   // Immediately after Welcome, a fresh launch also always hits the "What's new" dialog — a fresh
   // profile means no version has ever been "seen" yet, exactly like a true first install. Same
@@ -146,6 +152,34 @@ export async function reclaimWindowFocus(browser) {
     timeout: 5000,
     timeoutMsg: "the app window never regained focus (another window is holding OS foreground)",
   });
+}
+
+// Runs `step` (a focus-sensitive interaction: open a menu and pick from it, hover for a readout, focus a
+// chart and press keys) with the window's focus reclaimed first. If the step fails and the window lost OS
+// focus at any point while it ran — another spec's window launching closes blur-dismissed menus and drops
+// key/hover events — it is run again, up to `attempts` times. A window `blur` listener records the loss,
+// because focus often comes back before the failure is noticed, so `hasFocus()` alone misses it. A failure
+// in a window that kept its focus is a real one and is thrown at once.
+export async function withFocusRetry(browser, step, { attempts = 3 } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    await reclaimWindowFocus(browser);
+    await browser.execute(() => {
+      window.__e2eLostFocus = false;
+      if (!window.__e2eBlurWatch) {
+        window.__e2eBlurWatch = true;
+        window.addEventListener("blur", () => (window.__e2eLostFocus = true));
+      }
+    });
+    try {
+      return await step();
+    } catch (e) {
+      const lostFocus = await browser.execute(() => window.__e2eLostFocus || !document.hasFocus()).catch(() => false);
+      if (!lostFocus || attempt >= attempts) {
+        e.message += ` [withFocusRetry: ${attempt} attempt(s); window lost focus on the last: ${lostFocus}]`;
+        throw e;
+      }
+    }
+  }
 }
 
 // A snapshot of what the app window looks like right now, for failure messages: whether it has OS
@@ -387,37 +421,70 @@ export async function menuSelectValue(trigger) {
   return trigger.getAttribute("data-value");
 }
 
+// The browser an element belongs to: `.parent` is whatever the element was queried from, which can be
+// another element.
+function browserOf(element) {
+  let node = element;
+  while (node.parent && typeof node.getWindowSize !== "function") node = node.parent;
+  return node;
+}
+
 async function openMenu(trigger) {
   const root = await trigger.parentElement();
   // A menu closes when the window loses focus, and another spec's window launching in parallel takes OS
   // foreground, so reclaim it first (a no-op when focus is already fine).
-  await reclaimWindowFocus(trigger.parent);
+  await reclaimWindowFocus(browserOf(trigger));
   if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
   const menu = await root.$("[role='menu']");
   await menu.waitForDisplayed({ timeout: 5000, timeoutMsg: "the menu should open" });
   return menu;
 }
 
-const itemLabel = async (item) => (await item.getText()).replace(/\s*✓\s*$/, "").trim();
+// Each open menu's items, read in ONE call: [{ value, label }]. Reading item by item took a WebDriver round
+// trip per option, a wide window for another spec's window to take OS focus — which blurs the menu and
+// closes it (MenuSelect closes on a blur that leaves it), so the next read found no menu at all.
+async function readMenuItems(menu) {
+  return browserOf(menu).execute(
+    (el) =>
+      [...el.querySelectorAll("[role='menuitemradio']")].map((item) => ({
+        value: item.getAttribute("data-value"),
+        label: item.innerText.replace(/\s*✓\s*$/, "").trim(),
+      })),
+    menu,
+  );
+}
+
+// Runs `use(menu)` against the opened menu. If the menu closed under it (focus taken by another window —
+// see readMenuItems), focus is reclaimed and the menu reopened, up to three tries. A failure while the menu
+// is still open is a real one and is thrown at once.
+async function withOpenMenu(trigger, use) {
+  for (let attempt = 1; ; attempt++) {
+    let menu;
+    try {
+      // Opening is inside the retry too: focus taken right after the click closes the menu before it shows.
+      menu = await openMenu(trigger);
+      return await use(menu);
+    } catch (e) {
+      if (e.realMenuFailure || attempt >= 3 || (menu && (await menu.isDisplayed().catch(() => false)))) throw e;
+    }
+  }
+}
 
 /** Opens a MenuSelect and chooses the option with this `value` or this visible `label`. */
 export async function chooseMenuOption(trigger, { value, label }) {
-  const menu = await openMenu(trigger);
-  for (const item of await menu.$$("[role='menuitemradio']")) {
-    const matches = value !== undefined ? (await item.getAttribute("data-value")) === value : (await itemLabel(item)) === label;
-    if (matches) {
-      await item.click();
-      return;
+  await withOpenMenu(trigger, async (menu) => {
+    const items = await readMenuItems(menu);
+    const index = items.findIndex((item) => (value !== undefined ? item.value === value : item.label === label));
+    if (index < 0) {
+      throw Object.assign(new Error(`no menu option ${value !== undefined ? `with value "${value}"` : `labelled "${label}"`} (options: ${items.map((i) => i.label).join(", ")})`), { realMenuFailure: true });
     }
-  }
-  throw new Error(`no menu option ${value !== undefined ? `with value "${value}"` : `labelled "${label}"`}`);
+    await (await menu.$$("[role='menuitemradio']"))[index].click();
+  });
 }
 
 /** The visible labels of a MenuSelect's options, in order (opens the menu, reads it, closes it). */
 export async function menuOptionLabels(trigger) {
-  const menu = await openMenu(trigger);
-  const labels = [];
-  for (const item of await menu.$$("[role='menuitemradio']")) labels.push(await itemLabel(item));
-  await trigger.click();
+  const labels = await withOpenMenu(trigger, async (menu) => (await readMenuItems(menu)).map((item) => item.label));
+  if ((await trigger.getAttribute("aria-expanded")) === "true") await trigger.click();
   return labels;
 }

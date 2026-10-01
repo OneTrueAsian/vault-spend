@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature56_save_custom_dashboard_layout.mjs
 
-import { launchApp } from "./harness.mjs";
+import { chooseMenuOption, launchApp, menuOptionLabels } from "./harness.mjs";
 
 const app = await launchApp();
 try {
@@ -23,25 +23,9 @@ try {
   // and the options only exist while the menu is open.
   const select = await app.browser.$(".layout-select-toggle");
   const selectedValue = () => select.getAttribute("data-value");
-  async function optionLabels() {
-    await select.click();
-    const items = await app.browser.$$(".dashboard-toolbar [role='menuitemradio']");
-    const labels = [];
-    for (const item of items) labels.push((await item.getText()).replace(/\s*✓\s*$/, "").trim()); // the checked item also shows a ✓
-    await select.click();
-    return labels;
-  }
-  async function chooseLayout(label) {
-    await select.click();
-    await app.browser.$(".dashboard-toolbar [role='menu']").waitForDisplayed({ timeout: 5000 });
-    for (const item of await app.browser.$$(".dashboard-toolbar [role='menuitemradio']")) {
-      if ((await item.getText()).includes(label)) {
-        await item.click();
-        return;
-      }
-    }
-    throw new Error(`no "${label}" option in the Layout menu`);
-  }
+  // The shared helpers reopen the menu if another spec's window takes focus and closes it mid-read.
+  const optionLabels = () => menuOptionLabels(select);
+  const chooseLayout = (value) => chooseMenuOption(select, { value });
   await app.browser.waitUntil(async () => (await selectedValue()) === "custom", {
     timeout: 5000,
     timeoutMsg: "expected removing a widget to fall into the 'custom' (unsaved) layout state",
@@ -70,11 +54,11 @@ try {
 
   // Switching away and back proves it round-trips as a real named preset,
   // not just a one-off in-memory flag.
-  await chooseLayout("Default");
+  await chooseLayout("default");
   if ((await selectedValue()) !== "default") {
     throw new Error("expected switching to Default to select the built-in default preset");
   }
-  await chooseLayout("Weekly check-in");
+  await chooseLayout("custom:Weekly check-in");
   if ((await selectedValue()) !== "custom:Weekly check-in") {
     throw new Error("expected switching back to the saved preset to re-select it");
   }

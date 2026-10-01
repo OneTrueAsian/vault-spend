@@ -77,8 +77,9 @@ async function unlockIfLocked(browser) {
 async function retryAcrossFocusLocks(browser, step) {
   let lastError;
   for (let attempt = 1; attempt <= 4; attempt++) {
-    await unlockIfLocked(browser);
     try {
+      // Inside the try: the window can lose focus (and lock) again while it is being unlocked.
+      await unlockIfLocked(browser);
       return await step();
     } catch (error) {
       lastError = error;

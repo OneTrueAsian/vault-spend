@@ -94,12 +94,7 @@ export function futureValue(start, monthly, pct, months) {
   return start * growth + monthly * ((growth - 1) / r);
 }
 
-/** "YYYY-MM" for the calendar month `offset` months from now. */
-export function monthFromNow(offset) {
-  const now = new Date();
-  const total = now.getFullYear() * 12 + now.getMonth() + offset;
-  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
-}
+export { monthFromNow } from "./dates.mjs";
 
 export async function saveAndSettle(browser) {
   await (await browser.$("[data-acc-save]")).click();

@@ -7,10 +7,11 @@
 
 import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute(
-    "INSERT INTO recurring (merchant, category, amount, cadence, anchor_date) VALUES ('Netflix', NULL, '-15.49', 'monthly', '2026-08-04')"
+    "INSERT INTO recurring (merchant, category, amount, cadence, anchor_date) VALUES ('Netflix', NULL, '-15.49', 'monthly', '${dateInMonth(-2, 4)}')"
 )
 `);
 

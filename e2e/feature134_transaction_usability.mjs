@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { launchApp, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const SHOT_DIR = path.join(os.tmpdir(), "vault-feature134-shots");
@@ -219,21 +219,27 @@ try {
           ["category filter", ".ledger-filters .category-filter-toggle"],
         ]) {
           const trigger = await browser.$(triggerSelector);
-          await trigger.click();
-          const panel = await browser.$(".ledger-filters .account-filter-panel, .ledger-filters .menu-select-panel");
-          await panel.waitForDisplayed({ timeout: 5000 });
-          const { alpha, blur } = await browser.execute((sel) => {
-            const el = document.querySelector(sel);
-            const css = getComputedStyle(el);
-            const blur = css.backdropFilter || css.webkitBackdropFilter || "none";
-            const canvas = document.createElement("canvas");
-            canvas.width = canvas.height = 1;
-            const ctx = canvas.getContext("2d");
-            ctx.fillStyle = css.backgroundColor;
-            ctx.fillRect(0, 0, 1, 1);
-            return { alpha: ctx.getImageData(0, 0, 1, 1).data[3], blur };
-          }, ".ledger-filters .account-filter-panel, .ledger-filters .menu-select-panel");
-          await trigger.click();
+          const panelSelector = ".ledger-filters .account-filter-panel, .ledger-filters .menu-select-panel";
+          // The panel closes when another spec's window takes focus, so open-read-close is retried then; the
+          // closing click only fires while the panel is still open, so it can never reopen it instead.
+          const { alpha, blur } = await withFocusRetry(browser, async () => {
+            await trigger.click();
+            const panel = await browser.$(panelSelector);
+            await panel.waitForDisplayed({ timeout: 5000 });
+            const read = await browser.execute((sel) => {
+              const el = document.querySelector(sel);
+              const css = getComputedStyle(el);
+              const blur = css.backdropFilter || css.webkitBackdropFilter || "none";
+              const canvas = document.createElement("canvas");
+              canvas.width = canvas.height = 1;
+              const ctx = canvas.getContext("2d");
+              ctx.fillStyle = css.backgroundColor;
+              ctx.fillRect(0, 0, 1, 1);
+              return { alpha: ctx.getImageData(0, 0, 1, 1).data[3], blur };
+            }, panelSelector);
+            if (await panel.isDisplayed()) await trigger.click();
+            return read;
+          });
           const label = `${name} panel, palette=${palette ?? "classic"} theme=${mode}`;
           if (palette === "transparent") {
             if (alpha < GLASS_FLOOR) combosFailing.push(`${label}: alpha ${alpha}/255 is under the ${GLASS_FLOOR} floor`);

@@ -66,7 +66,7 @@ async function expectNotice(browser) {
 {
   const file = path.join(dbDir, "device-settings.json");
   const settings = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
-  settings.legal_notice_version = "2020-01-01";
+  settings.legal_notice_version = "2020-01-01"; // fixed date: a notice version older than any real one
   fs.writeFileSync(file, JSON.stringify(settings));
   const app = await launchApp({ dbDir, ready: NOTICE, showLegalNotice: true });
   try {

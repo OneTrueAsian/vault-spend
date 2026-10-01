@@ -9,6 +9,7 @@ import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { dateInMonth } from "./lib/dates.mjs";
 
 function query(dbDir, sql) {
   const dbPath = path.join(dbDir, "vaultspend.db");
@@ -32,7 +33,7 @@ cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Groceries')")
 cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Household')")
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-05", "Target", "-100.00", "Groceries", f"{checking_id}|2026-08-05|target|-100.00"),
+    (checking_id, "${dateInMonth(-2, 5)}", "Target", "-100.00", "Groceries", f"{checking_id}|${dateInMonth(-2, 5)}|target|-100.00"),
 )
 `);
 

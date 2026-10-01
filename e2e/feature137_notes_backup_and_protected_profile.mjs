@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -51,7 +52,7 @@ async function seedNotedTransaction(dbDir) {
     }
     await ok(app.browser, "create_manual_transaction", {
       accountId: checkingId,
-      date: "2026-09-01",
+      date: dateInMonth(-1, 1),
       description: "Rent",
       amount: "-1200.00",
       category: null,
@@ -151,7 +152,7 @@ try {
   const csvPath = path.join(csvDir, "bank.csv");
   fs.writeFileSync(
     csvPath,
-    ["date,description,amount,notes", '2026-09-05,Imported With Note,-42.00,"Split with Sam"', ""].join("\n"),
+    ["date,description,amount,notes", `${dateInMonth(-1, 5)},Imported With Note,-42.00,"Split with Sam"`, ""].join("\n"),
   );
   const accounts = await ok(browser, "list_accounts");
   const checkingId = accounts.find((a) => a.name === "Checking").id;
@@ -188,7 +189,7 @@ try {
   const tooLongNote = "x".repeat(4001);
   fs.writeFileSync(
     csvPath2,
-    ["date,description,amount,notes", '2026-09-06,Good Row,-10.00,"fine"', `2026-09-07,Bad Row,-20.00,"${tooLongNote}"`, ""].join("\n"),
+    ["date,description,amount,notes", `${dateInMonth(-1, 6)},Good Row,-10.00,"fine"`, `${dateInMonth(-1, 7)},Bad Row,-20.00,"${tooLongNote}"`, ""].join("\n"),
   );
   const commitResult = await ok(browser, "commit_import", {
     path: csvPath2,

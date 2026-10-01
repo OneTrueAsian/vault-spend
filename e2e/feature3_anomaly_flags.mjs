@@ -6,6 +6,7 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
@@ -14,11 +15,11 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 savings_id = cur.lastrowid
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, fingerprint) VALUES (?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-05", "Netflix 4471", "-15.99", f"{checking_id}|2026-08-05|netflix 4471|-15.99"),
+    (checking_id, "${dateInMonth(-2, 5)}", "Netflix 4471", "-15.99", f"{checking_id}|${dateInMonth(-2, 5)}|netflix 4471|-15.99"),
 )
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, fingerprint) VALUES (?, ?, ?, ?, ?)",
-    (savings_id, "2026-08-06", "Netflix 8823", "-15.99", f"{savings_id}|2026-08-06|netflix 8823|-15.99"),
+    (savings_id, "${dateInMonth(-2, 6)}", "Netflix 8823", "-15.99", f"{savings_id}|${dateInMonth(-2, 6)}|netflix 8823|-15.99"),
 )
 `);
 

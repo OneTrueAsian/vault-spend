@@ -18,6 +18,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // e2e/**/*.test.mjs: unit tests for the E2E harness's own logic, run against stand-in browser objects —
+    // no app, no WebDriver.
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "e2e/**/*.test.mjs"],
   },
 });
