@@ -8,6 +8,7 @@ import { effectiveBudget } from "./budgetPlan";
 import { accountWidgetId, bucketWidgetId, investmentWidgetId, WIDGET_CATALOG, type WidgetId } from "./dashboardLayout";
 import { PasswordForm } from "./PasswordForm";
 import { MenuSelect } from "./MenuSelect";
+import type { ImportSignSuggestion } from "./importSigns";
 import {
   AccountTypeIcon,
   ACCOUNT_ICON_OPTIONS,
@@ -1210,13 +1211,27 @@ export function ChooseExistingDataSourceDialog({
   );
 }
 
+/** `suggestion` (see `importSignSuggestion`) preselects an answer — the primary, focused button — and says
+ * why; with none, Flip stays the primary button as it always was. Either answer can still be chosen. */
 export function ConfirmInvertDialog({
   onCancel,
   onConfirm,
+  accountName,
+  suggestion,
 }: {
   onCancel: () => void;
   onConfirm: () => void;
+  accountName?: string;
+  suggestion?: ImportSignSuggestion;
 }) {
+  const flip = suggestion?.flip ?? null;
+  const hint =
+    suggestion?.reason === "remembered"
+      ? `Last import into ${accountName}: ${flip ? "flipped the signs" : "kept as-is"}.`
+      : suggestion?.reason === "credit-positive"
+        ? "Most amounts in this file are positive. For a credit card that usually means charges are shown as positive."
+        : null;
+  const keepIsPrimary = flip === false;
   return (
     <ModalShell title="Which way do the amounts go?" onCancel={onCancel}>
       <p className="modal-message">
@@ -1228,11 +1243,16 @@ export function ConfirmInvertDialog({
         money out). Choose "Keep as-is" if it already uses that convention —
         most bank/checking exports do.
       </p>
+      {hint && (
+        <p className="modal-message" data-import-sign-hint>
+          {hint}
+        </p>
+      )}
       <div className="modal-actions">
-        <button type="button" className="modal-secondary" onClick={onCancel}>
+        <button type="button" className={keepIsPrimary ? undefined : "modal-secondary"} onClick={onCancel} autoFocus={flip === false}>
           Keep as-is
         </button>
-        <button type="button" onClick={onConfirm}>
+        <button type="button" className={keepIsPrimary ? "modal-secondary" : undefined} onClick={onConfirm} autoFocus={flip === true}>
           Flip the signs
         </button>
       </div>

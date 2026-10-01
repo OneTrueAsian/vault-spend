@@ -149,6 +149,9 @@ export type Account = {
   /** An explicit icon override (see `AccountTypeIcon`'s `iconKey` prop) —
    * `null` means "keep guessing an icon from `account_type`." */
   icon_key: string | null;
+  /** The "Flip the signs" answer from the last import into this account,
+   * offered again next time — `null` before the first import. */
+  import_flip_signs: boolean | null;
 };
 
 /** A registered category name plus its explicit icon override, if any —

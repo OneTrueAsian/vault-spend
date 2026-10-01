@@ -1076,6 +1076,9 @@ pub struct AccountDto {
     /// An explicit icon override (see `StoredAccount::icon_key`) — `None`
     /// means "keep guessing an icon from `account_type`."
     pub icon_key: Option<String>,
+    /// The "Flip the signs" answer from the last import into this account
+    /// (see `StoredAccount::import_flip_signs`) — `None` before the first.
+    pub import_flip_signs: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -1325,6 +1328,39 @@ pub fn recategorize_uncategorized(state: tauri::State<AppStateHandle>) -> Result
 /// its file-specified destination previously meant a genuine duplicate in
 /// a different account came back `is_duplicate: false` here — silently
 /// contradicting what committing that same row actually does.
+#[derive(Serialize)]
+pub struct ImportSignCounts {
+    pub positive: usize,
+    pub negative: usize,
+}
+
+/// How many of a file's amounts are positive and how many negative, as written in the file — read before
+/// the "Which way do the amounts go?" question, so a credit card's export that shows charges as positive can
+/// be recognised and "Flip the signs" suggested. Reads the file only; nothing is stored.
+#[tauri::command]
+pub fn count_import_signs(path: String) -> Result<ImportSignCounts, String> {
+    let loaded = importer::load_transactions(&path, false).map_err(|e| e.to_string())?;
+    Ok(ImportSignCounts {
+        positive: loaded.transactions.iter().filter(|t| t.amount.is_sign_positive() && !t.amount.is_zero()).count(),
+        negative: loaded.transactions.iter().filter(|t| t.amount.is_sign_negative() && !t.amount.is_zero()).count(),
+    })
+}
+
+#[derive(Serialize)]
+pub struct FlipSignsDto {
+    pub flipped: usize,
+    pub account_ids: Vec<i64>,
+}
+
+/// The Transactions tab's "Flip signs…" bulk action: see `Store::flip_transaction_signs`. A refusal (a
+/// linked transfer or applied debt payment in the selection) comes back as an error that says what to do.
+#[tauri::command]
+pub fn flip_transaction_signs(ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<FlipSignsDto, String> {
+    let state = state.lock()?;
+    let summary = state.store.flip_transaction_signs(&ids).map_err(|e| e.to_string())?;
+    Ok(FlipSignsDto { flipped: summary.flipped, account_ids: summary.account_ids })
+}
+
 #[tauri::command]
 pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<ImportPreview, String> {
     let state = state.lock()?;
@@ -1507,6 +1543,12 @@ pub fn commit_import(
             }
         }
     }
+
+    // Offered again the next time a file is imported into this account (see `StoredAccount::import_flip_signs`).
+    state
+        .store
+        .set_account_import_flip_signs(default_account_id, invert_amounts)
+        .map_err(|e| e.to_string())?;
 
     categorize_uncategorized(&mut state)?;
     let auto_linked = state.store.auto_link_transfers_if_enabled().map_err(|e| e.to_string())?.len();
@@ -1844,6 +1886,7 @@ pub fn list_accounts(state: tauri::State<AppStateHandle>) -> Result<Vec<AccountD
             member_name: a.member_name,
             checkpoint_date: a.checkpoint_date.map(|d| d.to_string()),
             icon_key: a.icon_key,
+            import_flip_signs: a.import_flip_signs,
         })
         .collect())
 }

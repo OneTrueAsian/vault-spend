@@ -40,6 +40,7 @@ function account(overrides: Partial<Account> = {}): Account {
     member_name: null,
     checkpoint_date: null,
     icon_key: null,
+    import_flip_signs: null,
     ...overrides,
   };
 }

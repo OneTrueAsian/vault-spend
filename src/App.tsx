@@ -30,6 +30,7 @@ import {
   WhatsNewDialog,
 } from "./Modal";
 import { TransactionNotesDialog } from "./TransactionNotesDialog";
+import { flipConfirmText, importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
 import { DEFAULT_LAYOUT, loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 import { lockCurrentProfile, unlockProfile } from "./protection";
@@ -193,7 +194,7 @@ type PendingDialog =
     resolve: (result: NewAccountResult | null) => void;
   }
   | { kind: "newCategory"; resolve: (name: string | null) => void }
-  | { kind: "confirmInvert"; resolve: (invert: boolean) => void }
+  | { kind: "confirmInvert"; resolve: (invert: boolean) => void; accountName?: string; suggestion?: ImportSignSuggestion }
   | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
 
 type Tab =
@@ -1190,6 +1191,8 @@ function App({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   useAutoCancelDelete(confirmingBulkDelete, () => setConfirmingBulkDelete(false));
+  const [confirmingBulkFlip, setConfirmingBulkFlip] = useState(false);
+  useAutoCancelDelete(confirmingBulkFlip, () => setConfirmingBulkFlip(false));
   // Its own independent state from `status` (not a `setStatus(...)` call)
   // so a routine message elsewhere can never clobber an active undo
   // window — see `StatusBanner`'s own comment on the `action` prop.
@@ -1449,6 +1452,10 @@ function App({
     const [a, b] = Array.from(selectedIds).map((id) => transactions.find((t) => t.id === id));
     return a && b && canLinkAsTransfer(a, b) ? [a, b] : null;
   }, [selectedIds, transactions]);
+  const selectedAccountNames = useMemo(
+    () => [...new Set(transactions.filter((t) => selectedIds.has(t.id)).map((t) => t.account_name))].sort(),
+    [selectedIds, transactions],
+  );
   // The Debt column is the only one of the three feature toggles that's a
   // whole dedicated table column — Split lives inside the Category cell,
   // so hiding it doesn't change the column count.
@@ -1634,8 +1641,8 @@ function App({
   function askNewCategory(): Promise<string | null> {
     return new Promise((resolve) => setDialog({ kind: "newCategory", resolve }));
   }
-  function askConfirmInvert(): Promise<boolean> {
-    return new Promise((resolve) => setDialog({ kind: "confirmInvert", resolve }));
+  function askConfirmInvert(accountName?: string, suggestion?: ImportSignSuggestion): Promise<boolean> {
+    return new Promise((resolve) => setDialog({ kind: "confirmInvert", resolve, accountName, suggestion }));
   }
   function askCsvExportWarning(): Promise<boolean> {
     return new Promise((resolve) => setDialog({ kind: "csvExportWarning", resolve }));
@@ -2971,7 +2978,11 @@ function App({
     });
     if (!path || Array.isArray(path)) return;
 
-    const invertAmounts = await askConfirmInvert();
+    // Offer the answer this account's last import used, or flipping for a credit card file that is mostly
+    // positive (charges shown as positive). Reading ahead is only a hint, so a file it can't read asks plainly.
+    const account = accounts.find((a) => a.id === accountId);
+    const counts = await invoke<ImportSignCounts>("count_import_signs", { path }).catch(() => null);
+    const invertAmounts = await askConfirmInvert(account?.name, importSignSuggestion(account, counts));
 
     setBusy(true);
     setStatus("Reading file…", "info");
@@ -3790,6 +3801,20 @@ function App({
     }
   }
 
+  // Rows imported the wrong way round (a card export with charges as positive, imported with "Keep as-is").
+  async function handleBulkFlipSigns() {
+    setConfirmingBulkFlip(false);
+    const ids = Array.from(selectedIds);
+    try {
+      const result = await invoke<{ flipped: number; account_ids: number[] }>("flip_transaction_signs", { ids });
+      setSelectedIds(new Set());
+      await refresh();
+      setStatus(`Flipped the sign of ${result.flipped} transaction${result.flipped === 1 ? "" : "s"}. Flip them again to undo.`, "success");
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+
   async function handleAddSelectedToRecurring(cadence: string) {
     const ids = Array.from(selectedIds);
     try {
@@ -4452,6 +4477,26 @@ function App({
               ) : (
                 <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(true)}>
                   Delete selected
+                </button>
+              )}
+              {confirmingBulkFlip ? (
+                <span className="row-delete-confirm" data-flip-signs-confirm>
+                  <span>{flipConfirmText(selectedIds.size, selectedAccountNames)}</span>
+                  <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkFlip(false)}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleBulkFlipSigns}>
+                    Flip {selectedIds.size}
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="modal-secondary"
+                  onClick={() => setConfirmingBulkFlip(true)}
+                  title="For rows imported the wrong way round: money out becomes money in and the other way round"
+                >
+                  Flip signs…
                 </button>
               )}
               {selectedPairForLink && (
@@ -5551,6 +5596,8 @@ function App({
           )}
           {dialog?.kind === "confirmInvert" && (
             <ConfirmInvertDialog
+              accountName={dialog.accountName}
+              suggestion={dialog.suggestion}
               onCancel={() => {
                 dialog.resolve(false);
                 setDialog(null);

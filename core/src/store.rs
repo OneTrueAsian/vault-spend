@@ -10,6 +10,8 @@ mod encryption;
 pub use self::encryption::{DatabaseKey, StoreOpenError, file_looks_encrypted};
 mod comparison_setup;
 mod comparison_snapshot;
+mod sign_flip;
+pub use self::sign_flip::{FlipSignsError, FlipSignsSummary};
 mod profile_ui_state;
 pub use self::comparison_setup::{ComparisonSetupError, StoredComparisonSetup};
 pub use self::profile_ui_state::UiStateKey;
@@ -162,6 +164,11 @@ pub struct StoredAccount {
     /// icon otherwise guessed from `account_type` — same convention as
     /// `StoredBucket::icon_key`. `None` means "keep guessing from the type."
     pub icon_key: Option<String>,
+    /// The "Flip the signs" answer given the last time a file was imported
+    /// into this account (`true` = flipped), so the next import can offer
+    /// it again — some card exports show charges as positive. `None` until
+    /// the first import. See `set_account_import_flip_signs`.
+    pub import_flip_signs: Option<bool>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -1361,6 +1368,7 @@ impl Store {
         self.migrate_add_inflation_setting_if_missing()?;
         self.migrate_add_bucket_icon_key_if_missing()?;
         self.migrate_add_account_icon_key_if_missing()?;
+        self.migrate_add_account_import_flip_signs_if_missing()?;
         self.migrate_add_category_icon_key_if_missing()?;
         self.migrate_add_member_id_to_accounts_if_missing()?;
         self.migrate_add_member_id_to_transactions_if_missing()?;
@@ -2929,7 +2937,7 @@ impl Store {
         let holdings_value = self.holdings_value_by_account()?;
         let mut stmt = self.conn.prepare(
             "SELECT a.id, a.name, a.account_type, a.starting_balance, a.institution, a.mask, a.interest_rate,
-                    a.excluded_from_debt_payoff, a.member_id, fm.name, a.icon_key
+                    a.excluded_from_debt_payoff, a.member_id, fm.name, a.icon_key, a.import_flip_signs
              FROM accounts a
              LEFT JOIN family_members fm ON fm.id = a.member_id
              ORDER BY a.name",
@@ -2947,6 +2955,7 @@ impl Store {
                 row.get::<_, Option<i64>>(8)?,
                 row.get::<_, Option<String>>(9)?,
                 row.get::<_, Option<String>>(10)?,
+                row.get::<_, Option<bool>>(11)?,
             ))
         })?;
 
@@ -2964,6 +2973,7 @@ impl Store {
                 member_id,
                 member_name,
                 icon_key,
+                import_flip_signs,
             ) = row?;
             let starting_balance = Decimal::from_str(&starting_balance_str).expect("starting_balance stored by this crate must be valid");
             let checkpoint_date = self.latest_checkpoint(id, today)?.map(|(date, _)| date);
@@ -3001,6 +3011,7 @@ impl Store {
                 member_name,
                 checkpoint_date,
                 icon_key,
+                import_flip_signs,
             });
         }
         Ok(accounts)

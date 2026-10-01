@@ -526,7 +526,11 @@ const IMPORTING_ENTRY: HelpEntry = {
           the convention is the other way around — a payment is
           <em> positive</em> (it reduces what's owed) and a charge or new
           debt is negative — so check a payment row's sign in the preview
-          before confirming.
+          before confirming. Each account remembers your answer and offers
+          it again on its next import, and for a credit card whose file is
+          mostly positive amounts, "Flip the signs" is suggested. Imported
+          them the wrong way already? Select those rows on the Transactions
+          tab and choose "Flip signs…" (choosing it again undoes it).
         </li>
         <li>
           You'll see a preview of every row before anything is saved. Rows

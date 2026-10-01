@@ -251,6 +251,8 @@ pub fn run() {
             protection_commands::delete_protection_leftovers,
             commands::preview_setup_import,
             commands::commit_setup_import,
+            commands::count_import_signs,
+            commands::flip_transaction_signs,
             commands::preview_import,
             commands::commit_import,
             commands::create_manual_transaction,
