@@ -12,6 +12,7 @@ import {
   type LaunchErrorKind,
   type StartupState,
 } from "./startup";
+import { errorMessage } from "./errorMessage";
 
 const TITLES: Record<LaunchErrorKind, string> = {
   registry_unreadable: "Vault Spend can't read your profile list",
@@ -50,7 +51,7 @@ export function LaunchErrorScreen({ error, onResolved }: { error: LaunchError; o
       if (next.status === "error" && stillBrokenNote) setProblem(stillBrokenNote);
       onResolved(next);
     } catch (e) {
-      setProblem(String(e));
+      setProblem(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -66,7 +67,7 @@ export function LaunchErrorScreen({ error, onResolved }: { error: LaunchError; o
         filters: [{ name: "Vault Spend data file", extensions: ["db"] }],
       });
     } catch (e) {
-      setProblem(String(e));
+      setProblem(errorMessage(e));
       return;
     }
     if (typeof picked !== "string") return;

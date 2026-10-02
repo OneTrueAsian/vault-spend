@@ -8,11 +8,10 @@
 use super::Store;
 use crate::comparisons::package::Package;
 use crate::comparisons::setup::{
-    find_repairs, upgrade_v1_payload, validate_setup, ComparisonSetup, Repair, SetupContext, SetupProblem,
-    MAX_PAYLOAD_BYTES, SETUP_FORMAT_VERSION,
+    ComparisonSetup, MAX_PAYLOAD_BYTES, Repair, SETUP_FORMAT_VERSION, SetupContext, SetupProblem, find_repairs, upgrade_v1_payload, validate_setup,
 };
 use chrono::NaiveDate;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{OptionalExtension, params};
 use std::collections::HashSet;
 
 /// The saved setup and its revision. `revision` is 0 and `setup` is `None` until first saved.
@@ -29,9 +28,13 @@ pub enum ComparisonSetupError {
     /// The proposed setup broke one or more rules; nothing was saved.
     Invalid(Vec<SetupProblem>),
     /// Someone saved a newer revision first; nothing was saved.
-    Conflict { current_revision: i64 },
+    Conflict {
+        current_revision: i64,
+    },
     /// The stored setup was written by a newer version of the app.
-    Unsupported { found: u32 },
+    Unsupported {
+        found: u32,
+    },
     /// The stored payload could not be read. Never includes the payload itself: it is private.
     Corrupt(String),
     Db(rusqlite::Error),
@@ -66,7 +69,9 @@ impl From<rusqlite::Error> for ComparisonSetupError {
 impl Store {
     fn id_set(&self, sql: &str) -> rusqlite::Result<HashSet<i64>> {
         let mut stmt = self.conn.prepare(sql)?;
-        let ids = stmt.query_map([], |row| row.get::<_, i64>(0))?.collect::<rusqlite::Result<HashSet<i64>>>()?;
+        let ids = stmt
+            .query_map([], |row| row.get::<_, i64>(0))?
+            .collect::<rusqlite::Result<HashSet<i64>>>()?;
         Ok(ids)
     }
 
@@ -95,11 +100,14 @@ impl Store {
             })
             .optional()?;
         let Some((format_version, revision, payload)) = row else {
-            return Ok(StoredComparisonSetup { revision: 0, setup: None, repairs: Vec::new() });
+            return Ok(StoredComparisonSetup {
+                revision: 0,
+                setup: None,
+                repairs: Vec::new(),
+            });
         };
-        let corrupt = |e: serde_json::Error| {
-            ComparisonSetupError::Corrupt(format!("{:?} error at line {} column {}", e.classify(), e.line(), e.column()))
-        };
+        let corrupt =
+            |e: serde_json::Error| ComparisonSetupError::Corrupt(format!("{:?} error at line {} column {}", e.classify(), e.line(), e.column()));
         let payload = match format_version {
             SETUP_FORMAT_VERSION => payload,
             1 => upgrade_v1_payload(&payload).map_err(corrupt)?,
@@ -108,7 +116,11 @@ impl Store {
         let setup: ComparisonSetup = serde_json::from_str(&payload).map_err(corrupt)?;
         // The date only matters for validation, not for finding deleted references.
         let repairs = self.with_setup_context(NaiveDate::MIN, |ctx| find_repairs(&setup, ctx))?;
-        Ok(StoredComparisonSetup { revision, setup: Some(setup), repairs })
+        Ok(StoredComparisonSetup {
+            revision,
+            setup: Some(setup),
+            repairs,
+        })
     }
 
     /// Validates and saves `setup` as the next revision. `expected_revision` is the revision the
@@ -119,8 +131,7 @@ impl Store {
         setup: &ComparisonSetup,
         today: NaiveDate,
     ) -> Result<StoredComparisonSetup, ComparisonSetupError> {
-        let payload = serde_json::to_string(setup)
-            .map_err(|_| ComparisonSetupError::Corrupt("the setup could not be serialised".into()))?;
+        let payload = serde_json::to_string(setup).map_err(|_| ComparisonSetupError::Corrupt("the setup could not be serialised".into()))?;
         if payload.len() > MAX_PAYLOAD_BYTES {
             return Err(ComparisonSetupError::Invalid(vec![SetupProblem {
                 field: "payload".into(),
@@ -146,9 +157,18 @@ impl Store {
              VALUES (1, ?1, ?2, ?3, ?4)
              ON CONFLICT(id) DO UPDATE SET format_version = excluded.format_version,
                  revision = excluded.revision, payload = excluded.payload, updated_at = excluded.updated_at",
-            params![setup.format_version, next, payload, chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()],
+            params![
+                setup.format_version,
+                next,
+                payload,
+                chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
+            ],
         )?;
         tx.commit()?;
-        Ok(StoredComparisonSetup { revision: next, setup: Some(setup.clone()), repairs: Vec::new() })
+        Ok(StoredComparisonSetup {
+            revision: next,
+            setup: Some(setup.clone()),
+            repairs: Vec::new(),
+        })
     }
 }

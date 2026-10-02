@@ -13,7 +13,11 @@ pub fn today() -> NaiveDate {
 }
 
 pub fn amount(value: &str) -> ManualAmount {
-    ManualAmount { value: Decimal::from_str(value).unwrap(), measured_on: "2026-09-01".into(), explanation: "From my pay stubs".into() }
+    ManualAmount {
+        value: Decimal::from_str(value).unwrap(),
+        measured_on: "2026-09-01".into(),
+        explanation: "From my pay stubs".into(),
+    }
 }
 
 pub fn person(id: i64) -> PersonRef {
@@ -24,9 +28,24 @@ pub fn person(id: i64) -> PersonRef {
 pub fn base_setup() -> ComparisonSetup {
     let mut s = ComparisonSetup::empty();
     s.people = vec![
-        PersonSetup { person: PersonRef::Owner, age: Some(AgeConfirmation { age: AgeInput::Exact { age: 42 }, confirmed_on: "2026-09-01".into() }), in_household: true },
-        PersonSetup { person: person(7), age: None, in_household: true },
-        PersonSetup { person: person(8), age: None, in_household: false },
+        PersonSetup {
+            person: PersonRef::Owner,
+            age: Some(AgeConfirmation {
+                age: AgeInput::Exact { age: 42 },
+                confirmed_on: "2026-09-01".into(),
+            }),
+            in_household: true,
+        },
+        PersonSetup {
+            person: person(7),
+            age: None,
+            in_household: true,
+        },
+        PersonSetup {
+            person: person(8),
+            age: None,
+            in_household: false,
+        },
     ];
     s.household_reference_person = Some(PersonRef::Owner);
     s
@@ -45,7 +64,12 @@ impl Fixture {
             reference("h25", "income", "household", "d", 25, Some(34), "100"),
             reference("i25", "income", "individual", "d", 25, Some(34), "90"),
         ]);
-        Fixture { package, members: [7, 8].into(), accounts: [1, 2].into(), assets: [5].into() }
+        Fixture {
+            package,
+            members: [7, 8].into(),
+            accounts: [1, 2].into(),
+            assets: [5].into(),
+        }
     }
 
     fn ctx(&self) -> SetupContext<'_> {
@@ -59,12 +83,18 @@ impl Fixture {
     }
 
     fn problems(&self, setup: &ComparisonSetup) -> Vec<String> {
-        validate_setup(setup, &self.ctx()).into_iter().map(|p| format!("{}: {}", p.field, p.message)).collect()
+        validate_setup(setup, &self.ctx())
+            .into_iter()
+            .map(|p| format!("{}: {}", p.field, p.message))
+            .collect()
     }
 
     fn assert_rejected(&self, setup: &ComparisonSetup, field: &str) {
         let problems = validate_setup(setup, &self.ctx());
-        assert!(problems.iter().any(|p| p.field.starts_with(field)), "expected a problem on {field}, got {problems:?}");
+        assert!(
+            problems.iter().any(|p| p.field.starts_with(field)),
+            "expected a problem on {field}, got {problems:?}"
+        );
     }
 }
 
@@ -85,9 +115,17 @@ fn an_unsupported_format_version_is_rejected() {
 #[test]
 fn exact_ages_and_bands_are_both_accepted_within_the_adult_range() {
     let f = Fixture::new();
-    for age in [AgeInput::Exact { age: 18 }, AgeInput::Exact { age: 120 }, AgeInput::Band { min: 25, max: Some(34) }, AgeInput::Band { min: 65, max: None }] {
+    for age in [
+        AgeInput::Exact { age: 18 },
+        AgeInput::Exact { age: 120 },
+        AgeInput::Band { min: 25, max: Some(34) },
+        AgeInput::Band { min: 65, max: None },
+    ] {
         let mut s = base_setup();
-        s.people[0].age = Some(AgeConfirmation { age, confirmed_on: "2026-09-01".into() });
+        s.people[0].age = Some(AgeConfirmation {
+            age,
+            confirmed_on: "2026-09-01".into(),
+        });
         assert!(f.problems(&s).is_empty(), "{age:?}");
     }
 }
@@ -95,9 +133,17 @@ fn exact_ages_and_bands_are_both_accepted_within_the_adult_range() {
 #[test]
 fn out_of_range_or_reversed_ages_are_rejected() {
     let f = Fixture::new();
-    for age in [AgeInput::Exact { age: 17 }, AgeInput::Exact { age: 121 }, AgeInput::Band { min: 40, max: Some(30) }, AgeInput::Band { min: 10, max: Some(30) }] {
+    for age in [
+        AgeInput::Exact { age: 17 },
+        AgeInput::Exact { age: 121 },
+        AgeInput::Band { min: 40, max: Some(30) },
+        AgeInput::Band { min: 10, max: Some(30) },
+    ] {
         let mut s = base_setup();
-        s.people[0].age = Some(AgeConfirmation { age, confirmed_on: "2026-09-01".into() });
+        s.people[0].age = Some(AgeConfirmation {
+            age,
+            confirmed_on: "2026-09-01".into(),
+        });
         f.assert_rejected(&s, "people[0].age");
     }
 }
@@ -107,7 +153,10 @@ fn an_age_confirmed_in_the_future_or_with_a_bad_date_is_rejected() {
     let f = Fixture::new();
     for date in ["2026-10-01", "not a date", "2026-13-01", ""] {
         let mut s = base_setup();
-        s.people[0].age = Some(AgeConfirmation { age: AgeInput::Exact { age: 42 }, confirmed_on: date.into() });
+        s.people[0].age = Some(AgeConfirmation {
+            age: AgeInput::Exact { age: 42 },
+            confirmed_on: date.into(),
+        });
         f.assert_rejected(&s, "people[0].age");
     }
 }
@@ -116,10 +165,18 @@ fn an_age_confirmed_in_the_future_or_with_a_bad_date_is_rejected() {
 fn people_must_be_unique_and_real() {
     let f = Fixture::new();
     let mut dup = base_setup();
-    dup.people.push(PersonSetup { person: PersonRef::Owner, age: None, in_household: true });
+    dup.people.push(PersonSetup {
+        person: PersonRef::Owner,
+        age: None,
+        in_household: true,
+    });
     f.assert_rejected(&dup, "people");
     let mut ghost = base_setup();
-    ghost.people.push(PersonSetup { person: person(99), age: None, in_household: true });
+    ghost.people.push(PersonSetup {
+        person: person(99),
+        age: None,
+        in_household: true,
+    });
     f.assert_rejected(&ghost, "people[3].person");
 }
 
@@ -172,8 +229,14 @@ fn inactive_per_person_income_is_kept_alongside_the_household_total() {
     s.income.household_method = HouseholdIncomeMethod::Total;
     s.income.household_total = Some(amount("120000"));
     s.income.per_person = vec![
-        PersonIncome { person: PersonRef::Owner, gross_annual: amount("70000") },
-        PersonIncome { person: person(7), gross_annual: amount("50000") },
+        PersonIncome {
+            person: PersonRef::Owner,
+            gross_annual: amount("70000"),
+        },
+        PersonIncome {
+            person: person(7),
+            gross_annual: amount("50000"),
+        },
     ];
     assert!(f.problems(&s).is_empty());
 }
@@ -182,12 +245,21 @@ fn inactive_per_person_income_is_kept_alongside_the_household_total() {
 fn per_person_income_needs_a_listed_unique_person() {
     let f = Fixture::new();
     let mut s = base_setup();
-    s.income.per_person = vec![PersonIncome { person: person(99), gross_annual: amount("1") }];
+    s.income.per_person = vec![PersonIncome {
+        person: person(99),
+        gross_annual: amount("1"),
+    }];
     f.assert_rejected(&s, "income.perPerson[0].person");
     let mut dup = base_setup();
     dup.income.per_person = vec![
-        PersonIncome { person: PersonRef::Owner, gross_annual: amount("1") },
-        PersonIncome { person: PersonRef::Owner, gross_annual: amount("2") },
+        PersonIncome {
+            person: PersonRef::Owner,
+            gross_annual: amount("1"),
+        },
+        PersonIncome {
+            person: PersonRef::Owner,
+            gross_annual: amount("2"),
+        },
     ];
     f.assert_rejected(&dup, "income.perPerson");
 }
@@ -196,17 +268,29 @@ fn per_person_income_needs_a_listed_unique_person() {
 fn spending_rules() {
     let f = Fixture::new();
     let mut ok = base_setup();
-    ok.spending.period = Some(SpendingPeriod { from: "2025-09-01".into(), to: "2026-08-31".into() });
+    ok.spending.period = Some(SpendingPeriod {
+        from: "2025-09-01".into(),
+        to: "2026-08-31".into(),
+    });
     ok.spending.account_ids = vec![1, 2];
     ok.spending.manual_annual = Some(amount("48000"));
-    ok.spending.category_mappings = vec![CategoryMapping { category: "Groceries".into(), component: "food".into() }];
+    ok.spending.category_mappings = vec![CategoryMapping {
+        category: "Groceries".into(),
+        component: "food".into(),
+    }];
     assert!(f.problems(&ok).is_empty());
 
     let mut reversed = ok.clone();
-    reversed.spending.period = Some(SpendingPeriod { from: "2026-08-31".into(), to: "2025-09-01".into() });
+    reversed.spending.period = Some(SpendingPeriod {
+        from: "2026-08-31".into(),
+        to: "2025-09-01".into(),
+    });
     f.assert_rejected(&reversed, "spending.period");
     let mut future = ok.clone();
-    future.spending.period = Some(SpendingPeriod { from: "2026-01-01".into(), to: "2026-12-31".into() });
+    future.spending.period = Some(SpendingPeriod {
+        from: "2026-01-01".into(),
+        to: "2026-12-31".into(),
+    });
     f.assert_rejected(&future, "spending.period");
     let mut negative = ok.clone();
     negative.spending.manual_annual = Some(amount("-1"));
@@ -215,12 +299,19 @@ fn spending_rules() {
     ghost.spending.account_ids = vec![1, 404];
     f.assert_rejected(&ghost, "spending.accountIds");
     let mut dup = ok.clone();
-    dup.spending.category_mappings.push(CategoryMapping { category: "groceries".into(), component: "other".into() });
+    dup.spending.category_mappings.push(CategoryMapping {
+        category: "groceries".into(),
+        component: "other".into(),
+    });
     f.assert_rejected(&dup, "spending.categoryMappings");
 }
 
 fn alloc(source: SourceRef, who: PersonRef, bp: u32) -> Allocation {
-    Allocation { source, person: who, basis_points: bp }
+    Allocation {
+        source,
+        person: who,
+        basis_points: bp,
+    }
 }
 
 #[test]
@@ -274,19 +365,31 @@ fn an_account_and_an_asset_with_the_same_number_do_not_collide() {
 fn debt_classification_and_exclusions_apply_to_accounts_only() {
     let f = Fixture::new();
     let mut s = base_setup();
-    s.debt_classes = vec![DebtClassification { source: SourceRef::Account { id: 1 }, class: DebtClass::Mortgage }];
+    s.debt_classes = vec![DebtClassification {
+        source: SourceRef::Account { id: 1 },
+        class: DebtClass::Mortgage,
+    }];
     s.debt_exclusions = vec![SourceRef::Account { id: 2 }];
     assert!(f.problems(&s).is_empty());
     let mut asset = base_setup();
-    asset.debt_classes = vec![DebtClassification { source: SourceRef::Asset { id: 5 }, class: DebtClass::Other }];
+    asset.debt_classes = vec![DebtClassification {
+        source: SourceRef::Asset { id: 5 },
+        class: DebtClass::Other,
+    }];
     f.assert_rejected(&asset, "debtClasses[0].source");
     let mut ghost = base_setup();
     ghost.debt_exclusions = vec![SourceRef::Account { id: 404 }];
     f.assert_rejected(&ghost, "debtExclusions[0]");
     let mut dup = base_setup();
     dup.debt_classes = vec![
-        DebtClassification { source: SourceRef::Account { id: 1 }, class: DebtClass::Mortgage },
-        DebtClassification { source: SourceRef::Account { id: 1 }, class: DebtClass::CreditCard },
+        DebtClassification {
+            source: SourceRef::Account { id: 1 },
+            class: DebtClass::Mortgage,
+        },
+        DebtClassification {
+            source: SourceRef::Account { id: 1 },
+            class: DebtClass::CreditCard,
+        },
     ];
     f.assert_rejected(&dup, "debtClasses");
 }
@@ -296,11 +399,20 @@ fn investment_classes_cover_accounts_and_assets_once_each() {
     let f = Fixture::new();
     let mut s = base_setup();
     s.investment_classes = vec![
-        InvestmentClassification { source: SourceRef::Account { id: 1 }, class: InvestmentClass::Retirement },
-        InvestmentClassification { source: SourceRef::Asset { id: 5 }, class: InvestmentClass::Exclude },
+        InvestmentClassification {
+            source: SourceRef::Account { id: 1 },
+            class: InvestmentClass::Retirement,
+        },
+        InvestmentClassification {
+            source: SourceRef::Asset { id: 5 },
+            class: InvestmentClass::Exclude,
+        },
     ];
     assert!(f.problems(&s).is_empty());
-    s.investment_classes.push(InvestmentClassification { source: SourceRef::Account { id: 1 }, class: InvestmentClass::Taxable });
+    s.investment_classes.push(InvestmentClassification {
+        source: SourceRef::Account { id: 1 },
+        class: InvestmentClass::Taxable,
+    });
     f.assert_rejected(&s, "investmentClasses");
 }
 
@@ -308,20 +420,33 @@ fn investment_classes_cover_accounts_and_assets_once_each() {
 fn savings_overrides_reference_real_unique_accounts() {
     let f = Fixture::new();
     let mut s = base_setup();
-    s.savings_overrides = vec![SavingsOverride { source: SourceRef::Account { id: 1 }, include: true }];
+    s.savings_overrides = vec![SavingsOverride {
+        source: SourceRef::Account { id: 1 },
+        include: true,
+    }];
     assert!(f.problems(&s).is_empty());
-    s.savings_overrides.push(SavingsOverride { source: SourceRef::Account { id: 1 }, include: false });
+    s.savings_overrides.push(SavingsOverride {
+        source: SourceRef::Account { id: 1 },
+        include: false,
+    });
     f.assert_rejected(&s, "savingsOverrides");
 }
 
 #[test]
 fn cohort_choices_must_name_a_published_household_cohort_for_that_metric() {
     let f = Fixture::new();
-    let choice = |metric, id: &str| CohortChoice { metric, reference_id: id.into() };
+    let choice = |metric, id: &str| CohortChoice {
+        metric,
+        reference_id: id.into(),
+    };
     let mut ok = base_setup();
     ok.cohort_choices = vec![choice(MetricId::Income, "h25")];
     assert!(f.problems(&ok).is_empty());
-    for bad in [choice(MetricId::Income, "gone"), choice(MetricId::Income, "i25"), choice(MetricId::Debt, "h25")] {
+    for bad in [
+        choice(MetricId::Income, "gone"),
+        choice(MetricId::Income, "i25"),
+        choice(MetricId::Debt, "h25"),
+    ] {
         let mut s = base_setup();
         s.cohort_choices = vec![bad];
         f.assert_rejected(&s, "cohortChoices[0]");
@@ -335,9 +460,15 @@ fn cohort_choices_must_name_a_published_household_cohort_for_that_metric() {
 fn universe_preferences_are_unique_per_metric() {
     let f = Fixture::new();
     let mut s = base_setup();
-    s.universe_preferences = vec![UniversePreference { metric: MetricId::Savings, universe: Universe::Holders }];
+    s.universe_preferences = vec![UniversePreference {
+        metric: MetricId::Savings,
+        universe: Universe::Holders,
+    }];
     assert!(f.problems(&s).is_empty());
-    s.universe_preferences.push(UniversePreference { metric: MetricId::Savings, universe: Universe::All });
+    s.universe_preferences.push(UniversePreference {
+        metric: MetricId::Savings,
+        universe: Universe::All,
+    });
     f.assert_rejected(&s, "universePreferences");
 }
 
@@ -346,11 +477,7 @@ fn manual_overrides_follow_each_metrics_sign_rules_and_are_unique() {
     let f = Fixture::new();
     let ov = |metric, v: &str| ManualOverride { metric, amount: amount(v) };
     let mut ok = base_setup();
-    ok.manual_overrides = vec![
-        ov(MetricId::Income, "-500"),
-        ov(MetricId::Savings, "-20"),
-        ov(MetricId::Debt, "0"),
-    ];
+    ok.manual_overrides = vec![ov(MetricId::Income, "-500"), ov(MetricId::Savings, "-20"), ov(MetricId::Debt, "0")];
     assert!(f.problems(&ok).is_empty());
     for metric in [MetricId::Debt, MetricId::Investments, MetricId::Spending] {
         let mut s = base_setup();
@@ -366,12 +493,21 @@ fn manual_overrides_follow_each_metrics_sign_rules_and_are_unique() {
 fn balance_confirmations_are_dated_and_unique_per_metric() {
     let f = Fixture::new();
     let mut s = base_setup();
-    s.balance_confirmations = vec![BalanceConfirmation { metric: MetricId::Savings, confirmed_on: "2026-09-30".into() }];
+    s.balance_confirmations = vec![BalanceConfirmation {
+        metric: MetricId::Savings,
+        confirmed_on: "2026-09-30".into(),
+    }];
     assert!(f.problems(&s).is_empty());
-    s.balance_confirmations.push(BalanceConfirmation { metric: MetricId::Savings, confirmed_on: "2026-09-29".into() });
+    s.balance_confirmations.push(BalanceConfirmation {
+        metric: MetricId::Savings,
+        confirmed_on: "2026-09-29".into(),
+    });
     f.assert_rejected(&s, "balanceConfirmations");
     let mut future = base_setup();
-    future.balance_confirmations = vec![BalanceConfirmation { metric: MetricId::Debt, confirmed_on: "2027-01-01".into() }];
+    future.balance_confirmations = vec![BalanceConfirmation {
+        metric: MetricId::Debt,
+        confirmed_on: "2027-01-01".into(),
+    }];
     f.assert_rejected(&future, "balanceConfirmations[0]");
 }
 
@@ -381,7 +517,10 @@ fn a_missing_benchmark_package_only_blocks_cohort_choices() {
     let ctx = SetupContext { package: None, ..f.ctx() };
     assert!(validate_setup(&base_setup(), &ctx).is_empty());
     let mut s = base_setup();
-    s.cohort_choices = vec![CohortChoice { metric: MetricId::Income, reference_id: "h25".into() }];
+    s.cohort_choices = vec![CohortChoice {
+        metric: MetricId::Income,
+        reference_id: "h25".into(),
+    }];
     assert!(!validate_setup(&s, &ctx).is_empty());
 }
 
@@ -389,7 +528,10 @@ fn a_missing_benchmark_package_only_blocks_cohort_choices() {
 fn many_problems_are_all_reported_together() {
     let f = Fixture::new();
     let mut s = base_setup();
-    s.people[0].age = Some(AgeConfirmation { age: AgeInput::Exact { age: 5 }, confirmed_on: "2026-09-01".into() });
+    s.people[0].age = Some(AgeConfirmation {
+        age: AgeInput::Exact { age: 5 },
+        confirmed_on: "2026-09-01".into(),
+    });
     s.spending.account_ids = vec![404];
     s.allocations = vec![alloc(SourceRef::Account { id: 404 }, PersonRef::Owner, 100)];
     assert!(validate_setup(&s, &f.ctx()).len() >= 3);
@@ -399,8 +541,14 @@ fn many_problems_are_all_reported_together() {
 fn repairs_report_deleted_people_and_sources_without_changing_the_setup() {
     let mut f = Fixture::new();
     let mut s = base_setup();
-    s.income.per_person = vec![PersonIncome { person: person(7), gross_annual: amount("1000") }];
-    s.allocations = vec![alloc(SourceRef::Account { id: 1 }, person(7), 5000), alloc(SourceRef::Asset { id: 5 }, PersonRef::Owner, 5000)];
+    s.income.per_person = vec![PersonIncome {
+        person: person(7),
+        gross_annual: amount("1000"),
+    }];
+    s.allocations = vec![
+        alloc(SourceRef::Account { id: 1 }, person(7), 5000),
+        alloc(SourceRef::Asset { id: 5 }, PersonRef::Owner, 5000),
+    ];
     s.spending.account_ids = vec![2];
     s.debt_exclusions = vec![SourceRef::Account { id: 1 }];
     assert!(find_repairs(&s, &f.ctx()).is_empty());
@@ -411,12 +559,32 @@ fn repairs_report_deleted_people_and_sources_without_changing_the_setup() {
     let before = s.clone();
     let repairs = find_repairs(&s, &f.ctx());
     assert_eq!(s, before);
-    assert!(repairs.contains(&Repair::MissingPerson { field: "people[1].person".into(), person: person(7) }));
-    assert!(repairs.contains(&Repair::MissingPerson { field: "income.perPerson[0].person".into(), person: person(7) }));
-    assert!(repairs.contains(&Repair::MissingSource { field: "allocations[0].source".into(), source: SourceRef::Account { id: 1 } }));
-    assert!(repairs.contains(&Repair::MissingSource { field: "allocations[1].source".into(), source: SourceRef::Asset { id: 5 } }));
-    assert!(repairs.contains(&Repair::MissingSource { field: "debtExclusions[0]".into(), source: SourceRef::Account { id: 1 } }));
-    assert!(!repairs.iter().any(|r| matches!(r, Repair::MissingSource { field, .. } if field.starts_with("spending"))), "account 2 still exists");
+    assert!(repairs.contains(&Repair::MissingPerson {
+        field: "people[1].person".into(),
+        person: person(7)
+    }));
+    assert!(repairs.contains(&Repair::MissingPerson {
+        field: "income.perPerson[0].person".into(),
+        person: person(7)
+    }));
+    assert!(repairs.contains(&Repair::MissingSource {
+        field: "allocations[0].source".into(),
+        source: SourceRef::Account { id: 1 }
+    }));
+    assert!(repairs.contains(&Repair::MissingSource {
+        field: "allocations[1].source".into(),
+        source: SourceRef::Asset { id: 5 }
+    }));
+    assert!(repairs.contains(&Repair::MissingSource {
+        field: "debtExclusions[0]".into(),
+        source: SourceRef::Account { id: 1 }
+    }));
+    assert!(
+        !repairs
+            .iter()
+            .any(|r| matches!(r, Repair::MissingSource { field, .. } if field.starts_with("spending"))),
+        "account 2 still exists"
+    );
 }
 
 #[test]
@@ -424,7 +592,10 @@ fn a_stored_setup_with_a_deleted_reference_is_not_silently_valid() {
     let mut f = Fixture::new();
     let s = base_setup();
     f.members.remove(&7);
-    assert!(!validate_setup(&s, &f.ctx()).is_empty(), "no resurrection of deleted members through a stale save");
+    assert!(
+        !validate_setup(&s, &f.ctx()).is_empty(),
+        "no resurrection of deleted members through a stale save"
+    );
 }
 
 #[test]
@@ -441,7 +612,10 @@ fn setup_json_is_strict() {
     })
     .unwrap();
     float_money["income"]["householdTotal"]["value"] = json!(1.5);
-    assert!(serde_json::from_value::<ComparisonSetup>(float_money).is_err(), "money must be a decimal string");
+    assert!(
+        serde_json::from_value::<ComparisonSetup>(float_money).is_err(),
+        "money must be a decimal string"
+    );
     let mut bad_enum = good;
     bad_enum["mode"] = json!("galactic");
     assert!(serde_json::from_value::<ComparisonSetup>(bad_enum).is_err());

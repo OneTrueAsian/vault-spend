@@ -9,7 +9,21 @@ import "./InfoTip.css";
  * itself at the same text. Drawn in the top layer (a popover) so a scrolling dialog cannot clip it, placed
  * under the button the way MenuSelect places its menu.
  */
-export function InfoTip({ label, text, id }: { label: string; text: string; id?: string }) {
+export function InfoTip({
+  label,
+  text,
+  id,
+  glyph = "i",
+  buttonClassName,
+}: {
+  label: string;
+  text: string;
+  id?: string;
+  /** The symbol on the button ("i" by default; the ledger's warnings use ⚠ and ⧉). */
+  glyph?: string;
+  /** Extra classes for the button, for a different look than the round "i". */
+  buttonClassName?: string;
+}) {
   const ownId = useId();
   const tipId = id ?? ownId;
   const [hovered, setHovered] = useState(false);
@@ -59,7 +73,7 @@ export function InfoTip({ label, text, id }: { label: string; text: string; id?:
       <button
         ref={buttonRef}
         type="button"
-        className="info-tip-button"
+        className={buttonClassName ? `info-tip-button ${buttonClassName}` : "info-tip-button"}
         aria-label={`About ${label}`}
         aria-describedby={tipId}
         aria-expanded={open}
@@ -87,7 +101,7 @@ export function InfoTip({ label, text, id }: { label: string; text: string; id?:
           }
         }}
       >
-        <span aria-hidden="true">i</span>
+        <span aria-hidden="true">{glyph}</span>
       </button>
       <span ref={tipRef} id={tipId} role="tooltip" popover="manual" className="info-tip-text" data-open={open}>
         {text}

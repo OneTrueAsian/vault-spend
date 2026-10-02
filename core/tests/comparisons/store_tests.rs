@@ -52,7 +52,10 @@ fn saving_round_trips_and_advances_the_revision() {
     assert_eq!(first.setup.as_ref(), Some(&setup));
     assert_eq!(store.get_comparison_setup().unwrap().setup, Some(setup.clone()));
 
-    setup.people[0].age = Some(AgeConfirmation { age: AgeInput::Band { min: 25, max: Some(34) }, confirmed_on: "2026-09-30".into() });
+    setup.people[0].age = Some(AgeConfirmation {
+        age: AgeInput::Band { min: 25, max: Some(34) },
+        confirmed_on: "2026-09-30".into(),
+    });
     assert_eq!(save(&store, 1, &setup).unwrap().revision, 2);
     assert_eq!(store.get_comparison_setup().unwrap().setup, Some(setup));
 }
@@ -79,7 +82,10 @@ fn an_invalid_setup_is_refused_and_leaves_the_previous_revision_untouched() {
     let good = setup_for(partner, roommate);
     save(&store, 0, &good).unwrap();
     let mut bad = good.clone();
-    bad.people[0].age = Some(AgeConfirmation { age: AgeInput::Exact { age: 3 }, confirmed_on: "2026-09-01".into() });
+    bad.people[0].age = Some(AgeConfirmation {
+        age: AgeInput::Exact { age: 3 },
+        confirmed_on: "2026-09-01".into(),
+    });
     match save(&store, 1, &bad) {
         Err(ComparisonSetupError::Invalid(problems)) => assert!(problems.iter().any(|p| p.field == "people[0].age"), "{problems:?}"),
         other => panic!("{other:?}"),
@@ -101,11 +107,21 @@ fn the_first_save_must_expect_revision_zero() {
 fn references_are_checked_against_real_accounts_assets_and_members() {
     let (store, partner, roommate) = store_with_people();
     let account = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
-    let asset = store.create_asset("Car", "vehicle", Decimal::from(9000), NaiveDate::from_ymd_opt(2026, 9, 1).unwrap(), None).unwrap();
+    let asset = store
+        .create_asset("Car", "vehicle", Decimal::from(9000), NaiveDate::from_ymd_opt(2026, 9, 1).unwrap(), None)
+        .unwrap();
     let mut s = setup_for(partner, roommate);
     s.allocations = vec![
-        Allocation { source: SourceRef::Account { id: account }, person: PersonRef::Owner, basis_points: 6000 },
-        Allocation { source: SourceRef::Asset { id: asset }, person: person(partner), basis_points: 10000 },
+        Allocation {
+            source: SourceRef::Account { id: account },
+            person: PersonRef::Owner,
+            basis_points: 6000,
+        },
+        Allocation {
+            source: SourceRef::Asset { id: asset },
+            person: person(partner),
+            basis_points: 10000,
+        },
     ];
     s.spending.account_ids = vec![account];
     assert!(save(&store, 0, &s).is_ok());
@@ -123,7 +139,10 @@ fn cohort_choices_are_checked_against_the_bundled_package() {
         metric: MetricId::Income,
         reference_id: "cps_hinc02_money_income_median:25-29".into(),
     }];
-    s.universe_preferences = vec![UniversePreference { metric: MetricId::Savings, universe: Universe::Holders }];
+    s.universe_preferences = vec![UniversePreference {
+        metric: MetricId::Savings,
+        universe: Universe::Holders,
+    }];
     assert!(save(&store, 0, &s).is_ok());
     s.cohort_choices[0].reference_id = "retired:25-29".into();
     assert!(matches!(save(&store, 1, &s), Err(ComparisonSetupError::Invalid(_))));
@@ -133,13 +152,19 @@ fn cohort_choices_are_checked_against_the_bundled_package() {
 fn deleting_a_member_leaves_the_setup_alone_and_reports_a_repair() {
     let (store, partner, roommate) = store_with_people();
     let mut s = setup_for(partner, roommate);
-    s.income.per_person = vec![PersonIncome { person: person(partner), gross_annual: amount("50000") }];
+    s.income.per_person = vec![PersonIncome {
+        person: person(partner),
+        gross_annual: amount("50000"),
+    }];
     save(&store, 0, &s).unwrap();
     store.delete_family_member(partner).unwrap();
 
     let stored = store.get_comparison_setup().unwrap();
     assert_eq!(stored.setup, Some(s.clone()), "nothing is reassigned to anyone else");
-    assert!(stored.repairs.contains(&Repair::MissingPerson { field: "income.perPerson[0].person".into(), person: person(partner) }));
+    assert!(stored.repairs.contains(&Repair::MissingPerson {
+        field: "income.perPerson[0].person".into(),
+        person: person(partner)
+    }));
     // The stale setup cannot be saved back: no resurrection of a deleted member.
     assert!(matches!(save(&store, 1, &s), Err(ComparisonSetupError::Invalid(_))));
 }
@@ -155,7 +180,13 @@ fn deleting_an_account_reports_only_the_dependent_inputs() {
     save(&store, 0, &s).unwrap();
     store.delete_account(old_card).unwrap();
     let repairs = store.get_comparison_setup().unwrap().repairs;
-    assert_eq!(repairs, vec![Repair::MissingSource { field: "debtExclusions[0]".into(), source: SourceRef::Account { id: old_card } }]);
+    assert_eq!(
+        repairs,
+        vec![Repair::MissingSource {
+            field: "debtExclusions[0]".into(),
+            source: SourceRef::Account { id: old_card }
+        }]
+    );
 }
 
 #[test]
@@ -254,7 +285,10 @@ fn a_stored_setup_from_a_newer_app_is_reported_not_misread() {
         .unwrap();
     }
     let store = Store::open(&path).unwrap();
-    assert!(matches!(store.get_comparison_setup(), Err(ComparisonSetupError::Unsupported { found: 99 })));
+    assert!(matches!(
+        store.get_comparison_setup(),
+        Err(ComparisonSetupError::Unsupported { found: 99 })
+    ));
 }
 
 #[test]
@@ -292,7 +326,10 @@ fn an_oversized_payload_is_refused() {
     let (store, partner, roommate) = store_with_people();
     let mut s = setup_for(partner, roommate);
     s.spending.category_mappings = (0..3000)
-        .map(|i| CategoryMapping { category: format!("Category number {i} with a fairly long descriptive name"), component: "food".into() })
+        .map(|i| CategoryMapping {
+            category: format!("Category number {i} with a fairly long descriptive name"),
+            component: "food".into(),
+        })
         .collect();
     assert!(matches!(save(&store, 0, &s), Err(ComparisonSetupError::Invalid(_))));
     assert_eq!(store.get_comparison_setup().unwrap().revision, 0);
@@ -347,7 +384,10 @@ fn a_version_1_setup_saved_in_one_person_mode_loads_as_a_household_setup() {
     assert_eq!(setup.manual_overrides[0].metric, MetricId::Savings);
     assert_eq!(
         setup.cohort_choices,
-        vec![CohortChoice { metric: MetricId::Income, reference_id: "cps_hinc02_money_income_median:40-44".into() }]
+        vec![CohortChoice {
+            metric: MetricId::Income,
+            reference_id: "cps_hinc02_money_income_median:40-44".into()
+        }]
     );
 }
 
@@ -382,6 +422,14 @@ fn a_version_1_one_person_setup_keeps_its_age_person_and_income() {
         .unwrap();
     }
     let setup = Store::open(&path).unwrap().get_comparison_setup().unwrap().setup.unwrap();
-    assert_eq!(setup.household_reference_person, Some(PersonRef::Owner), "the compared person's age is used for the household");
-    assert_eq!(setup.income.household_method, HouseholdIncomeMethod::ByPerson, "their typed income still counts");
+    assert_eq!(
+        setup.household_reference_person,
+        Some(PersonRef::Owner),
+        "the compared person's age is used for the household"
+    );
+    assert_eq!(
+        setup.income.household_method,
+        HouseholdIncomeMethod::ByPerson,
+        "their typed income still counts"
+    );
 }

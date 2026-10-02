@@ -1,13 +1,11 @@
 //! Turns the saved setup, a local snapshot and the benchmark package into the five comparison
 //! cards the page shows. One call, one snapshot: the cards can never describe different moments.
-use super::cohort::{match_cohort, CohortMatch};
-use super::engine::{compare, CardQuery, LocalMeasure};
-use super::metrics::{compute_metrics, MetricComputation, Origin, Snapshot};
+use super::cohort::{CohortMatch, match_cohort};
+use super::engine::{CardQuery, LocalMeasure, compare};
+use super::metrics::{MetricComputation, Origin, Snapshot, compute_metrics};
 use super::package::Package;
 use super::setup::{ComparisonSetup, HouseholdIncomeMethod, PersonRef};
-use super::types::{
-    AgeInput, CardStatus, Completeness, ComparisonCardResult, ComparisonMode, MetricId, Reference, Unit, Universe,
-};
+use super::types::{AgeInput, CardStatus, ComparisonCardResult, ComparisonMode, Completeness, MetricId, Reference, Unit, Universe};
 use rust_decimal::Decimal;
 use serde::Serialize;
 
@@ -89,7 +87,12 @@ fn subject_age(setup: &ComparisonSetup) -> Option<AgeInput> {
 }
 
 fn local_measure(m: &MetricComputation) -> LocalMeasure {
-    LocalMeasure { value: m.value, unit: m.unit, holds_item: m.holds_item, completeness: m.completeness }
+    LocalMeasure {
+        value: m.value,
+        unit: m.unit,
+        holds_item: m.holds_item,
+        completeness: m.completeness,
+    }
 }
 
 fn preference(setup: &ComparisonSetup, metric: MetricId) -> Option<Universe> {
@@ -102,31 +105,57 @@ fn cohort_choice(setup: &ComparisonSetup, metric: MetricId) -> Option<&str> {
 
 fn universe_options(pkg: &Package, metric: MetricId, definition: Option<&str>) -> Vec<Universe> {
     let Some(definition) = definition else { return Vec::new() };
-    let mut out: Vec<Universe> = pkg.references(metric, ComparisonMode::Household).filter(|r| r.definition_id == definition).map(|r| r.universe).collect();
+    let mut out: Vec<Universe> = pkg
+        .references(metric, ComparisonMode::Household)
+        .filter(|r| r.definition_id == definition)
+        .map(|r| r.universe)
+        .collect();
     out.sort();
     out.dedup();
     out
 }
 
-fn cohort_options(pkg: &Package, setup: &ComparisonSetup, metric: MetricId, definition: Option<&str>, chosen_universe: Option<Universe>) -> Vec<CohortOption> {
-    let (Some(definition), Some(age)) = (definition, subject_age(setup)) else { return Vec::new() };
+fn cohort_options(
+    pkg: &Package,
+    setup: &ComparisonSetup,
+    metric: MetricId,
+    definition: Option<&str>,
+    chosen_universe: Option<Universe>,
+) -> Vec<CohortOption> {
+    let (Some(definition), Some(age)) = (definition, subject_age(setup)) else {
+        return Vec::new();
+    };
     let universe = chosen_universe.or(preference(setup, metric)).unwrap_or(Universe::All);
     let mut candidates: Vec<&Reference> = pkg
         .references(metric, ComparisonMode::Household)
         .filter(|r| r.definition_id == definition && r.universe == universe)
         .collect();
     if candidates.is_empty() {
-        candidates = pkg.references(metric, ComparisonMode::Household).filter(|r| r.definition_id == definition).collect();
+        candidates = pkg
+            .references(metric, ComparisonMode::Household)
+            .filter(|r| r.definition_id == definition)
+            .collect();
     }
     match match_cohort(&candidates, age) {
-        CohortMatch::ChoiceRequired { options, .. } => options.iter().map(|r| CohortOption { id: r.id.clone(), age_min: r.age_min, age_max: r.age_max }).collect(),
+        CohortMatch::ChoiceRequired { options, .. } => options
+            .iter()
+            .map(|r| CohortOption {
+                id: r.id.clone(),
+                age_min: r.age_min,
+                age_max: r.age_max,
+            })
+            .collect(),
         _ if matches!(age, AgeInput::Band { .. }) => {
             let (lo, hi) = age.span();
             let hi = hi.map_or(u64::MAX, u64::from);
             let overlapping: Vec<CohortOption> = candidates
                 .iter()
                 .filter(|r| u64::from(r.age_min) <= hi && u64::from(lo) <= r.age_max.map_or(u64::MAX, u64::from))
-                .map(|r| CohortOption { id: r.id.clone(), age_min: r.age_min, age_max: r.age_max })
+                .map(|r| CohortOption {
+                    id: r.id.clone(),
+                    age_min: r.age_min,
+                    age_max: r.age_max,
+                })
                 .collect();
             if overlapping.len() > 1 { overlapping } else { Vec::new() }
         }
@@ -212,8 +241,18 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
                     let mut local = local_measure(&metric);
                     local.value = Some(total);
                     local.holds_item = true;
-                    let q = CardQuery { definition_id: Some(def), local, selected_cohort: None, ..query.clone() };
-                    secondary.push(SecondaryCard { label: (*label).into(), definition_id: (*def).into(), person: None, result: compare(pkg, &q) });
+                    let q = CardQuery {
+                        definition_id: Some(def),
+                        local,
+                        selected_cohort: None,
+                        ..query.clone()
+                    };
+                    secondary.push(SecondaryCard {
+                        label: (*label).into(),
+                        definition_id: (*def).into(),
+                        person: None,
+                        result: compare(pkg, &q),
+                    });
                 }
             }
 
@@ -225,7 +264,10 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
             CardView {
                 // The Income card also stays reachable while the household figure waits on details but
                 // someone's own income can already be compared in its Explore view.
-                visible: is_visible(&result) || secondary.iter().any(|s| s.person.is_some() && s.result.status != CardStatus::MissingInput),
+                visible: is_visible(&result)
+                    || secondary
+                        .iter()
+                        .any(|s| s.person.is_some() && s.result.status != CardStatus::MissingInput),
                 definition_id: definition.map(String::from),
                 universe_options: universe_options(pkg, id, definition),
                 cohort_options: cohort_options(pkg, setup, id, definition, chosen_universe),
@@ -239,5 +281,8 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
             }
         })
         .collect();
-    ComparisonsReport { package_version: pkg.package_version().to_string(), cards }
+    ComparisonsReport {
+        package_version: pkg.package_version().to_string(),
+        cards,
+    }
 }

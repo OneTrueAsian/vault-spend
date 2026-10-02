@@ -124,7 +124,7 @@ function SuggestedRecurringSection({
         <span className="reports-section-title">Suggested</span>
       </div>
       <p className="modal-message-secondary">
-        Detected from your transactions — a merchant and amount that's repeated on a consistent schedule but isn't tracked
+        Detected from your transactions — a merchant and amount that's repeated on a consistent schedule but isn't on your list
         here yet.
       </p>
       {candidates.map((c) => (
@@ -550,7 +550,7 @@ export function RecurringView({
         </div>
         <div className="stat tint-blue">
           <span className="stat-value">{formatAmount(totals.monthly_income)}</span>
-          <span className="stat-label">Recurring income (est.)</span>
+          <span className="stat-label">Monthly recurring income (est.)</span>
         </div>
         <div className="stat tint-red">
           <span className="stat-value">{formatAmount(totals.annual_expense)}</span>
@@ -677,7 +677,7 @@ export function RecurringView({
             <th>Next due</th>
             <th className="amount-col">Amount</th>
             <th>Status</th>
-            <th className="actions-col"></th>
+            <th className="actions-col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>

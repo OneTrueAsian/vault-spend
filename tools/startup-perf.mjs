@@ -90,6 +90,23 @@ try {
   });
   console.log("startup reads with main-thread pings:", JSON.stringify(responsiveness));
 
+  // What the page re-reads after an edit: the whole-ledger refresh() vs refreshRows() for one row.
+  const afterEdit = await browser.executeAsync((done) => {
+    const invoke = window.__TAURI_INTERNALS__.invoke;
+    const time = async (calls) => {
+      const started = performance.now();
+      await Promise.all(calls.map(([cmd, args]) => invoke(cmd, args)));
+      return Math.round(performance.now() - started);
+    };
+    const common = [["get_stats"], ["list_accounts"], ["list_categories"], ["list_anomaly_flags"], ["list_all_tags"]];
+    invoke("list_transactions").then(async (rows) => {
+      const full = await time([["list_transactions"], ["list_categories_with_icons"], ["list_family_members"], ...common]);
+      const oneRow = await time([["list_transactions_by_ids", { ids: [rows[0].id] }], ...common]);
+      done({ fullRefreshMs: full, oneRowRefreshMs: oneRow });
+    }, (e) => done({ error: String(e) }));
+  });
+  console.log("re-read after an edit:", JSON.stringify(afterEdit));
+
   for (const tab of ["Transactions", "Dashboard"]) {
     const started = await browser.execute((label) => {
       [...document.querySelectorAll("nav button")].find((b) => b.textContent.trim() === label).click();

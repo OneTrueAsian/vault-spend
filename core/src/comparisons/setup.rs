@@ -2,11 +2,11 @@
 //! confirmed by hand, and how their accounts map onto each comparison. It is a strict, versioned
 //! domain type (not free-form JSON) stored inside the profile database, so it is encrypted,
 //! backed up and restored with the rest of the profile and never leaves the device.
-use super::types::{money_str, AgeInput, MetricId, Universe};
+use super::types::{AgeInput, MetricId, Universe, money_str};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-pub use super::validation::{find_repairs, validate_setup, SetupContext};
+pub use super::validation::{SetupContext, find_repairs, validate_setup};
 
 pub const SETUP_FORMAT_VERSION: u32 = 2;
 /// Upper bound on the stored payload, so a bug or hostile import cannot bloat the profile.
@@ -217,7 +217,11 @@ impl ComparisonSetup {
             format_version: SETUP_FORMAT_VERSION,
             household_reference_person: None,
             people: Vec::new(),
-            income: IncomeSetup { household_method: HouseholdIncomeMethod::Total, household_total: None, per_person: Vec::new() },
+            income: IncomeSetup {
+                household_method: HouseholdIncomeMethod::Total,
+                household_total: None,
+                per_person: Vec::new(),
+            },
             spending: SpendingSetup {
                 period: None,
                 account_ids: Vec::new(),
@@ -252,7 +256,9 @@ pub fn upgrade_v1_payload(payload: &str) -> serde_json::Result<String> {
             // method; carry both over so the setup still compares the same person and income.
             let in_household = |p: &Value| {
                 o.get("people").and_then(Value::as_array).is_some_and(|people| {
-                    people.iter().any(|e| e.get("person") == Some(p) && e.get("inHousehold") == Some(&Value::Bool(true)))
+                    people
+                        .iter()
+                        .any(|e| e.get("person") == Some(p) && e.get("inHousehold") == Some(&Value::Bool(true)))
                 })
             };
             if let Some(p) = compared

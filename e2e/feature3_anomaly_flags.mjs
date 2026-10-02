@@ -30,9 +30,12 @@ try {
 
   const badge = await app.browser.$(".anomaly-duplicate");
   await badge.waitForExist({ timeout: 10000 });
-  const title = await badge.getAttribute("title");
-  console.log("duplicate badge title:", title);
-  if (!title.includes("duplicate")) throw new Error(`expected title to mention "duplicate", got "${title}"`);
+  // The badge is a focusable button whose reason is linked text, not a hover-only title (QA M6).
+  const reasonId = await badge.getAttribute("aria-describedby");
+  const title = await app.browser.execute((id) => document.getElementById(id)?.textContent ?? "", reasonId);
+  console.log("duplicate badge reason:", title);
+  if (!title.includes("duplicate")) throw new Error(`expected the reason to mention "duplicate", got "${title}"`);
+  if ((await badge.getTagName()) !== "button") throw new Error("expected the badge to be a button keyboard users can reach");
 
   const allBadges = await app.browser.$$(".anomaly-duplicate");
   console.log("duplicate badge count:", allBadges.length);

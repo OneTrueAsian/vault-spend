@@ -188,7 +188,7 @@ try {
   // reflects (it reports the rendered, not literal DOM, text) — compare
   // case-insensitively.
   const panelText = (await detailsPanel.getText()).toLowerCase();
-  for (const label of ["account", "member", "category", "source"]) {
+  for (const label of ["account", "member", "category", "sorted by"]) {
     assert.ok(panelText.includes(label), `expected the Details panel to label its ${label} field`);
   }
 

@@ -91,6 +91,8 @@ import { formatAmount, toLocalIsoDate } from "./format";
 import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
+import { DataLoading } from "./DataLoading";
+import { InfoTip } from "./InfoTip";
 import { ensureUiStateMigrated, getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import type {
   Account,
@@ -140,6 +142,8 @@ import type {
 import "./App.css";
 import "./themes/futuristic.css";
 import { MenuSelect } from "./MenuSelect";
+import { errorMessage } from "./errorMessage";
+import { sumMoney } from "./money";
 
 type ImportSummary = {
   inserted: number;
@@ -205,6 +209,9 @@ type PendingDialog =
   | { kind: "newCategory"; resolve: (name: string | null) => void }
   | { kind: "confirmInvert"; resolve: (invert: boolean) => void; accountName?: string; suggestion?: ImportSignSuggestion }
   | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
+
+/** How a transaction got its category, in words (the backend stores rule / user / classifier). */
+const CATEGORY_SOURCE_LABELS: Record<string, string> = { rule: "Your rule", user: "You", classifier: "Suggested" };
 
 type Tab =
   | "dashboard"
@@ -659,7 +666,7 @@ function App({
       const generation = await getCurrentGeneration();
       await setProfileUiState("show_bill_names_in_reminders", enabled ? "true" : "false", generation);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
   const refreshBackups = useCallback(async () => {
@@ -686,18 +693,18 @@ function App({
   }, []);
 
   useEffect(() => {
-    refreshDataFileLocation().catch((e) => setStatus(String(e)));
-    refreshBackups().catch((e) => setStatus(String(e)));
-    refreshProfiles().catch((e) => setStatus(String(e)));
-    refreshLivePriceSettings().catch((e) => setStatus(String(e)));
-    refreshAppSettings().catch((e) => setStatus(String(e)));
+    refreshDataFileLocation().catch((e) => setStatus(errorMessage(e)));
+    refreshBackups().catch((e) => setStatus(errorMessage(e)));
+    refreshProfiles().catch((e) => setStatus(errorMessage(e)));
+    refreshLivePriceSettings().catch((e) => setStatus(errorMessage(e)));
+    refreshAppSettings().catch((e) => setStatus(errorMessage(e)));
   }, [refreshBackups, refreshProfiles, refreshDataFileLocation, refreshLivePriceSettings, refreshAppSettings]);
 
   const refreshProtectionState = useCallback(async () => {
     try {
       await Promise.all([refreshProfiles(), refreshDataFileLocation(), refreshBackups()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }, [refreshBackups, refreshDataFileLocation, refreshProfiles]);
 
@@ -728,7 +735,7 @@ function App({
         setStatus("Backup created.", "success");
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -738,7 +745,7 @@ function App({
       await refreshBackups();
       setStatus(message, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -755,7 +762,7 @@ function App({
       setBackgroundSettings(settings);
       setStatus(enabled ? "Vault Spend will keep running in the tray and remind you about bills." : "Background reminders are off.", "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -764,7 +771,7 @@ function App({
       await invoke("set_autostart_enabled", { enabled });
       setBackgroundSettings(await invoke<BackgroundSettings>("get_background_settings"));
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -773,7 +780,7 @@ function App({
       await invoke("send_test_reminder");
       setStatus("Sent a test reminder — check your notifications.", "info");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -782,7 +789,7 @@ function App({
       const picked = await open({ directory: true, multiple: false, title: "Choose a folder for the second backup copy" });
       if (typeof picked === "string") await handleSetBackupCopyDir(picked);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -792,7 +799,7 @@ function App({
       await invoke("restore_backup", { filename, password: password ?? null, expectedGeneration });
       onDataFileChanged(`Restored ${filename} — your prior data was backed up first.`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       if (password !== undefined) throw e;
     }
   }
@@ -804,7 +811,7 @@ function App({
       const newPath = await invoke<string>("relocate_data_file", { newDir: dir });
       onDataFileChanged(`Data file moved to ${newPath} — your old file was left in place, untouched.`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -823,7 +830,7 @@ function App({
       await invoke("export_database", { destination: path });
       setStatus(`Exported a copy to ${path}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -832,7 +839,7 @@ function App({
       const created = await invoke<string>("create_profile", { name });
       onDataFileChanged(`Switched to the new "${created}" profile — it starts completely empty.`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -888,7 +895,7 @@ function App({
       setPendingExistingRequiresPassword(false);
       onDataFileChanged(`Switched to "${added}".`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       if (pendingExistingIsProtected || pendingExistingRequiresPassword) throw e;
     }
   }
@@ -903,7 +910,7 @@ function App({
       const switched = await invoke<string>("switch_profile", { id });
       onDataFileChanged(`Switched to "${switched}".`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -918,7 +925,7 @@ function App({
       const generation = await getCurrentGeneration();
       await lockCurrentProfile(generation);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -927,7 +934,7 @@ function App({
       await invoke("rename_profile", { id, newName });
       await refreshProfiles();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -936,7 +943,7 @@ function App({
       await invoke("set_profile_icon", { id, iconKey });
       await refreshProfiles();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -945,7 +952,7 @@ function App({
       await invoke("delete_profile", { id });
       await refreshProfiles();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -954,7 +961,7 @@ function App({
       await invoke("set_live_price_settings", { provider, apiKey });
       await refreshLivePriceSettings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -963,7 +970,7 @@ function App({
       await invoke("set_apply_to_debt_enabled", { enabled });
       await refreshAppSettings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -972,7 +979,7 @@ function App({
       await invoke("set_split_purchases_enabled", { enabled });
       await refreshAppSettings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -985,7 +992,7 @@ function App({
       // alerts pick up the change immediately instead of on next nav.
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -999,7 +1006,7 @@ function App({
       currentMonthAlertsRef.current = null;
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -1009,7 +1016,7 @@ function App({
       await refreshAppSettings();
       if (!enabled) setSafeToSpendForecast(null);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -1030,7 +1037,7 @@ function App({
         "success",
       );
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -1041,7 +1048,7 @@ function App({
       const { text, kind } = summarizeLivePriceRefresh(summary);
       setStatus(text, kind);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -1060,7 +1067,7 @@ function App({
   const [status, setStatusState] = useState<{ text: string; kind: StatusKind } | null>(
     initialStatus ? { text: initialStatus, kind: "success" } : null,
   );
-  // Wraps the raw state setter so ~90 existing `setStatus(String(e))` catch
+  // Wraps the raw state setter so ~90 existing `setStatus(errorMessage(e))` catch
   // blocks stay one-line error reports (kind defaults to "error" there) while
   // confirmations/in-progress messages opt into "success"/"info" explicitly —
   // see the `.status-*` rules in App.css for what each kind looks like.
@@ -1407,7 +1414,7 @@ function App({
       await refreshTransferCandidates();
       setStatus(`Restored ${pairs.length} possible transfer${pairs.length === 1 ? "" : "s"}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
   useEffect(() => {
@@ -1674,6 +1681,9 @@ function App({
   // before their first fetch resolves, which would otherwise look
   // identical and wipe out every parameterized widget on first paint.
   const accountsLoadedRef = useRef(false);
+  // False until the first load of the profile's data has finished (or failed): views wait for it
+  // instead of showing their empty states for data that is still on its way.
+  const [dataLoaded, setDataLoaded] = useState(false);
   const bucketsLoadedRef = useRef(false);
   const holdingsLoadedRef = useRef(false);
 
@@ -1697,6 +1707,30 @@ function App({
     setAllTags(tags);
     setFamilyMembers(members);
     accountsLoadedRef.current = true;
+    dataVersionRef.current++;
+  }, []);
+
+  // After editing a few rows: re-read just those rows and the small lists an edit can change, and
+  // patch them in, instead of `refresh()`'s whole ledger (~2 s at 50,000 rows; 2026-10-02 QA, M1).
+  // Only for edits confined to the rows themselves; anything that adds, removes or links other rows
+  // (deletes, transfers, splits, debt payments, imports, rules) still uses `refresh()`.
+  const refreshRows = useCallback(async (ids: number[]) => {
+    const [rows, s, accts, cats, flags, tags] = await Promise.all([
+      invoke<Transaction[]>("list_transactions_by_ids", { ids }),
+      invoke<Stats>("get_stats"),
+      invoke<Account[]>("list_accounts"),
+      invoke<string[]>("list_categories"),
+      invoke<AnomalyFlag[]>("list_anomaly_flags"),
+      invoke<string[]>("list_all_tags"),
+    ]);
+    const fresh = new Map(rows.map((r) => [r.id, r]));
+    const asked = new Set(ids);
+    setTransactions((prev) => prev.flatMap((t) => (fresh.has(t.id) ? [fresh.get(t.id)!] : asked.has(t.id) ? [] : [t])));
+    setStats(s);
+    setAccounts(accts);
+    setUsedCategories(cats);
+    setAnomalyFlags(flags);
+    setAllTags(tags);
     dataVersionRef.current++;
   }, []);
 
@@ -1734,7 +1768,7 @@ function App({
   // otherwise Goals keeps the old total until the app is reopened.
   useEffect(() => {
     if (!bucketsLoadedRef.current || !buckets.some((b) => b.tracks_account)) return;
-    refreshBuckets().catch((e) => setStatus(String(e)));
+    refreshBuckets().catch((e) => setStatus(errorMessage(e)));
     // Deliberately keyed on `accounts` alone: `refreshBuckets` replaces `buckets`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts]);
@@ -1765,7 +1799,7 @@ function App({
   // tracked through every import and edit.
   useEffect(() => {
     if (activeTab === "recurring" || activeTab === "dashboard") {
-      refreshRecurringMatches().catch((e) => setStatus(String(e)));
+      refreshRecurringMatches().catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, refreshRecurringMatches]);
 
@@ -1844,7 +1878,7 @@ function App({
     try {
       setMonthDetail(await invoke<MonthExpenseDetail>("month_expense_detail", { year, month }));
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -1909,15 +1943,15 @@ function App({
 
   useEffect(() => {
     if (activeTab === "cashflow") {
-      refreshCashFlow(cashFlowRange).catch((e) => setStatus(String(e)));
-      if (compareLastYear) refreshYoy(cashFlowRange).catch((e) => setStatus(String(e)));
-      refreshForecast(forecastDays).catch((e) => setStatus(String(e)));
+      refreshCashFlow(cashFlowRange).catch((e) => setStatus(errorMessage(e)));
+      if (compareLastYear) refreshYoy(cashFlowRange).catch((e) => setStatus(errorMessage(e)));
+      refreshForecast(forecastDays).catch((e) => setStatus(errorMessage(e)));
     }
     // "Top merchants" also needs this data when pinned to the Dashboard —
     // same fetch, just triggered from a second tab, and it always shows
     // `topCategoriesMonth`'s (default: current month) figures either way.
     if (activeTab === "cashflow" || (activeTab === "dashboard" && layoutWidgets.includes("top_merchants"))) {
-      refreshTopCategories(topCategoriesMonth.year, topCategoriesMonth.month).catch((e) => setStatus(String(e)));
+      refreshTopCategories(topCategoriesMonth.year, topCategoriesMonth.month).catch((e) => setStatus(errorMessage(e)));
     }
   }, [
     activeTab,
@@ -1993,7 +2027,7 @@ function App({
         to: nw[nw.length - 1].as_of,
       })
         .then(setAccountContributionDeltas)
-        .catch((e) => setStatus(String(e)));
+        .catch((e) => setStatus(errorMessage(e)));
     } else {
       setAccountContributionDeltas([]);
     }
@@ -2006,8 +2040,8 @@ function App({
   useEffect(() => {
     if (activeTab === "dashboard" && dataVersionRef.current !== lastDashboardFetchVersionRef.current) {
       lastDashboardFetchVersionRef.current = dataVersionRef.current;
-      refreshDashboard().catch((e) => setStatus(String(e)));
-      refreshReport().catch((e) => setStatus(String(e)));
+      refreshDashboard().catch((e) => setStatus(errorMessage(e)));
+      refreshReport().catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, refreshDashboard, refreshReport]);
 
@@ -2124,14 +2158,16 @@ function App({
   useEffect(() => {
     // The housekeeping already ran before this page mounted, so the reads below
     // don't have to wait for it.
-    showMaintenanceSummary().catch((e) => setStatus(String(e)));
-    refresh().catch((e) => setStatus(String(e)));
-    refreshBuckets().catch((e) => setStatus(String(e)));
-    refreshRecurring().catch((e) => setStatus(String(e)));
-    refreshRecurringTotals().catch((e) => setStatus(String(e)));
-    refreshRecurringCandidates().catch((e) => setStatus(String(e)));
-    refreshHoldings().catch((e) => setStatus(String(e)));
-    refreshAssets().catch((e) => setStatus(String(e)));
+    showMaintenanceSummary().catch((e) => setStatus(errorMessage(e)));
+    refresh()
+      .catch((e) => setStatus(errorMessage(e)))
+      .finally(() => setDataLoaded(true));
+    refreshBuckets().catch((e) => setStatus(errorMessage(e)));
+    refreshRecurring().catch((e) => setStatus(errorMessage(e)));
+    refreshRecurringTotals().catch((e) => setStatus(errorMessage(e)));
+    refreshRecurringCandidates().catch((e) => setStatus(errorMessage(e)));
+    refreshHoldings().catch((e) => setStatus(errorMessage(e)));
+    refreshAssets().catch((e) => setStatus(errorMessage(e)));
   }, [
     showMaintenanceSummary,
     refresh,
@@ -2148,7 +2184,7 @@ function App({
     // whenever the user actually looks at that tab, rather than tracking
     // every mutation that could affect one of its numbers
     if (activeTab === "reports") {
-      refreshReport().catch((e) => setStatus(String(e)));
+      refreshReport().catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, refreshReport]);
 
@@ -2157,7 +2193,7 @@ function App({
     // fixed "current month" view — refetch whenever the tab is open or
     // the selected month changes
     if (activeTab === "budget") {
-      refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(String(e)));
+      refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, budgetYear, budgetMonthNum, refreshBudgetMonthActuals]);
 
@@ -2166,7 +2202,7 @@ function App({
     // independent one, so the two tabs always agree on which month is
     // being looked at.
     if (activeTab === "household") {
-      refreshMemberBudgetActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(String(e)));
+      refreshMemberBudgetActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, budgetYear, budgetMonthNum, refreshMemberBudgetActuals]);
 
@@ -2203,7 +2239,7 @@ function App({
       await invoke("set_budget", { category, period: budgetPeriod, monthlyAmount, budgetGroup });
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2214,7 +2250,7 @@ function App({
     setReviewedMonths(await invoke<string[]>("list_reviewed_months"));
   }, []);
   useEffect(() => {
-    refreshReviewedMonths().catch((e) => setStatus(String(e)));
+    refreshReviewedMonths().catch((e) => setStatus(errorMessage(e)));
   }, [refreshReviewedMonths]);
   const monthReviewOffer = useMemo(
     () => monthReviewDue({ today: new Date(), reviewedMonths, transactions }),
@@ -2225,7 +2261,7 @@ function App({
     try {
       setMonthReview(await invoke<MonthReview>("month_review", { year, month }));
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2237,7 +2273,7 @@ function App({
       setStatus(`${new Date(monthReview.year, monthReview.month - 1, 1).toLocaleDateString("en-US", { month: "long" })} review finished.`, "success");
       setMonthReview(null);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2277,7 +2313,7 @@ function App({
     try {
       await invoke("correct_category", { id, category });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       throw e;
     }
   }
@@ -2287,7 +2323,7 @@ function App({
       const deleted = await invoke<number[]>("bulk_delete_transactions", { ids: [id] });
       setUndoToast({ text: `Deleted ${deleted.length} transaction(s).`, ids: deleted });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       throw e;
     }
   }
@@ -2296,7 +2332,7 @@ function App({
     try {
       for (const kind of kinds) await invoke("dismiss_anomaly_flag", { transactionId: id, kind });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       throw e;
     }
   }
@@ -2354,7 +2390,6 @@ function App({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paletteOpen]);
 
   // Recent transactions only — the palette filters on every keystroke.
@@ -2441,7 +2476,7 @@ function App({
     try {
       return await invoke<BudgetSuggestions>("suggest_budgets", { year: budgetYear, month: budgetMonthNum });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       return null;
     }
   }
@@ -2454,7 +2489,7 @@ function App({
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
       setStatus(`Set ${rows.length} budget${rows.length === 1 ? "" : "s"} for ${budgetMonthLabel}.`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2463,7 +2498,7 @@ function App({
       await invoke("set_budget_cap", { category, period: budgetPeriod, capEnabled });
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2474,7 +2509,7 @@ function App({
       currentMonthAlertsRef.current = null;
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2483,7 +2518,7 @@ function App({
       await invoke("delete_budget", { category, period: budgetPeriod });
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2501,7 +2536,7 @@ function App({
       });
       setCategoryTransactions({ category, items });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2536,7 +2571,7 @@ function App({
       await invoke("correct_category", { id: transactionId, category: value });
       await refreshAfterCategoryDialogEdit();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2551,7 +2586,7 @@ function App({
       await refreshAfterCategoryDialogEdit();
       return true;
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       return false;
     }
   }
@@ -2561,7 +2596,7 @@ function App({
       await invoke("set_account_starting_balance", { id: accountId, balance });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2570,7 +2605,7 @@ function App({
       await invoke("set_account_balance_override", { id: accountId, balance });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2579,7 +2614,7 @@ function App({
       await invoke("update_account_type", { id: accountId, accountType });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2588,7 +2623,7 @@ function App({
       await invoke("set_account_icon", { id: accountId, iconKey });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2598,7 +2633,7 @@ function App({
       await refresh();
       setStatus(`Deleted account and ${removed} transaction(s).`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2607,7 +2642,7 @@ function App({
       await invoke("set_account_details", { id: accountId, institution, mask });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2616,7 +2651,7 @@ function App({
       await invoke("set_account_interest_rate", { id: accountId, rate });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2625,7 +2660,7 @@ function App({
       await invoke("set_account_excluded_from_debt_payoff", { id: accountId, excluded });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2641,7 +2676,7 @@ function App({
         minimums: minimums.map((m) => ({ account_id: m.accountId, minimum_payment: m.minimumPayment })),
       });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       return null;
     }
   }
@@ -2682,7 +2717,7 @@ function App({
         await refreshBuckets();
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2708,7 +2743,7 @@ function App({
         await refreshBuckets();
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2717,7 +2752,7 @@ function App({
       await invoke("add_bucket_contribution", { bucketId, date, amount, note });
       await refreshBuckets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2726,7 +2761,7 @@ function App({
       await invoke("delete_bucket", { id });
       await refreshBuckets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2746,7 +2781,7 @@ function App({
       }
       await Promise.all([refreshRecurring(), refreshRecurringTotals()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2765,7 +2800,7 @@ function App({
       await invoke("set_recurring_member", { id, memberId });
       await Promise.all([refreshRecurring(), refreshRecurringTotals()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2774,7 +2809,7 @@ function App({
       await invoke("delete_recurring", { id });
       await Promise.all([refreshRecurring(), refreshRecurringTotals()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2783,7 +2818,7 @@ function App({
       await invoke("set_recurring_status", { id, status });
       await refreshRecurring();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2799,7 +2834,7 @@ function App({
       });
       await Promise.all([refreshRecurring(), refreshRecurringTotals(), refreshRecurringCandidates()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2812,7 +2847,7 @@ function App({
       });
       await refreshRecurringCandidates();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2821,7 +2856,7 @@ function App({
       await invoke("dismiss_recurring_price_change", { id, from, to });
       await refreshRecurringMatches();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2838,7 +2873,7 @@ function App({
       await invoke("create_holding", { accountId, symbol, name, shares, price, costBasis, assetClass });
       await refreshHoldings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2847,7 +2882,7 @@ function App({
       await invoke("update_holding_price", { id, price });
       await refreshHoldings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2859,7 +2894,7 @@ function App({
       await refreshHoldings();
       setStatus("Target allocation saved.", "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2873,7 +2908,7 @@ function App({
       await invoke("delete_holding", { id });
       await refreshHoldings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2892,7 +2927,7 @@ function App({
       }
       await refreshAssets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2901,7 +2936,7 @@ function App({
       await invoke("update_asset_value", { id, value, valuedOn });
       await refreshAssets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2910,7 +2945,7 @@ function App({
       await invoke("set_asset_member", { id, memberId });
       await refreshAssets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2919,7 +2954,7 @@ function App({
       await invoke("set_account_member", { id: accountId, memberId });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2928,7 +2963,7 @@ function App({
       await invoke("delete_asset", { id });
       await refreshAssets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2962,7 +2997,7 @@ function App({
       setSelectedAccountId(id);
       return id;
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       return null;
     }
   }
@@ -3027,7 +3062,7 @@ function App({
       setPendingImport({ path, invertAmounts, defaultAccountId: accountId, preview });
       setStatus("");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -3091,7 +3126,7 @@ function App({
         summary.row_errors ? "error" : "success",
       );
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     } finally {
       setBusy(false);
       setPendingImport(null);
@@ -3122,10 +3157,10 @@ function App({
     );
     try {
       await invoke("correct_category", { id, category: value });
-      await refresh();
+      await refreshRows([id]);
       if (description) void offerToApplyToSimilar([description], value);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       await refresh();
     }
   }
@@ -3170,7 +3205,7 @@ function App({
       await refresh();
       setStatus(`Re-categorized ${changed} transaction${changed === 1 ? "" : "s"} as ${category}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3205,7 +3240,7 @@ function App({
         "success",
       );
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3214,7 +3249,7 @@ function App({
       await invoke("create_family_member", { name });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3223,7 +3258,7 @@ function App({
       await invoke("rename_family_member", { id, newName });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3232,7 +3267,7 @@ function App({
       await invoke("delete_family_member", { id });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3241,7 +3276,7 @@ function App({
       await invoke("create_category", { name, iconKey });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3250,7 +3285,7 @@ function App({
       await invoke("set_category_icon", { name, iconKey });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3268,7 +3303,7 @@ function App({
         setStatus("Nothing new to categorize.", "info");
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -3279,7 +3314,7 @@ function App({
       await invoke("rename_category", { oldName, newName });
       await Promise.all([refresh(), refreshReport(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3288,7 +3323,7 @@ function App({
       await invoke("delete_category", { name });
       await Promise.all([refresh(), refreshReport(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3296,12 +3331,12 @@ function App({
     setEditingAmount(null);
     try {
       const splitsReconciled = await invoke<boolean>("update_transaction_amount", { id, amount: value.trim() });
-      await refresh();
+      await refreshRows([id]);
       if (splitsReconciled) {
         setStatus("Amount updated — its splits were rescaled to still add up to the new amount.", "info");
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3310,9 +3345,9 @@ function App({
     if (!value.trim()) return;
     try {
       await invoke("update_transaction_date", { id, date: value.trim() });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3320,27 +3355,27 @@ function App({
     setEditingDescription(null);
     try {
       await invoke("update_transaction_description", { id, description: value.trim() });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
   async function handleAccountChangeForTransaction(id: number, accountId: string) {
     try {
       await invoke("update_transaction_account", { id, accountId: Number(accountId) });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
   async function handleMemberChangeForTransaction(id: number, memberId: string) {
     try {
       await invoke("set_transaction_member", { id, memberId: memberId === "" ? null : Number(memberId) });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3349,9 +3384,9 @@ function App({
     try {
       await invoke("bulk_set_transaction_member", { ids, memberId: value === "__none__" ? null : Number(value) });
       setSelectedIds(new Set());
-      await refresh();
+      await refreshRows(ids);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3365,7 +3400,7 @@ function App({
       await invoke("write_text_file", { path, content: buildSetupTemplate() });
       setStatus(`Setup template saved to ${path} — fill it in, then use "Import setup data…".`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3404,7 +3439,7 @@ function App({
         includedHoldings: new Set(preview.holdings.filter((r) => r.account_found).map((r) => r.index)),
       });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3447,7 +3482,7 @@ function App({
       if (summary.row_errors > 0) message += ` ${summary.row_errors} row(s) had errors and were ignored.`;
       setStatus(message, summary.row_errors > 0 ? "error" : "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -3473,7 +3508,7 @@ function App({
       await invoke("write_text_file", { path, content: csv });
       setStatus(`Exported reports to ${path}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3492,7 +3527,7 @@ function App({
       await invoke("write_text_file", { path, content: csv });
       setStatus(`Exported ${sortedTransactions.length} transaction(s) to ${path}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3502,7 +3537,7 @@ function App({
       await invoke("delete_transaction", { id });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3526,7 +3561,7 @@ function App({
       setApplyingDebtId(null);
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3535,7 +3570,7 @@ function App({
       await invoke("unapply_debt_payment", { sourceTransactionId });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3549,18 +3584,18 @@ function App({
     try {
       await invoke("update_transaction_principal_amount", { id, principalAmount: principalDraft.trim() });
       setEditingPrincipalId(null);
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
   async function handleResetPrincipalAmount(id: number) {
     try {
       await invoke("update_transaction_principal_amount", { id, principalAmount: null });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3586,7 +3621,7 @@ function App({
       }
       setExpandedSplitId(t.id);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3622,7 +3657,7 @@ function App({
       setExpandedSplitId(null);
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3632,13 +3667,13 @@ function App({
       setExpandedSplitId(null);
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
   async function handleSaveNotes(transactionId: number, notes: string | null) {
     await invoke("update_transaction_notes", { transactionId, notes });
-    await refresh();
+    await refreshRows([transactionId]);
   }
 
   async function handleAddTag(id: number, tag: string) {
@@ -3647,18 +3682,18 @@ function App({
     try {
       await invoke("add_tag", { transactionId: id, tag: trimmed });
       setNewTagText((prev) => ({ ...prev, [id]: "" }));
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
   async function handleRemoveTag(id: number, tag: string) {
     try {
       await invoke("remove_tag", { transactionId: id, tag });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3675,9 +3710,9 @@ function App({
       await Promise.all(ids.map((id) => invoke("add_tag", { transactionId: id, tag: trimmed })));
       setBulkTagText("");
       setSelectedIds(new Set());
-      await refresh();
+      await refreshRows(ids);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3687,7 +3722,7 @@ function App({
       await refresh();
       setStatus("Unlinked — they're two separate transactions again.", "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3699,7 +3734,7 @@ function App({
       await refresh();
       setStatus("Linked as a transfer — it no longer counts as income or spending.", "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3712,7 +3747,7 @@ function App({
       await refresh();
       setStatus(`Linked ${pairs.length} transfer${pairs.length === 1 ? "" : "s"}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       await refresh();
     }
   }
@@ -3722,7 +3757,7 @@ function App({
       await invoke("mark_auto_links_reviewed", { outIds });
       await reloadAutoLinked();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3780,10 +3815,10 @@ function App({
     try {
       await invoke("bulk_correct_category", { ids, category: value });
       setSelectedIds(new Set());
-      await refresh();
+      await refreshRows(ids);
       if (merchants.length > 0) void offerToApplyToSimilar(merchants, value);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3796,7 +3831,7 @@ function App({
       await refresh();
       setUndoToast({ text: `Deleted ${deletedIds.length} transaction(s).`, ids: deletedIds });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3809,7 +3844,7 @@ function App({
       await refresh();
       setStatus(`Restored ${ids.length} transaction(s).`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3823,7 +3858,7 @@ function App({
       await refresh();
       setStatus(`Flipped the sign of ${result.flipped} transaction${result.flipped === 1 ? "" : "s"}. Flip them again to undo.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3835,7 +3870,7 @@ function App({
       await refreshRecurring();
       setStatus(`Added ${created} transaction(s) to Recurring — adjust the cadence per item there if needed.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3860,8 +3895,8 @@ function App({
         />
         {NAV_GROUP_ORDER.map((group) => (
           <div className="nav-group" key={group}>
-            <div className="nav-group-label">{NAV_GROUP_LABELS[group]}</div>
-            <nav className="nav-list">
+            <div className="nav-group-label" aria-hidden="true">{NAV_GROUP_LABELS[group]}</div>
+            <nav className="nav-list" aria-label={NAV_GROUP_LABELS[group]}>
               {orderedNavItems
                 .filter((item) => item.group === group)
                 .map((item) => (
@@ -3917,7 +3952,7 @@ function App({
         ))}
         <div className="sidebar-spacer"></div>
         <div className="sidebar-divider"></div>
-        <nav className="nav-list">
+        <nav className="nav-list" aria-label="Settings and help">
           {PINNED_NAV_ITEMS.map((item) => (
             <button
               key={item.id}
@@ -3969,15 +4004,16 @@ function App({
                   accounts={accounts}
                   value={selectedAccountId}
                   onChange={handleAccountSelectChange}
-                  disabled={busy || pendingImport !== null}
+                  disabled={busy || pendingImport !== null || !dataLoaded}
+                  emptyLabel={dataLoaded ? undefined : "Loading…"}
                 />
-                <button onClick={handleImport} disabled={busy || pendingImport !== null}>
+                <button onClick={handleImport} disabled={busy || pendingImport !== null || !dataLoaded}>
                   {busy ? "Importing…" : "Import transactions…"}
                 </button>
                 <button
                   className="modal-secondary"
                   onClick={() => setNewTransactionOpen(true)}
-                  disabled={busy || pendingImport !== null}
+                  disabled={busy || pendingImport !== null || !dataLoaded}
                 >
                   Add transaction…
                 </button>
@@ -3986,7 +4022,7 @@ function App({
                     type="button"
                     className="modal-secondary btn-icon"
                     onClick={() => setMoreMenuOpen((v) => !v)}
-                    disabled={busy || pendingImport !== null}
+                    disabled={busy || pendingImport !== null || !dataLoaded}
                     aria-label="More actions"
                     title="More actions"
                     aria-haspopup="true"
@@ -4047,7 +4083,7 @@ function App({
           </div>
         </header>
 
-        <div className={activeTab === "ledger" ? "page page-ledger" : "page"}>
+        <div className={activeTab === "ledger" ? "page page-ledger" : "page"} role="main">
 
           <UpdateBanner />
           {/* Body level, like the dialogs: `position: fixed` inside `.page` is laid out
@@ -4083,6 +4119,10 @@ function App({
             document.body,
           )}
 
+          {!dataLoaded && activeTab !== "settings" && activeTab !== "help" ? (
+            <DataLoading />
+          ) : (
+          <>
           {activeTab === "dashboard" && (
             <Suspense fallback={null}>
               <DashboardView
@@ -4099,7 +4139,7 @@ function App({
                 budgetAlerts={dashboardBudgetAlerts}
                 insights={dashboardInsights}
                 avgMonthlySpend={avgMonthlySpend}
-                assetsTotal={assets.reduce((s, a) => s + parseFloat(a.value), 0)}
+                assetsTotal={sumMoney(assets.map((a) => a.value))}
                 assets={assets}
                 holdings={holdings}
                 familyMembers={familyMembers}
@@ -4543,7 +4583,7 @@ function App({
                         { value: "amount", label: "Amount" },
                         { value: "account", label: "Account" },
                         { value: "category", label: "Category" },
-                        { value: "source", label: "Source" },
+                        { value: "source", label: "Sorted by" },
                       ]}
                     />
                   </label>
@@ -4561,13 +4601,14 @@ function App({
                 <table className={ledgerDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
                   <colgroup>
                     <col style={{ width: ledgerNarrow ? "6%" : "3%" }} />
-                    <col style={{ width: ledgerNarrow ? "16%" : "7%" }} />
-                    <col style={{ width: ledgerNarrow ? "43%" : "23%" }} />
+                    {/* the date needs ~80px in every style's font: 7% left it ~38px and it ran into the description */}
+                    <col style={{ width: ledgerNarrow ? "16%" : "11%" }} />
+                    <col style={{ width: ledgerNarrow ? "43%" : "17%" }} />
                     <col style={{ width: ledgerNarrow ? "16%" : "8%" }} />
                     {!ledgerNarrow && <col style={{ width: "14%" }} />}
-                    {!ledgerNarrow && <col style={{ width: "11%" }} />}
-                    {!ledgerNarrow && <col style={{ width: "14%" }} />}
-                    {!ledgerNarrow && <col style={{ width: "5%" }} />}
+                    {!ledgerNarrow && <col style={{ width: "10%" }} />}
+                    {!ledgerNarrow && <col style={{ width: "13%" }} />}
+                    {!ledgerNarrow && <col style={{ width: "8%" }} />}
                     {!ledgerNarrow && appSettings.apply_to_debt_enabled && <col style={{ width: "8%" }} />}
                     <col style={{ width: ledgerNarrow ? "19%" : "7%" }} />
                   </colgroup>
@@ -4603,11 +4644,11 @@ function App({
                       )}
                       {!ledgerNarrow && (
                         <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-                          Source
+                          Sorted by
                         </SortableTh>
                       )}
                       {!ledgerNarrow && appSettings.apply_to_debt_enabled && <th>Debt</th>}
-                      <th className="actions-col"></th>
+                      <th className="actions-col"><span className="sr-only">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4687,7 +4728,7 @@ function App({
                       );
                       const sourceField = (
                         <>
-                          {t.category_source ?? ""}
+                          {t.category_source ? (CATEGORY_SOURCE_LABELS[t.category_source] ?? t.category_source) : ""}
                           {t.confidence !== null && <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>}
                         </>
                       );
@@ -4751,7 +4792,9 @@ function App({
                         // The loan case is already handled above — only credit
                         // (excluded, a payment there needs no principal split) and
                         // every non-debt account reach here.
+                        // Only money going out can be a debt payment (not income or a transfer in).
                         debtAccounts.length > 0 &&
+                        parseFloat(t.amount) < 0 &&
                         accounts.find((a) => a.id === t.account_id)?.account_type !== "credit" && (
                           <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startApplyingDebtPayment(t)}>
                             Apply to a debt →
@@ -4769,7 +4812,7 @@ function App({
                                 aria-label={`Select transaction ${t.id}`}
                               />
                             </td>
-                            <td>
+                            <td className="date-col">
                               {editingDate?.id === t.id ? (
                                 <input
                                   autoFocus
@@ -4822,13 +4865,13 @@ function App({
                               </span>
                               <AppliedPaymentDetails transaction={t} />
                               {(anomalyFlagsByTransaction.get(t.id) ?? []).map((flag, i) => (
-                                <span
+                                <InfoTip
                                   key={i}
-                                  className={flag.kind === "large" ? "anomaly-badge anomaly-large" : "anomaly-badge anomaly-duplicate"}
-                                  title={flag.detail}
-                                >
-                                  {flag.kind === "large" ? "⚠" : "⧉"}
-                                </span>
+                                  label={flag.kind === "large" ? "unusually large charge" : "possible duplicate"}
+                                  text={flag.detail}
+                                  glyph={flag.kind === "large" ? "⚠" : "⧉"}
+                                  buttonClassName={flag.kind === "large" ? "anomaly-badge anomaly-large" : "anomaly-badge anomaly-duplicate"}
+                                />
                               ))}
                               {t.transfer_counterpart_id !== null && (
                                 <button
@@ -4975,7 +5018,7 @@ function App({
                                     {categoryField}
                                   </label>
                                   <label className="ledger-details-field">
-                                    <span>Source</span>
+                                    <span>Sorted by</span>
                                     {sourceField}
                                   </label>
                                   {appSettings.apply_to_debt_enabled && (
@@ -5269,12 +5312,12 @@ function App({
                   <table className="dup-review-table">
                     <thead>
                       <tr>
-                        <th className="select-col"></th>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
                         <th>Name</th>
                         <th>Type</th>
                         <th className="amount-col">Starting balance</th>
                         <th>Institution</th>
-                        <th></th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5306,9 +5349,9 @@ function App({
                   <table className="dup-review-table">
                     <thead>
                       <tr>
-                        <th className="select-col"></th>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
                         <th>Name</th>
-                        <th></th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5337,12 +5380,12 @@ function App({
                   <table className="dup-review-table">
                     <thead>
                       <tr>
-                        <th className="select-col"></th>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
                         <th>Category</th>
                         <th>Group</th>
                         <th className="amount-col">Monthly amount</th>
                         <th>Period</th>
-                        <th></th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5374,12 +5417,12 @@ function App({
                   <table className="dup-review-table">
                     <thead>
                       <tr>
-                        <th className="select-col"></th>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
                         <th>Name</th>
                         <th className="amount-col">Target</th>
                         <th>Target date</th>
                         <th>Linked account</th>
-                        <th></th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5411,14 +5454,14 @@ function App({
                   <table className="dup-review-table">
                     <thead>
                       <tr>
-                        <th className="select-col"></th>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
                         <th>Account</th>
                         <th>Symbol</th>
                         <th>Name</th>
                         <th className="amount-col">Shares</th>
                         <th className="amount-col">Price</th>
-                        <th className="amount-col">Cost basis</th>
-                        <th></th>
+                        <th className="amount-col">What you paid</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5487,7 +5530,7 @@ function App({
             <Suspense fallback={null}>
               <AccountsView
                 accounts={accounts}
-                manualAssetsTotal={assets.reduce((s, a) => s + parseFloat(a.value), 0)}
+                manualAssetsTotal={sumMoney(assets.map((a) => a.value))}
                 netWorthHistory={netWorthHistory}
                 accountContributionDeltas={accountContributionDeltas}
                 onSetStartingBalance={handleSetStartingBalance}
@@ -5576,10 +5619,13 @@ function App({
               />
             </Suspense>
           )}
+          </>
+          )}
 
           {dialog?.kind === "newAccount" && (
             <NewAccountDialog
               familyMembers={familyMembers}
+              existingAccountNames={accounts.map((a) => a.name)}
               onCancel={() => {
                 dialog.resolve(null);
                 setDialog(null);
@@ -5601,7 +5647,7 @@ function App({
                   await invoke("create_category", { name, iconKey });
                   await refresh();
                 } catch (e) {
-                  setStatus(String(e));
+                  setStatus(errorMessage(e));
                 }
                 dialog.resolve(name);
                 setDialog(null);

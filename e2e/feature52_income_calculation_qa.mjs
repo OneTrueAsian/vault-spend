@@ -156,8 +156,8 @@ try {
   const accountsNav = await app.browser.$("button*=Accounts");
   await accountsNav.click();
   await (await app.browser.$(".stats")).waitForExist({ timeout: 10000 });
-  const assetsText = await statValue(app, "Total Assets");
-  const liabilitiesText = await statValue(app, "Total Liabilities");
+  const assetsText = await statValue(app, "What you own");
+  const liabilitiesText = await statValue(app, "What you owe");
   const netWorthText = await statValue(app, "Net Worth");
   if (assetsText !== "$7,990.00") throw new Error(`expected Total Assets $7,990.00, got ${assetsText}`);
   // See the file-level comment: "Total Liabilities" is this app's existing

@@ -110,8 +110,7 @@ impl Package {
     }
 
     pub fn from_json(manifest: &str, records: &str, cpi: &str) -> Result<Package, PackageError> {
-        let manifest: ManifestFile =
-            serde_json::from_str(manifest).map_err(|e| PackageError::Parse(format!("manifest: {e}")))?;
+        let manifest: ManifestFile = serde_json::from_str(manifest).map_err(|e| PackageError::Parse(format!("manifest: {e}")))?;
         if manifest.format_version != FORMAT_VERSION {
             return invalid(format!(
                 "formatVersion {} is not supported (expected {FORMAT_VERSION})",
@@ -125,13 +124,11 @@ impl Package {
         if digest != manifest.records_sha256 {
             return invalid("records checksum does not match the manifest");
         }
-        let references: Vec<Reference> =
-            serde_json::from_str(records).map_err(|e| PackageError::Parse(format!("records: {e}")))?;
+        let references: Vec<Reference> = serde_json::from_str(records).map_err(|e| PackageError::Parse(format!("records: {e}")))?;
         let cpi_file: CpiFile = serde_json::from_str(cpi).map_err(|e| PackageError::Parse(format!("cpi: {e}")))?;
         let mut cpi_months = BTreeMap::new();
         for (month, text) in cpi_file.months {
-            let value = Decimal::from_str(&text)
-                .map_err(|_| PackageError::Invalid(format!("cpi month {month} is not a decimal: {text:?}")))?;
+            let value = Decimal::from_str(&text).map_err(|_| PackageError::Invalid(format!("cpi month {month} is not a decimal: {text:?}")))?;
             cpi_months.insert(month, value);
         }
         if !cpi_months.contains_key(&manifest.cpi.latest_month) {
@@ -151,9 +148,7 @@ impl Package {
                 DollarBasis::Month { period } if !cpi_months.contains_key(period) => {
                     return invalid(format!("{}: dollar basis {period} is not in the cpi series", r.id));
                 }
-                DollarBasis::AnnualAverage { period }
-                    if !(1..=12).all(|m| cpi_months.contains_key(&format!("{period}-{m:02}"))) =>
-                {
+                DollarBasis::AnnualAverage { period } if !(1..=12).all(|m| cpi_months.contains_key(&format!("{period}-{m:02}"))) => {
                     return invalid(format!("{}: annual-average cpi basis {period} needs all 12 published months", r.id));
                 }
                 _ => {}

@@ -285,7 +285,7 @@
 :where([data-palette="futuristic"]) .nav-group-label {
   font-family: var(--font-mono);
   font-weight: 400;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.12em;
 }
 
@@ -316,7 +316,7 @@
 
 :where([data-palette="futuristic"]) .sidebar-version {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.06em;
 }
 
@@ -491,7 +491,7 @@
 :where([data-palette="futuristic"]) .stat-label {
   font-family: var(--font-mono);
   font-weight: 400;
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.09em;
 }
 
@@ -571,7 +571,7 @@
 :where([data-palette="futuristic"]) .ledger th {
   font-family: var(--font-mono);
   font-weight: 400;
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.08em;
   background: var(--surface-2);
 }

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { errorMessage } from "./errorMessage";
 
 const LOCKOUT_RE = /^Try again in (\d+) seconds\.$/;
 
@@ -55,7 +56,7 @@ export function PasswordForm({
     try {
       await onSubmit(password);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
       setPassword("");
     } finally {
       setBusy(false);

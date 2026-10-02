@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { bundledLegalNotice } from "./legalNotice";
 import { acknowledgeLegalNotice, getLegalNoticeAcknowledgement } from "./legalNoticeApi";
 import { LegalNoticeText } from "./LegalNoticeText";
+import { errorMessage } from "./errorMessage";
 
 type Phase = "pending" | "show" | "through";
 
@@ -50,7 +51,7 @@ export function LegalNoticeGate({ children }: { children: ReactNode }) {
       await acknowledgeLegalNotice(bundledLegalNotice.version);
       setPhase("through");
     } catch (e) {
-      setProblem(`Your choice couldn't be saved (${String(e)}), so this notice may appear again next time.`);
+      setProblem(`Your choice couldn't be saved (${errorMessage(e)}), so this notice may appear again next time.`);
     } finally {
       setBusy(false);
     }

@@ -3,6 +3,7 @@ import type { Asset, FamilyMember } from "./types";
 import { formatAmount, isValidDecimalString, toLocalIsoDate } from "./format";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { MenuSelect } from "./MenuSelect";
+import { sumMoney } from "./money";
 
 const ASSET_TYPE_OPTIONS = ["real_estate", "vehicle", "other"];
 const ASSET_TYPE_LABELS: Record<string, string> = {
@@ -129,7 +130,7 @@ export function PropertyAssetsSection({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
 
-  const total = assets.reduce((s, a) => s + parseFloat(a.value), 0);
+  const total = sumMoney(assets.map((a) => a.value));
 
   function commitEdit(id: number, value: string) {
     setEditing(null);
@@ -151,7 +152,7 @@ export function PropertyAssetsSection({
             <th className="amount-col">Value</th>
             <th>Member</th>
             <th>Updated</th>
-            <th className="actions-col"></th>
+            <th className="actions-col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>

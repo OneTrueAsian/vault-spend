@@ -1,7 +1,7 @@
 use super::setup_tests::today;
-use budget_core::comparisons::metrics::{compute_metric, spending_window, Snapshot};
+use budget_core::comparisons::metrics::{Snapshot, compute_metric, spending_window};
 use budget_core::comparisons::setup::ComparisonSetup;
-use budget_core::comparisons::types::{MetricId};
+use budget_core::comparisons::types::MetricId;
 use budget_core::models::{AccountType, Transaction};
 use budget_core::store::Store;
 use chrono::{NaiveDate, NaiveDateTime};
@@ -17,7 +17,12 @@ fn d(y: i32, m: u32, day: u32) -> NaiveDate {
 }
 
 fn tx(date: NaiveDate, description: &str, amount: &str, category: Option<&str>) -> Transaction {
-    Transaction { date, description: description.into(), amount: dec(amount), category: category.map(String::from) }
+    Transaction {
+        date,
+        description: description.into(),
+        amount: dec(amount),
+        category: category.map(String::from),
+    }
 }
 
 fn snapshot(store: &Store, from: NaiveDate) -> Snapshot {
@@ -48,9 +53,14 @@ fn only_expenses_are_spend_rows_and_each_row_names_its_account() {
 fn a_split_purchase_counts_through_its_lines_not_its_parent() {
     let store = Store::open_in_memory().unwrap();
     let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
-    let ids = store.save_transactions_with_ids(checking, &[tx(d(2026, 7, 1), "Big box", "-100.00", None)]).unwrap();
+    let ids = store
+        .save_transactions_with_ids(checking, &[tx(d(2026, 7, 1), "Big box", "-100.00", None)])
+        .unwrap();
     store
-        .set_transaction_splits(ids[0], &[("Groceries".into(), dec("-60.00"), None), ("Household".into(), dec("-40.00"), None)])
+        .set_transaction_splits(
+            ids[0],
+            &[("Groceries".into(), dec("-60.00"), None), ("Household".into(), dec("-40.00"), None)],
+        )
         .unwrap();
     let snap = snapshot(&store, d(2026, 1, 1));
     let total: Decimal = snap.spend_rows.iter().map(|r| r.amount).sum();
@@ -63,10 +73,16 @@ fn linked_transfers_and_generated_debt_payments_are_not_spending() {
     let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
     let savings = store.get_or_create_account("Savings", AccountType::Savings).unwrap();
     let loan = store.get_or_create_account("Loan", AccountType::Loan).unwrap();
-    let out = store.save_transactions_with_ids(checking, &[tx(d(2026, 7, 5), "To savings", "-500.00", None)]).unwrap()[0];
-    let into = store.save_transactions_with_ids(savings, &[tx(d(2026, 7, 5), "From checking", "500.00", None)]).unwrap()[0];
+    let out = store
+        .save_transactions_with_ids(checking, &[tx(d(2026, 7, 5), "To savings", "-500.00", None)])
+        .unwrap()[0];
+    let into = store
+        .save_transactions_with_ids(savings, &[tx(d(2026, 7, 5), "From checking", "500.00", None)])
+        .unwrap()[0];
     assert!(store.link_transfer(out, into).unwrap());
-    let pay = store.save_transactions_with_ids(checking, &[tx(d(2026, 7, 6), "Loan payment", "-300.00", None)]).unwrap()[0];
+    let pay = store
+        .save_transactions_with_ids(checking, &[tx(d(2026, 7, 6), "Loan payment", "-300.00", None)])
+        .unwrap()[0];
     store.apply_debt_payment(pay, loan, dec("300.00"), d(2026, 7, 6)).unwrap();
     let snap = snapshot(&store, d(2026, 1, 1));
     let rows: Vec<_> = snap.spend_rows.iter().map(|r| (r.account_id, r.amount)).collect();
@@ -78,8 +94,12 @@ fn linked_transfers_and_generated_debt_payments_are_not_spending() {
 fn deleted_transactions_are_not_spending() {
     let store = Store::open_in_memory().unwrap();
     let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
-    let ids = store.save_transactions_with_ids(checking, &[tx(d(2026, 7, 1), "Oops", "-10.00", None)]).unwrap();
-    store.delete_transaction(ids[0], NaiveDateTime::new(d(2026, 7, 2), chrono::NaiveTime::MIN)).unwrap();
+    let ids = store
+        .save_transactions_with_ids(checking, &[tx(d(2026, 7, 1), "Oops", "-10.00", None)])
+        .unwrap();
+    store
+        .delete_transaction(ids[0], NaiveDateTime::new(d(2026, 7, 2), chrono::NaiveTime::MIN))
+        .unwrap();
     assert!(snapshot(&store, d(2026, 1, 1)).spend_rows.is_empty());
 }
 
@@ -88,11 +108,18 @@ fn rows_before_the_requested_start_are_left_out() {
     let store = Store::open_in_memory().unwrap();
     let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
     store
-        .save_transactions(checking, &[tx(d(2025, 1, 1), "Old", "-5.00", None), tx(d(2026, 7, 1), "New", "-7.00", None)])
+        .save_transactions(
+            checking,
+            &[tx(d(2025, 1, 1), "Old", "-5.00", None), tx(d(2026, 7, 1), "New", "-7.00", None)],
+        )
         .unwrap();
     let snap = snapshot(&store, d(2026, 1, 1));
     assert_eq!(snap.spend_rows.len(), 1);
-    assert_eq!(snap.first_transaction_date, Some(d(2025, 1, 1)), "the profile's first date is not limited by the window");
+    assert_eq!(
+        snap.first_transaction_date,
+        Some(d(2025, 1, 1)),
+        "the profile's first date is not limited by the window"
+    );
 }
 
 #[test]
@@ -103,7 +130,9 @@ fn account_balances_follow_the_stores_conventions_for_cards_and_loans() {
     let invest = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
     store.save_transactions(card, &[tx(d(2026, 7, 1), "Charge", "-250.00", None)]).unwrap();
     store.save_transactions(loan, &[tx(d(2026, 7, 1), "Payment", "100.00", None)]).unwrap();
-    store.create_holding(invest, "VTI", "Total market", dec("10"), dec("200"), dec("1500"), None).unwrap();
+    store
+        .create_holding(invest, "VTI", "Total market", dec("10"), dec("200"), dec("1500"), None)
+        .unwrap();
     let snap = snapshot(&store, d(2026, 1, 1));
     let by_name = |n: &str| snap.accounts.iter().find(|a| a.name == n).unwrap();
     assert_eq!(by_name("Visa").owed(), dec("250.00"));

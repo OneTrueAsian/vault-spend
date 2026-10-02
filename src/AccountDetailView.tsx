@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";
 import { LineChart } from "./charts";
 import { formatAmount, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
+import { errorMessage } from "./errorMessage";
 // Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
 const AccountAccumulationSection = lazy(() => import("./AccumulationSection").then((m) => ({ default: m.AccountAccumulationSection })));
 
@@ -53,7 +54,7 @@ export function AccountDetailView({
   }, [account.id]);
 
   useEffect(() => {
-    loadOverview().catch((e) => onMessage(String(e), "error"));
+    loadOverview().catch((e) => onMessage(errorMessage(e), "error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadOverview]);
 
@@ -70,7 +71,7 @@ export function AccountDetailView({
       await loadReconciliation();
       setReconciling(true);
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 
@@ -79,7 +80,7 @@ export function AccountDetailView({
       await invoke("set_transactions_cleared", { ids: [t.id], cleared: !t.cleared });
       await loadReconciliation();
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 
@@ -95,7 +96,7 @@ export function AccountDetailView({
       await loadOverview();
       onMessage(`Reconciled ${account.name} through ${statementDate}.`, "success");
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 

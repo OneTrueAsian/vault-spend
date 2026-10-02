@@ -40,7 +40,7 @@ try {
   const accountsNav = await app.browser.$("button*=Accounts");
   await accountsNav.click();
 
-  const liabilitiesStat = await app.browser.$("button*=Total Liabilities");
+  const liabilitiesStat = await app.browser.$("button*=What you owe");
   await liabilitiesStat.waitForExist({ timeout: 10000 });
   await liabilitiesStat.click();
 

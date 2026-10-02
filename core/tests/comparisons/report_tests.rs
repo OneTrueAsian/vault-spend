@@ -2,11 +2,9 @@ use super::common::*;
 use super::setup_tests::{amount, base_setup, person, today};
 use budget_core::comparisons::metrics::{AccountSnap, Snapshot};
 use budget_core::comparisons::package::Package;
-use budget_core::comparisons::report::{build_report, CardView, ComparisonsReport, SecondaryCard};
+use budget_core::comparisons::report::{CardView, ComparisonsReport, SecondaryCard, build_report};
 use budget_core::comparisons::setup::*;
-use budget_core::comparisons::types::{
-    AgeInput, CardStatus, Completeness, MetricId, Reason, Statistic, Universe,
-};
+use budget_core::comparisons::types::{AgeInput, CardStatus, Completeness, MetricId, Reason, Statistic, Universe};
 use budget_core::models::AccountType;
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -17,12 +15,21 @@ fn dec(s: &str) -> Decimal {
 }
 
 fn empty_snapshot() -> Snapshot {
-    Snapshot { today: today(), accounts: vec![], assets: vec![], spend_rows: vec![], first_transaction_date: None }
+    Snapshot {
+        today: today(),
+        accounts: vec![],
+        assets: vec![],
+        spend_rows: vec![],
+        first_transaction_date: None,
+    }
 }
 
 fn age(setup: &mut ComparisonSetup, who: PersonRef, age: AgeInput) {
     let p = setup.people.iter_mut().find(|p| p.person == who).unwrap();
-    p.age = Some(AgeConfirmation { age, confirmed_on: "2026-09-01".into() });
+    p.age = Some(AgeConfirmation {
+        age,
+        confirmed_on: "2026-09-01".into(),
+    });
 }
 
 fn setup_42() -> ComparisonSetup {
@@ -43,7 +50,16 @@ fn bundled() -> &'static Package {
 fn there_is_always_one_card_per_metric_in_the_mockups_order() {
     let report = build_report(bundled(), &setup_42(), &empty_snapshot());
     let order: Vec<_> = report.cards.iter().map(|c| c.result.metric).collect();
-    assert_eq!(order, [MetricId::Spending, MetricId::Investments, MetricId::Income, MetricId::Savings, MetricId::Debt]);
+    assert_eq!(
+        order,
+        [
+            MetricId::Spending,
+            MetricId::Investments,
+            MetricId::Income,
+            MetricId::Savings,
+            MetricId::Debt
+        ]
+    );
     assert_eq!(report.package_version, bundled().package_version());
 }
 
@@ -66,7 +82,17 @@ fn the_reference_persons_age_drives_household_matching_not_someone_elses() {
     age(&mut setup, person(7), AgeInput::Exact { age: 67 });
     setup.income.household_total = Some(amount("100000"));
     let report = build_report(bundled(), &setup, &empty_snapshot());
-    assert!(card(&report, MetricId::Income).result.reference.as_ref().unwrap().reference.age_max.unwrap() < 50);
+    assert!(
+        card(&report, MetricId::Income)
+            .result
+            .reference
+            .as_ref()
+            .unwrap()
+            .reference
+            .age_max
+            .unwrap()
+            < 50
+    );
     setup.household_reference_person = Some(person(7));
     let report = build_report(bundled(), &setup, &empty_snapshot());
     assert_eq!(card(&report, MetricId::Income).result.reference.as_ref().unwrap().reference.age_min, 65);
@@ -78,7 +104,11 @@ fn cards_missing_user_input_are_hidden_but_benchmark_gaps_stay_visible() {
     let income = card(&report, MetricId::Income);
     assert_eq!((income.result.status, income.visible), (CardStatus::MissingInput, false));
     let spending = card(&report, MetricId::Spending);
-    assert_eq!((spending.result.status, spending.visible), (CardStatus::MissingInput, false), "household spending has a benchmark now");
+    assert_eq!(
+        (spending.result.status, spending.visible),
+        (CardStatus::MissingInput, false),
+        "household spending has a benchmark now"
+    );
 }
 
 #[test]
@@ -114,7 +144,10 @@ fn an_age_band_spanning_published_cohorts_asks_for_a_choice_and_remembers_it() {
     assert_eq!(c.result.status, CardStatus::CohortChoiceRequired);
     assert_eq!((c.cohort_options[0].age_min, c.cohort_options[1].age_min), (40, 45));
 
-    setup.cohort_choices = vec![CohortChoice { metric: MetricId::Income, reference_id: "cps_hinc02_money_income_median:45-49".into() }];
+    setup.cohort_choices = vec![CohortChoice {
+        metric: MetricId::Income,
+        reference_id: "cps_hinc02_money_income_median:45-49".into(),
+    }];
     let chosen = card(&build_report(bundled(), &setup, &empty_snapshot()), MetricId::Income).clone();
     assert_eq!(chosen.result.status, CardStatus::Comparable);
     assert_eq!(chosen.result.reference.unwrap().reference.age_min, 45);
@@ -124,9 +157,18 @@ fn an_age_band_spanning_published_cohorts_asks_for_a_choice_and_remembers_it() {
 #[test]
 fn zero_debt_is_not_compared_with_the_holders_only_statistic() {
     let mut snap = empty_snapshot();
-    snap.accounts = vec![AccountSnap { id: 1, name: "Visa".into(), kind: AccountType::Credit, starting_balance: dec("1000"), balance: dec("1000") }];
+    snap.accounts = vec![AccountSnap {
+        id: 1,
+        name: "Visa".into(),
+        kind: AccountType::Credit,
+        starting_balance: dec("1000"),
+        balance: dec("1000"),
+    }];
     let mut setup = setup_42();
-    setup.balance_confirmations = vec![BalanceConfirmation { metric: MetricId::Debt, confirmed_on: "2026-09-30".into() }];
+    setup.balance_confirmations = vec![BalanceConfirmation {
+        metric: MetricId::Debt,
+        confirmed_on: "2026-09-30".into(),
+    }];
     let c = card(&build_report(bundled(), &setup, &snap), MetricId::Debt).clone();
     assert_eq!(c.result.status, CardStatus::NotComparable);
     assert!(c.visible);
@@ -135,10 +177,22 @@ fn zero_debt_is_not_compared_with_the_holders_only_statistic() {
 #[test]
 fn debt_with_a_mortgage_adds_a_home_debt_comparison() {
     let mut snap = empty_snapshot();
-    snap.accounts = vec![AccountSnap { id: 2, name: "Home loan".into(), kind: AccountType::Loan, starting_balance: dec("0"), balance: dec("150000") }];
+    snap.accounts = vec![AccountSnap {
+        id: 2,
+        name: "Home loan".into(),
+        kind: AccountType::Loan,
+        starting_balance: dec("0"),
+        balance: dec("150000"),
+    }];
     let mut setup = setup_42();
-    setup.balance_confirmations = vec![BalanceConfirmation { metric: MetricId::Debt, confirmed_on: "2026-09-30".into() }];
-    setup.debt_classes = vec![DebtClassification { source: SourceRef::Account { id: 2 }, class: DebtClass::Mortgage }];
+    setup.balance_confirmations = vec![BalanceConfirmation {
+        metric: MetricId::Debt,
+        confirmed_on: "2026-09-30".into(),
+    }];
+    setup.debt_classes = vec![DebtClassification {
+        source: SourceRef::Account { id: 2 },
+        class: DebtClass::Mortgage,
+    }];
     let c = card(&build_report(bundled(), &setup, &snap), MetricId::Debt).clone();
     assert_eq!(c.result.status, CardStatus::Comparable);
     assert_eq!(c.result.reference.as_ref().unwrap().reference.definition_id, "sipp_total_debt_median");
@@ -151,18 +205,42 @@ fn debt_with_a_mortgage_adds_a_home_debt_comparison() {
 fn investments_compare_retirement_first_and_taxable_separately() {
     let mut snap = empty_snapshot();
     snap.accounts = vec![
-        AccountSnap { id: 10, name: "401k".into(), kind: AccountType::Investment, starting_balance: dec("0"), balance: dec("80000") },
-        AccountSnap { id: 11, name: "Brokerage".into(), kind: AccountType::Investment, starting_balance: dec("0"), balance: dec("20000") },
+        AccountSnap {
+            id: 10,
+            name: "401k".into(),
+            kind: AccountType::Investment,
+            starting_balance: dec("0"),
+            balance: dec("80000"),
+        },
+        AccountSnap {
+            id: 11,
+            name: "Brokerage".into(),
+            kind: AccountType::Investment,
+            starting_balance: dec("0"),
+            balance: dec("20000"),
+        },
     ];
     let mut setup = setup_42();
-    setup.balance_confirmations = vec![BalanceConfirmation { metric: MetricId::Investments, confirmed_on: "2026-09-30".into() }];
+    setup.balance_confirmations = vec![BalanceConfirmation {
+        metric: MetricId::Investments,
+        confirmed_on: "2026-09-30".into(),
+    }];
     setup.investment_classes = vec![
-        InvestmentClassification { source: SourceRef::Account { id: 10 }, class: InvestmentClass::Retirement },
-        InvestmentClassification { source: SourceRef::Account { id: 11 }, class: InvestmentClass::Taxable },
+        InvestmentClassification {
+            source: SourceRef::Account { id: 10 },
+            class: InvestmentClass::Retirement,
+        },
+        InvestmentClassification {
+            source: SourceRef::Account { id: 11 },
+            class: InvestmentClass::Taxable,
+        },
     ];
     let c = card(&build_report(bundled(), &setup, &snap), MetricId::Investments).clone();
     assert_eq!(c.result.local_value, Some(dec("80000")));
-    assert_eq!(c.result.reference.as_ref().unwrap().reference.definition_id, "sipp_retirement_accounts_median");
+    assert_eq!(
+        c.result.reference.as_ref().unwrap().reference.definition_id,
+        "sipp_retirement_accounts_median"
+    );
     assert_eq!(c.secondary[0].definition_id, "sipp_stocks_mutual_funds_median");
     assert_eq!(c.secondary[0].result.local_value, Some(dec("20000")));
 }
@@ -170,22 +248,40 @@ fn investments_compare_retirement_first_and_taxable_separately() {
 #[test]
 fn an_unconfirmed_balance_is_incomplete_rather_than_compared() {
     let mut snap = empty_snapshot();
-    snap.accounts = vec![AccountSnap { id: 1, name: "Checking".into(), kind: AccountType::Checking, starting_balance: dec("0"), balance: dec("5000") }];
+    snap.accounts = vec![AccountSnap {
+        id: 1,
+        name: "Checking".into(),
+        kind: AccountType::Checking,
+        starting_balance: dec("0"),
+        balance: dec("5000"),
+    }];
     let c = card(&build_report(bundled(), &setup_42(), &snap), MetricId::Savings).clone();
     assert_eq!(c.result.status, CardStatus::Incomplete);
     assert_eq!(c.result.completeness, Completeness::Unknown);
     assert_eq!(c.metric.value, Some(dec("5000")), "the tracked figure is still shown");
-    assert!(!c.visible, "a figure that was simply never confirmed is waiting on the person, like any missing input");
+    assert!(
+        !c.visible,
+        "a figure that was simply never confirmed is waiting on the person, like any missing input"
+    );
 }
 
 #[test]
 fn unclassified_investments_are_hidden_until_the_person_confirms_them() {
     let mut snap = empty_snapshot();
-    snap.accounts = vec![AccountSnap { id: 10, name: "401k".into(), kind: AccountType::Investment, starting_balance: dec("0"), balance: dec("80000") }];
+    snap.accounts = vec![AccountSnap {
+        id: 10,
+        name: "401k".into(),
+        kind: AccountType::Investment,
+        starting_balance: dec("0"),
+        balance: dec("80000"),
+    }];
     let c = card(&build_report(bundled(), &setup_42(), &snap), MetricId::Investments).clone();
     assert!(!c.visible, "nothing has been classified or confirmed yet");
     let mut confirmed = setup_42();
-    confirmed.balance_confirmations = vec![BalanceConfirmation { metric: MetricId::Investments, confirmed_on: "2026-09-30".into() }];
+    confirmed.balance_confirmations = vec![BalanceConfirmation {
+        metric: MetricId::Investments,
+        confirmed_on: "2026-09-30".into(),
+    }];
     let c = card(&build_report(bundled(), &confirmed, &snap), MetricId::Investments).clone();
     assert!(c.visible, "confirmed but still unclassified: show it so the person can finish");
 }
@@ -193,31 +289,75 @@ fn unclassified_investments_are_hidden_until_the_person_confirms_them() {
 #[test]
 fn a_partly_assigned_balance_stays_visible_so_the_person_can_finish_it() {
     let mut snap = empty_snapshot();
-    snap.accounts = vec![AccountSnap { id: 1, name: "Joint".into(), kind: AccountType::Checking, starting_balance: dec("0"), balance: dec("1000") }];
+    snap.accounts = vec![AccountSnap {
+        id: 1,
+        name: "Joint".into(),
+        kind: AccountType::Checking,
+        starting_balance: dec("0"),
+        balance: dec("1000"),
+    }];
     let mut setup = setup_42();
-    setup.balance_confirmations = vec![BalanceConfirmation { metric: MetricId::Savings, confirmed_on: "2026-09-30".into() }];
-    setup.allocations = vec![Allocation { source: SourceRef::Account { id: 1 }, person: PersonRef::Owner, basis_points: 6000 }];
+    setup.balance_confirmations = vec![BalanceConfirmation {
+        metric: MetricId::Savings,
+        confirmed_on: "2026-09-30".into(),
+    }];
+    setup.allocations = vec![Allocation {
+        source: SourceRef::Account { id: 1 },
+        person: PersonRef::Owner,
+        basis_points: 6000,
+    }];
     let c = card(&build_report(bundled(), &setup, &snap), MetricId::Savings).clone();
-    assert_eq!((c.result.status, c.result.completeness, c.visible), (CardStatus::Incomplete, Completeness::Partial, true));
+    assert_eq!(
+        (c.result.status, c.result.completeness, c.visible),
+        (CardStatus::Incomplete, Completeness::Partial, true)
+    );
 }
 
 #[test]
 fn the_remembered_population_preference_is_offered_and_applied() {
     // A synthetic package with both populations for savings.
-    let mut all = reference("all", "savings", "household", "sipp_financial_institution_assets_median", 40, Some(49), "100");
+    let mut all = reference(
+        "all",
+        "savings",
+        "household",
+        "sipp_financial_institution_assets_median",
+        40,
+        Some(49),
+        "100",
+    );
     all["unit"] = json!("usd_balance");
-    let mut holders = reference("holders", "savings", "household", "sipp_financial_institution_assets_median", 40, Some(49), "300");
+    let mut holders = reference(
+        "holders",
+        "savings",
+        "household",
+        "sipp_financial_institution_assets_median",
+        40,
+        Some(49),
+        "300",
+    );
     holders["unit"] = json!("usd_balance");
     holders["universe"] = json!("holders");
     let pkg = package_with(vec![all, holders]);
     let mut snap = empty_snapshot();
-    snap.accounts = vec![AccountSnap { id: 1, name: "Checking".into(), kind: AccountType::Checking, starting_balance: dec("0"), balance: dec("200") }];
+    snap.accounts = vec![AccountSnap {
+        id: 1,
+        name: "Checking".into(),
+        kind: AccountType::Checking,
+        starting_balance: dec("0"),
+        balance: dec("200"),
+    }];
     let mut setup = setup_42();
-    setup.balance_confirmations = vec![BalanceConfirmation { metric: MetricId::Savings, confirmed_on: "2026-09-30".into() }];
+    setup.balance_confirmations = vec![BalanceConfirmation {
+        metric: MetricId::Savings,
+        confirmed_on: "2026-09-30".into(),
+    }];
     let c = card(&build_report(&pkg, &setup, &snap), MetricId::Savings).clone();
     assert_eq!(c.universe_options, vec![Universe::All, Universe::Holders]);
     assert_eq!(c.result.reference.as_ref().unwrap().reference.id, "all");
-    setup.universe_preferences = vec![UniversePreference { metric: MetricId::Savings, universe: Universe::Holders }];
+    setup.universe_preferences = vec![UniversePreference {
+        metric: MetricId::Savings,
+        universe: Universe::Holders,
+    }];
     let c = card(&build_report(&pkg, &setup, &snap), MetricId::Savings).clone();
     assert_eq!(c.result.reference.unwrap().reference.id, "holders");
 }
@@ -225,9 +365,23 @@ fn the_remembered_population_preference_is_offered_and_applied() {
 #[test]
 fn a_definition_dropped_from_a_newer_package_stays_visible_as_removed() {
     // The package still covers income but no longer has the savings definition, and records no gap for it.
-    let pkg = package_with(vec![reference("h", "income", "household", "cps_hinc02_money_income_median", 40, Some(49), "100")]);
+    let pkg = package_with(vec![reference(
+        "h",
+        "income",
+        "household",
+        "cps_hinc02_money_income_median",
+        40,
+        Some(49),
+        "100",
+    )]);
     let mut snap = empty_snapshot();
-    snap.accounts = vec![AccountSnap { id: 1, name: "Checking".into(), kind: AccountType::Checking, starting_balance: dec("0"), balance: dec("5") }];
+    snap.accounts = vec![AccountSnap {
+        id: 1,
+        name: "Checking".into(),
+        kind: AccountType::Checking,
+        starting_balance: dec("0"),
+        balance: dec("5"),
+    }];
     let c = card(&build_report(&pkg, &setup_42(), &snap), MetricId::Savings).clone();
     assert_eq!((c.result.status, c.visible), (CardStatus::Unavailable, true));
     assert!(c.result.reasons.contains(&Reason::BenchmarkRemoved));
@@ -256,18 +410,31 @@ fn the_report_serialises_for_the_frontend_with_money_as_strings() {
     assert_eq!(income["visible"], json!(true));
     assert!(income["metric"]["contributors"].is_array());
     let debt = serde_json::to_value(build_report(bundled(), &debt_setup(), &debt_snapshot())).unwrap();
-    assert_eq!(debt["cards"][4]["metric"]["classTotals"]["mortgage"], json!("150000"), "class totals are decimal strings too");
+    assert_eq!(
+        debt["cards"][4]["metric"]["classTotals"]["mortgage"],
+        json!("150000"),
+        "class totals are decimal strings too"
+    );
 }
 
 fn debt_snapshot() -> Snapshot {
     let mut snap = empty_snapshot();
-    snap.accounts = vec![AccountSnap { id: 2, name: "Home loan".into(), kind: AccountType::Loan, starting_balance: dec("0"), balance: dec("150000") }];
+    snap.accounts = vec![AccountSnap {
+        id: 2,
+        name: "Home loan".into(),
+        kind: AccountType::Loan,
+        starting_balance: dec("0"),
+        balance: dec("150000"),
+    }];
     snap
 }
 
 fn debt_setup() -> ComparisonSetup {
     let mut setup = setup_42();
-    setup.debt_classes = vec![DebtClassification { source: SourceRef::Account { id: 2 }, class: DebtClass::Mortgage }];
+    setup.debt_classes = vec![DebtClassification {
+        source: SourceRef::Account { id: 2 },
+        class: DebtClass::Mortgage,
+    }];
     setup
 }
 
@@ -275,11 +442,21 @@ const PERSONAL: &str = "cps_pinc01_money_income_median";
 
 fn by_person(setup: &mut ComparisonSetup, incomes: &[(PersonRef, &str)]) {
     setup.income.household_method = HouseholdIncomeMethod::ByPerson;
-    setup.income.per_person = incomes.iter().map(|(p, v)| PersonIncome { person: p.clone(), gross_annual: amount(v) }).collect();
+    setup.income.per_person = incomes
+        .iter()
+        .map(|(p, v)| PersonIncome {
+            person: p.clone(),
+            gross_annual: amount(v),
+        })
+        .collect();
 }
 
 fn personal_lines(report: &ComparisonsReport) -> Vec<&SecondaryCard> {
-    card(report, MetricId::Income).secondary.iter().filter(|s| s.definition_id == PERSONAL).collect()
+    card(report, MetricId::Income)
+        .secondary
+        .iter()
+        .filter(|s| s.definition_id == PERSONAL)
+        .collect()
 }
 
 #[test]
@@ -341,7 +518,10 @@ fn a_household_total_shows_the_hint_and_no_personal_lines_even_with_old_per_pers
     let report = build_report(bundled(), &setup, &empty_snapshot());
     assert!(personal_lines(&report).is_empty());
     assert!(card(&report, MetricId::Income).personal_income_hint);
-    assert!(!card(&report, MetricId::Savings).personal_income_hint, "the hint belongs to the Income card only");
+    assert!(
+        !card(&report, MetricId::Savings).personal_income_hint,
+        "the hint belongs to the Income card only"
+    );
 }
 
 #[test]
@@ -366,7 +546,10 @@ fn personal_lines_follow_the_households_population_choice_for_income() {
         personal_lines(&report)[0].result.reference.as_ref().unwrap().reference.id.clone()
     };
     assert_eq!(line(&setup), "p-all:40-44");
-    setup.universe_preferences = vec![UniversePreference { metric: MetricId::Income, universe: Universe::Holders }];
+    setup.universe_preferences = vec![UniversePreference {
+        metric: MetricId::Income,
+        universe: Universe::Holders,
+    }];
     assert_eq!(line(&setup), "p-holders:40-44");
 }
 

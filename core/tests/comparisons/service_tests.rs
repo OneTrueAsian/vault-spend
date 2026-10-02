@@ -1,5 +1,5 @@
 use super::setup_tests::{amount, base_setup, person, today};
-use budget_core::comparisons::service::{get_comparisons, get_setup, save_setup, SaveResponse};
+use budget_core::comparisons::service::{SaveResponse, get_comparisons, get_setup, save_setup};
 use budget_core::comparisons::setup::*;
 use budget_core::comparisons::types::{CardStatus, MetricId};
 use budget_core::models::AccountType;
@@ -45,14 +45,21 @@ fn saving_then_reading_gives_the_same_setup_and_a_report() {
 fn a_stale_save_is_a_conflict_response_not_an_error() {
     let (store, setup) = store_with_people();
     save_setup(&store, 0, &setup, today()).unwrap();
-    assert!(matches!(save_setup(&store, 0, &setup, today()).unwrap(), SaveResponse::Conflict { current_revision: 1 }));
+    assert!(matches!(
+        save_setup(&store, 0, &setup, today()).unwrap(),
+        SaveResponse::Conflict { current_revision: 1 }
+    ));
 }
 
 #[test]
 fn an_invalid_save_lists_every_problem_and_changes_nothing() {
     let (store, mut setup) = store_with_people();
     setup.spending.account_ids = vec![404];
-    setup.allocations = vec![Allocation { source: SourceRef::Account { id: 404 }, person: PersonRef::Owner, basis_points: 1 }];
+    setup.allocations = vec![Allocation {
+        source: SourceRef::Account { id: 404 },
+        person: PersonRef::Owner,
+        basis_points: 1,
+    }];
     match save_setup(&store, 0, &setup, today()).unwrap() {
         SaveResponse::Invalid { problems } => assert!(problems.len() >= 2, "{problems:?}"),
         other => panic!("{other:?}"),
@@ -63,11 +70,19 @@ fn an_invalid_save_lists_every_problem_and_changes_nothing() {
 #[test]
 fn the_report_reflects_the_ledger_the_moment_it_is_read() {
     let (store, mut setup) = store_with_people();
-    setup.balance_confirmations = vec![BalanceConfirmation { metric: MetricId::Savings, confirmed_on: "2026-09-30".into() }];
+    setup.balance_confirmations = vec![BalanceConfirmation {
+        metric: MetricId::Savings,
+        confirmed_on: "2026-09-30".into(),
+    }];
     save_setup(&store, 0, &setup, today()).unwrap();
     let savings = |store: &Store| {
         let r = get_comparisons(store, today()).unwrap().report.unwrap();
-        r.cards.into_iter().find(|c| c.result.metric == MetricId::Savings).unwrap().result.local_value
+        r.cards
+            .into_iter()
+            .find(|c| c.result.metric == MetricId::Savings)
+            .unwrap()
+            .result
+            .local_value
     };
     let account = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
     assert_eq!(savings(&store).map(|v| v.to_string()), Some("0".into()));
@@ -108,7 +123,10 @@ fn a_stored_setup_that_cannot_be_read_is_an_error_not_an_empty_page() {
     drop(Store::open(&path).unwrap());
     rusqlite::Connection::open(&path)
         .unwrap()
-        .execute("INSERT INTO comparison_setup (id, format_version, revision, payload, updated_at) VALUES (1, 1, 3, '{nope', 'x')", [])
+        .execute(
+            "INSERT INTO comparison_setup (id, format_version, revision, payload, updated_at) VALUES (1, 1, 3, '{nope', 'x')",
+            [],
+        )
         .unwrap();
     let store = Store::open(&path).unwrap();
     assert!(get_comparisons(&store, today()).is_err());

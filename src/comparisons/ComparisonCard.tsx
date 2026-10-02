@@ -32,7 +32,7 @@ function MetricIcon({ metric }: { metric: MetricId }) {
   );
 }
 
-const STATISTIC = { mean: "Average", median: "Median" } as const;
+const STATISTIC = { mean: "Average", median: "Middle value" } as const;
 
 /** One comparison. Shows the person's figure, the published peer figure with the population and age
  * group it actually describes, and a difference only when the engine says the comparison is valid.
@@ -77,7 +77,7 @@ export function ComparisonCard({
             <span className="cmp-unit">{unitSuffix(metric.unit)}</span>
           </div>
           <p className="cmp-measure">
-            {metric.origin.kind === "entered" ? "Entered by you" : "From your tracked accounts"}
+            {metric.origin.kind === "entered" ? "Entered by you" : "From your accounts in Vault Spend"}
             {view.stale && <span className="cmp-stale"> · may be out of date</span>}
           </p>
         </>
@@ -118,7 +118,7 @@ export function ComparisonCard({
             {" "}
             {referencePeriodLabel(adjusted.reference.period)} figures in {adjusted.adjustedBasisMonth} dollars.
           </p>
-          {holdersOnly && <p className="cmp-holders-only" data-cmp-holders-only>Only people who hold this are in the published figure.</p>}
+          {holdersOnly && <p className="cmp-holders-only" data-cmp-holders-only>Only people who hold this are in the official figure.</p>}
         </>
       )}
 

@@ -50,7 +50,7 @@ ${setupSnippet(setup2)}
   assert.ok(savingsText.includes("Entered by you") && savingsText.includes("may be out of date"), `a stale typed total is flagged but still used: ${savingsText}`);
   await (await savings.$(".cmp-explore")).click();
   const typedDetails = await detailsText(browser, "savings");
-  assert.ok(typedDetails.includes("Your tracked accounts add up to $100"), "the tracked total stays visible beside the typed one");
+  assert.ok(typedDetails.includes("Your accounts in Vault Spend add up to $100"), "the tracked total stays visible beside the typed one");
   assert.ok(typedDetails.includes("Entered on 2024-01-01: Statement from the credit union"), `the typed total names its date and source: ${typedDetails}`); // fixed date: the measuredOn above
 
   console.log("FEATURE 148 E2E TEST PASSED");

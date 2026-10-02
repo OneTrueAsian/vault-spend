@@ -46,7 +46,7 @@ describe("ComparisonCard", () => {
     expect(q("[data-cmp-reference]")?.textContent).toContain("2025");
     expect(q("[data-cmp-reference]")?.textContent).toContain("2026-08 dollars");
     expect(text()).toContain("$105,000");
-    expect(text()).toContain("Median");
+    expect(text()).toContain("Middle value");
   });
 
   it("says where the figure came from and flags an out-of-date typed total", () => {
@@ -57,7 +57,7 @@ describe("ComparisonCard", () => {
 
   it("describes a tracked figure as coming from the person's accounts", () => {
     show(comparableIncome({ metric: metric("income", { origin: { kind: "derived" } }) }));
-    expect(text()).toContain("From your tracked accounts");
+    expect(text()).toContain("From your accounts in Vault Spend");
   });
 
   it("shows an Income card that waits on the household's age with its total, a note and Explore", () => {

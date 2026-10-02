@@ -1284,7 +1284,9 @@ fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
         if stored.transaction.category.is_some() {
             continue;
         }
-        if let Some((category, source, confidence)) = categorizer::categorize(&stored.transaction.description, &state.rules, &history, Some(&classifier)) {
+        if let Some((category, source, confidence)) =
+            categorizer::categorize(&stored.transaction.description, &state.rules, &history, Some(&classifier))
+        {
             // A guess is only ever filed under a category the person already has — it must
             // not add one to their list.
             let applied = state
@@ -1341,8 +1343,16 @@ pub struct ImportSignCounts {
 pub fn count_import_signs(path: String) -> Result<ImportSignCounts, String> {
     let loaded = importer::load_transactions(&path, false).map_err(|e| e.to_string())?;
     Ok(ImportSignCounts {
-        positive: loaded.transactions.iter().filter(|t| t.amount.is_sign_positive() && !t.amount.is_zero()).count(),
-        negative: loaded.transactions.iter().filter(|t| t.amount.is_sign_negative() && !t.amount.is_zero()).count(),
+        positive: loaded
+            .transactions
+            .iter()
+            .filter(|t| t.amount.is_sign_positive() && !t.amount.is_zero())
+            .count(),
+        negative: loaded
+            .transactions
+            .iter()
+            .filter(|t| t.amount.is_sign_negative() && !t.amount.is_zero())
+            .count(),
     })
 }
 
@@ -1358,7 +1368,10 @@ pub struct FlipSignsDto {
 pub fn flip_transaction_signs(ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<FlipSignsDto, String> {
     let state = state.lock()?;
     let summary = state.store.flip_transaction_signs(&ids).map_err(|e| e.to_string())?;
-    Ok(FlipSignsDto { flipped: summary.flipped, account_ids: summary.account_ids })
+    Ok(FlipSignsDto {
+        flipped: summary.flipped,
+        account_ids: summary.account_ids,
+    })
 }
 
 #[tauri::command]
@@ -1848,7 +1861,13 @@ pub fn create_account(
     // account behind because validation happened after the first write in
     // this sequence of otherwise-separate calls.
     let starting_balance = starting_balance.map(|b| parse_amount(&b)).transpose()?;
-    let id = state.store.get_or_create_account(&name, account_type).map_err(|e| e.to_string())?;
+    // Never reuse an account with the same name: the balance and details below would overwrite it.
+    let Some(id) = state.store.create_account(&name, account_type).map_err(|e| e.to_string())? else {
+        return Err(format!(
+            "You already have an account called \"{}\". Choose a different name.",
+            name.trim()
+        ));
+    };
     if let Some(balance) = starting_balance {
         state.store.set_account_starting_balance(id, balance).map_err(|e| e.to_string())?;
     }
@@ -1987,38 +2006,47 @@ pub fn delete_family_member(id: i64, state: tauri::State<AppStateHandle>) -> Res
     state.store.delete_family_member(id).map_err(|e| e.to_string())
 }
 
+fn transaction_dto(s: budget_core::store::StoredTransaction) -> TransactionDto {
+    TransactionDto {
+        id: s.id,
+        transfer_counterpart_id: s.transfer_counterpart_id,
+        date: s.transaction.date.to_string(),
+        description: s.transaction.description,
+        amount: s.transaction.amount.to_string(),
+        category: s.transaction.category,
+        category_source: s.category_source.map(CategorySource::as_str).map(str::to_string),
+        confidence: s.confidence,
+        account_id: s.account_id,
+        account_name: s.account_name,
+        applied_to_debt: s.applied_to_debt.map(|d| AppliedDebtPaymentDto {
+            date: d.date.to_string(),
+            debt_account_id: d.debt_account_id,
+            debt_account_name: d.debt_account_name,
+            amount: d.amount.to_string(),
+        }),
+        principal_amount: s.principal_amount.map(|a| a.to_string()),
+        split_count: s.split_count,
+        tags: s.tags,
+        member_id: s.member_id,
+        member_name: s.member_name,
+        notes: s.notes,
+    }
+}
+
 #[tauri::command]
 pub fn list_transactions(state: tauri::State<AppStateHandle>) -> Result<Vec<TransactionDto>, String> {
     let state = state.lock()?;
     let stored = state.store.all_transactions().map_err(|e| e.to_string())?;
+    Ok(stored.into_iter().map(transaction_dto).collect())
+}
 
-    Ok(stored
-        .into_iter()
-        .map(|s| TransactionDto {
-            id: s.id,
-            transfer_counterpart_id: s.transfer_counterpart_id,
-            date: s.transaction.date.to_string(),
-            description: s.transaction.description,
-            amount: s.transaction.amount.to_string(),
-            category: s.transaction.category,
-            category_source: s.category_source.map(CategorySource::as_str).map(str::to_string),
-            confidence: s.confidence,
-            account_id: s.account_id,
-            account_name: s.account_name,
-            applied_to_debt: s.applied_to_debt.map(|d| AppliedDebtPaymentDto {
-                date: d.date.to_string(),
-                debt_account_id: d.debt_account_id,
-                debt_account_name: d.debt_account_name,
-                amount: d.amount.to_string(),
-            }),
-            principal_amount: s.principal_amount.map(|a| a.to_string()),
-            split_count: s.split_count,
-            tags: s.tags,
-            member_id: s.member_id,
-            member_name: s.member_name,
-            notes: s.notes,
-        })
-        .collect())
+/// The listed transactions as `list_transactions` shows them (gone or unknown ids are left out) — what
+/// the page re-reads after editing a few rows, instead of every transaction.
+#[tauri::command]
+pub fn list_transactions_by_ids(ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<Vec<TransactionDto>, String> {
+    let state = state.lock()?;
+    let stored = state.store.transactions_by_ids(&ids).map_err(|e| e.to_string())?;
+    Ok(stored.into_iter().map(transaction_dto).collect())
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -2074,7 +2102,13 @@ pub fn mark_auto_links_reviewed(out_ids: Vec<i64>, state: tauri::State<AppStateH
 pub fn list_all_transfer_candidate_pairs(state: tauri::State<AppStateHandle>) -> Result<Vec<TransferCandidateDto>, String> {
     let state = state.lock()?;
     let pairs = state.store.list_all_transfer_candidate_pairs().map_err(|e| e.to_string())?;
-    Ok(pairs.into_iter().map(|c| TransferCandidateDto { out_id: c.out_id, in_id: c.in_id }).collect())
+    Ok(pairs
+        .into_iter()
+        .map(|c| TransferCandidateDto {
+            out_id: c.out_id,
+            in_id: c.in_id,
+        })
+        .collect())
 }
 
 /// Tells Vault Spend to stop suggesting these exact pairs as transfers.
@@ -2082,11 +2116,20 @@ pub fn list_all_transfer_candidate_pairs(state: tauri::State<AppStateHandle>) ->
 /// pairs newly dismissed (already-dismissed pairs in the batch are
 /// omitted), for the frontend's Undo to restore exactly those.
 #[tauri::command]
-pub fn dismiss_transfer_candidates(pairs: Vec<TransferCandidateDto>, state: tauri::State<AppStateHandle>) -> Result<Vec<TransferCandidateDto>, String> {
+pub fn dismiss_transfer_candidates(
+    pairs: Vec<TransferCandidateDto>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<Vec<TransferCandidateDto>, String> {
     let state = state.lock()?;
     let pairs: Vec<(i64, i64)> = pairs.into_iter().map(|p| (p.out_id, p.in_id)).collect();
     let newly = state.store.dismiss_transfer_candidates(&pairs).map_err(|e| e.to_string())?;
-    Ok(newly.into_iter().map(|c| TransferCandidateDto { out_id: c.out_id, in_id: c.in_id }).collect())
+    Ok(newly
+        .into_iter()
+        .map(|c| TransferCandidateDto {
+            out_id: c.out_id,
+            in_id: c.in_id,
+        })
+        .collect())
 }
 
 /// Undoes the named dismissals (Undo after `dismiss_transfer_candidates`).
@@ -2182,11 +2225,8 @@ pub fn correct_category(id: i64, category: String, state: tauri::State<AppStateH
 
     let description = state
         .store
-        .all_transactions()
+        .transaction_description(id)
         .map_err(|e| e.to_string())?
-        .into_iter()
-        .find(|t| t.id == id)
-        .map(|t| t.transaction.description)
         .ok_or_else(|| format!("no transaction with id {id}"))?;
 
     state
@@ -2211,9 +2251,8 @@ pub fn correct_category(id: i64, category: String, state: tauri::State<AppStateH
 pub fn bulk_correct_category(ids: Vec<i64>, category: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let mut state = state.lock()?;
 
-    let transactions = state.store.all_transactions().map_err(|e| e.to_string())?;
     for id in ids {
-        let Some(description) = transactions.iter().find(|t| t.id == id).map(|t| t.transaction.description.clone()) else {
+        let Some(description) = state.store.transaction_description(id).map_err(|e| e.to_string())? else {
             continue;
         };
 
@@ -2997,18 +3036,22 @@ pub fn spending_transactions_for_category(
         return Err("invalid month".to_string());
     }
     let state = state.lock()?;
-    state.store.spending_transactions_for_category_in_month(&category, year, month)
+    state
+        .store
+        .spending_transactions_for_category_in_month(&category, year, month)
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(|t| Ok(CategoryTransactionDto {
-            transaction_id: t.transaction_id,
-            date: t.date.to_string(),
-            description: t.description,
-            amount: t.amount.to_string(),
-            account_name: t.account_name,
-            is_split: t.is_split,
-            split_note: t.split_note,
-        }))
+        .map(|t| {
+            Ok(CategoryTransactionDto {
+                transaction_id: t.transaction_id,
+                date: t.date.to_string(),
+                description: t.description,
+                amount: t.amount.to_string(),
+                account_name: t.account_name,
+                is_split: t.is_split,
+                split_note: t.split_note,
+            })
+        })
         .collect()
 }
 
@@ -3151,33 +3194,15 @@ pub fn list_anomaly_flags(state: tauri::State<AppStateHandle>) -> Result<Vec<Ano
 #[tauri::command]
 pub fn get_stats(state: tauri::State<AppStateHandle>) -> Result<Stats, String> {
     let state = state.lock()?;
-    let all = state.store.all_transactions().map_err(|e| e.to_string())?;
-
-    let mut stats = Stats {
-        total: all.len(),
-        auto_categorized: 0,
-        user_confirmed: 0,
-        uncategorized: 0,
-    };
-    for t in &all {
-        // "Needs a category" must mean exactly that — no category name at
-        // all — not "no recorded source for whatever category it has".
-        // A transaction imported with a category already attached (a QFX/
-        // OFX file's own categorization, or a bulk setup-data import) gets
-        // a real `category` but no `category_source`, since it was never
-        // run through this app's own rule/classifier/user-confirm path;
-        // counting it as "uncategorized" anyway (as this used to) made the
-        // Transactions tab's "Needs a category" stat overcount, disagreeing with its
-        // own "Uncategorized" filter, which correctly checks `category`.
-        if t.transaction.category.is_none() {
-            stats.uncategorized += 1;
-        } else if t.category_source == Some(CategorySource::User) {
-            stats.user_confirmed += 1;
-        } else {
-            stats.auto_categorized += 1;
-        }
-    }
-    Ok(stats)
+    // Counted in SQL rather than by loading every transaction (see `Store::category_counts` for what
+    // each count means: "needs a category" is exactly "no category name").
+    let counts = state.store.category_counts().map_err(|e| e.to_string())?;
+    Ok(Stats {
+        total: counts.total,
+        auto_categorized: counts.auto_categorized,
+        user_confirmed: counts.user_confirmed,
+        uncategorized: counts.uncategorized,
+    })
 }
 
 fn refresh_open_reminders(store: &Store, paths: &crate::config::AppPaths, device: &crate::device_settings::DeviceSettingsStore) {

@@ -11,6 +11,7 @@ import { StatDetailPanel } from "./StatDetailPanel";
 import { AccumulationSummaryCard } from "./AccumulationSection";
 import { MenuSelect } from "./MenuSelect";
 import { categoryColor } from "./categoryPalette";
+import { sumMoney } from "./money";
 
 
 const PROJECTION_YEAR_OPTIONS = [5, 10, 15, 20, 25, 30, 40];
@@ -301,11 +302,11 @@ function NewHoldingForm({
           : null;
   const costBasisError =
     costBasisTrimmed === ""
-      ? "Enter a cost basis."
+      ? "Enter what you paid."
       : !isValidDecimalString(costBasisTrimmed)
         ? "That doesn't look like a number."
         : parseFloat(costBasisTrimmed) < 0
-          ? "Cost basis can't be negative."
+          ? "What you paid can't be negative."
           : null;
   const valid = accountId !== "" && symbol.trim() !== "" && !sharesError && !priceError && !costBasisError;
 
@@ -407,7 +408,7 @@ function NewHoldingForm({
         {submitAttempted && priceError && <span className="field-error">{priceError}</span>}
       </label>
       <label className="labeled-field">
-        <span className="labeled-field-label">Cost basis ($)</span>
+        <span className="labeled-field-label">What you paid ($)</span>
         <input
           value={costBasis}
           onChange={(e) => setCostBasis(e.target.value)}
@@ -495,10 +496,10 @@ export function InvestmentsView({
   );
 
   const { totalValue, totalCost, totalGain, holdingsWithDayCount, totalDayGain, totalDayGainPct } = useMemo(() => {
-    const totalValue = holdings.reduce((s, h) => s + parseFloat(h.value), 0);
-    const totalCost = holdings.reduce((s, h) => s + parseFloat(h.cost_basis), 0);
+    const totalValue = sumMoney(holdings.map((h) => h.value));
+    const totalCost = sumMoney(holdings.map((h) => h.cost_basis));
     const holdingsWithDayData = holdings.filter((h) => h.day_gain_loss !== null);
-    const totalDayGain = holdingsWithDayData.reduce((s, h) => s + parseFloat(h.day_gain_loss as string), 0);
+    const totalDayGain = sumMoney(holdingsWithDayData.map((h) => h.day_gain_loss as string));
     const totalDayPrevValue = holdingsWithDayData.reduce(
       (s, h) => s + parseFloat(h.shares) * parseFloat(h.prev_close as string),
       0,
@@ -555,7 +556,7 @@ export function InvestmentsView({
         </div>
         <div className="stat tint-blue">
           <span className="stat-value">{formatAmount(totalCost.toFixed(2))}</span>
-          <span className="stat-label">Cost basis</span>
+          <span className="stat-label">What you paid</span>
         </div>
         <button
           type="button"
@@ -664,7 +665,7 @@ export function InvestmentsView({
                 <th className="amount-col">Value</th>
                 <th className="amount-col">% of portfolio</th>
                 <th className="amount-col">Gain/Loss</th>
-                <th className="actions-col"></th>
+                <th className="actions-col"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>

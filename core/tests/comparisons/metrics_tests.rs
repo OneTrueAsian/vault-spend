@@ -16,20 +16,41 @@ fn d(y: i32, m: u32, day: u32) -> NaiveDate {
 }
 
 fn account(id: i64, name: &str, kind: AccountType, balance: &str) -> AccountSnap {
-    AccountSnap { id, name: name.into(), kind, starting_balance: Decimal::ZERO, balance: dec(balance) }
+    AccountSnap {
+        id,
+        name: name.into(),
+        kind,
+        starting_balance: Decimal::ZERO,
+        balance: dec(balance),
+    }
 }
 
 fn card(id: i64, name: &str, limit: &str, available: &str) -> AccountSnap {
-    AccountSnap { id, name: name.into(), kind: AccountType::Credit, starting_balance: dec(limit), balance: dec(available) }
+    AccountSnap {
+        id,
+        name: name.into(),
+        kind: AccountType::Credit,
+        starting_balance: dec(limit),
+        balance: dec(available),
+    }
 }
 
 fn snapshot(accounts: Vec<AccountSnap>) -> Snapshot {
-    Snapshot { today: today(), accounts, assets: vec![], spend_rows: vec![], first_transaction_date: None }
+    Snapshot {
+        today: today(),
+        accounts,
+        assets: vec![],
+        spend_rows: vec![],
+        first_transaction_date: None,
+    }
 }
 
 fn confirmed(mut s: ComparisonSetup, metrics: &[MetricId]) -> ComparisonSetup {
     for m in metrics {
-        s.balance_confirmations.push(BalanceConfirmation { metric: *m, confirmed_on: "2026-09-30".into() });
+        s.balance_confirmations.push(BalanceConfirmation {
+            metric: *m,
+            confirmed_on: "2026-09-30".into(),
+        });
     }
     s
 }
@@ -39,7 +60,11 @@ fn acct(id: i64) -> SourceRef {
 }
 
 fn share(source: SourceRef, who: PersonRef, bp: u32) -> Allocation {
-    Allocation { source, person: who, basis_points: bp }
+    Allocation {
+        source,
+        person: who,
+        basis_points: bp,
+    }
 }
 
 fn metric(snap: &Snapshot, setup: &ComparisonSetup, m: MetricId) -> MetricComputation {
@@ -48,7 +73,11 @@ fn metric(snap: &Snapshot, setup: &ComparisonSetup, m: MetricId) -> MetricComput
 
 fn solo_setup() -> ComparisonSetup {
     let mut s = ComparisonSetup::empty();
-    s.people = vec![PersonSetup { person: PersonRef::Owner, age: None, in_household: true }];
+    s.people = vec![PersonSetup {
+        person: PersonRef::Owner,
+        age: None,
+        in_household: true,
+    }];
     s
 }
 
@@ -61,7 +90,13 @@ fn savings_counts_checking_and_savings_and_nothing_else_by_default() {
         account(2, "Rainy day", AccountType::Savings, "4000"),
         account(3, "Brokerage", AccountType::Investment, "90000"),
         card(4, "Card", "5000", "4000"),
-        AccountSnap { id: 5, name: "Mortgage".into(), kind: AccountType::Loan, starting_balance: dec("200000"), balance: dec("190000") },
+        AccountSnap {
+            id: 5,
+            name: "Mortgage".into(),
+            kind: AccountType::Loan,
+            starting_balance: dec("200000"),
+            balance: dec("190000"),
+        },
         account(6, "Misc", AccountType::Other, "777"),
     ]);
     let setup = confirmed(solo_setup(), &[MetricId::Savings]);
@@ -72,7 +107,11 @@ fn savings_counts_checking_and_savings_and_nothing_else_by_default() {
     assert!(m.holds_item);
     let names: Vec<_> = m.contributors.iter().map(|c| c.label.as_str()).collect();
     assert_eq!(names, ["Checking", "Rainy day"]);
-    assert_eq!(m.excluded.len(), 4, "brokerage, card, mortgage and the other account are listed as excluded");
+    assert_eq!(
+        m.excluded.len(),
+        4,
+        "brokerage, card, mortgage and the other account are listed as excluded"
+    );
 }
 
 #[test]
@@ -84,17 +123,29 @@ fn an_other_account_or_brokerage_cash_counts_only_when_explicitly_included() {
     ]);
     let mut setup = confirmed(solo_setup(), &[MetricId::Savings]);
     setup.savings_overrides = vec![
-        SavingsOverride { source: acct(6), include: true },
-        SavingsOverride { source: acct(3), include: true },
+        SavingsOverride {
+            source: acct(6),
+            include: true,
+        },
+        SavingsOverride {
+            source: acct(3),
+            include: true,
+        },
     ];
     assert_eq!(metric(&snap, &setup, MetricId::Savings).value, Some(dec("2027")));
 }
 
 #[test]
 fn a_default_savings_account_can_be_excluded() {
-    let snap = snapshot(vec![account(1, "Checking", AccountType::Checking, "1000"), account(2, "Savings", AccountType::Savings, "500")]);
+    let snap = snapshot(vec![
+        account(1, "Checking", AccountType::Checking, "1000"),
+        account(2, "Savings", AccountType::Savings, "500"),
+    ]);
     let mut setup = confirmed(solo_setup(), &[MetricId::Savings]);
-    setup.savings_overrides = vec![SavingsOverride { source: acct(1), include: false }];
+    setup.savings_overrides = vec![SavingsOverride {
+        source: acct(1),
+        include: false,
+    }];
     let m = metric(&snap, &setup, MetricId::Savings);
     assert_eq!(m.value, Some(dec("500")));
     assert_eq!(m.excluded[0].reason, ExcludeReason::UserExcluded);
@@ -104,7 +155,10 @@ fn a_default_savings_account_can_be_excluded() {
 fn credit_and_loan_accounts_never_count_toward_savings_even_if_included() {
     let snap = snapshot(vec![card(4, "Card", "5000", "4000")]);
     let mut setup = confirmed(solo_setup(), &[MetricId::Savings]);
-    setup.savings_overrides = vec![SavingsOverride { source: acct(4), include: true }];
+    setup.savings_overrides = vec![SavingsOverride {
+        source: acct(4),
+        include: true,
+    }];
     assert_eq!(metric(&snap, &setup, MetricId::Savings).value, Some(Decimal::ZERO));
 }
 
@@ -121,9 +175,21 @@ fn savings_is_unconfirmed_until_the_person_confirms_it() {
 fn couple_setup() -> ComparisonSetup {
     let mut s = base_setup();
     s.people = vec![
-        PersonSetup { person: PersonRef::Owner, age: None, in_household: true },
-        PersonSetup { person: person(7), age: None, in_household: true },
-        PersonSetup { person: person(8), age: None, in_household: false },
+        PersonSetup {
+            person: PersonRef::Owner,
+            age: None,
+            in_household: true,
+        },
+        PersonSetup {
+            person: person(7),
+            age: None,
+            in_household: true,
+        },
+        PersonSetup {
+            person: person(8),
+            age: None,
+            in_household: false,
+        },
     ];
     s
 }
@@ -186,10 +252,22 @@ fn investments_use_the_comparison_classification_and_never_double_count() {
     ]);
     let mut setup = confirmed(solo_setup(), &[MetricId::Investments]);
     setup.investment_classes = vec![
-        InvestmentClassification { source: acct(10), class: InvestmentClass::Retirement },
-        InvestmentClassification { source: acct(11), class: InvestmentClass::Taxable },
-        InvestmentClassification { source: acct(12), class: InvestmentClass::Education },
-        InvestmentClassification { source: acct(13), class: InvestmentClass::Exclude },
+        InvestmentClassification {
+            source: acct(10),
+            class: InvestmentClass::Retirement,
+        },
+        InvestmentClassification {
+            source: acct(11),
+            class: InvestmentClass::Taxable,
+        },
+        InvestmentClassification {
+            source: acct(12),
+            class: InvestmentClass::Education,
+        },
+        InvestmentClassification {
+            source: acct(13),
+            class: InvestmentClass::Exclude,
+        },
     ];
     let m = metric(&snap, &setup, MetricId::Investments);
     assert_eq!(m.value, Some(dec("50000")), "the headline is retirement balances");
@@ -225,11 +303,24 @@ fn partial_coverage_only_counts_once_the_person_has_confirmed_the_balance() {
 fn a_classified_asset_counts_and_an_unclassified_one_does_not() {
     let mut snap = snapshot(vec![]);
     snap.assets = vec![
-        AssetSnap { id: 5, name: "Rental".into(), value: dec("30000"), valued_on: d(2026, 9, 1) },
-        AssetSnap { id: 6, name: "Car".into(), value: dec("9000"), valued_on: d(2026, 9, 1) },
+        AssetSnap {
+            id: 5,
+            name: "Rental".into(),
+            value: dec("30000"),
+            valued_on: d(2026, 9, 1),
+        },
+        AssetSnap {
+            id: 6,
+            name: "Car".into(),
+            value: dec("9000"),
+            valued_on: d(2026, 9, 1),
+        },
     ];
     let mut setup = confirmed(solo_setup(), &[MetricId::Investments]);
-    setup.investment_classes = vec![InvestmentClassification { source: SourceRef::Asset { id: 5 }, class: InvestmentClass::Retirement }];
+    setup.investment_classes = vec![InvestmentClassification {
+        source: SourceRef::Asset { id: 5 },
+        class: InvestmentClass::Retirement,
+    }];
     let m = metric(&snap, &setup, MetricId::Investments);
     assert_eq!(m.value, Some(dec("30000")));
     assert!(m.excluded.is_empty(), "plain assets are not investments unless the person says so");
@@ -238,9 +329,17 @@ fn a_classified_asset_counts_and_an_unclassified_one_does_not() {
 #[test]
 fn a_stale_asset_valuation_is_called_out() {
     let mut snap = snapshot(vec![]);
-    snap.assets = vec![AssetSnap { id: 5, name: "Rental".into(), value: dec("30000"), valued_on: d(2025, 1, 1) }];
+    snap.assets = vec![AssetSnap {
+        id: 5,
+        name: "Rental".into(),
+        value: dec("30000"),
+        valued_on: d(2025, 1, 1),
+    }];
     let mut setup = confirmed(solo_setup(), &[MetricId::Investments]);
-    setup.investment_classes = vec![InvestmentClassification { source: SourceRef::Asset { id: 5 }, class: InvestmentClass::Taxable }];
+    setup.investment_classes = vec![InvestmentClassification {
+        source: SourceRef::Asset { id: 5 },
+        class: InvestmentClass::Taxable,
+    }];
     let m = metric(&snap, &setup, MetricId::Investments);
     assert!(m.notes.iter().any(|n| n.code == "stale_valuation"), "{:?}", m.notes);
 }
@@ -251,7 +350,13 @@ fn a_stale_asset_valuation_is_called_out() {
 fn debt_is_what_is_owed_not_limits_or_payments() {
     let snap = snapshot(vec![
         card(1, "Visa", "10000", "7500"),
-        AccountSnap { id: 2, name: "Mortgage".into(), kind: AccountType::Loan, starting_balance: dec("250000"), balance: dec("240000") },
+        AccountSnap {
+            id: 2,
+            name: "Mortgage".into(),
+            kind: AccountType::Loan,
+            starting_balance: dec("250000"),
+            balance: dec("240000"),
+        },
         account(3, "Checking", AccountType::Checking, "1000"),
     ]);
     let setup = confirmed(solo_setup(), &[MetricId::Debt]);
@@ -292,14 +397,38 @@ fn a_card_can_be_excluded_from_the_debt_comparison_only() {
 fn debt_is_broken_down_by_type_and_unclassified_loans_are_noted() {
     let snap = snapshot(vec![
         card(1, "Visa", "10000", "9000"),
-        AccountSnap { id: 2, name: "Home loan".into(), kind: AccountType::Loan, starting_balance: dec("0"), balance: dec("200000") },
-        AccountSnap { id: 3, name: "Student".into(), kind: AccountType::Loan, starting_balance: dec("0"), balance: dec("15000") },
-        AccountSnap { id: 4, name: "Mystery".into(), kind: AccountType::Loan, starting_balance: dec("0"), balance: dec("300") },
+        AccountSnap {
+            id: 2,
+            name: "Home loan".into(),
+            kind: AccountType::Loan,
+            starting_balance: dec("0"),
+            balance: dec("200000"),
+        },
+        AccountSnap {
+            id: 3,
+            name: "Student".into(),
+            kind: AccountType::Loan,
+            starting_balance: dec("0"),
+            balance: dec("15000"),
+        },
+        AccountSnap {
+            id: 4,
+            name: "Mystery".into(),
+            kind: AccountType::Loan,
+            starting_balance: dec("0"),
+            balance: dec("300"),
+        },
     ]);
     let mut setup = confirmed(solo_setup(), &[MetricId::Debt]);
     setup.debt_classes = vec![
-        DebtClassification { source: acct(2), class: DebtClass::Mortgage },
-        DebtClassification { source: acct(3), class: DebtClass::StudentLoan },
+        DebtClassification {
+            source: acct(2),
+            class: DebtClass::Mortgage,
+        },
+        DebtClassification {
+            source: acct(3),
+            class: DebtClass::StudentLoan,
+        },
     ];
     let m = metric(&snap, &setup, MetricId::Debt);
     assert_eq!(m.value, Some(dec("216300")));
@@ -324,8 +453,14 @@ fn household_income_uses_exactly_the_selected_method() {
     let mut setup = couple_setup();
     setup.income.household_total = Some(amount("120000"));
     setup.income.per_person = vec![
-        PersonIncome { person: PersonRef::Owner, gross_annual: amount("70000") },
-        PersonIncome { person: person(7), gross_annual: amount("30000") },
+        PersonIncome {
+            person: PersonRef::Owner,
+            gross_annual: amount("70000"),
+        },
+        PersonIncome {
+            person: person(7),
+            gross_annual: amount("30000"),
+        },
     ];
     setup.income.household_method = HouseholdIncomeMethod::Total;
     assert_eq!(metric(&snapshot(vec![]), &setup, MetricId::Income).value, Some(dec("120000")));
@@ -334,7 +469,11 @@ fn household_income_uses_exactly_the_selected_method() {
     assert_eq!(by_person.value, Some(dec("100000")), "the inactive total is preserved but not used");
     assert_eq!(by_person.completeness, Completeness::Confirmed);
     setup.income.household_method = HouseholdIncomeMethod::Total;
-    assert_eq!(metric(&snapshot(vec![]), &setup, MetricId::Income).value, Some(dec("120000")), "switching back restores it");
+    assert_eq!(
+        metric(&snapshot(vec![]), &setup, MetricId::Income).value,
+        Some(dec("120000")),
+        "switching back restores it"
+    );
 }
 
 #[test]
@@ -342,8 +481,14 @@ fn by_person_income_ignores_roommates_and_flags_a_missing_member() {
     let mut setup = couple_setup();
     setup.income.household_method = HouseholdIncomeMethod::ByPerson;
     setup.income.per_person = vec![
-        PersonIncome { person: PersonRef::Owner, gross_annual: amount("70000") },
-        PersonIncome { person: person(8), gross_annual: amount("99999") },
+        PersonIncome {
+            person: PersonRef::Owner,
+            gross_annual: amount("70000"),
+        },
+        PersonIncome {
+            person: person(8),
+            gross_annual: amount("99999"),
+        },
     ];
     let m = metric(&snapshot(vec![]), &setup, MetricId::Income);
     assert_eq!(m.value, Some(dec("70000")));
@@ -356,7 +501,11 @@ fn rows_for_last_twelve_months(per_month: &str) -> Vec<SpendRow> {
     // Today is 2026-09-30, so the last 12 completed months are 2025-09 .. 2026-08.
     let mut rows = Vec::new();
     for (y, m) in (9..=12).map(|m| (2025, m)).chain((1..=8).map(|m| (2026, m))) {
-        rows.push(SpendRow { account_id: 1, date: d(y, m, 15), amount: dec(per_month) });
+        rows.push(SpendRow {
+            account_id: 1,
+            date: d(y, m, 15),
+            amount: dec(per_month),
+        });
     }
     rows
 }
@@ -384,7 +533,11 @@ fn spending_sums_the_last_twelve_completed_months_once_confirmed() {
 #[test]
 fn the_current_partial_month_is_not_counted() {
     let mut rows = rows_for_last_twelve_months("1000");
-    rows.push(SpendRow { account_id: 1, date: d(2026, 9, 10), amount: dec("5000") });
+    rows.push(SpendRow {
+        account_id: 1,
+        date: d(2026, 9, 10),
+        amount: dec("5000"),
+    });
     let mut setup = solo_setup();
     setup.spending.completeness_confirmed = true;
     assert_eq!(metric(&spending_snapshot(rows), &setup, MetricId::Spending).value, Some(dec("12000")));
@@ -453,7 +606,10 @@ fn only_selected_accounts_count_toward_spending() {
 fn a_manual_override_replaces_the_derived_value_and_keeps_the_tracked_one_visible() {
     let snap = snapshot(vec![account(1, "Checking", AccountType::Checking, "1000")]);
     let mut setup = solo_setup();
-    setup.manual_overrides = vec![ManualOverride { metric: MetricId::Savings, amount: amount("25000") }];
+    setup.manual_overrides = vec![ManualOverride {
+        metric: MetricId::Savings,
+        amount: amount("25000"),
+    }];
     let m = metric(&snap, &setup, MetricId::Savings);
     assert_eq!(m.value, Some(dec("25000")));
     assert_eq!(m.tracked_value, Some(dec("1000")));
@@ -465,7 +621,10 @@ fn stale_after(metric_id: MetricId, measured_on: &str) -> bool {
     let mut a = amount("100");
     a.measured_on = measured_on.into();
     let mut setup = solo_setup();
-    setup.manual_overrides = vec![ManualOverride { metric: metric_id, amount: a }];
+    setup.manual_overrides = vec![ManualOverride {
+        metric: metric_id,
+        amount: a,
+    }];
     match metric(&snapshot(vec![]), &setup, metric_id).origin {
         Origin::Entered { stale, .. } => stale,
         other => panic!("{other:?}"),
@@ -490,7 +649,10 @@ fn a_stale_override_still_applies() {
     let mut a = amount("5000");
     a.measured_on = "2020-01-01".into();
     let mut setup = solo_setup();
-    setup.manual_overrides = vec![ManualOverride { metric: MetricId::Debt, amount: a }];
+    setup.manual_overrides = vec![ManualOverride {
+        metric: MetricId::Debt,
+        amount: a,
+    }];
     assert_eq!(metric(&snapshot(vec![]), &setup, MetricId::Debt).value, Some(dec("5000")));
 }
 
@@ -510,5 +672,14 @@ fn an_entered_origin_serialises_with_the_camel_case_keys_the_frontend_reads() {
 fn all_five_metrics_are_computed_in_order() {
     let all = compute_metrics(&snapshot(vec![]), &solo_setup());
     let ids: Vec<_> = all.iter().map(|m| m.metric).collect();
-    assert_eq!(ids, [MetricId::Spending, MetricId::Investments, MetricId::Income, MetricId::Savings, MetricId::Debt]);
+    assert_eq!(
+        ids,
+        [
+            MetricId::Spending,
+            MetricId::Investments,
+            MetricId::Income,
+            MetricId::Savings,
+            MetricId::Debt
+        ]
+    );
 }

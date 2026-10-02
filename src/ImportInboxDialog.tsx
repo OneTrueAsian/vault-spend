@@ -3,6 +3,7 @@ import { InboxCategoryDropdown } from "./InboxCategoryDropdown";
 import { ModalShell } from "./Modal";
 import { formatAmount } from "./format";
 import type { InboxItem } from "./importInbox";
+import { errorMessage } from "./errorMessage";
 
 const REASON_LABELS = { uncategorized: "No category", low_confidence: "Unsure", duplicate: "Possible duplicate", large: "Unusually large" } as const;
 
@@ -49,7 +50,7 @@ export function ImportInboxDialog({
     setWorking(true);
     setError("");
     try { await action(); }
-    catch (e) { setError(`Could not finish reviewing. Completed rows are saved; remaining rows can be retried. ${String(e)}`); }
+    catch (e) { setError(`Could not finish reviewing. Completed rows are saved; remaining rows can be retried. ${errorMessage(e)}`); }
     finally { workingRef.current = false; setWorking(false); }
   }
 

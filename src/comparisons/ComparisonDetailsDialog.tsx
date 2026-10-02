@@ -76,12 +76,12 @@ export function ComparisonDetailsDialog({
           <h3 className="cmp-details-heading">Your figure</h3>
           <div className="cmp-detail-values">
             <div className="cmp-detail-value">
-              <span>{metric.origin.kind === "entered" ? "Entered by you" : "Tracked in Vault Spend"}</span>
+              <span>{metric.origin.kind === "entered" ? "Entered by you" : "From your accounts in Vault Spend"}</span>
               <strong>{metric.value === null ? "Not available" : formatWhole(metric.value)}</strong>
             </div>
             {ref && result.dollarDifference !== null && (
               <div className="cmp-detail-value">
-                <span>Compared with {ref.reference.statistic === "median" ? "the median" : "the average"}</span>
+                <span>Compared with {ref.reference.statistic === "median" ? "the middle value" : "the average"}</span>
                 <strong>{formatWhole(ref.adjustedValue)}</strong>
               </div>
             )}
@@ -97,7 +97,7 @@ export function ComparisonDetailsDialog({
             </p>
           )}
           {metric.trackedValue !== null && metric.origin.kind === "entered" && (
-            <p className="cmp-detail-note">Your tracked accounts add up to {formatWhole(metric.trackedValue)}; your entered total is used instead.</p>
+            <p className="cmp-detail-note">Your accounts in Vault Spend add up to {formatWhole(metric.trackedValue)}; your entered total is used instead.</p>
           )}
           {metric.notes.map((n) => (
             <p key={n.code + n.detail} className="cmp-detail-note">
@@ -216,7 +216,7 @@ export function ComparisonDetailsDialog({
 
         {ref && (
           <section data-cmp-reference-details>
-            <h3 className="cmp-details-heading">The published figure</h3>
+            <h3 className="cmp-details-heading">The official figure</h3>
             <div className="cmp-breakdown">
               <span>Population</span>
               <b>{ref.reference.population}</b>
@@ -231,14 +231,14 @@ export function ComparisonDetailsDialog({
             </div>
             <div className="cmp-breakdown">
               <span>Statistic</span>
-              <b>{ref.reference.statistic === "median" ? "Median" : "Average"}</b>
+              <b>{ref.reference.statistic === "median" ? "Middle value" : "Average"}</b>
             </div>
             <div className="cmp-breakdown">
               <span>Period</span>
               <b>{referencePeriodLabel(ref.reference.period)}</b>
             </div>
             <div className="cmp-breakdown">
-              <span>As published</span>
+              <span>Official figure</span>
               <b>
                 {formatWhole(ref.reference.value)} ({ref.reference.dollarBasis.period} dollars)
               </b>
@@ -266,8 +266,8 @@ export function ComparisonDetailsDialog({
         <section className="cmp-detail-copy">
           <h3 className="cmp-details-heading">How to read this</h3>
           <p>
-            The difference is your figure minus the published {ref?.reference.statistic === "mean" ? "average" : "median"}, and the percentage is that
-            difference as a share of the published figure. It says how far you are from a typical figure, not where you rank: a median or average does not
+            The difference is your figure minus the official {ref?.reference.statistic === "mean" ? "average" : "middle value"}, and the percentage is that
+            difference as a share of the official figure. It says how far you are from a typical figure, not where you rank: a middle value or average does not
             tell you what share of people are above or below you.
           </p>
           <p>

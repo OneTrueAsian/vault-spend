@@ -1,7 +1,7 @@
 //! Synthetic reference packages for tests. Every number is invented.
 #![allow(dead_code)]
 use budget_core::comparisons::package::{Package, PackageError};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 pub fn reference(id: &str, metric: &str, mode: &str, definition: &str, age_min: u32, age_max: Option<u32>, value: &str) -> Value {

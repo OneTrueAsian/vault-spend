@@ -56,7 +56,11 @@ fn collect_plaintext_dbs(dir: &Path, kind: LeftoverKind, out: &mut Vec<LeftoverE
 }
 
 fn entry(path: &Path, kind: LeftoverKind) -> LeftoverEntry {
-    LeftoverEntry { path: path.display().to_string(), kind, size_bytes: std::fs::metadata(path).map(|m| m.len()).unwrap_or(0) }
+    LeftoverEntry {
+        path: path.display().to_string(),
+        kind,
+        size_bytes: std::fs::metadata(path).map(|m| m.len()).unwrap_or(0),
+    }
 }
 
 /// Deletes exactly the given paths. Refuses (without erroring the whole call) anything that is not
@@ -96,11 +100,20 @@ mod tests {
         let db_path = dir.join("vaultspend.db");
         let store = budget_core::store::Store::open(&db_path).unwrap();
         let backups_dir = backups::backups_dir_for(&db_path, false);
-        backups::create_backup(&store, &db_path, &backups_dir, None, chrono::NaiveDate::from_ymd_opt(2026, 9, 21).unwrap().and_hms_opt(9, 0, 0).unwrap()).unwrap();
+        backups::create_backup(
+            &store,
+            &db_path,
+            &backups_dir,
+            None,
+            chrono::NaiveDate::from_ymd_opt(2026, 9, 21).unwrap().and_hms_opt(9, 0, 0).unwrap(),
+        )
+        .unwrap();
 
         let leftovers = list_leftovers(&db_path, None);
 
-        assert!(leftovers.iter().any(|l| l.kind == LeftoverKind::OriginalDatabase && l.path == db_path.display().to_string()));
+        assert!(leftovers
+            .iter()
+            .any(|l| l.kind == LeftoverKind::OriginalDatabase && l.path == db_path.display().to_string()));
         assert!(leftovers.iter().any(|l| l.kind == LeftoverKind::PlaintextBackup));
     }
 

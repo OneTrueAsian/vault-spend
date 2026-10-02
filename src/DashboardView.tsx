@@ -45,6 +45,7 @@ import { effectiveBudget } from "./budgetPlan";
 import { SafeToSpendCard } from "./SafeToSpendCard";
 import { CategorySpendDialog } from "./CategorySpendDialog";
 import { CATEGORY_COLORS } from "./categoryPalette";
+import { sumMoney } from "./money";
 
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
@@ -633,8 +634,9 @@ export function DashboardView({
         onClick={() => toggleStat("investments")}
       >
         <div className="stat-top">
-          <span className="mini-ico purple">
-            <LineChartIcon aria-hidden="true" />
+          {/* Same full-color illustration style as the other three stat cards (QA L4). */}
+          <span className="mini-ico mini-ico-plain">
+            <IconEntryGlyph entry={flatIconEntry("investment-acct")} />
           </span>
           <span className="stat-label">Investments</span>
         </div>
@@ -656,7 +658,7 @@ export function DashboardView({
             <span className="stat-value">{monthsOfRunway.toFixed(1)}</span> months of expenses covered
           </p>
           <p className="modal-message-secondary">
-            {fmtMoneyShort(cash)} in liquid savings ÷ {fmtMoneyShort(avgSpendNum)}/mo average spend (trailing 90
+            {fmtMoneyShort(cash)} in cash and savings ÷ {fmtMoneyShort(avgSpendNum)} a month in average spending (last 90
             days).
           </p>
         </div>
@@ -800,7 +802,7 @@ export function DashboardView({
             const lines = (report?.budget_actuals ?? []).filter((b) => b.budget_group === group);
             if (lines.length === 0) return null;
             const budgeted = lines.reduce((s, b) => s + effectiveBudget(b), 0);
-            const actual = lines.reduce((s, b) => s + parseFloat(b.actual), 0);
+            const actual = sumMoney(lines.map((b) => b.actual));
             const pct = budgeted ? Math.min(100, (actual / budgeted) * 100) : 0;
             const over = group === "income" ? actual < budgeted : actual > budgeted;
             return (
@@ -1110,8 +1112,8 @@ export function DashboardView({
   function renderInvestmentWidget(accountName: string): React.ReactNode {
     const accountHoldings = holdings.filter((h) => h.account_name === accountName);
     if (accountHoldings.length === 0) return null;
-    const totalValue = accountHoldings.reduce((s, h) => s + parseFloat(h.value), 0);
-    const totalGain = accountHoldings.reduce((s, h) => s + parseFloat(h.gain_loss), 0);
+    const totalValue = sumMoney(accountHoldings.map((h) => h.value));
+    const totalGain = sumMoney(accountHoldings.map((h) => h.gain_loss));
     return (
       <div className="stat stat-hero tint-purple">
         <div className="stat-top">

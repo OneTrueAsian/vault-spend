@@ -1,13 +1,9 @@
 use super::common::*;
-use budget_core::comparisons::engine::{
-    compare, convert_unit, dollar_difference, monthly_equivalent, percent_difference, CardQuery, LocalMeasure,
-};
+use budget_core::comparisons::engine::{CardQuery, LocalMeasure, compare, convert_unit, dollar_difference, monthly_equivalent, percent_difference};
 use budget_core::comparisons::package::Package;
-use budget_core::comparisons::types::{
-    AgeInput, CardStatus, Completeness, ComparisonMode, MetricId, Reason, Unit, Universe,
-};
+use budget_core::comparisons::types::{AgeInput, CardStatus, ComparisonMode, Completeness, MetricId, Reason, Unit, Universe};
 use rust_decimal::Decimal;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::str::FromStr;
 
 fn dec(s: &str) -> Decimal {
@@ -19,7 +15,12 @@ fn income(id: &str, mode: &str, lo: u32, hi: Option<u32>, value: &str) -> Value 
 }
 
 fn local(value: &str) -> LocalMeasure {
-    LocalMeasure { value: Some(dec(value)), unit: Unit::UsdPerYear, holds_item: true, completeness: Completeness::Confirmed }
+    LocalMeasure {
+        value: Some(dec(value)),
+        unit: Unit::UsdPerYear,
+        holds_item: true,
+        completeness: Completeness::Confirmed,
+    }
 }
 
 fn query<'a>(mode: ComparisonMode, age: u32, value: &str) -> CardQuery<'a> {
@@ -55,7 +56,11 @@ fn golden_differences() {
 fn percent_is_absent_for_a_zero_or_negative_reference() {
     assert_eq!(percent_difference(dec("50"), dec("0")), None);
     assert_eq!(percent_difference(dec("50"), dec("-10")), None);
-    assert_eq!(dollar_difference(dec("50"), dec("-10")), dec("60"), "the dollar difference is still valid");
+    assert_eq!(
+        dollar_difference(dec("50"), dec("-10")),
+        dec("60"),
+        "the dollar difference is still valid"
+    );
 }
 
 #[test]
@@ -198,7 +203,9 @@ fn a_band_spanning_cohorts_requires_a_choice_until_one_is_made() {
     q.age = Some(AgeInput::Band { min: 30, max: Some(40) });
     let card = compare(&pkg, &q);
     assert_eq!(card.status, CardStatus::CohortChoiceRequired);
-    assert!(card.reasons.contains(&Reason::CohortChoiceRequired { options: vec!["h25".into(), "h35".into()] }));
+    assert!(card.reasons.contains(&Reason::CohortChoiceRequired {
+        options: vec!["h25".into(), "h35".into()]
+    }));
     assert!(card.dollar_difference.is_none());
 
     q.selected_cohort = Some("h35");
@@ -259,7 +266,12 @@ fn savings_query<'a>(value: &str) -> CardQuery<'a> {
         age: Some(AgeInput::Exact { age: 30 }),
         selected_cohort: None,
         universe_preference: None,
-        local: LocalMeasure { value: Some(dec(value)), unit: Unit::UsdBalance, holds_item: dec(value) > Decimal::ZERO, completeness: Completeness::Confirmed },
+        local: LocalMeasure {
+            value: Some(dec(value)),
+            unit: Unit::UsdBalance,
+            holds_item: dec(value) > Decimal::ZERO,
+            completeness: Completeness::Confirmed,
+        },
     }
 }
 
@@ -317,7 +329,12 @@ fn a_zero_local_value_is_still_compared_with_an_all_population_benchmark() {
 fn a_monthly_local_value_is_converted_to_the_references_unit() {
     let pkg = household_pkg();
     let mut q = query(ComparisonMode::Household, 30, "11");
-    q.local = LocalMeasure { value: Some(dec("11")), unit: Unit::UsdPerMonth, holds_item: true, completeness: Completeness::Confirmed };
+    q.local = LocalMeasure {
+        value: Some(dec("11")),
+        unit: Unit::UsdPerMonth,
+        holds_item: true,
+        completeness: Completeness::Confirmed,
+    };
     let card = compare(&pkg, &q);
     // 11/month = 132/year against the adjusted 110.
     assert_eq!(card.local_value, Some(dec("132")));

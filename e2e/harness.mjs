@@ -120,6 +120,19 @@ export async function dismissStatusMessages(browser) {
 // (a launch error screen, the profile selector, a lock screen) and only reaches the open app
 // afterward — e.g. by unlocking a profile mid-test — must call this itself once `.brand-word`
 // actually exists, before clicking anything else, or the very first click lands on this overlay.
+// Views wait for the profile's data before they render (a loading placeholder, `[data-data-loading]`,
+// stands in until then; QA H3), so the sidebar showing is not the same as the app being usable — on
+// a busy machine the first read can take seconds. `launchApp` waits for this by default; pass
+// `waitForData: false` to watch the loading state itself (feature157), and call this after reaching
+// the app some other way (the profile selector, an unlock).
+export async function waitForDataLoaded(browser, timeout = 60000) {
+  await browser.waitUntil(() => browser.execute(() => !document.querySelector("[data-data-loading]")), {
+    timeout,
+    interval: 50,
+    timeoutMsg: "the profile's data never finished loading",
+  });
+}
+
 export async function dismissFirstLaunchDialogs(browser) {
   const getStarted = await browser.$("button*=Just get started");
   if (await getStarted.isExisting()) {
@@ -266,7 +279,7 @@ function killTree(pid) {
 }
 
 // One launch attempt. See launchApp below for the retry around it.
-async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLegalNotice = false } = {}) {
+async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLegalNotice = false, waitForData = true } = {}) {
   const ownDbDir = dbDir === undefined;
   const testDbDir = dbDir ?? freshTestDbDir();
   const PORT = await getFreePort();
@@ -378,6 +391,10 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
     if (ready === ".brand-word") {
       await dismissFirstLaunchDialogs(session);
       mark("first-launch dialogs dismissed");
+      if (waitForData) {
+        await waitForDataLoaded(session);
+        mark("profile data loaded");
+      }
     }
     return session;
   }

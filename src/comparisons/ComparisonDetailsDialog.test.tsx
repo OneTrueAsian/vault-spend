@@ -39,9 +39,9 @@ describe("ComparisonDetailsDialog", () => {
 
     expect(t).toContain("Households by age of householder, total money income");
     expect(t).toContain("40–44");
-    expect(t).toContain("Median");
+    expect(t).toContain("Middle value");
     expect(t).toContain("2025");
-    expect(t).toContain("As published");
+    expect(t).toContain("Official figure");
     expect(t).toContain("$100,000 (2025-07 dollars)");
     expect(t).toContain("Adjusted for inflation to 2026-08");
     expect(t).toContain("Standard error");
@@ -93,7 +93,7 @@ describe("ComparisonDetailsDialog", () => {
       }),
     });
     show(view);
-    expect(text()).toContain("Your tracked accounts add up to $42,000");
+    expect(text()).toContain("Your accounts in Vault Spend add up to $42,000");
     expect(text()).toContain("may be out of date; it is still being used");
     expect(text()).toContain("Offer letter");
   });

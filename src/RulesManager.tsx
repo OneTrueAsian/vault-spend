@@ -4,6 +4,7 @@ import { RuleEditorDialog } from "./Modal";
 import { SortableTh } from "./SortableTh";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { MenuSelect } from "./MenuSelect";
+import { errorMessage } from "./errorMessage";
 
 type Rule = { pattern: string; category: string; match_count: number };
 type SortColumn = "pattern" | "category" | "matches";
@@ -46,7 +47,7 @@ export function RulesManager({
     try {
       setRules(await invoke<Rule[]>("list_rules"));
     } catch (e) {
-      onMessageRef.current(String(e), "error");
+      onMessageRef.current(errorMessage(e), "error");
     }
   }, []);
 
@@ -102,7 +103,7 @@ export function RulesManager({
         onMessage("Saved the rule.", "success");
       }
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 
@@ -113,7 +114,7 @@ export function RulesManager({
       await load();
       onMessage("Deleted the rule. Transactions it already categorized keep their category.", "success");
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 
@@ -181,7 +182,7 @@ export function RulesManager({
               >
                 Matches
               </SortableTh>
-              <th className="actions-col"></th>
+              <th className="actions-col"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>

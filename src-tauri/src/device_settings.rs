@@ -175,7 +175,10 @@ impl DeviceSettingsStore {
             }),
             Err(_) => DeviceSettings::default(),
         };
-        DeviceSettingsStore { path, inner: Mutex::new(settings) }
+        DeviceSettingsStore {
+            path,
+            inner: Mutex::new(settings),
+        }
     }
 
     pub fn snapshot(&self) -> DeviceSettings {
@@ -272,7 +275,11 @@ mod tests {
     }
 
     fn legacy(tray: bool, autostart: bool, dir: Option<&str>) -> LegacyProfileSettings {
-        LegacyProfileSettings { tray_enabled: tray, autostart_enabled: autostart, backup_copy_dir: dir.map(str::to_string) }
+        LegacyProfileSettings {
+            tray_enabled: tray,
+            autostart_enabled: autostart,
+            backup_copy_dir: dir.map(str::to_string),
+        }
     }
 
     #[test]
@@ -290,7 +297,10 @@ mod tests {
         assert!(settings.take_over_from_profile("first", &legacy(true, true, None)));
         settings.take_over_from_profile("second", &legacy(false, false, None));
 
-        assert!(settings.tray_enabled && settings.autostart_enabled, "a later profile's old values are ignored");
+        assert!(
+            settings.tray_enabled && settings.autostart_enabled,
+            "a later profile's old values are ignored"
+        );
     }
 
     #[test]
@@ -403,7 +413,10 @@ mod tests {
         store.update(|s| s.tray_enabled = true).unwrap();
         store.update(|s| s.tray_enabled = false).unwrap();
 
-        let temp_files = std::fs::read_dir(&dir).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-")).count();
+        let temp_files = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-"))
+            .count();
         assert_eq!(temp_files, 0);
     }
 
@@ -460,7 +473,9 @@ mod tests {
         let path = dir.join(DEVICE_SETTINGS_FILENAME);
         let store = DeviceSettingsStore::load(path.clone());
 
-        store.update(|s| s.acknowledge_legal_notice("2026-09-30", "2026-09-30T17:00:00+00:00")).unwrap();
+        store
+            .update(|s| s.acknowledge_legal_notice("2026-09-30", "2026-09-30T17:00:00+00:00"))
+            .unwrap();
 
         let reloaded = DeviceSettingsStore::load(path).snapshot();
         assert_eq!(reloaded.legal_notice_version.as_deref(), Some("2026-09-30"));

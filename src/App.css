@@ -71,7 +71,7 @@
 
   --font-display: "Inter", "Segoe UI", system-ui, sans-serif;
   --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
 
   color-scheme: light;
   font-family: var(--font-body);
@@ -184,29 +184,32 @@
   --surface-hover: rgba(120, 120, 128, 0.14);
   --sidebar-bg: rgba(255, 255, 255, 0.25);
   --sidebar-bg-hover: rgba(120, 120, 128, 0.14);
-  --sidebar-bg-active: rgba(0, 122, 255, 0.16);
+  --sidebar-bg-active: rgba(0, 88, 184, 0.12);
   --sidebar-text: #3a3a3c;
-  --sidebar-text-dim: rgba(60, 60, 67, 0.5);
+  /* Text colors are solid, not translucent: over the tinted glass a 60%/40% gray fell to
+     2.6-3.4:1. Each of these keeps 4.5:1 on the lightest and tintiest surface it sits on. */
+  --sidebar-text-dim: #5f5f66;
   --sidebar-text-active: #1d1d1f;
   --sidebar-border: rgba(255, 255, 255, 0.4);
 
   --text: #1d1d1f;
-  --text-muted: rgba(60, 60, 67, 0.6);
-  --text-faint: rgba(60, 60, 67, 0.4);
+  --text-muted: #5a5a61;
+  --text-faint: #5f5f66;
   --border: rgba(60, 60, 67, 0.16);
   --border-strong: rgba(60, 60, 67, 0.28);
 
-  --accent: #007aff;
-  --accent-strong: #0064d6;
-  --accent-soft: rgba(0, 122, 255, 0.14);
-  --accent-soft-text: #0058b8;
+  /* #007aff carried white text at only 4.0:1; this blue carries it at 6.8:1 and reads as text too. */
+  --accent: #0058b8;
+  --accent-strong: #004a9c;
+  --accent-soft: rgba(0, 88, 184, 0.12);
+  --accent-soft-text: #004a9c;
   --on-accent: #ffffff;
 
-  --positive: #1e8e3e;
+  --positive: #136d2f; /* 5.3:1 on its own soft tint (goal badges), not 3.5:1 */
   --positive-soft: rgba(52, 199, 89, 0.16);
   --negative: #d70015;
   --negative-soft: rgba(255, 59, 48, 0.14);
-  --warning: #b25000;
+  --warning: #9a4500; /* 5.4:1 on its own soft tint, not 4.3:1 */
   --warning-soft: rgba(255, 149, 0, 0.16);
   --info: #4a48b8;
   --info-soft: rgba(88, 86, 214, 0.14);
@@ -253,23 +256,23 @@
     --surface-hover: rgba(120, 120, 128, 0.24);
     --sidebar-bg: rgba(30, 30, 34, 0.5);
     --sidebar-bg-hover: rgba(120, 120, 128, 0.22);
-    --sidebar-bg-active: rgba(10, 132, 255, 0.22);
+    --sidebar-bg-active: rgba(77, 163, 255, 0.18);
     --sidebar-text: rgba(235, 235, 245, 0.65);
-    --sidebar-text-dim: rgba(235, 235, 245, 0.45);
+    --sidebar-text-dim: #9d9da6;
     --sidebar-text-active: #ffffff;
     --sidebar-border: rgba(255, 255, 255, 0.1);
 
     --text: #ffffff;
-    --text-muted: rgba(235, 235, 245, 0.6);
-    --text-faint: rgba(235, 235, 245, 0.38);
+    --text-muted: #a9a9b2;
+    --text-faint: #9d9da6;
     --border: rgba(255, 255, 255, 0.1);
     --border-strong: rgba(255, 255, 255, 0.18);
 
-    --accent: #0a84ff;
-    --accent-strong: #409cff;
-    --accent-soft: rgba(10, 132, 255, 0.22);
-    --accent-soft-text: #6fb4ff;
-    --on-accent: #ffffff;
+    --accent: #4da3ff;
+    --accent-strong: #79baff;
+    --accent-soft: rgba(77, 163, 255, 0.18);
+    --accent-soft-text: #8cc4ff;
+    --on-accent: #0b1a2b;
 
     --positive: #30d158;
     --positive-soft: rgba(48, 209, 88, 0.18);
@@ -306,23 +309,23 @@
   --surface-hover: rgba(120, 120, 128, 0.24);
   --sidebar-bg: rgba(30, 30, 34, 0.5);
   --sidebar-bg-hover: rgba(120, 120, 128, 0.22);
-  --sidebar-bg-active: rgba(10, 132, 255, 0.22);
+  --sidebar-bg-active: rgba(77, 163, 255, 0.18);
   --sidebar-text: rgba(235, 235, 245, 0.65);
-  --sidebar-text-dim: rgba(235, 235, 245, 0.45);
+  --sidebar-text-dim: #9d9da6;
   --sidebar-text-active: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.1);
 
   --text: #ffffff;
-  --text-muted: rgba(235, 235, 245, 0.6);
-  --text-faint: rgba(235, 235, 245, 0.38);
+  --text-muted: #a9a9b2;
+  --text-faint: #9d9da6;
   --border: rgba(255, 255, 255, 0.1);
   --border-strong: rgba(255, 255, 255, 0.18);
 
-  --accent: #0a84ff;
-  --accent-strong: #409cff;
-  --accent-soft: rgba(10, 132, 255, 0.22);
-  --accent-soft-text: #6fb4ff;
-  --on-accent: #ffffff;
+  --accent: #4da3ff;
+  --accent-strong: #79baff;
+  --accent-soft: rgba(77, 163, 255, 0.18);
+  --accent-soft-text: #8cc4ff;
+  --on-accent: #0b1a2b;
 
   --positive: #30d158;
   --positive-soft: rgba(48, 209, 88, 0.18);
@@ -851,7 +854,7 @@ body {
 }
 
 .nav-group-label {
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   font-weight: 700;
@@ -877,7 +880,7 @@ body {
 
 .sidebar-version {
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sidebar-text-dim);
   margin: 0 0 8px 0;
 }
@@ -902,7 +905,7 @@ body {
   color: var(--text-muted);
   padding: 6px 11px;
   border-radius: 7px;
-  font-size: 11.5px;
+  font-size: 12px;
   cursor: pointer;
   font-weight: 600;
 }
@@ -1372,7 +1375,7 @@ button:disabled {
 .cal-weekday {
   background: var(--surface-2);
   padding: 6px 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1398,7 +1401,7 @@ button:disabled {
 }
 
 .cal-day-num {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -1425,7 +1428,7 @@ button:disabled {
    `title` stays as a supplementary fallback for when the merchant name
    itself is what's truncated. */
 .cal-item-merchant {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1433,7 +1436,7 @@ button:disabled {
 }
 
 .cal-item-amount {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   font-family: var(--font-mono);
@@ -1717,7 +1720,7 @@ button:disabled {
 }
 
 .account-card .sub {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -2014,7 +2017,7 @@ button:disabled {
 }
 
 .donut-hole-lbl {
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -2053,20 +2056,20 @@ button:disabled {
 }
 
 .axis-label {
-  font-size: 10.5px;
+  font-size: 12px;
   fill: var(--text-faint);
   font-family: var(--font-body);
 }
 
 .chart-tooltip-title {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   fill: var(--text);
   font-family: var(--font-body);
 }
 
 .chart-tooltip-text {
-  font-size: 11px;
+  font-size: 12px;
   fill: var(--text-muted);
   font-family: var(--font-body);
 }
@@ -2080,7 +2083,7 @@ button:disabled {
 
 .chart-hint {
   margin: 6px 0 0 0;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-faint);
   text-align: center;
 }
@@ -2115,7 +2118,7 @@ button:disabled {
 .budget-net-summary > .view-sub { margin: 0 0 12px; }
 
 .category-trend {
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-mono);
   color: var(--text-muted);
   min-width: 44px;
@@ -2226,7 +2229,7 @@ button:disabled {
   justify-content: space-between;
 }
 
-.bucket-card-header h3 {
+.bucket-card-header h2 {
   margin: 0;
   font-size: 15px;
   font-family: var(--font-display);
@@ -2265,7 +2268,7 @@ button:disabled {
 .bucket-meta-row {
   display: flex;
   justify-content: space-between;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
   margin: 2px 0 0;
 }
@@ -2428,7 +2431,7 @@ button:disabled {
 }
 
 .group-card-pct {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -2924,7 +2927,7 @@ button:disabled {
 }
 
 .stat-label {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -2945,7 +2948,7 @@ button:disabled {
 }
 
 .stat-delta {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -3145,9 +3148,16 @@ button:disabled {
   pointer-events: none;
 }
 
+/* A message floats over the page for up to 10 seconds. Clicks go through its text to whatever is
+   underneath, so it never blocks a control there (QA L5); its own buttons (Dismiss, Undo) still
+   take clicks. */
 .toast-stack .status {
-  pointer-events: auto;
+  pointer-events: none;
   box-shadow: var(--shadow-md);
+}
+
+.toast-stack .status button {
+  pointer-events: auto;
 }
 
 .status {
@@ -3422,7 +3432,7 @@ button:disabled {
   gap: 7px;
   width: 100%;
   padding: 4px 0;
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
@@ -3528,6 +3538,12 @@ button:disabled {
   width: 1%;
 }
 
+/* The 3% checkbox column is ~28px wide: the table's 14px side padding left the checkbox no room. */
+.ledger .select-col {
+  padding-left: 8px;
+  padding-right: 4px;
+}
+
 .sortable-col {
   cursor: pointer;
   user-select: none;
@@ -3559,6 +3575,8 @@ button:disabled {
   color: inherit;
   text-align: inherit;
   transition: none;
+  /* A two-word header ("Sorted by") wraps in a narrow column instead of running into the next one. */
+  white-space: normal;
 }
 
 .sort-button:focus-visible {
@@ -3613,6 +3631,13 @@ button:disabled {
   border-bottom: 1px solid var(--border);
 }
 
+/* Dates never wrap or spill into the description; less side padding gives the digits room. */
+.ledger td.date-col {
+  white-space: nowrap;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
 /* Below the ledger's narrow breakpoint (App.tsx's `ledgerNarrow`), an
    accessible replacement for the sortable headers that move into Details —
    clicking a header is no longer possible once it isn't rendered. */
@@ -3646,7 +3671,7 @@ button:disabled {
 }
 
 .ledger-details-field > span:first-child {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -3833,7 +3858,7 @@ button:disabled {
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--text);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -3947,7 +3972,7 @@ button:disabled {
   display: inline-block;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -4080,7 +4105,7 @@ button:disabled {
   height: 20px;
   border-radius: 50%;
   border: 1px solid var(--border-strong);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .review-step-active .review-step-num {
@@ -4359,7 +4384,7 @@ button:disabled {
 
 .palette-kind {
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -4558,7 +4583,7 @@ button:disabled {
 }
 
 .ledger th {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -4669,7 +4694,7 @@ button:disabled {
   height: 20px;
   padding: 0;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
 }
 
@@ -4736,7 +4761,7 @@ button:disabled {
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-soft-text);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   font-family: var(--font-body);
 }
@@ -4764,7 +4789,7 @@ button:disabled {
 }
 
 .suggested-meta {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -4795,20 +4820,36 @@ button:disabled {
      column instead of visually spilling into the next cell. */
   white-space: normal;
   text-align: left;
+  /* Compact, so it wraps to two short lines in the ~75px column instead of a four-line pill. */
+  font-size: 12px;
+  line-height: 1.25;
+  padding: 3px 8px;
+  border-radius: 8px;
 }
 
-.anomaly-badge {
-  display: inline-block;
-  margin-left: 6px;
+/* The ledger's warning badges are InfoTips (keyboard focusable, the reason read by screen readers),
+   drawn as a bare symbol instead of InfoTip's round "i". Two classes to outrank .info-tip-button. */
+.info-tip .anomaly-badge,
+.info-tip .anomaly-badge:hover,
+.info-tip .anomaly-badge[aria-expanded="true"] {
+  width: auto;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: 400 14px/1 var(--font-body);
   cursor: help;
-  font-size: 13px;
 }
 
-.anomaly-large {
+.info-tip .anomaly-large,
+.info-tip .anomaly-large:hover {
   color: var(--warning);
 }
 
-.anomaly-duplicate {
+.info-tip .anomaly-duplicate,
+.info-tip .anomaly-duplicate:hover {
   color: var(--negative);
 }
 
@@ -4819,8 +4860,11 @@ button:disabled {
 .split-toggle {
   display: inline-block;
   margin-left: 8px;
-  padding: 0.15em 0.5em;
-  font-size: 0.8em;
+  /* 24px tall and clear of the category menu above it (WCAG 2.5.8 target size). */
+  margin-top: 4px;
+  min-height: 24px;
+  padding: 0.15em 0.6em;
+  font-size: 12px;
 }
 
 .split-editor-row td {
@@ -4890,7 +4934,7 @@ button:disabled {
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-soft-text);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -4937,7 +4981,7 @@ button:disabled {
 
 .tag-input {
   width: 60px;
-  font-size: 11px;
+  font-size: 12px;
   padding: 1px 6px;
   border-radius: 999px;
   border: 1px dashed var(--border-strong);
@@ -4950,7 +4994,7 @@ button:disabled {
   margin-left: 8px;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   font-family: var(--font-body);
 }
@@ -4969,7 +5013,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
@@ -5028,7 +5072,7 @@ button:disabled {
   color: var(--text-muted);
   border-radius: 999px;
   padding: 2px 9px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
@@ -5794,7 +5838,7 @@ button:disabled {
   display: inline-block;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   background: var(--accent-soft);
   color: var(--accent-soft-text);
@@ -5925,6 +5969,32 @@ button:disabled {
 
 .modal-field-inline input {
   padding: 0;
+}
+
+/* In place of a view until the profile's data arrives (DataLoading.tsx). */
+.data-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 240px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.data-loading-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: data-loading-spin 0.9s linear infinite;
+}
+
+@keyframes data-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .field-error {
@@ -6230,7 +6300,7 @@ button:disabled {
   height: 15px;
   display: flex;
   align-items: center;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-faint);
 }
 
@@ -7130,7 +7200,7 @@ input[type="checkbox"], input[type="radio"] {
 
 .menu-select-group {
   padding: 8px 10px 2px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentGeneration } from "./profileUiState";
 import type { Transaction } from "./types";
+import { errorMessage } from "./errorMessage";
 
 /** Read once on explicit navigation. Requests cannot outlive a profile,
  * component, or a newer request, even if the final generation read is slow. */
@@ -19,7 +20,7 @@ export function usePaymentSource(onReady: (source: Transaction, fresh: Transacti
       if (source) onReady(source, fresh);
       else onError("Payment is no longer available.");
     } catch (error) {
-      if (request === requestSequence.current) onError(String(error));
+      if (request === requestSequence.current) onError(errorMessage(error));
     }
   };
 }

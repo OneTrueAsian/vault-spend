@@ -10,10 +10,16 @@ pub enum CohortMatch<'a> {
     /// No cohort contains the input; this is the uniquely nearest one (or the only one that
     /// partly overlaps a band). `distance` is in years to its nearest boundary, 0 for a partial
     /// overlap. The caller must show it as an approximation.
-    Nearest { reference: &'a Reference, distance: u32 },
+    Nearest {
+        reference: &'a Reference,
+        distance: u32,
+    },
     /// Several cohorts qualify and the person must pick one. `approximate` is true when they are
     /// tied substitutes rather than published cohorts the band genuinely spans.
-    ChoiceRequired { options: Vec<&'a Reference>, approximate: bool },
+    ChoiceRequired {
+        options: Vec<&'a Reference>,
+        approximate: bool,
+    },
     None,
 }
 
@@ -43,8 +49,7 @@ pub fn match_cohort<'a>(candidates: &[&'a Reference], age: AgeInput) -> CohortMa
     let (lo, hi) = age.span();
     let (lo, hi) = (u64::from(lo), hi.map_or(u64::MAX, u64::from));
 
-    let overlapping: Vec<&'a Reference> =
-        sorted.iter().copied().filter(|r| u64::from(r.age_min) <= hi && lo <= upper(r)).collect();
+    let overlapping: Vec<&'a Reference> = sorted.iter().copied().filter(|r| u64::from(r.age_min) <= hi && lo <= upper(r)).collect();
 
     match overlapping.as_slice() {
         [only] => {
@@ -52,20 +57,33 @@ pub fn match_cohort<'a>(candidates: &[&'a Reference], age: AgeInput) -> CohortMa
             return if covers {
                 CohortMatch::Exact(only)
             } else {
-                CohortMatch::Nearest { reference: only, distance: 0 }
+                CohortMatch::Nearest {
+                    reference: only,
+                    distance: 0,
+                }
             };
         }
         [] => {}
-        many => return CohortMatch::ChoiceRequired { options: many.to_vec(), approximate: false },
+        many => {
+            return CohortMatch::ChoiceRequired {
+                options: many.to_vec(),
+                approximate: false,
+            };
+        }
     }
 
     // Nothing overlaps: take the uniquely nearest cohort, or ask when neighbours tie.
     let distances: Vec<u64> = sorted.iter().map(|r| gap(r, lo, hi)).collect();
     let nearest = distances.iter().copied().min().unwrap_or(0);
-    let tied: Vec<&'a Reference> =
-        sorted.iter().zip(&distances).filter(|(_, d)| **d == nearest).map(|(r, _)| *r).collect();
+    let tied: Vec<&'a Reference> = sorted.iter().zip(&distances).filter(|(_, d)| **d == nearest).map(|(r, _)| *r).collect();
     match tied.as_slice() {
-        [one] => CohortMatch::Nearest { reference: one, distance: nearest as u32 },
-        _ => CohortMatch::ChoiceRequired { options: tied, approximate: true },
+        [one] => CohortMatch::Nearest {
+            reference: one,
+            distance: nearest as u32,
+        },
+        _ => CohortMatch::ChoiceRequired {
+            options: tied,
+            approximate: true,
+        },
     }
 }

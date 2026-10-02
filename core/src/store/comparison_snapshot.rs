@@ -2,7 +2,7 @@
 //! show different moments of the ledger. Spending follows the same rules as the Reports category
 //! table: transfers (by category or linked pair), generated debt-payment rows and deleted rows are
 //! left out, a split purchase counts through its lines, and only expenses count.
-use super::{Store, LIVE_TRANSFER_LEG_IDS_SQL};
+use super::{LIVE_TRANSFER_LEG_IDS_SQL, Store};
 use crate::comparisons::metrics::{AccountSnap, AssetSnap, Snapshot, SpendRow};
 use chrono::NaiveDate;
 use rusqlite::params;
@@ -26,7 +26,12 @@ impl Store {
         let assets = self
             .list_assets()?
             .into_iter()
-            .map(|a| AssetSnap { id: a.id, name: a.name, value: a.value, valued_on: a.valued_on })
+            .map(|a| AssetSnap {
+                id: a.id,
+                name: a.name,
+                value: a.value,
+                valued_on: a.valued_on,
+            })
             .collect();
 
         let mut stmt = self.conn.prepare(&format!(
@@ -54,7 +59,11 @@ impl Store {
             let amount = Decimal::from_str(&amount).expect("amount stored by this crate must be valid");
             if amount < Decimal::ZERO {
                 let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid");
-                spend_rows.push(SpendRow { account_id, date, amount: -amount });
+                spend_rows.push(SpendRow {
+                    account_id,
+                    date,
+                    amount: -amount,
+                });
             }
         }
 
@@ -62,6 +71,12 @@ impl Store {
             .conn
             .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |r| r.get(0))?;
         let first_transaction_date = first.and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
-        Ok(Snapshot { today, accounts, assets, spend_rows, first_transaction_date })
+        Ok(Snapshot {
+            today,
+            accounts,
+            assets,
+            spend_rows,
+            first_transaction_date,
+        })
     }
 }

@@ -9,6 +9,7 @@ import { saveComparisonSetup } from "./api";
 import { personLabel } from "./format";
 import { emptySetup, personKey, setAge, setInHousehold, setReferencePerson, syncPeople } from "./setupDraft";
 import type { AgeInput, ComparisonSetup, PersonRef } from "./types";
+import { errorMessage } from "../errorMessage";
 
 type Member = { id: number; name: string };
 
@@ -63,7 +64,7 @@ export function ComparisonSetupDialog({
           : response.problems.map((p) => p.message).join(" "),
       );
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -86,7 +87,7 @@ export function ComparisonSetupDialog({
     >
       <div className="cmp-setup" data-cmp-setup>
         <p className="modal-message-secondary">
-          Compare your finances with published figures for people your age. Your numbers stay on this computer. You can fill in the rest under Settings →
+          Compare your finances with official figures for people your age. Your numbers stay on this computer. You can fill in the rest under Settings →
           Comparisons.
         </p>
         {error && (
@@ -149,7 +150,7 @@ export function ComparisonSetupDialog({
 
         <AgeField key={personKey(subject)} label={`Age of ${personLabel(subject, members) === "Me" ? "me" : personLabel(subject, members)}`} value={age} onChange={setAgeState} />
         <p className="modal-message-secondary">
-          Only the age is stored, with the date you confirmed it. Different figures use different published age groups, and each card shows the group it
+          Only the age is stored, with the date you confirmed it. Different figures use different official age groups, and each card shows the group it
           used.
         </p>
       </div>

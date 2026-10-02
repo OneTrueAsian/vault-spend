@@ -40,7 +40,7 @@ try {
   await createButton.click();
 
   const card = await app.browser.$(
-    "//div[contains(@class,'bucket-card')][.//h3[contains(., 'Widget Fund')]]",
+    "//div[contains(@class,'bucket-card')][.//h2[contains(., 'Widget Fund')]]",
   );
   await card.waitForExist({ timeout: 10000 });
 

@@ -13,14 +13,18 @@
     "windows": [
       {
         "title": "Vault Spend",
-        "width": 800,
-        "height": 600,
+        "width": 1200,
+        "height": 780,
+        "minWidth": 720,
+        "minHeight": 520,
+        "center": true,
         "dragDropEnabled": false,
         "visible": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'",
+      "devCsp": null
     }
   },
   "bundle": {

@@ -40,7 +40,11 @@ fn bundled_household_spending_is_the_bls_average_by_age_of_reference_person() {
         .find(|r| r.age_min == 35 && r.age_max == Some(44))
         .expect("35-44 household spending");
     assert_eq!(hit.value, dec("91229"));
-    assert_eq!(hit.statistic, Statistic::Mean, "the Consumer Expenditure Surveys publish averages, shown as such");
+    assert_eq!(
+        hit.statistic,
+        Statistic::Mean,
+        "the Consumer Expenditure Surveys publish averages, shown as such"
+    );
     assert_eq!(hit.definition_id, "bls_ce_total_expenditures_mean");
 }
 
@@ -50,7 +54,11 @@ fn bundled_cpi_has_the_latest_month_and_the_october_2025_hole() {
     assert_eq!(pkg.latest_cpi_month(), "2026-08");
     assert_eq!(pkg.cpi("2026-08"), Some(dec("334.98")));
     assert_eq!(pkg.cpi("2025-10"), None);
-    assert_eq!(pkg.cpi_annual_average("2025"), None, "an annual average with a missing month must not exist");
+    assert_eq!(
+        pkg.cpi_annual_average("2025"),
+        None,
+        "an annual average with a missing month must not exist"
+    );
     assert!(pkg.cpi_annual_average("2024").is_some());
 }
 
@@ -119,8 +127,7 @@ fn a_basis_month_missing_from_the_cpi_series_is_refused() {
 #[test]
 fn latest_cpi_month_must_exist_in_the_series() {
     let r = reference("a", "income", "household", "d", 25, Some(34), "100");
-    let err = try_package(vec![r], json!({"cpi": {"series": "CPIAUCNS", "latestMonth": "2027-01"}}), default_cpi())
-        .unwrap_err();
+    let err = try_package(vec![r], json!({"cpi": {"series": "CPIAUCNS", "latestMonth": "2027-01"}}), default_cpi()).unwrap_err();
     assert!(invalid_with(&err, "latestMonth"), "{err}");
 }
 

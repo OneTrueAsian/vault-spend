@@ -1,5 +1,5 @@
 use super::common::*;
-use budget_core::comparisons::cohort::{match_cohort, CohortMatch};
+use budget_core::comparisons::cohort::{CohortMatch, match_cohort};
 use budget_core::comparisons::types::{AgeInput, ComparisonMode, MetricId, Reference};
 use serde_json::json;
 

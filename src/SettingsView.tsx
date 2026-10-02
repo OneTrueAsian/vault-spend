@@ -70,7 +70,7 @@ function DataFileBlock({
 }) {
   return (
     <div className="data-block" data-data-file>
-      <h3 className="data-subhead">Data file</h3>
+      <h2 className="data-subhead">Data file</h2>
       <p className="modal-message-secondary">Data file location</p>
       <p className="path-box" style={{ userSelect: "text" }}>
         {dataFileLocation ?? "Loading…"}
@@ -243,7 +243,7 @@ export function BackupsBlock({
   return (
     <div className="data-block" data-backups>
       <div className="data-subhead-row">
-        <h3 className="data-subhead">Backups</h3>
+        <h2 className="data-subhead">Backups</h2>
         <button type="button" className="modal-secondary" onClick={onCreateBackupNow}>
           Back up now
         </button>
@@ -258,7 +258,7 @@ export function BackupsBlock({
           <tr>
             <th>Created</th>
             <th className="amount-col">Size</th>
-            <th className="actions-col"></th>
+            <th className="actions-col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -335,9 +335,11 @@ function LivePricesSection({
   // Keep the picker in sync with the last-saved provider whenever the
   // feature is off, so re-opening Settings pre-selects what was last used
   // rather than always resetting to Alpha Vantage.
+  const savedEnabled = settings?.enabled;
+  const savedProvider = settings?.provider;
   useEffect(() => {
-    if (settings && !settings.enabled) setPickerProvider(settings.provider);
-  }, [settings?.enabled, settings?.provider]);
+    if (savedEnabled === false && savedProvider) setPickerProvider(savedProvider);
+  }, [savedEnabled, savedProvider]);
 
   function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -682,7 +684,7 @@ function SetupDataBlock({
 }) {
   return (
     <div className="data-block" data-setup-data>
-      <h3 className="data-subhead">Setup data</h3>
+      <h2 className="data-subhead">Setup data</h2>
       <p className="modal-message-secondary">
         Setting up from scratch? Download the template, fill in your accounts, categories, budgets, goals and holdings,
         then import it in one go.
@@ -872,9 +874,11 @@ export function ProfilesSection({
       <table className="ledger">
         <thead>
           <tr>
-            <th></th>
+            <th>
+              <span className="sr-only">Icon</span>
+            </th>
             <th>Name</th>
-            <th className="actions-col"></th>
+            <th className="actions-col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>

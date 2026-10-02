@@ -50,10 +50,10 @@ try {
 
   // Assign the seeded transaction to Alex from the Ledger row. The row's
   // account/member/category editors are a RowFieldDropdown popover now,
-  // not a native <select> — and at this window's default width (800px,
-  // the app's own launch default) the ledger is in its narrow layout, so
-  // Member sits behind the row's "Details" toggle rather than its own
-  // column.
+  // not a native <select> — and at 800px wide (set here; the app now opens
+  // wider) the ledger is in its narrow layout, so Member sits behind the
+  // row's "Details" toggle rather than its own column.
+  await app.browser.setWindowSize(800, 600);
   const groceryRow = await app.browser.$("//tr[td[contains(.,'Grocery Run')]]");
   const detailsToggle = await groceryRow.$("button=Details");
   await detailsToggle.waitForExist({ timeout: 10000 });

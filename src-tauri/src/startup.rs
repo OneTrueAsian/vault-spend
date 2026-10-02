@@ -58,7 +58,10 @@ fn other_profiles(registered: &[profiles::RegisteredProfile], except: Option<&Pa
     registered
         .iter()
         .filter(|p| p.db_path.exists() && Some(p.db_path.as_path()) != except)
-        .map(|p| LaunchProfile { id: p.id.clone(), name: p.name.clone() })
+        .map(|p| LaunchProfile {
+            id: p.id.clone(),
+            name: p.name.clone(),
+        })
         .collect()
 }
 
@@ -124,7 +127,10 @@ pub fn open_from_disk(config_path: &Path, default_dir: &Path) -> Result<OpenedPr
 pub fn open_registered_profile(config_path: &Path, id: &str) -> Result<(String, OpenedProfile), String> {
     let registered = profiles::registered_profiles_strict(config_path)
         .map_err(|problem| format!("Vault Spend can't read its list of profiles: {}", problem.reason))?;
-    let target = registered.into_iter().find(|p| p.id == id).ok_or_else(|| "That profile no longer exists.".to_string())?;
+    let target = registered
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| "That profile no longer exists.".to_string())?;
     if !target.db_path.exists() {
         return Err(format!(
             "{}'s data file wasn't found at {} — was it moved, or is a removable drive disconnected?",
@@ -134,7 +140,13 @@ pub fn open_registered_profile(config_path: &Path, id: &str) -> Result<(String, 
     }
     let state = AppState::open(&target.db_path).map_err(|e| format!("Couldn't open {}: {e}", target.name))?;
     config::write_db_location_config(config_path, &target.db_path).map_err(|e| e.to_string())?;
-    Ok((target.name, OpenedProfile { state, db_path: target.db_path }))
+    Ok((
+        target.name,
+        OpenedProfile {
+            state,
+            db_path: target.db_path,
+        },
+    ))
 }
 
 /// Opens a data file the person found with a file picker, and remembers it: `config.json` points at
@@ -150,7 +162,10 @@ pub fn locate_data_file_at(config_path: &Path, previous: Option<&Path>, picked: 
     if let Some(previous) = previous {
         profiles::update_active_db_path(config_path, previous, picked)?;
     }
-    Ok(OpenedProfile { state, db_path: picked.to_path_buf() })
+    Ok(OpenedProfile {
+        state,
+        db_path: picked.to_path_buf(),
+    })
 }
 
 /// Starts over with a new, empty data file after the one that was asked for could not be used. The new
@@ -251,7 +266,10 @@ pub struct LaunchStatus {
 
 impl LaunchStatus {
     pub fn new(default_dir: PathBuf) -> Self {
-        LaunchStatus { default_dir, error: Mutex::new(None) }
+        LaunchStatus {
+            default_dir,
+            error: Mutex::new(None),
+        }
     }
 
     pub fn set_error(&self, error: LaunchError) {
@@ -280,13 +298,21 @@ pub struct SelectorEntry {
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum StartupState {
     Open,
-    Selector { profiles: Vec<SelectorEntry>, last_used_id: Option<String> },
-    Locked { profile_id: String, profile_name: String },
+    Selector {
+        profiles: Vec<SelectorEntry>,
+        last_used_id: Option<String>,
+    },
+    Locked {
+        profile_id: String,
+        profile_name: String,
+    },
     /// `profiles.json` exists and parses, but lists no profiles — distinct from no file at all
     /// (which stays `Open`/`Error` via `startup_state` below). Never silently opens or invents a
     /// Default profile; the frontend's escape is "Create a profile."
     EmptyRegistry,
-    Error { error: LaunchError },
+    Error {
+        error: LaunchError,
+    },
 }
 
 pub fn startup_state(runtime: &AppRuntime, status: &LaunchStatus) -> StartupState {
@@ -317,7 +343,10 @@ pub fn startup_state_for_registry(config_path: &Path, runtime: &AppRuntime, stat
             .ok()
             .and_then(|list| list.into_iter().find(|p| p.id == profile_id).map(|p| p.name))
             .unwrap_or_else(|| profile_id.clone());
-        return StartupState::Locked { profile_id, profile_name: name };
+        return StartupState::Locked {
+            profile_id,
+            profile_name: name,
+        };
     }
     if !profiles::registry_file_exists(config_path) {
         return startup_state(runtime, status); // no registry at all: unchanged, direct default open (or its existing error path)
@@ -510,12 +539,25 @@ mod tests {
         let second = dir.join("profiles").join("second").join("vaultspend.db");
         let third = dir.join("profiles").join("third").join("vaultspend.db"); // registered, file missing
         make_database(&second);
-        write_registry(&dir, &[("default", "Default", gone.clone()), ("second", "Second", second.clone()), ("third", "Third", third.clone())]);
+        write_registry(
+            &dir,
+            &[
+                ("default", "Default", gone.clone()),
+                ("second", "Second", second.clone()),
+                ("third", "Third", third.clone()),
+            ],
+        );
         config::write_db_location_config(&dir.join("config.json"), &gone).unwrap();
 
         let error = expect_error(open_from_disk(&dir.join("config.json"), &dir));
 
-        assert_eq!(error.other_profiles, vec![LaunchProfile { id: "second".to_string(), name: "Second".to_string() }]);
+        assert_eq!(
+            error.other_profiles,
+            vec![LaunchProfile {
+                id: "second".to_string(),
+                name: "Second".to_string()
+            }]
+        );
     }
 
     // ---- open_registered_profile ----
@@ -598,7 +640,10 @@ mod tests {
         let settings = device.snapshot();
         assert!(settings.tray_enabled);
         assert_eq!(settings.backup_mirror_dir("default"), Some(second.to_str().unwrap()));
-        assert!(DeviceSettingsStore::load(dir.join(DEVICE_SETTINGS_FILENAME)).snapshot().tray_enabled, "saved to the file");
+        assert!(
+            DeviceSettingsStore::load(dir.join(DEVICE_SETTINGS_FILENAME)).snapshot().tray_enabled,
+            "saved to the file"
+        );
         let backups = crate::backups::list_backups(&crate::backups::backups_dir_for(&db_path, false), false).unwrap();
         assert_eq!(backups.len(), 1, "a launch with no backup yet takes the automatic one");
         assert!(second.join(&backups[0].filename).exists(), "and copies it to the second folder");
@@ -655,7 +700,10 @@ mod tests {
             details: "E:\\gone.db".to_string(),
             db_path: Some("E:\\gone.db".to_string()),
             can_restore_registry: false,
-            other_profiles: vec![LaunchProfile { id: "second".to_string(), name: "Second".to_string() }],
+            other_profiles: vec![LaunchProfile {
+                id: "second".to_string(),
+                name: "Second".to_string(),
+            }],
         }
     }
 
@@ -750,13 +798,25 @@ mod tests {
 
         let state = startup_state_for_registry(&dir.join("config.json"), &runtime, &status, None);
 
-        assert_eq!(state, StartupState::Locked { profile_id: "alpha".to_string(), profile_name: "Alpha".to_string() });
+        assert_eq!(
+            state,
+            StartupState::Locked {
+                profile_id: "alpha".to_string(),
+                profile_name: "Alpha".to_string()
+            }
+        );
     }
 
     #[test]
     fn the_last_used_id_is_carried_into_the_selector_when_present() {
         let dir = temp_dir("selector-last-used");
-        write_registry(&dir, &[("default", "Default", dir.join("vaultspend.db")), ("second", "Second", dir.join("second.db"))]);
+        write_registry(
+            &dir,
+            &[
+                ("default", "Default", dir.join("vaultspend.db")),
+                ("second", "Second", dir.join("second.db")),
+            ],
+        );
         let runtime = AppRuntime::no_profile_open();
         let status = LaunchStatus::new(dir.clone());
 
@@ -816,7 +876,11 @@ mod tests {
         assert!(opened.db_path.exists());
         assert_eq!(std::fs::read(&old).unwrap(), b"this is not a database", "the old file is not touched");
         assert_eq!(config::read_location_strict(&config_path).unwrap(), Some(opened.db_path.clone()));
-        assert_eq!(profiles::registered_profiles_strict(&config_path).unwrap()[0].db_path, opened.db_path, "the profile that used the old file follows");
+        assert_eq!(
+            profiles::registered_profiles_strict(&config_path).unwrap()[0].db_path,
+            opened.db_path,
+            "the profile that used the old file follows"
+        );
     }
 
     #[test]

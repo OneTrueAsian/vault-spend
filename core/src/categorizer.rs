@@ -33,7 +33,12 @@ pub const CONTESTED_RULE_MAX_CONFIDENCE: f64 = 0.69;
 /// `Store::labeled_history` returns it): the same merchant has been filed under several categories, so
 /// the answer is returned with the share of matching history that agrees, capped below the inbox's
 /// "Unsure" cutoff, and the person is asked to check it. A classifier guess always carries its confidence.
-pub fn categorize(description: &str, rules: &RuleSet, history: &[(String, String)], classifier: Option<&Classifier>) -> Option<(String, CategorySource, Option<f64>)> {
+pub fn categorize(
+    description: &str,
+    rules: &RuleSet,
+    history: &[(String, String)],
+    classifier: Option<&Classifier>,
+) -> Option<(String, CategorySource, Option<f64>)> {
     if let Some(rule) = rules.best_match(description) {
         let confidence = contested_confidence(rule, history);
         return Some((rule.category.clone(), CategorySource::Rule, confidence));
@@ -135,7 +140,10 @@ mod tests {
     // ---- a rule whose own history disagrees with it is flagged, not applied silently ----
 
     fn history(entries: &[(&str, &str, usize)]) -> Vec<(String, String)> {
-        entries.iter().flat_map(|(d, c, n)| std::iter::repeat_n((d.to_string(), c.to_string()), *n)).collect()
+        entries
+            .iter()
+            .flat_map(|(d, c, n)| std::iter::repeat_n((d.to_string(), c.to_string()), *n))
+            .collect()
     }
 
     fn sams_rule() -> RuleSet {

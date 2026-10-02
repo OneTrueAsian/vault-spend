@@ -52,7 +52,10 @@ struct Problems(Vec<SetupProblem>);
 
 impl Problems {
     fn add(&mut self, field: impl Into<String>, message: &str) {
-        self.0.push(SetupProblem { field: field.into(), message: message.into() });
+        self.0.push(SetupProblem {
+            field: field.into(),
+            message: message.into(),
+        });
     }
 
     fn unique<T: Ord>(&mut self, field: &str, seen: &mut BTreeSet<T>, key: T, message: &str) {
@@ -78,7 +81,12 @@ impl Problems {
         if amount.value.abs() > Decimal::from(MAX_MONEY) {
             self.add(format!("{field}.value"), "This amount is too large.");
         }
-        self.date_not_future(&format!("{field}.measuredOn"), &amount.measured_on, ctx.today, "The date this was measured");
+        self.date_not_future(
+            &format!("{field}.measuredOn"),
+            &amount.measured_on,
+            ctx.today,
+            "The date this was measured",
+        );
         // The note is optional; only an over-long one is rejected.
         if amount.explanation.trim().chars().count() > MAX_EXPLANATION_CHARS {
             self.add(format!("{field}.explanation"), "The explanation is too long.");
@@ -100,7 +108,12 @@ pub fn validate_setup(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<SetupP
         if !ctx.person_exists(&p.person) {
             out.add(format!("{field}.person"), "This person no longer exists.");
         }
-        out.unique(&format!("{field}.person"), &mut seen_people, p.person.clone(), "This person is listed twice.");
+        out.unique(
+            &format!("{field}.person"),
+            &mut seen_people,
+            p.person.clone(),
+            "This person is listed twice.",
+        );
         if let Some(a) = &p.age {
             if !a.age.is_valid() {
                 out.add(format!("{field}.age"), "Enter an age from 18 to 120, or a band within that range.");
@@ -112,7 +125,10 @@ pub fn validate_setup(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<SetupP
     if let Some(r) = &setup.household_reference_person
         && !setup.people.iter().any(|p| &p.person == r && p.in_household)
     {
-        out.add("householdReferencePerson", "The reference person must be one of the people in the household.");
+        out.add(
+            "householdReferencePerson",
+            "The reference person must be one of the people in the household.",
+        );
     }
 
     // Income.
@@ -125,7 +141,12 @@ pub fn validate_setup(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<SetupP
         if !listed(&pi.person) {
             out.add(format!("{field}.person"), "Choose someone from the people listed.");
         }
-        out.unique(&format!("{field}.person"), &mut seen_income, pi.person.clone(), "Income is entered twice for this person.");
+        out.unique(
+            &format!("{field}.person"),
+            &mut seen_income,
+            pi.person.clone(),
+            "Income is entered twice for this person.",
+        );
         out.amount(&format!("{field}.grossAnnual"), &pi.gross_annual, MetricId::Income, ctx);
     }
 
@@ -153,7 +174,10 @@ pub fn validate_setup(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<SetupP
         let field = format!("spending.categoryMappings[{i}]");
         let (category, component) = (m.category.trim(), m.component.trim());
         if category.is_empty() || component.is_empty() || category.chars().count() > 100 || component.chars().count() > 100 {
-            out.add(&field, "A category and a comparison component are both required (at most 100 characters).");
+            out.add(
+                &field,
+                "A category and a comparison component are both required (at most 100 characters).",
+            );
         }
         out.unique(&field, &mut seen_categories, category.to_lowercase(), "This category is mapped twice.");
     }
@@ -206,7 +230,12 @@ pub fn validate_setup(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<SetupP
         if !(ctx.person_exists(&a.person) && listed(&a.person)) {
             out.add(format!("{field}.person"), "Choose someone from the people listed.");
         }
-        out.unique(&field, &mut seen, (a.source.clone(), a.person.clone()), "This person already has a share of this item.");
+        out.unique(
+            &field,
+            &mut seen,
+            (a.source.clone(), a.person.clone()),
+            "This person already has a share of this item.",
+        );
         *totals.entry(&a.source).or_default() += a.basis_points;
     }
     for (source, total) in totals {
@@ -245,7 +274,12 @@ pub fn validate_setup(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<SetupP
     }
     let mut seen = BTreeSet::new();
     for (i, p) in setup.universe_preferences.iter().enumerate() {
-        out.unique(&format!("universePreferences[{i}].metric"), &mut seen, p.metric, "This comparison has two population settings.");
+        out.unique(
+            &format!("universePreferences[{i}].metric"),
+            &mut seen,
+            p.metric,
+            "This comparison has two population settings.",
+        );
     }
     out.0
 }

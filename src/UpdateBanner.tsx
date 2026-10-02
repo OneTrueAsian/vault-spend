@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
+import { errorMessage } from "./errorMessage";
 
 const DISMISSED_VERSION_KEY = "vaultspend-dismissed-update-version";
 const REPO = "OneTrueAsian/vault-spend";
@@ -141,7 +142,7 @@ export function UpdateBanner() {
     } catch (e) {
       // A failed download shouldn't leave the user stuck — fall back to
       // the same manual path this banner always offered.
-      setError(`Couldn't download the update automatically (${String(e)}) — opening the release page instead.`);
+      setError(`Couldn't download the update automatically (${errorMessage(e)}) — opening the release page instead.`);
       await openUrl(latest.url);
     } finally {
       setDownloading(false);

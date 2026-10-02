@@ -35,6 +35,7 @@ import {
 } from "./setupDraft";
 import "./Comparisons.css";
 import type { ComparisonSetup, DebtClass, InvestmentClass, MetricId, Repair, SetupProblem, SourceRef } from "./types";
+import { errorMessage } from "../errorMessage";
 
 const INVESTMENT_CLASSES: { value: InvestmentClass | ""; label: string }[] = [
   { value: "", label: "Not chosen yet" },
@@ -126,7 +127,7 @@ export function ComparisonDetailsPanel({
         setLoaded(true);
       })
       .catch((e) => {
-        if (!cancelled) setLoadError(String(e));
+        if (!cancelled) setLoadError(errorMessage(e));
       });
     return () => {
       cancelled = true;
@@ -175,7 +176,7 @@ export function ComparisonDetailsPanel({
         setProblems(r.problems);
       }
     } catch (e) {
-      setMessage(String(e));
+      setMessage(errorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -204,7 +205,7 @@ export function ComparisonDetailsPanel({
     return (
       <div className="card" data-cmp-settings>
         <p className="modal-message-secondary">
-          Comparisons line your finances up against published figures for people your age.
+          Comparisons line your finances up against official figures for people your age.
         </p>
         <button type="button" data-cmp-settings-start onClick={() => setDraft(syncPeople(emptySetup(), familyMembers))}>
           Set up comparisons
@@ -299,7 +300,7 @@ export function ComparisonDetailsPanel({
       <section className="cmp-settings-group" data-cmp-group="income">
         <h3>Income (before tax)</h3>
         <p className="modal-message-secondary">
-          Published income is before tax, so it is never estimated from your tracked take-home pay. Enter what you earn in a year.
+          Official income figures are before tax, so they are never estimated from the take-home pay in your accounts. Enter what you earn in a year.
         </p>
         <div className="cmp-settings-row">
           <span className="cmp-row-label">
@@ -350,7 +351,7 @@ export function ComparisonDetailsPanel({
               data-cmp-spending-complete
             />
             <span className="feature-toggle-text">
-              The last 12 completed months of tracked spending cover everything my household spends
+              The last 12 completed months of spending in Vault Spend cover everything my household spends
             </span>
           </label>
           <InfoTip label="Spending covers everything" text={FIELD_TIPS.spendingComplete} id={`${uid}-spending-complete`} />

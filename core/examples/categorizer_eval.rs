@@ -47,13 +47,20 @@ impl Tally {
         self.correct += u32::from(correct);
     }
     fn pct(&self) -> String {
-        if self.n == 0 { "   - ".into() } else { format!("{:5.1}%", 100.0 * f64::from(self.correct) / f64::from(self.n)) }
+        if self.n == 0 {
+            "   - ".into()
+        } else {
+            format!("{:5.1}%", 100.0 * f64::from(self.correct) / f64::from(self.n))
+        }
     }
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let path = args.iter().find(|a| !a.starts_with("--")).expect("usage: categorizer_eval <path-to.db> [--misses]");
+    let path = args
+        .iter()
+        .find(|a| !a.starts_with("--"))
+        .expect("usage: categorizer_eval <path-to.db> [--misses]");
     let show_misses = args.iter().any(|a| a == "--misses");
 
     let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).expect("open the database read-only");
@@ -67,7 +74,12 @@ fn main() {
     let txns: Vec<Txn> = stmt
         .query_map([], |row| {
             let source: Option<String> = row.get(2)?;
-            Ok(Txn { month: row.get(3)?, description: row.get(0)?, category: row.get(1)?, scored: source.as_deref() == Some("user") })
+            Ok(Txn {
+                month: row.get(3)?,
+                description: row.get(0)?,
+                category: row.get(1)?,
+                scored: source.as_deref() == Some("user"),
+            })
         })
         .expect("query")
         .map(|r| r.expect("row"))
@@ -104,7 +116,11 @@ fn main() {
             None => why_none += 1,
             Some((category, source, Some(c))) if *c < LOW_CONFIDENCE => {
                 let right = *category == txn.category;
-                if *source == CategorySource::Rule { why_rule.add(right) } else { why_class.add(right) }
+                if *source == CategorySource::Rule {
+                    why_rule.add(right)
+                } else {
+                    why_class.add(right)
+                }
             }
             _ => {}
         }
@@ -127,7 +143,11 @@ fn main() {
                         flagged.add(correct)
                     } else {
                         silent.add(correct);
-                        if scored_seen * 2 <= scored_total { silent_first.add(correct) } else { silent_second.add(correct) }
+                        if scored_seen * 2 <= scored_total {
+                            silent_first.add(correct)
+                        } else {
+                            silent_second.add(correct)
+                        }
                     }
                     match source {
                         CategorySource::Rule => rule_t.add(correct),
@@ -135,7 +155,15 @@ fn main() {
                             class_t.add(correct);
                             let c = confidence.unwrap_or(0.0);
                             brier_sum += (c - f64::from(u8::from(correct))).powi(2);
-                            let i = if c < 0.5 { 0 } else if c < 0.7 { 1 } else if c < 0.9 { 2 } else { 3 };
+                            let i = if c < 0.5 {
+                                0
+                            } else if c < 0.7 {
+                                1
+                            } else if c < 0.9 {
+                                2
+                            } else {
+                                3
+                            };
                             buckets[i].add(correct);
                         }
                     }
@@ -149,7 +177,11 @@ fn main() {
             }
             let correct = guess.as_ref().is_some_and(|(c, _, _)| *c == txn.category);
             overall.add(correct);
-            if scored_seen * 2 <= scored_total { first_half.add(correct) } else { second_half.add(correct) }
+            if scored_seen * 2 <= scored_total {
+                first_half.add(correct)
+            } else {
+                second_half.add(correct)
+            }
             // A person's own choice teaches the rule set, exactly like a correction in the app.
             learn_from_correction(&mut rules, &txn.description, &txn.category);
         }
@@ -160,8 +192,17 @@ fn main() {
 
     let answered = rule_t.n + class_t.n;
     let (arrived, looks): (u32, u32) = workload.values().fold((0, 0), |(a, l), (x, y)| (a + x, l + y));
-    println!("Review workload over every transaction as it arrived: {looks} of {arrived} ({:.1}%) needed a look", pct(looks, arrived));
-    println!("  because: no answer {why_none}; contested rule {} ({} of them right); unsure classifier {} ({} right)", why_rule.n, why_rule.pct(), why_class.n, why_class.pct());
+    println!(
+        "Review workload over every transaction as it arrived: {looks} of {arrived} ({:.1}%) needed a look",
+        pct(looks, arrived)
+    );
+    println!(
+        "  because: no answer {why_none}; contested rule {} ({} of them right); unsure classifier {} ({} right)",
+        why_rule.n,
+        why_rule.pct(),
+        why_class.n,
+        why_class.pct()
+    );
     for (month, (a, l)) in &workload {
         println!("  {month}: {l:>3} of {a:>3}");
     }
@@ -169,20 +210,52 @@ fn main() {
     println!("transactions replayed: {}   scored (set by the person): {}", txns.len(), scored_total);
     println!();
     println!("Of the {} transactions the person categorized themselves:", scored_total);
-    println!("  answered correctly ........ {:5.1}%  ({} of {})", pct(overall.correct, overall.n), overall.correct, overall.n);
-    println!("  answered wrongly .......... {:5.1}%  ({})", pct(answered - overall.correct, overall.n), answered - overall.correct);
+    println!(
+        "  answered correctly ........ {:5.1}%  ({} of {})",
+        pct(overall.correct, overall.n),
+        overall.correct,
+        overall.n
+    );
+    println!(
+        "  answered wrongly .......... {:5.1}%  ({})",
+        pct(answered - overall.correct, overall.n),
+        answered - overall.correct
+    );
     println!("  no answer (Uncategorized) . {:5.1}%  ({})", pct(abstained, overall.n), abstained);
     println!();
-    println!("  applied silently .. {:>4} answers, {} correct  -> {} silent mistakes", silent.n, silent.pct(), silent.n - silent.correct);
-    println!("  silent mistakes by half of history: first {} of {}, second {} of {}", silent_first.n - silent_first.correct, silent_first.n, silent_second.n - silent_second.correct, silent_second.n);
-    println!("  flagged for review  {:>4} answers, {} correct  -> {} mistakes caught", flagged.n, flagged.pct(), flagged.n - flagged.correct);
+    println!(
+        "  applied silently .. {:>4} answers, {} correct  -> {} silent mistakes",
+        silent.n,
+        silent.pct(),
+        silent.n - silent.correct
+    );
+    println!(
+        "  silent mistakes by half of history: first {} of {}, second {} of {}",
+        silent_first.n - silent_first.correct,
+        silent_first.n,
+        silent_second.n - silent_second.correct,
+        silent_second.n
+    );
+    println!(
+        "  flagged for review  {:>4} answers, {} correct  -> {} mistakes caught",
+        flagged.n,
+        flagged.pct(),
+        flagged.n - flagged.correct
+    );
     println!("  no answer ......... {:>4}", abstained);
     println!();
     println!("  by rule ........... {:>4} answers, {} correct", rule_t.n, rule_t.pct());
     println!("  by classifier ..... {:>4} answers, {} correct", class_t.n, class_t.pct());
-    println!("  learning curve: first half {} correct, second half {} correct", pct_tally(&first_half), pct_tally(&second_half));
+    println!(
+        "  learning curve: first half {} correct, second half {} correct",
+        pct_tally(&first_half),
+        pct_tally(&second_half)
+    );
     println!();
-    println!("Classifier calibration (Brier score, lower is better; 0.25 = no better than a coin): {:.4}", if class_t.n == 0 { 0.0 } else { brier_sum / f64::from(class_t.n) });
+    println!(
+        "Classifier calibration (Brier score, lower is better; 0.25 = no better than a coin): {:.4}",
+        if class_t.n == 0 { 0.0 } else { brier_sum / f64::from(class_t.n) }
+    );
     println!("Classifier accuracy by its own stated confidence:");
     for (label, t) in ["< 50%", "50-70%", "70-90%", ">= 90%"].iter().zip(buckets.iter()) {
         println!("  {label:>7}: {:>4} guesses, {} correct", t.n, t.pct());

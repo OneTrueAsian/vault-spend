@@ -144,6 +144,13 @@ reproduced on demand and fixed at its cause, not retried away.
   message that reports what the window looked like: `waitUntilOrDiagnose` in
   `harness.mjs` (features 24, 42, 95, 121, 101 use it). Never assert on a
   single read.
+- **Views wait for the first load.** Until the profile's data has arrived, a
+  view shows a loading placeholder (`[data-data-loading]`) instead of its
+  content, so the sidebar can be up while the Dashboard's stat cards do not
+  exist yet. `launchApp` waits for that load before it returns; pass
+  `waitForData: false` only to watch the loading itself (feature157), and call
+  `waitForDataLoaded(browser)` after reaching the app through the profile
+  selector or an unlock.
 - **Fixtures the app is right to change.** `feature127` pinned a dashboard
   widget for an investment account that did not exist, and the app is meant
   to drop such pins once its data loads, so the layout it read back depended

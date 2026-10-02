@@ -124,7 +124,7 @@ export function ComparisonsView({
         <section className="cmp-empty" data-cmp-unconfigured>
           <h2>Compare your finances with people your age</h2>
           <p>
-            Tell Vault Spend how old you are and it will line up your income, savings, investments and debt against published figures from public sources,
+            Tell Vault Spend how old you are and it will line up your income, savings, investments and debt against official figures from public sources,
             showing exactly which group each figure describes. Nothing leaves this computer.
           </p>
           <button type="button" onClick={() => setSettingUp(true)} disabled={generation === null} data-cmp-start-setup>
@@ -135,7 +135,7 @@ export function ComparisonsView({
 
       {loaded?.response.packageError && (
         <div className="cmp-banner cmp-banner-error" role="alert" data-cmp-package-error>
-          The published benchmark data could not be loaded, so nothing can be compared right now. Your settings are untouched.
+          The official figures could not be loaded, so nothing can be compared right now. Your settings are untouched.
         </div>
       )}
 

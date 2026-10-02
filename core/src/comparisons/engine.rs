@@ -1,11 +1,11 @@
 //! Comparison arithmetic and the rules for when a comparison is allowed: population, period,
 //! age cohort, reliability and dollar basis. Pure functions over a `Package` and a plain query,
 //! with no database or Tauri dependency, so every rule is testable on its own.
-use super::cohort::{match_cohort, CohortMatch};
+use super::cohort::{CohortMatch, match_cohort};
 use super::package::Package;
 use super::types::{
-    AdjustedReference, AgeInput, CardStatus, Completeness, ComparisonCardResult, ComparisonMode, DollarBasis,
-    MetricId, Reason, Reference, Reliability, Uncertainty, Unit, Universe,
+    AdjustedReference, AgeInput, CardStatus, ComparisonCardResult, ComparisonMode, Completeness, DollarBasis, MetricId, Reason, Reference,
+    Reliability, Uncertainty, Unit, Universe,
 };
 use rust_decimal::{Decimal, RoundingStrategy};
 
@@ -88,7 +88,10 @@ fn adjust(pkg: &Package, reference: &Reference) -> Result<AdjustedReference, Rea
     Ok(AdjustedReference {
         reference: reference.clone(),
         adjusted_value: scale(reference.value),
-        adjusted_uncertainty: reference.uncertainty.as_ref().map(|u| Uncertainty { kind: u.kind, value: scale(u.value) }),
+        adjusted_uncertainty: reference.uncertainty.as_ref().map(|u| Uncertainty {
+            kind: u.kind,
+            value: scale(u.value),
+        }),
         adjusted_basis_month: latest_month,
         cpi_factor: factor,
     })
@@ -131,9 +134,7 @@ pub fn compare(pkg: &Package, q: &CardQuery) -> ComparisonCardResult {
                 .iter()
                 .any(|m| pkg.references(q.metric, *m).any(|r| r.definition_id == d))
         });
-        let removed = q.definition_id.is_some()
-            && !defined_elsewhere
-            && pkg.gap_reason(q.metric, q.mode).is_none();
+        let removed = q.definition_id.is_some() && !defined_elsewhere && pkg.gap_reason(q.metric, q.mode).is_none();
         let reason = if removed { Reason::BenchmarkRemoved } else { Reason::NoBenchmark };
         return card(q, CardStatus::Unavailable, vec![reason]);
     }
@@ -166,19 +167,19 @@ pub fn compare(pkg: &Package, q: &CardQuery) -> ComparisonCardResult {
     let (reference, approximate) = match match_cohort(&candidates, age) {
         CohortMatch::Exact(r) => (r, false),
         CohortMatch::Nearest { reference, .. } => (reference, true),
-        CohortMatch::ChoiceRequired { options, approximate } => {
-            match q.selected_cohort.and_then(|id| options.iter().find(|r| r.id == id)) {
-                Some(chosen) => (*chosen, approximate),
-                None => {
-                    let ids = options.iter().map(|r| r.id.clone()).collect();
-                    return card(q, CardStatus::CohortChoiceRequired, vec![Reason::CohortChoiceRequired { options: ids }]);
-                }
+        CohortMatch::ChoiceRequired { options, approximate } => match q.selected_cohort.and_then(|id| options.iter().find(|r| r.id == id)) {
+            Some(chosen) => (*chosen, approximate),
+            None => {
+                let ids = options.iter().map(|r| r.id.clone()).collect();
+                return card(q, CardStatus::CohortChoiceRequired, vec![Reason::CohortChoiceRequired { options: ids }]);
             }
-        }
+        },
         CohortMatch::None => return card(q, CardStatus::Unavailable, vec![Reason::NoMatchingAgeBenchmark]),
     };
     if approximate {
-        reasons.push(Reason::NearestCohortUsed { cohort: reference.id.clone() });
+        reasons.push(Reason::NearestCohortUsed {
+            cohort: reference.id.clone(),
+        });
     }
 
     // 5. Is the published number trustworthy.
@@ -199,7 +200,10 @@ pub fn compare(pkg: &Package, q: &CardQuery) -> ComparisonCardResult {
     };
     let already_latest = matches!(&reference.dollar_basis, DollarBasis::Month { period } if period == pkg.latest_cpi_month());
     if !already_latest {
-        reasons.push(Reason::InflationAdjusted { from: basis_label, to: adjusted.adjusted_basis_month.clone() });
+        reasons.push(Reason::InflationAdjusted {
+            from: basis_label,
+            to: adjusted.adjusted_basis_month.clone(),
+        });
     }
 
     let mut result = card(q, CardStatus::Comparable, reasons);

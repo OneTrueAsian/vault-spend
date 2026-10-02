@@ -126,7 +126,7 @@ try {
 
   netWorth = await statValue(app, "Net Worth");
   if (netWorth !== "$4,700.00") throw new Error(`expected Net Worth $4,700.00 after the $300 charge, got ${netWorth}`);
-  let liabilities = await statValue(app, "Total Liabilities");
+  let liabilities = await statValue(app, "What you owe");
   if (liabilities !== "-$300.00") throw new Error(`expected Total Liabilities -$300.00, got ${liabilities}`);
 
   let legendText = await cashFlowLegendText(app);
@@ -180,7 +180,7 @@ try {
 
   netWorth = await statValue(app, "Net Worth");
   if (netWorth !== "$5,150.00") throw new Error(`expected Net Worth $5,150.00 (checking $5,000 + $150 overpayment), got ${netWorth}`);
-  liabilities = await statValue(app, "Total Liabilities");
+  liabilities = await statValue(app, "What you owe");
   if (liabilities !== "$150.00") {
     throw new Error(`expected Total Liabilities to flip to +$150.00 once overpaid (documented sign convention), got ${liabilities}`);
   }

@@ -3,7 +3,7 @@
 //!
 //! Lives in its own file, like `comparison_setup`, because it needs `Store`'s private connection.
 
-use super::{fingerprint, Store};
+use super::{Store, fingerprint};
 use crate::models::Transaction;
 use chrono::NaiveDate;
 use rusqlite::params;
@@ -25,7 +25,10 @@ pub enum FlipSignsError {
     /// Some rows are one side of a pair whose two sides must have opposite signs: a linked transfer, or a
     /// payment applied to a debt (its source or the row it generated). Flipping one side would break the pair,
     /// so nothing was changed.
-    Linked { transfers: usize, debt_payments: usize },
+    Linked {
+        transfers: usize,
+        debt_payments: usize,
+    },
     Db(rusqlite::Error),
 }
 
@@ -44,7 +47,10 @@ impl std::fmt::Display for FlipSignsError {
                     parts.push(format!("{transfers} linked transfer{}", if *transfers == 1 { "" } else { "s" }));
                 }
                 if *debt_payments > 0 {
-                    parts.push(format!("{debt_payments} applied debt payment{}", if *debt_payments == 1 { "" } else { "s" }));
+                    parts.push(format!(
+                        "{debt_payments} applied debt payment{}",
+                        if *debt_payments == 1 { "" } else { "s" }
+                    ));
                 }
                 write!(
                     f,
@@ -111,10 +117,20 @@ impl Store {
             let row = self.conn.query_row(
                 "SELECT account_id, date, description, amount, principal_amount FROM transactions WHERE id = ?1 AND deleted_at IS NULL",
                 params![id],
-                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?, r.get::<_, Option<String>>(4)?)),
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                        r.get::<_, String>(3)?,
+                        r.get::<_, Option<String>>(4)?,
+                    ))
+                },
             );
             match row {
-                Ok((account_id, date, description, amount, principal)) => rows.push((*id, account_id, date, description, parse(&amount), principal.map(|p| parse(&p)))),
+                Ok((account_id, date, description, amount, principal)) => {
+                    rows.push((*id, account_id, date, description, parse(&amount), principal.map(|p| parse(&p))))
+                }
                 Err(rusqlite::Error::QueryReturnedNoRows) => {}
                 Err(e) => return Err(e.into()),
             }
@@ -166,7 +182,10 @@ impl Store {
                 params![id],
             )?;
             let counted = principal.unwrap_or(*amount); // what account_balance_as_of adds up
-            balance_moves.entry(*account_id).or_default().push((date.clone(), negated(counted) - counted));
+            balance_moves
+                .entry(*account_id)
+                .or_default()
+                .push((date.clone(), negated(counted) - counted));
         }
 
         for (account_id, moves) in &balance_moves {
@@ -180,13 +199,18 @@ impl Store {
         }
         sql_tx.commit()?;
 
-        Ok(FlipSignsSummary { flipped: rows.len(), account_ids: balance_moves.keys().copied().collect() })
+        Ok(FlipSignsSummary {
+            flipped: rows.len(),
+            account_ids: balance_moves.keys().copied().collect(),
+        })
     }
 
     /// See `flip_transaction_signs`. `moves` is each flipped row's date and how much its flip changes the
     /// account's summed transactions.
     fn correct_checkpoints_after_flip(&self, account_id: i64, moves: &[(String, Decimal)]) -> rusqlite::Result<()> {
-        let account_type: String = self.conn.query_row("SELECT account_type FROM accounts WHERE id = ?1", params![account_id], |r| r.get(0))?;
+        let account_type: String = self
+            .conn
+            .query_row("SELECT account_type FROM accounts WHERE id = ?1", params![account_id], |r| r.get(0))?;
         // account_balance_as_of: a loan subtracts its transactions, every other type adds them.
         let direction = if account_type == "loan" { Decimal::NEGATIVE_ONE } else { Decimal::ONE };
 
@@ -205,7 +229,10 @@ impl Store {
             let correction = if period.starts_with("manual:") {
                 Decimal::ZERO
             } else {
-                let anchor = corrections.iter().filter(|(date, ..)| date <= reset_date).max_by(|a, b| (&a.0, a.1).cmp(&(&b.0, b.1)));
+                let anchor = corrections
+                    .iter()
+                    .filter(|(date, ..)| date <= reset_date)
+                    .max_by(|a, b| (&a.0, a.1).cmp(&(&b.0, b.1)));
                 let (since, anchor_correction) = match anchor {
                     Some((date, _, c)) => (Some(date.as_str()), *c),
                     None => (None, Decimal::ZERO),
@@ -245,7 +272,12 @@ mod tests {
     }
 
     fn tx(date: &str, description: &str, amount: &str) -> Transaction {
-        Transaction { date: d(date), description: description.to_string(), amount: dec(amount), category: None }
+        Transaction {
+            date: d(date),
+            description: description.to_string(),
+            amount: dec(amount),
+            category: None,
+        }
     }
 
     /// A credit card holding the given rows, as an import with "Keep as-is" left them. Returns the account
@@ -258,11 +290,24 @@ mod tests {
     }
 
     fn amount_of(store: &Store, id: i64) -> Decimal {
-        store.all_transactions().unwrap().into_iter().find(|t| t.id == id).unwrap().transaction.amount
+        store
+            .all_transactions()
+            .unwrap()
+            .into_iter()
+            .find(|t| t.id == id)
+            .unwrap()
+            .transaction
+            .amount
     }
 
     fn balance(store: &Store, account: i64, today: &str) -> Decimal {
-        store.list_accounts(d(today)).unwrap().into_iter().find(|a| a.id == account).unwrap().current_balance
+        store
+            .list_accounts(d(today))
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == account)
+            .unwrap()
+            .current_balance
     }
 
     fn resets(store: &Store, account: i64) -> Vec<(String, String)> {
@@ -270,13 +315,20 @@ mod tests {
             .conn
             .prepare("SELECT period, balance FROM balance_resets WHERE account_id = ?1 ORDER BY id")
             .unwrap();
-        stmt.query_map([account], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().map(Result::unwrap).collect()
+        stmt.query_map([account], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
     }
 
     #[test]
     fn flipping_negates_each_amount() {
         let store = Store::open_in_memory().unwrap();
-        let (_, ids) = card(&store, "1000", &[tx("2026-08-10", "HULU", "19.99"), tx("2026-08-20", "PAYMENT - THANK YOU", "-50.00")]);
+        let (_, ids) = card(
+            &store,
+            "1000",
+            &[tx("2026-08-10", "HULU", "19.99"), tx("2026-08-20", "PAYMENT - THANK YOU", "-50.00")],
+        );
 
         let summary = store.flip_transaction_signs(&ids).unwrap();
 
@@ -306,8 +358,14 @@ mod tests {
 
         store.flip_transaction_signs(&ids).unwrap();
 
-        assert_eq!(store.check_duplicates(account, &[tx("2026-08-10", "HULU", "-19.99")]).unwrap(), vec![true]);
-        assert_eq!(store.check_duplicates(account, &[tx("2026-08-10", "HULU", "19.99")]).unwrap(), vec![false]);
+        assert_eq!(
+            store.check_duplicates(account, &[tx("2026-08-10", "HULU", "-19.99")]).unwrap(),
+            vec![true]
+        );
+        assert_eq!(
+            store.check_duplicates(account, &[tx("2026-08-10", "HULU", "19.99")]).unwrap(),
+            vec![false]
+        );
     }
 
     #[test]
@@ -316,7 +374,10 @@ mod tests {
         let (_, ids) = card(&store, "1000", &[tx("2026-08-10", "COSTCO", "100.00")]);
         store.update_transaction_principal_amount(ids[0], Some(dec("80.00"))).unwrap();
         store
-            .set_transaction_splits(ids[0], &[("Groceries".into(), dec("60.00"), None), ("Household".into(), dec("40.00"), None)])
+            .set_transaction_splits(
+                ids[0],
+                &[("Groceries".into(), dec("60.00"), None), ("Household".into(), dec("40.00"), None)],
+            )
             .unwrap();
 
         store.flip_transaction_signs(&ids).unwrap();
@@ -417,12 +478,23 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let (card_id, ids) = card(&store, "1000", &[tx("2026-08-10", "HULU", "20.00"), tx("2026-08-20", "PAYMENT", "50.00")]);
         let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
-        let out = store.save_transactions_with_ids(checking, &[tx("2026-08-20", "AMEX PAYMENT", "-50.00")]).unwrap()[0];
+        let out = store
+            .save_transactions_with_ids(checking, &[tx("2026-08-20", "AMEX PAYMENT", "-50.00")])
+            .unwrap()[0];
         assert!(store.link_transfer(out, ids[1]).unwrap());
 
         let err = store.flip_transaction_signs(&ids).unwrap_err();
 
-        assert!(matches!(err, FlipSignsError::Linked { transfers: 1, debt_payments: 0 }), "{err:?}");
+        assert!(
+            matches!(
+                err,
+                FlipSignsError::Linked {
+                    transfers: 1,
+                    debt_payments: 0
+                }
+            ),
+            "{err:?}"
+        );
         assert_eq!(amount_of(&store, ids[0]), dec("20.00"), "the unlinked row must not be flipped either");
         assert_eq!(balance(&store, card_id, "2026-09-15"), dec("1070.00"));
     }
@@ -431,13 +503,24 @@ mod tests {
     fn an_applied_debt_payment_is_refused() {
         let store = Store::open_in_memory().unwrap();
         let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
-        let source = store.save_transactions_with_ids(checking, &[tx("2026-08-20", "CARD PAYMENT", "-50.00")]).unwrap()[0];
+        let source = store
+            .save_transactions_with_ids(checking, &[tx("2026-08-20", "CARD PAYMENT", "-50.00")])
+            .unwrap()[0];
         let loan = store.get_or_create_account("Car Loan", AccountType::Loan).unwrap();
         store.apply_debt_payment(source, loan, dec("50.00"), d("2026-08-20")).unwrap();
 
         let err = store.flip_transaction_signs(&[source]).unwrap_err();
 
-        assert!(matches!(err, FlipSignsError::Linked { transfers: 0, debt_payments: 1 }), "{err:?}");
+        assert!(
+            matches!(
+                err,
+                FlipSignsError::Linked {
+                    transfers: 0,
+                    debt_payments: 1
+                }
+            ),
+            "{err:?}"
+        );
         assert_eq!(amount_of(&store, source), dec("-50.00"));
     }
 
@@ -451,7 +534,10 @@ mod tests {
         let summary = store.flip_transaction_signs(&[ids[0], ids[1], 999_999]).unwrap();
 
         assert_eq!(summary.flipped, 1);
-        let deleted_amount: String = store.conn.query_row("SELECT amount FROM transactions WHERE id = ?1", [ids[1]], |r| r.get(0)).unwrap();
+        let deleted_amount: String = store
+            .conn
+            .query_row("SELECT amount FROM transactions WHERE id = ?1", [ids[1]], |r| r.get(0))
+            .unwrap();
         assert_eq!(deleted_amount, "9.99");
     }
 
@@ -461,7 +547,15 @@ mod tests {
     fn an_account_remembers_the_last_import_sign_choice() {
         let store = Store::open_in_memory().unwrap();
         let (account, _) = card(&store, "1000", &[]);
-        let choice = |store: &Store| store.list_accounts(d("2026-09-15")).unwrap().into_iter().find(|a| a.id == account).unwrap().import_flip_signs;
+        let choice = |store: &Store| {
+            store
+                .list_accounts(d("2026-09-15"))
+                .unwrap()
+                .into_iter()
+                .find(|a| a.id == account)
+                .unwrap()
+                .import_flip_signs
+        };
         assert_eq!(choice(&store), None, "an account never imported into has no choice yet");
 
         store.set_account_import_flip_signs(account, true).unwrap();
@@ -479,7 +573,12 @@ mod tests {
         store.migrate_add_account_import_flip_signs_if_missing().unwrap();
         store.migrate_add_account_import_flip_signs_if_missing().unwrap(); // and again: idempotent
 
-        let row = store.list_accounts(d("2026-09-15")).unwrap().into_iter().find(|a| a.id == account).unwrap();
+        let row = store
+            .list_accounts(d("2026-09-15"))
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == account)
+            .unwrap();
         assert_eq!(row.import_flip_signs, None);
     }
 }

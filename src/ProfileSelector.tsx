@@ -6,6 +6,7 @@ import { getCurrentGeneration } from "./profileUiState";
 import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import type { SelectorEntry, StartupState } from "./startup";
+import { errorMessage } from "./errorMessage";
 
 /** A card per profile — an avatar, the name, and (matching Settings' own Profiles section, the only
  * other place these two actions exist) inline Rename/Delete, plus a dedicated "Add profile" tile.
@@ -47,7 +48,7 @@ export function ProfileSelector({
     try {
       onResolved(await selectProfile(id));
     } catch (e) {
-      setProblem(String(e));
+      setProblem(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -67,7 +68,7 @@ export function ProfileSelector({
       await invoke("rename_profile", { id, newName: trimmed });
       setEntries((cur) => cur.map((p) => (p.id === id ? { ...p, name: trimmed } : p)));
     } catch (e) {
-      setProblem(String(e));
+      setProblem(errorMessage(e));
     }
   }
 
@@ -77,7 +78,7 @@ export function ProfileSelector({
       await invoke("delete_profile", { id });
       setEntries((cur) => cur.filter((p) => p.id !== id));
     } catch (e) {
-      setProblem(String(e));
+      setProblem(errorMessage(e));
     }
   }
 
@@ -95,7 +96,7 @@ export function ProfileSelector({
       await invoke("create_profile", { name: trimmed });
       onResolved({ status: "open" });
     } catch (e) {
-      setProblem(String(e));
+      setProblem(errorMessage(e));
       setBusy(false);
     }
   }

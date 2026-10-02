@@ -437,12 +437,12 @@ export function BucketsView({
           return (
             <div key={b.id} className="bucket-card" style={b.color ? { borderTop: `3px solid ${b.color}` } : undefined}>
               <div className="bucket-card-header">
-                <h3 className="cell-with-icon">
+                <h2 className="cell-with-icon">
                   <span className="bucket-ico">
                     <BucketIcon name={b.name} iconKey={b.icon_key} />
                   </span>
                   {b.name}
-                </h3>
+                </h2>
                 {confirmingDeleteId === b.id ? (
                   <span className="row-delete-confirm">
                     <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(null)}>

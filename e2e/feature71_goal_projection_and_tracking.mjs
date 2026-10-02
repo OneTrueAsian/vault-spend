@@ -64,7 +64,7 @@ async function nav(label) {
   }
   throw new Error(`no nav button "${label}"`);
 }
-const card = (name) => browser.$(`//div[contains(@class,'bucket-card')][.//h3[contains(normalize-space(.), '${name}')]]`);
+const card = (name) => browser.$(`//div[contains(@class,'bucket-card')][.//h2[contains(normalize-space(.), '${name}')]]`);
 
 try {
   await browser.setWindowSize(1440, 1100);

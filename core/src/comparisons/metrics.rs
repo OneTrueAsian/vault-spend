@@ -7,10 +7,8 @@
 //! derived total with unallocated shares, unclassified accounts, missing months or no confirmation
 //! reports a completeness other than `Confirmed`, which keeps the card from making a confident
 //! comparison.
-use super::setup::{
-    ComparisonSetup, DebtClass, HouseholdIncomeMethod, InvestmentClass, ManualAmount, PersonRef, SourceRef,
-};
-use super::types::{money_str, Completeness, MetricId, PeriodKind, Unit, ValuePeriod};
+use super::setup::{ComparisonSetup, DebtClass, HouseholdIncomeMethod, InvestmentClass, ManualAmount, PersonRef, SourceRef};
+use super::types::{Completeness, MetricId, PeriodKind, Unit, ValuePeriod, money_str};
 use crate::models::AccountType;
 use chrono::{Datelike, Duration, Months, NaiveDate};
 use rust_decimal::{Decimal, RoundingStrategy};
@@ -115,7 +113,11 @@ pub struct Excluded {
 pub enum Origin {
     Derived,
     /// Typed by the person; stays active until removed. `stale` only warns.
-    Entered { measured_on: String, explanation: String, stale: bool },
+    Entered {
+        measured_on: String,
+        explanation: String,
+        stale: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -125,7 +127,10 @@ pub struct Note {
 }
 
 fn note(code: &str, detail: impl Into<String>) -> Note {
-    Note { code: code.into(), detail: detail.into() }
+    Note {
+        code: code.into(),
+        detail: detail.into(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -191,12 +196,18 @@ struct Share {
 fn share_of(setup: &ComparisonSetup, source: &SourceRef) -> Share {
     let allocs: Vec<_> = setup.allocations.iter().filter(|a| &a.source == source).collect();
     if allocs.is_empty() {
-        return Share { counted_bp: BASIS_POINTS, unallocated_bp: 0 };
+        return Share {
+            counted_bp: BASIS_POINTS,
+            unallocated_bp: 0,
+        };
     }
     let in_household: BTreeSet<&PersonRef> = setup.people.iter().filter(|p| p.in_household).map(|p| &p.person).collect();
     let total: u32 = allocs.iter().map(|a| a.basis_points).sum();
     let counted_bp = allocs.iter().filter(|a| in_household.contains(&a.person)).map(|a| a.basis_points).sum();
-    Share { counted_bp, unallocated_bp: BASIS_POINTS.saturating_sub(total) }
+    Share {
+        counted_bp,
+        unallocated_bp: BASIS_POINTS.saturating_sub(total),
+    }
 }
 
 fn portion(amount: Decimal, bp: u32) -> Decimal {
@@ -204,21 +215,18 @@ fn portion(amount: Decimal, bp: u32) -> Decimal {
 }
 
 /// Adds `gross` of `source` to the running totals, applying ownership shares. Returns the counted amount.
-fn count_source(
-    out: &mut MetricComputation,
-    setup: &ComparisonSetup,
-    label: &str,
-    source: SourceRef,
-    gross: Decimal,
-    partial: &mut bool,
-) -> Decimal {
+fn count_source(out: &mut MetricComputation, setup: &ComparisonSetup, label: &str, source: SourceRef, gross: Decimal, partial: &mut bool) -> Decimal {
     let share = share_of(setup, &source);
     if share.unallocated_bp > 0 {
         out.unallocated += portion(gross, share.unallocated_bp);
         *partial = true;
     }
     if share.counted_bp == 0 {
-        out.excluded.push(Excluded { label: label.into(), source: Some(source), reason: ExcludeReason::NotAllocated });
+        out.excluded.push(Excluded {
+            label: label.into(),
+            source: Some(source),
+            reason: ExcludeReason::NotAllocated,
+        });
         return Decimal::ZERO;
     }
     let counted = portion(gross, share.counted_bp);
@@ -270,7 +278,11 @@ fn entered(metric: MetricId, amount: &ManualAmount, today: NaiveDate) -> Origin 
 }
 
 fn stock_period(today: NaiveDate) -> ValuePeriod {
-    ValuePeriod { kind: PeriodKind::Stock, from: today.to_string(), to: today.to_string() }
+    ValuePeriod {
+        kind: PeriodKind::Stock,
+        from: today.to_string(),
+        to: today.to_string(),
+    }
 }
 
 // ---------------------------------------------------------------------------------- metrics
@@ -288,8 +300,16 @@ fn savings(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
             _ => over.unwrap_or(by_default),
         };
         if !included {
-            let reason = if over == Some(false) { ExcludeReason::UserExcluded } else { ExcludeReason::DefaultTypeNotIncluded };
-            out.excluded.push(Excluded { label: a.name.clone(), source: Some(source), reason });
+            let reason = if over == Some(false) {
+                ExcludeReason::UserExcluded
+            } else {
+                ExcludeReason::DefaultTypeNotIncluded
+            };
+            out.excluded.push(Excluded {
+                label: a.name.clone(),
+                source: Some(source),
+                reason,
+            });
             continue;
         }
         total += count_source(&mut out, setup, &a.name, source, a.balance, &mut partial);
@@ -323,12 +343,23 @@ fn investments(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
         match class_of(&source) {
             None if is_investment_account => {
                 partial = true;
-                out.excluded.push(Excluded { label, source: Some(source), reason: ExcludeReason::Unclassified });
-                out.notes.push(note("unclassified_investment", "An investment account has no comparison classification yet."));
+                out.excluded.push(Excluded {
+                    label,
+                    source: Some(source),
+                    reason: ExcludeReason::Unclassified,
+                });
+                out.notes.push(note(
+                    "unclassified_investment",
+                    "An investment account has no comparison classification yet.",
+                ));
             }
             None => {} // A plain asset is not an investment unless the person says so.
             Some(InvestmentClass::Exclude) => {
-                out.excluded.push(Excluded { label, source: Some(source), reason: ExcludeReason::UserExcluded });
+                out.excluded.push(Excluded {
+                    label,
+                    source: Some(source),
+                    reason: ExcludeReason::UserExcluded,
+                });
             }
             Some(class) => {
                 if let Some(date) = valued_on
@@ -356,7 +387,11 @@ fn debt(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
     for a in snap.accounts.iter().filter(|a| matches!(a.kind, AccountType::Credit | AccountType::Loan)) {
         let source = SourceRef::Account { id: a.id };
         if setup.debt_exclusions.contains(&source) {
-            out.excluded.push(Excluded { label: a.name.clone(), source: Some(source), reason: ExcludeReason::UserExcluded });
+            out.excluded.push(Excluded {
+                label: a.name.clone(),
+                source: Some(source),
+                reason: ExcludeReason::UserExcluded,
+            });
             continue;
         }
         let counted = count_source(&mut out, setup, &a.name, source.clone(), a.owed(), &mut partial);
@@ -371,7 +406,10 @@ fn debt(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
             (None, _) => "unclassified",
         };
         if key == "unclassified" {
-            out.notes.push(note("unclassified_debt", format!("{} has no debt type, so it only counts toward total debt.", a.name)));
+            out.notes.push(note(
+                "unclassified_debt",
+                format!("{} has no debt type, so it only counts toward total debt.", a.name),
+            ));
         }
         *out.class_totals.entry(key.to_string()).or_default() += counted;
     }
@@ -399,8 +437,11 @@ fn income(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
                 out.value = Some(entries.iter().map(|e| e.gross_annual.value).sum());
                 let oldest = entries.iter().min_by_key(|e| e.gross_annual.measured_on.clone()).expect("non-empty");
                 out.origin = entered(MetricId::Income, &oldest.gross_annual, snap.today);
-                out.completeness =
-                    if members.iter().all(|m| entries.iter().any(|e| &&e.person == m)) { Completeness::Confirmed } else { Completeness::Partial };
+                out.completeness = if members.iter().all(|m| entries.iter().any(|e| &&e.person == m)) {
+                    Completeness::Confirmed
+                } else {
+                    Completeness::Partial
+                };
             }
         }
     }
@@ -438,10 +479,17 @@ fn spending(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
     let mut out = MetricComputation::new(MetricId::Spending);
     let (from, to) = spending_window(setup, snap.today);
     let months = months_between(from, to);
-    out.period = Some(ValuePeriod { kind: PeriodKind::Flow, from: from.to_string(), to: to.to_string() });
+    out.period = Some(ValuePeriod {
+        kind: PeriodKind::Flow,
+        from: from.to_string(),
+        to: to.to_string(),
+    });
 
     let selected: Vec<&AccountSnap> = if setup.spending.account_ids.is_empty() {
-        snap.accounts.iter().filter(|a| matches!(a.kind, AccountType::Checking | AccountType::Savings | AccountType::Credit)).collect()
+        snap.accounts
+            .iter()
+            .filter(|a| matches!(a.kind, AccountType::Checking | AccountType::Savings | AccountType::Credit))
+            .collect()
     } else {
         snap.accounts.iter().filter(|a| setup.spending.account_ids.contains(&a.id)).collect()
     };
@@ -452,9 +500,15 @@ fn spending(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
         .collect();
 
     if months.len() < 12 {
-        out.notes.push(note("fewer_than_12_months", "The period is shorter than 12 months, so it is not annualised."));
+        out.notes.push(note(
+            "fewer_than_12_months",
+            "The period is shorter than 12 months, so it is not annualised.",
+        ));
     } else if snap.first_transaction_date.is_none_or(|first| first.with_day(1) > from.with_day(1)) {
-        out.notes.push(note("fewer_than_12_months", "There are fewer than 12 completed months of history; it is not annualised."));
+        out.notes.push(note(
+            "fewer_than_12_months",
+            "There are fewer than 12 completed months of history; it is not annualised.",
+        ));
     } else {
         let present: BTreeSet<String> = in_window.iter().map(|r| r.date.format("%Y-%m").to_string()).collect();
         let missing: Vec<&String> = months.iter().filter(|m| !present.contains(*m)).collect();
@@ -474,10 +528,15 @@ fn spending(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
                     });
                 }
             }
-            out.completeness = if setup.spending.completeness_confirmed { Completeness::Confirmed } else { Completeness::Unknown };
+            out.completeness = if setup.spending.completeness_confirmed {
+                Completeness::Confirmed
+            } else {
+                Completeness::Unknown
+            };
         } else {
             let names: Vec<&str> = missing.iter().map(|m| m.as_str()).collect();
-            out.notes.push(note("missing_months", format!("No spending was found in: {}.", names.join(", "))));
+            out.notes
+                .push(note("missing_months", format!("No spending was found in: {}.", names.join(", "))));
         }
     }
     out.holds_item = out.value.is_some();
@@ -498,12 +557,17 @@ fn derive(snap: &Snapshot, setup: &ComparisonSetup, metric: MetricId) -> MetricC
 /// (annual spending's typed figure is `spending.manual_annual`), and the tracked value stays visible.
 pub fn compute_metric(snap: &Snapshot, setup: &ComparisonSetup, metric: MetricId) -> MetricComputation {
     let mut out = derive(snap, setup, metric);
-    let typed: Option<&ManualAmount> = setup
-        .manual_overrides
-        .iter()
-        .find(|o| o.metric == metric)
-        .map(|o| &o.amount)
-        .or(if metric == MetricId::Spending { setup.spending.manual_annual.as_ref() } else { None });
+    let typed: Option<&ManualAmount> =
+        setup
+            .manual_overrides
+            .iter()
+            .find(|o| o.metric == metric)
+            .map(|o| &o.amount)
+            .or(if metric == MetricId::Spending {
+                setup.spending.manual_annual.as_ref()
+            } else {
+                None
+            });
     if let Some(amount) = typed {
         out.tracked_value = out.value;
         out.value = Some(amount.value);

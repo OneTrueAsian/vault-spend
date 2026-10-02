@@ -131,7 +131,8 @@ describe("AccumulationSummaryCard", () => {
     const card = container.querySelector("[data-acc-summary-error]");
     expect(card, "a failed load should leave a visible message").not.toBeNull();
     expect(card!.textContent).toContain("Couldn't load the accumulation summary");
-    expect(card!.textContent).toContain("database is locked");
+    // the why, in plain words (errorMessage), not the raw "database is locked"
+    expect(card!.textContent).toContain("Vault Spend is busy saving. Try again in a moment.");
     expect(container.querySelector("[data-acc-summary-table]")).toBeNull();
   });
 

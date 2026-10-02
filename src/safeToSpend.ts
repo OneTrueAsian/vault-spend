@@ -1,4 +1,5 @@
 import type { ForecastEvent, ForecastPoint } from "./types";
+import { sumMoney } from "./money";
 
 export type SafeToSpend = {
   /** Cash now, minus every bill due before the next paycheck, minus the
@@ -47,7 +48,7 @@ export function safeToSpend({
   const bills = events.filter(
     (e) => parseFloat(e.amount) < 0 && e.date >= today && (nextIncome === null || e.date <= nextIncome.date),
   );
-  const billsTotal = bills.reduce((sum, b) => sum + parseFloat(b.amount), 0);
+  const billsTotal = sumMoney(bills.map((b) => b.amount));
   const amount = cash + billsTotal - buffer;
   const daysUntilPayday = nextIncome ? daysBetween(today, nextIncome.date) : null;
   const perDay = daysUntilPayday !== null && daysUntilPayday > 0 && amount > 0 ? amount / daysUntilPayday : null;

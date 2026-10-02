@@ -11,7 +11,11 @@ use serde::Serialize;
 const STALE: &str = "The active profile changed before this finished.";
 
 fn ensure_current(current: u64, expected: u64) -> Result<(), String> {
-    if current == expected { Ok(()) } else { Err(STALE.to_string()) }
+    if current == expected {
+        Ok(())
+    } else {
+        Err(STALE.to_string())
+    }
 }
 
 fn today() -> chrono::NaiveDate {
@@ -42,7 +46,10 @@ pub fn get_comparison_setup(
 ) -> Result<GuardedSetup, String> {
     let session = state.lock()?;
     ensure_current(paths.current_generation(), expected_generation)?;
-    Ok(GuardedSetup { generation: expected_generation, inner: service::get_setup(&session.store)? })
+    Ok(GuardedSetup {
+        generation: expected_generation,
+        inner: service::get_setup(&session.store)?,
+    })
 }
 
 #[tauri::command]
@@ -71,7 +78,10 @@ pub fn get_financial_comparisons(
     // Re-checked before returning: the guard above is held throughout, but this keeps the contract
     // explicit if the calculation is ever moved outside it.
     ensure_current(paths.current_generation(), expected_generation)?;
-    Ok(GuardedComparisons { generation: expected_generation, inner })
+    Ok(GuardedComparisons {
+        generation: expected_generation,
+        inner,
+    })
 }
 
 #[cfg(test)]
@@ -92,12 +102,19 @@ mod tests {
     #[test]
     fn responses_flatten_the_generation_beside_the_payload() {
         let store = budget_core::store::Store::open_in_memory().unwrap();
-        let guarded = GuardedComparisons { generation: 7, inner: service::get_comparisons(&store, today()).unwrap() };
+        let guarded = GuardedComparisons {
+            generation: 7,
+            inner: service::get_comparisons(&store, today()).unwrap(),
+        };
         let json = serde_json::to_value(guarded).unwrap();
         assert_eq!(json["generation"], 7);
         assert_eq!(json["configured"], false);
         assert_eq!(json["setupRevision"], 0);
-        let setup = serde_json::to_value(GuardedSetup { generation: 7, inner: service::get_setup(&store).unwrap() }).unwrap();
+        let setup = serde_json::to_value(GuardedSetup {
+            generation: 7,
+            inner: service::get_setup(&store).unwrap(),
+        })
+        .unwrap();
         assert_eq!((setup["generation"].as_u64(), setup["revision"].as_i64()), (Some(7), Some(0)));
     }
 }

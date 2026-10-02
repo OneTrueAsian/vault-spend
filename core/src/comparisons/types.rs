@@ -45,8 +45,8 @@ pub mod money_str_opt {
 /// `BTreeMap<String, Decimal>` serialised with every value as a decimal string.
 pub mod money_map {
     use super::*;
-    use serde::ser::SerializeMap;
     use serde::Serializer;
+    use serde::ser::SerializeMap;
     use std::collections::BTreeMap;
 
     pub fn serialize<S: Serializer>(map: &BTreeMap<String, Decimal>, s: S) -> Result<S::Ok, S::Error> {
@@ -69,8 +69,13 @@ pub enum MetricId {
 }
 
 impl MetricId {
-    pub const ALL: [MetricId; 5] =
-        [MetricId::Spending, MetricId::Investments, MetricId::Income, MetricId::Savings, MetricId::Debt];
+    pub const ALL: [MetricId; 5] = [
+        MetricId::Spending,
+        MetricId::Investments,
+        MetricId::Income,
+        MetricId::Savings,
+        MetricId::Debt,
+    ];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -182,9 +187,14 @@ pub struct Reference {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AgeInput {
-    Exact { age: u32 },
+    Exact {
+        age: u32,
+    },
     /// Inclusive; `max: None` is open ended ("65 and over").
-    Band { min: u32, max: Option<u32> },
+    Band {
+        min: u32,
+        max: Option<u32>,
+    },
 }
 
 pub const MIN_ADULT_AGE: u32 = 18;

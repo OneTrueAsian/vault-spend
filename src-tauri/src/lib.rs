@@ -259,6 +259,7 @@ pub fn run() {
             commands::commit_import,
             commands::create_manual_transaction,
             commands::list_transactions,
+            commands::list_transactions_by_ids,
             commands::correct_category,
             commands::bulk_correct_category,
             commands::list_transfer_candidates,

@@ -103,7 +103,9 @@ impl AppRuntime {
     #[allow(dead_code)] // used by the lock screen and auto-lock in Phases C and E
     pub fn lock_profile(&self, profile_id: &str) {
         self.clear_notice();
-        *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Locked { profile_id: profile_id.to_string() };
+        *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Locked {
+            profile_id: profile_id.to_string(),
+        };
     }
 
     /// Atomically finishes work that needs the open database and replaces it with a locked slot.
@@ -149,7 +151,9 @@ impl AppRuntime {
     pub fn status(&self) -> RuntimeStatus {
         match &*self.slot.lock().unwrap_or_else(|e| e.into_inner()) {
             Slot::NoProfileOpen => RuntimeStatus::NoProfileOpen,
-            Slot::Locked { profile_id } => RuntimeStatus::Locked { profile_id: profile_id.clone() },
+            Slot::Locked { profile_id } => RuntimeStatus::Locked {
+                profile_id: profile_id.clone(),
+            },
             Slot::Open(_) => RuntimeStatus::Open,
         }
     }
@@ -271,7 +275,12 @@ mod tests {
         let message = runtime.lock().err().expect("a locked profile has no usable state");
         assert!(message.starts_with(PROFILE_LOCKED), "{message}");
         assert!(!message.starts_with(NO_PROFILE_OPEN));
-        assert_eq!(runtime.status(), RuntimeStatus::Locked { profile_id: "work".to_string() });
+        assert_eq!(
+            runtime.status(),
+            RuntimeStatus::Locked {
+                profile_id: "work".to_string()
+            }
+        );
     }
 
     #[test]
@@ -328,7 +337,12 @@ mod tests {
 
         runtime.lock_profile("work");
 
-        assert_eq!(runtime.status(), RuntimeStatus::Locked { profile_id: "work".to_string() });
+        assert_eq!(
+            runtime.status(),
+            RuntimeStatus::Locked {
+                profile_id: "work".to_string()
+            }
+        );
     }
 
     #[test]

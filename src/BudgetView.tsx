@@ -8,6 +8,7 @@ import { budgetNetSummary } from "./budgetNet";
 import { BudgetSuggestDialog, type AppliedSuggestion } from "./BudgetSuggestDialog";
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import { MenuSelect } from "./MenuSelect";
+import { sumMoney } from "./money";
 
 type MonthElapsed = NonNullable<ReturnType<typeof monthElapsed>>;
 
@@ -461,7 +462,7 @@ export function BudgetView({
   const viewedMonth = year * 12 + month;
   const today = new Date();
   const currentMonth = today.getFullYear() * 12 + today.getMonth() + 1;
-  const actualLabel = viewedMonth < currentMonth ? "Actual net (final)" : viewedMonth > currentMonth ? "Actual net (future month)" : "Actual net to date";
+  const actualLabel = viewedMonth < currentMonth ? "Money left (final)" : viewedMonth > currentMonth ? "Money left (future month)" : "Money left so far";
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDelete, () => setConfirmingDelete(null));
   const [editingAmount, setEditingAmount] = useState<{ category: string; value: string } | null>(null);
@@ -541,8 +542,8 @@ export function BudgetView({
   // never drift out of sync.
   const groupSummaries = GROUP_ORDER.map((group) => {
     const groupLines = orderedCategories.map((c) => lineByCategory.get(c)!).filter((line) => line.budget_group === group);
-    const groupBudgeted = groupLines.reduce((s, b) => s + effectiveBudget(b), 0);
-    const groupActual = groupLines.reduce((s, b) => s + parseFloat(b.actual), 0);
+    const groupBudgeted = sumMoney(groupLines.map((b) => effectiveBudget(b)));
+    const groupActual = sumMoney(groupLines.map((b) => b.actual));
     return { group, groupLines, groupBudgeted, groupActual };
   }).filter((s) => s.groupLines.length > 0);
 
@@ -551,9 +552,9 @@ export function BudgetView({
   // beating the target is good), so it doesn't belong in a combined
   // budgeted-vs-actual-vs-remaining figure.
   const expenseSummaries = groupSummaries.filter((s) => s.group !== "income");
-  const totalBudgeted = expenseSummaries.reduce((s, g) => s + g.groupBudgeted, 0);
-  const totalActual = expenseSummaries.reduce((s, g) => s + g.groupActual, 0);
-  const totalRemaining = totalBudgeted - totalActual;
+  const totalBudgeted = sumMoney(expenseSummaries.map((g) => g.groupBudgeted));
+  const totalActual = sumMoney(expenseSummaries.map((g) => g.groupActual));
+  const totalRemaining = sumMoney([totalBudgeted, -totalActual]);
 
   return (
     <div className="budget-view">
@@ -591,7 +592,7 @@ export function BudgetView({
           <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             <div className="stat tint-accent">
               <span className={netSummary.plannedNet.startsWith("-") ? "stat-value report-over-budget" : "stat-value"} data-planned-net>{formatAmount(netSummary.plannedNet)}</span>
-              <span className="stat-label">Planned net</span>
+              <span className="stat-label">Planned money left</span>
               <span className="view-sub">{formatAmount(netSummary.plannedIncome)} budgeted income − {formatAmount(netSummary.plannedExpense)} budgeted spending</span>
             </div>
             <div className="stat tint-blue">
@@ -607,17 +608,17 @@ export function BudgetView({
         <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
           <div className="stat tint-accent">
             <span className="stat-value">{formatAmount(totalBudgeted.toFixed(2))}</span>
-            <span className="stat-label">Budgeted</span>
+            <span className="stat-label">Budgeted spending</span>
           </div>
           <div className="stat tint-red">
             <span className="stat-value">{formatAmount(totalActual.toFixed(2))}</span>
-            <span className="stat-label">Actual</span>
+            <span className="stat-label">Spent so far</span>
           </div>
           <div className="stat tint-blue">
             <span className={totalRemaining < 0 ? "stat-value report-over-budget" : "stat-value"}>
               {formatAmount(totalRemaining.toFixed(2))}
             </span>
-            <span className="stat-label">Remaining</span>
+            <span className="stat-label">Left to spend</span>
           </div>
         </div>
       )}

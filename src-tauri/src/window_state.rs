@@ -77,14 +77,24 @@ pub fn restore_and_track(app: &AppHandle, dir: &Path) {
         // own way of tearing a session down) never reaches `CloseRequested`
         // at all, so relying on it alone would silently lose the resize
         // that motivated this feature in the first place.
-        let should_save = matches!(event, WindowEvent::CloseRequested { .. } | WindowEvent::Resized(_) | WindowEvent::Moved(_));
+        let should_save = matches!(
+            event,
+            WindowEvent::CloseRequested { .. } | WindowEvent::Resized(_) | WindowEvent::Moved(_)
+        );
         if !should_save {
             return;
         }
         let maximized = tracked_window.is_maximized().unwrap_or(false);
         if let (Ok(size), Ok(scale)) = (tracked_window.inner_size(), tracked_window.scale_factor()) {
             let logical = size.to_logical::<f64>(scale);
-            save(&dir, &WindowState { width: logical.width, height: logical.height, maximized });
+            save(
+                &dir,
+                &WindowState {
+                    width: logical.width,
+                    height: logical.height,
+                    maximized,
+                },
+            );
         }
     });
 }
@@ -109,7 +119,14 @@ mod tests {
     #[test]
     fn save_then_load_round_trips_the_saved_size_and_maximized_flag() {
         let dir = temp_dir("roundtrip");
-        save(&dir, &WindowState { width: 1280.0, height: 800.0, maximized: true });
+        save(
+            &dir,
+            &WindowState {
+                width: 1280.0,
+                height: 800.0,
+                maximized: true,
+            },
+        );
 
         let loaded = load(&dir).unwrap();
 
@@ -121,7 +138,14 @@ mod tests {
     #[test]
     fn load_rejects_a_saved_size_below_the_minimum() {
         let dir = temp_dir("too-small");
-        save(&dir, &WindowState { width: 100.0, height: 100.0, maximized: false });
+        save(
+            &dir,
+            &WindowState {
+                width: 100.0,
+                height: 100.0,
+                maximized: false,
+            },
+        );
 
         assert!(load(&dir).is_none());
     }

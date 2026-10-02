@@ -444,6 +444,15 @@ pub struct CategoryTransaction {
     pub split_note: Option<String>,
 }
 
+/// The Transactions tab's stat-card counts, over the same rows `all_transactions` lists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CategoryCounts {
+    pub total: usize,
+    pub auto_categorized: usize,
+    pub user_confirmed: usize,
+    pub uncategorized: usize,
+}
+
 /// What a setup-data import actually did (see `Store::apply_setup_import`)
 /// — counts per section, plus a human-readable reason for every row that
 /// was skipped rather than applied (e.g. a bucket name that already
@@ -2061,7 +2070,8 @@ impl Store {
         let mut stmt = self.conn.prepare("PRAGMA table_info(app_settings)")?;
         let columns = stmt.query_map([], |row| row.get::<_, String>(1))?.collect::<rusqlite::Result<Vec<_>>>()?;
         if !columns.iter().any(|column| column == "safe_to_spend_enabled") {
-            self.conn.execute("ALTER TABLE app_settings ADD COLUMN safe_to_spend_enabled INTEGER NOT NULL DEFAULT 1", [])?;
+            self.conn
+                .execute("ALTER TABLE app_settings ADD COLUMN safe_to_spend_enabled INTEGER NOT NULL DEFAULT 1", [])?;
         }
         Ok(())
     }
@@ -2614,6 +2624,64 @@ impl Store {
     /// Read-only counterpart to `get_or_create_account` — looks an account
     /// up by name without ever creating one, for callers (import preview)
     /// that must have zero side effects.
+    /// The stat-card counts in one pass over the table, without loading every row: "needs a
+    /// category" means no category at all; one set by the person counts as theirs; anything else
+    /// with a category (rule, classifier, or a file's own) counts as automatic. Same rows as
+    /// `all_transactions`: not deleted, not a debt payment's generated row, on a known account.
+    pub fn category_counts(&self) -> rusqlite::Result<CategoryCounts> {
+        self.conn.query_row(
+            "SELECT COUNT(*),
+                    COALESCE(SUM(t.category IS NULL), 0),
+                    COALESCE(SUM(t.category IS NOT NULL AND t.category_source = 'user'), 0)
+             FROM transactions t
+             JOIN accounts a ON a.id = t.account_id
+             WHERE t.id NOT IN (SELECT generated_transaction_id FROM debt_payments) AND t.deleted_at IS NULL",
+            [],
+            |row| {
+                let total = row.get::<_, i64>(0)? as usize;
+                let uncategorized = row.get::<_, i64>(1)? as usize;
+                let user_confirmed = row.get::<_, i64>(2)? as usize;
+                Ok(CategoryCounts {
+                    total,
+                    uncategorized,
+                    user_confirmed,
+                    auto_categorized: total - uncategorized - user_confirmed,
+                })
+            },
+        )
+    }
+
+    /// One transaction's description, or `None` if there is no such (live) transaction — the same
+    /// rows `all_transactions` lists, without loading them all to find one.
+    pub fn transaction_description(&self, id: i64) -> rusqlite::Result<Option<String>> {
+        match self.conn.query_row(
+            "SELECT t.description FROM transactions t
+             JOIN accounts a ON a.id = t.account_id
+             WHERE t.id = ?1 AND t.deleted_at IS NULL
+                   AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)",
+            params![id],
+            |row| row.get(0),
+        ) {
+            Ok(description) => Ok(Some(description)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Creates an account the person asked for by name, or returns `None` when that name (ignoring
+    /// case and surrounding spaces) is already used, leaving that account exactly as it was. Unlike
+    /// `get_or_create_account`, which imports use to find the account a file belongs to, this never
+    /// hands back an existing account for the caller to write over.
+    pub fn create_account(&self, name: &str, account_type: AccountType) -> rusqlite::Result<Option<i64>> {
+        let name = name.trim();
+        let inserted = self.conn.execute(
+            "INSERT INTO accounts (name, account_type) VALUES (?1, ?2)
+             ON CONFLICT(name) DO NOTHING",
+            params![name, account_type.as_str()],
+        )?;
+        Ok((inserted == 1).then(|| self.conn.last_insert_rowid()))
+    }
+
     pub fn find_account_by_name(&self, name: &str) -> rusqlite::Result<Option<i64>> {
         match self
             .conn
@@ -2849,18 +2917,32 @@ impl Store {
         };
         Ok(rows
             .into_iter()
-            .map(|(id, date, description, amount, category, cleared, payment_source_id, payment_source_account_id, payment_source_account_name, payment_source_date)| AccountTransaction {
-                payment_source_id,
-                payment_source_account_id,
-                payment_source_account_name,
-                payment_source_date: payment_source_date.map(|date| NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("stored date must be valid")),
-                id,
-                date: NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
-                description,
-                amount: Decimal::from_str(&amount).expect("amount stored by this crate must be valid"),
-                category,
-                cleared,
-            })
+            .map(
+                |(
+                    id,
+                    date,
+                    description,
+                    amount,
+                    category,
+                    cleared,
+                    payment_source_id,
+                    payment_source_account_id,
+                    payment_source_account_name,
+                    payment_source_date,
+                )| AccountTransaction {
+                    payment_source_id,
+                    payment_source_account_id,
+                    payment_source_account_name,
+                    payment_source_date: payment_source_date
+                        .map(|date| NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("stored date must be valid")),
+                    id,
+                    date: NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
+                    description,
+                    amount: Decimal::from_str(&amount).expect("amount stored by this crate must be valid"),
+                    category,
+                    cleared,
+                },
+            )
             .collect())
     }
 
@@ -3022,8 +3104,8 @@ impl Store {
     /// buckets — so a bucket's `linked_account_name` can resolve against
     /// an account the same file just created. Every section reuses its
     /// normal creation path, so the result is exactly what typing the
-    /// same values into the UI would produce: accounts via the idempotent
-    /// `get_or_create_account`, categories via the `INSERT OR IGNORE`
+    /// same values into the UI would produce: accounts via `create_account`
+    /// (a name already in use is skipped, never overwritten), categories via the `INSERT OR IGNORE`
     /// `create_category`, budgets via the upserting `set_budget` (a blank
     /// period falls back to `default_period` — passed in rather than read
     /// from the clock, keeping this testable), and buckets via
@@ -3037,7 +3119,11 @@ impl Store {
 
         for row in &data.accounts {
             let account_type = AccountType::parse(&row.account_type).expect("setup_import validated account_type against the known set");
-            let id = self.get_or_create_account(&row.name, account_type)?;
+            // An existing account keeps its balance and details; the file's row is skipped.
+            let Some(id) = self.create_account(&row.name, account_type)? else {
+                outcome.skipped.push(format!("{}: an account with this name already exists", row.name));
+                continue;
+            };
             if let Some(balance) = row.starting_balance {
                 self.set_account_starting_balance(id, balance)?;
             }
@@ -3428,7 +3514,8 @@ impl Store {
             .execute("UPDATE recurring SET account_id = NULL WHERE account_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM holdings WHERE account_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM investment_plans WHERE account_id = ?1", params![id])?;
-        self.conn.execute("DELETE FROM account_value_snapshots WHERE account_id = ?1", params![id])?;
+        self.conn
+            .execute("DELETE FROM account_value_snapshots WHERE account_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM balance_resets WHERE account_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
         Ok(tx_ids.len())
@@ -3870,10 +3957,11 @@ impl Store {
         let mut newly = Vec::new();
         for &(a, b) in pairs {
             let amount_of = |id: i64| -> rusqlite::Result<Decimal> {
-                sql_tx.query_row("SELECT amount FROM transactions WHERE id = ?1", params![id], |row| {
-                    row.get::<_, String>(0)
-                })
-                .map(|s| s.parse::<Decimal>().unwrap_or(Decimal::ZERO))
+                sql_tx
+                    .query_row("SELECT amount FROM transactions WHERE id = ?1", params![id], |row| {
+                        row.get::<_, String>(0)
+                    })
+                    .map(|s| s.parse::<Decimal>().unwrap_or(Decimal::ZERO))
             };
             let amount_a = amount_of(a)?;
             let amount_b = amount_of(b)?;
@@ -4140,10 +4228,9 @@ impl Store {
         if name.is_empty() {
             return Ok(None);
         }
-        match self
-            .conn
-            .query_row("SELECT name FROM categories WHERE name = ?1", params![name], |row| row.get::<_, String>(0))
-        {
+        match self.conn.query_row("SELECT name FROM categories WHERE name = ?1", params![name], |row| {
+            row.get::<_, String>(0)
+        }) {
             Ok(found) => Ok(Some(found)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
@@ -4180,7 +4267,10 @@ impl Store {
             }
             match seen.iter_mut().find(|u| u.name.eq_ignore_ascii_case(name)) {
                 Some(existing) => existing.count += 1,
-                None => seen.push(UnmatchedImportCategory { name: name.to_string(), count: 1 }),
+                None => seen.push(UnmatchedImportCategory {
+                    name: name.to_string(),
+                    count: 1,
+                }),
             }
         }
         seen.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
@@ -4475,7 +4565,24 @@ impl Store {
     /// transaction (which carries the "→ account (amount)" badge instead),
     /// and the generated one is just its balance-side bookkeeping twin.
     pub fn all_transactions(&self) -> rusqlite::Result<Vec<StoredTransaction>> {
-        let mut stmt = self.conn.prepare(
+        self.query_transactions("", [])
+    }
+
+    /// The rows `all_transactions` would list for these ids (deleted, generated or unknown ids are
+    /// left out), ordered by id: what the page re-reads after editing a few rows, instead of the
+    /// whole ledger.
+    pub fn transactions_by_ids(&self, ids: &[i64]) -> rusqlite::Result<Vec<StoredTransaction>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = vec!["?"; ids.len()].join(", ");
+        self.query_transactions(&format!(" AND t.id IN ({placeholders})"), rusqlite::params_from_iter(ids))
+    }
+
+    /// `all_transactions`' query, narrowed by `extra_filter` (appended to its WHERE clause, with
+    /// `params` bound to its placeholders).
+    fn query_transactions<P: rusqlite::Params>(&self, extra_filter: &str, params: P) -> rusqlite::Result<Vec<StoredTransaction>> {
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT t.id, t.date, t.description, t.amount, t.category, t.category_source,
                     t.confidence, t.account_id, a.name,
                     dp.debt_account_id, da.name, dp.amount,
@@ -4496,11 +4603,11 @@ impl Store {
              LEFT JOIN accounts da ON da.id = dp.debt_account_id
              LEFT JOIN transaction_tags tt ON tt.transaction_id = t.id
              LEFT JOIN family_members fm ON fm.id = t.member_id
-             WHERE t.id NOT IN (SELECT generated_transaction_id FROM debt_payments) AND t.deleted_at IS NULL
+             WHERE t.id NOT IN (SELECT generated_transaction_id FROM debt_payments) AND t.deleted_at IS NULL{extra_filter}
              GROUP BY t.id
              ORDER BY t.id",
-        )?;
-        let rows = stmt.query_map([], |row| {
+        ))?;
+        let rows = stmt.query_map(params, |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, String>(1)?,
@@ -4743,9 +4850,10 @@ impl Store {
     /// the edit. See `normalize_notes` for the whitespace/length rules.
     pub fn update_transaction_notes(&self, id: i64, notes: Option<&str>) -> Result<(), NotesError> {
         let normalized = normalize_notes(notes)?;
-        let affected = self
-            .conn
-            .execute("UPDATE transactions SET notes = ?1 WHERE id = ?2 AND deleted_at IS NULL", params![normalized, id])?;
+        let affected = self.conn.execute(
+            "UPDATE transactions SET notes = ?1 WHERE id = ?2 AND deleted_at IS NULL",
+            params![normalized, id],
+        )?;
         if affected == 0 {
             return Err(NotesError::Invalid("This transaction no longer exists.".to_string()));
         }
@@ -6205,12 +6313,7 @@ impl Store {
     /// The expense lines behind a Dashboard or Cash Flow category slice.
     /// Keep the exclusions and split attribution aligned with
     /// `category_spending_by_month` so the rows reconcile to the chart.
-    pub fn spending_transactions_for_category_in_month(
-        &self,
-        category: &str,
-        year: i32,
-        month: u32,
-    ) -> rusqlite::Result<Vec<CategoryTransaction>> {
+    pub fn spending_transactions_for_category_in_month(&self, category: &str, year: i32, month: u32) -> rusqlite::Result<Vec<CategoryTransaction>> {
         if category == "Transfer" {
             return Ok(Vec::new());
         }
@@ -6236,8 +6339,12 @@ impl Store {
         ))?;
         let rows = stmt.query_map(params![category, first.to_string(), next_first.to_string()], |row| {
             Ok((
-                row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, bool>(5)?,
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, bool>(5)?,
                 row.get::<_, Option<String>>(6)?,
             ))
         })?;
@@ -6245,7 +6352,9 @@ impl Store {
         for row in rows {
             let (transaction_id, date, description, amount, account_name, is_split, split_note) = row?;
             let amount = Decimal::from_str(&amount).expect("amount stored by this crate must be valid");
-            if amount >= Decimal::ZERO { continue; }
+            if amount >= Decimal::ZERO {
+                continue;
+            }
             result.push(CategoryTransaction {
                 transaction_id,
                 date: NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("date stored by this crate must be valid"),
@@ -6489,7 +6598,11 @@ impl Store {
                     (None, Some(after)) => after,
                     (None, None) => unreachable!("matches > 0 means a neighbor is in range"),
                 };
-                let more = if matches > 1 { format!(" (and {} more)", matches - 1) } else { String::new() };
+                let more = if matches > 1 {
+                    format!(" (and {} more)", matches - 1)
+                } else {
+                    String::new()
+                };
                 result.push(AnomalyFlag {
                     transaction_id: row.id,
                     kind: "duplicate".to_string(),
@@ -7514,8 +7627,7 @@ impl Store {
         Ok(InvestmentPlan {
             monthly_contribution: monthly.map(|s| Decimal::from_str(&s).expect("amount stored by this crate must be valid")),
             annual_return_pct: Decimal::from_str(&return_pct).expect("percent stored by this crate must be valid"),
-            withdraw_month: withdraw_date
-                .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid")),
+            withdraw_month: withdraw_date.map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid")),
             withdraw_years: withdraw_years.map(|y| y as u32),
         })
     }
@@ -7535,14 +7647,18 @@ impl Store {
             return Err(PlanError::Invalid("The monthly amount can't be negative.".to_string()));
         }
         if plan.withdraw_years.is_some_and(|y| !(1..=50).contains(&y)) {
-            return Err(PlanError::Invalid("Spread the withdrawals over 1 to 50 years, or leave it blank.".to_string()));
+            return Err(PlanError::Invalid(
+                "Spread the withdrawals over 1 to 50 years, or leave it blank.".to_string(),
+            ));
         }
         let withdraw_month = plan.withdraw_month.map(first_of_month);
         if let Some(chosen) = withdraw_month
             && chosen < first_of_month(today)
             && self.get_investment_plan(account_id)?.withdraw_month != Some(chosen)
         {
-            return Err(PlanError::Invalid("That withdraw month is in the past — pick this month or later.".to_string()));
+            return Err(PlanError::Invalid(
+                "That withdraw month is in the past — pick this month or later.".to_string(),
+            ));
         }
         self.conn.execute(
             "INSERT INTO investment_plans (account_id, monthly_contribution, annual_return_pct, withdraw_date, withdraw_years)
@@ -9871,8 +9987,14 @@ mod tests {
         assert_eq!(
             unmatched,
             vec![
-                UnmatchedImportCategory { name: "Merchandise".to_string(), count: 2 },
-                UnmatchedImportCategory { name: "Gas/Automotive".to_string(), count: 1 },
+                UnmatchedImportCategory {
+                    name: "Merchandise".to_string(),
+                    count: 2
+                },
+                UnmatchedImportCategory {
+                    name: "Gas/Automotive".to_string(),
+                    count: 1
+                },
             ],
             "biggest first, the file's own spelling, one entry per name however it is cased"
         );
@@ -9899,7 +10021,15 @@ mod tests {
 
         assert_eq!(rows[0].category.as_deref(), Some("Groceries"));
         assert_eq!(rows[1].category.as_deref(), Some("Groceries"));
-        assert_eq!(store.list_categories().unwrap().iter().filter(|c| c.eq_ignore_ascii_case("groceries")).count(), 1);
+        assert_eq!(
+            store
+                .list_categories()
+                .unwrap()
+                .iter()
+                .filter(|c| c.eq_ignore_ascii_case("groceries"))
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -9913,7 +10043,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(rows[0].category.as_deref(), Some("Dining Out"));
-        assert_eq!(rows[1].category.as_deref(), Some("Dining Out"), "the choice covers every casing of the name");
+        assert_eq!(
+            rows[1].category.as_deref(),
+            Some("Dining Out"),
+            "the choice covers every casing of the name"
+        );
         assert_eq!(store.list_categories().unwrap(), before);
     }
 
@@ -9942,7 +10076,15 @@ mod tests {
 
         assert_eq!(rows[0].category.as_deref(), Some("Pet Care"));
         assert_eq!(rows[1].category.as_deref(), Some("Pet Care"));
-        assert_eq!(store.list_categories().unwrap().iter().filter(|c| c.eq_ignore_ascii_case("pet care")).count(), 1);
+        assert_eq!(
+            store
+                .list_categories()
+                .unwrap()
+                .iter()
+                .filter(|c| c.eq_ignore_ascii_case("pet care"))
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -9961,15 +10103,21 @@ mod tests {
     fn set_category_if_registered_only_uses_categories_the_person_has() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        let ids = store.save_transactions_with_ids(account, &[tx("2026-09-02", "STARBUCKS", "-4.50")]).unwrap();
+        let ids = store
+            .save_transactions_with_ids(account, &[tx("2026-09-02", "STARBUCKS", "-4.50")])
+            .unwrap();
         let before = store.list_categories().unwrap();
 
-        let applied = store.set_category_if_registered(ids[0], "Coffee Runs", CategorySource::Rule, None).unwrap();
+        let applied = store
+            .set_category_if_registered(ids[0], "Coffee Runs", CategorySource::Rule, None)
+            .unwrap();
         assert!(!applied, "an automatic guess must not invent a category");
         assert_eq!(store.list_categories().unwrap(), before);
         assert_eq!(store.all_transactions().unwrap()[0].transaction.category, None);
 
-        let applied = store.set_category_if_registered(ids[0], "dining out", CategorySource::Rule, None).unwrap();
+        let applied = store
+            .set_category_if_registered(ids[0], "dining out", CategorySource::Rule, None)
+            .unwrap();
         assert!(applied);
         assert_eq!(store.all_transactions().unwrap()[0].transaction.category.as_deref(), Some("Dining Out"));
     }
@@ -10189,6 +10337,127 @@ mod tests {
         assert_eq!(accounts.len(), 1);
         assert_eq!(accounts[0].account.name, "Everyday Checking");
         assert_eq!(accounts[0].account.account_type, AccountType::Checking);
+    }
+
+    #[test]
+    fn transactions_by_ids_returns_exactly_those_rows_as_the_full_ledger_shows_them() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-01", "A", "-1.00"),
+                    tx("2026-08-02", "B", "-2.00"),
+                    tx("2026-08-03", "C", "-3.00"),
+                ],
+            )
+            .unwrap();
+        let all = store.all_transactions().unwrap();
+        let (a, c) = (all[0].id, all[2].id);
+        store.add_tag(a, "coffee").unwrap();
+        store.delete_transaction(all[1].id, "2026-08-09T00:00:00".parse().unwrap()).unwrap();
+
+        let some = store.transactions_by_ids(&[c, a, all[1].id, 9999]).unwrap();
+        let full = store.all_transactions().unwrap();
+        assert_eq!(
+            some.iter().map(|t| t.id).collect::<Vec<_>>(),
+            vec![a, c],
+            "ordered by id; deleted and unknown ids left out"
+        );
+        assert_eq!(&some[0], full.iter().find(|t| t.id == a).unwrap(), "same fields as the full ledger");
+        assert_eq!(some[0].tags, vec!["coffee".to_string()]);
+        assert!(store.transactions_by_ids(&[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn category_counts_and_description_lookup_match_the_full_ledger() {
+        // get_stats and correct_category used to load every transaction (0.4 s each at 50,000 rows,
+        // 2026-10-02 QA, M1). Their narrow queries must see exactly the rows all_transactions lists.
+        let store = Store::open_in_memory().unwrap();
+        let checking = test_account(&store);
+        let loan = store.create_account("Car Loan", AccountType::Loan).unwrap().unwrap();
+        store
+            .save_transactions(
+                checking,
+                &[
+                    tx("2026-08-01", "Corner Coffee", "-4.75"),
+                    tx("2026-08-02", "Grocer", "-60.00"),
+                    tx("2026-08-03", "Mystery", "-9.00"),
+                    tx("2026-08-04", "Payroll", "2000.00"),
+                    tx("2026-08-05", "Loan payment", "-300.00"),
+                    tx("2026-08-06", "Deleted one", "-1.00"),
+                ],
+            )
+            .unwrap();
+        let id = |d: &str| {
+            store
+                .all_transactions()
+                .unwrap()
+                .into_iter()
+                .find(|t| t.transaction.description == d)
+                .unwrap()
+                .id
+        };
+        store.set_category(id("Corner Coffee"), "Dining Out", CategorySource::User, None).unwrap();
+        store.set_category(id("Grocer"), "Groceries", CategorySource::Rule, None).unwrap();
+        store
+            .set_category(id("Payroll"), "Income", CategorySource::Classifier, Some(0.9))
+            .unwrap();
+        store
+            .conn
+            .execute("UPDATE transactions SET category = 'Imported' WHERE id = ?1", params![id("Loan payment")])
+            .unwrap();
+        store
+            .apply_debt_payment(id("Loan payment"), loan, "300.00".parse().unwrap(), "2026-08-05".parse().unwrap())
+            .unwrap();
+        let deleted = id("Deleted one");
+        store.delete_transaction(deleted, "2026-08-07T00:00:00".parse().unwrap()).unwrap();
+
+        let all = store.all_transactions().unwrap();
+        let expected = CategoryCounts {
+            total: all.len(),
+            uncategorized: all.iter().filter(|t| t.transaction.category.is_none()).count(),
+            user_confirmed: all
+                .iter()
+                .filter(|t| t.transaction.category.is_some() && t.category_source == Some(CategorySource::User))
+                .count(),
+            auto_categorized: all
+                .iter()
+                .filter(|t| t.transaction.category.is_some() && t.category_source != Some(CategorySource::User))
+                .count(),
+        };
+        assert_eq!(store.category_counts().unwrap(), expected);
+        assert_eq!(expected.total, 5, "the deleted row and the debt payment's generated row are left out");
+
+        assert_eq!(store.transaction_description(id("Grocer")).unwrap().as_deref(), Some("Grocer"));
+        assert_eq!(store.transaction_description(deleted).unwrap(), None, "a deleted transaction isn't found");
+        assert_eq!(store.transaction_description(9999).unwrap(), None);
+    }
+
+    #[test]
+    fn create_account_refuses_a_name_already_in_use_and_leaves_that_account_alone() {
+        // "Add account" used get_or_create_account, so "CAR LOAN" quietly returned the existing
+        // Car Loan and the dialog's balance and details were written over it (2026-10-02 QA, H1).
+        let store = Store::open_in_memory().unwrap();
+        let loan = store
+            .create_account("Car Loan", AccountType::Loan)
+            .unwrap()
+            .expect("a new name is created");
+        store.set_account_starting_balance(loan, Decimal::from(14500)).unwrap();
+
+        assert_eq!(store.create_account("CAR LOAN", AccountType::Checking).unwrap(), None);
+        assert_eq!(
+            store.create_account("  car loan ", AccountType::Checking).unwrap(),
+            None,
+            "surrounding spaces don't make a new name"
+        );
+
+        let accounts = store.list_accounts(far_future()).unwrap();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].account.account_type, AccountType::Loan);
+        assert_eq!(accounts[0].starting_balance, Decimal::from(14500));
+        assert!(store.create_account("Car Loan 2", AccountType::Loan).unwrap().is_some());
     }
 
     #[test]
@@ -11693,7 +11962,8 @@ mod tests {
             .unwrap();
             conn.execute("INSERT INTO accounts (name, account_type) VALUES ('Everyday Checking', 'checking')", [])
                 .unwrap();
-            conn.execute("INSERT INTO accounts (name, account_type) VALUES ('Savings', 'savings')", []).unwrap();
+            conn.execute("INSERT INTO accounts (name, account_type) VALUES ('Savings', 'savings')", [])
+                .unwrap();
             conn.execute(
                 "INSERT INTO transactions (account_id, date, description, amount, fingerprint) VALUES (1, '2026-08-05', 'Costco', '-150.00', 'fp-costco')",
                 [],
@@ -11731,7 +12001,10 @@ mod tests {
         assert_eq!(costco.transaction.amount, "-150.00".parse().unwrap());
         assert_eq!(costco.split_count, 1, "the split must survive");
         assert_eq!(costco.tags, vec!["reimbursable".to_string()], "the tag must survive");
-        assert_eq!(costco.notes, None, "a pre-existing row must default to no note, not a corrupted/garbage value");
+        assert_eq!(
+            costco.notes, None,
+            "a pre-existing row must default to no note, not a corrupted/garbage value"
+        );
 
         let move_out = transactions.iter().find(|t| t.transaction.description == "Move out").unwrap();
         assert!(move_out.transfer_counterpart_id.is_some(), "the transfer link must survive");
@@ -11763,7 +12036,10 @@ mod tests {
 
         store.update_transaction_notes(id, Some("Receipt checked\nReimbursed by Sam")).unwrap();
 
-        assert_eq!(store.all_transactions().unwrap()[0].notes, Some("Receipt checked\nReimbursed by Sam".to_string()));
+        assert_eq!(
+            store.all_transactions().unwrap()[0].notes,
+            Some("Receipt checked\nReimbursed by Sam".to_string())
+        );
     }
 
     #[test]
@@ -11792,10 +12068,16 @@ mod tests {
         let account = test_account(&store);
         let id = store.create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), None).unwrap();
 
-        assert!(store.update_transaction_notes(999_999, Some("note")).is_err(), "an id that never existed must error");
+        assert!(
+            store.update_transaction_notes(999_999, Some("note")).is_err(),
+            "an id that never existed must error"
+        );
 
         store.delete_transaction(id, test_now()).unwrap();
-        assert!(store.update_transaction_notes(id, Some("note")).is_err(), "a soft-deleted transaction must error, not silently succeed");
+        assert!(
+            store.update_transaction_notes(id, Some("note")).is_err(),
+            "a soft-deleted transaction must error, not silently succeed"
+        );
     }
 
     #[test]
@@ -11807,7 +12089,10 @@ mod tests {
         let result = store.create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), Some(&over_limit));
 
         assert!(result.is_err());
-        assert!(store.all_transactions().unwrap().is_empty(), "the whole insert must roll back, not create a noteless row");
+        assert!(
+            store.all_transactions().unwrap().is_empty(),
+            "the whole insert must roll back, not create a noteless row"
+        );
     }
 
     #[test]
@@ -11844,7 +12129,11 @@ mod tests {
         let saved = store.all_transactions().unwrap();
         assert_eq!(saved.len(), 1, "exactly one transaction should exist");
         assert_eq!(saved[0].id, id, "create_transaction must return this row's own id");
-        assert_eq!(saved[0].notes, Some("Split with Jordan".to_string()), "the note must land on the transaction that was actually created");
+        assert_eq!(
+            saved[0].notes,
+            Some("Split with Jordan".to_string()),
+            "the note must land on the transaction that was actually created"
+        );
     }
 
     #[test]
@@ -11867,7 +12156,10 @@ mod tests {
             .unwrap();
         assert_eq!(after.transaction.amount, before.transaction.amount);
         assert_eq!(after.transaction.category, before.transaction.category);
-        assert_eq!(after.transfer_counterpart_id, before.transfer_counterpart_id, "the transfer link must survive a notes-only edit");
+        assert_eq!(
+            after.transfer_counterpart_id, before.transfer_counterpart_id,
+            "the transfer link must survive a notes-only edit"
+        );
         assert_eq!(after_fingerprint, before_fingerprint, "the import fingerprint must not depend on notes");
         assert_eq!(after.notes, Some("just a note".to_string()));
     }
@@ -11876,7 +12168,9 @@ mod tests {
     fn notes_survive_soft_delete_and_undo() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        let id = store.create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), Some("keep me")).unwrap();
+        let id = store
+            .create_transaction(account, &tx("2026-08-05", "Coffee", "-4.50"), Some("keep me"))
+            .unwrap();
 
         store.delete_transaction(id, test_now()).unwrap();
         store.restore_transactions(&[id]).unwrap();
@@ -12899,10 +13193,41 @@ mod tests {
         assert_eq!(store.list_buckets().unwrap().len(), 1);
         let budgets = store.list_budgets("2026-08").unwrap();
         assert_eq!(budgets.iter().filter(|b| b.category == "Coffee Shops").count(), 1);
-        // ...and the second run's bucket lands in skipped, not a hard error
+        // ...and the second run's accounts and bucket land in skipped, not a hard error
+        assert_eq!(second.accounts_created, 0);
         assert_eq!(second.buckets_created, 0);
-        assert_eq!(second.skipped.len(), 1);
-        assert!(second.skipped[0].contains("Emergency Fund"));
+        assert_eq!(second.skipped.len(), 3, "{:?}", second.skipped);
+        assert!(second.skipped.iter().any(|s| s.contains("Everyday Checking")));
+        assert!(second.skipped.iter().any(|s| s.contains("Emergency Fund")));
+    }
+
+    #[test]
+    fn a_setup_import_never_overwrites_an_existing_account() {
+        // Same overwrite as "Add account" (2026-10-02 QA, H1): a file row named like an existing
+        // account used to reset its balance and details and count as created.
+        let store = Store::open_in_memory().unwrap();
+        let mine = store.create_account("Everyday Checking", AccountType::Checking).unwrap().unwrap();
+        store.set_account_starting_balance(mine, "2500.00".parse().unwrap()).unwrap();
+        store.set_account_details(mine, Some("Chase"), Some("4821")).unwrap();
+
+        let outcome = store.apply_setup_import(&setup_data(FULL_TEMPLATE), "2026-08").unwrap();
+
+        assert_eq!(outcome.accounts_created, 1, "only Car Loan is new");
+        assert!(
+            outcome
+                .skipped
+                .iter()
+                .any(|s| s == "Everyday Checking: an account with this name already exists"),
+            "{:?}",
+            outcome.skipped
+        );
+        let accounts = store.list_accounts(far_future()).unwrap();
+        let checking = accounts.iter().find(|a| a.id == mine).unwrap();
+        assert_eq!(checking.starting_balance, "2500.00".parse().unwrap());
+        assert_eq!(checking.institution.as_deref(), Some("Chase"));
+        assert_eq!(checking.mask.as_deref(), Some("4821"));
+        // the file's bucket still links to the existing account by name
+        assert_eq!(store.list_buckets().unwrap()[0].account_id, Some(mine));
     }
 
     #[test]
@@ -14324,11 +14649,23 @@ mod tests {
                 ],
             )
             .unwrap();
-        let id_on = |date: &str| store.all_transactions().unwrap().into_iter().find(|t| t.transaction.date.to_string() == date).unwrap().id;
+        let id_on = |date: &str| {
+            store
+                .all_transactions()
+                .unwrap()
+                .into_iter()
+                .find(|t| t.transaction.date.to_string() == date)
+                .unwrap()
+                .id
+        };
         let flags = store.anomaly_flags().unwrap();
         let detail_for = |date: &str| -> Vec<String> {
             let id = id_on(date);
-            flags.iter().filter(|f| f.kind == "duplicate" && f.transaction_id == id).map(|f| f.detail.clone()).collect()
+            flags
+                .iter()
+                .filter(|f| f.kind == "duplicate" && f.transaction_id == id)
+                .map(|f| f.detail.clone())
+                .collect()
         };
 
         assert_eq!(
@@ -14344,7 +14681,10 @@ mod tests {
             detail_for("2026-08-04"),
             ["Possible duplicate of the Corner Coffee transaction on 2026-08-02 (and 1 more)"]
         );
-        assert!(detail_for("2026-08-20").is_empty(), "16 days from the rest is a normal repeat, got {flags:?}");
+        assert!(
+            detail_for("2026-08-20").is_empty(),
+            "16 days from the rest is a normal repeat, got {flags:?}"
+        );
     }
 
     #[test]
@@ -16871,7 +17211,11 @@ mod tests {
         store
             .save_transactions(
                 account,
-                &[tx("2026-08-01", "SPEEDWAY 44289", "-40.00"), tx("2026-08-02", "SPEEDWAY 51230", "-35.00"), tx("2026-08-03", "Shell", "-20.00")],
+                &[
+                    tx("2026-08-01", "SPEEDWAY 44289", "-40.00"),
+                    tx("2026-08-02", "SPEEDWAY 51230", "-35.00"),
+                    tx("2026-08-03", "Shell", "-20.00"),
+                ],
             )
             .unwrap();
         store.upsert_rule("SPEEDWAY 44289", "Gas").unwrap();
@@ -17313,12 +17657,22 @@ mod tests {
         let newly = store.dismiss_transfer_candidates(&[(out_id, in_id)]).unwrap();
         assert_eq!(newly, vec![TransferCandidate { out_id, in_id }]);
         assert!(store.transfer_candidates().unwrap().is_empty());
-        assert!(store.auto_link_transfers().unwrap().is_empty(), "auto-linking must also honor an explicit dismissal");
+        assert!(
+            store.auto_link_transfers().unwrap().is_empty(),
+            "auto-linking must also honor an explicit dismissal"
+        );
 
         let newly_again = store.dismiss_transfer_candidates(&[(out_id, in_id)]).unwrap();
-        assert!(newly_again.is_empty(), "a pair already dismissed should not be reported as newly dismissed again");
+        assert!(
+            newly_again.is_empty(),
+            "a pair already dismissed should not be reported as newly dismissed again"
+        );
 
-        assert_eq!(store.all_transactions().unwrap().len(), 2, "dismissal must never touch the transactions themselves");
+        assert_eq!(
+            store.all_transactions().unwrap().len(),
+            2,
+            "dismissal must never touch the transactions themselves"
+        );
     }
 
     #[test]
@@ -17337,7 +17691,10 @@ mod tests {
         }
 
         let reopened = Store::open(&db_path).unwrap();
-        assert!(reopened.transfer_candidates().unwrap().is_empty(), "the dismissal must survive reopening the database");
+        assert!(
+            reopened.transfer_candidates().unwrap().is_empty(),
+            "the dismissal must survive reopening the database"
+        );
         drop(reopened);
         std::fs::remove_file(&db_path).unwrap();
     }
@@ -17347,14 +17704,22 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let (checking, savings) = checking_and_savings(&store);
         let backup = store.get_or_create_account("Backup Savings", AccountType::Savings).unwrap();
-        store.save_transactions(checking, &[tx("2026-08-10", "Emergency transfer", "-300.00")]).unwrap();
-        store.save_transactions(savings, &[tx("2026-08-10", "From checking A", "300.00")]).unwrap();
+        store
+            .save_transactions(checking, &[tx("2026-08-10", "Emergency transfer", "-300.00")])
+            .unwrap();
+        store
+            .save_transactions(savings, &[tx("2026-08-10", "From checking A", "300.00")])
+            .unwrap();
         store.save_transactions(backup, &[tx("2026-08-10", "From checking B", "300.00")]).unwrap();
         let out_id = id_of(&store, "Emergency transfer", "2026-08-10");
         let in_a = id_of(&store, "From checking A", "2026-08-10");
         let in_b = id_of(&store, "From checking B", "2026-08-10");
 
-        assert_eq!(store.transfer_candidates().unwrap(), vec![TransferCandidate { out_id, in_id: in_a }], "closest/first match wins by default");
+        assert_eq!(
+            store.transfer_candidates().unwrap(),
+            vec![TransferCandidate { out_id, in_id: in_a }],
+            "closest/first match wins by default"
+        );
 
         store.dismiss_transfer_candidates(&[(out_id, in_a)]).unwrap();
 
@@ -17370,8 +17735,12 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let (checking, savings) = checking_and_savings(&store);
         let backup = store.get_or_create_account("Backup Savings", AccountType::Savings).unwrap();
-        store.save_transactions(checking, &[tx("2026-08-10", "Emergency transfer", "-300.00")]).unwrap();
-        store.save_transactions(savings, &[tx("2026-08-10", "From checking A", "300.00")]).unwrap();
+        store
+            .save_transactions(checking, &[tx("2026-08-10", "Emergency transfer", "-300.00")])
+            .unwrap();
+        store
+            .save_transactions(savings, &[tx("2026-08-10", "From checking A", "300.00")])
+            .unwrap();
         store.save_transactions(backup, &[tx("2026-08-10", "From checking B", "300.00")]).unwrap();
         let out_id = id_of(&store, "Emergency transfer", "2026-08-10");
         let in_a = id_of(&store, "From checking A", "2026-08-10");
@@ -17399,11 +17768,18 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let (out_id, in_id) = seed_transfer_pair(&store, "2026-08-10", "2026-08-11");
         let (out_id2, in_id2) = seed_transfer_pair(&store, "2026-09-01", "2026-09-02");
-        assert!(store.link_transfer(out_id2, in_id2).unwrap(), "the second pair is now linked \u{2014} no longer an eligible candidate");
+        assert!(
+            store.link_transfer(out_id2, in_id2).unwrap(),
+            "the second pair is now linked \u{2014} no longer an eligible candidate"
+        );
 
         let newly = store.dismiss_transfer_candidates(&[(out_id, in_id), (out_id2, in_id2)]).unwrap();
 
-        assert_eq!(newly, vec![TransferCandidate { out_id, in_id }], "an already-linked pair must be skipped, not dismissed");
+        assert_eq!(
+            newly,
+            vec![TransferCandidate { out_id, in_id }],
+            "an already-linked pair must be skipped, not dismissed"
+        );
         assert!(store.transfer_candidates().unwrap().is_empty());
     }
 
@@ -17414,7 +17790,10 @@ mod tests {
 
         let result = store.dismiss_transfer_candidates(&[(out_id, in_id), (999_999, 999_998)]);
 
-        assert!(result.is_err(), "a pair naming a transaction that doesn't exist at all must fail the whole batch");
+        assert!(
+            result.is_err(),
+            "a pair naming a transaction that doesn't exist at all must fail the whole batch"
+        );
         assert_eq!(
             store.transfer_candidates().unwrap(),
             vec![TransferCandidate { out_id, in_id }],
@@ -17466,7 +17845,10 @@ mod tests {
         assert_eq!(linked, vec![TransferCandidate { out_id, in_id }]);
         assert_eq!(counterpart_of(&store, out_id), Some(in_id));
         assert_eq!(counterpart_of(&store, in_id), Some(out_id));
-        assert_eq!(store.auto_linked_transfers_to_review().unwrap(), vec![TransferCandidate { out_id, in_id }]);
+        assert_eq!(
+            store.auto_linked_transfers_to_review().unwrap(),
+            vec![TransferCandidate { out_id, in_id }]
+        );
         assert!(store.transfer_candidates().unwrap().is_empty(), "a linked pair is no longer a suggestion");
     }
 
@@ -17477,7 +17859,10 @@ mod tests {
         let (checking, savings) = checking_and_savings(&store);
         store.save_transactions(checking, &[tx("2026-08-10", "Move out", "-500.00")]).unwrap();
         store
-            .save_transactions(savings, &[tx("2026-08-10", "Deposit A", "500.00"), tx("2026-08-11", "Deposit B", "500.00")])
+            .save_transactions(
+                savings,
+                &[tx("2026-08-10", "Deposit A", "500.00"), tx("2026-08-11", "Deposit B", "500.00")],
+            )
             .unwrap();
         assert!(store.auto_link_transfers().unwrap().is_empty());
         assert_eq!(store.transfer_candidates().unwrap().len(), 1, "still offered as a suggestion");
@@ -17486,11 +17871,22 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let (checking, savings) = checking_and_savings(&store);
         store
-            .save_transactions(checking, &[tx("2026-08-10", "Move out A", "-500.00"), tx("2026-08-11", "Move out B", "-500.00")])
+            .save_transactions(
+                checking,
+                &[tx("2026-08-10", "Move out A", "-500.00"), tx("2026-08-11", "Move out B", "-500.00")],
+            )
             .unwrap();
         store.save_transactions(savings, &[tx("2026-08-10", "Deposit", "500.00")]).unwrap();
         assert!(store.auto_link_transfers().unwrap().is_empty());
-        assert_eq!(store.all_transactions().unwrap().iter().filter(|t| t.transfer_counterpart_id.is_some()).count(), 0);
+        assert_eq!(
+            store
+                .all_transactions()
+                .unwrap()
+                .iter()
+                .filter(|t| t.transfer_counterpart_id.is_some())
+                .count(),
+            0
+        );
     }
 
     #[test]
@@ -17508,12 +17904,11 @@ mod tests {
             )
             .unwrap();
         store
-            .save_transactions(
-                savings,
-                &[tx("2026-08-09", "Far in", "100.00"), tx("2026-08-20", "Unequal in", "299.00")],
-            )
+            .save_transactions(savings, &[tx("2026-08-09", "Far in", "100.00"), tx("2026-08-20", "Unequal in", "299.00")])
             .unwrap();
-        store.save_transactions(checking, &[tx("2026-08-25", "Same account in", "40.00")]).unwrap();
+        store
+            .save_transactions(checking, &[tx("2026-08-25", "Same account in", "40.00")])
+            .unwrap();
 
         assert!(store.auto_link_transfers().unwrap().is_empty());
     }
@@ -17583,7 +17978,10 @@ mod tests {
         assert!(store.auto_linked_transfers_to_review().unwrap().is_empty());
 
         store.restore_transactions(&[out_id]).unwrap();
-        assert_eq!(store.auto_linked_transfers_to_review().unwrap(), vec![TransferCandidate { out_id, in_id }]);
+        assert_eq!(
+            store.auto_linked_transfers_to_review().unwrap(),
+            vec![TransferCandidate { out_id, in_id }]
+        );
     }
 
     #[test]
@@ -18858,12 +19256,25 @@ mod tests {
         let result = match_for(&store, "2026-09-05", id);
         assert!(result.price_change.is_none());
         assert_eq!(result.state, "paid");
-        assert_eq!(store.list_recurring(day("2026-09-05")).unwrap().iter().find(|r| r.id == id).unwrap().amount, dec("-15.49"));
+        assert_eq!(
+            store
+                .list_recurring(day("2026-09-05"))
+                .unwrap()
+                .iter()
+                .find(|r| r.id == id)
+                .unwrap()
+                .amount,
+            dec("-15.49")
+        );
 
         // Another recurring item is not silenced by the same ignored amounts.
-        let other = store.create_recurring("NETFLIX", None, dec("-15.49"), "monthly", day("2026-09-03"), None).unwrap();
+        let other = store
+            .create_recurring("NETFLIX", None, dec("-15.49"), "monthly", day("2026-09-03"), None)
+            .unwrap();
         assert!(match_for(&store, "2026-09-05", other).price_change.is_some());
-        store.save_transactions(account, &[tx("2026-10-03", "NETFLIX.COM 866-579", "-19.99")]).unwrap();
+        store
+            .save_transactions(account, &[tx("2026-10-03", "NETFLIX.COM 866-579", "-19.99")])
+            .unwrap();
         assert_eq!(match_for(&store, "2026-10-05", id).price_change.unwrap().to, dec("-19.99"));
     }
 
@@ -19441,7 +19852,11 @@ mod tests {
 
         assert_eq!(
             c.months,
-            vec![month("2026-05", "600.00", "0"), month("2026-06", "0", "0"), month("2026-07", "500.00", "200.00")],
+            vec![
+                month("2026-05", "600.00", "0"),
+                month("2026-06", "0", "0"),
+                month("2026-07", "500.00", "200.00")
+            ],
             "a missed month between two active ones shows as zero; the empty months after the last activity are not listed"
         );
         assert_eq!(c.total_in, dec("1100.00"));
@@ -19486,7 +19901,9 @@ mod tests {
         put(&store, acct, "2026-08-03", "Kept", "500.00");
         put(&store, acct, "2026-08-04", "Entered by mistake", "999.00");
         put(&store, other, "2026-08-03", "Someone else's deposit", "300.00");
-        store.delete_transaction(id_of(&store, "Entered by mistake", "2026-08-04"), test_now()).unwrap();
+        store
+            .delete_transaction(id_of(&store, "Entered by mistake", "2026-08-04"), test_now())
+            .unwrap();
 
         let c = store.account_contributions(acct, day("2026-09-20")).unwrap();
 
@@ -19534,7 +19951,10 @@ mod tests {
         let roth_side = store.account_contributions(acct, day("2026-09-20")).unwrap();
         let checking_side = store.account_contributions(checking, day("2026-09-20")).unwrap();
 
-        assert_eq!((roth_side.total_in, roth_side.total_out, roth_side.deposit_count), (dec("500.00"), dec("0"), 1));
+        assert_eq!(
+            (roth_side.total_in, roth_side.total_out, roth_side.deposit_count),
+            (dec("500.00"), dec("0"), 1)
+        );
         assert_eq!((checking_side.total_in, checking_side.total_out), (dec("0"), dec("500.00")));
     }
 
@@ -19659,12 +20079,48 @@ mod tests {
         store.set_investment_plan(acct, &good, today).unwrap();
 
         let cases = [
-            (InvestmentPlan { annual_return_pct: dec("100.01"), ..good.clone() }, "between 0 and 100"),
-            (InvestmentPlan { annual_return_pct: dec("-0.1"), ..good.clone() }, "between 0 and 100"),
-            (InvestmentPlan { monthly_contribution: Some(dec("-1")), ..good.clone() }, "can't be negative"),
-            (InvestmentPlan { withdraw_month: Some(day("2026-08-15")), ..good.clone() }, "in the past"),
-            (InvestmentPlan { withdraw_years: Some(0), ..good.clone() }, "1 to 50"),
-            (InvestmentPlan { withdraw_years: Some(51), ..good.clone() }, "1 to 50"),
+            (
+                InvestmentPlan {
+                    annual_return_pct: dec("100.01"),
+                    ..good.clone()
+                },
+                "between 0 and 100",
+            ),
+            (
+                InvestmentPlan {
+                    annual_return_pct: dec("-0.1"),
+                    ..good.clone()
+                },
+                "between 0 and 100",
+            ),
+            (
+                InvestmentPlan {
+                    monthly_contribution: Some(dec("-1")),
+                    ..good.clone()
+                },
+                "can't be negative",
+            ),
+            (
+                InvestmentPlan {
+                    withdraw_month: Some(day("2026-08-15")),
+                    ..good.clone()
+                },
+                "in the past",
+            ),
+            (
+                InvestmentPlan {
+                    withdraw_years: Some(0),
+                    ..good.clone()
+                },
+                "1 to 50",
+            ),
+            (
+                InvestmentPlan {
+                    withdraw_years: Some(51),
+                    ..good.clone()
+                },
+                "1 to 50",
+            ),
         ];
         for (bad, expected) in cases {
             let err = store.set_investment_plan(acct, &bad, today).unwrap_err();
@@ -19710,7 +20166,9 @@ mod tests {
             ..InvestmentPlan::default()
         };
 
-        store.set_investment_plan_with_inflation(acct, &plan, Some(dec("4")), day("2026-09-20")).unwrap();
+        store
+            .set_investment_plan_with_inflation(acct, &plan, Some(dec("4")), day("2026-09-20"))
+            .unwrap();
 
         assert_eq!(store.get_investment_plan(acct).unwrap(), plan);
         assert_eq!(store.get_inflation_pct().unwrap(), dec("4"));
@@ -19748,10 +20206,16 @@ mod tests {
             ..InvestmentPlan::default()
         };
 
-        let err = store.set_investment_plan_with_inflation(acct, &plan, Some(dec("4")), day("2026-09-20")).unwrap_err();
+        let err = store
+            .set_investment_plan_with_inflation(acct, &plan, Some(dec("4")), day("2026-09-20"))
+            .unwrap_err();
 
         assert!(matches!(err, PlanError::Invalid(_)));
-        assert_eq!(store.get_inflation_pct().unwrap(), dec("3"), "a refused plan must not change the shared inflation");
+        assert_eq!(
+            store.get_inflation_pct().unwrap(),
+            dec("3"),
+            "a refused plan must not change the shared inflation"
+        );
     }
 
     #[test]
@@ -19775,21 +20239,30 @@ mod tests {
         let five29 = store.get_or_create_account("Sam's 529", AccountType::Investment).unwrap();
         let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
         put(&store, checking, "2026-09-01", "Paycheck", "2000.00");
-        store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
-        store.create_holding(five29, "VXUS", "International", dec("4"), dec("100.00"), dec("300"), None).unwrap();
+        store
+            .create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None)
+            .unwrap();
+        store
+            .create_holding(five29, "VXUS", "International", dec("4"), dec("100.00"), dec("300"), None)
+            .unwrap();
 
         store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
 
         assert_eq!(store.account_value_history(acct).unwrap(), vec![(day("2026-09-18"), dec("2500.00"))]);
         assert_eq!(store.account_value_history(five29).unwrap(), vec![(day("2026-09-18"), dec("400.00"))]);
-        assert!(store.account_value_history(checking).unwrap().is_empty(), "only investment accounts are recorded");
+        assert!(
+            store.account_value_history(checking).unwrap().is_empty(),
+            "only investment accounts are recorded"
+        );
     }
 
     #[test]
     fn an_account_snapshot_is_once_a_day_oldest_first_and_the_last_write_wins() {
         let store = Store::open_in_memory().unwrap();
         let acct = roth(&store);
-        let id = store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
+        let id = store
+            .create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None)
+            .unwrap();
         store.record_portfolio_snapshot(day("2026-09-17")).unwrap();
         store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
         store.update_holding_price(id, dec("260.00"), day("2026-09-18")).unwrap();
@@ -19823,7 +20296,9 @@ mod tests {
     fn an_account_that_is_emptied_records_the_move_to_zero_once() {
         let store = Store::open_in_memory().unwrap();
         let acct = roth(&store);
-        let holding = store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
+        let holding = store
+            .create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None)
+            .unwrap();
         store.record_portfolio_snapshot(day("2026-09-17")).unwrap();
         store.delete_holding(holding).unwrap();
 
@@ -19841,23 +20316,33 @@ mod tests {
     fn an_emptied_account_that_is_funded_again_is_recorded_again() {
         let store = Store::open_in_memory().unwrap();
         let acct = roth(&store);
-        let first = store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
+        let first = store
+            .create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None)
+            .unwrap();
         store.record_portfolio_snapshot(day("2026-09-17")).unwrap();
         store.delete_holding(first).unwrap();
         store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
-        store.create_holding(acct, "VXUS", "International", dec("4"), dec("100.00"), dec("300"), None).unwrap();
+        store
+            .create_holding(acct, "VXUS", "International", dec("4"), dec("100.00"), dec("300"), None)
+            .unwrap();
         store.record_portfolio_snapshot(day("2026-09-20")).unwrap();
 
         assert_eq!(
             store.account_value_history(acct).unwrap(),
-            vec![(day("2026-09-17"), dec("2500.00")), (day("2026-09-18"), dec("0")), (day("2026-09-20"), dec("400.00"))]
+            vec![
+                (day("2026-09-17"), dec("2500.00")),
+                (day("2026-09-18"), dec("0")),
+                (day("2026-09-20"), dec("400.00"))
+            ]
         );
     }
     #[test]
     fn deleting_an_account_removes_its_plan_and_value_history() {
         let store = Store::open_in_memory().unwrap();
         let acct = roth(&store);
-        store.create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None).unwrap();
+        store
+            .create_holding(acct, "VTI", "Total Market", dec("10"), dec("250.00"), dec("2000"), None)
+            .unwrap();
         store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
         store
             .set_investment_plan(
@@ -19873,7 +20358,10 @@ mod tests {
         store.delete_account(acct).unwrap();
 
         let plan_rows: i64 = store.conn.query_row("SELECT COUNT(*) FROM investment_plans", [], |r| r.get(0)).unwrap();
-        let snapshot_rows: i64 = store.conn.query_row("SELECT COUNT(*) FROM account_value_snapshots", [], |r| r.get(0)).unwrap();
+        let snapshot_rows: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM account_value_snapshots", [], |r| r.get(0))
+            .unwrap();
         assert_eq!((plan_rows, snapshot_rows), (0, 0));
         // A new account of the same name starts from scratch.
         let again = roth(&store);
@@ -19921,7 +20409,9 @@ mod tests {
 
         assert_eq!(store.get_inflation_pct().unwrap(), dec("3"));
         assert_eq!(store.get_investment_plan(acct).unwrap(), InvestmentPlan::default());
-        store.create_holding(acct, "VTI", "Total Market", dec("1"), dec("100.00"), dec("90"), None).unwrap();
+        store
+            .create_holding(acct, "VTI", "Total Market", dec("1"), dec("100.00"), dec("90"), None)
+            .unwrap();
         store.record_portfolio_snapshot(day("2026-09-18")).unwrap();
         assert_eq!(store.account_value_history(acct).unwrap().len(), 1);
     }
@@ -20082,7 +20572,9 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let checking = test_account(&store);
         let card = store.get_or_create_account("Test Card", AccountType::Credit).unwrap();
-        let source = store.create_transaction(checking, &tx("2026-09-01", "Card payment", "-100.00"), None).unwrap();
+        let source = store
+            .create_transaction(checking, &tx("2026-09-01", "Card payment", "-100.00"), None)
+            .unwrap();
         store.set_category(source, "No Category", CategorySource::User, None).unwrap();
         store.apply_debt_payment(source, card, dec("55.35"), day("2026-09-02")).unwrap();
         let before = store.list_account_transactions(card, 10).unwrap()[0].clone();
@@ -20096,28 +20588,48 @@ mod tests {
         assert_eq!(after.payment_source_id, Some(source));
         assert_eq!(after.payment_source_account_id, Some(checking));
         assert_eq!(after.payment_source_date, Some(day("2026-09-01")));
-        assert_eq!(store.all_transactions().unwrap()[0].applied_to_debt.as_ref().unwrap().date, day("2026-09-02"));
+        assert_eq!(
+            store.all_transactions().unwrap()[0].applied_to_debt.as_ref().unwrap().date,
+            day("2026-09-02")
+        );
         assert_eq!(store.account_balance_as_of(card, "credit", Decimal::ZERO, far_future()).unwrap(), balance);
         assert_eq!(store.all_transactions().unwrap().len(), 1);
-        let stored: String = store.conn.query_row("SELECT category FROM transactions WHERE id = ?1", [after.id], |r| r.get(0)).unwrap();
+        let stored: String = store
+            .conn
+            .query_row("SELECT category FROM transactions WHERE id = ?1", [after.id], |r| r.get(0))
+            .unwrap();
         assert_eq!(stored, "No Category");
-        store.conn.execute("UPDATE transactions SET category = NULL WHERE id = ?1", [source]).unwrap();
+        store
+            .conn
+            .execute("UPDATE transactions SET category = NULL WHERE id = ?1", [source])
+            .unwrap();
         assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].category, None);
         assert_eq!(store.reconcile_candidates(card, day("2026-09-01")).unwrap().len(), 0);
         assert_eq!(store.reconcile_candidates(card, day("2026-09-02")).unwrap().len(), 1);
         store.set_category(source, "Payment/Credit", CategorySource::User, None).unwrap();
         store.rename_category("Payment/Credit", "Card payment").unwrap();
-        assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].category.as_deref(), Some("Card payment"));
+        assert_eq!(
+            store.list_account_transactions(card, 10).unwrap()[0].category.as_deref(),
+            Some("Card payment")
+        );
         store.delete_category("Card payment").unwrap();
         assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].category, None);
         store.create_category("Rule payment", None).unwrap();
-        store.set_category_if_registered(source, "Rule payment", CategorySource::Rule, None).unwrap();
-        assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].category.as_deref(), Some("Rule payment"));
+        store
+            .set_category_if_registered(source, "Rule payment", CategorySource::Rule, None)
+            .unwrap();
+        assert_eq!(
+            store.list_account_transactions(card, 10).unwrap()[0].category.as_deref(),
+            Some("Rule payment")
+        );
         store.delete_transaction(source, day("2026-09-03").and_hms_opt(0, 0, 0).unwrap()).unwrap();
         assert!(store.list_account_transactions(card, 10).unwrap().is_empty());
         store.restore_transactions(&[source]).unwrap();
         assert_eq!(store.list_account_transactions(card, 10).unwrap()[0].payment_source_id, Some(source));
-        store.conn.execute("UPDATE transactions SET deleted_at = '2026-09-03' WHERE id = ?1", [source]).unwrap();
+        store
+            .conn
+            .execute("UPDATE transactions SET deleted_at = '2026-09-03' WHERE id = ?1", [source])
+            .unwrap();
         let unavailable = store.list_account_transactions(card, 10).unwrap().remove(0);
         assert_eq!(unavailable.payment_source_id, None);
         assert_eq!(unavailable.category.as_deref(), Some("No Category"));
@@ -20136,11 +20648,15 @@ mod tests {
             let store = Store::open(&path).unwrap();
             let checking = test_account(&store);
             card = store.get_or_create_account("Test Card", AccountType::Credit).unwrap();
-            source = store.create_transaction(checking, &tx("2026-09-01", "Card payment", "-100.00"), None).unwrap();
+            source = store
+                .create_transaction(checking, &tx("2026-09-01", "Card payment", "-100.00"), None)
+                .unwrap();
             store.set_category(source, "No Category", CategorySource::User, None).unwrap();
             store.apply_debt_payment(source, card, dec("55.35"), day("2026-09-02")).unwrap();
             store.set_category(source, "Payment/Credit", CategorySource::User, None).unwrap();
-            let ordinary = store.create_transaction(card, &tx("2026-09-03", "Payment applied from: Card payment", "2.00"), None).unwrap();
+            let ordinary = store
+                .create_transaction(card, &tx("2026-09-03", "Payment applied from: Card payment", "2.00"), None)
+                .unwrap();
             store.set_category(ordinary, "Ordinary category", CategorySource::User, None).unwrap();
         }
         {
@@ -20534,7 +21050,10 @@ mod tests {
         store.set_safe_to_spend_enabled(false).unwrap();
         assert!(!store.get_app_settings().unwrap().safe_to_spend_enabled);
         store.set_envelope_caps_enabled(false).unwrap();
-        store.conn.execute_batch("ALTER TABLE app_settings DROP COLUMN safe_to_spend_enabled;").unwrap();
+        store
+            .conn
+            .execute_batch("ALTER TABLE app_settings DROP COLUMN safe_to_spend_enabled;")
+            .unwrap();
         store.init_schema().unwrap();
         let settings = store.get_app_settings().unwrap();
         assert!(settings.safe_to_spend_enabled);
@@ -20545,28 +21064,52 @@ mod tests {
     fn spending_drilldown_reconciles_split_lines_to_the_category_chart() {
         let store = Store::open_in_memory().unwrap();
         let account = test_account(&store);
-        store.save_transactions(account, &[
-            tx("2026-08-05", "Market", "-100.00"),
-            tx("2026-08-06", "Grocer", "-25.00"),
-            tx("2026-08-07", "Refund", "10.00"),
-        ]).unwrap();
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-05", "Market", "-100.00"),
+                    tx("2026-08-06", "Grocer", "-25.00"),
+                    tx("2026-08-07", "Refund", "10.00"),
+                ],
+            )
+            .unwrap();
         let market = id_of(&store, "Market", "2026-08-05");
         store.set_category(market, "Groceries", CategorySource::User, None).unwrap();
-        store.set_transaction_splits(market, &[
-            ("Groceries".to_string(), dec("-60.00"), None),
-            ("Household".to_string(), dec("-40.00"), None),
-        ]).unwrap();
-        store.set_category(id_of(&store, "Grocer", "2026-08-06"), "Groceries", CategorySource::User, None).unwrap();
-        store.set_category(id_of(&store, "Refund", "2026-08-07"), "Groceries", CategorySource::User, None).unwrap();
+        store
+            .set_transaction_splits(
+                market,
+                &[
+                    ("Groceries".to_string(), dec("-60.00"), None),
+                    ("Household".to_string(), dec("-40.00"), None),
+                ],
+            )
+            .unwrap();
+        store
+            .set_category(id_of(&store, "Grocer", "2026-08-06"), "Groceries", CategorySource::User, None)
+            .unwrap();
+        store
+            .set_category(id_of(&store, "Refund", "2026-08-07"), "Groceries", CategorySource::User, None)
+            .unwrap();
 
         let rows = store.spending_transactions_for_category_in_month("Groceries", 2026, 8).unwrap();
         assert_eq!(rows.len(), 2);
         assert!(rows.iter().any(|row| row.is_split && row.amount == dec("-60.00")));
         let detail_total: Decimal = rows.iter().map(|row| -row.amount).sum();
-        let chart_total = store.spending_by_category(day("2026-08-01"), day("2026-08-31")).unwrap()
-            .into_iter().find(|(category, _)| category == "Groceries").unwrap().1;
+        let chart_total = store
+            .spending_by_category(day("2026-08-01"), day("2026-08-31"))
+            .unwrap()
+            .into_iter()
+            .find(|(category, _)| category == "Groceries")
+            .unwrap()
+            .1;
         assert_eq!(detail_total, chart_total);
         assert_eq!(chart_total, dec("85.00"));
-        assert!(store.spending_transactions_for_category_in_month("Groceries", 2026, 7).unwrap().is_empty());
+        assert!(
+            store
+                .spending_transactions_for_category_in_month("Groceries", 2026, 7)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

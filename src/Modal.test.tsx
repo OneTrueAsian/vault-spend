@@ -70,6 +70,53 @@ describe("NewAccountDialog's autoFocus survives StrictMode's dev-only double-inv
   });
 });
 
+// Adding an account with a name already in use overwrote that account (2026-10-02 QA, H1). The
+// dialog now says so as the person types and won't submit; the backend refuses it as well.
+describe("NewAccountDialog with a name already in use", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const onSubmit = vi.fn();
+
+  beforeEach(() => {
+    onSubmit.mockReset();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(<NewAccountDialog familyMembers={[]} existingAccountNames={["Car Loan", "Everyday Checking"]} onCancel={() => {}} onSubmit={onSubmit} />);
+    });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  // the dialog renders into a portal on document.body
+  const nameInput = () => document.querySelector<HTMLInputElement>('input[placeholder*="Everyday Checking"]')!;
+  const type = (value: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(nameInput(), value);
+      nameInput().dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  const submit = () => act(() => nameInput().form!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+
+  it("says the name is taken, ignoring case and spaces, and does not submit", () => {
+    type("  car LOAN ");
+    expect(nameInput().getAttribute("aria-invalid")).toBe("true");
+    expect(document.body.textContent).toContain('You already have an account called "Car Loan"');
+    submit();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("submits a new name", () => {
+    type("Car Loan 2");
+    expect(nameInput().getAttribute("aria-invalid")).toBe("false");
+    submit();
+    expect(onSubmit).toHaveBeenCalledWith("Car Loan 2", "checking", null, null, null, null, null);
+  });
+});
+
 // Phase C, Task 4 (plan v2 §4.11): a password-protected profile's CSV export
 // asks first, since CSV carries no encryption of its own. This checks the
 // dialog's exact required wording and that Cancel/Export anyway each call

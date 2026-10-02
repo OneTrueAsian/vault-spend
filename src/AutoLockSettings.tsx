@@ -69,7 +69,7 @@ export function AutoLockSettings({ enabled }: { enabled: boolean }) {
 
   return (
     <div data-auto-lock-settings>
-      <h3 className="data-subhead">Automatic locking</h3>
+      <h2 className="data-subhead">Automatic locking</h2>
       <p className="modal-message-secondary">
         Automatic locking closes this profile's data connection and returns to the password screen.
       </p>

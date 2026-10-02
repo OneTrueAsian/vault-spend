@@ -390,7 +390,16 @@ pub fn recover_password(
     new_password: &str,
     now: NaiveDateTime,
 ) -> Result<(KeyFile, RecoveryCode, PathBuf), String> {
-    rotate_dek(config_path, profile_id, live_db_path, store, Proof::Recovery(recovery_code), new_password, RecoveryCode::generate(), now)
+    rotate_dek(
+        config_path,
+        profile_id,
+        live_db_path,
+        store,
+        Proof::Recovery(recovery_code),
+        new_password,
+        RecoveryCode::generate(),
+        now,
+    )
 }
 
 /// `recover_password`'s code-identity-safe sibling: the caller supplies the exact new recovery code
@@ -408,7 +417,16 @@ pub fn recover_password_with_recovery(
     new_recovery_code: RecoveryCode,
     now: NaiveDateTime,
 ) -> Result<(KeyFile, RecoveryCode, PathBuf), String> {
-    rotate_dek(config_path, profile_id, live_db_path, store, Proof::Recovery(recovery_code), new_password, new_recovery_code, now)
+    rotate_dek(
+        config_path,
+        profile_id,
+        live_db_path,
+        store,
+        Proof::Recovery(recovery_code),
+        new_password,
+        new_recovery_code,
+        now,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -618,7 +636,10 @@ mod tests {
         .expect("the password change itself must still be reported as successful");
 
         let new_dek = new_key_file.unlock_with_password("brand new password!!").unwrap();
-        assert!(Store::open_with_key(&target_path, DatabaseKey::Raw(new_dek.as_bytes())).is_ok(), "the new encrypted file must exist and open");
+        assert!(
+            Store::open_with_key(&target_path, DatabaseKey::Raw(new_dek.as_bytes())).is_ok(),
+            "the new encrypted file must exist and open"
+        );
     }
 
     #[test]
@@ -822,7 +843,14 @@ mod tests {
             "the code just used to recover must stop working too"
         );
         assert!(new_key_file.unlock_with_recovery(&new_recovery_code).is_ok());
-        assert_eq!(profiles::list_profiles(&config_path, &live_db_path).iter().find(|p| p.id == id).unwrap().db_path, target_path);
+        assert_eq!(
+            profiles::list_profiles(&config_path, &live_db_path)
+                .iter()
+                .find(|p| p.id == id)
+                .unwrap()
+                .db_path,
+            target_path
+        );
     }
 
     #[test]
@@ -835,9 +863,17 @@ mod tests {
         let dek = key_file.unlock_with_password("old password 123").unwrap();
         let store = Store::open_with_key(&target, DatabaseKey::Raw(dek.as_bytes())).unwrap();
 
-        let error = recover_password(&config_path, &id, &target, &store, &RecoveryCode::generate(), "irrelevant new password", now())
-            .map(|_| ())
-            .unwrap_err();
+        let error = recover_password(
+            &config_path,
+            &id,
+            &target,
+            &store,
+            &RecoveryCode::generate(),
+            "irrelevant new password",
+            now(),
+        )
+        .map(|_| ())
+        .unwrap_err();
 
         assert_eq!(error, "That recovery key didn't work.");
         assert!(target.exists(), "nothing was touched");

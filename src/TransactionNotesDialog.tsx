@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ModalShell } from "./Modal";
 import type { Transaction } from "./types";
+import { errorMessage } from "./errorMessage";
 
 const NOTES_MAX_CHARS = 4000;
 
@@ -37,7 +38,7 @@ export function TransactionNotesDialog({
       await onSave(value.trim() === "" ? null : value);
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setSaving(false);
     }

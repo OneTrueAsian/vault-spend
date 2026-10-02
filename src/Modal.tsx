@@ -19,6 +19,7 @@ import {
   type CategoryIconKey,
   IconPicker,
 } from "./icons";
+import { errorMessage } from "./errorMessage";
 
 /** Shared shell: a dimmed overlay behind a centered panel. Clicking the
  * overlay (not the panel) cancels, matching how a native dialog behaves —
@@ -81,6 +82,9 @@ export function ModalShell({
   const pendingRestoreRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Captured once when the dialog opened (the ref is never reassigned); read here so the deferred
+    // restore below focuses that element.
+    const previouslyFocused = previouslyFocusedRef.current;
     if (pendingRestoreRef.current !== null) {
       clearTimeout(pendingRestoreRef.current);
       pendingRestoreRef.current = null;
@@ -134,11 +138,10 @@ export function ModalShell({
       // cancel it, so it still fires, just one tick later.
       pendingRestoreRef.current = window.setTimeout(() => {
         pendingRestoreRef.current = null;
-        previouslyFocusedRef.current?.focus();
+        previouslyFocused?.focus();
       }, 0);
     };
     // Mount/unmount only — see the comment on `onCancelRef` above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Rendered into <body>, not where it's used: a dialog is `position: fixed`,
@@ -239,10 +242,13 @@ const ACCOUNT_TYPE_OPTIONS = ["checking", "savings", "credit", "loan", "investme
 
 export function NewAccountDialog({
   familyMembers,
+  existingAccountNames = [],
   onCancel,
   onSubmit,
 }: {
   familyMembers: FamilyMember[];
+  /** Names already in use; a match (ignoring case and spaces) is refused here and by the backend. */
+  existingAccountNames?: string[];
   onCancel: () => void;
   onSubmit: (
     name: string,
@@ -261,10 +267,11 @@ export function NewAccountDialog({
   const [mask, setMask] = useState("");
   const [memberId, setMemberId] = useState("");
   const [iconKey, setIconKey] = useState<AccountIconKey | null>(null);
+  const takenName = existingAccountNames.find((n) => n.trim().toLowerCase() === name.trim().toLowerCase());
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || takenName) return;
     onSubmit(
       name.trim(),
       accountType,
@@ -289,7 +296,14 @@ export function NewAccountDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder='e.g. "Everyday Checking"'
+            aria-invalid={takenName !== undefined}
+            aria-describedby={takenName ? "new-account-name-error" : undefined}
           />
+          {takenName && (
+            <span className="field-error" id="new-account-name-error">
+              You already have an account called "{takenName}". Choose a different name.
+            </span>
+          )}
         </label>
         <label className="modal-field">
           <span>Account type</span>
@@ -345,7 +359,7 @@ export function NewAccountDialog({
           <button type="button" className="modal-secondary" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" disabled={!name.trim()}>
+          <button type="submit" disabled={!name.trim() || takenName !== undefined}>
             Create account
           </button>
         </div>
@@ -1129,7 +1143,7 @@ export function UseExistingDataFileDialog({
     try {
       await onSubmit(name.trim(), needsPassword ? password : undefined);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
       setPassword("");
     } finally {
       setBusy(false);
@@ -1734,7 +1748,7 @@ export function TransferReviewDialog({
     try {
       await action();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setSaving(false);
     }

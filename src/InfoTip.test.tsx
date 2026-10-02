@@ -30,6 +30,15 @@ describe("InfoTip", () => {
       button().dispatchEvent(new MouseEvent(over ? "mouseover" : "mouseout", { bubbles: true, relatedTarget: document.body }));
     });
 
+  it("can show its own symbol and look, as the ledger's warning badges do", () => {
+    // The ledger's ⚠/⧉ used to be bare spans with the reason only in a hover title (2026-10-02 QA, M6).
+    show({ label: "possible duplicate", text: "Possible duplicate of the Corner Coffee transaction on 2026-08-02", glyph: "⧉", buttonClassName: "anomaly-badge anomaly-duplicate" });
+    expect(button().textContent).toBe("⧉");
+    expect(button().classList.contains("anomaly-badge")).toBe(true);
+    expect(button().getAttribute("aria-label")).toBe("About possible duplicate");
+    expect(tip().textContent).toContain("Corner Coffee");
+  });
+
   it("is a labelled button whose text is always there for screen readers, closed at first", () => {
     show();
     expect(button().getAttribute("aria-label")).toBe("About Annual spending");

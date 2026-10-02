@@ -85,7 +85,10 @@ impl RuleSet {
     /// rules manager needs that to avoid a broad new rule stealing
     /// transactions that a more specific one already claims).
     pub fn best_match(&self, description: &str) -> Option<&Rule> {
-        self.rules.iter().filter(|rule| rule.matches(description)).max_by_key(|rule| rule.specificity())
+        self.rules
+            .iter()
+            .filter(|rule| rule.matches(description))
+            .max_by_key(|rule| rule.specificity())
     }
 
     pub fn rules(&self) -> &[Rule] {
@@ -209,7 +212,10 @@ mod tests {
 
     #[test]
     fn the_most_specific_merchant_wins_regardless_of_its_store_number() {
-        let rules = RuleSet::new(vec![Rule::new("coffee", "Dining Out"), Rule::new("FERRYWOOD COFFEE 12", "Business Expense")]);
+        let rules = RuleSet::new(vec![
+            Rule::new("coffee", "Dining Out"),
+            Rule::new("FERRYWOOD COFFEE 12", "Business Expense"),
+        ]);
         assert_eq!(rules.categorize("FERRYWOOD COFFEE 99"), Some("Business Expense".to_string()));
     }
 

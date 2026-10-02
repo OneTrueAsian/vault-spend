@@ -104,7 +104,10 @@ mod tests {
 
         store.set_ui_state(UiStateKey::CategoryOrder, "[\"Groceries\",\"Rent\"]").unwrap();
 
-        assert_eq!(store.get_ui_state(UiStateKey::CategoryOrder).unwrap(), Some("[\"Groceries\",\"Rent\"]".to_string()));
+        assert_eq!(
+            store.get_ui_state(UiStateKey::CategoryOrder).unwrap(),
+            Some("[\"Groceries\",\"Rent\"]".to_string())
+        );
     }
 
     #[test]
@@ -131,7 +134,10 @@ mod tests {
         assert_eq!(UiStateKey::parse("safe_to_spend_buffer"), Some(UiStateKey::SafeToSpendBuffer));
         assert_eq!(UiStateKey::parse("notified_bills"), Some(UiStateKey::NotifiedBills));
         assert_eq!(UiStateKey::parse("category_order"), Some(UiStateKey::CategoryOrder));
-        assert_eq!(UiStateKey::parse("show_bill_names_in_reminders"), Some(UiStateKey::ShowBillNamesInReminders));
+        assert_eq!(
+            UiStateKey::parse("show_bill_names_in_reminders"),
+            Some(UiStateKey::ShowBillNamesInReminders)
+        );
         assert_eq!(UiStateKey::parse("dashboard_layout"), Some(UiStateKey::DashboardLayout));
         assert_eq!(UiStateKey::parse("dashboard_custom_layouts"), Some(UiStateKey::DashboardCustomLayouts));
         assert_eq!(UiStateKey::parse("anything_else"), None, "not an arbitrary-key store");
