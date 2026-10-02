@@ -13,6 +13,7 @@ import { getCurrentGeneration } from "./profileUiState";
 import { ModalShell } from "./Modal";
 import { PasswordForm } from "./PasswordForm";
 import { MenuSelect } from "./MenuSelect";
+import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs, type NeonAccent } from "./themeBootstrap";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -457,12 +458,22 @@ const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string 
   },
 ];
 
+const ACCENT_OPTIONS: { id: NeonAccent; label: string }[] = [
+  { id: "cyan", label: "Ion Cyan" },
+  { id: "pink", label: "Rebel Pink" },
+  { id: "violet", label: "Ultraviolet" },
+];
+
 export function AppearanceSection({
   themeStyle,
   onSetThemeStyle,
+  appearance,
+  onSetAppearance,
 }: {
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
+  appearance: AppearancePrefs;
+  onSetAppearance: (next: AppearancePrefs) => void;
 }) {
   return (
     <div className="card">
@@ -489,6 +500,70 @@ export function AppearanceSection({
           </label>
         ))}
       </div>
+      {themeStyle === "futuristic" && (
+        <div className="futuristic-options" data-futuristic-options>
+          <span className="feature-toggle-label">Futuristic options</span>
+          <div className="accent-choices" role="radiogroup" aria-label="Accent color">
+            {ACCENT_OPTIONS.map((opt) => {
+              const checked = appearance.accent === opt.id;
+              return (
+                <label key={opt.id} className={`accent-choice${checked ? " accent-choice-checked" : ""}`}>
+                  <input
+                    type="radio"
+                    name="neon-accent"
+                    checked={checked}
+                    onChange={() => onSetAppearance({ ...appearance, accent: opt.id })}
+                  />
+                  <span className={`accent-swatch accent-swatch-${opt.id}`} aria-hidden="true" />
+                  {opt.label}
+                  {checked && (
+                    <span className="accent-check" data-accent-check aria-hidden="true" />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          <label className="neon-intensity">
+            <span className="neon-intensity-head">
+              <span>Neon intensity</span>
+              <span className="neon-intensity-value">{appearance.intensity}%</span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              aria-label="Neon intensity"
+              value={appearance.intensity}
+              onChange={(e) => onSetAppearance({ ...appearance, intensity: Number(e.currentTarget.value) })}
+            />
+            <span className="modal-message-secondary">
+              How strongly the colored glow shows. At 0 the glow is off; text, outlines, and colors that carry
+              meaning stay the same.
+            </span>
+          </label>
+          <div>
+            <button type="button" className="modal-secondary" onClick={() => onSetAppearance(DEFAULT_APPEARANCE_PREFS)}>
+              Reset Futuristic options
+            </button>
+          </div>
+        </div>
+      )}
+      <label className="feature-toggle-row reduce-motion-row">
+        <input
+          type="checkbox"
+          data-reduce-motion
+          checked={appearance.reduceMotion}
+          onChange={(e) => onSetAppearance({ ...appearance, reduceMotion: e.currentTarget.checked })}
+        />
+        <span className="feature-toggle-text">
+          <span className="feature-toggle-label">Reduce motion</span>
+          <span className="modal-message-secondary">
+            Turns off sliding and fading effects in every style. If your computer is set to reduce motion, that is
+            always followed too.
+          </span>
+        </span>
+      </label>
     </div>
   );
 }
@@ -1068,6 +1143,8 @@ export function SettingsView({
   onSetSafeToSpendEnabled,
   themeStyle,
   onSetThemeStyle,
+  appearance,
+  onSetAppearance,
   privacyAutoHide,
   onSetPrivacyAutoHide,
   onDownloadSetupTemplate,
@@ -1128,6 +1205,8 @@ export function SettingsView({
   onSetSafeToSpendEnabled: (enabled: boolean) => void;
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
+  appearance: AppearancePrefs;
+  onSetAppearance: (next: AppearancePrefs) => void;
 }) {
   return (
     <div className="reports-view">
@@ -1137,7 +1216,12 @@ export function SettingsView({
           <p className="view-sub">Appearance, profile, and local data.</p>
         </div>
       </div>
-      <AppearanceSection themeStyle={themeStyle} onSetThemeStyle={onSetThemeStyle} />
+      <AppearanceSection
+        themeStyle={themeStyle}
+        onSetThemeStyle={onSetThemeStyle}
+        appearance={appearance}
+        onSetAppearance={onSetAppearance}
+      />
       <PrivacySection autoHide={privacyAutoHide} onSetAutoHide={onSetPrivacyAutoHide} />
       <ProfilesSection
         profiles={profiles}

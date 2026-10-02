@@ -9,7 +9,15 @@ import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
 import { toCsv } from "./csv";
 import { buildSetupTemplate } from "./setupTemplate";
 import { CHANGELOG } from "./changelog";
-import { THEME_STORAGE_KEY, THEME_STYLE_STORAGE_KEY, readThemeStyle } from "./themeBootstrap";
+import {
+  THEME_STORAGE_KEY,
+  THEME_STYLE_STORAGE_KEY,
+  applyAppearancePrefs,
+  readStoredAppearancePrefs,
+  readThemeStyle,
+  saveAppearancePrefs,
+  type AppearancePrefs,
+} from "./themeBootstrap";
 import {
   AddWidgetDialog,
   CategoryTransactionsDialog,
@@ -481,6 +489,7 @@ function App({
       return readThemeStyle(null);
     }
   });
+  const [appearance, setAppearance] = useState<AppearancePrefs>(readStoredAppearancePrefs);
   const [navOrder, setNavOrder] = useState<Tab[]>(loadNavOrder);
   const [dragNavTab, setDragNavTab] = useState<Tab | null>(null);
   const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(DEFAULT_LAYOUT);
@@ -1564,6 +1573,12 @@ function App({
       // per-viewer preference only — fine to skip if storage is unavailable
     }
   }, [themeStyle]);
+
+  // Layout effect so a change shows on the next frame, with no flash of the old accent.
+  useLayoutEffect(() => {
+    applyAppearancePrefs(appearance);
+    saveAppearancePrefs(appearance);
+  }, [appearance]);
 
   function setThemeStyle(next: ThemeStyle) {
     setThemeStyleState(next);
@@ -5542,6 +5557,8 @@ function App({
                 onSetSafeToSpendEnabled={handleSetSafeToSpendEnabled}
                 themeStyle={themeStyle}
                 onSetThemeStyle={setThemeStyle}
+                appearance={appearance}
+                onSetAppearance={setAppearance}
                 privacyAutoHide={privacyPrefs.autoHide}
                 onSetPrivacyAutoHide={(autoHide) => setPrivacyPrefs((p) => ({ ...p, autoHide }))}
                 onDownloadSetupTemplate={handleDownloadSetupTemplate}
