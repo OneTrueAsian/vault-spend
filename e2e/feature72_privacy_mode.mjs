@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature72_privacy_mode.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -68,14 +68,20 @@ try {
   const auto = await browser.$("[data-privacy-autohide]");
   await auto.waitForExist({ timeout: 10000 });
   await auto.click();
-  await browser.execute(() => window.dispatchEvent(new Event("focus")));
-  await browser.pause(300);
-  await nav("Accounts");
-  await browser.waitUntil(async () => hasAmount(await pageText()), { timeout: 5000, timeoutMsg: "with the window in front, amounts show" });
+  await withFocusRetry(browser, async () => {
+    await browser.execute(() => window.dispatchEvent(new Event("focus")));
+    await browser.pause(300);
+    await nav("Accounts");
+    await browser.waitUntil(async () => hasAmount(await pageText()), { timeout: 5000, timeoutMsg: "with the window in front, amounts show" });
+  });
   await browser.execute(() => window.dispatchEvent(new Event("blur")));
   await browser.waitUntil(async () => !hasAmount(await pageText()), { timeout: 5000, timeoutMsg: "losing focus should hide amounts" });
-  await browser.execute(() => window.dispatchEvent(new Event("focus")));
-  await browser.waitUntil(async () => hasAmount(await pageText()), { timeout: 5000, timeoutMsg: "regaining focus should show amounts again" });
+  // Another spec's window taking real OS focus here fires a real blur, which (correctly) hides the amounts
+  // again; withFocusRetry brings this window back to the front and checks again when that happened.
+  await withFocusRetry(browser, async () => {
+    await browser.execute(() => window.dispatchEvent(new Event("focus")));
+    await browser.waitUntil(async () => hasAmount(await pageText()), { timeout: 5000, timeoutMsg: "regaining focus should show amounts again" });
+  });
 
   console.log("FEATURE 72 E2E TEST PASSED");
 } finally {
