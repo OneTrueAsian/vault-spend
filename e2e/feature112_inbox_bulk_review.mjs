@@ -60,7 +60,7 @@ try {
       return { radius: getComputedStyle(panel).borderRadius, left: rect.left, right: rect.right, bottom: rect.bottom, width: innerWidth, height: innerHeight };
     });
   }
-  for (const palette of ["classic", "futuristic", "transparent"]) {
+  for (const palette of ["transparent", "futuristic"]) {
     for (const theme of ["light", "dark"]) {
       await b.execute((palette, theme) => { document.documentElement.dataset.palette = palette; document.documentElement.dataset.theme = theme; }, palette, theme);
       let geometry;
@@ -99,7 +99,7 @@ try {
   await (await b.$("[data-inbox-open]")).click();
   await b.$("[data-inbox-bulk]").waitForExist({ timeout: 5000 });
   assert.equal((await b.$$("[data-inbox-row]")).length, 5);
-  for (const palette of ['classic', 'futuristic', 'transparent']) for (const theme of ['light', 'dark']) {
+  for (const palette of ['transparent', 'futuristic']) for (const theme of ['light', 'dark']) {
     await b.execute((palette, theme) => { document.documentElement.dataset.palette = palette; document.documentElement.dataset.theme = theme; }, palette, theme);
     await (await b.$('[data-inbox-row] .inbox-category-trigger')).click();
     const style = await b.execute(() => {

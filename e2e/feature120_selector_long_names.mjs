@@ -29,7 +29,7 @@ try {
   await browser.setWindowSize(1440, 1000);
   await browser.$("[data-profile-card]").waitForExist({ timeout: 10000 });
 
-  for (const palette of ["classic", "futuristic", "transparent"]) {
+  for (const palette of ["transparent", "futuristic"]) {
     await browser.execute((p) => {
       document.documentElement.dataset.palette = p;
     }, palette);

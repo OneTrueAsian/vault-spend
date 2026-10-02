@@ -82,7 +82,8 @@ export type AppSettings = {
 /** Purely a per-viewer display preference (like `Theme` in App.tsx) — stored
  * in localStorage, never sent to the backend. All four styles follow the
  * header's separate Light/Dark/System toggle — none of them is dark-only. */
-export type ThemeStyle = "classic" | "futuristic" | "transparent" | "retro";
+/** "transparent" is the Default look (shown as "Default"); the old Slate style ("classic") is retired. */
+export type ThemeStyle = "transparent" | "futuristic" | "retro";
 
 export type Insight = {
   severity: "warning" | "info" | "positive";

@@ -30,8 +30,10 @@ const { browser } = app;
 
 async function selectTheme(label) {
   await browser.execute((text) => {
-    const row = Array.from(document.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent.includes(text));
-    if (!row) throw new Error(`no .feature-toggle-row containing "${text}"`);
+    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')).find(
+      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    );
+    if (!row) throw new Error(`no theme option labelled "${text}"`);
     row.querySelector("input").click();
   }, label);
 }
@@ -80,7 +82,7 @@ try {
   await browser.setWindowSize(1280, 720);
   await browser.pause(1000);
 
-  for (const style of ["Slate", "Futuristic", "Transparent"]) {
+  for (const style of ["Default", "Futuristic"]) {
     await goTo("Settings");
     await selectTheme(style);
     await browser.pause(400);

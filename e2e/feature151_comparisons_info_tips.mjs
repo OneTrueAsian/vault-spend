@@ -87,12 +87,11 @@ try {
   // Every appearance: an open tip, for a person to look at.
   const income = await tipButton("Household income per year");
   await income.scrollIntoView({ block: "center" });
-  for (const palette of ["classic", "futuristic", "transparent", "retro"]) {
+  for (const palette of ["transparent", "futuristic", "retro"]) {
     for (const mode of ["light", "dark"]) {
       await browser.execute(
         (p, m) => {
-          if (p === "classic") delete document.documentElement.dataset.palette;
-          else document.documentElement.dataset.palette = p;
+          document.documentElement.dataset.palette = p;
           document.documentElement.dataset.theme = m;
         },
         palette,

@@ -9,7 +9,7 @@ import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
 import { toCsv } from "./csv";
 import { buildSetupTemplate } from "./setupTemplate";
 import { CHANGELOG } from "./changelog";
-import { THEME_STORAGE_KEY, THEME_STYLE_STORAGE_KEY } from "./themeBootstrap";
+import { THEME_STORAGE_KEY, THEME_STYLE_STORAGE_KEY, readThemeStyle } from "./themeBootstrap";
 import {
   AddWidgetDialog,
   CategoryTransactionsDialog,
@@ -476,9 +476,9 @@ function App({
   });
   const [themeStyle, setThemeStyleState] = useState<ThemeStyle>(() => {
     try {
-      return (localStorage.getItem(THEME_STYLE_STORAGE_KEY) as ThemeStyle | null) ?? "classic";
+      return readThemeStyle(localStorage.getItem(THEME_STYLE_STORAGE_KEY));
     } catch {
-      return "classic";
+      return readThemeStyle(null);
     }
   });
   const [navOrder, setNavOrder] = useState<Tab[]>(loadNavOrder);
@@ -1557,11 +1557,7 @@ function App({
 
   useEffect(() => {
     const root = document.documentElement;
-    if (themeStyle === "classic") {
-      root.removeAttribute("data-palette");
-    } else {
-      root.setAttribute("data-palette", themeStyle);
-    }
+    root.setAttribute("data-palette", themeStyle);
     try {
       localStorage.setItem(THEME_STYLE_STORAGE_KEY, themeStyle);
     } catch {

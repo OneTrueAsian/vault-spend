@@ -43,9 +43,8 @@ ${setupSnippet(setup)}
 `);
 
 const PALETTES = [
-  { name: "slate", attr: null },
+  { name: "default", attr: "transparent" },
   { name: "futuristic", attr: "futuristic" },
-  { name: "transparent", attr: "transparent" },
   { name: "retro", attr: "retro" },
 ];
 const MODES = ["light", "dark"];
@@ -80,8 +79,14 @@ async function measure(browser) {
         const r = el.getBoundingClientRect();
         return r.width > 0 && (r.right > box.right + 1 || r.left < box.left - 1);
       });
+      // A unit word ("balance", "per year") may move to its own line but never splits mid-word.
+      const unit = card.querySelector(".cmp-unit");
+      const unitWordSplit = unit
+        ? unit.textContent.trim().split(/\s+/).length < new Set([...unit.getClientRects()].map((r) => Math.round(r.top))).size
+        : false;
       return {
         metric: card.getAttribute("data-metric"),
+        unitWordSplit,
         width: box.width,
         clips: card.scrollWidth > card.clientWidth + 1,
         spilling: spill.slice(0, 3).map((e) => `${e.tagName}.${e.className}`),
@@ -103,6 +108,7 @@ function check(label, m) {
   for (const c of m.cards) {
     assert.ok(!c.clips, `${label}: the ${c.metric} card clips its content`);
     assert.deepEqual(c.spilling, [], `${label}: content spills out of the ${c.metric} card`);
+    assert.ok(!c.unitWordSplit, `${label}: the ${c.metric} card breaks its unit word across lines`);
     assert.ok(c.width >= 220, `${label}: the ${c.metric} card is only ${c.width}px wide`);
   }
 }
@@ -154,7 +160,7 @@ try {
   assert.ok(dialog.left >= 0 && dialog.right <= dialog.w + 1, `the dialog fits the window width: ${JSON.stringify(dialog)}`);
   assert.ok(dialog.top >= 0 && dialog.bottom <= dialog.h + 1, `the dialog fits the window height: ${JSON.stringify(dialog)}`);
   assert.equal(dialog.spill, 0, "long names stay inside the dialog");
-  const shot = path.join(SHOTS_DIR, "comparisons-details-slate-dark-700.png");
+  const shot = path.join(SHOTS_DIR, "comparisons-details-default-dark-700.png");
   await browser.saveScreenshot(shot);
   shots.push(shot);
   await (await browser.$(".modal-panel .modal-secondary")).click();
@@ -193,7 +199,7 @@ try {
       await browser.pause(200);
       const m = await measure(browser);
       assert.ok(m.pageOverflow <= 1, `zoom ${zoom}/${width}: the page scrolls sideways by ${m.pageOverflow}px`);
-      for (const c of m.cards) assert.ok(!c.clips && c.spilling.length === 0, `zoom ${zoom}/${width}: the ${c.metric} card overflows`);
+      for (const c of m.cards) assert.ok(!c.clips && c.spilling.length === 0, `zoom ${zoom}/${width}: the ${c.metric} card overflows (clips: ${c.clips}, spilling: ${c.spilling.join(", ")})`);
     }
   }
   await browser.execute(() => (document.documentElement.style.zoom = ""));

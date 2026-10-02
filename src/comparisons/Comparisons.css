@@ -142,6 +142,9 @@
   font-size: 12px;
   font-weight: 400;
   letter-spacing: 0;
+  /* The card allows breaks anywhere for long names; the unit may move to its own line but stays whole. */
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .cmp-measure {
@@ -192,17 +195,19 @@
   font-weight: 550;
 }
 
+/* One grid for both rows (each .cmp-barline passes its label, track and amount through), so the label and
+   amount columns size to their text and the bars still line up. Fixed 38px/76px columns did not fit a
+   narrow card at 150% zoom. */
 .cmp-bars {
   display: grid;
-  gap: 9px;
+  grid-template-columns: auto minmax(12px, 1fr) auto;
+  align-items: center;
+  gap: 9px 8px;
   margin: 14px 0;
 }
 
 .cmp-barline {
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) 76px;
-  align-items: center;
-  gap: 8px;
+  display: contents;
   color: var(--text-muted);
   font-size: 11px;
 }

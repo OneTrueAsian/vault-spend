@@ -191,7 +191,7 @@ try {
   // across all 6 palette/mode combinations, and both distinct Transactions
   // toolbar popovers (account filter, category filter) that share the
   // `.account-filter-panel` CSS class the fix targets — not just one.
-  const PALETTES = [null, "futuristic", "transparent"];
+  const PALETTES = ["transparent", "futuristic"];
   const MODES = ["light", "dark"];
   // Classic and Futuristic menus stay fully opaque. Transparent's are frosted glass: translucent on
   // purpose (--menu-bg), but never below 75% (so the ledger rows underneath can't bleed through the
@@ -240,7 +240,7 @@ try {
             if (await panel.isDisplayed()) await trigger.click();
             return read;
           });
-          const label = `${name} panel, palette=${palette ?? "classic"} theme=${mode}`;
+          const label = `${name} panel, palette=${palette} theme=${mode}`;
           if (palette === "transparent") {
             if (alpha < GLASS_FLOOR) combosFailing.push(`${label}: alpha ${alpha}/255 is under the ${GLASS_FLOOR} floor`);
             if (!blur.includes("blur")) combosFailing.push(`${label}: no blur behind the glass (backdrop-filter: ${blur})`);

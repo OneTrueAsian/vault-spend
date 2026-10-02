@@ -438,9 +438,10 @@ function LivePricesSection({
 
 const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string }[] = [
   {
-    id: "classic",
-    label: "Slate",
-    description: "Vault Spend's default look, following the header's Light/Dark/System toggle.",
+    id: "transparent",
+    label: "Default",
+    description:
+      "Vault Spend's standard look — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Follows the header's Light/Dark/System toggle.",
   },
   {
     id: "futuristic",
@@ -449,16 +450,10 @@ const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string 
       "A neon cyberpunk reskin — electric cyan, violet, and magenta-red accents, plus Orbitron and Share Tech Mono type, and its own angular sidebar icon set. Also follows the header's Light/Dark/System toggle.",
   },
   {
-    id: "transparent",
-    label: "Transparent",
-    description:
-      "A frosted-glass reskin — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Also follows the header's Light/Dark/System toggle.",
-  },
-  {
     id: "retro",
     label: "Retro",
     description:
-      "A classic desktop reskin — gray raised and sunken controls, square corners, white document areas, and navy selection, set in Microsoft Sans Serif or Tahoma. Light is the classic gray; Dark is a modern adaptation of the same shapes. Also follows the header's Light/Dark/System toggle.",
+      "A classic desktop reskin — gray raised and sunken controls, square corners, white document areas, and navy selection, in a plain system sans. Light is the classic gray; Dark is a modern adaptation of the same shapes. Also follows the header's Light/Dark/System toggle.",
   },
 ];
 

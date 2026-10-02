@@ -39,7 +39,7 @@ async function check(selector, theme) {
 }
 try {
   await b.setWindowSize(1280, 900);
-  for (const palette of ["classic", "futuristic", "transparent"]) {
+  for (const palette of ["transparent", "futuristic"]) {
     for (const theme of ["light", "dark"]) {
       await b.execute((palette, theme) => {
         document.documentElement.dataset.palette = palette;

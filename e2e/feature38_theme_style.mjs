@@ -1,7 +1,8 @@
-// E2E test for Settings ▸ Appearance's theme picker (Slate/Futuristic/
-// Transparent): selecting a non-Slate style sets the `data-palette`
-// attribute the CSS keys off of; switching back to Slate clears it. All
-// three styles follow the header's Light/Dark/System toggle now — none of
+// E2E test for Settings ▸ Appearance's theme picker (Default/Futuristic/
+// Retro; Slate is retired): every style sets the `data-palette` attribute
+// the CSS keys off of, and Default is the frosted-glass look stored as
+// "transparent", applied on a fresh launch with nothing saved. All
+// styles follow the header's Light/Dark/System toggle now — none of
 // them hides it — so this also confirms the toggle lives in the header
 // (`.topbar`), not the sidebar, following its relocation out of
 // `.sidebar-foot`. Also covers a regression where `.nav-item:hover` (a
@@ -25,8 +26,10 @@ import path from "node:path";
 // itself sidesteps that entirely.
 async function selectTheme(app, label) {
   await app.browser.execute((text) => {
-    const row = Array.from(document.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent.includes(text));
-    if (!row) throw new Error(`no .feature-toggle-row containing "${text}"`);
+    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')).find(
+      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    );
+    if (!row) throw new Error(`no theme option labelled "${text}"`);
     row.querySelector("input").click();
   }, label);
 }
@@ -69,24 +72,24 @@ try {
   const appearanceHeading = await app.browser.$("//span[contains(@class,'reports-section-title')][text()='Appearance']");
   await appearanceHeading.waitForExist({ timeout: 10000 });
 
-  // Exactly four theme options (Slate, Futuristic, Transparent, Retro) —
-  // catches a leftover Aurora/Midnight Emerald row surviving the removal,
-  // or a missing/duplicated row.
-  const optionCount = await app.browser.execute(
-    () => document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row').length,
+  // Exactly three theme options (Default, Futuristic, Retro) — catches the
+  // retired Slate row (or Aurora/Midnight Emerald) surviving, or a
+  // missing/duplicated row.
+  const labels = await app.browser.execute(() =>
+    Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-label')).map((el) => el.textContent),
   );
-  if (optionCount !== 4) throw new Error(`expected exactly 4 theme options, found ${optionCount}`);
+  assert.deepEqual(labels, ["Default", "Futuristic", "Retro"]);
 
-  // Slate (the default, internal id "classic"): the header toggle is
-  // present inside .topbar (not the sidebar), and no palette is set.
+  // A fresh launch with nothing saved shows Default (internal id "transparent"),
+  // with the header toggle inside .topbar (not the sidebar).
   let palette = await app.browser.execute(() => document.documentElement.getAttribute("data-palette"));
-  if (palette !== null) throw new Error(`expected no data-palette on Slate, got "${palette}"`);
+  if (palette !== "transparent") throw new Error(`expected Default (data-palette="transparent") on a fresh launch, got "${palette}"`);
   let toggleInHeader = await app.browser.execute(() => !!document.querySelector(".topbar .theme-toggle"));
-  if (!toggleInHeader) throw new Error("expected the Light/Dark/System toggle inside .topbar on Slate");
-  let toggleInSidebar = await app.browser.execute(() => !!document.querySelector(".sidebar-foot .theme-toggle"));
+  if (!toggleInHeader) throw new Error("expected the Light/Dark/System toggle inside .topbar on Default");
+  const toggleInSidebar = await app.browser.execute(() => !!document.querySelector(".sidebar-foot .theme-toggle"));
   if (toggleInSidebar) throw new Error("expected the toggle to no longer live in .sidebar-foot");
-  console.log("Slate: data-palette clear, toggle lives in the header — OK");
-  await assertActiveNavIgnoresHover(app, "Slate");
+  console.log("Default: data-palette transparent, toggle lives in the header — OK");
+  await assertActiveNavIgnoresHover(app, "Default");
 
   await selectTheme(app, "Futuristic");
   palette = await app.browser.execute(() => document.documentElement.getAttribute("data-palette"));
@@ -98,20 +101,13 @@ try {
   console.log("Futuristic: data-palette set, toggle still present — OK");
   await assertActiveNavIgnoresHover(app, "Futuristic");
 
-  await selectTheme(app, "Slate");
+  await selectTheme(app, "Default");
   palette = await app.browser.execute(() => document.documentElement.getAttribute("data-palette"));
-  if (palette !== null) throw new Error(`expected data-palette to be cleared back to Slate, got "${palette}"`);
+  if (palette !== "transparent") throw new Error(`expected data-palette back to "transparent" for Default, got "${palette}"`);
+  assert.equal(await app.browser.execute(() => localStorage.getItem("meadow-theme-style")), "transparent", "Default is saved under its existing id");
   toggleInHeader = await app.browser.execute(() => !!document.querySelector(".topbar .theme-toggle"));
-  if (!toggleInHeader) throw new Error("expected the toggle to come back on Slate");
-  console.log("Slate: data-palette cleared, toggle restored — OK");
-
-  await selectTheme(app, "Transparent");
-  palette = await app.browser.execute(() => document.documentElement.getAttribute("data-palette"));
-  if (palette !== "transparent") throw new Error(`expected data-palette="transparent", got "${palette}"`);
-  toggleInHeader = await app.browser.execute(() => !!document.querySelector(".topbar .theme-toggle"));
-  if (!toggleInHeader) throw new Error("expected the Light/Dark/System toggle to still exist on Transparent");
-  console.log("Transparent: data-palette set, toggle still present — OK");
-  await assertActiveNavIgnoresHover(app, "Transparent");
+  if (!toggleInHeader) throw new Error("expected the Light/Dark/System toggle to still exist on Default");
+  console.log("Default: data-palette transparent and saved, toggle present — OK");
 
   // Regression: Transparent's pill-button rule used a bare `button` type
   // selector, whose specificity (0,1,1) outranked the plain classes
@@ -155,15 +151,19 @@ try {
   await settingsNav.click();
   await appearanceHeading.waitForExist({ timeout: 10000 });
 
-  await selectTheme(app, "Slate");
-  palette = await app.browser.execute(() => document.documentElement.getAttribute("data-palette"));
-  if (palette !== null) throw new Error(`expected data-palette to be cleared back to Slate after Transparent, got "${palette}"`);
-  console.log("Slate: data-palette cleared after Transparent — OK");
+  // A user who had the retired Slate style saved gets Default after a reload.
+  await app.browser.execute(() => localStorage.setItem("meadow-theme-style", "classic"));
+  await app.browser.refresh();
+  await app.browser.waitUntil(() => app.browser.execute(() => document.documentElement.getAttribute("data-palette") === "transparent"), {
+    timeout: 10000,
+    timeoutMsg: "a saved Slate style should come back as Default after a reload",
+  });
+  console.log("Saved Slate: shows Default after a reload — OK");
 
   // A floating profile menu must keep the navigation underneath from reading through its labels. Solid
-  // in Slate and Futuristic; in Transparent it is frosted glass: at least 75% opaque with a blur behind.
+  // in Futuristic and Retro; in Default (transparent) it is frosted glass: at least 75% opaque with a blur behind.
   // Check the rendered color rather than a particular CSS token.
-  for (const palette of ["classic", "futuristic", "transparent", "retro"]) {
+  for (const palette of ["transparent", "futuristic", "retro"]) {
     for (const theme of ["light", "dark"]) {
       await app.browser.execute((palette, theme) => {
         document.documentElement.dataset.palette = palette;

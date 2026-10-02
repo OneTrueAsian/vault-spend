@@ -623,13 +623,13 @@
    near `.sidebar`/`.nav-item`) rather than here — that positioning is load-
    bearing for a specificity tie against `.nav-item:hover`, not cosmetic. */
 
-/* Retro — the fourth optional reskin: a classic 1990s-desktop colour
+/* Retro — an optional reskin: a classic 1990s-desktop colour
    scheme (gray control faces, white document panes, navy selection, square
    corners, raised and sunken four-edge borders). Like the others it follows
    the header's Light/Dark/System toggle, so it needs the same three-block
    structure: Light is the historical palette; Dark is a modern adaptation of
-   the same geometry (candidates, not historical values). Text is local
-   "Microsoft Sans Serif"/Tahoma — no font file is bundled or downloaded.
+   the same geometry (candidates, not historical values). Text uses a local
+   system sans from the font stack below — no font file is bundled or downloaded.
    Secondary text is #4a4a4a, not the historical #808080 (2.17:1 on #c0c0c0).
    --status-base and --menu-bg stay opaque. The component geometry (raised
    buttons, sunken fields, square corners) is in the "Retro" section at

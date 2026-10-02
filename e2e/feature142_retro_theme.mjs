@@ -15,8 +15,10 @@ import path from "node:path";
 
 async function selectTheme(app, label) {
   await app.browser.execute((text) => {
-    const row = Array.from(document.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent.includes(text));
-    if (!row) throw new Error(`no .feature-toggle-row containing "${text}"`);
+    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')).find(
+      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    );
+    if (!row) throw new Error(`no theme option labelled "${text}"`);
     row.querySelector("input").click();
   }, label);
 }
@@ -51,7 +53,7 @@ try {
   const labels = await app.browser.execute(() =>
     Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-label')).map((el) => el.textContent),
   );
-  assert.deepEqual(labels, ["Slate", "Futuristic", "Transparent", "Retro"]);
+  assert.deepEqual(labels, ["Default", "Futuristic", "Retro"]);
 
   // Pin the mode to light, then pick the style: the mode must not move.
   await setMode(app, "light");
@@ -61,7 +63,7 @@ try {
   assert.ok(await app.browser.execute(() => !!document.querySelector(".topbar .theme-toggle")), "the Light/Dark/System toggle must stay in the header");
   console.log("Retro: data-palette set, mode untouched, toggle present — OK");
 
-  // It is saved: a reload brings the style back (and Slate stays the default for everyone else).
+  // It is saved: a reload brings the style back (and Default stays the default for everyone else).
   assert.equal(await app.browser.execute(() => localStorage.getItem("meadow-theme-style")), "retro");
   await app.browser.refresh();
   await app.browser.waitUntil(() => app.browser.execute(() => document.documentElement.getAttribute("data-palette") === "retro"), {
@@ -79,9 +81,9 @@ try {
     const dark = mode === "dark";
     const label = `retro/${mode}`;
 
-    // Type: a local Windows-era sans, nothing downloaded.
+    // Type: a local system sans, nothing downloaded.
     const body = await styles(app, "body", ["fontFamily"]);
-    assert.match(body.fontFamily, /Microsoft Sans Serif|Tahoma/, `${label}: body font is ${body.fontFamily}`);
+    assert.match(body.fontFamily, /Tahoma/, `${label}: body font is ${body.fontFamily}`);
 
     // A plain button is a gray raised face, not the base accent fill, with a square corner.
     const button = await styles(app, ".page button:not([class])", ["backgroundColor", "borderRadius", "boxShadow"]);
@@ -139,10 +141,10 @@ try {
     console.log(`${label}: font, raised buttons, sunken fields, navy selection, opaque menu, focus ring — OK`);
   }
 
-  // Switching away restores the default: no palette attribute for Slate.
-  await selectTheme(app, "Slate");
-  assert.equal(await app.browser.execute(() => document.documentElement.getAttribute("data-palette")), null);
-  console.log("Slate: data-palette cleared after Retro — OK");
+  // Switching away restores the Default look (internal id "transparent").
+  await selectTheme(app, "Default");
+  assert.equal(await app.browser.execute(() => document.documentElement.getAttribute("data-palette")), "transparent");
+  console.log("Default: data-palette back to transparent after Retro — OK");
 
   console.log("FEATURE 142 E2E TEST PASSED");
 } finally {

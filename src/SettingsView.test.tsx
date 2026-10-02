@@ -142,7 +142,7 @@ describe("Settings AppearanceSection", () => {
     container.remove();
   });
 
-  function show(onSetThemeStyle = vi.fn(), themeStyle: Parameters<typeof AppearanceSection>[0]["themeStyle"] = "classic") {
+  function show(onSetThemeStyle = vi.fn(), themeStyle: Parameters<typeof AppearanceSection>[0]["themeStyle"] = "transparent") {
     act(() => {
       root.render(<AppearanceSection themeStyle={themeStyle} onSetThemeStyle={onSetThemeStyle} />);
     });
@@ -153,9 +153,30 @@ describe("Settings AppearanceSection", () => {
     return Array.from(container.querySelectorAll(".feature-toggle-label")).map((el) => el.textContent);
   }
 
-  it("offers Retro as a fourth style after the three existing ones", () => {
+  it("offers Default, Futuristic and Retro, and no longer Slate", () => {
     show();
-    expect(optionLabels()).toEqual(["Slate", "Futuristic", "Transparent", "Retro"]);
+    expect(optionLabels()).toEqual(["Default", "Futuristic", "Retro"]);
+  });
+
+  it("calls the frosted-glass look Default and stores it under its existing id", () => {
+    const onSet = show(vi.fn(), "retro");
+    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.startsWith("Default"))!;
+    act(() => {
+      (row.querySelector("input") as HTMLInputElement).click();
+    });
+    expect(onSet).toHaveBeenCalledWith("transparent");
+  });
+
+  it("checks Default when the saved style is the frosted-glass one", () => {
+    show(vi.fn(), "transparent");
+    const checked = Array.from(container.querySelectorAll<HTMLInputElement>("input[type=radio]")).filter((i) => i.checked);
+    expect(checked[0].closest(".feature-toggle-row")?.textContent).toContain("Default");
+  });
+
+  it("describes Retro without naming Microsoft or Windows", () => {
+    show();
+    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.includes("Retro"))!;
+    expect(row.textContent).not.toMatch(/microsoft|windows/i);
   });
 
   it("describes Retro as a classic light look with a modern dark adaptation", () => {
