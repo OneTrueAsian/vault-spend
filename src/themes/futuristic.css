@@ -25,7 +25,7 @@
                         themeBootstrap.ts). Only shadows and ambient light use it; text, borders,
                         focus rings and status colors never do.
    --border-soft        inner rules and chart grid lines.
-   --field-bg           the inside of text fields and closed selectors. */
+   --field-bg           the recessed well behind segmented controls and tab strips. */
 
 :root[data-palette="futuristic"] {
   --glow: var(--neon-glow, 0.7);
@@ -388,7 +388,6 @@
 :where([data-palette="futuristic"]) :is(.menu-select-toggle, .account-filter-toggle) {
   border-radius: var(--radius-control);
   border-color: var(--border-strong);
-  background: var(--field-bg);
   color: var(--text);
 }
 
@@ -537,13 +536,24 @@
 }
 
 /* Fields */
+/* Fields keep the panel color (every field rule in App.css uses --surface, so they all match); only
+   their corners change. */
 :where([data-palette="futuristic"]) :is(.text-input, .account-select, textarea) {
   border-radius: var(--radius-control);
-  border-color: var(--border-strong);
-  background: var(--field-bg);
 }
 
 :where([data-palette="futuristic"]) input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]) {
+  border-radius: var(--radius-control);
+}
+
+/* App.css gives full-size fields and filter triggers their 8px corners in one :is() list, which takes
+   the specificity of its most specific entry (0,3,1). The same list here ties it and wins by order. */
+:where([data-palette="futuristic"]) :is(.text-input, .bucket-new-form input, .bucket-new-form select,
+    .bucket-contribution-form input, .bucket-contribution-form select,
+    .labeled-field input, .labeled-field select, .ledger-filters input,
+    .ledger-filters select, .rules-controls select, .account-filter-toggle,
+    .account-select, .month-select, .saved-filter-form input, .help-search,
+    .category-create-form input:not([type="checkbox"]):not([type="radio"])) {
   border-radius: var(--radius-control);
 }
 

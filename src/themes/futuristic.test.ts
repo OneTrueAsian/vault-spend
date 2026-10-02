@@ -40,6 +40,23 @@ describe("Futuristic fonts", () => {
   });
 });
 
+/** A selector list split at its top-level commas (not the ones inside :is(), :not(), …). */
+function splitTopLevel(selector: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < selector.length; i++) {
+    if (selector[i] === "(") depth++;
+    else if (selector[i] === ")") depth--;
+    else if (selector[i] === "," && depth === 0) {
+      parts.push(selector.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(selector.slice(start).trim());
+  return parts;
+}
+
 // One canonical source for the theme, scoped so Default and Retro cannot change.
 describe("Futuristic stylesheet", () => {
   const block = (selector: string) => {
@@ -94,7 +111,7 @@ describe("Futuristic stylesheet", () => {
         expect(selector, selector).toMatch(/^:root\[data-palette="futuristic"\](\[data-accent="(pink|violet)"\]|:not\(\[data-theme="light"\]\)|\[data-theme="dark"\])?$/);
         continue;
       }
-      for (const part of selector.split(/,(?![^(]*\))/).map((p) => p.trim())) {
+      for (const part of splitTopLevel(selector)) {
         expect(part.startsWith(':where([data-palette="futuristic"])') || settingsOnly.test(part), part).toBe(true);
       }
     }

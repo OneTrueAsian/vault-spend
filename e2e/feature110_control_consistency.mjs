@@ -14,7 +14,9 @@ async function nav(name) {
   }
   await b.waitUntil(async () => await b.execute((name) => document.querySelector(".view-title")?.textContent === name, name), { timeout: 10000 });
 }
-async function check(selector, theme) {
+// Each style has one control corner radius: Default 8px, Futuristic 7px.
+const CONTROL_RADIUS = { transparent: "8px", futuristic: "7px" };
+async function check(selector, theme, palette) {
   const result = await b.execute((selector) => {
     const fields = [...document.querySelectorAll(selector)];
     const ref = document.createElement("input");
@@ -31,7 +33,7 @@ async function check(selector, theme) {
   }, selector);
   assert.ok(result.length, `no controls found: ${selector}`);
   for (const field of result) {
-    assert.equal(field.radius, "8px", `${field.name} border radius`);
+    assert.equal(field.radius, CONTROL_RADIUS[palette], `${palette}/${theme}: ${field.name} border radius`);
     assert.equal(field.color, field.expectedColor, `${field.name} text color`);
     assert.equal(field.background, field.expectedBackground, `${field.name} background`);
     assert.equal(field.scheme, theme, `${field.name} native picker theme`);
@@ -47,19 +49,19 @@ try {
       }, palette, theme);
       await nav("Transactions");
       await (await b.$("button*=More filters")).click();
-      await check(".account-filter-panel input[type='date'], .account-filter-panel .menu-select-toggle, .ledger-filters input[type='search']", theme);
+      await check(".account-filter-panel input[type='date'], .account-filter-panel .menu-select-toggle, .ledger-filters input[type='search']", theme, palette);
       await b.keys("Escape");
       assert.equal(await b.$(".account-filter-panel").isExisting(), false);
       await (await b.$("button*=Add transaction")).click();
       await b.$(".modal-panel input[type='date']").waitForExist({ timeout: 5000 });
-      await check(".modal-field input:not([type='checkbox']), .modal-field .menu-select-toggle", theme);
+      await check(".modal-field input:not([type='checkbox']), .modal-field .menu-select-toggle", theme, palette);
       await b.keys("Escape");
       await nav("Goals");
       await (await b.$(".bucket-contribute button")).click();
-      await check(".bucket-contribute-panel input", theme);
+      await check(".bucket-contribute-panel input", theme, palette);
       await b.keys("Escape");
       await nav("Settings");
-      await check("[data-rules-category-filter]", theme);
+      await check("[data-rules-category-filter]", theme, palette);
     }
   }
   const protectionCheckbox = await b.execute(() => {
