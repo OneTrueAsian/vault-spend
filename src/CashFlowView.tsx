@@ -8,8 +8,8 @@ import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
 import { MenuSelect } from "./MenuSelect";
 import { CategorySpendDialog } from "./CategorySpendDialog";
+import { CATEGORY_COLORS } from "./categoryPalette";
 
-const CATEGORY_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 const FORECAST_DAY_OPTIONS = [30, 60, 90];
 
 export function CashFlowView({

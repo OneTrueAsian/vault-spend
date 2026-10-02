@@ -44,6 +44,7 @@ import { attentionItems, type AttentionKind } from "./needsAttention";
 import { effectiveBudget } from "./budgetPlan";
 import { SafeToSpendCard } from "./SafeToSpendCard";
 import { CategorySpendDialog } from "./CategorySpendDialog";
+import { CATEGORY_COLORS } from "./categoryPalette";
 
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
@@ -132,7 +133,6 @@ function loadChecklistDismissed(): boolean {
   }
 }
 
-const CATEGORY_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 const GROUP_ORDER = ["income", "fixed", "flexible", "nonmonthly"] as const;
 const GROUP_LABELS: Record<string, string> = {
   income: "Income",
@@ -644,7 +644,7 @@ export function DashboardView({
             {investmentsDelta >= 0 ? "▲" : "▼"} {fmtMoneyShort(Math.abs(investmentsDelta))} over {monthsSpan}mo
           </span>
         )}
-        <Sparkline points={investmentsSpark} color="#8A5FB0" width={160} fluid />
+        <Sparkline points={investmentsSpark} color="var(--cat-4)" width={160} fluid />
       </button>
     ),
 

@@ -10,8 +10,8 @@ import type { WidgetId } from "./dashboardLayout";
 import { StatDetailPanel } from "./StatDetailPanel";
 import { AccumulationSummaryCard } from "./AccumulationSection";
 import { MenuSelect } from "./MenuSelect";
+import { categoryColor } from "./categoryPalette";
 
-const CLASS_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 
 const PROJECTION_YEAR_OPTIONS = [5, 10, 15, 20, 25, 30, 40];
 
@@ -521,7 +521,7 @@ export function InvestmentsView({
   const donutData = Array.from(byClass.entries()).map(([label, value], i) => ({
     label,
     value,
-    color: CLASS_COLORS[i % CLASS_COLORS.length],
+    color: categoryColor(i),
   }));
 
   function commitPriceEdit(id: number, value: string) {

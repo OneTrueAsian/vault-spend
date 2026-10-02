@@ -22,6 +22,7 @@ import {
 import { buildSankeyData, layoutSankey, sankeyRibbonPath, spreadLabelPositions, type SankeyNode } from "./sankey";
 import { buildHeatmapWeeks, heatmapBucket, heatmapScaleMax, type DailyAmount } from "./heatmap";
 import { MenuSelect } from "./MenuSelect";
+import { CATEGORY_COLORS } from "./categoryPalette";
 
 /** Savings rate — (income − expenses) ÷ income — trended over every month
  * with transaction history, trailing 12. A purely client-side reduction
@@ -278,7 +279,6 @@ function BreakdownTable({
 
 // Same palette CashFlowView/DashboardView use for their category donuts, so
 // a category reads the same color everywhere it shows up on Reports.
-const CATEGORY_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 
 // Sankey geometry, in viewBox units. The side margins hold the labels.
 const SANKEY_MARGIN = { top: 20, right: 190, bottom: 6, left: 150 };

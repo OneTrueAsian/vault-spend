@@ -57,6 +57,14 @@
 
   --nav-active-shadow: 0 12px 22px rgba(35, 61, 123, 0.24);
 
+  /* Category colors for charts and legends (src/categoryPalette.ts); Futuristic recolors them. */
+  --cat-1: #1E9E76;
+  --cat-2: #3E7CB8;
+  --cat-3: #C08A2E;
+  --cat-4: #8A5FB0;
+  --cat-5: #BD5B3C;
+  --cat-6: #4E8FC9;
+
   --shadow-sm: 0 6px 16px rgba(28, 39, 69, 0.06);
   --shadow-md: 0 14px 32px rgba(28, 39, 69, 0.08);
   --shadow-lg: 0 24px 56px rgba(28, 39, 69, 0.14);
