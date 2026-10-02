@@ -6326,9 +6326,9 @@ impl Store {
     /// large charge for its category, or a likely duplicate of another
     /// transaction — computed fresh over all transactions (personal-scale
     /// data, same "don't over-engineer for scale" precedent as the
-    /// per-account balance loop). One transaction can appear more than
-    /// once (e.g. flagged as both a duplicate of two different other
-    /// rows), each as its own entry.
+    /// per-account balance loop). A transaction has at most one flag of
+    /// each kind, so it can appear twice (large and duplicate) but never
+    /// once per look-alike.
     ///
     /// "Large": a category needs at least 3 other transactions in the
     /// trailing ~6 months (180 days) before `today` to have a baseline to
@@ -6345,7 +6345,9 @@ impl Store {
     /// stripped). This is looking for genuinely separate charges that
     /// happen to look identical (e.g. a subscription billed twice), not
     /// the same import re-added — that's already prevented at import time
-    /// by fingerprint-based dedup.
+    /// by fingerprint-based dedup. The flag names the closest look-alike
+    /// (the earlier one on a tie) and counts the rest: "... on 2026-08-02
+    /// (and 1 more)".
     pub fn anomaly_flags(&self) -> rusqlite::Result<Vec<AnomalyFlag>> {
         struct Row {
             id: i64,
@@ -6460,25 +6462,42 @@ impl Store {
             let key = (row.amount.to_string(), normalize_description(&row.description));
             buckets.entry(key).or_default().push(row);
         }
-        for group in buckets.values() {
-            for i in 0..group.len() {
-                for j in (i + 1)..group.len() {
-                    let a = group[i];
-                    let b = group[j];
-                    if (a.date - b.date).num_days().abs() > 3 {
-                        continue;
-                    }
-                    result.push(AnomalyFlag {
-                        transaction_id: a.id,
-                        kind: "duplicate".to_string(),
-                        detail: format!("Possible duplicate of the {} transaction on {}", b.description, b.date),
-                    });
-                    result.push(AnomalyFlag {
-                        transaction_id: b.id,
-                        kind: "duplicate".to_string(),
-                        detail: format!("Possible duplicate of the {} transaction on {}", a.description, a.date),
-                    });
+        // Each transaction gets at most one duplicate flag, naming its closest look-alike and how many
+        // more there are. A flag per matching pair grew with the square of a group's size: 2,000
+        // same-merchant charges in one month made ~900,000 flags (a 120 MB reply that stalled launch).
+        // Sorted by date, the look-alikes within 3 days of a row sit in one contiguous run around it
+        // (`lo..hi`, both only moving forward), and its closest one is a direct neighbor.
+        for group in buckets.values_mut() {
+            group.sort_by_key(|r| (r.date, r.id));
+            let (mut lo, mut hi) = (0usize, 0usize);
+            for (i, row) in group.iter().enumerate() {
+                while (row.date - group[lo].date).num_days() > 3 {
+                    lo += 1;
                 }
+                while hi < group.len() && (group[hi].date - row.date).num_days() <= 3 {
+                    hi += 1;
+                }
+                let matches = hi - lo - 1;
+                if matches == 0 {
+                    continue;
+                }
+                let gap = |j: usize| (group[j].date - row.date).num_days().abs();
+                // the earlier neighbor wins a tie
+                let closest = match (i.checked_sub(1).filter(|&j| j >= lo), Some(i + 1).filter(|&j| j < hi)) {
+                    (Some(before), Some(after)) if gap(after) < gap(before) => after,
+                    (Some(before), _) => before,
+                    (None, Some(after)) => after,
+                    (None, None) => unreachable!("matches > 0 means a neighbor is in range"),
+                };
+                let more = if matches > 1 { format!(" (and {} more)", matches - 1) } else { String::new() };
+                result.push(AnomalyFlag {
+                    transaction_id: row.id,
+                    kind: "duplicate".to_string(),
+                    detail: format!(
+                        "Possible duplicate of the {} transaction on {}{more}",
+                        group[closest].description, group[closest].date
+                    ),
+                });
             }
         }
 
@@ -14288,6 +14307,63 @@ mod tests {
                 assert!(flags.iter().all(|f| f.kind != "duplicate"), "case: {} — got {flags:?}", case.label);
             }
         }
+    }
+
+    #[test]
+    fn a_transaction_gets_one_duplicate_flag_naming_its_closest_match_and_how_many_more() {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store
+            .save_transactions(
+                account,
+                &[
+                    tx("2026-08-01", "Corner Coffee", "-4.75"),
+                    tx("2026-08-02", "Corner Coffee", "-4.75"),
+                    tx("2026-08-04", "Corner Coffee", "-4.75"),
+                    tx("2026-08-20", "Corner Coffee", "-4.75"),
+                ],
+            )
+            .unwrap();
+        let id_on = |date: &str| store.all_transactions().unwrap().into_iter().find(|t| t.transaction.date.to_string() == date).unwrap().id;
+        let flags = store.anomaly_flags().unwrap();
+        let detail_for = |date: &str| -> Vec<String> {
+            let id = id_on(date);
+            flags.iter().filter(|f| f.kind == "duplicate" && f.transaction_id == id).map(|f| f.detail.clone()).collect()
+        };
+
+        assert_eq!(
+            detail_for("2026-08-01"),
+            ["Possible duplicate of the Corner Coffee transaction on 2026-08-02 (and 1 more)"]
+        );
+        // 08-01 and 08-04 are both in range; 08-01 is the closer one
+        assert_eq!(
+            detail_for("2026-08-02"),
+            ["Possible duplicate of the Corner Coffee transaction on 2026-08-01 (and 1 more)"]
+        );
+        assert_eq!(
+            detail_for("2026-08-04"),
+            ["Possible duplicate of the Corner Coffee transaction on 2026-08-02 (and 1 more)"]
+        );
+        assert!(detail_for("2026-08-20").is_empty(), "16 days from the rest is a normal repeat, got {flags:?}");
+    }
+
+    #[test]
+    fn many_look_alike_transactions_get_one_duplicate_flag_each_not_one_per_pair() {
+        // 3,000 same-amount, same-merchant rows in four weeks: every one has look-alikes within 3 days.
+        // Flagging every pair would be millions of flags (the 2026-10-02 QA load stall); one per row is 3,000.
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        let rows: Vec<Transaction> = (0..3000)
+            .map(|i| tx(&format!("2026-08-{:02}", i % 28 + 1), &format!("Parking meter {i}"), "-2.50"))
+            .collect();
+        store.save_transactions(account, &rows).unwrap();
+
+        let flags = store.anomaly_flags().unwrap();
+
+        let duplicates = flags.iter().filter(|f| f.kind == "duplicate").count();
+        assert_eq!(duplicates, 3000);
+        let ids: std::collections::HashSet<i64> = flags.iter().filter(|f| f.kind == "duplicate").map(|f| f.transaction_id).collect();
+        assert_eq!(ids.len(), 3000, "one flag per transaction");
     }
 
     // Boundary cases for the sliding-window/bucketed rewrite of
