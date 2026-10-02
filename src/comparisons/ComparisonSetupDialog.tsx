@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { InfoTip } from "../InfoTip";
 import { MenuSelect } from "../MenuSelect";
+import { FIELD_TIPS } from "./fieldTips";
 import { ModalShell } from "../Modal";
 import { toLocalIsoDate } from "../format";
 import { AgeField } from "./AgeField";
@@ -95,7 +97,10 @@ export function ComparisonSetupDialog({
         )}
 
         <div className="modal-field">
-          <span>Compare</span>
+          <span>
+            Compare
+            <InfoTip label="Compare" text={FIELD_TIPS.compare} />
+          </span>
           <MenuSelect
             ariaLabel="Compare"
             fill
@@ -110,7 +115,10 @@ export function ComparisonSetupDialog({
 
         {mode === "household" && members.length > 0 && (
           <fieldset className="cmp-members">
-            <legend>Who shares your finances?</legend>
+            <legend>
+              Who shares your finances?
+              <InfoTip label="Who shares your finances?" text={FIELD_TIPS.shares} />
+            </legend>
             <p className="modal-message-secondary">
               Leave out anyone who lives with you but manages their own money, such as a roommate.
             </p>
@@ -140,7 +148,13 @@ export function ComparisonSetupDialog({
 
         {choices.length > 1 && (
           <div className="modal-field">
-            <span>{mode === "household" ? "Whose age should we use?" : "Whose finances are these?"}</span>
+            <span>
+              {mode === "household" ? "Whose age should we use?" : "Whose finances are these?"}
+              <InfoTip
+                label={mode === "household" ? "Whose age should we use?" : "Whose finances are these?"}
+                text={mode === "household" ? FIELD_TIPS.subjectHousehold : FIELD_TIPS.subjectIndividual}
+              />
+            </span>
             <MenuSelect
               ariaLabel={mode === "household" ? "Reference person" : "Person"}
               fill

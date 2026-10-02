@@ -466,6 +466,38 @@
   min-width: 0;
 }
 
+/* A field with its InfoTip beside it (the tip sits outside the label; see AmountEditor). */
+.cmp-tip-field {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* A checkbox row with a tip: the row's separator line moves from the label to the whole row, so it still
+ * runs the full width (the label itself now only spans its text, with the tip right after it). */
+.cmp-tip-field:has(> .feature-toggle-row) {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cmp-tip-field:has(> .feature-toggle-row):last-child {
+  border-bottom: none;
+}
+
+.cmp-tip-field > .feature-toggle-row {
+  border-bottom: none;
+}
+
+.cmp-tip-field.cmp-note-input > label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cmp-tip-field.cmp-note-input input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .cmp-settings-actions {
   display: flex;
   flex-wrap: wrap;

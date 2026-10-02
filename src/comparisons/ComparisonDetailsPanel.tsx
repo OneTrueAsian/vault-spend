@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { InfoTip } from "../InfoTip";
 import { MenuSelect } from "../MenuSelect";
 import { toLocalIsoDate } from "../format";
 import type { Account, Asset, FamilyMember } from "../types";
 import { AgeField } from "./AgeField";
 import { AmountEditor } from "./AmountEditor";
+import { FIELD_TIPS } from "./fieldTips";
 import { getComparisonSetup, saveComparisonSetup, useGeneration } from "./api";
 import { metricTitle, personLabel } from "./format";
 import {
@@ -97,6 +99,8 @@ export function ComparisonDetailsPanel({
   knownRevision?: number;
 }) {
   const generation = useGeneration();
+  // Prefix for the ids that link a checkbox to its InfoTip.
+  const uid = useId();
   const [base, setBase] = useState<ComparisonSetup | null>(null);
   const [revision, setRevision] = useState(0);
   const [repairs, setRepairs] = useState<Repair[]>([]);
@@ -253,7 +257,10 @@ export function ComparisonDetailsPanel({
       <section className="cmp-settings-group" data-cmp-group="who">
         <h3>Who is compared</h3>
         <div className="cmp-settings-row">
-          <span className="cmp-row-label">Compare</span>
+          <span className="cmp-row-label">
+            Compare
+            <InfoTip label="Compare" text={FIELD_TIPS.compare} />
+          </span>
           <MenuSelect
             ariaLabel="Comparison mode"
             value={draft.mode}
@@ -265,7 +272,13 @@ export function ComparisonDetailsPanel({
           />
         </div>
         <div className="cmp-settings-row">
-          <span className="cmp-row-label">{draft.mode === "household" ? "Age used for the household" : "Person compared"}</span>
+          <span className="cmp-row-label">
+            {draft.mode === "household" ? "Age used for the household" : "Person compared"}
+            <InfoTip
+              label={draft.mode === "household" ? "Age used for the household" : "Person compared"}
+              text={draft.mode === "household" ? FIELD_TIPS.subjectHousehold : FIELD_TIPS.subjectIndividual}
+            />
+          </span>
           <MenuSelect
             ariaLabel={draft.mode === "household" ? "Household reference person" : "Person compared"}
             value={subject ? personKey(subject) : ""}
@@ -281,14 +294,18 @@ export function ComparisonDetailsPanel({
           <div key={personKey(p.person)} className="cmp-person-row" data-cmp-person={personKey(p.person)}>
             <strong>{personLabel(p.person, members)}</strong>
             {p.person.kind !== "owner" && (
-              <label className="feature-toggle-row">
-                <input
-                  type="checkbox"
-                  checked={p.inHousehold}
-                  onChange={(e) => edit((s) => setInHousehold(s, p.person, e.target.checked))}
-                />
-                <span className="feature-toggle-text">Shares my finances (leave unticked for a roommate who manages their own money)</span>
-              </label>
+              <span className="cmp-tip-field">
+                <label className="feature-toggle-row">
+                  <input
+                    type="checkbox"
+                    checked={p.inHousehold}
+                    aria-describedby={`${uid}-shares-${personKey(p.person)}`}
+                    onChange={(e) => edit((s) => setInHousehold(s, p.person, e.target.checked))}
+                  />
+                  <span className="feature-toggle-text">Shares my finances (leave unticked for a roommate who manages their own money)</span>
+                </label>
+                <InfoTip label="Shares my finances" text={FIELD_TIPS.shares} id={`${uid}-shares-${personKey(p.person)}`} />
+              </span>
             )}
             <AgeField
               label={`Age of ${personLabel(p.person, members)}`}
@@ -308,7 +325,10 @@ export function ComparisonDetailsPanel({
         {draft.mode === "household" ? (
           <>
             <div className="cmp-settings-row">
-              <span className="cmp-row-label">Enter income as</span>
+              <span className="cmp-row-label">
+                Enter income as
+                <InfoTip label="Enter income as" text={FIELD_TIPS.incomeMethod} />
+              </span>
               <MenuSelect
                 ariaLabel="Household income method"
                 value={draft.income.householdMethod}
@@ -326,12 +346,14 @@ export function ComparisonDetailsPanel({
                 value={draft.income.householdTotal}
                 onChange={(a) => edit((s) => setHouseholdTotal(s, a))}
                 hint="What you enter for each person is kept if you switch methods."
+                tip={FIELD_TIPS.income}
               />
             ) : (
               inHousehold.map((p) => (
                 <AmountEditor
                   key={personKey(p.person)}
                   label={`${personLabel(p.person, members)}: income per year`}
+                  tip={FIELD_TIPS.income}
                   value={draft.income.perPerson.find((e) => personKey(e.person) === personKey(p.person))?.grossAnnual ?? null}
                   onChange={(a) => edit((s) => setPersonIncome(s, p.person, a))}
                 />
@@ -343,6 +365,7 @@ export function ComparisonDetailsPanel({
             <AmountEditor
               key={personKey(draft.individualPerson)}
               label={`${personLabel(draft.individualPerson, members)}: income per year`}
+              tip={FIELD_TIPS.income}
               value={draft.income.perPerson.find((e) => personKey(e.person) === personKey(draft.individualPerson as PersonRef))?.grossAnnual ?? null}
               onChange={(a) => edit((s) => setPersonIncome(s, draft.individualPerson as PersonRef, a))}
             />
@@ -353,19 +376,26 @@ export function ComparisonDetailsPanel({
       {draft.mode === "household" && (
         <section className="cmp-settings-group" data-cmp-group="spending">
           <h3>Spending</h3>
-          <label className="feature-toggle-row">
-            <input
-              type="checkbox"
-              checked={draft.spending.completenessConfirmed}
-              onChange={(e) => edit((s) => setSpendingCompleteness(s, e.target.checked))}
-              data-cmp-spending-complete
-            />
-            <span className="feature-toggle-text">
-              The last 12 completed months of tracked spending cover everything my household spends
-            </span>
-          </label>
+          <span className="cmp-tip-field">
+            <label className="feature-toggle-row">
+              <input
+                type="checkbox"
+                checked={draft.spending.completenessConfirmed}
+                aria-describedby={`${uid}-spending-complete`}
+                onChange={(e) => edit((s) => setSpendingCompleteness(s, e.target.checked))}
+                data-cmp-spending-complete
+              />
+              <span className="feature-toggle-text">
+                The last 12 completed months of tracked spending cover everything my household spends
+              </span>
+            </label>
+            <InfoTip label="Spending covers everything" text={FIELD_TIPS.spendingComplete} id={`${uid}-spending-complete`} />
+          </span>
           <fieldset className="cmp-members">
-            <legend>Accounts that count (none ticked means all checking, savings and credit accounts)</legend>
+            <legend>
+              Accounts that count (none ticked means all checking, savings and credit accounts)
+              <InfoTip label="Accounts that count" text={FIELD_TIPS.spendingAccounts} />
+            </legend>
             {spendingAccounts.map((a) => (
               <label key={a.id} className="feature-toggle-row">
                 <input
@@ -382,12 +412,16 @@ export function ComparisonDetailsPanel({
             value={draft.spending.manualAnnual}
             onChange={(a) => edit((s) => setManualAnnualSpending(s, a))}
             hint="Use this when there are fewer than 12 completed months of history. Short history is never scaled up automatically."
+            tip={FIELD_TIPS.annualSpending}
           />
         </section>
       )}
 
       <section className="cmp-settings-group" data-cmp-group="savings">
-        <h3>Savings</h3>
+        <h3>
+          Savings
+          <InfoTip label="Savings" text={FIELD_TIPS.savings} />
+        </h3>
         <p className="modal-message-secondary">
           Checking and savings accounts count. Investment and “other” accounts are left out unless you count them; credit cards and loans never count.
         </p>
@@ -405,7 +439,10 @@ export function ComparisonDetailsPanel({
       </section>
 
       <section className="cmp-settings-group" data-cmp-group="investments">
-        <h3>Investments</h3>
+        <h3>
+          Investments
+          <InfoTip label="Investments" text={FIELD_TIPS.investments} />
+        </h3>
         <p className="modal-message-secondary">Choose what each account or asset is, only for comparisons. It does not change anything elsewhere in the app.</p>
         {investmentSources.map(({ source, name }) => (
           <div key={sourceKey(source)} className="cmp-settings-row">
@@ -421,7 +458,10 @@ export function ComparisonDetailsPanel({
       </section>
 
       <section className="cmp-settings-group" data-cmp-group="debt">
-        <h3>Debt</h3>
+        <h3>
+          Debt
+          <InfoTip label="Debt type" text={FIELD_TIPS.debtType} />
+        </h3>
         <p className="modal-message-secondary">
           What you currently owe counts, including a card you normally pay in full. Leaving a card out here only changes the comparison.
         </p>
@@ -436,14 +476,18 @@ export function ComparisonDetailsPanel({
                 options={DEBT_CLASSES}
                 onChange={(v) => edit((s) => setDebtClass(s, source, v === "" ? null : (v as DebtClass)))}
               />
-              <label className="feature-toggle-row">
-                <input
-                  type="checkbox"
-                  checked={draft.debtExclusions.some((x) => sameSource(x, source))}
-                  onChange={(e) => edit((s) => setDebtExcluded(s, source, e.target.checked))}
-                />
-                <span className="feature-toggle-text">Leave out of the Debt comparison</span>
-              </label>
+              <span className="cmp-tip-field">
+                <label className="feature-toggle-row">
+                  <input
+                    type="checkbox"
+                    checked={draft.debtExclusions.some((x) => sameSource(x, source))}
+                    aria-describedby={`${uid}-debt-out-${a.id}`}
+                    onChange={(e) => edit((s) => setDebtExcluded(s, source, e.target.checked))}
+                  />
+                  <span className="feature-toggle-text">Leave out of the Debt comparison</span>
+                </label>
+                <InfoTip label="Leave out of the Debt comparison" text={FIELD_TIPS.debtLeaveOut} id={`${uid}-debt-out-${a.id}`} />
+              </span>
             </div>
           );
         })}
@@ -451,7 +495,10 @@ export function ComparisonDetailsPanel({
 
       {draft.people.length > 1 && (
         <section className="cmp-settings-group" data-cmp-group="shares">
-          <h3>Shared accounts</h3>
+          <h3>
+            Shared accounts
+            <InfoTip label="Shared accounts" text={FIELD_TIPS.accountShares} />
+          </h3>
           <p className="modal-message-secondary">
             For an account or asset owned by more than one person, say what share is whose. A share that is not assigned is reported, never guessed. Leave it
             blank when one person owns all of it.
@@ -483,7 +530,10 @@ export function ComparisonDetailsPanel({
       )}
 
       <section className="cmp-settings-group" data-cmp-group="confirm">
-        <h3>Confirm your balances</h3>
+        <h3>
+          Confirm your balances
+          <InfoTip label="Confirm your balances" text={FIELD_TIPS.confirmBalances} />
+        </h3>
         <p className="modal-message-secondary">A balance comparison is only made once you say the accounts behind it are complete and current.</p>
         {(["savings", "investments", "debt"] as MetricId[]).map((m) => {
           const confirmed = draft.balanceConfirmations.find((c) => c.metric === m)?.confirmedOn;
@@ -502,10 +552,10 @@ export function ComparisonDetailsPanel({
       <section className="cmp-settings-group" data-cmp-group="manual">
         <h3>Enter a total yourself</h3>
         <p className="modal-message-secondary">
-          Use this when your tracked accounts cannot add up to the figure being compared. Your entered total is used until you remove it; the tracked
-          total stays visible in the details.
+          Leave these empty and Vault Spend works out each total from your accounts. Type an amount only if the app&apos;s total would be wrong, for
+          example because you have an account you have not added. The app&apos;s own total is still shown in the details.
         </p>
-        {(["savings", "investments", "debt", "spending"] as MetricId[])
+        {(["savings", "investments", "debt", "spending"] as const)
           .filter((m) => m !== "spending" || draft.mode === "household")
           .map((m) => (
             <AmountEditor
@@ -514,6 +564,7 @@ export function ComparisonDetailsPanel({
               value={draft.manualOverrides.find((o) => o.metric === m && (subjectForOverrides ? o.subject !== null && personKey(o.subject) === personKey(subjectForOverrides) : o.subject === null))?.amount ?? null}
               onChange={(a) => edit((s) => setManualOverride(s, m, subjectForOverrides, a))}
               hint={MANUAL_HINT[m]}
+              tip={FIELD_TIPS.manualTotal[m]}
             />
           ))}
       </section>

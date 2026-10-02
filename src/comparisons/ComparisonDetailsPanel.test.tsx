@@ -102,6 +102,84 @@ describe("ComparisonDetailsPanel", () => {
   const save = () => q("[data-cmp-settings-save]") as HTMLButtonElement;
   const trigger = (label: string) => container.querySelector<HTMLElement>(`button[aria-label^="${label}"]`)!;
 
+  describe("info tips", () => {
+    const tipLabels = () => [...container.querySelectorAll<HTMLButtonElement>("[data-info-tip]")].map((b) => b.dataset.infoTip);
+    const tipText = (label: string) => {
+      const b = container.querySelector<HTMLButtonElement>(`[data-info-tip="${label}"]`)!;
+      return document.getElementById(b.getAttribute("aria-describedby")!)?.textContent ?? "";
+    };
+
+    it("explains every field of a household setup", async () => {
+      api.getComparisonSetup.mockResolvedValue(response(stored()));
+      await mount();
+      const labels = tipLabels();
+      for (const label of [
+        "Compare",
+        "Age used for the household",
+        "Shares my finances",
+        "Age of Me",
+        "Age of Partner",
+        "Enter income as",
+        "Household income per year",
+        "Household income per year: date measured",
+        "Household income per year: where this came from",
+        "Spending covers everything",
+        "Accounts that count",
+        "Annual spending",
+        "Savings",
+        "Investments",
+        "Debt type",
+        "Leave out of the Debt comparison",
+        "Shared accounts",
+        "Confirm your balances",
+        "Savings: your own total",
+        "Investments: your own total",
+        "Debt: your own total",
+        "Spending: your own total",
+      ]) {
+        expect(labels, `no info tip for "${label}"`).toContain(label);
+      }
+      for (const label of labels) expect(tipText(label!).trim(), `the "${label}" tip has no text`).not.toBe("");
+      expect(tipText("Compare")).toMatch(/only figure available for a single person/);
+    });
+
+    it("says each typed total is optional and where the app's own total comes from", async () => {
+      api.getComparisonSetup.mockResolvedValue(response(stored()));
+      await mount();
+      const sources: Record<string, RegExp> = {
+        "Savings: your own total": /checking and savings accounts/,
+        "Investments: your own total": /investment accounts/,
+        "Debt: your own total": /credit cards and loans/,
+        "Spending: your own total": /spending over the last 12 full months/,
+      };
+      for (const [label, source] of Object.entries(sources)) {
+        expect(tipText(label), label).toMatch(/^Leave this empty/);
+        expect(tipText(label), label).toMatch(source);
+      }
+    });
+
+    it("explains fields without app jargon, for people new to money terms", async () => {
+      api.getComparisonSetup.mockResolvedValue(response(stored()));
+      await mount();
+      for (const label of tipLabels()) expect(tipText(label!), label).not.toMatch(/\btracked\b|\bpublished\b/i);
+    });
+
+    it("explains the person compared when comparing one person", async () => {
+      api.getComparisonSetup.mockResolvedValue(response({ ...stored(), mode: "individual", individualPerson: { kind: "owner" } }));
+      await mount();
+      expect(tipLabels()).toContain("Person compared");
+      expect(tipLabels()).toContain("Me: income per year");
+    });
+
+    it("points each typed amount at its explanation for screen readers", async () => {
+      api.getComparisonSetup.mockResolvedValue(response(stored()));
+      await mount();
+      const field = input("Annual spending");
+      const tipButton = container.querySelector<HTMLButtonElement>('[data-info-tip="Annual spending"]')!;
+      expect(field.getAttribute("aria-describedby")?.split(" ")).toContain(tipButton.getAttribute("aria-describedby"));
+    });
+  });
+
   it("offers to start when nothing has been set up, then lists the owner and family", async () => {
     api.getComparisonSetup.mockResolvedValue(response(null, 0));
     await mount();

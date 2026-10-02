@@ -1,5 +1,7 @@
 import { useId, useState } from "react";
+import { InfoTip } from "../InfoTip";
 import { MenuSelect } from "../MenuSelect";
+import { FIELD_TIPS } from "./fieldTips";
 import type { AgeInput } from "./types";
 import { parseAgeEntry, type AgeEntry } from "./setupDraft";
 
@@ -23,6 +25,9 @@ export function AgeField({
   const [entry, setEntry] = useState<AgeEntry>(() => initialEntry(value));
   const [error, setError] = useState<string | null>(null);
   const errorId = useId();
+  const tipId = useId();
+  // Each age input points at the explanation (and at the error, when there is one).
+  const describedBy = error ? `${errorId} ${tipId}` : tipId;
 
   function update(next: AgeEntry) {
     setEntry(next);
@@ -48,7 +53,10 @@ export function AgeField({
 
   return (
     <fieldset className="cmp-age-field" data-cmp-age-field>
-      <legend>{label}</legend>
+      <legend>
+        {label}
+        <InfoTip label={label} text={FIELD_TIPS.age} id={tipId} />
+      </legend>
       <div className="cmp-age-row">
         <MenuSelect
           ariaLabel={`${label}: how to enter it`}
@@ -65,7 +73,7 @@ export function AgeField({
             inputMode="numeric"
             aria-label={`${label}: age`}
             aria-invalid={error !== null}
-            aria-describedby={error ? errorId : undefined}
+            aria-describedby={describedBy}
             value={entry.age}
             onChange={(e) => update({ kind: "exact", age: e.target.value })}
             className="cmp-age-input"
@@ -78,7 +86,7 @@ export function AgeField({
               inputMode="numeric"
               aria-label={`${label}: youngest age in the range`}
               aria-invalid={error !== null}
-              aria-describedby={error ? errorId : undefined}
+              aria-describedby={describedBy}
               value={entry.min}
               onChange={(e) => update({ kind: "band", min: e.target.value, max: entry.max })}
               className="cmp-age-input"
@@ -90,7 +98,7 @@ export function AgeField({
               inputMode="numeric"
               aria-label={`${label}: oldest age in the range (leave empty for no upper limit)`}
               aria-invalid={error !== null}
-              aria-describedby={error ? errorId : undefined}
+              aria-describedby={describedBy}
               value={entry.max}
               placeholder="and over"
               onChange={(e) => update({ kind: "band", min: entry.min, max: e.target.value })}

@@ -140,6 +140,15 @@ describe("ComparisonSetupDialog", () => {
     expect(q("[role='alert']")?.textContent).toContain("changed before this finished");
   });
 
+  it("explains each question with an info tip", () => {
+    mount();
+    const tips = [...document.querySelectorAll<HTMLButtonElement>("[data-info-tip]")].map((b) => b.dataset.infoTip);
+    expect(tips).toEqual(expect.arrayContaining(["Compare", "Who shares your finances?", "Whose age should we use?", "Age of me"]));
+    for (const b of document.querySelectorAll<HTMLButtonElement>("[data-info-tip]")) {
+      expect(document.getElementById(b.getAttribute("aria-describedby")!)?.textContent?.trim()).not.toBe("");
+    }
+  });
+
   it("discards the draft on cancel", () => {
     mount();
     type(ageInput(), "42");

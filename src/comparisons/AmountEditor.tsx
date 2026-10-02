@@ -1,5 +1,7 @@
 import { useId, useState } from "react";
 import { toLocalIsoDate } from "../format";
+import { InfoTip } from "../InfoTip";
+import { FIELD_TIPS } from "./fieldTips";
 import { parseMoneyText } from "./setupDraft";
 import type { ManualAmount } from "./types";
 
@@ -11,15 +13,22 @@ export function AmountEditor({
   value,
   onChange,
   hint,
+  tip,
 }: {
   label: string;
   value: ManualAmount | null;
   onChange: (amount: ManualAmount | null) => void;
   hint?: string;
+  /** What to enter, shown in an InfoTip beside the label (the date and note have their own). */
+  tip?: string;
 }) {
   const [text, setText] = useState(value?.value ?? "");
   const [error, setError] = useState<string | null>(null);
   const errorId = useId();
+  const inputId = useId();
+  const tipId = useId();
+  const dateTipId = useId();
+  const noteTipId = useId();
   const date = value?.measuredOn ?? toLocalIsoDate();
   const note = value?.explanation ?? "";
 
@@ -41,15 +50,18 @@ export function AmountEditor({
   return (
     <div className="cmp-amount-editor" data-cmp-amount={label}>
       <div className="cmp-settings-row">
-        <label className="cmp-row-label">
-          {label}
+        {/* The tips sit beside their labels, never inside: a label holding a button labels the button. */}
+        <span className="cmp-row-label">
+          <label htmlFor={inputId}>{label}</label>
+          {tip && <InfoTip label={label} text={tip} id={tipId} />}
           <input
+            id={inputId}
             type="text"
             inputMode="decimal"
             className="cmp-money-input"
             aria-label={label}
             aria-invalid={error !== null}
-            aria-describedby={error ? errorId : undefined}
+            aria-describedby={[error ? errorId : null, tip ? tipId : null].filter(Boolean).join(" ") || undefined}
             value={text}
             onChange={(e) => {
               setText(e.target.value);
@@ -57,27 +69,35 @@ export function AmountEditor({
             }}
             placeholder="$"
           />
-        </label>
-        <label>
-          <span className="cmp-sr-label">{label}: date measured</span>
-          <input
-            type="date"
-            className="cmp-date-input"
-            value={date}
-            disabled={value === null}
-            onChange={(e) => commit(text, e.target.value, note)}
-          />
-        </label>
-        <label className="cmp-note-input">
-          <span className="cmp-sr-label">{label}: where this came from</span>
-          <input
-            type="text"
-            value={note}
-            disabled={value === null}
-            placeholder="Where this came from (optional)"
-            onChange={(e) => commit(text, date, e.target.value)}
-          />
-        </label>
+        </span>
+        <span className="cmp-tip-field">
+          <label>
+            <span className="cmp-sr-label">{label}: date measured</span>
+            <input
+              type="date"
+              className="cmp-date-input"
+              value={date}
+              disabled={value === null}
+              aria-describedby={dateTipId}
+              onChange={(e) => commit(text, e.target.value, note)}
+            />
+          </label>
+          <InfoTip label={`${label}: date measured`} text={FIELD_TIPS.measuredOn} id={dateTipId} />
+        </span>
+        <span className="cmp-tip-field cmp-note-input">
+          <label>
+            <span className="cmp-sr-label">{label}: where this came from</span>
+            <input
+              type="text"
+              value={note}
+              disabled={value === null}
+              placeholder="Where this came from (optional)"
+              aria-describedby={noteTipId}
+              onChange={(e) => commit(text, date, e.target.value)}
+            />
+          </label>
+          <InfoTip label={`${label}: where this came from`} text={FIELD_TIPS.sourceNote} id={noteTipId} />
+        </span>
       </div>
       {error && (
         <p id={errorId} className="cmp-field-error" role="alert">
