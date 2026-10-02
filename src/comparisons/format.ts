@@ -118,7 +118,7 @@ export function cardNotice(result: ComparisonCardResult): CardNotice | null {
     case "not_comparable":
       return {
         title: "Not comparable / outside benchmark population",
-        body: "The published figure only describes people who hold this, and your figure is zero, so the two are not comparable.",
+        body: "This figure only describes people who have some, and yours is zero or less, so the two can't be compared.",
         tone: "info",
       };
     case "unreliable":
@@ -150,7 +150,10 @@ export function cardNotice(result: ComparisonCardResult): CardNotice | null {
         tone: "info",
       };
     case "missing_input":
-      return null;
+      // Only the Income card is ever shown while it waits: when each person's own income already compares.
+      return result.metric === "income"
+        ? { title: "Add the household's age to compare this", body: "Each person's own income is already compared under Explore.", tone: "info" }
+        : null;
   }
 }
 

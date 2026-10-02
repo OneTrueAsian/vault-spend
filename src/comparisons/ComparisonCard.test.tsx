@@ -60,6 +60,18 @@ describe("ComparisonCard", () => {
     expect(text()).toContain("From your tracked accounts");
   });
 
+  it("shows an Income card that waits on the household's age with its total, a note and Explore", () => {
+    show({
+      ...comparableIncome(),
+      result: result("income", "missing_input", { reasons: [{ code: "missing_input" }] }),
+      metric: metric("income", { value: "142000" }),
+    });
+    expect(q("[data-cmp-local]")?.textContent).toContain("$142,000");
+    expect(text()).toContain("Add the household's age to compare this");
+    expect(q("[data-cmp-difference]")).toBeNull();
+    expect(q(".cmp-explore")).not.toBeNull();
+  });
+
   it("explains a benchmark gap as the benchmark's limit and shows no difference", () => {
     show(unavailable("spending"));
 

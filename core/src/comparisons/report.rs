@@ -165,7 +165,7 @@ fn personal_income_lines(pkg: &Package, setup: &ComparisonSetup) -> Vec<Secondar
                 definition_id: Some(PERSONAL_INCOME),
                 age: Some(age),
                 selected_cohort: None,
-                universe_preference: None,
+                universe_preference: preference(setup, MetricId::Income),
                 local: LocalMeasure {
                     value: Some(income.value),
                     unit: Unit::UsdPerYear,
@@ -223,13 +223,17 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
 
             let stale = matches!(metric.origin, Origin::Entered { stale: true, .. });
             CardView {
-                visible: is_visible(&result),
+                // The Income card also stays reachable while the household figure waits on details but
+                // someone's own income can already be compared in its Explore view.
+                visible: is_visible(&result) || secondary.iter().any(|s| s.person.is_some() && s.result.status != CardStatus::MissingInput),
                 definition_id: definition.map(String::from),
                 universe_options: universe_options(pkg, id, definition),
                 cohort_options: cohort_options(pkg, setup, id, definition, chosen_universe),
                 secondary,
                 stale,
-                personal_income_hint: id == MetricId::Income && setup.income.household_method == HouseholdIncomeMethod::Total,
+                personal_income_hint: id == MetricId::Income
+                    && setup.income.household_method == HouseholdIncomeMethod::Total
+                    && !setup.people.is_empty(),
                 metric,
                 result,
             }

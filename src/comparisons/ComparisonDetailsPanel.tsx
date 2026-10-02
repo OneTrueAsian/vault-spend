@@ -78,7 +78,7 @@ function repairText(r: Repair, members: FamilyMember[]): string {
     : `A ${r.source.kind} (${r.field}) was deleted.`;
 }
 
-/** The "Your details" form inside Reports > Comparisons: household or individual mode, whose age to
+/** The "Your details" form inside Reports > Comparisons: whose age to
  * use, income, which accounts count, how they are classified, who owns shared accounts, confirmations
  * and typed totals. Edits are a draft: nothing is saved until Save, Discard throws the draft away, and
  * a save that lost a race or failed validation keeps everything typed. `onSaved` lets the page refresh
@@ -338,49 +338,47 @@ export function ComparisonDetailsPanel({
         )}
       </section>
 
-      {(
-        <section className="cmp-settings-group" data-cmp-group="spending">
-          <h3>Spending</h3>
-          <span className="cmp-tip-field">
-            <label className="feature-toggle-row">
+      <section className="cmp-settings-group" data-cmp-group="spending">
+        <h3>Spending</h3>
+        <span className="cmp-tip-field">
+          <label className="feature-toggle-row">
+            <input
+              type="checkbox"
+              checked={draft.spending.completenessConfirmed}
+              aria-describedby={`${uid}-spending-complete`}
+              onChange={(e) => edit((s) => setSpendingCompleteness(s, e.target.checked))}
+              data-cmp-spending-complete
+            />
+            <span className="feature-toggle-text">
+              The last 12 completed months of tracked spending cover everything my household spends
+            </span>
+          </label>
+          <InfoTip label="Spending covers everything" text={FIELD_TIPS.spendingComplete} id={`${uid}-spending-complete`} />
+        </span>
+        <fieldset className="cmp-members">
+          <legend>
+            Accounts that count (none ticked means all checking, savings and credit accounts)
+            <InfoTip label="Accounts that count" text={FIELD_TIPS.spendingAccounts} />
+          </legend>
+          {spendingAccounts.map((a) => (
+            <label key={a.id} className="feature-toggle-row">
               <input
                 type="checkbox"
-                checked={draft.spending.completenessConfirmed}
-                aria-describedby={`${uid}-spending-complete`}
-                onChange={(e) => edit((s) => setSpendingCompleteness(s, e.target.checked))}
-                data-cmp-spending-complete
+                checked={draft.spending.accountIds.includes(a.id)}
+                onChange={(e) => edit((s) => setSpendingAccount(s, a.id, e.target.checked))}
               />
-              <span className="feature-toggle-text">
-                The last 12 completed months of tracked spending cover everything my household spends
-              </span>
+              <span className="feature-toggle-text">{a.name}</span>
             </label>
-            <InfoTip label="Spending covers everything" text={FIELD_TIPS.spendingComplete} id={`${uid}-spending-complete`} />
-          </span>
-          <fieldset className="cmp-members">
-            <legend>
-              Accounts that count (none ticked means all checking, savings and credit accounts)
-              <InfoTip label="Accounts that count" text={FIELD_TIPS.spendingAccounts} />
-            </legend>
-            {spendingAccounts.map((a) => (
-              <label key={a.id} className="feature-toggle-row">
-                <input
-                  type="checkbox"
-                  checked={draft.spending.accountIds.includes(a.id)}
-                  onChange={(e) => edit((s) => setSpendingAccount(s, a.id, e.target.checked))}
-                />
-                <span className="feature-toggle-text">{a.name}</span>
-              </label>
-            ))}
-          </fieldset>
-          <AmountEditor
-            label="Annual spending"
-            value={draft.spending.manualAnnual}
-            onChange={(a) => edit((s) => setManualAnnualSpending(s, a))}
-            hint="Use this when there are fewer than 12 completed months of history. Short history is never scaled up automatically."
-            tip={FIELD_TIPS.annualSpending}
-          />
-        </section>
-      )}
+          ))}
+        </fieldset>
+        <AmountEditor
+          label="Annual spending"
+          value={draft.spending.manualAnnual}
+          onChange={(a) => edit((s) => setManualAnnualSpending(s, a))}
+          hint="Use this when there are fewer than 12 completed months of history. Short history is never scaled up automatically."
+          tip={FIELD_TIPS.annualSpending}
+        />
+      </section>
 
       <section className="cmp-settings-group" data-cmp-group="savings">
         <h3>

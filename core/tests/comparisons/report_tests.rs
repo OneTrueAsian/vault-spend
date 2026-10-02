@@ -343,3 +343,51 @@ fn a_household_total_shows_the_hint_and_no_personal_lines_even_with_old_per_pers
     assert!(card(&report, MetricId::Income).personal_income_hint);
     assert!(!card(&report, MetricId::Savings).personal_income_hint, "the hint belongs to the Income card only");
 }
+
+#[test]
+fn the_per_person_hint_needs_someone_listed() {
+    let mut setup = ComparisonSetup::empty();
+    setup.income.household_total = Some(amount("120000"));
+    let report = build_report(bundled(), &setup, &empty_snapshot());
+    assert!(!card(&report, MetricId::Income).personal_income_hint);
+}
+
+#[test]
+fn personal_lines_follow_the_households_population_choice_for_income() {
+    let mut all = reference("p-all:40-44", "income", "individual", PERSONAL, 40, Some(44), "50000");
+    let mut holders = reference("p-holders:40-44", "income", "individual", PERSONAL, 40, Some(44), "60000");
+    all["universe"] = json!("all");
+    holders["universe"] = json!("holders");
+    let pkg = package_with(vec![all, holders]);
+    let mut setup = setup_42();
+    by_person(&mut setup, &[(PersonRef::Owner, "78000")]);
+    let line = |setup: &ComparisonSetup| {
+        let report = build_report(&pkg, setup, &empty_snapshot());
+        personal_lines(&report)[0].result.reference.as_ref().unwrap().reference.id.clone()
+    };
+    assert_eq!(line(&setup), "p-all:40-44");
+    setup.universe_preferences = vec![UniversePreference { metric: MetricId::Income, universe: Universe::Holders }];
+    assert_eq!(line(&setup), "p-holders:40-44");
+}
+
+#[test]
+fn the_income_card_stays_reachable_while_its_personal_lines_compare() {
+    let mut setup = setup_42();
+    // The household's age person (7) has no age, so the household comparison waits on it...
+    setup.household_reference_person = Some(person(7));
+    by_person(&mut setup, &[(PersonRef::Owner, "78000"), (person(7), "64000")]);
+    let report = build_report(bundled(), &setup, &empty_snapshot());
+    let income = card(&report, MetricId::Income);
+    assert_eq!(income.result.status, CardStatus::MissingInput);
+    // ...but Me's own line can already be compared, so the card is shown to reach it.
+    assert_eq!(personal_lines(&report).len(), 1);
+    assert!(income.visible);
+}
+
+#[test]
+fn an_income_card_with_nothing_to_compare_stays_hidden() {
+    let mut setup = setup_42();
+    setup.household_reference_person = Some(person(7));
+    setup.income.household_total = Some(amount("120000"));
+    assert!(!card(&build_report(bundled(), &setup, &empty_snapshot()), MetricId::Income).visible);
+}

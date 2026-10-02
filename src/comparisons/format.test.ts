@@ -126,6 +126,18 @@ describe("card notices", () => {
     expect(cardNotice(result("not_comparable", [{ code: "holders_only_zero_local" }]))?.title).toBe("Not comparable / outside benchmark population");
   });
 
+  it("covers a figure below zero too, in plain words, when it is not comparable", () => {
+    const body = cardNotice(result("not_comparable", [{ code: "holders_only_zero_local" }]))?.body ?? "";
+    expect(body).toBe("This figure only describes people who have some, and yours is zero or less, so the two can't be compared.");
+  });
+
+  it("says what the Income card is waiting for when only each person's income can be compared", () => {
+    const n = cardNotice({ ...result("missing_input"), metric: "income" });
+    expect(n?.title).toBe("Add the household's age to compare this");
+    expect(n?.body).toBe("Each person's own income is already compared under Explore.");
+    expect(cardNotice({ ...result("missing_input"), metric: "savings" })).toBeNull();
+  });
+
   it("warns on approximate cards and names the substituted cohort", () => {
     const n = cardNotice(result("approximate", [{ code: "nearest_cohort_used", cohort: "x:30-34" }]));
     expect(n?.title).toBe("Approximate");
