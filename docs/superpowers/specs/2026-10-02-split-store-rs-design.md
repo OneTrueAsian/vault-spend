@@ -13,7 +13,7 @@ recurring…) without opening the whole file.
 
 - `store.rs` keeps only: the module list and re-exports, `Store` itself, `open`/`open_in_memory`, the
   activity-log helpers, and shared constants/helpers used by several modules. Target: under ~1,500 lines.
-- No feature file over ~2,000 lines (tests included).
+- No production feature file over ~2,000 lines, and no test file over ~2,000 lines.
 - **No behavior change and no public API change.** Every path that compiles today
   (`budget_core::store::StoredAccount`, `store.list_accounts()`, …) still compiles, in `core`, `src-tauri`,
   `core/tests`, and `core/examples`. No method is renamed, re-signatured or rewritten.
@@ -29,7 +29,9 @@ Follow the existing convention (`sign_flip.rs`, `comparison_setup.rs`, `profile_
 
 - Each feature file is a child module `core/src/store/<feature>.rs` declared with `mod <feature>;` in
   `store.rs`, containing `impl Store { … }` with the moved methods, `use super::{Store, …}` for what it
-  needs, and its own `#[cfg(test)] mod tests` holding the tests for those methods.
+  needs. Its tests live in `core/src/store/tests/<feature>.rs` (*amended 2026-10-02 after a dry run:*
+  with tests inside, transactions/budgets/accounts would each be ~2,700–2,900 lines). Test files start
+  with `use super::*;`, which reaches everything `store.rs` and the shared `store/tests.rs` can see.
 - Public types used by one feature move with it and are re-exported from `store.rs`
   (`pub use self::accounts::{StoredAccount, …};`), so external paths do not change. Types used by several
   features stay in `store.rs` (or move to a `store/types.rs` re-exported wholesale if that reads better;
@@ -37,14 +39,17 @@ Follow the existing convention (`sign_flip.rs`, `comparison_setup.rs`, `profile_
 - A private method or helper that another module calls becomes `pub(super)` (or `pub(crate)` only if
   something outside `store` already uses it — today none can). Nothing becomes newly `pub`.
 - Text is moved, never retyped: methods and tests are cut and pasted verbatim, with doc comments. Only
-  `use` lines and visibility keywords change. Files stay CRLF.
+  `use` lines and visibility keywords change, plus indentation for tests leaving `mod tests { }`. Each file
+  keeps its line endings (`store.rs` is LF in the working tree; new files follow it).
+- The moves are done by `tools/split_rust_items.py` from a checked-in mapping, never by hand, and the same
+  tool fingerprints every item to prove nothing changed.
 
 ### Steps (one commit each)
 
 0. **Tests out first:** move the inline `mod tests` to `core/src/store/tests.rs` (`#[cfg(test)] mod tests;`).
-   A pure move that halves `store.rs` and makes every later step's diff smaller. Shared test helpers
-   (fixture builders) go to `store/test_support.rs` (`#[cfg(test)] pub(super)`), so feature test modules
-   can use them.
+   A pure move that halves `store.rs` and makes every later step's diff smaller. Test helpers used by more
+   than one feature's tests stay in `store/tests.rs`, and each feature step moves its tests (and helpers
+   only they use) into `store/tests/<feature>.rs`.
 1. **`schema.rs`:** `init_schema`, the ~50 `migrate_*`/`backfill_*`/`seed_*` methods (lines ~1110–2630).
 2. **`accounts.rs`:** account CRUD, balances, checkpoints, reconciliation, setup import
    (`create_account` … `delete_account`, `apply_setup_import`, `roll_forward_monthly_balances`).
@@ -56,8 +61,8 @@ Follow the existing convention (`sign_flip.rs`, `comparison_setup.rs`, `profile_
 8. **`buckets.rs`:** buckets and sinking funds.
 9. **`budgets.rs`:** budgets, actuals, rollover, month review, budget alerts.
 10. **`insights.rs`:** anomaly flags, large expenses, dashboard insights, spend-day stats.
-11. **`recurring.rs`:** recurring items, matches, candidates, recurring helpers (`classify_cadence`,
-    `next_occurrence`, …).
+11. **`recurring.rs`:** recurring items, matches, candidates, recurring-only helpers (`classify_cadence`,
+    `detect_price_change`, …; `next_occurrence` stays in `store.rs` because forecasts use it too).
 12. **`investments.rs`:** holdings, snapshots, contributions, investment plan, allocation targets.
 13. **`settings.rs`:** live price, app, background and backup settings; reminders.
 14. **`assets.rs`**, **`forecast.rs`** (debt payoff, cash flow and bill-aware forecasts), **`reports.rs`**
@@ -72,9 +77,10 @@ method list as it stands at `ff0cfea`. If a group is over ~2,000 lines with test
 - `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -D warnings`, and
   `cargo test --workspace`. The test count must match the baseline from before step 0 exactly; a
   dropped test fails the step.
-- Moved-not-changed check: a script compares the sorted set of non-blank, non-`use` lines across
-  `store.rs` + `store/*.rs` before and after each step. Only visibility keywords, `mod`/`use` lines and
-  re-exports may differ. Its output goes in the commit message.
+- Moved-not-changed check: `tools/split_rust_items.py fingerprint` hashes every item (method, type, test,
+  helper, comment block) across `store.rs` + `store/**/*.rs` with whitespace, commas and
+  `pub(super)`/`pub(crate)` ignored and `use`/`mod` lines left out; `compare` against the baseline taken
+  before step 0 must say "identical". Its output goes in the commit message.
 - `src-tauri` builds (`cargo check --workspace` covers it).
 - **After the last step:** `npx tauri build --debug --no-bundle` into `%TEMP%\vs-verify-target` and the full
   e2e suite (`node e2e/run-all.mjs`), since the app binary is rebuilt from the moved code.
