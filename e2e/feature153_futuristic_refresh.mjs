@@ -7,6 +7,8 @@
 // - The choices survive a reload and are on the page as soon as the app shows.
 // - Open menus follow the rounded guide (7px trigger and options, opaque 10px panel), and Escape closes
 //   a menu and puts focus back on its trigger.
+// - Chart bars and meter fills light up like the mockup: bars paint with their gradient and glow in their
+//   own color, meter fills carry a halo of their fill color, and the glows go at intensity 0.
 // - Reduce motion works in every style; Default and Retro do not pick up Futuristic's colors.
 // - "Reset Futuristic options" restores Ion Cyan, 70 and normal motion, and leaves Safe to spend alone.
 //
@@ -71,6 +73,26 @@ const look = (browser) =>
     };
   });
 
+// The first income/expense bar on Cash Flow, and a meter fill put on the page to measure (an empty
+// profile has no budget to draw one), colored inline the way the app colors category fills.
+async function barsLook(browser) {
+  await browser.execute(() => [...document.querySelectorAll(".nav-item")].find((b) => b.textContent.trim() === "Cash Flow").click());
+  await (await browser.$(".chart-bar")).waitForExist({ timeout: 10000 });
+  const out = await browser.execute(() => {
+    const bar = getComputedStyle(document.querySelector(".chart-bar"));
+    const track = document.createElement("div");
+    track.className = "progress-track";
+    track.innerHTML = '<div class="progress-fill" style="width: 50%; background: rgb(255, 0, 0)"></div>';
+    document.querySelector(".main").appendChild(track);
+    const halo = getComputedStyle(track.firstChild, "::after");
+    const result = { barFill: bar.fill, barFilter: bar.filter, haloBg: halo.backgroundColor, haloFilter: halo.filter, trackOverflow: getComputedStyle(track).overflow };
+    track.remove();
+    return result;
+  });
+  await openSettings(browser);
+  return out;
+}
+
 const shot = (browser, name) => browser.saveScreenshot(path.join(os.tmpdir(), `vault-futuristic-${name}.png`));
 
 const app = await launchApp();
@@ -92,6 +114,14 @@ try {
   assert.equal(now.accent, "#00e5ff");
   assert.equal(now.glow, "0.7", "Neon intensity defaults to 70");
   await shot(browser, "settings-dark-cyan");
+
+  // Lit chart bars and glowing meters.
+  const lit = await barsLook(browser);
+  assert.match(lit.barFill, /^url\("?#bar-/, `bars paint with their gradient (${lit.barFill})`);
+  assert.match(lit.barFilter, /^drop-shadow\(rgb\(140, 245, 168\) 0px 0px [1-9]/, `the income bar glows in its own green (${lit.barFilter})`);
+  assert.equal(lit.haloBg, "rgb(255, 0, 0)", "a meter's halo takes its fill's own color");
+  assert.match(lit.haloFilter, /^blur\([1-9]/, `the halo is blurred (${lit.haloFilter})`);
+  assert.equal(lit.trackOverflow, "visible", "the halo can spill past the track");
 
   // Rebel Pink in dark, and its ink version in light.
   await pickAccent(browser, "Rebel Pink");
@@ -115,6 +145,9 @@ try {
   assert.equal(at0.titleColor, at70.titleColor, "text keeps its color at every intensity");
   assert.equal(await browser.execute(() => document.querySelector(".neon-intensity-value").textContent), "0%");
   await shot(browser, "settings-dark-pink-0");
+  const unlit = await barsLook(browser);
+  assert.match(unlit.barFilter, /0px 0px 0px\)$/, `no bar glow at intensity 0 (${unlit.barFilter})`);
+  assert.equal(unlit.haloFilter, "blur(0px)", "no meter halo at intensity 0");
 
   // Survives a reload, and is on the page as soon as the app shows.
   await browser.refresh();

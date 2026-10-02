@@ -130,3 +130,29 @@ describe("Futuristic color syntax", () => {
     expect(css).not.toMatch(/rgb\(var\(--[a-z-]+-rgb\)\s*\//);
   });
 });
+
+// The bars light up like the Neon Ledger mockup: chart bars use their gradient and glow in their own
+// color, and meter fills carry a halo of their fill. Glows scale with Neon intensity, so 0 turns them off.
+describe("Futuristic chart bars and meters", () => {
+  const rule = (selector: string) => {
+    const at = css.indexOf(selector + " {");
+    expect(at, selector).toBeGreaterThan(-1);
+    const open = css.indexOf("{", at);
+    return css.slice(open + 1, css.indexOf("}", open)).replace(/\s+/g, " ").trim();
+  };
+
+  it("fills chart bars with their gradient and a glow in the bar's color", () => {
+    const bar = rule(':where([data-palette="futuristic"]) .chart-bar');
+    expect(bar).toContain("fill: var(--bar-fill);");
+    expect(bar).toMatch(/filter: drop-shadow\(0 0 calc\([0-9.]+px \* var\(--glow\)\) currentColor\);/);
+  });
+
+  it("gives meter fills a halo of their own fill, behind the fill", () => {
+    expect(rule(':where([data-palette="futuristic"]) .progress-track')).toContain("overflow: visible;");
+    expect(rule(':where([data-palette="futuristic"]) .progress-track')).toContain("isolation: isolate;");
+    const halo = rule(':where([data-palette="futuristic"]) .progress-fill::after');
+    expect(halo).toContain("background: inherit;");
+    expect(halo).toContain("z-index: -1;");
+    expect(halo).toMatch(/filter: blur\(calc\([0-9.]+px \* var\(--glow\)\)\);/);
+  });
+});

@@ -585,9 +585,39 @@
 }
 
 /* Meters */
+/* The track lets the fill's halo spill past its edges; isolation keeps the halo (z-index -1) above the
+   track's own background and below the fill. Fills are already rounded and never wider than the track. */
 :where([data-palette="futuristic"]) .progress-track {
   border-radius: 999px;
   background: color-mix(in srgb, var(--border) 80%, var(--surface));
+  overflow: visible;
+  isolation: isolate;
+}
+
+/* A thin highlight along the top edge. box-shadow, so a fill colored by an inline background keeps it. */
+:where([data-palette="futuristic"]) .progress-fill {
+  position: relative;
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.28);
+}
+
+/* The halo: a blurred copy of the fill's own color (inherit picks up an inline background too). */
+:where([data-palette="futuristic"]) .progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  filter: blur(calc(6px * var(--glow)));
+  opacity: 0.75;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Chart bars: lit columns, bright at the top and dimmer at the base, glowing in their own color
+   (the chart sets each bar's color and gradient; see BarChart). */
+:where([data-palette="futuristic"]) .chart-bar {
+  fill: var(--bar-fill);
+  filter: drop-shadow(0 0 calc(7px * var(--glow)) currentColor);
 }
 
 :where([data-palette="futuristic"]) .chart-legend-swatch {
