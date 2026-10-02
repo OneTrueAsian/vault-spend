@@ -46,7 +46,7 @@ try {
   await openComparisonDetails(browser);
 
   const labels = await browser.execute(() => [...document.querySelectorAll("[data-cmp-settings] [data-info-tip]")].map((b) => b.dataset.infoTip));
-  for (const label of ["Compare", "Age used for the household", "Enter income as", "Household income per year", "Annual spending", "Savings", "Investments", "Debt type", "Confirm your balances", "Debt: your own total"]) {
+  for (const label of ["Age used for the household", "Enter income as", "Household income per year", "Annual spending", "Savings", "Investments", "Debt type", "Confirm your balances", "Debt: your own total"]) {
     assert.ok(labels.includes(label), `expected an info tip for "${label}", found: ${labels.join(", ")}`);
   }
 
@@ -65,10 +65,10 @@ try {
 
   // Keyboard: focus opens it, Escape closes it and leaves the settings panel open.
   await withFocusRetry(browser, async () => {
-    await browser.execute(() => document.querySelector('[data-cmp-settings] [data-info-tip="Compare"]').focus());
-    await browser.waitUntil(async () => (await tipState("Compare")).shown, { timeout: 3000, timeoutMsg: "keyboard focus should show the Compare tip" });
+    await browser.execute(() => document.querySelector('[data-cmp-settings] [data-info-tip="Age used for the household"]').focus());
+    await browser.waitUntil(async () => (await tipState("Age used for the household")).shown, { timeout: 3000, timeoutMsg: "keyboard focus should show the Age used for the household tip" });
     await browser.keys("Escape");
-    await browser.waitUntil(async () => !(await tipState("Compare")).open, { timeout: 3000, timeoutMsg: "Escape should close the tip" });
+    await browser.waitUntil(async () => !(await tipState("Age used for the household")).open, { timeout: 3000, timeoutMsg: "Escape should close the tip" });
   });
   assert.ok(await (await browser.$("[data-cmp-details-body] [data-cmp-settings]")).isDisplayed(), "Escape on a tip must not close the settings");
 

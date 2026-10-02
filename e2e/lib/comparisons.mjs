@@ -69,7 +69,7 @@ export function setupSnippet(setup) {
   return `
 import base64
 _payload = base64.b64decode("${b64(JSON.stringify(setup))}").decode("utf-8")
-cur.execute("INSERT INTO comparison_setup (id, format_version, revision, payload, updated_at) VALUES (1, 1, 1, ?, '${new Date().toISOString().replace(/\.\d{3}Z$/, "Z")}')", (_payload,))
+cur.execute("INSERT INTO comparison_setup (id, format_version, revision, payload, updated_at) VALUES (1, 2, 1, ?, '${new Date().toISOString().replace(/\.\d{3}Z$/, "Z")}')", (_payload,))
 `;
 }
 
@@ -79,10 +79,8 @@ export function person(id) {
 
 export function baseSetup(today, overrides = {}) {
   return {
-    formatVersion: 1,
-    mode: "household",
+    formatVersion: 2,
     householdReferencePerson: person(0),
-    individualPerson: null,
     people: [
       { person: person(0), age: { age: { kind: "exact", age: 42 }, confirmedOn: today }, inHousehold: true },
       { person: person(1), age: { age: { kind: "exact", age: 67 }, confirmedOn: today }, inHousehold: true },

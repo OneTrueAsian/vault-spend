@@ -24,7 +24,7 @@ try {
   const setup2 = baseSetup(TODAY, {
     people: [{ person: person(0), age: { age: { kind: "exact", age: 30 }, confirmedOn: TODAY }, inHousehold: true }],
     balanceConfirmations: [{ metric: "debt", confirmedOn: TODAY }],
-    manualOverrides: [{ metric: "savings", subject: null, amount: { value: "25000", measuredOn: "2024-01-01", explanation: "Statement from the credit union" } }], // fixed date: only has to be long ago (stale)
+    manualOverrides: [{ metric: "savings", amount: { value: "25000", measuredOn: "2024-01-01", explanation: "Statement from the credit union" } }], // fixed date: only has to be long ago (stale)
   });
   const dbDir2 = await seedFixture(`
 for name, kind, start in [('Checking', 'checking', '100.00'), ('Visa', 'credit', '5000.00')]:

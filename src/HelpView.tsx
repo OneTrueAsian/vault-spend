@@ -832,20 +832,23 @@ const FAQ_ENTRIES: FaqEntry[] = [
           <strong>Income is before tax.</strong> Published incomes are gross, so you type your own; Vault Spend never
           guesses it from your take-home pay. Savings, investments and debt come from your tracked accounts once you
           confirm they are complete, and you can classify accounts or enter a total yourself in the{" "}
-          <strong>Your details</strong> panel under the cards on that same page, where you also switch between your
-          household and one person.
+          <strong>Your details</strong> panel under the cards on that same page.
+        </p>
+        <p>
+          <strong>Each person&apos;s income.</strong> Everything is compared for your household as a whole. If you enter
+          income separately for each person, the Income card&apos;s Explore view also shows each person&apos;s own pay next
+          to the typical pay of people their age.
         </p>
         <p>
           The published figures are medians or averages from past surveys, brought up to the latest prices on file. The
           difference shown is how far you are from that figure, not where you rank. Some published figures only describe
           people who hold the item (a retirement account, a mortgage), and those are labelled; if you hold none, the
           card says it is not comparable instead of comparing you with zero. When the reference data has no figure for a
-          comparison (savings, investments, debt and spending are published for households, not for one person), its
-          card says so and nothing is substituted. Everything is calculated on your computer; nothing you enter is sent
+          comparison, its card says so and nothing is substituted. Everything is calculated on your computer; nothing you enter is sent
           anywhere, and Hide amounts covers these figures too.
         </p>
         <p>
-          <strong>Spending</strong> is compared for the household only, with the U.S. Bureau of Labor Statistics&apos;
+          <strong>Spending</strong> is compared with the U.S. Bureau of Labor Statistics&apos;
           average yearly spending for households whose main earner is your age. It is an average, not a median, so a
           few high spenders pull it up, and it counts insurance and pension contributions as spending. Use the yearly
           total you track here, or type one in <strong>Your details</strong>.
