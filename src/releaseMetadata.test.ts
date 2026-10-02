@@ -5,7 +5,7 @@ import { CHANGELOG } from "./changelog";
 // The version lives in several files that must be bumped together for a release; this keeps them
 // from drifting apart. `CANDIDATE` is the version this branch is preparing — change it (and add the
 // CHANGELOG entry) as part of cutting the next release.
-const CANDIDATE = "1.2.8";
+const CANDIDATE = "1.2.9";
 
 const read = (relative: string) => readFileSync(new URL(`../${relative}`, import.meta.url), "utf8");
 
@@ -37,10 +37,11 @@ describe("release metadata", () => {
   it(`is the ${CANDIDATE} release candidate and its notes cover what shipped`, () => {
     expect(pkg).toBe(CANDIDATE);
     const notes = (CHANGELOG[CANDIDATE] ?? []).join("\n");
-    expect(notes).toMatch(/password-protect/i);
-    expect(notes).toMatch(/recovery key/i);
-    expect(notes).toMatch(/automatically when idle/i);
-    expect(notes).toMatch(/interrupted backup/i);
-    expect(notes).toMatch(/import-category/i);
+    expect(notes).toMatch(/comparisons/i);
+    expect(notes).toMatch(/flip the signs/i);
+    expect(notes).toMatch(/note to any transaction/i);
+    expect(notes).toMatch(/retro/i);
+    expect(notes).toMatch(/slate/i);
+    expect(notes).toMatch(/same name as an existing one/i);
   });
 });

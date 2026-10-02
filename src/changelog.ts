@@ -171,4 +171,17 @@ export const CHANGELOG: Record<string, string[]> = {
     "Interrupted backup copies no longer appear as completed backups.",
     "Improved import-category handling and scrolling in the rules list.",
   ],
+  "1.2.9": [
+    "New Comparisons page under Reports: see how your household's income, spending, savings, investments and debts compare with official U.S. figures for households like yours. Every field has an \"i\" button that explains it, and each person's income can be compared on its own.",
+    "Card files that show charges as positive numbers (such as Amex Blue): the import now offers to flip the signs and remembers your answer for that account, and \"Flip signs…\" on the Transactions page fixes rows you already imported.",
+    "Add a note to any transaction (including both sides of a transfer); notes are kept in CSV export and import. The Transactions table is wider, with clearer columns.",
+    "Every dropdown in the app is now the same menu, so menus look and work the same everywhere.",
+    "Auto-categorizing is more careful: a rule whose own history disagrees with it is marked \"Unsure\" for you to check instead of being applied silently, and it now sees through store numbers, card-processor prefixes (such as SQ *), shortened names and misspellings.",
+    "Appearance: a new Retro style. The glass style is now called Default and Slate has been retired (if you used Slate, you now get Default). Futuristic gets lit chart bars and glowing meters, a choice of accent color and glow strength, and a Reduce motion setting.",
+    "Reports can show the current month and open the transactions behind a category's spending; Budget shows the money left after income and spending; the Dashboard's Safe to spend card can be turned off in Settings.",
+    "Faster and steadier: big files no longer stall while loading, editing a transaction refreshes only that row, and pages show a loading message instead of looking empty while your data loads.",
+    "Fixed adding an account with the same name as an existing one: it used to overwrite that account's balance and details without telling you, and now asks for a different name.",
+    "Easier to read and use: stronger text contrast in the Default style, a minimum text size, plainer wording, a larger starting window, and messages that no longer block the buttons under them.",
+    "A legal notice is shown once per version; you can read it again any time from Help.",
+  ],
 };

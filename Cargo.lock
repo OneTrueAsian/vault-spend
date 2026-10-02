@@ -5018,7 +5018,7 @@ dependencies = [
 
 [[package]]
 name = "vaultspend"
-version = "1.2.8"
+version = "1.2.9"
 dependencies = [
  "budget_core",
  "chrono",
