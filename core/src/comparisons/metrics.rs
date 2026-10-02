@@ -10,7 +10,7 @@
 use super::setup::{
     ComparisonSetup, DebtClass, HouseholdIncomeMethod, InvestmentClass, ManualAmount, PersonRef, SourceRef,
 };
-use super::types::{money_str, Completeness, ComparisonMode, MetricId, PeriodKind, Unit, ValuePeriod};
+use super::types::{money_str, Completeness, MetricId, PeriodKind, Unit, ValuePeriod};
 use crate::models::AccountType;
 use chrono::{Datelike, Duration, Months, NaiveDate};
 use rust_decimal::{Decimal, RoundingStrategy};
@@ -183,39 +183,20 @@ impl MetricComputation {
 struct Share {
     counted_bp: u32,
     unallocated_bp: u32,
-    /// Individual mode, and no one has been allocated this source at all.
-    nobody_allocated: bool,
 }
 
-/// Who owns how much of one source, from the person's confirmed allocations. Never infers a 50/50
-/// split: an unallocated shared source is reported, not guessed.
+/// How much of one source counts for the household, from the person's confirmed allocations. With no
+/// allocation the household owns it outright; a share given to someone outside the household (a
+/// roommate) is left out, and a share nobody was given is reported, never guessed.
 fn share_of(setup: &ComparisonSetup, source: &SourceRef) -> Share {
     let allocs: Vec<_> = setup.allocations.iter().filter(|a| &a.source == source).collect();
-    let in_household: BTreeSet<&PersonRef> = setup.people.iter().filter(|p| p.in_household).map(|p| &p.person).collect();
     if allocs.is_empty() {
-        return match setup.mode {
-            ComparisonMode::Household => Share { counted_bp: BASIS_POINTS, unallocated_bp: 0, nobody_allocated: false },
-            ComparisonMode::Individual => {
-                let alone = in_household.len() <= 1 && setup.people.len() <= 1;
-                if alone {
-                    Share { counted_bp: BASIS_POINTS, unallocated_bp: 0, nobody_allocated: false }
-                } else {
-                    Share { counted_bp: 0, unallocated_bp: BASIS_POINTS, nobody_allocated: true }
-                }
-            }
-        };
+        return Share { counted_bp: BASIS_POINTS, unallocated_bp: 0 };
     }
+    let in_household: BTreeSet<&PersonRef> = setup.people.iter().filter(|p| p.in_household).map(|p| &p.person).collect();
     let total: u32 = allocs.iter().map(|a| a.basis_points).sum();
-    let unallocated_bp = BASIS_POINTS.saturating_sub(total);
-    let counted_bp = match setup.mode {
-        ComparisonMode::Household => allocs.iter().filter(|a| in_household.contains(&a.person)).map(|a| a.basis_points).sum(),
-        ComparisonMode::Individual => allocs
-            .iter()
-            .filter(|a| setup.individual_person.as_ref() == Some(&a.person))
-            .map(|a| a.basis_points)
-            .sum(),
-    };
-    Share { counted_bp, unallocated_bp, nobody_allocated: false }
+    let counted_bp = allocs.iter().filter(|a| in_household.contains(&a.person)).map(|a| a.basis_points).sum();
+    Share { counted_bp, unallocated_bp: BASIS_POINTS.saturating_sub(total) }
 }
 
 fn portion(amount: Decimal, bp: u32) -> Decimal {
@@ -248,7 +229,6 @@ fn count_source(
         share_basis_points: share.counted_bp,
         counted,
     });
-    let _ = share.nobody_allocated;
     counted
 }
 
@@ -291,13 +271,6 @@ fn entered(metric: MetricId, amount: &ManualAmount, today: NaiveDate) -> Origin 
 
 fn stock_period(today: NaiveDate) -> ValuePeriod {
     ValuePeriod { kind: PeriodKind::Stock, from: today.to_string(), to: today.to_string() }
-}
-
-fn subject(setup: &ComparisonSetup) -> Option<PersonRef> {
-    match setup.mode {
-        ComparisonMode::Household => None,
-        ComparisonMode::Individual => setup.individual_person.clone(),
-    }
 }
 
 // ---------------------------------------------------------------------------------- metrics
@@ -411,34 +384,23 @@ fn debt(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
 
 fn income(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
     let mut out = MetricComputation::new(MetricId::Income);
-    match setup.mode {
-        ComparisonMode::Household => match setup.income.household_method {
-            HouseholdIncomeMethod::Total => {
-                if let Some(a) = &setup.income.household_total {
-                    out.value = Some(a.value);
-                    out.origin = entered(MetricId::Income, a, snap.today);
-                    out.completeness = Completeness::Confirmed;
-                }
-            }
-            HouseholdIncomeMethod::ByPerson => {
-                let members: Vec<&PersonRef> = setup.people.iter().filter(|p| p.in_household).map(|p| &p.person).collect();
-                let entries: Vec<_> = setup.income.per_person.iter().filter(|e| members.contains(&&e.person)).collect();
-                if !entries.is_empty() {
-                    out.value = Some(entries.iter().map(|e| e.gross_annual.value).sum());
-                    let oldest = entries.iter().min_by_key(|e| e.gross_annual.measured_on.clone()).expect("non-empty");
-                    out.origin = entered(MetricId::Income, &oldest.gross_annual, snap.today);
-                    out.completeness =
-                        if members.iter().all(|m| entries.iter().any(|e| &&e.person == m)) { Completeness::Confirmed } else { Completeness::Partial };
-                }
-            }
-        },
-        ComparisonMode::Individual => {
-            if let Some(who) = &setup.individual_person
-                && let Some(e) = setup.income.per_person.iter().find(|e| &e.person == who)
-            {
-                out.value = Some(e.gross_annual.value);
-                out.origin = entered(MetricId::Income, &e.gross_annual, snap.today);
+    match setup.income.household_method {
+        HouseholdIncomeMethod::Total => {
+            if let Some(a) = &setup.income.household_total {
+                out.value = Some(a.value);
+                out.origin = entered(MetricId::Income, a, snap.today);
                 out.completeness = Completeness::Confirmed;
+            }
+        }
+        HouseholdIncomeMethod::ByPerson => {
+            let members: Vec<&PersonRef> = setup.people.iter().filter(|p| p.in_household).map(|p| &p.person).collect();
+            let entries: Vec<_> = setup.income.per_person.iter().filter(|e| members.contains(&&e.person)).collect();
+            if !entries.is_empty() {
+                out.value = Some(entries.iter().map(|e| e.gross_annual.value).sum());
+                let oldest = entries.iter().min_by_key(|e| e.gross_annual.measured_on.clone()).expect("non-empty");
+                out.origin = entered(MetricId::Income, &oldest.gross_annual, snap.today);
+                out.completeness =
+                    if members.iter().all(|m| entries.iter().any(|e| &&e.person == m)) { Completeness::Confirmed } else { Completeness::Partial };
             }
         }
     }
@@ -474,10 +436,6 @@ fn months_between(from: NaiveDate, to: NaiveDate) -> Vec<String> {
 
 fn spending(snap: &Snapshot, setup: &ComparisonSetup) -> MetricComputation {
     let mut out = MetricComputation::new(MetricId::Spending);
-    if setup.mode == ComparisonMode::Individual {
-        out.notes.push(note("individual_spending_unsupported", "Spending is only compared for the household."));
-        return out;
-    }
     let (from, to) = spending_window(setup, snap.today);
     let months = months_between(from, to);
     out.period = Some(ValuePeriod { kind: PeriodKind::Flow, from: from.to_string(), to: to.to_string() });
@@ -540,11 +498,10 @@ fn derive(snap: &Snapshot, setup: &ComparisonSetup, metric: MetricId) -> MetricC
 /// (annual spending's typed figure is `spending.manual_annual`), and the tracked value stays visible.
 pub fn compute_metric(snap: &Snapshot, setup: &ComparisonSetup, metric: MetricId) -> MetricComputation {
     let mut out = derive(snap, setup, metric);
-    let who = subject(setup);
     let typed: Option<&ManualAmount> = setup
         .manual_overrides
         .iter()
-        .find(|o| o.metric == metric && o.subject == who)
+        .find(|o| o.metric == metric)
         .map(|o| &o.amount)
         .or(if metric == MetricId::Spending { setup.spending.manual_annual.as_ref() } else { None });
     if let Some(amount) = typed {

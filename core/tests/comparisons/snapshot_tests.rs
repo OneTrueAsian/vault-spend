@@ -1,7 +1,7 @@
 use super::setup_tests::today;
 use budget_core::comparisons::metrics::{compute_metric, spending_window, Snapshot};
 use budget_core::comparisons::setup::ComparisonSetup;
-use budget_core::comparisons::types::{ComparisonMode, MetricId};
+use budget_core::comparisons::types::{MetricId};
 use budget_core::models::{AccountType, Transaction};
 use budget_core::store::Store;
 use chrono::{NaiveDate, NaiveDateTime};
@@ -121,7 +121,7 @@ fn assets_carry_their_valuation_date() {
 
 #[test]
 fn the_default_spending_window_is_the_twelve_completed_months() {
-    let setup = ComparisonSetup::empty(ComparisonMode::Household);
+    let setup = ComparisonSetup::empty();
     assert_eq!(spending_window(&setup, today()), (d(2025, 9, 1), d(2026, 8, 31)));
 }
 
@@ -135,7 +135,7 @@ fn a_real_year_of_spending_reconciles_end_to_end() {
         txns.push(tx(d(y, m, 20), "Food", "-500.00", Some("Groceries")));
     }
     store.save_transactions(checking, &txns).unwrap();
-    let mut setup = ComparisonSetup::empty(ComparisonMode::Household);
+    let mut setup = ComparisonSetup::empty();
     setup.spending.completeness_confirmed = true;
     let (from, _) = spending_window(&setup, today());
     let m = compute_metric(&snapshot(&store, from), &setup, MetricId::Spending);

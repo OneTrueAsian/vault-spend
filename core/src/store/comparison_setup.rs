@@ -8,8 +8,8 @@
 use super::Store;
 use crate::comparisons::package::Package;
 use crate::comparisons::setup::{
-    find_repairs, validate_setup, ComparisonSetup, Repair, SetupContext, SetupProblem, MAX_PAYLOAD_BYTES,
-    SETUP_FORMAT_VERSION,
+    find_repairs, upgrade_v1_payload, validate_setup, ComparisonSetup, Repair, SetupContext, SetupProblem,
+    MAX_PAYLOAD_BYTES, SETUP_FORMAT_VERSION,
 };
 use chrono::NaiveDate;
 use rusqlite::{params, OptionalExtension};
@@ -97,12 +97,15 @@ impl Store {
         let Some((format_version, revision, payload)) = row else {
             return Ok(StoredComparisonSetup { revision: 0, setup: None, repairs: Vec::new() });
         };
-        if format_version != SETUP_FORMAT_VERSION {
-            return Err(ComparisonSetupError::Unsupported { found: format_version });
-        }
-        let setup: ComparisonSetup = serde_json::from_str(&payload).map_err(|e| {
+        let corrupt = |e: serde_json::Error| {
             ComparisonSetupError::Corrupt(format!("{:?} error at line {} column {}", e.classify(), e.line(), e.column()))
-        })?;
+        };
+        let payload = match format_version {
+            SETUP_FORMAT_VERSION => payload,
+            1 => upgrade_v1_payload(&payload).map_err(corrupt)?,
+            found => return Err(ComparisonSetupError::Unsupported { found }),
+        };
+        let setup: ComparisonSetup = serde_json::from_str(&payload).map_err(corrupt)?;
         // The date only matters for validation, not for finding deleted references.
         let repairs = self.with_setup_context(NaiveDate::MIN, |ctx| find_repairs(&setup, ctx))?;
         Ok(StoredComparisonSetup { revision, setup: Some(setup), repairs })

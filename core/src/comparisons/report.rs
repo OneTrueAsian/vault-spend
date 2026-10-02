@@ -10,16 +10,16 @@ use super::types::{
 };
 use serde::Serialize;
 
-/// The published definition each headline card compares against, per mode. A definition the
-/// current package no longer carries keeps its card visible as "no longer available".
-fn definition_for(metric: MetricId, mode: ComparisonMode) -> Option<&'static str> {
-    match (metric, mode) {
-        (MetricId::Income, ComparisonMode::Household) => Some("cps_hinc02_money_income_median"),
-        (MetricId::Income, ComparisonMode::Individual) => Some("cps_pinc01_money_income_median"),
-        (MetricId::Savings, _) => Some("sipp_financial_institution_assets_median"),
-        (MetricId::Investments, _) => Some("sipp_retirement_accounts_median"),
-        (MetricId::Debt, _) => Some("sipp_total_debt_median"),
-        (MetricId::Spending, _) => None,
+/// The published definition each headline card compares against. A definition the current package
+/// no longer carries keeps its card visible as "no longer available".
+fn definition_for(metric: MetricId) -> Option<&'static str> {
+    match metric {
+        MetricId::Income => Some("cps_hinc02_money_income_median"),
+        MetricId::Savings => Some("sipp_financial_institution_assets_median"),
+        MetricId::Investments => Some("sipp_retirement_accounts_median"),
+        MetricId::Debt => Some("sipp_total_debt_median"),
+        // Spending has no single definition: the engine uses every household spending reference.
+        MetricId::Spending => None,
     }
 }
 
@@ -75,15 +75,11 @@ pub struct CardView {
 #[serde(rename_all = "camelCase")]
 pub struct ComparisonsReport {
     pub package_version: String,
-    pub mode: ComparisonMode,
     pub cards: Vec<CardView>,
 }
 
 fn subject_age(setup: &ComparisonSetup) -> Option<AgeInput> {
-    let who = match setup.mode {
-        ComparisonMode::Household => setup.household_reference_person.as_ref(),
-        ComparisonMode::Individual => setup.individual_person.as_ref(),
-    }?;
+    let who = setup.household_reference_person.as_ref()?;
     setup.people.iter().find(|p| &p.person == who)?.age.as_ref().map(|a| a.age)
 }
 
@@ -96,12 +92,12 @@ fn preference(setup: &ComparisonSetup, metric: MetricId) -> Option<Universe> {
 }
 
 fn cohort_choice(setup: &ComparisonSetup, metric: MetricId) -> Option<&str> {
-    setup.cohort_choices.iter().find(|c| c.metric == metric && c.mode == setup.mode).map(|c| c.reference_id.as_str())
+    setup.cohort_choices.iter().find(|c| c.metric == metric).map(|c| c.reference_id.as_str())
 }
 
-fn universe_options(pkg: &Package, metric: MetricId, mode: ComparisonMode, definition: Option<&str>) -> Vec<Universe> {
+fn universe_options(pkg: &Package, metric: MetricId, definition: Option<&str>) -> Vec<Universe> {
     let Some(definition) = definition else { return Vec::new() };
-    let mut out: Vec<Universe> = pkg.references(metric, mode).filter(|r| r.definition_id == definition).map(|r| r.universe).collect();
+    let mut out: Vec<Universe> = pkg.references(metric, ComparisonMode::Household).filter(|r| r.definition_id == definition).map(|r| r.universe).collect();
     out.sort();
     out.dedup();
     out
@@ -111,11 +107,11 @@ fn cohort_options(pkg: &Package, setup: &ComparisonSetup, metric: MetricId, defi
     let (Some(definition), Some(age)) = (definition, subject_age(setup)) else { return Vec::new() };
     let universe = chosen_universe.or(preference(setup, metric)).unwrap_or(Universe::All);
     let mut candidates: Vec<&Reference> = pkg
-        .references(metric, setup.mode)
+        .references(metric, ComparisonMode::Household)
         .filter(|r| r.definition_id == definition && r.universe == universe)
         .collect();
     if candidates.is_empty() {
-        candidates = pkg.references(metric, setup.mode).filter(|r| r.definition_id == definition).collect();
+        candidates = pkg.references(metric, ComparisonMode::Household).filter(|r| r.definition_id == definition).collect();
     }
     match match_cohort(&candidates, age) {
         CohortMatch::ChoiceRequired { options, .. } => options.iter().map(|r| CohortOption { id: r.id.clone(), age_min: r.age_min, age_max: r.age_max }).collect(),
@@ -149,10 +145,10 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
         .into_iter()
         .map(|metric| {
             let id = metric.metric;
-            let definition = definition_for(id, setup.mode);
+            let definition = definition_for(id);
             let query = CardQuery {
                 metric: id,
-                mode: setup.mode,
+                mode: ComparisonMode::Household,
                 definition_id: definition,
                 age,
                 selected_cohort: cohort_choice(setup, id),
@@ -166,7 +162,7 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
             if result.status != CardStatus::MissingInput {
                 for (class, def, label) in secondary_definitions(id) {
                     let total = metric.class_totals.get(*class).copied().unwrap_or_default();
-                    if total.is_zero() || setup.mode == ComparisonMode::Individual {
+                    if total.is_zero() {
                         continue;
                     }
                     let mut local = local_measure(&metric);
@@ -181,7 +177,7 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
             CardView {
                 visible: is_visible(&result),
                 definition_id: definition.map(String::from),
-                universe_options: universe_options(pkg, id, setup.mode, definition),
+                universe_options: universe_options(pkg, id, definition),
                 cohort_options: cohort_options(pkg, setup, id, definition, chosen_universe),
                 secondary,
                 stale,
@@ -190,5 +186,5 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
             }
         })
         .collect();
-    ComparisonsReport { package_version: pkg.package_version().to_string(), mode: setup.mode, cards }
+    ComparisonsReport { package_version: pkg.package_version().to_string(), cards }
 }

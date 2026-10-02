@@ -2,13 +2,13 @@
 //! confirmed by hand, and how their accounts map onto each comparison. It is a strict, versioned
 //! domain type (not free-form JSON) stored inside the profile database, so it is encrypted,
 //! backed up and restored with the rest of the profile and never leaves the device.
-use super::types::{money_str, AgeInput, ComparisonMode, MetricId, Universe};
+use super::types::{money_str, AgeInput, MetricId, Universe};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 pub use super::validation::{find_repairs, validate_setup, SetupContext};
 
-pub const SETUP_FORMAT_VERSION: u32 = 1;
+pub const SETUP_FORMAT_VERSION: u32 = 2;
 /// Upper bound on the stored payload, so a bug or hostile import cannot bloat the profile.
 pub const MAX_PAYLOAD_BYTES: usize = 256 * 1024;
 pub const MAX_EXPLANATION_CHARS: usize = 500;
@@ -166,21 +166,18 @@ pub struct BalanceConfirmation {
     pub confirmed_on: String,
 }
 
-/// A comparable total typed in place of the derived one. Stays active until removed or replaced.
+/// A comparable total typed in place of the household's own figure. Stays active until removed or replaced.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ManualOverride {
     pub metric: MetricId,
-    /// `None` is the household as a whole.
-    pub subject: Option<PersonRef>,
     pub amount: ManualAmount,
 }
 
-/// The published cohort the person picked when their age band spans several, per mode and metric.
+/// The published cohort the person picked when their age band spans several, per metric.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CohortChoice {
-    pub mode: ComparisonMode,
     pub metric: MetricId,
     pub reference_id: String,
 }
@@ -196,11 +193,8 @@ pub struct UniversePreference {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ComparisonSetup {
     pub format_version: u32,
-    pub mode: ComparisonMode,
-    /// Household mode: the one person whose age matches every domain.
+    /// The one person whose age is used for every comparison.
     pub household_reference_person: Option<PersonRef>,
-    /// Individual mode: whose finances are compared.
-    pub individual_person: Option<PersonRef>,
     pub people: Vec<PersonSetup>,
     pub income: IncomeSetup,
     pub spending: SpendingSetup,
@@ -217,13 +211,11 @@ pub struct ComparisonSetup {
 }
 
 impl ComparisonSetup {
-    /// A valid, empty setup for the given mode: nothing chosen, nothing confirmed.
-    pub fn empty(mode: ComparisonMode) -> Self {
+    /// A valid, empty setup: nothing chosen, nothing confirmed.
+    pub fn empty() -> Self {
         ComparisonSetup {
             format_version: SETUP_FORMAT_VERSION,
-            mode,
             household_reference_person: None,
-            individual_person: None,
             people: Vec::new(),
             income: IncomeSetup { household_method: HouseholdIncomeMethod::Total, household_total: None, per_person: Vec::new() },
             spending: SpendingSetup {
@@ -244,6 +236,31 @@ impl ComparisonSetup {
             universe_preferences: Vec::new(),
         }
     }
+}
+
+/// Reads a format 1 payload (saved before the One person mode was removed) as format 2: the mode
+/// and its person go, as do the age-group choices and typed totals that belonged to one person.
+pub fn upgrade_v1_payload(payload: &str) -> serde_json::Result<String> {
+    use serde_json::Value;
+    let mut v: Value = serde_json::from_str(payload)?;
+    if let Some(o) = v.as_object_mut() {
+        o.insert("formatVersion".into(), Value::from(SETUP_FORMAT_VERSION));
+        o.remove("mode");
+        o.remove("individualPerson");
+        if let Some(Value::Array(choices)) = o.get_mut("cohortChoices") {
+            choices.retain(|c| c.get("mode").and_then(Value::as_str) != Some("individual"));
+            for c in choices.iter_mut().filter_map(Value::as_object_mut) {
+                c.remove("mode");
+            }
+        }
+        if let Some(Value::Array(overrides)) = o.get_mut("manualOverrides") {
+            overrides.retain(|m| m.get("subject").is_none_or(Value::is_null));
+            for m in overrides.iter_mut().filter_map(Value::as_object_mut) {
+                m.remove("subject");
+            }
+        }
+    }
+    serde_json::to_string(&v)
 }
 
 /// One thing wrong with a proposed setup, addressed to a field so the UI can point at it.

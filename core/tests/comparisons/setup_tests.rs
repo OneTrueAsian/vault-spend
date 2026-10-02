@@ -1,7 +1,7 @@
 use super::common::*;
 use budget_core::comparisons::package::Package;
 use budget_core::comparisons::setup::*;
-use budget_core::comparisons::types::{AgeInput, ComparisonMode, MetricId, Universe};
+use budget_core::comparisons::types::{AgeInput, MetricId, Universe};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -22,7 +22,7 @@ pub fn person(id: i64) -> PersonRef {
 
 /// Owner plus members 7 (partner, in the household) and 8 (roommate, not in it).
 pub fn base_setup() -> ComparisonSetup {
-    let mut s = ComparisonSetup::empty(ComparisonMode::Household);
+    let mut s = ComparisonSetup::empty();
     s.people = vec![
         PersonSetup { person: PersonRef::Owner, age: Some(AgeConfirmation { age: AgeInput::Exact { age: 42 }, confirmed_on: "2026-09-01".into() }), in_household: true },
         PersonSetup { person: person(7), age: None, in_household: true },
@@ -69,10 +69,9 @@ impl Fixture {
 }
 
 #[test]
-fn empty_and_base_setups_are_valid_in_both_modes() {
+fn empty_and_base_setups_are_valid() {
     let f = Fixture::new();
-    assert!(f.problems(&ComparisonSetup::empty(ComparisonMode::Household)).is_empty());
-    assert!(f.problems(&ComparisonSetup::empty(ComparisonMode::Individual)).is_empty());
+    assert!(f.problems(&ComparisonSetup::empty()).is_empty());
     assert_eq!(f.problems(&base_setup()), Vec::<String>::new());
 }
 
@@ -136,17 +135,6 @@ fn the_household_reference_person_must_be_in_the_household() {
     let mut partner = base_setup();
     partner.household_reference_person = Some(person(7));
     assert!(f.problems(&partner).is_empty());
-}
-
-#[test]
-fn the_individual_person_must_be_listed() {
-    let f = Fixture::new();
-    let mut s = base_setup();
-    s.mode = ComparisonMode::Individual;
-    s.individual_person = Some(person(8));
-    assert!(f.problems(&s).is_empty(), "an individual comparison may be about someone outside the household unit");
-    s.individual_person = Some(person(99));
-    f.assert_rejected(&s, "individualPerson");
 }
 
 #[test]
@@ -327,26 +315,19 @@ fn savings_overrides_reference_real_unique_accounts() {
 }
 
 #[test]
-fn cohort_choices_must_name_a_published_cohort_for_that_metric_and_mode() {
+fn cohort_choices_must_name_a_published_household_cohort_for_that_metric() {
     let f = Fixture::new();
-    let choice = |mode, metric, id: &str| CohortChoice { mode, metric, reference_id: id.into() };
+    let choice = |metric, id: &str| CohortChoice { metric, reference_id: id.into() };
     let mut ok = base_setup();
-    ok.cohort_choices = vec![choice(ComparisonMode::Household, MetricId::Income, "h25")];
+    ok.cohort_choices = vec![choice(MetricId::Income, "h25")];
     assert!(f.problems(&ok).is_empty());
-    for bad in [
-        choice(ComparisonMode::Household, MetricId::Income, "gone"),
-        choice(ComparisonMode::Individual, MetricId::Income, "h25"),
-        choice(ComparisonMode::Household, MetricId::Debt, "h25"),
-    ] {
+    for bad in [choice(MetricId::Income, "gone"), choice(MetricId::Income, "i25"), choice(MetricId::Debt, "h25")] {
         let mut s = base_setup();
         s.cohort_choices = vec![bad];
         f.assert_rejected(&s, "cohortChoices[0]");
     }
     let mut dup = base_setup();
-    dup.cohort_choices = vec![
-        choice(ComparisonMode::Household, MetricId::Income, "h25"),
-        choice(ComparisonMode::Household, MetricId::Income, "h25"),
-    ];
+    dup.cohort_choices = vec![choice(MetricId::Income, "h25"), choice(MetricId::Income, "h25")];
     f.assert_rejected(&dup, "cohortChoices");
 }
 
@@ -363,25 +344,22 @@ fn universe_preferences_are_unique_per_metric() {
 #[test]
 fn manual_overrides_follow_each_metrics_sign_rules_and_are_unique() {
     let f = Fixture::new();
-    let ov = |metric, subject, v: &str| ManualOverride { metric, subject, amount: amount(v) };
+    let ov = |metric, v: &str| ManualOverride { metric, amount: amount(v) };
     let mut ok = base_setup();
     ok.manual_overrides = vec![
-        ov(MetricId::Income, None, "-500"),
-        ov(MetricId::Savings, Some(PersonRef::Owner), "-20"),
-        ov(MetricId::Debt, None, "0"),
+        ov(MetricId::Income, "-500"),
+        ov(MetricId::Savings, "-20"),
+        ov(MetricId::Debt, "0"),
     ];
     assert!(f.problems(&ok).is_empty());
     for metric in [MetricId::Debt, MetricId::Investments, MetricId::Spending] {
         let mut s = base_setup();
-        s.manual_overrides = vec![ov(metric, None, "-1")];
+        s.manual_overrides = vec![ov(metric, "-1")];
         f.assert_rejected(&s, "manualOverrides[0]");
     }
     let mut dup = base_setup();
-    dup.manual_overrides = vec![ov(MetricId::Debt, None, "1"), ov(MetricId::Debt, None, "2")];
+    dup.manual_overrides = vec![ov(MetricId::Debt, "1"), ov(MetricId::Debt, "2")];
     f.assert_rejected(&dup, "manualOverrides");
-    let mut ghost = base_setup();
-    ghost.manual_overrides = vec![ov(MetricId::Debt, Some(person(99)), "1")];
-    f.assert_rejected(&ghost, "manualOverrides[0].subject");
 }
 
 #[test]
@@ -403,7 +381,7 @@ fn a_missing_benchmark_package_only_blocks_cohort_choices() {
     let ctx = SetupContext { package: None, ..f.ctx() };
     assert!(validate_setup(&base_setup(), &ctx).is_empty());
     let mut s = base_setup();
-    s.cohort_choices = vec![CohortChoice { mode: ComparisonMode::Household, metric: MetricId::Income, reference_id: "h25".into() }];
+    s.cohort_choices = vec![CohortChoice { metric: MetricId::Income, reference_id: "h25".into() }];
     assert!(!validate_setup(&s, &ctx).is_empty());
 }
 

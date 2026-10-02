@@ -3,7 +3,7 @@
 //! field path so the UI can point at it, and all problems are reported together.
 use super::package::Package;
 use super::setup::*;
-use super::types::MetricId;
+use super::types::{ComparisonMode, MetricId};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -113,11 +113,6 @@ pub fn validate_setup(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<SetupP
         && !setup.people.iter().any(|p| &p.person == r && p.in_household)
     {
         out.add("householdReferencePerson", "The reference person must be one of the people in the household.");
-    }
-    if let Some(r) = &setup.individual_person
-        && !listed(r)
-    {
-        out.add("individualPerson", "Choose someone from the people listed.");
     }
 
     // Income.
@@ -230,12 +225,7 @@ pub fn validate_setup(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<SetupP
     let mut seen = BTreeSet::new();
     for (i, o) in setup.manual_overrides.iter().enumerate() {
         let field = format!("manualOverrides[{i}]");
-        if let Some(p) = &o.subject
-            && !(ctx.person_exists(p) && listed(p))
-        {
-            out.add(format!("{field}.subject"), "Choose someone from the people listed.");
-        }
-        out.unique(&field, &mut seen, (o.metric, o.subject.clone()), "This comparison already has a manual total.");
+        out.unique(&field, &mut seen, o.metric, "This comparison already has a manual total.");
         out.amount(&format!("{field}.amount"), &o.amount, o.metric, ctx);
     }
 
@@ -243,11 +233,11 @@ pub fn validate_setup(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<SetupP
     let mut seen = BTreeSet::new();
     for (i, c) in setup.cohort_choices.iter().enumerate() {
         let field = format!("cohortChoices[{i}]");
-        out.unique(&field, &mut seen, (c.mode, c.metric), "A cohort is chosen twice for this comparison.");
+        out.unique(&field, &mut seen, c.metric, "A cohort is chosen twice for this comparison.");
         match ctx.package {
             None => out.add(&field, "The benchmark data could not be loaded, so a cohort cannot be chosen."),
             Some(pkg) => {
-                if !pkg.references(c.metric, c.mode).any(|r| r.id == c.reference_id) {
+                if !pkg.references(c.metric, ComparisonMode::Household).any(|r| r.id == c.reference_id) {
                     out.add(format!("{field}.referenceId"), "This cohort is not in the current benchmark data.");
                 }
             }
@@ -275,19 +265,11 @@ pub fn find_repairs(setup: &ComparisonSetup, ctx: &SetupContext) -> Vec<Repair> 
     if let Some(p) = &setup.household_reference_person {
         person("householdReferencePerson".into(), p);
     }
-    if let Some(p) = &setup.individual_person {
-        person("individualPerson".into(), p);
-    }
     for (i, p) in setup.income.per_person.iter().enumerate() {
         person(format!("income.perPerson[{i}].person"), &p.person);
     }
     for (i, a) in setup.allocations.iter().enumerate() {
         person(format!("allocations[{i}].person"), &a.person);
-    }
-    for (i, o) in setup.manual_overrides.iter().enumerate() {
-        if let Some(p) = &o.subject {
-            person(format!("manualOverrides[{i}].subject"), p);
-        }
     }
     let mut source = |field: String, s: &SourceRef| {
         if !ctx.source_exists(s) {

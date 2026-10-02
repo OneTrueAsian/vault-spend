@@ -5,7 +5,7 @@ use budget_core::comparisons::package::Package;
 use budget_core::comparisons::report::{build_report, CardView, ComparisonsReport};
 use budget_core::comparisons::setup::*;
 use budget_core::comparisons::types::{
-    AgeInput, CardStatus, Completeness, ComparisonMode, MetricId, Reason, Statistic, Universe,
+    AgeInput, CardStatus, Completeness, MetricId, Reason, Statistic, Universe,
 };
 use budget_core::models::AccountType;
 use rust_decimal::Decimal;
@@ -79,15 +79,6 @@ fn cards_missing_user_input_are_hidden_but_benchmark_gaps_stay_visible() {
     assert_eq!((income.result.status, income.visible), (CardStatus::MissingInput, false));
     let spending = card(&report, MetricId::Spending);
     assert_eq!((spending.result.status, spending.visible), (CardStatus::MissingInput, false), "household spending has a benchmark now");
-
-    let mut individual = setup_42();
-    individual.mode = ComparisonMode::Individual;
-    individual.individual_person = Some(PersonRef::Owner);
-    let report = build_report(bundled(), &individual, &empty_snapshot());
-    let savings = card(&report, MetricId::Savings);
-    assert_eq!(savings.result.status, CardStatus::Unavailable, "no individual savings benchmark ships");
-    assert!(savings.visible);
-    assert!(savings.result.reasons.contains(&Reason::NoBenchmark));
 }
 
 #[test]
@@ -115,41 +106,18 @@ fn without_an_age_every_card_with_a_benchmark_is_hidden() {
 }
 
 #[test]
-fn individual_mode_has_income_and_documents_the_rest_as_unavailable() {
-    let mut setup = setup_42();
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(PersonRef::Owner);
-    setup.income.per_person = vec![PersonIncome { person: PersonRef::Owner, gross_annual: amount("70000") }];
-    let report = build_report(bundled(), &setup, &empty_snapshot());
-    let income = card(&report, MetricId::Income);
-    assert_eq!(income.result.reference.as_ref().unwrap().reference.definition_id, "cps_pinc01_money_income_median");
-    for m in [MetricId::Spending, MetricId::Investments, MetricId::Savings, MetricId::Debt] {
-        let c = card(&report, m);
-        assert_eq!((c.result.status, c.visible), (CardStatus::Unavailable, true), "{m:?}");
-    }
-}
-
-#[test]
 fn an_age_band_spanning_published_cohorts_asks_for_a_choice_and_remembers_it() {
     let mut setup = setup_42();
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(PersonRef::Owner);
-    age(&mut setup, PersonRef::Owner, AgeInput::Band { min: 25, max: Some(34) });
-    setup.income.per_person = vec![PersonIncome { person: PersonRef::Owner, gross_annual: amount("70000") }];
-    let report = build_report(bundled(), &setup, &empty_snapshot());
-    let c = card(&report, MetricId::Income);
+    age(&mut setup, PersonRef::Owner, AgeInput::Band { min: 40, max: Some(49) });
+    setup.income.household_total = Some(amount("100000"));
+    let c = card(&build_report(bundled(), &setup, &empty_snapshot()), MetricId::Income).clone();
     assert_eq!(c.result.status, CardStatus::CohortChoiceRequired);
-    assert_eq!(c.cohort_options.len(), 2);
-    assert_eq!((c.cohort_options[0].age_min, c.cohort_options[1].age_min), (25, 30));
+    assert_eq!((c.cohort_options[0].age_min, c.cohort_options[1].age_min), (40, 45));
 
-    setup.cohort_choices = vec![CohortChoice {
-        mode: ComparisonMode::Individual,
-        metric: MetricId::Income,
-        reference_id: "cps_pinc01_money_income_median:30-34".into(),
-    }];
+    setup.cohort_choices = vec![CohortChoice { metric: MetricId::Income, reference_id: "cps_hinc02_money_income_median:45-49".into() }];
     let chosen = card(&build_report(bundled(), &setup, &empty_snapshot()), MetricId::Income).clone();
     assert_eq!(chosen.result.status, CardStatus::Comparable);
-    assert_eq!(chosen.result.reference.unwrap().reference.age_min, 30);
+    assert_eq!(chosen.result.reference.unwrap().reference.age_min, 45);
     assert_eq!(chosen.cohort_options.len(), 2, "the choice can be changed later");
 }
 

@@ -1,6 +1,6 @@
 use super::setup_tests::{amount, base_setup, person, today};
 use budget_core::comparisons::setup::*;
-use budget_core::comparisons::types::{AgeInput, ComparisonMode, MetricId, Universe};
+use budget_core::comparisons::types::{AgeInput, MetricId, Universe};
 use budget_core::models::AccountType;
 use budget_core::store::{ComparisonSetupError, DatabaseKey, Store};
 use chrono::NaiveDate;
@@ -63,7 +63,7 @@ fn a_stale_revision_is_a_conflict_and_changes_nothing() {
     let original = setup_for(partner, roommate);
     save(&store, 0, &original).unwrap();
     let mut changed = original.clone();
-    changed.mode = ComparisonMode::Individual;
+    changed.household_reference_person = None;
 
     match save(&store, 0, &changed) {
         Err(ComparisonSetupError::Conflict { current_revision }) => assert_eq!(current_revision, 1),
@@ -120,9 +120,8 @@ fn cohort_choices_are_checked_against_the_bundled_package() {
     let (store, partner, roommate) = store_with_people();
     let mut s = setup_for(partner, roommate);
     s.cohort_choices = vec![CohortChoice {
-        mode: ComparisonMode::Individual,
         metric: MetricId::Income,
-        reference_id: "cps_pinc01_money_income_median:25-29".into(),
+        reference_id: "cps_hinc02_money_income_median:25-29".into(),
     }];
     s.universe_preferences = vec![UniversePreference { metric: MetricId::Savings, universe: Universe::Holders }];
     assert!(save(&store, 0, &s).is_ok());
@@ -297,4 +296,57 @@ fn an_oversized_payload_is_refused() {
         .collect();
     assert!(matches!(save(&store, 0, &s), Err(ComparisonSetupError::Invalid(_))));
     assert_eq!(store.get_comparison_setup().unwrap().revision, 0);
+}
+
+#[test]
+fn a_version_1_setup_saved_in_one_person_mode_loads_as_a_household_setup() {
+    let dir = temp_dir("v1-upgrade");
+    let path = dir.join("v1.db");
+    let partner = {
+        let store = Store::open(&path).unwrap();
+        store.create_family_member("Partner").unwrap()
+    };
+    let v1 = serde_json::json!({
+        "formatVersion": 1,
+        "mode": "individual",
+        "householdReferencePerson": { "kind": "owner" },
+        "individualPerson": { "kind": "member", "id": partner },
+        "people": [
+            { "person": { "kind": "owner" }, "age": { "age": { "kind": "exact", "age": 42 }, "confirmedOn": "2026-09-01" }, "inHousehold": true },
+            { "person": { "kind": "member", "id": partner }, "age": null, "inHousehold": true }
+        ],
+        "income": { "householdMethod": "by_person", "householdTotal": null, "perPerson": [] },
+        "spending": { "period": null, "accountIds": [], "completenessConfirmed": false, "manualAnnual": null, "categoryMappings": [] },
+        "savingsOverrides": [], "investmentClasses": [], "debtClasses": [], "debtExclusions": [], "allocations": [],
+        "balanceConfirmations": [],
+        "manualOverrides": [
+            { "metric": "savings", "subject": null, "amount": { "value": "25000", "measuredOn": "2026-09-01", "explanation": "Statement" } },
+            { "metric": "debt", "subject": { "kind": "member", "id": partner }, "amount": { "value": "900", "measuredOn": "2026-09-01", "explanation": "Card" } }
+        ],
+        "cohortChoices": [
+            { "mode": "household", "metric": "income", "referenceId": "cps_hinc02_money_income_median:40-44" },
+            { "mode": "individual", "metric": "income", "referenceId": "cps_pinc01_money_income_median:40-44" }
+        ],
+        "universePreferences": []
+    });
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute(
+            "INSERT INTO comparison_setup (id, format_version, revision, payload, updated_at) VALUES (1, 1, 4, ?1, 'x')",
+            [v1.to_string()],
+        )
+        .unwrap();
+    }
+    let store = Store::open(&path).unwrap();
+    let stored = store.get_comparison_setup().expect("a version 1 setup still loads");
+    assert_eq!(stored.revision, 4);
+    let setup = stored.setup.unwrap();
+    assert_eq!(setup.format_version, SETUP_FORMAT_VERSION);
+    assert_eq!(setup.household_reference_person, Some(PersonRef::Owner));
+    assert_eq!(setup.manual_overrides.len(), 1, "the one-person typed total is dropped");
+    assert_eq!(setup.manual_overrides[0].metric, MetricId::Savings);
+    assert_eq!(
+        setup.cohort_choices,
+        vec![CohortChoice { metric: MetricId::Income, reference_id: "cps_hinc02_money_income_median:40-44".into() }]
+    );
 }

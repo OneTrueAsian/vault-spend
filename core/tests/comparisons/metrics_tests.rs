@@ -1,7 +1,7 @@
 use super::setup_tests::{amount, base_setup, person, today};
 use budget_core::comparisons::metrics::*;
 use budget_core::comparisons::setup::*;
-use budget_core::comparisons::types::{Completeness, ComparisonMode, MetricId, Unit};
+use budget_core::comparisons::types::{Completeness, MetricId, Unit};
 use budget_core::models::AccountType;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -47,7 +47,7 @@ fn metric(snap: &Snapshot, setup: &ComparisonSetup, m: MetricId) -> MetricComput
 }
 
 fn solo_setup() -> ComparisonSetup {
-    let mut s = ComparisonSetup::empty(ComparisonMode::Household);
+    let mut s = ComparisonSetup::empty();
     s.people = vec![PersonSetup { person: PersonRef::Owner, age: None, in_household: true }];
     s
 }
@@ -129,20 +129,6 @@ fn couple_setup() -> ComparisonSetup {
 }
 
 #[test]
-fn a_joint_account_is_split_by_confirmed_shares_in_individual_mode() {
-    let snap = snapshot(vec![account(1, "Joint checking", AccountType::Checking, "1000")]);
-    let mut setup = confirmed(couple_setup(), &[MetricId::Savings]);
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(PersonRef::Owner);
-    setup.allocations = vec![share(acct(1), PersonRef::Owner, 6000), share(acct(1), person(7), 4000)];
-    let mine = metric(&snap, &setup, MetricId::Savings);
-    assert_eq!(mine.value, Some(dec("600")));
-    assert_eq!(mine.completeness, Completeness::Confirmed);
-    setup.individual_person = Some(person(7));
-    assert_eq!(metric(&snap, &setup, MetricId::Savings).value, Some(dec("400")));
-}
-
-#[test]
 fn household_totals_count_a_joint_account_once_not_once_per_member() {
     let snap = snapshot(vec![account(1, "Joint checking", AccountType::Checking, "1000")]);
     let mut setup = confirmed(couple_setup(), &[MetricId::Savings]);
@@ -170,36 +156,20 @@ fn an_unallocated_remainder_is_reported_and_blocks_a_confident_result() {
 }
 
 #[test]
-fn in_individual_mode_an_account_nobody_allocated_is_not_assumed_to_be_yours() {
-    let snap = snapshot(vec![account(1, "Joint", AccountType::Checking, "1000")]);
-    let mut setup = confirmed(couple_setup(), &[MetricId::Savings]);
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(PersonRef::Owner);
-    let m = metric(&snap, &setup, MetricId::Savings);
-    assert_eq!(m.value, Some(Decimal::ZERO));
-    assert_eq!(m.completeness, Completeness::Partial);
-    assert_eq!(m.excluded[0].reason, ExcludeReason::NotAllocated);
-}
-
-#[test]
 fn a_person_living_alone_owns_unallocated_accounts_outright() {
     let snap = snapshot(vec![account(1, "Checking", AccountType::Checking, "1000")]);
-    let mut setup = confirmed(solo_setup(), &[MetricId::Savings]);
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(PersonRef::Owner);
+    let setup = confirmed(solo_setup(), &[MetricId::Savings]);
     let m = metric(&snap, &setup, MetricId::Savings);
     assert_eq!((m.value, m.completeness), (Some(dec("1000")), Completeness::Confirmed));
 }
 
 #[test]
-fn an_account_allocated_wholly_to_someone_else_is_excluded_without_blocking_completeness() {
-    let snap = snapshot(vec![account(1, "Mine", AccountType::Checking, "100"), account(2, "Partner's", AccountType::Checking, "900")]);
+fn a_share_given_to_a_roommate_is_left_out_of_the_household() {
+    let snap = snapshot(vec![account(1, "Shared", AccountType::Checking, "1000")]);
     let mut setup = confirmed(couple_setup(), &[MetricId::Savings]);
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(PersonRef::Owner);
-    setup.allocations = vec![share(acct(1), PersonRef::Owner, 10000), share(acct(2), person(7), 10000)];
+    setup.allocations = vec![share(acct(1), PersonRef::Owner, 6000), share(acct(1), person(8), 4000)];
     let m = metric(&snap, &setup, MetricId::Savings);
-    assert_eq!((m.value, m.completeness), (Some(dec("100")), Completeness::Confirmed));
+    assert_eq!(m.value, Some(dec("600")));
 }
 
 // ---- Investments -------------------------------------------------------------------------------
@@ -340,16 +310,6 @@ fn debt_is_broken_down_by_type_and_unclassified_loans_are_noted() {
     assert!(m.notes.iter().any(|n| n.code == "unclassified_debt"));
 }
 
-#[test]
-fn debt_is_split_by_allocation_in_individual_mode() {
-    let snap = snapshot(vec![AccountSnap { id: 2, name: "Mortgage".into(), kind: AccountType::Loan, starting_balance: dec("0"), balance: dec("100000") }]);
-    let mut setup = confirmed(couple_setup(), &[MetricId::Debt]);
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(person(7));
-    setup.allocations = vec![share(acct(2), PersonRef::Owner, 5000), share(acct(2), person(7), 5000)];
-    assert_eq!(metric(&snap, &setup, MetricId::Debt).value, Some(dec("50000")));
-}
-
 // ---- Income ------------------------------------------------------------------------------------
 
 #[test]
@@ -388,20 +348,6 @@ fn by_person_income_ignores_roommates_and_flags_a_missing_member() {
     let m = metric(&snapshot(vec![]), &setup, MetricId::Income);
     assert_eq!(m.value, Some(dec("70000")));
     assert_eq!(m.completeness, Completeness::Partial, "partner 7 has no entry");
-}
-
-#[test]
-fn individual_income_is_the_selected_persons_own_confirmed_figure() {
-    let mut setup = couple_setup();
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(person(7));
-    setup.income.per_person = vec![
-        PersonIncome { person: PersonRef::Owner, gross_annual: amount("70000") },
-        PersonIncome { person: person(7), gross_annual: amount("30000") },
-    ];
-    assert_eq!(metric(&snapshot(vec![]), &setup, MetricId::Income).value, Some(dec("30000")));
-    setup.individual_person = Some(person(8));
-    assert_eq!(metric(&snapshot(vec![]), &setup, MetricId::Income).value, None);
 }
 
 // ---- Spending ----------------------------------------------------------------------------------
@@ -501,23 +447,13 @@ fn only_selected_accounts_count_toward_spending() {
     assert_eq!(metric(&snap, &setup, MetricId::Spending).value, Some(dec("24000")));
 }
 
-#[test]
-fn individual_spending_is_not_derived_from_household_transactions() {
-    let snap = spending_snapshot(rows_for_last_twelve_months("1000"));
-    let mut setup = solo_setup();
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(PersonRef::Owner);
-    setup.spending.completeness_confirmed = true;
-    assert_eq!(metric(&snap, &setup, MetricId::Spending).value, None);
-}
-
 // ---- Manual overrides and staleness ---------------------------------------------------------------
 
 #[test]
 fn a_manual_override_replaces_the_derived_value_and_keeps_the_tracked_one_visible() {
     let snap = snapshot(vec![account(1, "Checking", AccountType::Checking, "1000")]);
     let mut setup = solo_setup();
-    setup.manual_overrides = vec![ManualOverride { metric: MetricId::Savings, subject: None, amount: amount("25000") }];
+    setup.manual_overrides = vec![ManualOverride { metric: MetricId::Savings, amount: amount("25000") }];
     let m = metric(&snap, &setup, MetricId::Savings);
     assert_eq!(m.value, Some(dec("25000")));
     assert_eq!(m.tracked_value, Some(dec("1000")));
@@ -525,21 +461,11 @@ fn a_manual_override_replaces_the_derived_value_and_keeps_the_tracked_one_visibl
     assert!(matches!(m.origin, Origin::Entered { .. }));
 }
 
-#[test]
-fn an_override_belongs_to_the_selected_individual() {
-    let snap = snapshot(vec![]);
-    let mut setup = couple_setup();
-    setup.mode = ComparisonMode::Individual;
-    setup.individual_person = Some(PersonRef::Owner);
-    setup.manual_overrides = vec![ManualOverride { metric: MetricId::Savings, subject: Some(person(7)), amount: amount("999") }];
-    assert_ne!(metric(&snap, &setup, MetricId::Savings).value, Some(dec("999")), "someone else's override is not mine");
-}
-
 fn stale_after(metric_id: MetricId, measured_on: &str) -> bool {
     let mut a = amount("100");
     a.measured_on = measured_on.into();
     let mut setup = solo_setup();
-    setup.manual_overrides = vec![ManualOverride { metric: metric_id, subject: None, amount: a }];
+    setup.manual_overrides = vec![ManualOverride { metric: metric_id, amount: a }];
     match metric(&snapshot(vec![]), &setup, metric_id).origin {
         Origin::Entered { stale, .. } => stale,
         other => panic!("{other:?}"),
@@ -564,7 +490,7 @@ fn a_stale_override_still_applies() {
     let mut a = amount("5000");
     a.measured_on = "2020-01-01".into();
     let mut setup = solo_setup();
-    setup.manual_overrides = vec![ManualOverride { metric: MetricId::Debt, subject: None, amount: a }];
+    setup.manual_overrides = vec![ManualOverride { metric: MetricId::Debt, amount: a }];
     assert_eq!(metric(&snapshot(vec![]), &setup, MetricId::Debt).value, Some(dec("5000")));
 }
 
