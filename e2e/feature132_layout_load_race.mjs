@@ -45,23 +45,27 @@ let editedLayout;
     });
     await browser.execute((delayMs) => {
       const realFetch = window.fetch.bind(window);
-      window.__slowLayoutReads = 0;
+      // Counted when asked and when handed to the app: "in flight" is asked but not yet delivered. (Counting
+      // only once the backend had answered missed a read whose answer was itself slow under a loaded machine.)
+      window.__layoutReadsAsked = 0;
+      window.__layoutReadsDelivered = 0;
       window.fetch = async (input, init) => {
         const url = typeof input === "string" ? input : input.url;
         let body = init?.body;
         if (body && typeof body !== "string") body = new TextDecoder().decode(body);
         const isLayoutRead = String(url).includes("get_profile_ui_state") && typeof body === "string" && body.includes('"dashboard_layout"');
+        if (isLayoutRead) window.__layoutReadsAsked += 1;
         const response = await realFetch(input, init);
         if (isLayoutRead) {
-          window.__slowLayoutReads += 1;
           await new Promise((resolve) => setTimeout(resolve, delayMs));
+          window.__layoutReadsDelivered += 1;
         }
         return response;
       };
     }, READ_DELAY_MS);
 
     await openFirstProfile(browser);
-    const customize = await browser.$(".dashboard-toolbar button");
+    const customize = await (await browser.$(".dashboard-toolbar")).$("button*=Customize");
     await customize.waitForExist({ timeout: 10000 });
     await customize.click();
     const removeButtons = await browser.$$(".dashboard-widget-controls button:last-child");
@@ -69,13 +73,14 @@ let editedLayout;
     assert.ok(widgetCountBefore > 4, "expected the default layout's widgets in Customize mode");
     await removeButtons[4].click(); // "runway", as in feature39
 
-    assert.ok((await browser.execute(() => window.__slowLayoutReads)) >= 1, "the slow layout read should be in flight (else this proves nothing)");
+    const reads = await browser.execute(() => ({ asked: window.__layoutReadsAsked, delivered: window.__layoutReadsDelivered }));
+    assert.ok(reads.asked >= 1 && reads.delivered === 0, `the slow layout read should be in flight (else this proves nothing): ${JSON.stringify(reads)}`);
     await browser.waitUntil(async () => !(await persistedLayout(browser)).includes("runway"), { timeout: 5000, timeoutMsg: "the edit should be saved" });
     editedLayout = await persistedLayout(browser);
 
     // Now let the slow (and stale) answer arrive, and give the page time to react to it.
     await browser.pause(READ_DELAY_MS + 1500);
-    assert.equal(await browser.execute(() => document.querySelector(".dashboard-toolbar select").value), "custom", "the late load must not flip the layout back to Default");
+    assert.equal(await browser.execute(() => document.querySelector(".layout-select-toggle").dataset.value), "custom", "the late load must not flip the layout back to Default");
     assert.equal((await browser.$$(".dashboard-widget-controls")).length, widgetCountBefore - 1, "the edited widget must stay removed on screen");
     assert.deepEqual(await persistedLayout(browser), editedLayout, "and the saved layout must be the edited one");
   } finally {
@@ -89,7 +94,7 @@ let editedLayout;
   try {
     const { browser } = app;
     await openFirstProfile(browser);
-    await browser.waitUntil(async () => (await browser.execute(() => document.querySelector(".dashboard-toolbar select")?.value)) === "custom", {
+    await browser.waitUntil(async () => (await browser.execute(() => document.querySelector(".layout-select-toggle")?.dataset.value)) === "custom", {
       timeout: 10000,
       timeoutMsg: "a normal start should read the saved layout back (the Layout dropdown shows Custom)",
     });

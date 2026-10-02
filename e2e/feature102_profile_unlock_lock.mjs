@@ -35,6 +35,25 @@ try {
   await (await browser.$("[data-profile-switcher-lock]")).click();
   await browser.$("[data-profile-lock-screen]").waitForExist({ timeout: 10000 });
 
+  // Every lock-screen button keeps its label inside its box, in every style (a wider typeface
+  // pushed "Forgot the password? Remove this profile from the list" past the edge).
+  for (const palette of ["transparent", "futuristic", "retro"]) {
+    // A style's typeface downloads the first time text uses it; measure once it has arrived.
+    const spilling = await browser.executeAsync((p, done) => {
+      document.documentElement.dataset.palette = p;
+      const buttons = [...document.querySelectorAll("[data-profile-lock-screen] button")];
+      const fonts = buttons.map((b) => {
+        const cs = getComputedStyle(b);
+        return document.fonts.load(`${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`, b.textContent);
+      });
+      Promise.all(fonts).then(() =>
+        requestAnimationFrame(() => done(buttons.filter((b) => b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent.trim()))),
+      );
+    }, palette);
+    assert.deepEqual(spilling, [], `${palette}: lock-screen button labels spill out of their buttons`);
+  }
+  await browser.execute(() => (document.documentElement.dataset.palette = "transparent"));
+
   // The sign-in redesign (Task 10): the password field must actually carry the app's standard
   // entry-field styling (feature88's own convention — a real border, real radius, not the bare
   // browser-default box PasswordForm rendered before this phase's restyle).

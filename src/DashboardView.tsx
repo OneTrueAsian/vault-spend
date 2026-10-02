@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { MenuSelect } from "./MenuSelect";
 import { Check, Info, Leaf, LineChart as LineChartIcon, MessageCircleQuestion } from "lucide-react";
 import { CategoryIcon, BudgetGroupIcon, AccountTypeIcon, BucketIcon, IconEntryGlyph, flatIconEntry } from "./icons";
 import type {
@@ -42,6 +43,9 @@ import { ensureUiStateMigrated } from "./profileUiState";
 import { attentionItems, type AttentionKind } from "./needsAttention";
 import { effectiveBudget } from "./budgetPlan";
 import { SafeToSpendCard } from "./SafeToSpendCard";
+import { CategorySpendDialog } from "./CategorySpendDialog";
+import { CATEGORY_COLORS } from "./categoryPalette";
+import { sumMoney } from "./money";
 
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
@@ -130,7 +134,6 @@ function loadChecklistDismissed(): boolean {
   }
 }
 
-const CATEGORY_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9"];
 const GROUP_ORDER = ["income", "fixed", "flexible", "nonmonthly"] as const;
 const GROUP_LABELS: Record<string, string> = {
   income: "Income",
@@ -199,6 +202,7 @@ export function DashboardView({
   onOpenBuckets,
   onOpenUncategorized,
   safeToSpendForecast,
+  safeToSpendEnabled,
   onAddTransaction,
   onAddAccount,
 }: {
@@ -276,12 +280,15 @@ export function DashboardView({
   /** The bill-aware forecast the "Safe to spend" widget counts down with —
    * `null` until it loads. */
   safeToSpendForecast: BillAwareForecast | null;
+  safeToSpendEnabled: boolean;
   /** Quick actions panel — same triggers the Transactions toolbar's "Add
    * transaction…" button and Accounts' "Add account…" button already use. */
   onAddTransaction: () => void;
   onAddAccount: () => void;
 }) {
   const [expandedStat, setExpandedStat] = useState<StatKey | null>(null);
+  const [selectedSpendCategory, setSelectedSpendCategory] = useState<string | null>(null);
+  useEffect(() => setSelectedSpendCategory(null), [spendingThisMonth]);
   const [showBudgetAlerts, setShowBudgetAlerts] = useState(false);
   const [checklistDismissed, setChecklistDismissed] = useState(loadChecklistDismissed);
   const [customizeMode, setCustomizeMode] = useState(false);
@@ -454,16 +461,14 @@ export function DashboardView({
 
   const donutData = useMemo(
     () =>
-      spendingThisMonth.slice(0, 6).map((c, i) => ({
+      spendingThisMonth.map((c, i) => ({
         label: c.category,
         value: parseFloat(c.amount),
         color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
       })),
     [spendingThisMonth],
   );
-  // The center total matches what the ring itself visually sums to (the
-  // top 6 categories charted), not spendingThisMonth's full, possibly
-  // longer tail — so the number and the ring never disagree.
+  // The ring and center both represent the full categorized spend.
   const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
 
   const upcoming = useMemo(
@@ -629,8 +634,9 @@ export function DashboardView({
         onClick={() => toggleStat("investments")}
       >
         <div className="stat-top">
-          <span className="mini-ico purple">
-            <LineChartIcon aria-hidden="true" />
+          {/* Same full-color illustration style as the other three stat cards (QA L4). */}
+          <span className="mini-ico mini-ico-plain">
+            <IconEntryGlyph entry={flatIconEntry("investment-acct")} />
           </span>
           <span className="stat-label">Investments</span>
         </div>
@@ -640,7 +646,7 @@ export function DashboardView({
             {investmentsDelta >= 0 ? "▲" : "▼"} {fmtMoneyShort(Math.abs(investmentsDelta))} over {monthsSpan}mo
           </span>
         )}
-        <Sparkline points={investmentsSpark} color="#8A5FB0" width={160} fluid />
+        <Sparkline points={investmentsSpark} color="var(--cat-4)" width={160} fluid />
       </button>
     ),
 
@@ -652,14 +658,14 @@ export function DashboardView({
             <span className="stat-value">{monthsOfRunway.toFixed(1)}</span> months of expenses covered
           </p>
           <p className="modal-message-secondary">
-            {fmtMoneyShort(cash)} in liquid savings ÷ {fmtMoneyShort(avgSpendNum)}/mo average spend (trailing 90
+            {fmtMoneyShort(cash)} in cash and savings ÷ {fmtMoneyShort(avgSpendNum)} a month in average spending (last 90
             days).
           </p>
         </div>
       </div>
     ),
 
-    safe_to_spend: safeToSpendForecast && <SafeToSpendCard forecast={safeToSpendForecast} onOpenRecurring={onOpenRecurring} />,
+    safe_to_spend: safeToSpendEnabled && safeToSpendForecast && <SafeToSpendCard forecast={safeToSpendForecast} onOpenRecurring={onOpenRecurring} />,
 
     needs_a_look: (
       <>
@@ -763,23 +769,25 @@ export function DashboardView({
                 data={donutData}
                 size={132}
                 center={{ value: fmtMoneyShort(donutTotal), label: "this month" }}
+                onSelect={setSelectedSpendCategory}
               />
               <div>
                 {donutData.map((d) => (
-                  <div className="chart-legend-item" key={d.label} style={{ marginBottom: 8 }}>
+                  <button type="button" className="chart-legend-item chart-legend-button" key={d.label} style={{ marginBottom: 8 }} onClick={() => setSelectedSpendCategory(d.label)} aria-label={`Show ${d.label} spending, ${formatAmount(d.value.toFixed(2))}`}>
                     <CategoryIcon category={d.label} iconKey={categoryIconMap[d.label] ?? null} className="category-legend-icon" />
                     <span className="chart-legend-swatch" style={{ background: d.color }}></span>
                     {d.label}
                     <span className="account-col" style={{ marginLeft: "auto" }}>
                       {fmtMoneyShort(d.value)}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
           ) : (
             <p className="empty-state">No spending yet this month.</p>
           )}
+          {selectedSpendCategory && <CategorySpendDialog category={selectedSpendCategory} year={new Date().getFullYear()} month={new Date().getMonth() + 1} onClose={() => setSelectedSpendCategory(null)} />}
         </div>
       </div>
     ),
@@ -794,7 +802,7 @@ export function DashboardView({
             const lines = (report?.budget_actuals ?? []).filter((b) => b.budget_group === group);
             if (lines.length === 0) return null;
             const budgeted = lines.reduce((s, b) => s + effectiveBudget(b), 0);
-            const actual = lines.reduce((s, b) => s + parseFloat(b.actual), 0);
+            const actual = sumMoney(lines.map((b) => b.actual));
             const pct = budgeted ? Math.min(100, (actual / budgeted) * 100) : 0;
             const over = group === "income" ? actual < budgeted : actual > budgeted;
             return (
@@ -1104,8 +1112,8 @@ export function DashboardView({
   function renderInvestmentWidget(accountName: string): React.ReactNode {
     const accountHoldings = holdings.filter((h) => h.account_name === accountName);
     if (accountHoldings.length === 0) return null;
-    const totalValue = accountHoldings.reduce((s, h) => s + parseFloat(h.value), 0);
-    const totalGain = accountHoldings.reduce((s, h) => s + parseFloat(h.gain_loss), 0);
+    const totalValue = sumMoney(accountHoldings.map((h) => h.value));
+    const totalGain = sumMoney(accountHoldings.map((h) => h.gain_loss));
     return (
       <div className="stat stat-hero tint-purple">
         <div className="stat-top">
@@ -1174,6 +1182,7 @@ export function DashboardView({
   const layoutRows = useMemo(() => {
     const rows: LayoutRow[] = [];
     layoutWidgets.forEach((id, index) => {
+      if (id === "safe_to_spend" && !safeToSpendEnabled) return;
       const compact = isCompactWidget(id);
       const last = rows[rows.length - 1];
       if (compact && last?.isCompactRow) {
@@ -1183,7 +1192,7 @@ export function DashboardView({
       }
     });
     return rows;
-  }, [layoutWidgets]);
+  }, [layoutWidgets, safeToSpendEnabled]);
 
   return (
     <div className="reports-view">
@@ -1222,13 +1231,16 @@ export function DashboardView({
       />
 
       <div className="dashboard-toolbar">
-        <select
-          aria-label="Dashboard layout"
-          className="month-select"
+        <MenuSelect
+          ariaLabel="Dashboard layout"
+          triggerClassName="layout-select-toggle"
           value={presetKey}
-          title="Layout"
-          onChange={(e) => {
-            const value = e.target.value;
+          options={[
+            ...(Object.keys(LAYOUT_PRESETS) as LayoutPresetKey[]).map((key) => ({ value: key, label: LAYOUT_PRESET_LABELS[key] })),
+            ...customPresets.map((p) => ({ value: `custom:${p.name}`, label: p.name })),
+            ...(presetKey === "custom" ? [{ value: "custom", label: "Custom (unsaved)", disabled: true }] : []),
+          ]}
+          onChange={(value) => {
             if (value.startsWith("custom:")) {
               const found = customPresets.find((p) => p.name === value.slice("custom:".length));
               if (found) onSetLayoutWidgets([...found.widgets]);
@@ -1236,23 +1248,7 @@ export function DashboardView({
               onSetLayoutWidgets([...LAYOUT_PRESETS[value as LayoutPresetKey]]);
             }
           }}
-        >
-          {(Object.keys(LAYOUT_PRESETS) as LayoutPresetKey[]).map((key) => (
-            <option key={key} value={key}>
-              {LAYOUT_PRESET_LABELS[key]}
-            </option>
-          ))}
-          {customPresets.map((p) => (
-            <option key={p.name} value={`custom:${p.name}`}>
-              {p.name}
-            </option>
-          ))}
-          {presetKey === "custom" && (
-            <option value="custom" disabled>
-              Custom (unsaved)
-            </option>
-          )}
-        </select>
+        />
         {presetKey === "custom" &&
           (savingLayout ? (
             <form

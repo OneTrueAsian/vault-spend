@@ -5,10 +5,11 @@
 //
 // Run with: node e2e/feature4_split_transactions.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { dateInMonth } from "./lib/dates.mjs";
 
 function query(dbDir, sql) {
   const dbPath = path.join(dbDir, "vaultspend.db");
@@ -32,12 +33,16 @@ cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Groceries')")
 cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Household')")
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-05", "Target", "-100.00", "Groceries", f"{checking_id}|2026-08-05|target|-100.00"),
+    (checking_id, "${dateInMonth(-2, 5)}", "Target", "-100.00", "Groceries", f"{checking_id}|${dateInMonth(-2, 5)}|target|-100.00"),
 )
 `);
 
 const app = await launchApp({ dbDir });
 try {
+  // The app's own default launch size (800px) sits below the ledger's
+  // narrow-layout breakpoint, where the Category cell (and its Split →
+  // toggle) moves behind a per-row Details toggle instead of its own column.
+  await app.browser.setWindowSize(1280, 900);
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
@@ -55,8 +60,8 @@ try {
 
   const amountInputs = await app.browser.$$(".split-editor-line .debt-apply-amount");
   await amountInputs[1].setValue("40.00");
-  const categorySelects = await app.browser.$$(".split-editor-line select");
-  await categorySelects[1].selectByAttribute("value", "Household");
+  const categorySelects = await app.browser.$$(".split-editor-line .menu-select-toggle");
+  await chooseMenuOption(categorySelects[1], { value: "Household" });
 
   const remaining = await app.browser.$(".split-remaining-ok");
   await remaining.waitForExist({ timeout: 5000 });

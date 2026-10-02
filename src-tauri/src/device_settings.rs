@@ -58,6 +58,18 @@ pub struct DeviceSettings {
     /// never re-checked afterward, so a later profile never re-imports stale browser values.
     #[serde(default)]
     pub ui_state_migrated: bool,
+    /// The version of `docs/LEGAL-NOTICE.md` last acknowledged on this computer, and when (RFC 3339).
+    /// The notice is shown again when the bundled version differs.
+    #[serde(default)]
+    pub legal_notice_version: Option<String>,
+    #[serde(default)]
+    pub legal_notice_acknowledged_at: Option<String>,
+}
+
+/// Whether the e2e suite has asked to start past the legal notice. Honoured only alongside
+/// `VAULTSPEND_DB_DIR`, the test-only data folder a real install never sets.
+pub fn legal_notice_skipped(skip: Option<std::ffi::OsString>, test_db_dir: Option<std::ffi::OsString>) -> bool {
+    test_db_dir.is_some() && skip.is_some_and(|value| value == "1")
 }
 
 /// What a profile's database still holds from before these settings moved out of it.
@@ -139,6 +151,11 @@ impl DeviceSettings {
     pub fn note_last_used(&mut self, profile_id: &str) {
         self.last_used_profile_id = Some(profile_id.to_string());
     }
+
+    pub fn acknowledge_legal_notice(&mut self, version: &str, at: &str) {
+        self.legal_notice_version = Some(version.to_string());
+        self.legal_notice_acknowledged_at = Some(at.to_string());
+    }
 }
 
 /// The settings in memory plus the file they are saved to. Managed by Tauri.
@@ -158,7 +175,10 @@ impl DeviceSettingsStore {
             }),
             Err(_) => DeviceSettings::default(),
         };
-        DeviceSettingsStore { path, inner: Mutex::new(settings) }
+        DeviceSettingsStore {
+            path,
+            inner: Mutex::new(settings),
+        }
     }
 
     pub fn snapshot(&self) -> DeviceSettings {
@@ -255,7 +275,11 @@ mod tests {
     }
 
     fn legacy(tray: bool, autostart: bool, dir: Option<&str>) -> LegacyProfileSettings {
-        LegacyProfileSettings { tray_enabled: tray, autostart_enabled: autostart, backup_copy_dir: dir.map(str::to_string) }
+        LegacyProfileSettings {
+            tray_enabled: tray,
+            autostart_enabled: autostart,
+            backup_copy_dir: dir.map(str::to_string),
+        }
     }
 
     #[test]
@@ -273,7 +297,10 @@ mod tests {
         assert!(settings.take_over_from_profile("first", &legacy(true, true, None)));
         settings.take_over_from_profile("second", &legacy(false, false, None));
 
-        assert!(settings.tray_enabled && settings.autostart_enabled, "a later profile's old values are ignored");
+        assert!(
+            settings.tray_enabled && settings.autostart_enabled,
+            "a later profile's old values are ignored"
+        );
     }
 
     #[test]
@@ -386,7 +413,10 @@ mod tests {
         store.update(|s| s.tray_enabled = true).unwrap();
         store.update(|s| s.tray_enabled = false).unwrap();
 
-        let temp_files = std::fs::read_dir(&dir).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-")).count();
+        let temp_files = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-"))
+            .count();
         assert_eq!(temp_files, 0);
     }
 
@@ -425,5 +455,52 @@ mod tests {
     #[test]
     fn ui_state_migration_starts_unmarked() {
         assert!(!DeviceSettings::default().ui_state_migrated);
+    }
+
+    // ---- legal notice ----
+
+    #[test]
+    fn a_settings_file_from_before_the_legal_notice_loads_with_nothing_acknowledged() {
+        let settings: DeviceSettings = serde_json::from_str(r#"{"tray_enabled":true}"#).unwrap();
+
+        assert_eq!(settings.legal_notice_version, None);
+        assert_eq!(settings.legal_notice_acknowledged_at, None);
+    }
+
+    #[test]
+    fn acknowledging_the_legal_notice_records_the_version_and_time_and_survives_a_reload() {
+        let dir = temp_dir("legal-notice");
+        let path = dir.join(DEVICE_SETTINGS_FILENAME);
+        let store = DeviceSettingsStore::load(path.clone());
+
+        store
+            .update(|s| s.acknowledge_legal_notice("2026-09-30", "2026-09-30T17:00:00+00:00"))
+            .unwrap();
+
+        let reloaded = DeviceSettingsStore::load(path).snapshot();
+        assert_eq!(reloaded.legal_notice_version.as_deref(), Some("2026-09-30"));
+        assert_eq!(reloaded.legal_notice_acknowledged_at.as_deref(), Some("2026-09-30T17:00:00+00:00"));
+    }
+
+    #[test]
+    fn acknowledging_a_newer_notice_replaces_the_earlier_acknowledgement() {
+        let mut settings = DeviceSettings::default();
+
+        settings.acknowledge_legal_notice("2026-09-30", "2026-09-30T17:00:00+00:00");
+        settings.acknowledge_legal_notice("2027-01-15", "2027-01-16T09:00:00+00:00");
+
+        assert_eq!(settings.legal_notice_version.as_deref(), Some("2027-01-15"));
+        assert_eq!(settings.legal_notice_acknowledged_at.as_deref(), Some("2027-01-16T09:00:00+00:00"));
+    }
+
+    #[test]
+    fn the_test_only_skip_applies_only_alongside_the_test_data_folder() {
+        let set = Some(std::ffi::OsString::from("1"));
+        let dir = Some(std::ffi::OsString::from("C:\\temp\\e2e"));
+
+        assert!(legal_notice_skipped(set.clone(), dir.clone()));
+        assert!(!legal_notice_skipped(set, None), "a real install never sets the test data folder");
+        assert!(!legal_notice_skipped(None, dir.clone()));
+        assert!(!legal_notice_skipped(Some("0".into()), dir));
     }
 }

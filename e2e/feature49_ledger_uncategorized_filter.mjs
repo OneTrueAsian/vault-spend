@@ -18,21 +18,22 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
 checking_id = cur.lastrowid
 cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Dining Out')")
 cur.execute(
-    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '2026-09-05', 'Pizza Night', -33.09, 'Dining Out', 'user', 'fp1')",
+    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '${dateInMonth(-1, 5)}', 'Pizza Night', -33.09, 'Dining Out', 'user', 'fp1')",
     (checking_id,),
 )
 cur.execute(
-    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '2026-09-06', 'Speedway 47096', -35.39, NULL, NULL, 'fp2')",
+    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '${dateInMonth(-1, 6)}', 'Speedway 47096', -35.39, NULL, NULL, 'fp2')",
     (checking_id,),
 )
 cur.execute(
-    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '2026-09-01', 'Mortgage Import', -1200.00, 'Mortgage', NULL, 'fp3')",
+    "INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?, '${dateInMonth(-1, 1)}', 'Mortgage Import', -1200.00, 'Mortgage', NULL, 'fp3')",
     (checking_id,),
 )
 `);
@@ -50,13 +51,21 @@ try {
   }
   console.log('"Needs a category" correctly ignores a category-present/source-null row');
 
-  const categorySelect = await app.browser.$(".ledger-filters select");
+  const categoryTrigger = await app.browser.$(".ledger-filters .category-filter-toggle");
   const ledgerPage = await app.browser.$(".page");
 
-  // Selecting "Uncategorized" from the dropdown should show only Speedway
+  async function chooseCategoryFilter(label) {
+    await categoryTrigger.click();
+    const menu = await app.browser.$(".ledger-filters .category-filter-panel");
+    await menu.waitForExist({ timeout: 5000 });
+    const option = await menu.$(`.//button[.//span[normalize-space()='${label}']]`);
+    await option.click();
+  }
+
+  // Selecting "Uncategorized" from the menu should show only Speedway
   // 47096 (the NULL-category row) — not Pizza Night, and not Mortgage
   // Import (it has a real category, just no recorded source).
-  await categorySelect.selectByVisibleText("Uncategorized");
+  await chooseCategoryFilter("Uncategorized");
   await app.browser.waitUntil(
     async () => {
       const text = await ledgerPage.getText();
@@ -64,10 +73,10 @@ try {
     },
     { timeout: 5000, timeoutMsg: 'expected the "Uncategorized" filter to show only the genuinely uncategorized transaction' },
   );
-  console.log('dropdown "Uncategorized" option correctly isolates the one uncategorized transaction');
+  console.log('menu "Uncategorized" option correctly isolates the one uncategorized transaction');
 
   // Back to "All categories" — all three rows should reappear.
-  await categorySelect.selectByVisibleText("All categories");
+  await chooseCategoryFilter("All categories");
   await app.browser.waitUntil(
     async () => {
       const text = await ledgerPage.getText();
@@ -78,7 +87,7 @@ try {
 
   // Clicking the stat itself should apply the same filter as a shortcut.
   await uncategorizedStat.click();
-  await app.browser.waitUntil(async () => (await categorySelect.getValue()) === "__uncategorized__", {
+  await app.browser.waitUntil(async () => (await categoryTrigger.getText()).includes("Uncategorized"), {
     timeout: 5000,
     timeoutMsg: 'expected clicking the "Needs a category" stat to set the category filter to Uncategorized',
   });
@@ -93,7 +102,7 @@ try {
 
   // Clicking it again toggles back to "all".
   await uncategorizedStat.click();
-  await app.browser.waitUntil(async () => (await categorySelect.getValue()) === "all", {
+  await app.browser.waitUntil(async () => (await categoryTrigger.getText()).includes("All categories"), {
     timeout: 5000,
     timeoutMsg: "expected clicking the stat a second time to clear the filter back to all categories",
   });

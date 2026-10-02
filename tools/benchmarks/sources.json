@@ -1,0 +1,141 @@
+{
+  "packageVersion": "2026.10.1",
+  "transformationVersion": "1",
+  "sources": [
+    {
+      "id": "cps_pinc01_2026",
+      "provider": "U.S. Census Bureau",
+      "dataset": "CPS ASEC 2026, PINC-01 (total work experience, both sexes, all races)",
+      "url": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx",
+      "file": "pinc01_1_1_1.xlsx",
+      "sha256": "d197da1f59f19e2f80d60130eb1e81bb70601a9b01b7e4fd52e51237b166b5e3",
+      "released": null,
+      "retrieved": "2026-09-30"
+    },
+    {
+      "id": "cps_hinc02_2026",
+      "provider": "U.S. Census Bureau",
+      "dataset": "CPS ASEC 2026, HINC-02 (age of householder, total, all races)",
+      "url": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx",
+      "file": "hinc02_1_1.xlsx",
+      "sha256": "efe96208b65b14d70ac001bc524611dc01585b8380cd31c7f14ac7cbbd060df7",
+      "released": null,
+      "retrieved": "2026-09-30"
+    },
+    {
+      "id": "sipp_wealth_2024",
+      "provider": "U.S. Census Bureau",
+      "dataset": "SIPP survey year 2025, wealth tables for 2024 (asset ownership)",
+      "url": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+      "file": "wealth_tables_dy2024.xlsx",
+      "sha256": "681319e5c593f0967c27d6ab3fa304a827a1579f8977adbd2589ce59d9ddde35",
+      "released": "2026-07-15",
+      "retrieved": "2026-09-30"
+    },
+    {
+      "id": "sipp_debt_2024",
+      "provider": "U.S. Census Bureau",
+      "dataset": "SIPP survey year 2025, debt tables for 2024",
+      "url": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx",
+      "file": "debt_tables_dy2024.xlsx",
+      "sha256": "b251389ffca5d04c5f0410a88844009be0641de565c125f9ae74581efa9ddf75",
+      "released": "2026-07-15",
+      "retrieved": "2026-09-30"
+    },
+    {
+      "id": "bls_ce_2024",
+      "provider": "U.S. Bureau of Labor Statistics",
+      "dataset": "Consumer Expenditure Surveys 2024, total average annual expenditures by age of reference person (series CXUTOTALEXPLB0402M to CXUTOTALEXPLB0409M; labels from the series titles on ALFRED)",
+      "url": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+      "file": "bls_ce_total_expenditures_2024.json",
+      "request": {
+        "seriesid": [
+          "CXUTOTALEXPLB0402M",
+          "CXUTOTALEXPLB0403M",
+          "CXUTOTALEXPLB0404M",
+          "CXUTOTALEXPLB0405M",
+          "CXUTOTALEXPLB0406M",
+          "CXUTOTALEXPLB0407M",
+          "CXUTOTALEXPLB0408M",
+          "CXUTOTALEXPLB0409M"
+        ],
+        "startyear": "2024",
+        "endyear": "2024"
+      },
+      "series": {
+        "CXUTOTALEXPLB0402M": {
+          "label": "Under Age 25",
+          "ageMin": 15,
+          "ageMax": 24
+        },
+        "CXUTOTALEXPLB0403M": {
+          "label": "from Age 25 to 34",
+          "ageMin": 25,
+          "ageMax": 34
+        },
+        "CXUTOTALEXPLB0404M": {
+          "label": "from Age 35 to 44",
+          "ageMin": 35,
+          "ageMax": 44
+        },
+        "CXUTOTALEXPLB0405M": {
+          "label": "from Age 45 to 54",
+          "ageMin": 45,
+          "ageMax": 54
+        },
+        "CXUTOTALEXPLB0406M": {
+          "label": "from Age 55 to 64",
+          "ageMin": 55,
+          "ageMax": 64
+        },
+        "CXUTOTALEXPLB0407M": {
+          "label": "Age 65 or over",
+          "ageMin": 65,
+          "ageMax": null
+        },
+        "CXUTOTALEXPLB0408M": {
+          "label": "from Age 65 to 74",
+          "ageMin": 65,
+          "ageMax": 74
+        },
+        "CXUTOTALEXPLB0409M": {
+          "label": "Age 75 or over",
+          "ageMin": 75,
+          "ageMax": null
+        }
+      },
+      "sha256": "110e018ee76dbf133b3434b6142b6fa3aaad76481bd7e831825fe7343db33029",
+      "released": null,
+      "retrieved": "2026-10-01"
+    }
+  ],
+  "cpi": {
+    "series": "CPIAUCNS",
+    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCNS",
+    "file": "cpiaucns.csv",
+    "sha256": "f79e3a78837142293449cee4a1a9b1da7be677fb3e989ffb2ef48e8e7cf4cdd7",
+    "note": "CPI-U all items, U.S. city average, not seasonally adjusted (BLS series CUUR0000SA0), fetched through FRED because the BLS download host rejects automated clients. October 2025 was never published."
+  },
+  "gaps": [
+    {
+      "metric": "spending",
+      "mode": "individual",
+      "reason": "CE reports consumer units, not people; no individual-level age spending benchmark was identified."
+    },
+    {
+      "metric": "investments",
+      "mode": "individual",
+      "reason": "SIPP publishes asset ownership by household and by householder age only. The single-person-household rows use different age bands and a different population, so they are not used as an all-person benchmark."
+    },
+    {
+      "metric": "savings",
+      "mode": "individual",
+      "reason": "Same as individual investments: only household-level SIPP asset tables are published by age."
+    },
+    {
+      "metric": "debt",
+      "mode": "individual",
+      "reason": "Same as individual investments: only household-level SIPP debt tables are published by age."
+    }
+  ]
+}

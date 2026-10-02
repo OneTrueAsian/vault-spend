@@ -3,6 +3,7 @@
 
 pub mod categorizer;
 pub mod classifier;
+pub mod comparisons;
 pub mod csv_loader;
 pub mod fsutil;
 pub mod importer;

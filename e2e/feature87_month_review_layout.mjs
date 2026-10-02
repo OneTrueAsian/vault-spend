@@ -13,6 +13,7 @@
 //
 // Run with: node e2e/feature87_month_review_layout.mjs
 
+import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
@@ -97,13 +98,9 @@ try {
   await browser.setWindowSize(1280, 800);
   await browser.pause(800);
 
-  // The Transparent style is the one that used to misplace dialogs.
-  await goTo("Settings");
-  await browser.execute(() => {
-    const row = [...document.querySelectorAll(".feature-toggle-row")].find((r) => r.textContent.includes("Transparent"));
-    row.querySelector("input").click();
-  });
-  await browser.pause(400);
+  // The frosted-glass style (Default, internal id "transparent") is the one that used to misplace dialogs.
+  // It is what a fresh launch shows; make sure of it.
+  assert.equal(await browser.execute(() => document.documentElement.getAttribute("data-palette")), "transparent");
 
   // ---- layout of the review dialog ---------------------------------------------
   await goTo("Budget");

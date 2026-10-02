@@ -118,7 +118,7 @@ try {
   await (await browser.$(".toast-stack .status")).waitForExist({ timeout: 10000 });
 
   const failures = [];
-  for (const [label, palette] of [["Slate", null], ["Futuristic", "futuristic"], ["Transparent", "transparent"]]) {
+  for (const [label, palette] of [["Default", "transparent"], ["Futuristic", "futuristic"]]) {
     for (const mode of ["light", "dark"]) {
       await setLook(palette, mode);
       const rows = await measure();
@@ -126,11 +126,10 @@ try {
       for (const r of rows) {
         const where = `${label} ${mode} ${r.kind} toast`;
         if (r.baseAlpha < 1 || r.fillAlpha < 1) failures.push(`${where}: the fill is see-through (base alpha ${r.baseAlpha}, fill alpha ${r.fillAlpha})`);
-        // KNOWN GAP: Slate's light error/info toasts (about 3.8:1) and Futuristic's
-        // light error toast (3.85:1) predate this spec and fall short of AA. Only
-        // Transparent is held to 4.5:1 for now; the others get a 3:1 floor so
-        // they can't get worse.
-        const minimum = label === "Transparent" ? 4.5 : 3;
+        // KNOWN GAP: Futuristic's light error toast (3.85:1) predates this spec and
+        // falls short of AA. Only Default (transparent) is held to 4.5:1 for now;
+        // Futuristic gets a 3:1 floor so it can't get worse.
+        const minimum = label === "Default" ? 4.5 : 3;
         if (r.contrast < minimum) failures.push(`${where}: text contrast is ${r.contrast}:1, below the ${minimum}:1 minimum`);
       }
       console.log(`${label} ${mode}: ${rows.map((r) => `${r.kind} ${r.contrast}:1${r.baseAlpha < 1 ? " (see-through)" : ""}`).join(", ")}`);

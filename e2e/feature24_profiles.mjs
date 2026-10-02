@@ -15,13 +15,14 @@
 
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
 checking_id = cur.lastrowid
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-05", "Default Profile Groceries", "-40.00", None, f"{checking_id}|2026-08-05|default profile groceries|-40.00"),
+    (checking_id, "${dateInMonth(-2, 5)}", "Default Profile Groceries", "-40.00", None, f"{checking_id}|${dateInMonth(-2, 5)}|default profile groceries|-40.00"),
 )
 `);
 

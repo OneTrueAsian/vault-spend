@@ -26,6 +26,7 @@ const autoLock = vi.hoisted(() => ({
 vi.mock("./autoLock", () => autoLock);
 
 import { ProfileProtectionSection } from "./ProfileProtectionSection";
+import { menuOptions, menuValue, pickMenuOption } from "./menuSelectTestUtils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -126,9 +127,9 @@ describe("ProfileProtectionSection", () => {
 
     await act(async () => undefined);
 
-    const select = container.querySelector<HTMLSelectElement>("[data-auto-lock-minutes]")!;
-    expect([...select.options].map((option) => option.value)).toEqual(["0", "1", "5", "15", "30", "60"]);
-    expect(select.value).toBe("15");
+    const select = container.querySelector<HTMLButtonElement>("[data-auto-lock-minutes]")!;
+    expect(menuOptions(select).map((option) => option.value)).toEqual(["0", "1", "5", "15", "30", "60"]);
+    expect(menuValue(select)).toBe("15");
     expect(container.querySelector<HTMLInputElement>("[data-lock-when-hidden]")!.checked).toBe(true);
     expect(container.querySelector<HTMLInputElement>("[data-lock-on-focus-loss]")!.checked).toBe(false);
     expect(container.querySelector<HTMLInputElement>("[data-lock-on-system-event]")!.checked).toBe(true);
@@ -137,12 +138,10 @@ describe("ProfileProtectionSection", () => {
   it("saves a changed auto-lock setting with the current profile generation", async () => {
     show(PROTECTED);
     await act(async () => undefined);
-    const select = container.querySelector<HTMLSelectElement>("[data-auto-lock-minutes]")!;
+    const select = container.querySelector<HTMLButtonElement>("[data-auto-lock-minutes]")!;
 
-    await act(async () => {
-      select.value = "30";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+    pickMenuOption(select, "30");
+    await act(async () => undefined);
 
     expect(autoLock.setAutoLockSettings).toHaveBeenCalledWith(
       expect.objectContaining({ inactivity_minutes: 30 }),
@@ -154,7 +153,7 @@ describe("ProfileProtectionSection", () => {
     show(UNPROTECTED);
 
     expect(container.textContent).toContain("Turn on password protection to use automatic locking");
-    expect(container.querySelector<HTMLSelectElement>("[data-auto-lock-minutes]")!.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>("[data-auto-lock-minutes]")!.disabled).toBe(true);
     expect(autoLock.getAutoLockSettings).not.toHaveBeenCalled();
   });
 

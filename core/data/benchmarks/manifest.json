@@ -1,0 +1,146 @@
+{
+  "capabilities": [
+    {
+      "definitionId": "sipp_credit_card_debt_median",
+      "metric": "debt",
+      "mode": "household",
+      "universe": "holders"
+    },
+    {
+      "definitionId": "sipp_home_debt_median",
+      "metric": "debt",
+      "mode": "household",
+      "universe": "holders"
+    },
+    {
+      "definitionId": "sipp_student_loan_median",
+      "metric": "debt",
+      "mode": "household",
+      "universe": "holders"
+    },
+    {
+      "definitionId": "sipp_total_debt_median",
+      "metric": "debt",
+      "mode": "household",
+      "universe": "holders"
+    },
+    {
+      "definitionId": "cps_hinc02_money_income_median",
+      "metric": "income",
+      "mode": "household",
+      "universe": "all"
+    },
+    {
+      "definitionId": "cps_pinc01_money_income_median",
+      "metric": "income",
+      "mode": "individual",
+      "universe": "holders"
+    },
+    {
+      "definitionId": "sipp_retirement_accounts_median",
+      "metric": "investments",
+      "mode": "household",
+      "universe": "holders"
+    },
+    {
+      "definitionId": "sipp_stocks_mutual_funds_median",
+      "metric": "investments",
+      "mode": "household",
+      "universe": "holders"
+    },
+    {
+      "definitionId": "sipp_financial_institution_assets_median",
+      "metric": "savings",
+      "mode": "household",
+      "universe": "holders"
+    },
+    {
+      "definitionId": "bls_ce_total_expenditures_mean",
+      "metric": "spending",
+      "mode": "household",
+      "universe": "all"
+    }
+  ],
+  "cpi": {
+    "latestMonth": "2026-08",
+    "note": "CPI-U all items, U.S. city average, not seasonally adjusted (BLS series CUUR0000SA0), fetched through FRED because the BLS download host rejects automated clients. October 2025 was never published.",
+    "series": "CPIAUCNS",
+    "sha256": "f79e3a78837142293449cee4a1a9b1da7be677fb3e989ffb2ef48e8e7cf4cdd7",
+    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCNS"
+  },
+  "formatVersion": 1,
+  "gaps": [
+    {
+      "metric": "spending",
+      "mode": "individual",
+      "reason": "CE reports consumer units, not people; no individual-level age spending benchmark was identified."
+    },
+    {
+      "metric": "investments",
+      "mode": "individual",
+      "reason": "SIPP publishes asset ownership by household and by householder age only. The single-person-household rows use different age bands and a different population, so they are not used as an all-person benchmark."
+    },
+    {
+      "metric": "savings",
+      "mode": "individual",
+      "reason": "Same as individual investments: only household-level SIPP asset tables are published by age."
+    },
+    {
+      "metric": "debt",
+      "mode": "individual",
+      "reason": "Same as individual investments: only household-level SIPP debt tables are published by age."
+    }
+  ],
+  "packageVersion": "2026.10.1",
+  "recordsSha256": "2abeb7dde6746f1ec203efede2efbe141e4ed8d7516dc90f2359f94358dc8347",
+  "sources": [
+    {
+      "dataset": "CPS ASEC 2026, PINC-01 (total work experience, both sexes, all races)",
+      "id": "cps_pinc01_2026",
+      "provider": "U.S. Census Bureau",
+      "released": null,
+      "retrieved": "2026-09-30",
+      "sha256": "d197da1f59f19e2f80d60130eb1e81bb70601a9b01b7e4fd52e51237b166b5e3",
+      "url": "https://www2.census.gov/programs-surveys/cps/tables/pinc-01/2026/pinc01_1_1_1.xlsx"
+    },
+    {
+      "dataset": "CPS ASEC 2026, HINC-02 (age of householder, total, all races)",
+      "id": "cps_hinc02_2026",
+      "provider": "U.S. Census Bureau",
+      "released": null,
+      "retrieved": "2026-09-30",
+      "sha256": "efe96208b65b14d70ac001bc524611dc01585b8380cd31c7f14ac7cbbd060df7",
+      "url": "https://www2.census.gov/programs-surveys/cps/tables/hinc-02/2026/hinc02_1_1.xlsx"
+    },
+    {
+      "dataset": "SIPP survey year 2025, wealth tables for 2024 (asset ownership)",
+      "id": "sipp_wealth_2024",
+      "provider": "U.S. Census Bureau",
+      "released": "2026-07-15",
+      "retrieved": "2026-09-30",
+      "sha256": "681319e5c593f0967c27d6ab3fa304a827a1579f8977adbd2589ce59d9ddde35",
+      "url": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx"
+    },
+    {
+      "dataset": "SIPP survey year 2025, debt tables for 2024",
+      "id": "sipp_debt_2024",
+      "provider": "U.S. Census Bureau",
+      "released": "2026-07-15",
+      "retrieved": "2026-09-30",
+      "sha256": "b251389ffca5d04c5f0410a88844009be0641de565c125f9ae74581efa9ddf75",
+      "url": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx"
+    },
+    {
+      "dataset": "Consumer Expenditure Surveys 2024, total average annual expenditures by age of reference person (series CXUTOTALEXPLB0402M to CXUTOTALEXPLB0409M; labels from the series titles on ALFRED)",
+      "id": "bls_ce_2024",
+      "provider": "U.S. Bureau of Labor Statistics",
+      "released": null,
+      "retrieved": "2026-10-01",
+      "sha256": "110e018ee76dbf133b3434b6142b6fa3aaad76481bd7e831825fe7343db33029",
+      "url": "https://api.bls.gov/publicAPI/v2/timeseries/data/"
+    }
+  ],
+  "suppressed": [],
+  "synthetic": false,
+  "transformationVersion": "1"
+}

@@ -5,7 +5,7 @@
 //     Investments summary, chart axes included (19.14);
 //   - at 960 and 800 px wide neither page scrolls sideways, no stat tile
 //     clips its text and no table scrolls sideways inside its own frame (19.14);
-//   - in Slate, Futuristic and Transparent, light and dark, the chart lines,
+//   - in Default (transparent) and Futuristic, light and dark, the chart lines,
 //     stat tiles and notes are drawn and readable: series colours keep a 3:1
 //     contrast against the card (WCAG non-text contrast) and body text 4.5:1.
 //
@@ -197,7 +197,7 @@ try {
   // ---- every style x mode ---------------------------------------------------------------------------
   await browser.setWindowSize(1440, 1600);
   const contrastProblems = [];
-  for (const [label, palette] of [["Slate", null], ["Futuristic", "futuristic"], ["Transparent", "transparent"]]) {
+  for (const [label, palette] of [["Default", "transparent"], ["Futuristic", "futuristic"]]) {
     for (const mode of ["light", "dark"]) {
       await setLook(palette, mode);
       await nav(browser, "Accounts");
@@ -215,7 +215,7 @@ try {
         // the shared `.axis-label` class, whose colour is faint enough in the Transparent
         // style that it lands at about 2.1:1 in light mode. Nothing here made it worse, so
         // that one combination gets a 2:1 floor; everything else is held to 3:1.
-        const floor = key === "axis" && label === "Transparent" ? 2 : 3;
+        const floor = key === "axis" && label === "Default" ? 2 : 3;
         if (ratio < floor) contrastProblems.push(`${label} ${mode}: ${key} text is ${ratio}:1 (needs at least ${floor}:1)`);
       }
       for (const p of await layoutProblems()) contrastProblems.push(`${label} ${mode}: ${p}`);

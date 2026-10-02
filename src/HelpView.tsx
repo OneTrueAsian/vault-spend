@@ -1,5 +1,6 @@
 import { Fragment, ReactNode, useState } from "react";
 import thirdPartyNotices from "../docs/THIRD-PARTY-NOTICES.txt?raw";
+import { LegalNoticeHelp } from "./LegalNoticeHelp";
 
 /** One filterable unit of help content. `tags` drives search — always
  * include the entry's own visible name/heading among them (so searching
@@ -182,10 +183,14 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "link",
       "unlink",
       "possible transfers",
+      "dismiss",
       "auto-link",
       "auto-linked",
       "review inbox",
       "inbox",
+      "note",
+      "notes",
+      "annotate",
     ],
     node: (
       <li>
@@ -202,14 +207,22 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         be <strong>linked as a transfer</strong>: Vault Spend suggests likely
         pairs ("N possible transfers — review"), or tick two rows and choose
         "Link as transfer". A linked pair shows as one row and never counts
-        as income or spending. Prefer not to review each one? Turn on{" "}
+        as income or spending. Don't want a particular pair suggested again?
+        Choose <strong>Dismiss</strong> on it (or Dismiss selected/Dismiss
+        all) — it stops that pair being suggested for good, without changing
+        either transaction; Link and manual linking still work on it any
+        time. Prefer not to review each one? Turn on{" "}
         <strong>Link matching transfers automatically</strong> in Settings;
         the pairs it links are listed under "N auto-linked — review". After an
         import (and any time from{" "}
         <strong>Review inbox</strong>), a review dialog lists transactions
         worth a second look — uncategorized, a low-confidence guess, a
         possible duplicate, or an unusually large charge — with a suggested
-        category you can accept, change, or skip.
+        category you can accept, change, or skip. Any transaction can also
+        carry a freeform <strong>note</strong> — click "+ Add note" (or the
+        note preview, once one exists) on its row; a linked transfer shows
+        one note action per leg, since each side is still its own
+        transaction.
       </li>
     ),
   },
@@ -444,9 +457,10 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
       "theme",
       "dark mode",
       "light mode",
-      "slate",
+      "default",
       "futuristic",
       "transparent",
+      "retro",
       "rules",
       "categorization rules",
       "privacy",
@@ -468,7 +482,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         — see FAQ), your <strong>categorization rules</strong> (see FAQ), an
         optional live stock-price integration for the Investments tab, and{" "}
         <strong>appearance</strong>: Light/Dark/System plus three visual
-        styles — Slate, Futuristic, and Transparent (see FAQ).{" "}
+        styles — Default, Futuristic, and Retro (see FAQ).{" "}
         <strong>Privacy</strong> can also hide your amounts whenever the
         window loses focus, and <strong>Background reminders</strong> keeps
         Vault Spend in the system tray (optionally starting when you sign in)
@@ -512,7 +526,11 @@ const IMPORTING_ENTRY: HelpEntry = {
           the convention is the other way around — a payment is
           <em> positive</em> (it reduces what's owed) and a charge or new
           debt is negative — so check a payment row's sign in the preview
-          before confirming.
+          before confirming. Each account remembers your answer and offers
+          it again on its next import, and for a credit card whose file is
+          mostly positive amounts, "Flip the signs" is suggested. Imported
+          them the wrong way already? Select those rows on the Transactions
+          tab and choose "Flip signs…" (choosing it again undoes it).
         </li>
         <li>
           You'll see a preview of every row before anything is saved. Rows
@@ -773,6 +791,11 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
+    question: "Where can I read the legal notice?",
+    tags: ["legal notice", "legal", "disclaimer", "terms", "conditions", "warranty", "liability", "privacy", "license", "mit", "advice", "estimates"],
+    answer: <LegalNoticeHelp />,
+  },
+  {
     question: "Do bill reminders work while a profile is locked?",
     tags: ["reminders", "reminder", "bill reminders", "locked", "notification", "privacy", "tray", "quit", "maintenance", "recurring"],
     answer: (
@@ -794,15 +817,57 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
+    question: "How do the age-based comparisons in Reports work?",
+    tags: ["comparisons", "compare", "age", "peers", "benchmark", "income", "savings", "investments", "debt", "spending", "census", "survey", "gross", "take-home", "median", "unavailable"],
+    answer: (
+      <>
+        <p>
+          <strong>Reports → Comparisons</strong> lines your income, savings, investments, debt and household spending up
+          against figures published by public surveys for people your age. You enter an exact age or an age range once; each card then
+          says which published age group and which people it describes, because every survey draws its own groups. Where
+          your range spans several published groups you pick the one to compare with, and where none matches a
+          closely-related group is used only with a clear Approximate warning.
+        </p>
+        <p>
+          <strong>Income is before tax.</strong> Published incomes are gross, so you type your own; Vault Spend never
+          guesses it from your take-home pay. Savings, investments and debt come from your tracked accounts once you
+          confirm they are complete, and you can classify accounts or enter a total yourself in the{" "}
+          <strong>Your details</strong> panel under the cards on that same page.
+        </p>
+        <p>
+          <strong>Each person&apos;s income.</strong> Everything is compared for your household as a whole. If you enter
+          income separately for each person, the Income card&apos;s Explore view also shows each person&apos;s own pay next
+          to the typical pay of people their age.
+        </p>
+        <p>
+          The published figures are medians or averages from past surveys, brought up to the latest prices on file. The
+          difference shown is how far you are from that figure, not where you rank. Some published figures only describe
+          people who hold the item (a retirement account, a mortgage), and those are labelled; if you hold none, the
+          card says it is not comparable instead of comparing you with zero. When the reference data has no figure for a
+          comparison, its card says so and nothing is substituted. Everything is calculated on your computer; nothing you enter is sent
+          anywhere, and Hide amounts covers these figures too.
+        </p>
+        <p>
+          <strong>Spending</strong> is compared with the U.S. Bureau of Labor Statistics&apos;
+          average yearly spending for households whose main earner is your age. It is an average, not a median, so a
+          few high spenders pull it up, and it counts insurance and pension contributions as spending. Use the yearly
+          total you track here, or type one in <strong>Your details</strong>.
+        </p>
+      </>
+    ),
+  },
+  {
     question: "Is my data private?",
     tags: ["privacy", "data", "local", "cloud", "security", "offline", "account", "network", "internet", "updates", "live prices"],
     answer: (
       <p>
         Yes. Each profile&apos;s data is stored in files on your own computer, created fresh the first time you
         launch the app, and nothing you enter is ever uploaded, so a fresh install on someone else&apos;s computer
-        starts completely empty. There&apos;s no account and no server. The only network requests Vault Spend makes
-        are a check for a newer version on GitHub when it opens, and live investment prices if you set up a price
-        provider. You can also password-protect any profile (see above).
+        starts completely empty. There&apos;s no account and no server. Vault Spend makes three kinds of network
+        request, and none of them carries your transactions, balances or account names: it loads its typefaces from
+        Google Fonts when it opens, it checks GitHub for a newer version when it opens, and it fetches live
+        investment prices only if you set up a price provider. The legal notice lists them in full. You can also
+        password-protect any profile (see above).
       </p>
     ),
   },
@@ -859,7 +924,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         lightweight classifier also kicks in for transactions the rules
         don't cover. Anything neither can confidently place is left
         Uncategorized rather than guessing — setting it yourself teaches the
-        app for next time. Every rule, built-in and learned, is listed in{" "}
+        app for next time. Rules compare merchant names, ignoring store numbers, punctuation and card-processor prefixes such as "SQ *", so a rule learned from one Speedway also covers the others. If a merchant has been filed under more than one category, its rule still suggests your most recent choice but marks it Unsure, so it lands in the review inbox instead of being applied silently. Every rule, built-in and learned, is listed in{" "}
         <strong>Settings → Categorization rules</strong>, where you can add,
         edit, or delete them; before a new rule is saved you'll see how many
         existing transactions it would change and can apply it to them right
@@ -1235,17 +1300,22 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "Can I change how Vault Spend looks?",
-    tags: ["appearance", "theme", "dark mode", "light mode", "slate", "futuristic", "transparent", "glass", "style", "color"],
+    tags: ["appearance", "theme", "dark mode", "light mode", "default", "futuristic", "transparent", "glass", "retro", "style", "color", "accent", "glow", "neon", "motion", "animation"],
     answer: (
       <p>
         Yes — the Settings tab has an Appearance section with a Light/Dark/
         System toggle (now in the header) plus three visual styles:{" "}
-        <strong>Slate</strong> (the default look), <strong>Futuristic</strong>{" "}
-        (a neon style with its own type and sidebar icons), and{" "}
-        <strong>Transparent</strong> (a frosted-glass style with a
-        translucent, blurred sidebar and cards). All three follow the
-        Light/Dark/System toggle. Switching is instant and purely visual —
-        nothing about your data changes.
+        <strong>Default</strong> (a frosted-glass look with a translucent,
+        blurred sidebar and cards), <strong>Futuristic</strong> (a neon
+        style on deep navy with its own type and sidebar icons; pick its
+        accent color, Ion Cyan, Rebel Pink, or Ultraviolet, and turn its glow
+        up or down with Neon intensity), and{" "}
+        <strong>Retro</strong> (gray raised and sunken controls, square
+        corners, and navy selection; its Dark mode is a modern adaptation of
+        the same look). All three follow the Light/Dark/System toggle. Switching is instant and purely visual —
+        nothing about your data changes. <strong>Reduce motion</strong>, in
+        the same section, turns off sliding and fading effects in every
+        style.
       </p>
     ),
   },

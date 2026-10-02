@@ -11,9 +11,12 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { monthFromNow } from "./lib/dates.mjs";
 
 function loanResetsFixture(name, varName, balances) {
-  const periods = ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08"];
+  // The five months before this one: the Dashboard/Accounts delta spans the trailing 6 months ending now, so a fixed
+  // calendar would slide out of the window as time passes.
+  const periods = [-5, -4, -3, -2, -1].map((offset) => monthFromNow(offset));
   const rows = periods.map((period, i) => `("${period}", "${period}-28", "${balances[i].toFixed(2)}")`).join(", ");
   return `
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('${name}', 'loan', '${balances[0].toFixed(2)}')")
@@ -37,7 +40,7 @@ try {
   const accountsNav = await app.browser.$("button*=Accounts");
   await accountsNav.click();
 
-  const liabilitiesStat = await app.browser.$("button*=Total Liabilities");
+  const liabilitiesStat = await app.browser.$("button*=What you owe");
   await liabilitiesStat.waitForExist({ timeout: 10000 });
   await liabilitiesStat.click();
 

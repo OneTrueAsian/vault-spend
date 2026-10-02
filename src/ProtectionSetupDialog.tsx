@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ModalShell } from "./Modal";
 import { beginProtectionSetup, cancelProtectionSetup, commitProtectionSetup, type SetupChallenge } from "./protection";
 import type { StartupState } from "./startup";
+import { errorMessage } from "./errorMessage";
 
 type Step = "password" | "recovery" | "confirm";
 
@@ -44,7 +45,7 @@ export function ProtectionSetupDialog({
       setChallenge(await beginProtectionSetup(password, expectedGeneration));
       setStep("recovery");
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -57,7 +58,7 @@ export function ProtectionSetupDialog({
     try {
       onDone(await commitProtectionSetup(challenge.token, answers, targetProfileId, newProfileName));
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

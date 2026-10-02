@@ -6,7 +6,7 @@
 //
 // Run with: node e2e/feature69_similar_offer_after_bulk_category.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -34,8 +34,13 @@ async function nav(label) {
   }
   throw new Error(`no nav button "${label}"`);
 }
-const selectCount = (value) =>
-  browser.execute((v) => [...document.querySelectorAll("table.ledger select")].filter((s) => s.value === v).length, value);
+// The row's own category editor is a RowFieldDropdown trigger now, not a
+// native <select> — count rows whose trigger currently reads `value`.
+const categoryCount = (value) =>
+  browser.execute(
+    (v) => [...document.querySelectorAll('table.ledger [aria-label^="Category for"]')].filter((el) => el.textContent.includes(v)).length,
+    value,
+  );
 async function tick(desc) {
   const box = await browser.$(`(//tr[td[contains(.,'${desc}')]]//input[@type='checkbox'])[1]`);
   await box.waitForExist({ timeout: 10000 });
@@ -48,31 +53,38 @@ try {
 
   // ---- one merchant, via the bulk bar
   await tick("Corner Cart");
-  const bulkSelect = await browser.$(".bulk-actions-bar select[aria-label='Set category to…']");
+  const bulkSelect = await browser.$(".bulk-actions-bar button[aria-label='Set category to…']");
   await bulkSelect.waitForExist({ timeout: 10000 });
-  await bulkSelect.selectByVisibleText("Entertainment");
+  await chooseMenuOption(bulkSelect, { label: "Entertainment" });
   const toast = await browser.$(".toast-stack");
   await browser.waitUntil(async () => /Saved a rule: "Corner Cart" → Entertainment\. 2 similar transactions could use it too\./.test(await toast.getText()), {
     timeout: 10000,
     timeoutMsg: "expected the offer to apply the new Corner Cart rule to the 2 identical uncategorized rows",
   });
   await (await toast.$("button*=Apply to 2")).click();
-  await browser.waitUntil(async () => (await selectCount("Entertainment")) === 3, { timeout: 10000, timeoutMsg: "all three Corner Cart rows should be Entertainment" });
+  await browser.waitUntil(async () => (await categoryCount("Entertainment")) === 3, { timeout: 10000, timeoutMsg: "all three Corner Cart rows should be Entertainment" });
 
   // ---- two merchants at once. Corner Cart's other two rows are now rule-sourced
   // (from the Apply above), so they are eligible again; Lunch Truck's two are
   // still uncategorized: 2 + 2 = 4 similar transactions.
   await tick("Lunch Truck");
   await tick("Corner Cart");
-  await (await browser.$(".bulk-actions-bar select[aria-label='Set category to…']")).selectByVisibleText("Dining Out");
+  await chooseMenuOption(await browser.$(".bulk-actions-bar button[aria-label='Set category to…']"), { label: "Dining Out" });
   await browser.waitUntil(async () => /Saved rules for 2 merchants → Dining Out\. 4 similar transactions could use them too\./.test(await toast.getText()), {
     timeout: 10000,
     timeoutMsg: "expected one combined offer for the two merchants covering 4 similar transactions",
   });
   await (await toast.$("button*=Apply to 4")).click();
-  await browser.waitUntil(async () => (await selectCount("Dining Out")) === 6, {
+  await waitUntilOrDiagnose(browser, async () => (await categoryCount("Dining Out")) === 6, {
     timeout: 10000,
     timeoutMsg: "all six rows (both merchants) should now be Dining Out",
+    // Seen once in a full run (2026-10-01) and not reproduced in 36 stressed runs: say what each row read.
+    extra: async () => ({
+      rows: await browser.execute(() =>
+        [...document.querySelectorAll("table.ledger tbody tr")].map((tr) => tr.textContent.replace(/\s+/g, " ").trim().slice(0, 80)),
+      ),
+      toast: (await toast.getText().catch(() => "")).slice(0, 160),
+    }),
   });
 
   console.log("FEATURE 69 E2E TEST PASSED");

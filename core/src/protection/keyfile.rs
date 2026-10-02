@@ -1,12 +1,12 @@
 //! The key file: everything needed to turn a password (or recovery code) back into the database
 //! key. It sits beside every encrypted database and backup (plan v2 section 4.3) and holds only
 //! wrapped keys, never a password, a recovery code or an unwrapped key.
-use super::kdf::{derive_kek, validate_salt, KdfParams};
+use super::kdf::{KdfParams, derive_kek, validate_salt};
 use super::recovery::RecoveryCode;
-use super::wrap::{generate_dek, unwrap_dek, wrap_dek, Wrapped};
-use super::{random_bytes, ProtectionError};
+use super::wrap::{Wrapped, generate_dek, unwrap_dek, wrap_dek};
+use super::{ProtectionError, random_bytes};
 use crate::fsutil::write_atomic;
-use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use unicode_normalization::UnicodeNormalization;

@@ -2,11 +2,13 @@ import { useEffect, useId } from "react";
 import type { Account } from "./types";
 import { usePopover } from "./usePopover";
 
-export function AccountDestinationDropdown({ accounts, value, disabled, onChange }: {
+export function AccountDestinationDropdown({ accounts, value, disabled, onChange, emptyLabel = "No accounts yet" }: {
   accounts: Account[];
   value: number | null;
   disabled: boolean;
   onChange: (value: string) => void;
+  /** What the button says with no account to show ("Loading…" while the accounts are on their way). */
+  emptyLabel?: string;
 }) {
   const { open, setOpen, rootRef, triggerRef } = usePopover();
   const menuId = useId();
@@ -29,11 +31,11 @@ export function AccountDestinationDropdown({ accounts, value, disabled, onChange
     onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
     <button id="ledger-account-select" type="button" ref={triggerRef}
       className="account-filter-toggle" disabled={disabled}
-      aria-label={`Add to: ${accounts.find((a) => a.id === value)?.name ?? "No accounts yet"}`}
+      aria-label={`Add to: ${accounts.find((a) => a.id === value)?.name ?? emptyLabel}`}
       aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
       onClick={() => setOpen((v) => !v)}
       onKeyDown={(e) => { if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); setOpen(true); } }}>
-      <span className="account-destination-name">{accounts.find((a) => a.id === value)?.name ?? "No accounts yet"}</span>
+      <span className="account-destination-name">{accounts.find((a) => a.id === value)?.name ?? emptyLabel}</span>
       <span className="account-filter-caret" aria-hidden="true">▾</span>
     </button>
     {open && <div id={menuId} className="account-filter-panel account-destination-panel" role="menu" aria-label="Add to account"

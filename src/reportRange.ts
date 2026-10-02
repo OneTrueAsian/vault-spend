@@ -3,13 +3,14 @@
  * be unit tested without rendering anything. */
 
 export type YearMonth = { year: number; month: number };
-export type RangePreset = "year_to_date" | "last_12" | "last_6" | "last_month";
+export type RangePreset = "year_to_date" | "last_12" | "last_6" | "last_month" | "current_month";
 
 export const PRESET_LABELS: Record<RangePreset, string> = {
   year_to_date: "Year to date",
   last_12: "Last 12 months",
   last_6: "Last 6 months",
   last_month: "Last month",
+  current_month: "Current month",
 };
 
 function shiftMonth(ym: YearMonth, by: number): YearMonth {
@@ -32,6 +33,8 @@ export function presetRange(preset: RangePreset, today: Date): { from: YearMonth
       const previous = shiftMonth(current, -1);
       return { from: previous, to: previous };
     }
+    case "current_month":
+      return { from: current, to: current };
   }
 }
 

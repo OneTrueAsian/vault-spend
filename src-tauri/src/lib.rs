@@ -1,7 +1,9 @@
 mod auto_lock;
 mod background;
 mod backups;
+mod command_thread;
 mod commands;
+mod comparison_commands;
 mod config;
 #[cfg(debug_assertions)]
 mod debug_commands;
@@ -12,6 +14,7 @@ mod legacy_migration;
 mod live_price_provider;
 mod live_prices;
 mod maintenance;
+mod perf_log;
 mod profiles;
 mod protection_commands;
 mod protection_leftovers;
@@ -186,7 +189,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(command_thread::off_main_thread(perf_log::timed(tauri::generate_handler![
             launch_commands::get_startup_state,
             launch_commands::retry_startup,
             launch_commands::restore_registry_backup,
@@ -207,6 +210,8 @@ pub fn run() {
             commands::set_tray_enabled,
             commands::set_autostart_enabled,
             commands::send_test_reminder,
+            commands::get_legal_notice_acknowledgement,
+            commands::acknowledge_legal_notice,
             commands::set_backup_copy_dir,
             commands::restore_backup,
             commands::list_profiles,
@@ -222,6 +227,9 @@ pub fn run() {
             commands::mark_ui_state_migrated,
             commands::is_ui_state_migrated,
             commands::get_current_generation,
+            comparison_commands::get_comparison_setup,
+            comparison_commands::save_comparison_setup,
+            comparison_commands::get_financial_comparisons,
             protection_commands::show_profile_selector,
             protection_commands::select_profile,
             protection_commands::unlock_profile,
@@ -245,13 +253,19 @@ pub fn run() {
             protection_commands::delete_protection_leftovers,
             commands::preview_setup_import,
             commands::commit_setup_import,
+            commands::count_import_signs,
+            commands::flip_transaction_signs,
             commands::preview_import,
             commands::commit_import,
             commands::create_manual_transaction,
             commands::list_transactions,
+            commands::list_transactions_by_ids,
             commands::correct_category,
             commands::bulk_correct_category,
             commands::list_transfer_candidates,
+            commands::list_all_transfer_candidate_pairs,
+            commands::dismiss_transfer_candidates,
+            commands::restore_transfer_candidates,
             commands::link_transfer,
             commands::unlink_transfer,
             commands::list_auto_linked_transfers,
@@ -291,6 +305,7 @@ pub fn run() {
             commands::update_transaction_account,
             commands::update_transaction_date,
             commands::update_transaction_description,
+            commands::update_transaction_notes,
             commands::delete_transaction,
             commands::restore_transactions,
             commands::apply_debt_payment,
@@ -322,6 +337,7 @@ pub fn run() {
             commands::set_month_reviewed,
             commands::list_reviewed_months,
             commands::transactions_for_category,
+            commands::spending_transactions_for_category,
             commands::budget_alerts_for_month,
             commands::dashboard_insights,
             commands::debt_payoff_projection,
@@ -366,6 +382,7 @@ pub fn run() {
             commands::set_split_purchases_enabled,
             commands::set_envelope_caps_enabled,
             commands::set_rollover_enabled,
+            commands::set_safe_to_spend_enabled,
             commands::fetch_live_quote,
             commands::refresh_live_prices,
             commands::create_asset,
@@ -400,7 +417,7 @@ pub fn run() {
             debug_commands::debug_set_main_window_visible,
             #[cfg(debug_assertions)]
             debug_commands::debug_check_reminders,
-        ])
+        ])))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

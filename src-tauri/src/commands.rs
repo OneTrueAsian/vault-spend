@@ -4,7 +4,7 @@ use budget_core::importer;
 use budget_core::learner;
 use budget_core::models::AccountType;
 use budget_core::rules::RuleSet;
-use budget_core::store::{CategorySource, ImportCategoryChoice, Store};
+use budget_core::store::{CategorySource, ImportCategoryChoice, Store, NOTES_MAX_CHARS};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -286,6 +286,34 @@ pub fn set_tray_enabled(
 pub fn set_autostart_enabled(enabled: bool, device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> Result<(), String> {
     crate::background::set_autostart(enabled)?;
     device.update(|settings| settings.autostart_enabled = enabled)
+}
+
+#[derive(Serialize)]
+pub struct LegalNoticeAcknowledgementDto {
+    /// The notice version last acknowledged on this computer, if any.
+    pub version: Option<String>,
+    pub acknowledged_at: Option<String>,
+    /// True only for an e2e run that asked to start past the notice (see `legal_notice_skipped`).
+    pub skip: bool,
+}
+
+/// Which version of the legal notice this computer has acknowledged. Read before any profile opens.
+#[tauri::command]
+pub fn get_legal_notice_acknowledgement(device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> LegalNoticeAcknowledgementDto {
+    let settings = device.snapshot();
+    LegalNoticeAcknowledgementDto {
+        version: settings.legal_notice_version,
+        acknowledged_at: settings.legal_notice_acknowledged_at,
+        skip: crate::device_settings::legal_notice_skipped(std::env::var_os("VAULTSPEND_SKIP_LEGAL_NOTICE"), std::env::var_os("VAULTSPEND_DB_DIR")),
+    }
+}
+
+/// Records that the person has seen `version` of the legal notice. The time is stamped here, not taken
+/// from the page.
+#[tauri::command]
+pub fn acknowledge_legal_notice(version: String, device: tauri::State<crate::device_settings::DeviceSettingsStore>) -> Result<(), String> {
+    let at = chrono::Utc::now().to_rfc3339();
+    device.update(|settings| settings.acknowledge_legal_notice(&version, &at))
 }
 
 /// Sends a sample reminder so the user can see what one looks like and that
@@ -1009,10 +1037,12 @@ pub struct TransactionDto {
     pub tags: Vec<String>,
     pub member_id: Option<i64>,
     pub member_name: Option<String>,
+    pub notes: Option<String>,
 }
 
 #[derive(Serialize)]
 pub struct AppliedDebtPaymentDto {
+    pub date: String,
     pub debt_account_id: i64,
     pub debt_account_name: String,
     pub amount: String,
@@ -1046,6 +1076,9 @@ pub struct AccountDto {
     /// An explicit icon override (see `StoredAccount::icon_key`) — `None`
     /// means "keep guessing an icon from `account_type`."
     pub icon_key: Option<String>,
+    /// The "Flip the signs" answer from the last import into this account
+    /// (see `StoredAccount::import_flip_signs`) — `None` before the first.
+    pub import_flip_signs: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -1228,10 +1261,13 @@ pub struct Stats {
     pub uncategorized: usize,
 }
 
-fn build_classifier(state: &AppState) -> Result<Classifier, String> {
+/// The labeled history (what the classifier trains on, and what tells a rule whether its merchant has
+/// been filed under more than one category) together with the classifier trained from it.
+fn build_classifier(state: &AppState) -> Result<(Vec<(String, String)>, Classifier), String> {
     let history = state.store.labeled_history().map_err(|e| e.to_string())?;
     let examples: Vec<(&str, &str)> = history.iter().map(|(d, c)| (d.as_str(), c.as_str())).collect();
-    Ok(Classifier::train(&examples))
+    let classifier = Classifier::train(&examples);
+    Ok((history, classifier))
 }
 
 /// Runs the categorizer over every transaction that doesn't have a category
@@ -1241,14 +1277,16 @@ fn build_classifier(state: &AppState) -> Result<Classifier, String> {
 /// callers that need to show the user exactly what changed (see
 /// `recategorize_uncategorized`) don't have to separately diff the transactions.
 fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
-    let classifier = build_classifier(state)?;
+    let (history, classifier) = build_classifier(state)?;
     let all = state.store.all_transactions().map_err(|e| e.to_string())?;
     let mut categorized_ids = Vec::new();
     for stored in all {
         if stored.transaction.category.is_some() {
             continue;
         }
-        if let Some((category, source, confidence)) = categorizer::categorize(&stored.transaction.description, &state.rules, Some(&classifier)) {
+        if let Some((category, source, confidence)) =
+            categorizer::categorize(&stored.transaction.description, &state.rules, &history, Some(&classifier))
+        {
             // A guess is only ever filed under a category the person already has — it must
             // not add one to their list.
             let applied = state
@@ -1292,6 +1330,50 @@ pub fn recategorize_uncategorized(state: tauri::State<AppStateHandle>) -> Result
 /// its file-specified destination previously meant a genuine duplicate in
 /// a different account came back `is_duplicate: false` here — silently
 /// contradicting what committing that same row actually does.
+#[derive(Serialize)]
+pub struct ImportSignCounts {
+    pub positive: usize,
+    pub negative: usize,
+}
+
+/// How many of a file's amounts are positive and how many negative, as written in the file — read before
+/// the "Which way do the amounts go?" question, so a credit card's export that shows charges as positive can
+/// be recognised and "Flip the signs" suggested. Reads the file only; nothing is stored.
+#[tauri::command]
+pub fn count_import_signs(path: String) -> Result<ImportSignCounts, String> {
+    let loaded = importer::load_transactions(&path, false).map_err(|e| e.to_string())?;
+    Ok(ImportSignCounts {
+        positive: loaded
+            .transactions
+            .iter()
+            .filter(|t| t.amount.is_sign_positive() && !t.amount.is_zero())
+            .count(),
+        negative: loaded
+            .transactions
+            .iter()
+            .filter(|t| t.amount.is_sign_negative() && !t.amount.is_zero())
+            .count(),
+    })
+}
+
+#[derive(Serialize)]
+pub struct FlipSignsDto {
+    pub flipped: usize,
+    pub account_ids: Vec<i64>,
+}
+
+/// The Transactions tab's "Flip signs…" bulk action: see `Store::flip_transaction_signs`. A refusal (a
+/// linked transfer or applied debt payment in the selection) comes back as an error that says what to do.
+#[tauri::command]
+pub fn flip_transaction_signs(ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<FlipSignsDto, String> {
+    let state = state.lock()?;
+    let summary = state.store.flip_transaction_signs(&ids).map_err(|e| e.to_string())?;
+    Ok(FlipSignsDto {
+        flipped: summary.flipped,
+        account_ids: summary.account_ids,
+    })
+}
+
 #[tauri::command]
 pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<ImportPreview, String> {
     let state = state.lock()?;
@@ -1381,7 +1463,7 @@ pub fn commit_import(
     let mut state = state.lock()?;
 
     let loaded = importer::load_transactions(&path, invert_amounts).map_err(|e| e.to_string())?;
-    let row_errors = loaded.errors.len();
+    let mut row_errors = loaded.errors.len();
 
     let included: std::collections::HashSet<usize> = included_indices.into_iter().collect();
     let mut selected: Vec<(usize, budget_core::models::Transaction)> = loaded
@@ -1390,6 +1472,28 @@ pub fn commit_import(
         .enumerate()
         .filter(|(index, _)| included.contains(index))
         .collect();
+
+    // Validated before anything is written, same reasoning as the category
+    // choices below: a row whose note is over the limit used to reach
+    // `update_transaction_notes` only *after* its own transaction (and
+    // every other selected row's) was already inserted, so the length
+    // rejection aborted the whole command with rows already committed,
+    // `inserted_ids` lost (breaking the import-undo toast), and
+    // categorize_uncategorized/auto-link skipped — an error shown to the
+    // user while totals had already changed. Dropped here instead, same
+    // "skip the bad row, keep the rest" contract `row_errors` already
+    // gives every other kind of malformed row.
+    selected.retain(|(index, _)| {
+        let ok = loaded
+            .notes
+            .get(*index)
+            .and_then(|o| o.as_deref())
+            .is_none_or(|n| n.trim().chars().count() <= NOTES_MAX_CHARS);
+        if !ok {
+            row_errors += 1;
+        }
+        ok
+    });
 
     // An import only lands in categories the person already has. A category the file brings
     // that they don't have is mapped, created or skipped as the review screen chose (skipped
@@ -1409,7 +1513,9 @@ pub fn commit_import(
         tx.category = settled.category;
     }
 
-    let mut by_account: std::collections::HashMap<i64, Vec<(budget_core::models::Transaction, Vec<String>)>> = std::collections::HashMap::new();
+    // One imported row plus its optional Tags/Notes columns, grouped by destination account.
+    type PendingRow = (budget_core::models::Transaction, Vec<String>, Option<String>);
+    let mut by_account: std::collections::HashMap<i64, Vec<PendingRow>> = std::collections::HashMap::new();
     for (index, tx) in selected {
         let account_id = if let Some(explicit) = account_overrides.get(&index).copied() {
             explicit
@@ -1422,22 +1528,40 @@ pub fn commit_import(
             default_account_id
         };
         let tags = loaded.tags.get(index).cloned().unwrap_or_default();
-        by_account.entry(account_id).or_default().push((tx, tags));
+        let notes = loaded.notes.get(index).cloned().flatten();
+        by_account.entry(account_id).or_default().push((tx, tags, notes));
     }
 
     let mut inserted = 0;
     let mut inserted_ids: Vec<i64> = Vec::new();
     for (account_id, rows) in by_account {
-        let (txns, tags_per_row): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
+        let (txns, tags_per_row, notes_per_row): (Vec<_>, Vec<_>, Vec<_>) = rows.into_iter().fold(
+            (Vec::new(), Vec::new(), Vec::new()),
+            |(mut txns, mut tags, mut notes), (tx, row_tags, row_notes)| {
+                txns.push(tx);
+                tags.push(row_tags);
+                notes.push(row_notes);
+                (txns, tags, notes)
+            },
+        );
         let ids = state.store.save_transactions_with_ids(account_id, &txns).map_err(|e| e.to_string())?;
         inserted += ids.len();
         inserted_ids.extend(ids.iter().copied());
-        for (id, tags) in ids.into_iter().zip(tags_per_row) {
+        for ((id, tags), notes) in ids.into_iter().zip(tags_per_row).zip(notes_per_row) {
             for tag in tags {
                 state.store.add_tag(id, &tag).map_err(|e| e.to_string())?;
             }
+            if let Some(notes) = notes {
+                state.store.update_transaction_notes(id, Some(&notes)).map_err(|e| e.to_string())?;
+            }
         }
     }
+
+    // Offered again the next time a file is imported into this account (see `StoredAccount::import_flip_signs`).
+    state
+        .store
+        .set_account_import_flip_signs(default_account_id, invert_amounts)
+        .map_err(|e| e.to_string())?;
 
     categorize_uncategorized(&mut state)?;
     let auto_linked = state.store.auto_link_transfers_if_enabled().map_err(|e| e.to_string())?.len();
@@ -1459,6 +1583,7 @@ pub fn commit_import(
 /// an un-categorized manual entry gets auto-categorized the same way an
 /// imported row would; passing one skips that guesswork entirely.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn create_manual_transaction(
     account_id: i64,
     date: String,
@@ -1466,6 +1591,7 @@ pub fn create_manual_transaction(
     amount: String,
     category: Option<String>,
     member_id: Option<i64>,
+    notes: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<i64, String> {
     let mut state = state.lock()?;
@@ -1479,7 +1605,10 @@ pub fn create_manual_transaction(
         amount,
         category,
     };
-    let id = state.store.create_transaction(account_id, &tx).map_err(|e| e.to_string())?;
+    let id = state
+        .store
+        .create_transaction(account_id, &tx, notes.as_deref())
+        .map_err(|e| e.to_string())?;
     if !has_category {
         categorize_uncategorized(&mut state)?;
     }
@@ -1732,7 +1861,13 @@ pub fn create_account(
     // account behind because validation happened after the first write in
     // this sequence of otherwise-separate calls.
     let starting_balance = starting_balance.map(|b| parse_amount(&b)).transpose()?;
-    let id = state.store.get_or_create_account(&name, account_type).map_err(|e| e.to_string())?;
+    // Never reuse an account with the same name: the balance and details below would overwrite it.
+    let Some(id) = state.store.create_account(&name, account_type).map_err(|e| e.to_string())? else {
+        return Err(format!(
+            "You already have an account called \"{}\". Choose a different name.",
+            name.trim()
+        ));
+    };
     if let Some(balance) = starting_balance {
         state.store.set_account_starting_balance(id, balance).map_err(|e| e.to_string())?;
     }
@@ -1770,6 +1905,7 @@ pub fn list_accounts(state: tauri::State<AppStateHandle>) -> Result<Vec<AccountD
             member_name: a.member_name,
             checkpoint_date: a.checkpoint_date.map(|d| d.to_string()),
             icon_key: a.icon_key,
+            import_flip_signs: a.import_flip_signs,
         })
         .collect())
 }
@@ -1870,39 +2006,50 @@ pub fn delete_family_member(id: i64, state: tauri::State<AppStateHandle>) -> Res
     state.store.delete_family_member(id).map_err(|e| e.to_string())
 }
 
+fn transaction_dto(s: budget_core::store::StoredTransaction) -> TransactionDto {
+    TransactionDto {
+        id: s.id,
+        transfer_counterpart_id: s.transfer_counterpart_id,
+        date: s.transaction.date.to_string(),
+        description: s.transaction.description,
+        amount: s.transaction.amount.to_string(),
+        category: s.transaction.category,
+        category_source: s.category_source.map(CategorySource::as_str).map(str::to_string),
+        confidence: s.confidence,
+        account_id: s.account_id,
+        account_name: s.account_name,
+        applied_to_debt: s.applied_to_debt.map(|d| AppliedDebtPaymentDto {
+            date: d.date.to_string(),
+            debt_account_id: d.debt_account_id,
+            debt_account_name: d.debt_account_name,
+            amount: d.amount.to_string(),
+        }),
+        principal_amount: s.principal_amount.map(|a| a.to_string()),
+        split_count: s.split_count,
+        tags: s.tags,
+        member_id: s.member_id,
+        member_name: s.member_name,
+        notes: s.notes,
+    }
+}
+
 #[tauri::command]
 pub fn list_transactions(state: tauri::State<AppStateHandle>) -> Result<Vec<TransactionDto>, String> {
     let state = state.lock()?;
     let stored = state.store.all_transactions().map_err(|e| e.to_string())?;
-
-    Ok(stored
-        .into_iter()
-        .map(|s| TransactionDto {
-            id: s.id,
-            transfer_counterpart_id: s.transfer_counterpart_id,
-            date: s.transaction.date.to_string(),
-            description: s.transaction.description,
-            amount: s.transaction.amount.to_string(),
-            category: s.transaction.category,
-            category_source: s.category_source.map(CategorySource::as_str).map(str::to_string),
-            confidence: s.confidence,
-            account_id: s.account_id,
-            account_name: s.account_name,
-            applied_to_debt: s.applied_to_debt.map(|d| AppliedDebtPaymentDto {
-                debt_account_id: d.debt_account_id,
-                debt_account_name: d.debt_account_name,
-                amount: d.amount.to_string(),
-            }),
-            principal_amount: s.principal_amount.map(|a| a.to_string()),
-            split_count: s.split_count,
-            tags: s.tags,
-            member_id: s.member_id,
-            member_name: s.member_name,
-        })
-        .collect())
+    Ok(stored.into_iter().map(transaction_dto).collect())
 }
 
-#[derive(Serialize)]
+/// The listed transactions as `list_transactions` shows them (gone or unknown ids are left out) — what
+/// the page re-reads after editing a few rows, instead of every transaction.
+#[tauri::command]
+pub fn list_transactions_by_ids(ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<Vec<TransactionDto>, String> {
+    let state = state.lock()?;
+    let stored = state.store.transactions_by_ids(&ids).map_err(|e| e.to_string())?;
+    Ok(stored.into_iter().map(transaction_dto).collect())
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct TransferCandidateDto {
     pub out_id: i64,
     pub in_id: i64,
@@ -1946,6 +2093,51 @@ pub fn list_auto_linked_transfers(state: tauri::State<AppStateHandle>) -> Result
 pub fn mark_auto_links_reviewed(out_ids: Vec<i64>, state: tauri::State<AppStateHandle>) -> Result<usize, String> {
     let state = state.lock()?;
     state.store.mark_transfer_links_reviewed(&out_ids).map_err(|e| e.to_string())
+}
+
+/// The complete current set of possible transfer pairs, including
+/// alternates hidden by `list_transfer_candidates`' one-match-per-transaction
+/// reduction — what "Dismiss all" dismisses, so it really clears the list.
+#[tauri::command]
+pub fn list_all_transfer_candidate_pairs(state: tauri::State<AppStateHandle>) -> Result<Vec<TransferCandidateDto>, String> {
+    let state = state.lock()?;
+    let pairs = state.store.list_all_transfer_candidate_pairs().map_err(|e| e.to_string())?;
+    Ok(pairs
+        .into_iter()
+        .map(|c| TransferCandidateDto {
+            out_id: c.out_id,
+            in_id: c.in_id,
+        })
+        .collect())
+}
+
+/// Tells Vault Spend to stop suggesting these exact pairs as transfers.
+/// Never touches either transaction's data or totals. Returns only the
+/// pairs newly dismissed (already-dismissed pairs in the batch are
+/// omitted), for the frontend's Undo to restore exactly those.
+#[tauri::command]
+pub fn dismiss_transfer_candidates(
+    pairs: Vec<TransferCandidateDto>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<Vec<TransferCandidateDto>, String> {
+    let state = state.lock()?;
+    let pairs: Vec<(i64, i64)> = pairs.into_iter().map(|p| (p.out_id, p.in_id)).collect();
+    let newly = state.store.dismiss_transfer_candidates(&pairs).map_err(|e| e.to_string())?;
+    Ok(newly
+        .into_iter()
+        .map(|c| TransferCandidateDto {
+            out_id: c.out_id,
+            in_id: c.in_id,
+        })
+        .collect())
+}
+
+/// Undoes the named dismissals (Undo after `dismiss_transfer_candidates`).
+#[tauri::command]
+pub fn restore_transfer_candidates(pairs: Vec<TransferCandidateDto>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    let pairs: Vec<(i64, i64)> = pairs.into_iter().map(|p| (p.out_id, p.in_id)).collect();
+    state.store.restore_transfer_candidates(&pairs).map_err(|e| e.to_string())
 }
 
 /// Links two transactions as the two legs of one transfer, so neither
@@ -2033,11 +2225,8 @@ pub fn correct_category(id: i64, category: String, state: tauri::State<AppStateH
 
     let description = state
         .store
-        .all_transactions()
+        .transaction_description(id)
         .map_err(|e| e.to_string())?
-        .into_iter()
-        .find(|t| t.id == id)
-        .map(|t| t.transaction.description)
         .ok_or_else(|| format!("no transaction with id {id}"))?;
 
     state
@@ -2062,9 +2251,8 @@ pub fn correct_category(id: i64, category: String, state: tauri::State<AppStateH
 pub fn bulk_correct_category(ids: Vec<i64>, category: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let mut state = state.lock()?;
 
-    let transactions = state.store.all_transactions().map_err(|e| e.to_string())?;
     for id in ids {
-        let Some(description) = transactions.iter().find(|t| t.id == id).map(|t| t.transaction.description.clone()) else {
+        let Some(description) = state.store.transaction_description(id).map_err(|e| e.to_string())? else {
             continue;
         };
 
@@ -2301,6 +2489,19 @@ pub fn update_transaction_principal_amount(id: i64, principal_amount: Option<Str
     state
         .store
         .update_transaction_principal_amount(id, principal_amount)
+        .map_err(|e| e.to_string())
+}
+
+/// Sets, changes or clears (`null`) a transaction's own freeform note. See
+/// `Store::update_transaction_notes` for the validation/whitespace rules
+/// and why a missing/deleted transaction is a real error here, not a
+/// silent no-op like most `update_transaction_*` commands.
+#[tauri::command]
+pub fn update_transaction_notes(transaction_id: i64, notes: Option<String>, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    state
+        .store
+        .update_transaction_notes(transaction_id, notes.as_deref())
         .map_err(|e| e.to_string())
 }
 
@@ -2824,6 +3025,36 @@ pub fn transactions_for_category(
         .collect())
 }
 
+#[tauri::command]
+pub fn spending_transactions_for_category(
+    category: String,
+    year: i32,
+    month: u32,
+    state: tauri::State<AppStateHandle>,
+) -> Result<Vec<CategoryTransactionDto>, String> {
+    if chrono::NaiveDate::from_ymd_opt(year, month, 1).is_none() {
+        return Err("invalid month".to_string());
+    }
+    let state = state.lock()?;
+    state
+        .store
+        .spending_transactions_for_category_in_month(&category, year, month)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|t| {
+            Ok(CategoryTransactionDto {
+                transaction_id: t.transaction_id,
+                date: t.date.to_string(),
+                description: t.description,
+                amount: t.amount.to_string(),
+                account_name: t.account_name,
+                is_split: t.is_split,
+                split_note: t.split_note,
+            })
+        })
+        .collect()
+}
+
 #[derive(Serialize)]
 pub struct BudgetAlertDto {
     pub category: String,
@@ -2963,33 +3194,15 @@ pub fn list_anomaly_flags(state: tauri::State<AppStateHandle>) -> Result<Vec<Ano
 #[tauri::command]
 pub fn get_stats(state: tauri::State<AppStateHandle>) -> Result<Stats, String> {
     let state = state.lock()?;
-    let all = state.store.all_transactions().map_err(|e| e.to_string())?;
-
-    let mut stats = Stats {
-        total: all.len(),
-        auto_categorized: 0,
-        user_confirmed: 0,
-        uncategorized: 0,
-    };
-    for t in &all {
-        // "Needs a category" must mean exactly that — no category name at
-        // all — not "no recorded source for whatever category it has".
-        // A transaction imported with a category already attached (a QFX/
-        // OFX file's own categorization, or a bulk setup-data import) gets
-        // a real `category` but no `category_source`, since it was never
-        // run through this app's own rule/classifier/user-confirm path;
-        // counting it as "uncategorized" anyway (as this used to) made the
-        // Transactions tab's "Needs a category" stat overcount, disagreeing with its
-        // own "Uncategorized" filter, which correctly checks `category`.
-        if t.transaction.category.is_none() {
-            stats.uncategorized += 1;
-        } else if t.category_source == Some(CategorySource::User) {
-            stats.user_confirmed += 1;
-        } else {
-            stats.auto_categorized += 1;
-        }
-    }
-    Ok(stats)
+    // Counted in SQL rather than by loading every transaction (see `Store::category_counts` for what
+    // each count means: "needs a category" is exactly "no category name").
+    let counts = state.store.category_counts().map_err(|e| e.to_string())?;
+    Ok(Stats {
+        total: counts.total,
+        auto_categorized: counts.auto_categorized,
+        user_confirmed: counts.user_confirmed,
+        uncategorized: counts.uncategorized,
+    })
 }
 
 fn refresh_open_reminders(store: &Store, paths: &crate::config::AppPaths, device: &crate::device_settings::DeviceSettingsStore) {
@@ -3351,6 +3564,10 @@ pub fn account_balance_history(account_id: i64, months: u32, state: tauri::State
 
 #[derive(Serialize)]
 pub struct AccountTransactionDto {
+    pub payment_source_id: Option<i64>,
+    pub payment_source_account_id: Option<i64>,
+    pub payment_source_account_name: Option<String>,
+    pub payment_source_date: Option<String>,
     pub id: i64,
     pub date: String,
     pub description: String,
@@ -3362,6 +3579,10 @@ pub struct AccountTransactionDto {
 fn account_transaction_dtos(rows: Vec<budget_core::store::AccountTransaction>) -> Vec<AccountTransactionDto> {
     rows.into_iter()
         .map(|t| AccountTransactionDto {
+            payment_source_id: t.payment_source_id,
+            payment_source_account_id: t.payment_source_account_id,
+            payment_source_account_name: t.payment_source_account_name,
+            payment_source_date: t.payment_source_date.map(|date| date.to_string()),
             id: t.id,
             date: t.date.to_string(),
             description: t.description,
@@ -3739,6 +3960,7 @@ pub struct AppSettingsDto {
     pub envelope_caps_enabled: bool,
     pub rollover_enabled: bool,
     pub auto_link_transfers: bool,
+    pub safe_to_spend_enabled: bool,
 }
 
 #[tauri::command]
@@ -3751,6 +3973,7 @@ pub fn get_app_settings(state: tauri::State<AppStateHandle>) -> Result<AppSettin
         envelope_caps_enabled: settings.envelope_caps_enabled,
         rollover_enabled: settings.rollover_enabled,
         auto_link_transfers: settings.auto_link_transfers,
+        safe_to_spend_enabled: settings.safe_to_spend_enabled,
     })
 }
 
@@ -3779,6 +4002,12 @@ pub fn set_envelope_caps_enabled(enabled: bool, state: tauri::State<AppStateHand
 pub fn set_rollover_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock()?;
     state.store.set_rollover_enabled(enabled).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_safe_to_spend_enabled(enabled: bool, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let state = state.lock()?;
+    state.store.set_safe_to_spend_enabled(enabled).map_err(|e| e.to_string())
 }
 
 /// The opt-in "link matching transfers automatically" switch (Settings).

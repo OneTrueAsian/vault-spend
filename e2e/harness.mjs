@@ -103,6 +103,16 @@ async function connectWithRetries(options, { attempts = 20, delayMs = 100 } = {}
   throw lastErr;
 }
 
+// Closes any status message with its Dismiss button, as a person would. A success message stays up
+// for 10 seconds and, at the 800x600 test window, can sit over the control a spec clicks next: the
+// driver then refuses the click ("element click intercepted") and WebdriverIO retries it until the
+// message goes, which cost about 10 seconds a click (most of feature103's run time).
+export async function dismissStatusMessages(browser) {
+  for (const button of await browser.$$(".status-dismiss")) {
+    await button.click().catch(() => {}); // it may have closed on its own meanwhile
+  }
+}
+
 // Every fresh test DB (localStorage is per-webview-origin, not shared with a real install) hits
 // the first-launch welcome dialog, which blocks clicks on everything behind its overlay — dismiss
 // it here once so no individual spec needs to know about it. `launchApp` already calls this itself
@@ -110,10 +120,29 @@ async function connectWithRetries(options, { attempts = 20, delayMs = 100 } = {}
 // (a launch error screen, the profile selector, a lock screen) and only reaches the open app
 // afterward — e.g. by unlocking a profile mid-test — must call this itself once `.brand-word`
 // actually exists, before clicking anything else, or the very first click lands on this overlay.
+// Views wait for the profile's data before they render (a loading placeholder, `[data-data-loading]`,
+// stands in until then; QA H3), so the sidebar showing is not the same as the app being usable — on
+// a busy machine the first read can take seconds. `launchApp` waits for this by default; pass
+// `waitForData: false` to watch the loading state itself (feature157), and call this after reaching
+// the app some other way (the profile selector, an unlock).
+export async function waitForDataLoaded(browser, timeout = 60000) {
+  await browser.waitUntil(() => browser.execute(() => !document.querySelector("[data-data-loading]")), {
+    timeout,
+    interval: 50,
+    timeoutMsg: "the profile's data never finished loading",
+  });
+}
+
 export async function dismissFirstLaunchDialogs(browser) {
   const getStarted = await browser.$("button*=Just get started");
   if (await getStarted.isExisting()) {
-    await getStarted.click();
+    try {
+      await getStarted.click();
+    } catch (e) {
+      // It can go between the check and the click — e.g. feature121's focus-loss lock replaces the whole
+      // app with the lock screen. Gone is what this wanted; anything else is a real failure.
+      if (await getStarted.isExisting()) throw e;
+    }
   }
   // Immediately after Welcome, a fresh launch also always hits the "What's new" dialog — a fresh
   // profile means no version has ever been "seen" yet, exactly like a true first install. Same
@@ -141,10 +170,60 @@ export async function reclaimWindowFocus(browser) {
   if (await browser.execute(() => document.hasFocus())) return;
   const { width, height } = await browser.getWindowSize();
   await browser.maximizeWindow();
-  await browser.setWindowSize(width, height);
+  // Resizing a maximized window only un-maximizes it, back to the size it was created at (800x600), and
+  // ignores the size asked for — so a spec that had set 1440x1000 silently dropped to the narrow layout
+  // after every reclaim. Ask again until the size really is back.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await browser.setWindowSize(width, height);
+    const now = await browser.getWindowSize();
+    if (now.width === width && now.height === height) break;
+  }
   await browser.waitUntil(() => browser.execute(() => document.hasFocus()), {
     timeout: 5000,
     timeoutMsg: "the app window never regained focus (another window is holding OS foreground)",
+  });
+}
+
+// Runs `step` (a focus-sensitive interaction: open a menu and pick from it, hover for a readout, focus a
+// chart and press keys) with the window's focus reclaimed first. If the step fails and the window lost OS
+// focus at any point while it ran — another spec's window launching closes blur-dismissed menus and drops
+// key/hover events — it is run again, up to `attempts` times. A window `blur` listener records the loss,
+// because focus often comes back before the failure is noticed, so `hasFocus()` alone misses it. A failure
+// in a window that kept its focus is a real one and is thrown at once.
+export async function withFocusRetry(browser, step, { attempts = 3 } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    await reclaimWindowFocus(browser);
+    await browser.execute(() => {
+      window.__e2eLostFocus = false;
+      if (!window.__e2eBlurWatch) {
+        window.__e2eBlurWatch = true;
+        window.addEventListener("blur", () => (window.__e2eLostFocus = true));
+      }
+    });
+    try {
+      return await step();
+    } catch (e) {
+      const lostFocus = await browser.execute(() => window.__e2eLostFocus || !document.hasFocus()).catch(() => false);
+      if (!lostFocus || attempt >= attempts) {
+        e.message += ` [withFocusRetry: ${attempt} attempt(s); window lost focus on the last: ${lostFocus}]`;
+        throw e;
+      }
+    }
+  }
+}
+
+// Opens a blur-dismissed dropdown (not a MenuSelect, which chooseMenuOption covers) and clicks one of its
+// options, through withFocusRetry: another spec's window taking focus between the two clicks closes the
+// menu. `trigger` and `option` are each a selector or an async function returning the element (a row's own
+// trigger is found inside its row).
+export async function pickFromMenu(browser, trigger, option) {
+  const find = async (target) => (typeof target === "function" ? target() : browser.$(target));
+  const label = (target) => (typeof target === "function" ? "the option" : target);
+  await withFocusRetry(browser, async () => {
+    await (await find(trigger)).click();
+    const element = await find(option);
+    await element.waitForDisplayed({ timeout: 3000, timeoutMsg: `${label(option)} should show after clicking ${label(trigger)}` });
+    await element.click();
   });
 }
 
@@ -200,7 +279,7 @@ function killTree(pid) {
 }
 
 // One launch attempt. See launchApp below for the retry around it.
-async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady } = {}) {
+async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLegalNotice = false, waitForData = true } = {}) {
   const ownDbDir = dbDir === undefined;
   const testDbDir = dbDir ?? freshTestDbDir();
   const PORT = await getFreePort();
@@ -209,7 +288,12 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady } = {})
   const driverProcess = spawn(
     TAURI_DRIVER,
     ["--port", String(PORT), "--native-port", String(NATIVE_PORT), "--native-driver", MSEDGEDRIVER],
-    { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, VAULTSPEND_DB_DIR: testDbDir } },
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+      // The legal notice would stop every spec at its screen. The app honours the skip only alongside
+      // VAULTSPEND_DB_DIR, so a real install cannot be affected. feature139 passes showLegalNotice.
+      env: { ...process.env, VAULTSPEND_DB_DIR: testDbDir, VAULTSPEND_SKIP_LEGAL_NOTICE: showLegalNotice ? "0" : "1" },
+    },
   );
   let driverLog = "";
   driverProcess.stdout.on("data", (d) => (driverLog += d.toString()));
@@ -307,6 +391,10 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady } = {})
     if (ready === ".brand-word") {
       await dismissFirstLaunchDialogs(session);
       mark("first-launch dialogs dismissed");
+      if (waitForData) {
+        await waitForDataLoaded(session);
+        mark("profile data loaded");
+      }
     }
     return session;
   }
@@ -370,4 +458,82 @@ export async function launchApp(options = {}) {
       console.error(`[harness] launch retry ${attempt}/${LAUNCH_ATTEMPTS - 1}: ${e.message.split("\n")[0]}`);
     }
   }
+}
+
+// ---- MenuSelect helpers -------------------------------------------------------------------------
+// Every single-select in the app is a MenuSelect (a trigger button plus a popover menu), not a native
+// <select>, so WebdriverIO's selectByVisibleText / selectByAttribute / getValue do not apply. The trigger
+// carries `data-value`; the open menu's items carry `data-value` and their label text.
+
+/** The current value of a MenuSelect, given its trigger (what `select.getValue()` was). */
+export async function menuSelectValue(trigger) {
+  return trigger.getAttribute("data-value");
+}
+
+// The browser an element belongs to: `.parent` is whatever the element was queried from, which can be
+// another element.
+function browserOf(element) {
+  let node = element;
+  while (node.parent && typeof node.getWindowSize !== "function") node = node.parent;
+  return node;
+}
+
+async function openMenu(trigger) {
+  const root = await trigger.parentElement();
+  // A menu closes when the window loses focus, and another spec's window launching in parallel takes OS
+  // foreground, so reclaim it first (a no-op when focus is already fine).
+  await reclaimWindowFocus(browserOf(trigger));
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+  const menu = await root.$("[role='menu']");
+  await menu.waitForDisplayed({ timeout: 5000, timeoutMsg: "the menu should open" });
+  return menu;
+}
+
+// Each open menu's items, read in ONE call: [{ value, label }]. Reading item by item took a WebDriver round
+// trip per option, a wide window for another spec's window to take OS focus — which blurs the menu and
+// closes it (MenuSelect closes on a blur that leaves it), so the next read found no menu at all.
+async function readMenuItems(menu) {
+  return browserOf(menu).execute(
+    (el) =>
+      [...el.querySelectorAll("[role='menuitemradio']")].map((item) => ({
+        value: item.getAttribute("data-value"),
+        label: item.innerText.replace(/\s*✓\s*$/, "").trim(),
+      })),
+    menu,
+  );
+}
+
+// Runs `use(menu)` against the opened menu. If the menu closed under it (focus taken by another window —
+// see readMenuItems), focus is reclaimed and the menu reopened, up to three tries. A failure while the menu
+// is still open is a real one and is thrown at once.
+async function withOpenMenu(trigger, use) {
+  for (let attempt = 1; ; attempt++) {
+    let menu;
+    try {
+      // Opening is inside the retry too: focus taken right after the click closes the menu before it shows.
+      menu = await openMenu(trigger);
+      return await use(menu);
+    } catch (e) {
+      if (e.realMenuFailure || attempt >= 3 || (menu && (await menu.isDisplayed().catch(() => false)))) throw e;
+    }
+  }
+}
+
+/** Opens a MenuSelect and chooses the option with this `value` or this visible `label`. */
+export async function chooseMenuOption(trigger, { value, label }) {
+  await withOpenMenu(trigger, async (menu) => {
+    const items = await readMenuItems(menu);
+    const index = items.findIndex((item) => (value !== undefined ? item.value === value : item.label === label));
+    if (index < 0) {
+      throw Object.assign(new Error(`no menu option ${value !== undefined ? `with value "${value}"` : `labelled "${label}"`} (options: ${items.map((i) => i.label).join(", ")})`), { realMenuFailure: true });
+    }
+    await (await menu.$$("[role='menuitemradio']"))[index].click();
+  });
+}
+
+/** The visible labels of a MenuSelect's options, in order (opens the menu, reads it, closes it). */
+export async function menuOptionLabels(trigger) {
+  const labels = await withOpenMenu(trigger, async (menu) => (await readMenuItems(menu)).map((item) => item.label));
+  if ((await trigger.getAttribute("aria-expanded")) === "true") await trigger.click();
+  return labels;
 }

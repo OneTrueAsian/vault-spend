@@ -11,7 +11,7 @@
 //
 // Run with: node e2e/feature76_import_inbox.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, pickFromMenu } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -103,8 +103,11 @@ try {
 
   // Focus moved on to Mystery Vendor. Pick a category by hand, then accept.
   if ((await activeDescription()) !== "Mystery Vendor") throw new Error(`focus should move on to Mystery Vendor, got ${await activeDescription()}`);
-  await (await (await row("Mystery Vendor")).$(".inbox-category-trigger")).click();
-  await (await (await browser.$(".inbox-category-menu")).$("button*=Groceries")).click();
+  await pickFromMenu(
+    browser,
+    async () => (await row("Mystery Vendor")).$(".inbox-category-trigger"),
+    async () => (await browser.$(".inbox-category-menu")).$("button*=Groceries"),
+  );
   await (await (await row("Mystery Vendor")).$("[data-inbox-accept]")).click();
   await browser.waitUntil(async () => (await stateOf("Mystery Vendor")) === "done", { timeout: 10000 });
 

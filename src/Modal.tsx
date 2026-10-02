@@ -7,6 +7,8 @@ import { isBeforeAccountCheckpoint } from "./accountGroups";
 import { effectiveBudget } from "./budgetPlan";
 import { accountWidgetId, bucketWidgetId, investmentWidgetId, WIDGET_CATALOG, type WidgetId } from "./dashboardLayout";
 import { PasswordForm } from "./PasswordForm";
+import { MenuSelect } from "./MenuSelect";
+import type { ImportSignSuggestion } from "./importSigns";
 import {
   AccountTypeIcon,
   ACCOUNT_ICON_OPTIONS,
@@ -17,6 +19,7 @@ import {
   type CategoryIconKey,
   IconPicker,
 } from "./icons";
+import { errorMessage } from "./errorMessage";
 
 /** Shared shell: a dimmed overlay behind a centered panel. Clicking the
  * overlay (not the panel) cancels, matching how a native dialog behaves —
@@ -79,6 +82,9 @@ export function ModalShell({
   const pendingRestoreRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Captured once when the dialog opened (the ref is never reassigned); read here so the deferred
+    // restore below focuses that element.
+    const previouslyFocused = previouslyFocusedRef.current;
     if (pendingRestoreRef.current !== null) {
       clearTimeout(pendingRestoreRef.current);
       pendingRestoreRef.current = null;
@@ -132,11 +138,10 @@ export function ModalShell({
       // cancel it, so it still fires, just one tick later.
       pendingRestoreRef.current = window.setTimeout(() => {
         pendingRestoreRef.current = null;
-        previouslyFocusedRef.current?.focus();
+        previouslyFocused?.focus();
       }, 0);
     };
     // Mount/unmount only — see the comment on `onCancelRef` above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Rendered into <body>, not where it's used: a dialog is `position: fixed`,
@@ -237,10 +242,13 @@ const ACCOUNT_TYPE_OPTIONS = ["checking", "savings", "credit", "loan", "investme
 
 export function NewAccountDialog({
   familyMembers,
+  existingAccountNames = [],
   onCancel,
   onSubmit,
 }: {
   familyMembers: FamilyMember[];
+  /** Names already in use; a match (ignoring case and spaces) is refused here and by the backend. */
+  existingAccountNames?: string[];
   onCancel: () => void;
   onSubmit: (
     name: string,
@@ -259,10 +267,11 @@ export function NewAccountDialog({
   const [mask, setMask] = useState("");
   const [memberId, setMemberId] = useState("");
   const [iconKey, setIconKey] = useState<AccountIconKey | null>(null);
+  const takenName = existingAccountNames.find((n) => n.trim().toLowerCase() === name.trim().toLowerCase());
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || takenName) return;
     onSubmit(
       name.trim(),
       accountType,
@@ -287,17 +296,24 @@ export function NewAccountDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder='e.g. "Everyday Checking"'
+            aria-invalid={takenName !== undefined}
+            aria-describedby={takenName ? "new-account-name-error" : undefined}
           />
+          {takenName && (
+            <span className="field-error" id="new-account-name-error">
+              You already have an account called "{takenName}". Choose a different name.
+            </span>
+          )}
         </label>
         <label className="modal-field">
           <span>Account type</span>
-          <select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
-            {ACCOUNT_TYPE_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t[0].toUpperCase() + t.slice(1)}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Account type"
+            value={accountType}
+            onChange={setAccountType}
+            options={ACCOUNT_TYPE_OPTIONS.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+            fill
+          />
         </label>
         <label className="modal-field">
           <span>Icon (optional)</span>
@@ -327,21 +343,23 @@ export function NewAccountDialog({
         {familyMembers.length > 0 && (
           <label className="modal-field">
             <span>Family member (optional)</span>
-            <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-              <option value="">Unassigned</option>
-              {familyMembers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <MenuSelect
+              ariaLabel="Family member (optional)"
+              value={memberId}
+              onChange={setMemberId}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+              ]}
+              fill
+            />
           </label>
         )}
         <div className="modal-actions">
           <button type="button" className="modal-secondary" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" disabled={!name.trim()}>
+          <button type="submit" disabled={!name.trim() || takenName !== undefined}>
             Create account
           </button>
         </div>
@@ -439,6 +457,7 @@ export function NewTransactionDialog({
     amount: string,
     category: string | null,
     memberId: number | null,
+    notes: string | null,
   ) => void;
 }) {
   const [accountId, setAccountId] = useState(
@@ -449,6 +468,7 @@ export function NewTransactionDialog({
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [memberId, setMemberId] = useState("");
+  const [notes, setNotes] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const amountTrimmed = amount.trim();
@@ -464,7 +484,15 @@ export function NewTransactionDialog({
     e.preventDefault();
     setSubmitAttempted(true);
     if (!valid) return;
-    onSubmit(Number(accountId), date, description.trim(), amountTrimmed, category || null, memberId ? Number(memberId) : null);
+    onSubmit(
+      Number(accountId),
+      date,
+      description.trim(),
+      amountTrimmed,
+      category || null,
+      memberId ? Number(memberId) : null,
+      notes.trim() === "" ? null : notes,
+    );
   }
 
   return (
@@ -472,14 +500,16 @@ export function NewTransactionDialog({
       <form onSubmit={handleSubmit}>
         <label className="modal-field">
           <span>Account</span>
-          <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.length === 0 && <option value="">No accounts yet</option>}
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Account"
+            value={accountId}
+            onChange={setAccountId}
+            options={[
+              ...(accounts.length === 0 ? [{ value: "", label: "No accounts yet" }] : []),
+              ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+            ]}
+            fill
+          />
         </label>
         <label className="modal-field">
           <span>Date</span>
@@ -515,14 +545,16 @@ export function NewTransactionDialog({
         </label>
         <label className="modal-field">
           <span>Category</span>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">Auto-categorize</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Category"
+            value={category}
+            onChange={setCategory}
+            options={[
+              { value: "", label: "Auto-categorize" },
+              ...categories.map((c) => ({ value: c, label: c })),
+            ]}
+            fill
+          />
           {budgetImpact &&
             (() => {
               const budgeted = effectiveBudget(budgetImpact);
@@ -539,16 +571,22 @@ export function NewTransactionDialog({
         {familyMembers.length > 0 && (
           <label className="modal-field">
             <span>Family member (optional)</span>
-            <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-              <option value="">Unassigned</option>
-              {familyMembers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <MenuSelect
+              ariaLabel="Family member (optional)"
+              value={memberId}
+              onChange={setMemberId}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+              ]}
+              fill
+            />
           </label>
         )}
+        <label className="modal-field">
+          <span>Note (optional)</span>
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </label>
         <div className="modal-actions">
           <button type="button" className="modal-secondary" onClick={onCancel}>
             Cancel
@@ -973,17 +1011,16 @@ export function CategoryTransactionsDialog({
           {selectedIds.size > 0 && (
             <div className="bulk-actions-bar">
               <span className="bulk-actions-count">{selectedIds.size} selected</span>
-              <select value="" onChange={(e) => handleBulkChange(e.target.value)}>
-                <option value="" disabled>
-                  Set category to…
-                </option>
-                {categoryOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-                <option value="__new__">+ New category…</option>
-              </select>
+              <MenuSelect
+                ariaLabel="Set category to…"
+                placeholder="Set category to…"
+                value={""}
+                onChange={handleBulkChange}
+                options={[
+                  ...categoryOptions.map((c) => ({ value: c, label: c })),
+                  { value: "__new__", label: "+ New category…" },
+                ]}
+              />
               <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
                 Clear selection
               </button>
@@ -1040,15 +1077,16 @@ export function CategoryTransactionsDialog({
                           {category}
                         </span>
                       ) : (
-                        <select value={category} onChange={(e) => onCorrectCategory(t.transaction_id, e.target.value)}>
-                          {!categoryOptions.includes(category) && <option value={category}>{category}</option>}
-                          {categoryOptions.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                          <option value="__new__">+ New category…</option>
-                        </select>
+                        <MenuSelect
+                          ariaLabel={`Category for "${t.description}"`}
+                          value={category}
+                          onChange={(v) => onCorrectCategory(t.transaction_id, v)}
+                          options={[
+                            ...(!categoryOptions.includes(category) ? [{ value: category, label: category }] : []),
+                            ...categoryOptions.map((c) => ({ value: c, label: c })),
+                            { value: "__new__", label: "+ New category…" },
+                          ]}
+                        />
                       )}
                     </td>
                   </tr>
@@ -1105,7 +1143,7 @@ export function UseExistingDataFileDialog({
     try {
       await onSubmit(name.trim(), needsPassword ? password : undefined);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
       setPassword("");
     } finally {
       setBusy(false);
@@ -1187,13 +1225,27 @@ export function ChooseExistingDataSourceDialog({
   );
 }
 
+/** `suggestion` (see `importSignSuggestion`) preselects an answer — the primary, focused button — and says
+ * why; with none, Flip stays the primary button as it always was. Either answer can still be chosen. */
 export function ConfirmInvertDialog({
   onCancel,
   onConfirm,
+  accountName,
+  suggestion,
 }: {
   onCancel: () => void;
   onConfirm: () => void;
+  accountName?: string;
+  suggestion?: ImportSignSuggestion;
 }) {
+  const flip = suggestion?.flip ?? null;
+  const hint =
+    suggestion?.reason === "remembered"
+      ? `Last import into ${accountName}: ${flip ? "flipped the signs" : "kept as-is"}.`
+      : suggestion?.reason === "credit-positive"
+        ? "Most amounts in this file are positive. For a credit card that usually means charges are shown as positive."
+        : null;
+  const keepIsPrimary = flip === false;
   return (
     <ModalShell title="Which way do the amounts go?" onCancel={onCancel}>
       <p className="modal-message">
@@ -1205,11 +1257,16 @@ export function ConfirmInvertDialog({
         money out). Choose "Keep as-is" if it already uses that convention —
         most bank/checking exports do.
       </p>
+      {hint && (
+        <p className="modal-message" data-import-sign-hint>
+          {hint}
+        </p>
+      )}
       <div className="modal-actions">
-        <button type="button" className="modal-secondary" onClick={onCancel}>
+        <button type="button" className={keepIsPrimary ? undefined : "modal-secondary"} onClick={onCancel} autoFocus={flip === false}>
           Keep as-is
         </button>
-        <button type="button" onClick={onConfirm}>
+        <button type="button" className={keepIsPrimary ? "modal-secondary" : undefined} onClick={onConfirm} autoFocus={flip === true}>
           Flip the signs
         </button>
       </div>
@@ -1296,14 +1353,13 @@ function PinItemRow<T>({
         <span className="modal-message-secondary">None available</span>
       ) : (
         <>
-          <select value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)}>
-            <option value="">Choose…</option>
-            {options.map((o) => (
-              <option key={getKey(o)} value={getKey(o)}>
-                {getLabel(o)}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel={`Choose ${label}`}
+            placeholder="Choose…"
+            value={selectedKey}
+            onChange={setSelectedKey}
+            options={options.map((o) => ({ value: getKey(o), label: getLabel(o) }))}
+          />
           <button
             type="button"
             className="modal-secondary"
@@ -1336,6 +1392,7 @@ export function AddWidgetDialog({
   accounts,
   buckets,
   holdings,
+  safeToSpendEnabled,
   onAdd,
   onCancel,
 }: {
@@ -1343,11 +1400,12 @@ export function AddWidgetDialog({
   accounts: Account[];
   buckets: Bucket[];
   holdings: Holding[];
+  safeToSpendEnabled: boolean;
   onAdd: (id: WidgetId) => void;
   onCancel: () => void;
 }) {
   const groups: { title: string; items: typeof WIDGET_CATALOG }[] = [
-    { title: "Core widgets", items: WIDGET_CATALOG.filter((w) => w.group === "core") },
+    { title: "Core widgets", items: WIDGET_CATALOG.filter((w) => w.group === "core" && (safeToSpendEnabled || w.id !== "safe_to_spend")) },
     { title: "Pinned reports", items: WIDGET_CATALOG.filter((w) => w.group === "report") },
   ];
 
@@ -1575,25 +1633,27 @@ export function AccountEditDialog({
       <form onSubmit={handleSubmit}>
         <label className="modal-field">
           <span>Account type</span>
-          <select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
-            {ACCOUNT_TYPE_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t[0].toUpperCase() + t.slice(1)}
-              </option>
-            ))}
-          </select>
+          <MenuSelect
+            ariaLabel="Account type"
+            value={accountType}
+            onChange={setAccountType}
+            options={ACCOUNT_TYPE_OPTIONS.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+            fill
+          />
         </label>
         {familyMembers.length > 0 && (
           <label className="modal-field">
             <span>Family member</span>
-            <select value={memberId ?? ""} onChange={(e) => setMemberId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">Unassigned</option>
-              {familyMembers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <MenuSelect
+              ariaLabel="Family member"
+              value={memberId == null ? "" : String(memberId)}
+              onChange={(v) => setMemberId(v ? Number(v) : null)}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+              ]}
+              fill
+            />
           </label>
         )}
         <label className="modal-field">
@@ -1635,43 +1695,97 @@ export function AccountEditDialog({
 /** "Review possible transfers" — pairs of transactions that look like the two
  * legs of one move of money between the user's own accounts (equal amounts,
  * opposite directions, different accounts, within a few days). Each starts
- * ticked; unticking one leaves it as ordinary spending/income (and it'll be
- * suggested again next time — nothing here is remembered until you link). */
+ * ticked; unticking one leaves it as ordinary spending/income for Link, and
+ * for Dismiss selected. Dismiss (selected, or all) tells Vault
+ * Spend to stop suggesting a pair — it's a decision about the *suggestion*,
+ * never the transactions themselves: nothing is deleted, no category or
+ * amount changes, and totals are untouched. Not now just closes for this
+ * session; a dismissed pair won't come back even after restart. */
 export function TransferReviewDialog({
   pairs,
   onLink,
+  onDismiss,
+  onDismissAll,
   onCancel,
 }: {
   pairs: { out: Transaction; in: Transaction }[];
   onLink: (pairs: { out_id: number; in_id: number }[]) => void;
+  /** Dismiss one or more exact pairs — never treats an unchecked pair as
+   * included. Rejecting means the dialog stays open with an inline error;
+   * resolving means the caller has already refreshed `pairs` for the next render. */
+  onDismiss: (pairs: { out_id: number; in_id: number }[]) => Promise<void>;
+  /** Dismisses the *complete* current eligible set, including alternate
+   * pairings this dialog's own one-per-transaction view doesn't show — the
+   * caller fetches that full set itself so "Dismiss all" really clears the list. */
+  onDismissAll: () => Promise<void>;
   onCancel: () => void;
 }) {
-  const [checked, setChecked] = useState<Set<number>>(() => new Set(pairs.map((p) => p.out.id)));
+  // Keyed by the *pair* (both legs), not just the out id: if dismissing one
+  // alternate surfaces another with the same out transaction but a
+  // different in leg, that's a different pair the user hasn't reviewed —
+  // keying by out id alone let it silently inherit whatever the old pair's
+  // checkbox happened to say (found by code review). A pair not in this
+  // set (new, or never explicitly toggled) reads as unchecked.
+  const pairKey = (p: { out: Transaction; in: Transaction }) => `${p.out.id}:${p.in.id}`;
+  const [checked, setChecked] = useState<Set<string>>(() => new Set(pairs.map(pairKey)));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function toggle(outId: number) {
+  function toggle(key: string) {
     setChecked((prev) => {
       const next = new Set(prev);
-      if (next.has(outId)) next.delete(outId);
-      else next.add(outId);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
-  const chosen = pairs.filter((p) => checked.has(p.out.id));
+  const chosen = pairs.filter((p) => checked.has(pairKey(p)));
+
+  async function runDismiss(action: () => Promise<void>) {
+    setSaving(true);
+    setError(null);
+    try {
+      await action();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (pairs.length === 0) {
+    return (
+      <ModalShell title="Possible transfers" onCancel={onCancel} wide>
+        <p className="modal-message modal-message-secondary">No more possible transfers to review right now.</p>
+        <div className="modal-actions">
+          <button type="button" onClick={onCancel}>
+            Close
+          </button>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell title="Possible transfers" onCancel={onCancel} wide>
       <p className="modal-message modal-message-secondary">
         These look like money moving between your own accounts. Linking a pair keeps both sides out of your income and
-        spending totals, and shows them as one row in Transactions. You can unlink any time.
+        spending totals, and shows them as one row in Transactions. Dismissing a pair just stops Vault Spend suggesting
+        it again — it never changes the transactions themselves. You can unlink or manually link any time.
       </p>
+      {error && (
+        <p className="launch-error-problem" role="alert">
+          {error}
+        </p>
+      )}
       <ul className="transfer-review-list">
         {pairs.map((p) => {
           const days = Math.abs(Math.round((Date.parse(p.out.date) - Date.parse(p.in.date)) / 86_400_000));
           return (
             <li key={p.out.id}>
               <label className="transfer-review-row">
-                <input type="checkbox" checked={checked.has(p.out.id)} onChange={() => toggle(p.out.id)} />
+                <input type="checkbox" checked={checked.has(pairKey(p))} onChange={() => toggle(pairKey(p))} />
                 <span className="transfer-review-when">{p.out.date}</span>
                 <span className="transfer-review-what">
                   {p.out.account_name} → {p.in.account_name}
@@ -1697,12 +1811,24 @@ export function TransferReviewDialog({
         })}
       </ul>
       <div className="modal-actions">
-        <button type="button" className="modal-secondary" onClick={onCancel}>
+        <button type="button" className="modal-secondary" onClick={onCancel} disabled={saving}>
           Not now
         </button>
         <button
           type="button"
-          disabled={chosen.length === 0}
+          className="modal-secondary"
+          data-dismiss-selected
+          disabled={saving || chosen.length === 0}
+          onClick={() => runDismiss(() => onDismiss(chosen.map((p) => ({ out_id: p.out.id, in_id: p.in.id }))))}
+        >
+          Dismiss {chosen.length > 0 ? chosen.length : ""} selected
+        </button>
+        <button type="button" className="modal-secondary" data-dismiss-all disabled={saving} onClick={() => runDismiss(onDismissAll)}>
+          Dismiss all
+        </button>
+        <button
+          type="button"
+          disabled={saving || chosen.length === 0}
           onClick={() => onLink(chosen.map((p) => ({ out_id: p.out.id, in_id: p.in.id })))}
         >
           Link {chosen.length} as {chosen.length === 1 ? "a transfer" : "transfers"}

@@ -9,7 +9,15 @@ import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
 import { toCsv } from "./csv";
 import { buildSetupTemplate } from "./setupTemplate";
 import { CHANGELOG } from "./changelog";
-import { THEME_STORAGE_KEY, THEME_STYLE_STORAGE_KEY } from "./themeBootstrap";
+import {
+  THEME_STORAGE_KEY,
+  THEME_STYLE_STORAGE_KEY,
+  applyAppearancePrefs,
+  readStoredAppearancePrefs,
+  readThemeStyle,
+  saveAppearancePrefs,
+  type AppearancePrefs,
+} from "./themeBootstrap";
 import {
   AddWidgetDialog,
   CategoryTransactionsDialog,
@@ -29,11 +37,18 @@ import {
   WelcomeDialog,
   WhatsNewDialog,
 } from "./Modal";
+import { TransactionNotesDialog } from "./TransactionNotesDialog";
+import { flipConfirmText, importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
 import { DEFAULT_LAYOUT, loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 import { lockCurrentProfile, unlockProfile } from "./protection";
 import { hasObservableUnsavedInput } from "./unsavedInput";
 import { TransferRow } from "./TransferRow";
+import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
+import { matchesPaymentAccount, paymentDisplayIndex } from "./paymentDiscovery";
+import { usePaymentSource } from "./usePaymentSource";
+import { CategoryFilterDropdown } from "./CategoryFilterDropdown";
+import { RowFieldDropdown } from "./RowFieldDropdown";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
 import { SortableTh } from "./SortableTh";
@@ -76,6 +91,8 @@ import { formatAmount, toLocalIsoDate } from "./format";
 import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
+import { DataLoading } from "./DataLoading";
+import { InfoTip } from "./InfoTip";
 import { ensureUiStateMigrated, getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import type {
   Account,
@@ -123,6 +140,10 @@ import type {
   YoyCashFlow,
 } from "./types";
 import "./App.css";
+import "./themes/futuristic.css";
+import { MenuSelect } from "./MenuSelect";
+import { errorMessage } from "./errorMessage";
+import { sumMoney } from "./money";
 
 type ImportSummary = {
   inserted: number;
@@ -182,12 +203,15 @@ type NewAccountResult = {
 
 type PendingDialog =
   | {
-      kind: "newAccount";
-      resolve: (result: NewAccountResult | null) => void;
-    }
+    kind: "newAccount";
+    resolve: (result: NewAccountResult | null) => void;
+  }
   | { kind: "newCategory"; resolve: (name: string | null) => void }
-  | { kind: "confirmInvert"; resolve: (invert: boolean) => void }
+  | { kind: "confirmInvert"; resolve: (invert: boolean) => void; accountName?: string; suggestion?: ImportSignSuggestion }
   | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
+
+/** How a transaction got its category, in words (the backend stores rule / user / classifier). */
+const CATEGORY_SOURCE_LABELS: Record<string, string> = { rule: "Your rule", user: "You", classifier: "Suggested" };
 
 type Tab =
   | "dashboard"
@@ -468,11 +492,12 @@ function App({
   });
   const [themeStyle, setThemeStyleState] = useState<ThemeStyle>(() => {
     try {
-      return (localStorage.getItem(THEME_STYLE_STORAGE_KEY) as ThemeStyle | null) ?? "classic";
+      return readThemeStyle(localStorage.getItem(THEME_STYLE_STORAGE_KEY));
     } catch {
-      return "classic";
+      return readThemeStyle(null);
     }
   });
+  const [appearance, setAppearance] = useState<AppearancePrefs>(readStoredAppearancePrefs);
   const [navOrder, setNavOrder] = useState<Tab[]>(loadNavOrder);
   const [dragNavTab, setDragNavTab] = useState<Tab | null>(null);
   const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(DEFAULT_LAYOUT);
@@ -483,6 +508,29 @@ function App({
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [anomalyFlags, setAnomalyFlags] = useState<AnomalyFlag[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [pendingPaymentId, setPendingPaymentId] = useState<number | null>(null);
+  const [highlightedPaymentRow, setHighlightedPaymentRow] = useState<number | null>(null);
+  const loadPaymentSource = usePaymentSource((source, fresh) => {
+    setTransactions(fresh);
+    setSearchText("");
+    setFilterCategory("all");
+    setFilterAccountIds("all");
+    setFilterMemberIds("all");
+    setFilterFrom("");
+    setFilterTo("");
+    setFilterTag("all");
+    setSelectedIds(new Set());
+    setPendingPaymentId(source.id);
+    setActiveTab("ledger");
+    setStatus(`Opened payment from ${source.account_name}.`, "info");
+  }, message => setStatus(message, "info"));
+
+  function openPayment(sourceId: number) {
+    setPendingPaymentId(null);
+    setHighlightedPaymentRow(null);
+    void loadPaymentSource(sourceId);
+  }
+
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterAccountIds, setFilterAccountIds] = useState<AccountFilterValue>("all");
   const [filterMemberIds, setFilterMemberIds] = useState<MemberFilterValue>("all");
@@ -496,7 +544,7 @@ function App({
   useEffect(() => {
     let cancelled = false;
     ensureUiStateMigrated()
-      .catch(() => {}) // best effort — the same treatment every browser-storage read/write here already gets
+      .catch(() => { }) // best effort — the same treatment every browser-storage read/write here already gets
       .then(() => loadSavedFilters())
       .then((filters) => {
         if (!cancelled) setSavedFilters(filters);
@@ -509,7 +557,7 @@ function App({
   useEffect(() => {
     let cancelled = false;
     ensureUiStateMigrated()
-      .catch(() => {}) // best effort — the same treatment every browser-storage read/write here already gets
+      .catch(() => { }) // best effort — the same treatment every browser-storage read/write here already gets
       .then(() => loadDashboardLayout())
       .then((widgets) => {
         if (!cancelled && !layoutEditedRef.current) setLayoutWidgetsState(widgets);
@@ -561,6 +609,7 @@ function App({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [allTags, setAllTags] = useState<string[]>([]);
   const [newTagText, setNewTagText] = useState<Record<number, string>>({});
+  const [notesDialogFor, setNotesDialogFor] = useState<Transaction | null>(null);
   const [bulkTagText, setBulkTagText] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
@@ -591,7 +640,9 @@ function App({
     envelope_caps_enabled: true,
     rollover_enabled: true,
     auto_link_transfers: false, // the one opt-in switch
+    safe_to_spend_enabled: true,
   });
+  const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
 
   const [backupCopyDir, setBackupCopyDir] = useState<string | null>(null);
   const [backgroundSettings, setBackgroundSettings] = useState<BackgroundSettings | null>(null);
@@ -615,7 +666,7 @@ function App({
       const generation = await getCurrentGeneration();
       await setProfileUiState("show_bill_names_in_reminders", enabled ? "true" : "false", generation);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
   const refreshBackups = useCallback(async () => {
@@ -636,22 +687,24 @@ function App({
   }, []);
 
   const refreshAppSettings = useCallback(async () => {
-    setAppSettings(await invoke<AppSettings>("get_app_settings"));
+    const next = await invoke<AppSettings>("get_app_settings");
+    setAppSettings(next);
+    setAppSettingsLoaded(true);
   }, []);
 
   useEffect(() => {
-    refreshDataFileLocation().catch((e) => setStatus(String(e)));
-    refreshBackups().catch((e) => setStatus(String(e)));
-    refreshProfiles().catch((e) => setStatus(String(e)));
-    refreshLivePriceSettings().catch((e) => setStatus(String(e)));
-    refreshAppSettings().catch((e) => setStatus(String(e)));
+    refreshDataFileLocation().catch((e) => setStatus(errorMessage(e)));
+    refreshBackups().catch((e) => setStatus(errorMessage(e)));
+    refreshProfiles().catch((e) => setStatus(errorMessage(e)));
+    refreshLivePriceSettings().catch((e) => setStatus(errorMessage(e)));
+    refreshAppSettings().catch((e) => setStatus(errorMessage(e)));
   }, [refreshBackups, refreshProfiles, refreshDataFileLocation, refreshLivePriceSettings, refreshAppSettings]);
 
   const refreshProtectionState = useCallback(async () => {
     try {
       await Promise.all([refreshProfiles(), refreshDataFileLocation(), refreshBackups()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }, [refreshBackups, refreshDataFileLocation, refreshProfiles]);
 
@@ -682,7 +735,7 @@ function App({
         setStatus("Backup created.", "success");
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -692,7 +745,7 @@ function App({
       await refreshBackups();
       setStatus(message, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -709,7 +762,7 @@ function App({
       setBackgroundSettings(settings);
       setStatus(enabled ? "Vault Spend will keep running in the tray and remind you about bills." : "Background reminders are off.", "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -718,7 +771,7 @@ function App({
       await invoke("set_autostart_enabled", { enabled });
       setBackgroundSettings(await invoke<BackgroundSettings>("get_background_settings"));
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -727,7 +780,7 @@ function App({
       await invoke("send_test_reminder");
       setStatus("Sent a test reminder — check your notifications.", "info");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -736,7 +789,7 @@ function App({
       const picked = await open({ directory: true, multiple: false, title: "Choose a folder for the second backup copy" });
       if (typeof picked === "string") await handleSetBackupCopyDir(picked);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -746,7 +799,7 @@ function App({
       await invoke("restore_backup", { filename, password: password ?? null, expectedGeneration });
       onDataFileChanged(`Restored ${filename} — your prior data was backed up first.`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       if (password !== undefined) throw e;
     }
   }
@@ -758,7 +811,7 @@ function App({
       const newPath = await invoke<string>("relocate_data_file", { newDir: dir });
       onDataFileChanged(`Data file moved to ${newPath} — your old file was left in place, untouched.`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -777,7 +830,7 @@ function App({
       await invoke("export_database", { destination: path });
       setStatus(`Exported a copy to ${path}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -786,7 +839,7 @@ function App({
       const created = await invoke<string>("create_profile", { name });
       onDataFileChanged(`Switched to the new "${created}" profile — it starts completely empty.`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -842,7 +895,7 @@ function App({
       setPendingExistingRequiresPassword(false);
       onDataFileChanged(`Switched to "${added}".`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       if (pendingExistingIsProtected || pendingExistingRequiresPassword) throw e;
     }
   }
@@ -857,7 +910,7 @@ function App({
       const switched = await invoke<string>("switch_profile", { id });
       onDataFileChanged(`Switched to "${switched}".`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -872,7 +925,7 @@ function App({
       const generation = await getCurrentGeneration();
       await lockCurrentProfile(generation);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -881,7 +934,7 @@ function App({
       await invoke("rename_profile", { id, newName });
       await refreshProfiles();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -890,7 +943,7 @@ function App({
       await invoke("set_profile_icon", { id, iconKey });
       await refreshProfiles();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -899,7 +952,7 @@ function App({
       await invoke("delete_profile", { id });
       await refreshProfiles();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -908,7 +961,7 @@ function App({
       await invoke("set_live_price_settings", { provider, apiKey });
       await refreshLivePriceSettings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -917,7 +970,7 @@ function App({
       await invoke("set_apply_to_debt_enabled", { enabled });
       await refreshAppSettings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -926,7 +979,7 @@ function App({
       await invoke("set_split_purchases_enabled", { enabled });
       await refreshAppSettings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -939,7 +992,7 @@ function App({
       // alerts pick up the change immediately instead of on next nav.
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -953,7 +1006,17 @@ function App({
       currentMonthAlertsRef.current = null;
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
+    }
+  }
+
+  async function handleSetSafeToSpendEnabled(enabled: boolean) {
+    try {
+      await invoke("set_safe_to_spend_enabled", { enabled });
+      await refreshAppSettings();
+      if (!enabled) setSafeToSpendForecast(null);
+    } catch (e) {
+      setStatus(errorMessage(e));
     }
   }
 
@@ -974,7 +1037,7 @@ function App({
         "success",
       );
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -985,7 +1048,7 @@ function App({
       const { text, kind } = summarizeLivePriceRefresh(summary);
       setStatus(text, kind);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -1004,7 +1067,7 @@ function App({
   const [status, setStatusState] = useState<{ text: string; kind: StatusKind } | null>(
     initialStatus ? { text: initialStatus, kind: "success" } : null,
   );
-  // Wraps the raw state setter so ~90 existing `setStatus(String(e))` catch
+  // Wraps the raw state setter so ~90 existing `setStatus(errorMessage(e))` catch
   // blocks stay one-line error reports (kind defaults to "error" there) while
   // confirmations/in-progress messages opt into "success"/"info" explicitly —
   // see the `.status-*` rules in App.css for what each kind looks like.
@@ -1145,6 +1208,8 @@ function App({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   useAutoCancelDelete(confirmingBulkDelete, () => setConfirmingBulkDelete(false));
+  const [confirmingBulkFlip, setConfirmingBulkFlip] = useState(false);
+  useAutoCancelDelete(confirmingBulkFlip, () => setConfirmingBulkFlip(false));
   // Its own independent state from `status` (not a `setStatus(...)` call)
   // so a routine message elsewhere can never clobber an active undo
   // window — see `StatusBanner`'s own comment on the `action` prop.
@@ -1165,17 +1230,51 @@ function App({
     const timer = setTimeout(() => setSimilarToast(null), 12000);
     return () => clearTimeout(timer);
   }, [similarToast]);
-  const [ledgerDensity, setLedgerDensityState] = useState<LedgerDensity>(loadLedgerDensity);
-  function setLedgerDensity(next: LedgerDensity) {
-    setLedgerDensityState(next);
-    try {
-      localStorage.setItem(LEDGER_DENSITY_STORAGE_KEY, next);
-    } catch {
-      // a failed write only means the choice isn't remembered next launch
-    }
-  }
+  // const [ledgerDensity, setLedgerDensityState] = useState<LedgerDensity>(loadLedgerDensity);
+  const [ledgerDensity] = useState<LedgerDensity>(loadLedgerDensity);
+  // Restore this setter with the Transactions density selector below.
+  // function setLedgerDensity(next: LedgerDensity) {
+  //   setLedgerDensityState(next);
+  //   try {
+  //     localStorage.setItem(LEDGER_DENSITY_STORAGE_KEY, next);
+  //   } catch {
+  //     // a failed write only means the choice isn't remembered next launch
+  //   }
+  // }
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Below this container width (not window width — the sidebar eats into
+  // that), Member/Source/Debt/Account/Category move out of the table into
+  // a per-row expandable Details panel instead of squeezing every column
+  // down until headers overlap and controls clip. One threshold rather
+  // than the two the brief sketches (1100px moving Member/Source/Debt,
+  // 850px also moving Account/Category) — ledgered as a scope reduction,
+  // using the brief's own tighter 850px tier so a genuinely ordinary
+  // desktop window (1280px, measured at ~985px content width once the
+  // page's own vertical scrollbar is present) stays in the wide layout;
+  // this app's own tested widths (1440/1280 wide, 960/800 narrow) don't
+  // actually exercise the 850-1100 gap between the brief's two tiers.
+  const LEDGER_NARROW_BREAKPOINT = 850;
+  const [ledgerNarrow, setLedgerNarrow] = useState(false);
+  // A plain ref's `.current` doesn't trigger a re-render or effect when it
+  // changes, so a `useEffect(..., [])` that reads it at mount time missed
+  // the container entirely whenever the app first loaded on a tab other
+  // than Transactions (the usual case) — the ledger's own div didn't exist
+  // yet, the observer was never attached, and `ledgerNarrow` stayed false
+  // forever after. A callback ref re-fires this effect exactly when the
+  // div actually mounts (switching onto the tab) or unmounts (off it).
+  const [ledgerScrollEl, setLedgerScrollEl] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!ledgerScrollEl || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width !== undefined) setLedgerNarrow(width < LEDGER_NARROW_BREAKPOINT);
+    });
+    observer.observe(ledgerScrollEl);
+    return () => observer.disconnect();
+  }, [ledgerScrollEl]);
+  const [detailsOpenId, setDetailsOpenId] = useState<number | null>(null);
 
   // `usedCategories` now comes straight from the backend's category
   // registry (`list_categories`, refetched alongside the rest of the
@@ -1183,6 +1282,14 @@ function App({
   // category, and anything created or assigned by hand, so it's the
   // complete, single source of truth for every category picker in the app.
   const categoryOptions = usedCategories;
+  const categoryFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "All categories" },
+      { value: UNCATEGORIZED_FILTER, label: "Uncategorized" },
+      ...categoryOptions.map((c) => ({ value: c, label: c })),
+    ],
+    [categoryOptions],
+  );
 
   // Name → explicit icon override, for the handful of places that render a
   // `<CategoryIcon>` against a real stored category (not just a name typed
@@ -1228,7 +1335,7 @@ function App({
         } else if (filterCategory !== "all" && t.category !== filterCategory) {
           return false;
         }
-        if (filterAccountIds !== "all" && !filterAccountIds.has(t.account_id)) return false;
+        if (!matchesPaymentAccount(t, filterAccountIds)) return false;
         if (filterMemberIds !== "all" && (t.member_id === null || !filterMemberIds.has(t.member_id))) return false;
         if (filterFrom && t.date < filterFrom) return false;
         if (filterTo && t.date > filterTo) return false;
@@ -1270,6 +1377,46 @@ function App({
   // the data changes, so a fresh import or manual entry surfaces its own.
   const [transferCandidates, setTransferCandidates] = useState<{ out_id: number; in_id: number }[]>([]);
   const [transferReviewOpen, setTransferReviewOpen] = useState(false);
+  // Own state (like `undoToast`) so a routine status message can't clobber
+  // an active Undo window, and — since this whole component remounts on a
+  // profile switch/lock (see `onDataFileChanged`) — a stale Undo can never
+  // be applied to a different profile.
+  const [dismissUndoToast, setDismissUndoToast] = useState<{ text: string; pairs: { out_id: number; in_id: number }[] } | null>(null);
+  useEffect(() => {
+    if (!dismissUndoToast) return;
+    const timer = setTimeout(() => setDismissUndoToast(null), 10000);
+    return () => clearTimeout(timer);
+  }, [dismissUndoToast]);
+  async function refreshTransferCandidates() {
+    try {
+      setTransferCandidates(await invoke<{ out_id: number; in_id: number }[]>("list_transfer_candidates"));
+    } catch {
+      /* a missing suggestion is never worth an error banner */
+    }
+  }
+  async function handleDismissTransferCandidates(pairs: { out_id: number; in_id: number }[]) {
+    const newly = await invoke<{ out_id: number; in_id: number }[]>("dismiss_transfer_candidates", { pairs });
+    await refreshTransferCandidates();
+    if (newly.length > 0) {
+      setDismissUndoToast({ text: `Dismissed ${newly.length} possible transfer${newly.length === 1 ? "" : "s"}.`, pairs: newly });
+    }
+  }
+  async function handleDismissAllTransferCandidates() {
+    const all = await invoke<{ out_id: number; in_id: number }[]>("list_all_transfer_candidate_pairs");
+    await handleDismissTransferCandidates(all);
+  }
+  async function handleUndoDismissTransferCandidates() {
+    if (!dismissUndoToast) return;
+    const pairs = dismissUndoToast.pairs;
+    setDismissUndoToast(null);
+    try {
+      await invoke("restore_transfer_candidates", { pairs });
+      await refreshTransferCandidates();
+      setStatus(`Restored ${pairs.length} possible transfer${pairs.length === 1 ? "" : "s"}.`, "success");
+    } catch (e) {
+      setStatus(errorMessage(e));
+    }
+  }
   useEffect(() => {
     if (activeTab !== "ledger") return;
     let cancelled = false;
@@ -1322,10 +1469,16 @@ function App({
     const [a, b] = Array.from(selectedIds).map((id) => transactions.find((t) => t.id === id));
     return a && b && canLinkAsTransfer(a, b) ? [a, b] : null;
   }, [selectedIds, transactions]);
+  const selectedAccountNames = useMemo(
+    () => [...new Set(transactions.filter((t) => selectedIds.has(t.id)).map((t) => t.account_name))].sort(),
+    [selectedIds, transactions],
+  );
   // The Debt column is the only one of the three feature toggles that's a
   // whole dedicated table column — Split lives inside the Category cell,
   // so hiding it doesn't change the column count.
-  const ledgerColumnCount = appSettings.apply_to_debt_enabled ? 10 : 9;
+  // select, date, description, amount, actions — plus, when not narrow,
+  // account, member, category, source, and debt (if enabled).
+  const ledgerColumnCount = ledgerNarrow ? 5 : appSettings.apply_to_debt_enabled ? 10 : 9;
 
   // a filter/page-size change can leave `currentPage` pointing past the end
   // (or the transaction list can shrink out from under it) — snap back rather than
@@ -1335,8 +1488,36 @@ function App({
   }, [currentPage, totalPages]);
 
   useEffect(() => {
-    setCurrentPage(1);
+    if (pendingPaymentId === null) setCurrentPage(1);
+    // Pending navigation owns pagination during the explicit filter reset.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag, pageSize]);
+
+  useEffect(() => {
+    if (pendingPaymentId === null) return;
+    if (activeTab !== "ledger") { setPendingPaymentId(null); return; }
+    const index = paymentDisplayIndex(displayTransactions, inLegByOutId, pendingPaymentId);
+    if (index < 0) {
+      setPendingPaymentId(null);
+      setStatus("Payment is no longer available.", "info");
+      return;
+    }
+    const page = Math.floor(index / pageSize) + 1;
+    if (currentPage !== page) { setCurrentPage(page); return; }
+    const rowId = displayTransactions[index].id;
+    setDetailsOpenId(rowId);
+    setHighlightedPaymentRow(rowId);
+    const row = document.querySelector<HTMLElement>(`[data-payment-row="${rowId}"]`);
+    row?.focus();
+    row?.scrollIntoView({ block: "center" });
+    setPendingPaymentId(null);
+  }, [pendingPaymentId, activeTab, displayTransactions, inLegByOutId, pageSize, currentPage]);
+
+  useEffect(() => {
+    if (highlightedPaymentRow === null) return;
+    const timer = setTimeout(() => setHighlightedPaymentRow(null), 5000);
+    return () => clearTimeout(timer);
+  }, [highlightedPaymentRow]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1393,17 +1574,19 @@ function App({
 
   useEffect(() => {
     const root = document.documentElement;
-    if (themeStyle === "classic") {
-      root.removeAttribute("data-palette");
-    } else {
-      root.setAttribute("data-palette", themeStyle);
-    }
+    root.setAttribute("data-palette", themeStyle);
     try {
       localStorage.setItem(THEME_STYLE_STORAGE_KEY, themeStyle);
     } catch {
       // per-viewer preference only — fine to skip if storage is unavailable
     }
   }, [themeStyle]);
+
+  // Layout effect so a change shows on the next frame, with no flash of the old accent.
+  useLayoutEffect(() => {
+    applyAppearancePrefs(appearance);
+    saveAppearancePrefs(appearance);
+  }, [appearance]);
 
   function setThemeStyle(next: ThemeStyle) {
     setThemeStyleState(next);
@@ -1477,8 +1660,8 @@ function App({
   function askNewCategory(): Promise<string | null> {
     return new Promise((resolve) => setDialog({ kind: "newCategory", resolve }));
   }
-  function askConfirmInvert(): Promise<boolean> {
-    return new Promise((resolve) => setDialog({ kind: "confirmInvert", resolve }));
+  function askConfirmInvert(accountName?: string, suggestion?: ImportSignSuggestion): Promise<boolean> {
+    return new Promise((resolve) => setDialog({ kind: "confirmInvert", resolve, accountName, suggestion }));
   }
   function askCsvExportWarning(): Promise<boolean> {
     return new Promise((resolve) => setDialog({ kind: "csvExportWarning", resolve }));
@@ -1498,6 +1681,9 @@ function App({
   // before their first fetch resolves, which would otherwise look
   // identical and wipe out every parameterized widget on first paint.
   const accountsLoadedRef = useRef(false);
+  // False until the first load of the profile's data has finished (or failed): views wait for it
+  // instead of showing their empty states for data that is still on its way.
+  const [dataLoaded, setDataLoaded] = useState(false);
   const bucketsLoadedRef = useRef(false);
   const holdingsLoadedRef = useRef(false);
 
@@ -1521,6 +1707,30 @@ function App({
     setAllTags(tags);
     setFamilyMembers(members);
     accountsLoadedRef.current = true;
+    dataVersionRef.current++;
+  }, []);
+
+  // After editing a few rows: re-read just those rows and the small lists an edit can change, and
+  // patch them in, instead of `refresh()`'s whole ledger (~2 s at 50,000 rows; 2026-10-02 QA, M1).
+  // Only for edits confined to the rows themselves; anything that adds, removes or links other rows
+  // (deletes, transfers, splits, debt payments, imports, rules) still uses `refresh()`.
+  const refreshRows = useCallback(async (ids: number[]) => {
+    const [rows, s, accts, cats, flags, tags] = await Promise.all([
+      invoke<Transaction[]>("list_transactions_by_ids", { ids }),
+      invoke<Stats>("get_stats"),
+      invoke<Account[]>("list_accounts"),
+      invoke<string[]>("list_categories"),
+      invoke<AnomalyFlag[]>("list_anomaly_flags"),
+      invoke<string[]>("list_all_tags"),
+    ]);
+    const fresh = new Map(rows.map((r) => [r.id, r]));
+    const asked = new Set(ids);
+    setTransactions((prev) => prev.flatMap((t) => (fresh.has(t.id) ? [fresh.get(t.id)!] : asked.has(t.id) ? [] : [t])));
+    setStats(s);
+    setAccounts(accts);
+    setUsedCategories(cats);
+    setAnomalyFlags(flags);
+    setAllTags(tags);
     dataVersionRef.current++;
   }, []);
 
@@ -1558,7 +1768,7 @@ function App({
   // otherwise Goals keeps the old total until the app is reopened.
   useEffect(() => {
     if (!bucketsLoadedRef.current || !buckets.some((b) => b.tracks_account)) return;
-    refreshBuckets().catch((e) => setStatus(String(e)));
+    refreshBuckets().catch((e) => setStatus(errorMessage(e)));
     // Deliberately keyed on `accounts` alone: `refreshBuckets` replaces `buckets`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts]);
@@ -1589,7 +1799,7 @@ function App({
   // tracked through every import and edit.
   useEffect(() => {
     if (activeTab === "recurring" || activeTab === "dashboard") {
-      refreshRecurringMatches().catch((e) => setStatus(String(e)));
+      refreshRecurringMatches().catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, refreshRecurringMatches]);
 
@@ -1668,7 +1878,7 @@ function App({
     try {
       setMonthDetail(await invoke<MonthExpenseDetail>("month_expense_detail", { year, month }));
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -1717,7 +1927,7 @@ function App({
   // the Cash Flow tab's forecast window is whatever 30/60/90 the user picked.
   const [safeToSpendForecast, setSafeToSpendForecast] = useState<BillAwareForecast | null>(null);
   useEffect(() => {
-    if (activeTab !== "dashboard" || !layoutWidgets.includes("safe_to_spend")) return;
+    if (!appSettingsLoaded || !appSettings.safe_to_spend_enabled || activeTab !== "dashboard" || !layoutWidgets.includes("safe_to_spend")) return;
     let cancelled = false;
     invoke<BillAwareForecast>("bill_aware_forecast", { days: 45 })
       .then((f) => {
@@ -1729,19 +1939,19 @@ function App({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, layoutWidgets, transactions, recurring, accounts]);
+  }, [activeTab, appSettingsLoaded, appSettings.safe_to_spend_enabled, layoutWidgets, transactions, recurring, accounts]);
 
   useEffect(() => {
     if (activeTab === "cashflow") {
-      refreshCashFlow(cashFlowRange).catch((e) => setStatus(String(e)));
-      if (compareLastYear) refreshYoy(cashFlowRange).catch((e) => setStatus(String(e)));
-      refreshForecast(forecastDays).catch((e) => setStatus(String(e)));
+      refreshCashFlow(cashFlowRange).catch((e) => setStatus(errorMessage(e)));
+      if (compareLastYear) refreshYoy(cashFlowRange).catch((e) => setStatus(errorMessage(e)));
+      refreshForecast(forecastDays).catch((e) => setStatus(errorMessage(e)));
     }
     // "Top merchants" also needs this data when pinned to the Dashboard —
     // same fetch, just triggered from a second tab, and it always shows
     // `topCategoriesMonth`'s (default: current month) figures either way.
     if (activeTab === "cashflow" || (activeTab === "dashboard" && layoutWidgets.includes("top_merchants"))) {
-      refreshTopCategories(topCategoriesMonth.year, topCategoriesMonth.month).catch((e) => setStatus(String(e)));
+      refreshTopCategories(topCategoriesMonth.year, topCategoriesMonth.month).catch((e) => setStatus(errorMessage(e)));
     }
   }, [
     activeTab,
@@ -1817,7 +2027,7 @@ function App({
         to: nw[nw.length - 1].as_of,
       })
         .then(setAccountContributionDeltas)
-        .catch((e) => setStatus(String(e)));
+        .catch((e) => setStatus(errorMessage(e)));
     } else {
       setAccountContributionDeltas([]);
     }
@@ -1830,8 +2040,8 @@ function App({
   useEffect(() => {
     if (activeTab === "dashboard" && dataVersionRef.current !== lastDashboardFetchVersionRef.current) {
       lastDashboardFetchVersionRef.current = dataVersionRef.current;
-      refreshDashboard().catch((e) => setStatus(String(e)));
-      refreshReport().catch((e) => setStatus(String(e)));
+      refreshDashboard().catch((e) => setStatus(errorMessage(e)));
+      refreshReport().catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, refreshDashboard, refreshReport]);
 
@@ -1891,18 +2101,25 @@ function App({
   }, [recurring, backgroundSettings, profiles, showBillNamesInReminders]);
 
   const [budgetMonthActuals, setBudgetMonthActuals] = useState<ReportBudgetLine[]>([]);
+  const [budgetMonthFlow, setBudgetMonthFlow] = useState<CashFlow | null>(null);
+  const budgetMonthRequestRef = useRef(0);
   const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlert[]>([]);
   const [memberBudgetActuals, setMemberBudgetActuals] = useState<MemberBudgetActual[]>([]);
 
   const refreshBudgetMonthActuals = useCallback(async (year: number, month: number) => {
+    const request = ++budgetMonthRequestRef.current;
+    setBudgetMonthFlow(null);
     const monthKey = `${year}-${month}`;
     const cachedAlerts = currentMonthAlertsRef.current?.month === monthKey ? currentMonthAlertsRef.current.alerts : null;
-    const [actuals, alerts] = await Promise.all([
+    const [actuals, alerts, flow] = await Promise.all([
       invoke<ReportBudgetLine[]>("budget_actuals_for_month", { year, month }),
       cachedAlerts ? Promise.resolve(cachedAlerts) : invoke<BudgetAlert[]>("budget_alerts_for_month", { year, month }),
+      invoke<CashFlow>("cash_flow_for_range", { fromYear: year, fromMonth: month, toYear: year, toMonth: month }),
     ]);
+    if (request !== budgetMonthRequestRef.current) return;
     currentMonthAlertsRef.current = { month: monthKey, alerts };
     setBudgetMonthActuals(actuals);
+    setBudgetMonthFlow(flow);
     setBudgetAlerts(alerts);
     // This one doubles as both a mutation-response (several budget edit
     // handlers call it alone, with no other refetch alongside) and a
@@ -1941,14 +2158,16 @@ function App({
   useEffect(() => {
     // The housekeeping already ran before this page mounted, so the reads below
     // don't have to wait for it.
-    showMaintenanceSummary().catch((e) => setStatus(String(e)));
-    refresh().catch((e) => setStatus(String(e)));
-    refreshBuckets().catch((e) => setStatus(String(e)));
-    refreshRecurring().catch((e) => setStatus(String(e)));
-    refreshRecurringTotals().catch((e) => setStatus(String(e)));
-    refreshRecurringCandidates().catch((e) => setStatus(String(e)));
-    refreshHoldings().catch((e) => setStatus(String(e)));
-    refreshAssets().catch((e) => setStatus(String(e)));
+    showMaintenanceSummary().catch((e) => setStatus(errorMessage(e)));
+    refresh()
+      .catch((e) => setStatus(errorMessage(e)))
+      .finally(() => setDataLoaded(true));
+    refreshBuckets().catch((e) => setStatus(errorMessage(e)));
+    refreshRecurring().catch((e) => setStatus(errorMessage(e)));
+    refreshRecurringTotals().catch((e) => setStatus(errorMessage(e)));
+    refreshRecurringCandidates().catch((e) => setStatus(errorMessage(e)));
+    refreshHoldings().catch((e) => setStatus(errorMessage(e)));
+    refreshAssets().catch((e) => setStatus(errorMessage(e)));
   }, [
     showMaintenanceSummary,
     refresh,
@@ -1965,7 +2184,7 @@ function App({
     // whenever the user actually looks at that tab, rather than tracking
     // every mutation that could affect one of its numbers
     if (activeTab === "reports") {
-      refreshReport().catch((e) => setStatus(String(e)));
+      refreshReport().catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, refreshReport]);
 
@@ -1974,7 +2193,7 @@ function App({
     // fixed "current month" view — refetch whenever the tab is open or
     // the selected month changes
     if (activeTab === "budget") {
-      refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(String(e)));
+      refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, budgetYear, budgetMonthNum, refreshBudgetMonthActuals]);
 
@@ -1983,7 +2202,7 @@ function App({
     // independent one, so the two tabs always agree on which month is
     // being looked at.
     if (activeTab === "household") {
-      refreshMemberBudgetActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(String(e)));
+      refreshMemberBudgetActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, budgetYear, budgetMonthNum, refreshMemberBudgetActuals]);
 
@@ -2020,7 +2239,7 @@ function App({
       await invoke("set_budget", { category, period: budgetPeriod, monthlyAmount, budgetGroup });
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2031,7 +2250,7 @@ function App({
     setReviewedMonths(await invoke<string[]>("list_reviewed_months"));
   }, []);
   useEffect(() => {
-    refreshReviewedMonths().catch((e) => setStatus(String(e)));
+    refreshReviewedMonths().catch((e) => setStatus(errorMessage(e)));
   }, [refreshReviewedMonths]);
   const monthReviewOffer = useMemo(
     () => monthReviewDue({ today: new Date(), reviewedMonths, transactions }),
@@ -2042,7 +2261,7 @@ function App({
     try {
       setMonthReview(await invoke<MonthReview>("month_review", { year, month }));
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2054,7 +2273,7 @@ function App({
       setStatus(`${new Date(monthReview.year, monthReview.month - 1, 1).toLocaleDateString("en-US", { month: "long" })} review finished.`, "success");
       setMonthReview(null);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2094,7 +2313,7 @@ function App({
     try {
       await invoke("correct_category", { id, category });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       throw e;
     }
   }
@@ -2104,7 +2323,7 @@ function App({
       const deleted = await invoke<number[]>("bulk_delete_transactions", { ids: [id] });
       setUndoToast({ text: `Deleted ${deleted.length} transaction(s).`, ids: deleted });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       throw e;
     }
   }
@@ -2113,7 +2332,7 @@ function App({
     try {
       for (const kind of kinds) await invoke("dismiss_anomaly_flag", { transactionId: id, kind });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       throw e;
     }
   }
@@ -2171,7 +2390,6 @@ function App({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paletteOpen]);
 
   // Recent transactions only — the palette filters on every keystroke.
@@ -2258,7 +2476,7 @@ function App({
     try {
       return await invoke<BudgetSuggestions>("suggest_budgets", { year: budgetYear, month: budgetMonthNum });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       return null;
     }
   }
@@ -2271,7 +2489,7 @@ function App({
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
       setStatus(`Set ${rows.length} budget${rows.length === 1 ? "" : "s"} for ${budgetMonthLabel}.`);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2280,7 +2498,7 @@ function App({
       await invoke("set_budget_cap", { category, period: budgetPeriod, capEnabled });
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2291,7 +2509,7 @@ function App({
       currentMonthAlertsRef.current = null;
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2300,7 +2518,7 @@ function App({
       await invoke("delete_budget", { category, period: budgetPeriod });
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2318,7 +2536,7 @@ function App({
       });
       setCategoryTransactions({ category, items });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2353,7 +2571,7 @@ function App({
       await invoke("correct_category", { id: transactionId, category: value });
       await refreshAfterCategoryDialogEdit();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2368,7 +2586,7 @@ function App({
       await refreshAfterCategoryDialogEdit();
       return true;
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       return false;
     }
   }
@@ -2378,7 +2596,7 @@ function App({
       await invoke("set_account_starting_balance", { id: accountId, balance });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2387,7 +2605,7 @@ function App({
       await invoke("set_account_balance_override", { id: accountId, balance });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2396,7 +2614,7 @@ function App({
       await invoke("update_account_type", { id: accountId, accountType });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2405,7 +2623,7 @@ function App({
       await invoke("set_account_icon", { id: accountId, iconKey });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2415,7 +2633,7 @@ function App({
       await refresh();
       setStatus(`Deleted account and ${removed} transaction(s).`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2424,7 +2642,7 @@ function App({
       await invoke("set_account_details", { id: accountId, institution, mask });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2433,7 +2651,7 @@ function App({
       await invoke("set_account_interest_rate", { id: accountId, rate });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2442,7 +2660,7 @@ function App({
       await invoke("set_account_excluded_from_debt_payoff", { id: accountId, excluded });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2458,7 +2676,7 @@ function App({
         minimums: minimums.map((m) => ({ account_id: m.accountId, minimum_payment: m.minimumPayment })),
       });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       return null;
     }
   }
@@ -2499,7 +2717,7 @@ function App({
         await refreshBuckets();
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2525,7 +2743,7 @@ function App({
         await refreshBuckets();
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2534,7 +2752,7 @@ function App({
       await invoke("add_bucket_contribution", { bucketId, date, amount, note });
       await refreshBuckets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2543,7 +2761,7 @@ function App({
       await invoke("delete_bucket", { id });
       await refreshBuckets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2563,7 +2781,7 @@ function App({
       }
       await Promise.all([refreshRecurring(), refreshRecurringTotals()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2582,7 +2800,7 @@ function App({
       await invoke("set_recurring_member", { id, memberId });
       await Promise.all([refreshRecurring(), refreshRecurringTotals()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2591,7 +2809,7 @@ function App({
       await invoke("delete_recurring", { id });
       await Promise.all([refreshRecurring(), refreshRecurringTotals()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2600,7 +2818,7 @@ function App({
       await invoke("set_recurring_status", { id, status });
       await refreshRecurring();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2616,7 +2834,7 @@ function App({
       });
       await Promise.all([refreshRecurring(), refreshRecurringTotals(), refreshRecurringCandidates()]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2629,7 +2847,7 @@ function App({
       });
       await refreshRecurringCandidates();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2638,7 +2856,7 @@ function App({
       await invoke("dismiss_recurring_price_change", { id, from, to });
       await refreshRecurringMatches();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2655,7 +2873,7 @@ function App({
       await invoke("create_holding", { accountId, symbol, name, shares, price, costBasis, assetClass });
       await refreshHoldings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2664,7 +2882,7 @@ function App({
       await invoke("update_holding_price", { id, price });
       await refreshHoldings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2676,7 +2894,7 @@ function App({
       await refreshHoldings();
       setStatus("Target allocation saved.", "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2690,7 +2908,7 @@ function App({
       await invoke("delete_holding", { id });
       await refreshHoldings();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2709,7 +2927,7 @@ function App({
       }
       await refreshAssets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2718,7 +2936,7 @@ function App({
       await invoke("update_asset_value", { id, value, valuedOn });
       await refreshAssets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2727,7 +2945,7 @@ function App({
       await invoke("set_asset_member", { id, memberId });
       await refreshAssets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2736,7 +2954,7 @@ function App({
       await invoke("set_account_member", { id: accountId, memberId });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2745,7 +2963,7 @@ function App({
       await invoke("delete_asset", { id });
       await refreshAssets();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -2779,7 +2997,7 @@ function App({
       setSelectedAccountId(id);
       return id;
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       return null;
     }
   }
@@ -2807,7 +3025,11 @@ function App({
     });
     if (!path || Array.isArray(path)) return;
 
-    const invertAmounts = await askConfirmInvert();
+    // Offer the answer this account's last import used, or flipping for a credit card file that is mostly
+    // positive (charges shown as positive). Reading ahead is only a hint, so a file it can't read asks plainly.
+    const account = accounts.find((a) => a.id === accountId);
+    const counts = await invoke<ImportSignCounts>("count_import_signs", { path }).catch(() => null);
+    const invertAmounts = await askConfirmInvert(account?.name, importSignSuggestion(account, counts));
 
     setBusy(true);
     setStatus("Reading file…", "info");
@@ -2840,7 +3062,7 @@ function App({
       setPendingImport({ path, invertAmounts, defaultAccountId: accountId, preview });
       setStatus("");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -2898,13 +3120,13 @@ function App({
       const skipped = totalRows - includedCount;
       setStatus(
         `Imported ${summary.inserted} transaction(s)` +
-          (skipped ? ` — ${skipped} excluded` : "") +
-          (summary.auto_linked ? ` — linked ${summary.auto_linked} transfer${summary.auto_linked === 1 ? "" : "s"} automatically` : "") +
-          (summary.row_errors ? ` — ${summary.row_errors} row(s) couldn't be read` : ""),
+        (skipped ? ` — ${skipped} excluded` : "") +
+        (summary.auto_linked ? ` — linked ${summary.auto_linked} transfer${summary.auto_linked === 1 ? "" : "s"} automatically` : "") +
+        (summary.row_errors ? ` — ${summary.row_errors} row(s) couldn't be read` : ""),
         summary.row_errors ? "error" : "success",
       );
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     } finally {
       setBusy(false);
       setPendingImport(null);
@@ -2935,10 +3157,10 @@ function App({
     );
     try {
       await invoke("correct_category", { id, category: value });
-      await refresh();
+      await refreshRows([id]);
       if (description) void offerToApplyToSimilar([description], value);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       await refresh();
     }
   }
@@ -2983,7 +3205,7 @@ function App({
       await refresh();
       setStatus(`Re-categorized ${changed} transaction${changed === 1 ? "" : "s"} as ${category}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3002,9 +3224,10 @@ function App({
     amount: string,
     category: string | null,
     memberId: number | null,
+    notes: string | null,
   ) {
     try {
-      const newId = await invoke<number>("create_manual_transaction", { accountId, date, description, amount, category, memberId });
+      const newId = await invoke<number>("create_manual_transaction", { accountId, date, description, amount, category, memberId, notes });
       setLastUsedAccountId(accountId);
       await refresh();
       setNewTransactionOpen(false);
@@ -3017,7 +3240,7 @@ function App({
         "success",
       );
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3026,7 +3249,7 @@ function App({
       await invoke("create_family_member", { name });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3035,7 +3258,7 @@ function App({
       await invoke("rename_family_member", { id, newName });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3044,7 +3267,7 @@ function App({
       await invoke("delete_family_member", { id });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3053,7 +3276,7 @@ function App({
       await invoke("create_category", { name, iconKey });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3062,7 +3285,7 @@ function App({
       await invoke("set_category_icon", { name, iconKey });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3080,7 +3303,7 @@ function App({
         setStatus("Nothing new to categorize.", "info");
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -3091,7 +3314,7 @@ function App({
       await invoke("rename_category", { oldName, newName });
       await Promise.all([refresh(), refreshReport(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3100,7 +3323,7 @@ function App({
       await invoke("delete_category", { name });
       await Promise.all([refresh(), refreshReport(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3108,12 +3331,12 @@ function App({
     setEditingAmount(null);
     try {
       const splitsReconciled = await invoke<boolean>("update_transaction_amount", { id, amount: value.trim() });
-      await refresh();
+      await refreshRows([id]);
       if (splitsReconciled) {
         setStatus("Amount updated — its splits were rescaled to still add up to the new amount.", "info");
       }
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3122,9 +3345,9 @@ function App({
     if (!value.trim()) return;
     try {
       await invoke("update_transaction_date", { id, date: value.trim() });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3132,27 +3355,27 @@ function App({
     setEditingDescription(null);
     try {
       await invoke("update_transaction_description", { id, description: value.trim() });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
   async function handleAccountChangeForTransaction(id: number, accountId: string) {
     try {
       await invoke("update_transaction_account", { id, accountId: Number(accountId) });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
   async function handleMemberChangeForTransaction(id: number, memberId: string) {
     try {
       await invoke("set_transaction_member", { id, memberId: memberId === "" ? null : Number(memberId) });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3161,9 +3384,9 @@ function App({
     try {
       await invoke("bulk_set_transaction_member", { ids, memberId: value === "__none__" ? null : Number(value) });
       setSelectedIds(new Set());
-      await refresh();
+      await refreshRows(ids);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3177,7 +3400,7 @@ function App({
       await invoke("write_text_file", { path, content: buildSetupTemplate() });
       setStatus(`Setup template saved to ${path} — fill it in, then use "Import setup data…".`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3216,7 +3439,7 @@ function App({
         includedHoldings: new Set(preview.holdings.filter((r) => r.account_found).map((r) => r.index)),
       });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3259,7 +3482,7 @@ function App({
       if (summary.row_errors > 0) message += ` ${summary.row_errors} row(s) had errors and were ignored.`;
       setStatus(message, summary.row_errors > 0 ? "error" : "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -3285,7 +3508,7 @@ function App({
       await invoke("write_text_file", { path, content: csv });
       setStatus(`Exported reports to ${path}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3297,14 +3520,14 @@ function App({
     });
     if (!path) return;
     const csv = toCsv(
-      ["Date", "Description", "Amount", "Account", "Category", "Tags"],
-      sortedTransactions.map((t) => [t.date, t.description, t.amount, t.account_name, t.category ?? "", t.tags.join("; ")]),
+      ["Date", "Description", "Amount", "Account", "Category", "Tags", "Notes"],
+      sortedTransactions.map((t) => [t.date, t.description, t.amount, t.account_name, t.category ?? "", t.tags.join("; "), t.notes ?? ""]),
     );
     try {
       await invoke("write_text_file", { path, content: csv });
       setStatus(`Exported ${sortedTransactions.length} transaction(s) to ${path}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3314,7 +3537,7 @@ function App({
       await invoke("delete_transaction", { id });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3338,7 +3561,7 @@ function App({
       setApplyingDebtId(null);
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3347,7 +3570,7 @@ function App({
       await invoke("unapply_debt_payment", { sourceTransactionId });
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3361,18 +3584,18 @@ function App({
     try {
       await invoke("update_transaction_principal_amount", { id, principalAmount: principalDraft.trim() });
       setEditingPrincipalId(null);
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
   async function handleResetPrincipalAmount(id: number) {
     try {
       await invoke("update_transaction_principal_amount", { id, principalAmount: null });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3398,7 +3621,7 @@ function App({
       }
       setExpandedSplitId(t.id);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3434,7 +3657,7 @@ function App({
       setExpandedSplitId(null);
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3444,8 +3667,13 @@ function App({
       setExpandedSplitId(null);
       await refresh();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
+  }
+
+  async function handleSaveNotes(transactionId: number, notes: string | null) {
+    await invoke("update_transaction_notes", { transactionId, notes });
+    await refreshRows([transactionId]);
   }
 
   async function handleAddTag(id: number, tag: string) {
@@ -3454,18 +3682,18 @@ function App({
     try {
       await invoke("add_tag", { transactionId: id, tag: trimmed });
       setNewTagText((prev) => ({ ...prev, [id]: "" }));
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
   async function handleRemoveTag(id: number, tag: string) {
     try {
       await invoke("remove_tag", { transactionId: id, tag });
-      await refresh();
+      await refreshRows([id]);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3482,9 +3710,9 @@ function App({
       await Promise.all(ids.map((id) => invoke("add_tag", { transactionId: id, tag: trimmed })));
       setBulkTagText("");
       setSelectedIds(new Set());
-      await refresh();
+      await refreshRows(ids);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3494,7 +3722,7 @@ function App({
       await refresh();
       setStatus("Unlinked — they're two separate transactions again.", "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3506,7 +3734,7 @@ function App({
       await refresh();
       setStatus("Linked as a transfer — it no longer counts as income or spending.", "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3519,7 +3747,7 @@ function App({
       await refresh();
       setStatus(`Linked ${pairs.length} transfer${pairs.length === 1 ? "" : "s"}.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
       await refresh();
     }
   }
@@ -3529,7 +3757,7 @@ function App({
       await invoke("mark_auto_links_reviewed", { outIds });
       await reloadAutoLinked();
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3587,10 +3815,10 @@ function App({
     try {
       await invoke("bulk_correct_category", { ids, category: value });
       setSelectedIds(new Set());
-      await refresh();
+      await refreshRows(ids);
       if (merchants.length > 0) void offerToApplyToSimilar(merchants, value);
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3603,7 +3831,7 @@ function App({
       await refresh();
       setUndoToast({ text: `Deleted ${deletedIds.length} transaction(s).`, ids: deletedIds });
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3616,7 +3844,21 @@ function App({
       await refresh();
       setStatus(`Restored ${ids.length} transaction(s).`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
+    }
+  }
+
+  // Rows imported the wrong way round (a card export with charges as positive, imported with "Keep as-is").
+  async function handleBulkFlipSigns() {
+    setConfirmingBulkFlip(false);
+    const ids = Array.from(selectedIds);
+    try {
+      const result = await invoke<{ flipped: number; account_ids: number[] }>("flip_transaction_signs", { ids });
+      setSelectedIds(new Set());
+      await refresh();
+      setStatus(`Flipped the sign of ${result.flipped} transaction${result.flipped === 1 ? "" : "s"}. Flip them again to undo.`, "success");
+    } catch (e) {
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3628,7 +3870,7 @@ function App({
       await refreshRecurring();
       setStatus(`Added ${created} transaction(s) to Recurring — adjust the cadence per item there if needed.`, "success");
     } catch (e) {
-      setStatus(String(e));
+      setStatus(errorMessage(e));
     }
   }
 
@@ -3653,8 +3895,8 @@ function App({
         />
         {NAV_GROUP_ORDER.map((group) => (
           <div className="nav-group" key={group}>
-            <div className="nav-group-label">{NAV_GROUP_LABELS[group]}</div>
-            <nav className="nav-list">
+            <div className="nav-group-label" aria-hidden="true">{NAV_GROUP_LABELS[group]}</div>
+            <nav className="nav-list" aria-label={NAV_GROUP_LABELS[group]}>
               {orderedNavItems
                 .filter((item) => item.group === group)
                 .map((item) => (
@@ -3710,7 +3952,7 @@ function App({
         ))}
         <div className="sidebar-spacer"></div>
         <div className="sidebar-divider"></div>
-        <nav className="nav-list">
+        <nav className="nav-list" aria-label="Settings and help">
           {PINNED_NAV_ITEMS.map((item) => (
             <button
               key={item.id}
@@ -3750,1662 +3992,1820 @@ function App({
               ))}
             </div>
             {activeTab === "ledger" && (
-            <div className="import-controls">
-              <label
-                className="import-controls-label"
-                htmlFor="ledger-account-select"
-                title="The account that Import transactions… and Add transaction… start on"
-              >
-                Add to
-              </label>
-              <AccountDestinationDropdown
-                accounts={accounts}
-                value={selectedAccountId}
-                onChange={handleAccountSelectChange}
-                disabled={busy || pendingImport !== null}
-              />
-              <button onClick={handleImport} disabled={busy || pendingImport !== null}>
-                {busy ? "Importing…" : "Import transactions…"}
-              </button>
-              <button
-                className="modal-secondary"
-                onClick={() => setNewTransactionOpen(true)}
-                disabled={busy || pendingImport !== null}
-              >
-                Add transaction…
-              </button>
-              <div className="more-menu" ref={moreMenuRef}>
-                <button
-                  type="button"
-                  className="modal-secondary btn-icon"
-                  onClick={() => setMoreMenuOpen((v) => !v)}
-                  disabled={busy || pendingImport !== null}
-                  aria-label="More actions"
-                  title="More actions"
-                  aria-haspopup="true"
-                  aria-expanded={moreMenuOpen}
+              <div className="import-controls">
+                <label
+                  className="import-controls-label"
+                  htmlFor="ledger-account-select"
+                  title="The account that Import transactions… and Add transaction… start on"
                 >
-                  ⋯
+                  Add to
+                </label>
+                <AccountDestinationDropdown
+                  accounts={accounts}
+                  value={selectedAccountId}
+                  onChange={handleAccountSelectChange}
+                  disabled={busy || pendingImport !== null || !dataLoaded}
+                  emptyLabel={dataLoaded ? undefined : "Loading…"}
+                />
+                <button onClick={handleImport} disabled={busy || pendingImport !== null || !dataLoaded}>
+                  {busy ? "Importing…" : "Import transactions…"}
                 </button>
-                {moreMenuShouldRender && (
-                  <div className={moreMenuClosing ? "more-menu-panel more-menu-panel-closing" : "more-menu-panel"}>
-                    <button
-                      type="button"
-                      className="more-menu-item"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        openManageCategories();
-                      }}
-                    >
-                      Manage categories…
-                    </button>
-                    <button
-                      type="button"
-                      className="more-menu-item"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        openManageFamilyMembers();
-                      }}
-                    >
-                      Manage family members…
-                    </button>
-                    <div className="more-menu-divider"></div>
-                    <button
-                      type="button"
-                      className="more-menu-item"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        handleRecategorize();
-                      }}
-                      title="Re-run categorization on every Uncategorized transaction using what's been learned so far"
-                    >
-                      Categorize uncategorized
-                    </button>
-                    <div className="more-menu-divider"></div>
-                    <button
-                      type="button"
-                      className="more-menu-item"
-                      onClick={() => {
-                        setMoreMenuOpen(false);
-                        handleExportLedgerCsv();
-                      }}
-                    >
-                      Export CSV…
-                    </button>
-                  </div>
-                )}
+                <button
+                  className="modal-secondary"
+                  onClick={() => setNewTransactionOpen(true)}
+                  disabled={busy || pendingImport !== null || !dataLoaded}
+                >
+                  Add transaction…
+                </button>
+                <div className="more-menu" ref={moreMenuRef}>
+                  <button
+                    type="button"
+                    className="modal-secondary btn-icon"
+                    onClick={() => setMoreMenuOpen((v) => !v)}
+                    disabled={busy || pendingImport !== null || !dataLoaded}
+                    aria-label="More actions"
+                    title="More actions"
+                    aria-haspopup="true"
+                    aria-expanded={moreMenuOpen}
+                  >
+                    ⋯
+                  </button>
+                  {moreMenuShouldRender && (
+                    <div className={moreMenuClosing ? "more-menu-panel more-menu-panel-closing" : "more-menu-panel"}>
+                      <button
+                        type="button"
+                        className="more-menu-item"
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          openManageCategories();
+                        }}
+                      >
+                        Manage categories…
+                      </button>
+                      <button
+                        type="button"
+                        className="more-menu-item"
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          openManageFamilyMembers();
+                        }}
+                      >
+                        Manage family members…
+                      </button>
+                      <div className="more-menu-divider"></div>
+                      <button
+                        type="button"
+                        className="more-menu-item"
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          handleRecategorize();
+                        }}
+                        title="Re-run categorization on every Uncategorized transaction using what's been learned so far"
+                      >
+                        Categorize uncategorized
+                      </button>
+                      <div className="more-menu-divider"></div>
+                      <button
+                        type="button"
+                        className="more-menu-item"
+                        onClick={() => {
+                          setMoreMenuOpen(false);
+                          handleExportLedgerCsv();
+                        }}
+                      >
+                        Export CSV…
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
           </div>
         </header>
 
-        <div className="page">
+        <div className={activeTab === "ledger" ? "page page-ledger" : "page"} role="main">
 
-      <UpdateBanner />
-      {/* Body level, like the dialogs: `position: fixed` inside `.page` is laid out
+          <UpdateBanner />
+          {/* Body level, like the dialogs: `position: fixed` inside `.page` is laid out
           against the whole page under the Transparent style's backdrop-filter. */}
-      {createPortal(
-        <div className="toast-stack">
-          {status && <StatusBanner text={status.text} kind={status.kind} onDismiss={() => setStatusState(null)} />}
-          {undoToast && (
-            <StatusBanner
-              text={undoToast.text}
-              kind="info"
-              action={{ label: "Undo", onClick: handleUndoBulkDelete }}
-              onDismiss={() => setUndoToast(null)}
-            />
+          {createPortal(
+            <div className="toast-stack">
+              {status && <StatusBanner text={status.text} kind={status.kind} onDismiss={() => setStatusState(null)} />}
+              {undoToast && (
+                <StatusBanner
+                  text={undoToast.text}
+                  kind="info"
+                  action={{ label: "Undo", onClick: handleUndoBulkDelete }}
+                  onDismiss={() => setUndoToast(null)}
+                />
+              )}
+              {dismissUndoToast && (
+                <StatusBanner
+                  text={dismissUndoToast.text}
+                  kind="info"
+                  action={{ label: "Undo", onClick: handleUndoDismissTransferCandidates }}
+                  onDismiss={() => setDismissUndoToast(null)}
+                />
+              )}
+              {similarToast && (
+                <StatusBanner
+                  text={similarToast.text}
+                  kind="info"
+                  action={{ label: `Apply to ${similarToast.count}`, onClick: handleApplyToSimilar }}
+                  onDismiss={() => setSimilarToast(null)}
+                />
+              )}
+            </div>,
+            document.body,
           )}
-          {similarToast && (
-            <StatusBanner
-              text={similarToast.text}
-              kind="info"
-              action={{ label: `Apply to ${similarToast.count}`, onClick: handleApplyToSimilar }}
-              onDismiss={() => setSimilarToast(null)}
-            />
-          )}
-        </div>,
-        document.body,
-      )}
 
-      {activeTab === "dashboard" && (
-        <Suspense fallback={null}>
-        <DashboardView
-          accounts={accounts}
-          netWorthHistory={netWorthHistory}
-          accountContributionDeltas={accountContributionDeltas}
-          spendingThisMonth={spendingThisMonth}
-          report={report}
-          recurring={recurring}
-          recurringMatches={recurringMatches}
-          monthReviewOffer={monthReviewOffer}
-          onOpenMonthReview={handleOpenMonthReview}
-          transactions={transactions}
-          budgetAlerts={dashboardBudgetAlerts}
-          insights={dashboardInsights}
-          avgMonthlySpend={avgMonthlySpend}
-          assetsTotal={assets.reduce((s, a) => s + parseFloat(a.value), 0)}
-          assets={assets}
-          holdings={holdings}
-          familyMembers={familyMembers}
-          buckets={buckets}
-          categories={usedCategories}
-          categoryIconMap={categoryIconMap}
-          topCategoriesData={topCategoriesData}
-          layoutWidgets={layoutWidgets}
-          onSetLayoutWidgets={setLayoutWidgets}
-          onOpenAddWidget={() => setAddWidgetModalOpen(true)}
-          onOpenLedger={() => setActiveTab("ledger")}
-          onOpenRecurring={() => setActiveTab("recurring")}
-          onOpenBudget={() => setActiveTab("budget")}
-          onOpenCashFlow={() => setActiveTab("cashflow")}
-          onOpenInvestments={() => setActiveTab("investments")}
-          onOpenReports={() => setActiveTab("reports")}
-          onOpenAccounts={() => setActiveTab("accounts")}
-          onOpenBuckets={() => setActiveTab("buckets")}
-          onOpenUncategorized={() => {
-            setFilterCategory(UNCATEGORIZED_FILTER);
-            setActiveTab("ledger");
-          }}
-          safeToSpendForecast={safeToSpendForecast}
-          onAddTransaction={() => setNewTransactionOpen(true)}
-          onAddAccount={handleNewAccount}
-        />
-        </Suspense>
-      )}
-
-      {activeTab === "ledger" && (
-        <div className="page-top">
-          <div>
-            <h1 className="view-title">Transactions</h1>
-            <p className="view-sub">
-              {transactions.length} transaction{transactions.length === 1 ? "" : "s"} across {accounts.length} account
-              {accounts.length === 1 ? "" : "s"}.
-            </p>
-          </div>
-          {inboxCount > 0 && (
-            <button type="button" className="modal-secondary" onClick={openInbox} data-inbox-open>
-              Review inbox ({inboxCount})
-            </button>
-          )}
-        </div>
-      )}
-
-      {activeTab === "ledger" && pendingImport && (
-        <div className="dup-review">
-          <p className="dup-review-summary">
-            Reviewing {pendingImport.preview.rows.length} transaction(s) from this file
-            {pendingImport.preview.row_errors
-              ? ` (${pendingImport.preview.row_errors} row(s) couldn't be read)`
-              : ""}
-            . Uncheck any you don't want to import, and fix the account for any row that doesn't belong to{" "}
-            {accounts.find((a) => a.id === pendingImport.defaultAccountId)?.name ?? "the selected account"}.
-          </p>
-          <ImportCategoryReconcile
-            unmatched={pendingImport.preview.unmatched_categories}
-            categories={categoryOptions}
-            choices={importCategoryChoices}
-            onChange={(name, choice) => setImportCategoryChoices((prev) => ({ ...prev, [name]: choice }))}
-            onSetAll={(action) =>
-              setImportCategoryChoices(
-                Object.fromEntries(pendingImport.preview.unmatched_categories.map((u) => [u.name, { action } as CategoryChoice])),
-              )
-            }
-          />
-          <div className="dup-review-table-scroll">
-            <table className="dup-review-table">
-              <thead>
-                <tr>
-                  <th className="dup-review-check">
-                    <input
-                      type="checkbox"
-                      checked={
-                        pendingImport.preview.rows.length > 0 &&
-                        pendingImport.preview.rows.every((r) => includedIndices.has(r.index))
-                      }
-                      onChange={toggleSelectAllImportRows}
-                      aria-label="Select all"
-                    />
-                  </th>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th className="amount-col">Amount</th>
-                  <th>Account</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingImport.preview.rows.map((row) => (
-                  <tr key={row.index} className={row.is_duplicate ? "import-row-duplicate" : undefined}>
-                    <td className="dup-review-check">
-                      <input
-                        type="checkbox"
-                        checked={includedIndices.has(row.index)}
-                        onChange={() => toggleIncluded(row.index)}
-                      />
-                    </td>
-                    <td>{row.date}</td>
-                    <td>{row.description}</td>
-                    <td className="amount-col">{formatAmount(row.amount)}</td>
-                    <td>
-                      <select
-                        aria-label={`Account for "${row.description}"`}
-                        value={accountOverrides.get(row.index) ?? pendingImport.defaultAccountId}
-                        onChange={(e) => setImportRowAccount(row.index, Number(e.target.value))}
-                      >
-                        {accounts.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                      {row.account_name &&
-                        !accounts.some((a) => a.name.toLowerCase() === row.account_name!.toLowerCase()) && (
-                          <div className="account-col" title="No account by that name exists yet — it'll be created on import">
-                            CSV: {row.account_name} (new)
-                          </div>
-                        )}
-                    </td>
-                    <td className="source-col">{row.is_duplicate ? "Already added" : "New"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="dup-review-actions">
-            <button className="modal-secondary" onClick={cancelPendingImport} disabled={busy}>
-              Cancel
-            </button>
-            <button onClick={confirmPendingImport} disabled={busy || includedIndices.size === 0}>
-              {busy ? "Importing…" : `Import ${includedIndices.size} transaction(s)`}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "ledger" && reviewIds && reviewIds.size > 0 && (
-        <div className="dup-review">
-          <p className="dup-review-summary">
-            Just categorized {reviewIds.size} transaction(s). Review and fix any that are wrong.
-          </p>
-          <table className="dup-review-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Description</th>
-                <th className="amount-col">Amount</th>
-                <th>Category</th>
-                <th>Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions
-                .filter((t) => reviewIds.has(t.id))
-                .map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.date}</td>
-                    <td>{t.description}</td>
-                    <td className="amount-col">{formatAmount(t.amount)}</td>
-                    <td>
-                      <select
-                        aria-label={`Category for "${t.description}"`}
-                        value={t.category ?? ""}
-                        onChange={(e) => handleCategoryChange(t.id, e.target.value)}
-                      >
-                        <option value="" disabled>
-                          Uncategorized
-                        </option>
-                        {t.category && !categoryOptions.includes(t.category) && (
-                          <option value={t.category}>{t.category}</option>
-                        )}
-                        {categoryOptions.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                        <option value="__new__">+ New category…</option>
-                      </select>
-                    </td>
-                    <td className="source-col">
-                      {t.category_source ?? ""}
-                      {t.confidence !== null && (
-                        <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-          <div className="dup-review-actions">
-            <button onClick={() => setReviewIds(null)}>Done</button>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "ledger" && stats && (
-        <div className="stats">
-          <div className="stat tint-accent">
-            <span className="stat-value">{stats.total}</span>
-            <span className="stat-label">Transactions</span>
-          </div>
-          <div className="stat tint-blue">
-            <span className="stat-value">{stats.auto_categorized}</span>
-            <span className="stat-label">Auto-categorized</span>
-          </div>
-          <div className="stat tint-teal">
-            <span className="stat-value">{stats.user_confirmed}</span>
-            <span className="stat-label">Corrected by you</span>
-          </div>
-          <button
-            type="button"
-            className={
-              filterCategory === UNCATEGORIZED_FILTER
-                ? "stat tint-red stat-clickable stat-expanded"
-                : "stat tint-red stat-clickable"
-            }
-            onClick={() => setFilterCategory((c) => (c === UNCATEGORIZED_FILTER ? "all" : UNCATEGORIZED_FILTER))}
-            title="Show only transactions that need a category"
-          >
-            <span className="stat-value">{stats.uncategorized}</span>
-            <span className="stat-label">Needs a category</span>
-          </button>
-        </div>
-      )}
-
-      {activeTab === "ledger" && (
-        <div className="ledger-filters">
-          <input
-            type="search"
-            placeholder="Search description…"
-            aria-label="Search description"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
-          <select aria-label="Filter by category" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-            <option value="all">All categories</option>
-            <option value={UNCATEGORIZED_FILTER}>Uncategorized</option>
-            {categoryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <AccountFilterDropdown accounts={accounts} value={filterAccountIds} onChange={setFilterAccountIds} />
-          <MemberFilterDropdown members={familyMembers} value={filterMemberIds} onChange={setFilterMemberIds} />
-          <MoreFiltersPopover
-            filterFrom={filterFrom}
-            onSetFrom={setFilterFrom}
-            filterTo={filterTo}
-            onSetTo={setFilterTo}
-            filterTag={filterTag}
-            allTags={allTags}
-            onSetTag={setFilterTag}
-          />
-          <datalist id="known-tags">
-            {allTags.map((tag) => (
-              <option key={tag} value={tag} />
-            ))}
-          </datalist>
-        </div>
-      )}
-
-      {activeTab === "ledger" && (
-        <div className="saved-filter-bar">
-          {savedFilters.map((f) => (
-            <span key={f.name} className="saved-filter-chip">
-              <button type="button" onClick={() => applySavedFilter(f)} title={`Apply saved filter "${f.name}"`}>
-                {f.name}
-              </button>
-              <button
-                type="button"
-                className="saved-filter-chip-remove"
-                onClick={() => deleteSavedFilter(f.name)}
-                aria-label={`Remove saved filter ${f.name}`}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          {savingFilter ? (
-            <form
-              className="saved-filter-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveCurrentFilter();
-              }}
-            >
-              <input
-                autoFocus
-                value={newFilterName}
-                onChange={(e) => setNewFilterName(e.target.value)}
-                placeholder='e.g. "Uncategorized this month"'
-              />
-              <button type="submit" className="btn-sm" disabled={!newFilterName.trim()}>
-                Save
-              </button>
-              <button
-                type="button"
-                className="modal-secondary btn-sm"
-                onClick={() => {
-                  setSavingFilter(false);
-                  setNewFilterName("");
+          {!dataLoaded && activeTab !== "settings" && activeTab !== "help" ? (
+            <DataLoading />
+          ) : (
+          <>
+          {activeTab === "dashboard" && (
+            <Suspense fallback={null}>
+              <DashboardView
+                accounts={accounts}
+                netWorthHistory={netWorthHistory}
+                accountContributionDeltas={accountContributionDeltas}
+                spendingThisMonth={spendingThisMonth}
+                report={report}
+                recurring={recurring}
+                recurringMatches={recurringMatches}
+                monthReviewOffer={monthReviewOffer}
+                onOpenMonthReview={handleOpenMonthReview}
+                transactions={transactions}
+                budgetAlerts={dashboardBudgetAlerts}
+                insights={dashboardInsights}
+                avgMonthlySpend={avgMonthlySpend}
+                assetsTotal={sumMoney(assets.map((a) => a.value))}
+                assets={assets}
+                holdings={holdings}
+                familyMembers={familyMembers}
+                buckets={buckets}
+                categories={usedCategories}
+                categoryIconMap={categoryIconMap}
+                topCategoriesData={topCategoriesData}
+                layoutWidgets={layoutWidgets}
+                onSetLayoutWidgets={setLayoutWidgets}
+                onOpenAddWidget={() => setAddWidgetModalOpen(true)}
+                onOpenLedger={() => setActiveTab("ledger")}
+                onOpenRecurring={() => setActiveTab("recurring")}
+                onOpenBudget={() => setActiveTab("budget")}
+                onOpenCashFlow={() => setActiveTab("cashflow")}
+                onOpenInvestments={() => setActiveTab("investments")}
+                onOpenReports={() => setActiveTab("reports")}
+                onOpenAccounts={() => setActiveTab("accounts")}
+                onOpenBuckets={() => setActiveTab("buckets")}
+                onOpenUncategorized={() => {
+                  setFilterCategory(UNCATEGORIZED_FILTER);
+                  setActiveTab("ledger");
                 }}
-              >
-                Cancel
-              </button>
-            </form>
-          ) : (
-            <button type="button" className="modal-secondary btn-sm" onClick={() => setSavingFilter(true)}>
-              + Save current filter…
-            </button>
-          )}
-          {transferCandidatePairs.length > 0 && (
-            <button type="button" className="modal-secondary btn-sm transfer-suggestion" onClick={() => setTransferReviewOpen(true)}>
-              ⇄ {transferCandidatePairs.length} possible transfer{transferCandidatePairs.length === 1 ? "" : "s"} — review
-            </button>
-          )}
-          {autoLinkedPairs.length > 0 && (
-            <button
-              type="button"
-              className="modal-secondary btn-sm transfer-suggestion"
-              data-autolink-review
-              onClick={() => setAutoLinkReviewOpen(true)}
-            >
-              ⇄ {autoLinkedPairs.length} auto-linked — review
-            </button>
-          )}
-          <div className="density-toggle" role="group" aria-label="Row density">
-            {(["comfortable", "compact"] as LedgerDensity[]).map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={ledgerDensity === d ? "density-toggle-active" : ""}
-                aria-pressed={ledgerDensity === d}
-                onClick={() => setLedgerDensity(d)}
-              >
-                {d === "comfortable" ? "Comfortable" : "Compact"}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "ledger" && selectedIds.size > 0 && (
-        <div className="bulk-actions-bar">
-          <span className="bulk-actions-count">{selectedIds.size} selected</span>
-          <select aria-label="Set category to…" value="" onChange={(e) => handleBulkCategoryChange(e.target.value)}>
-            <option value="" disabled>
-              Set category to…
-            </option>
-            {categoryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-            <option value="__new__">+ New category…</option>
-          </select>
-          <select aria-label="Add to Recurring…" value="" onChange={(e) => handleAddSelectedToRecurring(e.target.value)}>
-            <option value="" disabled>
-              Add to Recurring…
-            </option>
-            {CADENCE_OPTIONS.map((c) => (
-              <option key={c} value={c}>
-                {c[0].toUpperCase() + c.slice(1)}
-              </option>
-            ))}
-          </select>
-          {familyMembers.length > 0 && (
-            <select aria-label="Set member to…" value="" onChange={(e) => handleBulkMemberChange(e.target.value)}>
-              <option value="" disabled>
-                Set member to…
-              </option>
-              <option value="__none__">Unassigned</option>
-              {familyMembers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <span className="bulk-tag-input">
-            <input
-              list="known-tags"
-              placeholder="+ Add tag…"
-              value={bulkTagText}
-              onChange={(e) => setBulkTagText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleBulkAddTag(bulkTagText);
-                }
-              }}
-            />
-            <button type="button" className="modal-secondary" disabled={!bulkTagText.trim()} onClick={() => handleBulkAddTag(bulkTagText)}>
-              Add tag
-            </button>
-          </span>
-          {confirmingBulkDelete ? (
-            <span className="row-delete-confirm">
-              <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(false)}>
-                Cancel
-              </button>
-              <button type="button" className="btn-danger" onClick={handleBulkDelete}>
-                Delete {selectedIds.size}
-              </button>
-            </span>
-          ) : (
-            <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(true)}>
-              Delete selected
-            </button>
-          )}
-          {selectedPairForLink && (
-            <button
-              type="button"
-              className="modal-secondary"
-              onClick={handleLinkSelectedAsTransfer}
-              title="These two look like the two sides of one move between your own accounts"
-            >
-              Link as transfer
-            </button>
-          )}
-          <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
-            Clear selection
-          </button>
-        </div>
-      )}
-
-      {activeTab === "ledger" && (
-      <div className="ledger-table-scroll">
-      <table className={ledgerDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
-        <thead>
-          <tr>
-            <th className="select-col">
-              <input
-                type="checkbox"
-                checked={pagedTransactions.length > 0 && pagedTransactions.every((t) => selectedIds.has(t.id))}
-                onChange={toggleSelectAllOnPage}
-                aria-label="Select all on this page"
+                safeToSpendForecast={safeToSpendForecast}
+                safeToSpendEnabled={appSettingsLoaded && appSettings.safe_to_spend_enabled}
+                onAddTransaction={() => setNewTransactionOpen(true)}
+                onAddAccount={handleNewAccount}
               />
-            </th>
-            <SortableTh column="date" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-              Date
-            </SortableTh>
-            <SortableTh column="description" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-              Description
-            </SortableTh>
-            <SortableTh column="amount" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} className="amount-col">
-              Amount
-            </SortableTh>
-            <SortableTh column="account" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-              Account
-            </SortableTh>
-            <th>Member</th>
-            <SortableTh column="category" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-              Category
-            </SortableTh>
-            <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-              Source
-            </SortableTh>
-            {appSettings.apply_to_debt_enabled && <th>Debt</th>}
-            <th className="actions-col"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {pagedTransactions.map((t) => {
-            const inLeg = inLegByOutId.get(t.id);
-            if (inLeg) {
-              return (
-                <TransferRow
-                  key={t.id}
-                  out={t}
-                  incoming={inLeg}
-                  selected={selectedIds.has(t.id)}
-                  onToggleSelected={() => toggleSelectedMany([t.id, inLeg.id])}
-                  onUnlink={() => handleUnlinkTransfer(t.id)}
-                  showDebtColumn={appSettings.apply_to_debt_enabled}
-                />
-              );
-            }
-            return (
-            <Fragment key={t.id}>
-            <tr className={selectedIds.has(t.id) ? "ledger-row-selected" : undefined}>
-              <td className="select-col">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(t.id)}
-                  onChange={() => toggleSelected(t.id)}
-                  aria-label={`Select transaction ${t.id}`}
-                />
-              </td>
-              <td>
-                {editingDate?.id === t.id ? (
-                  <input
-                    autoFocus
-                    type="date"
-                    className="row-edit-input"
-                    value={editingDate.value}
-                    onChange={(e) => setEditingDate({ id: t.id, value: e.target.value })}
-                    onBlur={() => commitDateEdit(t.id, editingDate.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitDateEdit(t.id, editingDate.value);
-                      if (e.key === "Escape") setEditingDate(null);
-                    }}
-                  />
-                ) : (
-                  <span
-                    className="amount-editable date-cell"
-                    title="Click to fix the date"
-                    onClick={() => setEditingDate({ id: t.id, value: t.date })}
-                  >
-                    {t.date}
-                  </span>
-                )}
-              </td>
-              <td>
-                <span className="cell-with-icon">
-                  <span className="row-icon-badge">
-                    <CategoryIcon category={t.category} iconKey={t.category ? categoryIconMap[t.category] : null} />
-                  </span>
-                  {editingDescription?.id === t.id ? (
-                    <input
-                      autoFocus
-                      className="row-edit-input"
-                      value={editingDescription.value}
-                      onChange={(e) => setEditingDescription({ id: t.id, value: e.target.value })}
-                      onBlur={() => commitDescriptionEdit(t.id, editingDescription.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitDescriptionEdit(t.id, editingDescription.value);
-                        if (e.key === "Escape") setEditingDescription(null);
-                      }}
-                    />
-                  ) : (
-                    <span
-                      className="amount-editable"
-                      title="Click to fix the description"
-                      onClick={() => setEditingDescription({ id: t.id, value: t.description })}
-                    >
-                      {t.description}
-                    </span>
-                  )}
-                </span>
-                {(anomalyFlagsByTransaction.get(t.id) ?? []).map((flag, i) => (
-                  <span
-                    key={i}
-                    className={flag.kind === "large" ? "anomaly-badge anomaly-large" : "anomaly-badge anomaly-duplicate"}
-                    title={flag.detail}
-                  >
-                    {flag.kind === "large" ? "⚠" : "⧉"}
-                  </span>
+            </Suspense>
+          )}
+
+          {activeTab === "ledger" && (
+            <div className="page-top">
+              <div>
+                <h1 className="view-title">Transactions</h1>
+                <p className="view-sub">
+                  {transactions.length} transaction{transactions.length === 1 ? "" : "s"} across {accounts.length} account
+                  {accounts.length === 1 ? "" : "s"}.
+                </p>
+              </div>
+              {inboxCount > 0 && (
+                <button type="button" className="modal-secondary" onClick={openInbox} data-inbox-open>
+                  Review inbox ({inboxCount})
+                </button>
+              )}
+            </div>
+          )}
+
+          {activeTab === "ledger" && pendingImport && (
+            <div className="dup-review">
+              <p className="dup-review-summary">
+                Reviewing {pendingImport.preview.rows.length} transaction(s) from this file
+                {pendingImport.preview.row_errors
+                  ? ` (${pendingImport.preview.row_errors} row(s) couldn't be read)`
+                  : ""}
+                . Uncheck any you don't want to import, and fix the account for any row that doesn't belong to{" "}
+                {accounts.find((a) => a.id === pendingImport.defaultAccountId)?.name ?? "the selected account"}.
+              </p>
+              <ImportCategoryReconcile
+                unmatched={pendingImport.preview.unmatched_categories}
+                categories={categoryOptions}
+                choices={importCategoryChoices}
+                onChange={(name, choice) => setImportCategoryChoices((prev) => ({ ...prev, [name]: choice }))}
+                onSetAll={(action) =>
+                  setImportCategoryChoices(
+                    Object.fromEntries(pendingImport.preview.unmatched_categories.map((u) => [u.name, { action } as CategoryChoice])),
+                  )
+                }
+              />
+              <div className="dup-review-table-scroll">
+                <table className="dup-review-table">
+                  <thead>
+                    <tr>
+                      <th className="dup-review-check">
+                        <input
+                          type="checkbox"
+                          checked={
+                            pendingImport.preview.rows.length > 0 &&
+                            pendingImport.preview.rows.every((r) => includedIndices.has(r.index))
+                          }
+                          onChange={toggleSelectAllImportRows}
+                          aria-label="Select all"
+                        />
+                      </th>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th className="amount-col">Amount</th>
+                      <th>Account</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingImport.preview.rows.map((row) => (
+                      <tr key={row.index} className={row.is_duplicate ? "import-row-duplicate" : undefined}>
+                        <td className="dup-review-check">
+                          <input
+                            type="checkbox"
+                            checked={includedIndices.has(row.index)}
+                            onChange={() => toggleIncluded(row.index)}
+                          />
+                        </td>
+                        <td>{row.date}</td>
+                        <td>{row.description}</td>
+                        <td className="amount-col">{formatAmount(row.amount)}</td>
+                        <td>
+                          <MenuSelect
+                            ariaLabel={`Account for "${row.description}"`}
+                            value={String(accountOverrides.get(row.index) ?? pendingImport.defaultAccountId)}
+                            onChange={(v) => setImportRowAccount(row.index, Number(v))}
+                            options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
+                          />
+                          {row.account_name &&
+                            !accounts.some((a) => a.name.toLowerCase() === row.account_name!.toLowerCase()) && (
+                              <div className="account-col" title="No account by that name exists yet — it'll be created on import">
+                                CSV: {row.account_name} (new)
+                              </div>
+                            )}
+                        </td>
+                        <td className="source-col">{row.is_duplicate ? "Already added" : "New"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="dup-review-actions">
+                <button className="modal-secondary" onClick={cancelPendingImport} disabled={busy}>
+                  Cancel
+                </button>
+                <button onClick={confirmPendingImport} disabled={busy || includedIndices.size === 0}>
+                  {busy ? "Importing…" : `Import ${includedIndices.size} transaction(s)`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "ledger" && reviewIds && reviewIds.size > 0 && (
+            <div className="dup-review">
+              <p className="dup-review-summary">
+                Just categorized {reviewIds.size} transaction(s). Review and fix any that are wrong.
+              </p>
+              <table className="dup-review-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th className="amount-col">Amount</th>
+                    <th>Category</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions
+                    .filter((t) => reviewIds.has(t.id))
+                    .map((t) => (
+                      <tr key={t.id}>
+                        <td>{t.date}</td>
+                        <td>{t.description}</td>
+                        <td className="amount-col">{formatAmount(t.amount)}</td>
+                        <td>
+                          <MenuSelect
+                            ariaLabel={`Category for "${t.description}"`}
+                            value={t.category ?? ""}
+                            onChange={(v) => handleCategoryChange(t.id, v)}
+                            options={[
+                              { value: "", label: "Uncategorized", disabled: true },
+                              ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
+                              ...categoryOptions.map((c) => ({ value: c, label: c })),
+                              { value: "__new__", label: "+ New category…" },
+                            ]}
+                          />
+                        </td>
+                        <td className="source-col">
+                          {t.category_source ?? ""}
+                          {t.confidence !== null && (
+                            <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              <div className="dup-review-actions">
+                <button onClick={() => setReviewIds(null)}>Done</button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "ledger" && stats && (
+            <div className="stats">
+              <div className="stat tint-accent">
+                <span className="stat-value">{stats.total}</span>
+                <span className="stat-label">Transactions</span>
+              </div>
+              <div className="stat tint-blue">
+                <span className="stat-value">{stats.auto_categorized}</span>
+                <span className="stat-label">Auto-categorized</span>
+              </div>
+              <div className="stat tint-teal">
+                <span className="stat-value">{stats.user_confirmed}</span>
+                <span className="stat-label">Corrected by you</span>
+              </div>
+              <button
+                type="button"
+                className={
+                  filterCategory === UNCATEGORIZED_FILTER
+                    ? "stat tint-red stat-clickable stat-expanded"
+                    : "stat tint-red stat-clickable"
+                }
+                onClick={() => setFilterCategory((c) => (c === UNCATEGORIZED_FILTER ? "all" : UNCATEGORIZED_FILTER))}
+                title="Show only transactions that need a category"
+              >
+                <span className="stat-value">{stats.uncategorized}</span>
+                <span className="stat-label">Needs a category</span>
+              </button>
+            </div>
+          )}
+
+          {activeTab === "ledger" && (
+            <div className="ledger-filters">
+              <input
+                type="search"
+                placeholder="Search description…"
+                aria-label="Search description"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+              <CategoryFilterDropdown options={categoryFilterOptions} value={filterCategory} onChange={setFilterCategory} />
+              <AccountFilterDropdown accounts={accounts} value={filterAccountIds} onChange={setFilterAccountIds} />
+              <MemberFilterDropdown members={familyMembers} value={filterMemberIds} onChange={setFilterMemberIds} />
+              <MoreFiltersPopover
+                filterFrom={filterFrom}
+                onSetFrom={setFilterFrom}
+                filterTo={filterTo}
+                onSetTo={setFilterTo}
+                filterTag={filterTag}
+                allTags={allTags}
+                onSetTag={setFilterTag}
+              />
+              <datalist id="known-tags">
+                {allTags.map((tag) => (
+                  <option key={tag} value={tag} />
                 ))}
-                {t.transfer_counterpart_id !== null && (
+              </datalist>
+            </div>
+          )}
+
+          {activeTab === "ledger" && (
+            <div className="saved-filter-bar">
+              {savedFilters.map((f) => (
+                <span key={f.name} className="saved-filter-chip">
+                  <button type="button" onClick={() => applySavedFilter(f)} title={`Apply saved filter "${f.name}"`}>
+                    {f.name}
+                  </button>
                   <button
                     type="button"
-                    className="transfer-badge transfer-badge-button"
-                    title="Linked as a transfer with a transaction that isn't shown here — click to unlink"
-                    onClick={() => handleUnlinkTransfer(t.id)}
+                    className="saved-filter-chip-remove"
+                    onClick={() => deleteSavedFilter(f.name)}
+                    aria-label={`Remove saved filter ${f.name}`}
                   >
-                    ⇄ Transfer ×
+                    ×
                   </button>
-                )}
-                <div className="tag-pills">
-                  {t.tags.map((tag) => (
-                    <span key={tag} className="tag-pill">
-                      {tag}
-                      <button type="button" onClick={() => handleRemoveTag(t.id, tag)} aria-label={`Remove tag ${tag}`}>
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    className="tag-input"
-                    list="known-tags"
-                    placeholder="+ tag"
-                    value={newTagText[t.id] ?? ""}
-                    onChange={(e) => setNewTagText((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddTag(t.id, newTagText[t.id] ?? "");
-                      }
-                    }}
-                  />
-                </div>
-              </td>
-              <td className="amount-col">
-                {editingAmount?.id === t.id ? (
+                </span>
+              ))}
+              {savingFilter ? (
+                <form
+                  className="saved-filter-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveCurrentFilter();
+                  }}
+                >
                   <input
                     autoFocus
-                    className="amount-edit-input"
-                    value={editingAmount.value}
-                    onChange={(e) => setEditingAmount({ id: t.id, value: e.target.value })}
-                    onBlur={() => commitAmountEdit(t.id, editingAmount.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitAmountEdit(t.id, editingAmount.value);
-                      if (e.key === "Escape") setEditingAmount(null);
-                    }}
+                    value={newFilterName}
+                    onChange={(e) => setNewFilterName(e.target.value)}
+                    placeholder='e.g. "Uncategorized this month"'
                   />
-                ) : (
-                  <span
-                    className="amount-editable"
-                    title="Click to fix the amount"
-                    onClick={() => setEditingAmount({ id: t.id, value: t.amount })}
-                  >
-                    {formatAmount(t.amount)}
-                  </span>
-                )}
-              </td>
-              <td className="account-col">
-                <select
-                  aria-label={`Account for "${t.description}"`}
-                  value={t.account_id}
-                  onChange={(e) => handleAccountChangeForTransaction(t.id, e.target.value)}
-                >
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="member-col">
-                <select
-                  aria-label={`Family member for "${t.description}"`}
-                  value={t.member_id ?? ""}
-                  onChange={(e) => handleMemberChangeForTransaction(t.id, e.target.value)}
-                >
-                  <option value="">Unassigned</option>
-                  {familyMembers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                {t.split_count > 0 ? (
-                  <span className="split-summary">Split ({t.split_count})</span>
-                ) : (
-                  <select
-                    aria-label={`Category for "${t.description}"`}
-                    value={t.category ?? ""}
-                    onChange={(e) => handleCategoryChange(t.id, e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Uncategorized
-                    </option>
-                    {t.category && !categoryOptions.includes(t.category) && (
-                      <option value={t.category}>{t.category}</option>
-                    )}
-                    {categoryOptions.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                    <option value="__new__">+ New category…</option>
-                  </select>
-                )}
-                {appSettings.split_purchases_enabled && (
-                  <button type="button" className="modal-secondary split-toggle" onClick={() => toggleSplitEditor(t)}>
-                    {t.split_count > 0 ? "Edit splits" : "Split →"}
+                  <button type="submit" className="btn-sm" disabled={!newFilterName.trim()}>
+                    Save
                   </button>
-                )}
-              </td>
-              <td className="source-col">
-                {t.category_source ?? ""}
-                {t.confidence !== null && (
-                  <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>
-                )}
-              </td>
-              {appSettings.apply_to_debt_enabled && (
-                <td className="debt-col">
-                  {accounts.find((a) => a.id === t.account_id)?.account_type === "loan" ? (
-                    editingPrincipalId === t.id ? (
-                      <span className="debt-apply-form">
-                        <input
-                          className="debt-apply-amount"
-                          value={principalDraft}
-                          onChange={(e) => setPrincipalDraft(e.target.value)}
-                          title="How much of this transaction counts toward what's owed (e.g. just the principal on a mortgage payment)"
-                        />
-                        <button type="button" className="debt-apply-confirm" onClick={() => handleSetPrincipalAmount(t.id)}>
-                          Save
-                        </button>
-                        <button type="button" className="modal-secondary" onClick={() => setEditingPrincipalId(null)}>
-                          Cancel
-                        </button>
-                      </span>
-                    ) : t.principal_amount !== null ? (
-                      <span className="debt-applied-badge">
-                        Principal: {formatAmount(t.principal_amount)}
-                        <button type="button" className="modal-secondary" onClick={() => handleResetPrincipalAmount(t.id)}>
-                          Reset
-                        </button>
-                      </span>
-                    ) : (
-                      <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startEditingPrincipal(t)}>
-                        Split principal →
-                      </button>
-                    )
-                  ) : t.applied_to_debt ? (
-                    <span className="debt-applied-badge">
-                      → {t.applied_to_debt.debt_account_name} ({formatAmount(t.applied_to_debt.amount)})
-                      <button type="button" className="modal-secondary" onClick={() => handleUnapplyDebtPayment(t.id)}>
-                        Undo
-                      </button>
-                    </span>
-                  ) : applyingDebtId === t.id ? (
-                    <span className="debt-apply-form">
-                      <select
-                        aria-label={`Debt account to apply "${t.description}" toward`}
-                        value={applyDebtForm.accountId}
-                        onChange={(e) => setApplyDebtForm({ ...applyDebtForm, accountId: e.target.value })}
-                      >
-                        {debtAccounts.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        className="debt-apply-amount"
-                        value={applyDebtForm.amount}
-                        onChange={(e) => setApplyDebtForm({ ...applyDebtForm, amount: e.target.value })}
-                        title="How much of this payment counts toward the debt (e.g. just the principal on a mortgage payment)"
-                      />
-                      <button type="button" className="debt-apply-confirm" onClick={() => handleApplyDebtPayment(t.id, t.date)}>
-                        Apply
-                      </button>
-                      <button type="button" className="modal-secondary" onClick={() => setApplyingDebtId(null)}>
-                        Cancel
-                      </button>
-                    </span>
-                  ) : (
-                    // The loan case is already handled above — only credit
-                    // (excluded, a payment there needs no principal split)
-                    // and every non-debt account reach here.
-                    debtAccounts.length > 0 &&
-                    accounts.find((a) => a.id === t.account_id)?.account_type !== "credit" && (
-                      <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startApplyingDebtPayment(t)}>
-                        Apply to a debt →
-                      </button>
-                    )
-                  )}
-                </td>
+                  <button
+                    type="button"
+                    className="modal-secondary btn-sm"
+                    onClick={() => {
+                      setSavingFilter(false);
+                      setNewFilterName("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <button type="button" className="modal-secondary btn-sm" onClick={() => setSavingFilter(true)}>
+                  + Save current filter…
+                </button>
               )}
-              <td className="actions-col">
-                {confirmingDeleteId === t.id ? (
-                  <span className="row-delete-confirm row-delete-confirm-detailed">
-                    {(() => {
-                      const impact = describeDeleteImpact(t.amount, accounts.find((a) => a.id === t.account_id));
-                      return impact ? <span className="delete-impact-note">{impact}</span> : null;
-                    })()}
-                    <span className="row-delete-confirm-actions">
-                      <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(null)}>
-                        Cancel
-                      </button>
-                      <button type="button" className="btn-danger" onClick={() => handleDeleteTransaction(t.id)}>
-                        Delete
-                      </button>
-                    </span>
-                  </span>
-                ) : (
-                  <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(t.id)}>
-                    Delete
+              {transferCandidatePairs.length > 0 && (
+                <button type="button" className="modal-secondary btn-sm transfer-suggestion" onClick={() => setTransferReviewOpen(true)}>
+                  ⇄ {transferCandidatePairs.length} possible transfer{transferCandidatePairs.length === 1 ? "" : "s"} — review
+                </button>
+              )}
+              {autoLinkedPairs.length > 0 && (
+                <button
+                  type="button"
+                  className="modal-secondary btn-sm transfer-suggestion"
+                  data-autolink-review
+                  onClick={() => setAutoLinkReviewOpen(true)}
+                >
+                  ⇄ {autoLinkedPairs.length} auto-linked — review
+                </button>
+              )}
+              {/* Hidden by request; keep the original selector available to restore.
+              <div className="density-toggle" role="group" aria-label="Row density">
+                {(["comfortable", "compact"] as LedgerDensity[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className={ledgerDensity === d ? "density-toggle-active" : ""}
+                    aria-pressed={ledgerDensity === d}
+                    onClick={() => setLedgerDensity(d)}
+                  >
+                    {d === "comfortable" ? "Comfortable" : "Compact"}
                   </button>
-                )}
-              </td>
-            </tr>
-            {expandedSplitId === t.id && (
-              <tr className="split-editor-row">
-                <td colSpan={ledgerColumnCount}>
-                  <div className="split-editor">
-                    {splitLines.map((line, i) => (
-                      <div className="split-editor-line" key={i}>
-                        <select
-                          aria-label={`Category for split ${i + 1} of "${t.description}"`}
-                          value={line.category}
-                          onChange={(e) => updateSplitLine(i, { category: e.target.value })}
-                        >
-                          {categoryOptions.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
+                ))}
+              </div>
+              */}
+            </div>
+          )}
+
+          {activeTab === "ledger" && selectedIds.size > 0 && (
+            <div className="bulk-actions-bar">
+              <span className="bulk-actions-count">{selectedIds.size} selected</span>
+              <MenuSelect
+                ariaLabel="Set category to…"
+                placeholder="Set category to…"
+                value={""}
+                onChange={(v) => handleBulkCategoryChange(v)}
+                options={[
+                  ...categoryOptions.map((c) => ({ value: c, label: c })),
+                  { value: "__new__", label: "+ New category…" },
+                ]}
+              />
+              <MenuSelect
+                ariaLabel="Add to Recurring…"
+                placeholder="Add to Recurring…"
+                value={""}
+                onChange={(v) => handleAddSelectedToRecurring(v)}
+                options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
+              />
+              {familyMembers.length > 0 && (
+                <MenuSelect
+                  ariaLabel="Set member to…"
+                  placeholder="Set member to…"
+                  value={""}
+                  onChange={(v) => handleBulkMemberChange(v)}
+                  options={[
+                    { value: "__none__", label: "Unassigned" },
+                    ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+                  ]}
+                />
+              )}
+              <span className="bulk-tag-input">
+                <input
+                  list="known-tags"
+                  placeholder="+ Add tag…"
+                  value={bulkTagText}
+                  onChange={(e) => setBulkTagText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleBulkAddTag(bulkTagText);
+                    }
+                  }}
+                />
+                <button type="button" className="modal-secondary" disabled={!bulkTagText.trim()} onClick={() => handleBulkAddTag(bulkTagText)}>
+                  Add tag
+                </button>
+              </span>
+              {confirmingBulkDelete ? (
+                <span className="row-delete-confirm">
+                  <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(false)}>
+                    Cancel
+                  </button>
+                  <button type="button" className="btn-danger" onClick={handleBulkDelete}>
+                    Delete {selectedIds.size}
+                  </button>
+                </span>
+              ) : (
+                <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(true)}>
+                  Delete selected
+                </button>
+              )}
+              {confirmingBulkFlip ? (
+                <span className="row-delete-confirm" data-flip-signs-confirm>
+                  <span>{flipConfirmText(selectedIds.size, selectedAccountNames)}</span>
+                  <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkFlip(false)}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleBulkFlipSigns}>
+                    Flip {selectedIds.size}
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="modal-secondary"
+                  onClick={() => setConfirmingBulkFlip(true)}
+                  title="For rows imported the wrong way round: money out becomes money in and the other way round"
+                >
+                  Flip signs…
+                </button>
+              )}
+              {selectedPairForLink && (
+                <button
+                  type="button"
+                  className="modal-secondary"
+                  onClick={handleLinkSelectedAsTransfer}
+                  title="These two look like the two sides of one move between your own accounts"
+                >
+                  Link as transfer
+                </button>
+              )}
+              <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
+                Clear selection
+              </button>
+            </div>
+          )}
+
+          {activeTab === "ledger" && (
+            <>
+              {ledgerNarrow && (
+                <div className="ledger-sort-by">
+                  <label className="labeled-field">
+                    <span className="labeled-field-label">Sort by</span>
+                    <MenuSelect
+                      ariaLabel="Sort by"
+                      value={sortColumn}
+                      onChange={(v) => setSortColumn(v as LedgerSortColumn)}
+                      options={[
+                        { value: "date", label: "Date" },
+                        { value: "description", label: "Description" },
+                        { value: "amount", label: "Amount" },
+                        { value: "account", label: "Account" },
+                        { value: "category", label: "Category" },
+                        { value: "source", label: "Sorted by" },
+                      ]}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="modal-secondary"
+                    onClick={() => setSortDirection((d) => (d === "asc" ? "desc" : "asc"))}
+                    aria-label={`Sort direction: ${sortDirection === "asc" ? "ascending" : "descending"}`}
+                  >
+                    {sortDirection === "asc" ? "▲ Ascending" : "▼ Descending"}
+                  </button>
+                </div>
+              )}
+              <div className="ledger-table-scroll" ref={setLedgerScrollEl}>
+                <table className={ledgerDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
+                  <colgroup>
+                    <col style={{ width: ledgerNarrow ? "6%" : "3%" }} />
+                    {/* the date needs ~80px in every style's font: 7% left it ~38px and it ran into the description */}
+                    <col style={{ width: ledgerNarrow ? "16%" : "11%" }} />
+                    <col style={{ width: ledgerNarrow ? "43%" : "17%" }} />
+                    <col style={{ width: ledgerNarrow ? "16%" : "8%" }} />
+                    {!ledgerNarrow && <col style={{ width: "14%" }} />}
+                    {!ledgerNarrow && <col style={{ width: "10%" }} />}
+                    {!ledgerNarrow && <col style={{ width: "13%" }} />}
+                    {!ledgerNarrow && <col style={{ width: "8%" }} />}
+                    {!ledgerNarrow && appSettings.apply_to_debt_enabled && <col style={{ width: "8%" }} />}
+                    <col style={{ width: ledgerNarrow ? "19%" : "7%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="select-col">
                         <input
-                          className="debt-apply-amount"
-                          value={line.amount}
-                          onChange={(e) => updateSplitLine(i, { amount: e.target.value })}
-                          placeholder="Amount"
+                          type="checkbox"
+                          checked={pagedTransactions.length > 0 && pagedTransactions.every((t) => selectedIds.has(t.id))}
+                          onChange={toggleSelectAllOnPage}
+                          aria-label="Select all on this page"
                         />
-                        <input
-                          value={line.note}
-                          onChange={(e) => updateSplitLine(i, { note: e.target.value })}
-                          placeholder="Note (optional)"
-                        />
-                        <button type="button" className="modal-secondary" onClick={() => removeSplitLine(i)}>
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                    <div className="split-editor-actions">
-                      <button type="button" className="modal-secondary" onClick={addSplitLine}>
-                        Add line
-                      </button>
-                      <span className={Math.abs(splitRemaining(t)) < 0.01 ? "split-remaining split-remaining-ok" : "split-remaining"}>
-                        Remaining to allocate: {formatAmount(splitRemaining(t).toFixed(2))}
-                      </span>
-                      <button type="button" disabled={Math.abs(splitRemaining(t)) >= 0.01} onClick={() => saveSplits(t)}>
-                        Save splits
-                      </button>
-                      {t.split_count > 0 && (
-                        <button type="button" className="modal-secondary" onClick={() => clearSplits(t)}>
-                          Clear splits
-                        </button>
+                      </th>
+                      <SortableTh column="date" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+                        Date
+                      </SortableTh>
+                      <SortableTh column="description" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+                        Description
+                      </SortableTh>
+                      <SortableTh column="amount" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} className="amount-col">
+                        Amount
+                      </SortableTh>
+                      {!ledgerNarrow && (
+                        <SortableTh column="account" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+                          Account
+                        </SortableTh>
                       )}
-                      <button type="button" className="modal-secondary" onClick={() => setExpandedSplitId(null)}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            )}
-            </Fragment>
-            );
-          })}
-          {filteredTransactions.length === 0 && (
-            <tr>
-              <td colSpan={ledgerColumnCount} className="empty-state">
-                {transactions.length === 0
-                  ? "No transactions yet — import a CSV to get started."
-                  : "No transactions match your filters."}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-      </div>
-      )}
-
-      {activeTab === "ledger" && filteredTransactions.length > 0 && (
-        <div className="ledger-pagination">
-          <label className="ledger-page-size">
-            Show
-            <select aria-label="Rows per page" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
-            per page
-          </label>
-          <div className="month-nav">
-            <button
-              type="button"
-              className="modal-secondary"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage <= 1}
-              aria-label="Previous page"
-            >
-              ‹
-            </button>
-            <span className="month-label">
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              type="button"
-              className="modal-secondary"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
-              aria-label="Next page"
-            >
-              ›
-            </button>
-          </div>
-          <span className="ledger-page-count">{displayTransactions.length} total</span>
-        </div>
-      )}
-
-      {activeTab === "buckets" && (
-        <Suspense fallback={null}>
-        <BucketsView
-          buckets={buckets}
-          accounts={accounts}
-          familyMembers={familyMembers}
-          onCreateBucket={handleCreateBucket}
-          onUpdateBucketDetails={handleUpdateBucketDetails}
-          onAddContribution={handleAddContribution}
-          onDeleteBucket={handleDeleteBucket}
-        />
-        </Suspense>
-      )}
-
-      {activeTab === "budget" && (
-        <Suspense fallback={null}>
-        <BudgetView
-          categories={usedCategories}
-          budgetActuals={budgetMonthActuals}
-          budgetAlerts={budgetAlerts}
-          monthLabel={budgetMonthLabel}
-          year={budgetYear}
-          month={budgetMonthNum}
-          onPrevMonth={handlePrevBudgetMonth}
-          onNextMonth={handleNextBudgetMonth}
-          onSetBudget={handleSetBudget}
-          onSetCap={handleSetCap}
-          onSetRollover={handleSetRollover}
-          envelopeCapsEnabled={appSettings.envelope_caps_enabled}
-          rolloverEnabled={appSettings.rollover_enabled}
-          onDeleteBudget={handleDeleteBudget}
-          onCategoryClick={handleCategoryClick}
-          onFetchTrend={handleFetchBudgetTrend}
-          onSuggest={handleSuggestBudgets}
-          onApplySuggestions={handleApplyBudgetSuggestions}
-          onOpenMonthReview={() => void handleOpenMonthReview(budgetYear, budgetMonthNum)}
-        />
-        </Suspense>
-      )}
-
-      {activeTab === "household" && (
-        <Suspense fallback={null}>
-        <HouseholdView
-          transactions={transactions}
-          accounts={accounts}
-          assets={assets}
-          familyMembers={familyMembers}
-          memberBudgetActuals={memberBudgetActuals}
-          monthLabel={budgetMonthLabel}
-          year={budgetYear}
-          month={budgetMonthNum}
-          onPrevMonth={handlePrevBudgetMonth}
-          onNextMonth={handleNextBudgetMonth}
-          onManageMembers={openManageFamilyMembers}
-        />
-        </Suspense>
-      )}
-
-      {categoryTransactions && (
-        <CategoryTransactionsDialog
-          category={categoryTransactions.category}
-          monthLabel={budgetMonthLabel}
-          transactions={categoryTransactions.items}
-          categoryOptions={categoryOptions}
-          onCorrectCategory={handleCorrectCategoryFromDialog}
-          onBulkCorrectCategory={handleBulkCorrectCategoryFromDialog}
-          onClose={() => setCategoryTransactions(null)}
-        />
-      )}
-
-      {activeTab === "recurring" && (
-        <Suspense fallback={null}>
-        <RecurringView
-          recurring={recurring}
-          matches={recurringMatches}
-          totals={recurringTotals}
-          candidates={recurringCandidates}
-          accounts={accounts}
-          familyMembers={familyMembers}
-          categoryIconMap={categoryIconMap}
-          onCreate={handleCreateRecurring}
-          onUpdate={handleUpdateRecurring}
-          onDelete={handleDeleteRecurring}
-          onSetStatus={handleSetRecurringStatus}
-          onAddCandidate={handleAddRecurringCandidate}
-          onDismissCandidate={handleDismissRecurringCandidate}
-          onIgnorePriceChange={handleIgnoreRecurringPriceChange}
-        />
-        </Suspense>
-      )}
-
-      {activeTab === "investments" && (
-        <Suspense fallback={null}>
-        <InvestmentsView
-          holdings={holdings}
-          accounts={accounts}
-          onCreate={handleCreateHolding}
-          onUpdatePrice={handleUpdateHoldingPrice}
-          onDelete={handleDeleteHolding}
-          livePricesEnabled={livePriceSettings?.enabled ?? false}
-          onFetchQuote={handleFetchLiveQuote}
-          layoutWidgets={layoutWidgets}
-          onPinWidget={(id) => addWidgetToDashboard(id, true)}
-          portfolioHistory={portfolioHistory}
-          allocationTargets={allocationTargets}
-          onSetAllocationTargets={handleSetAllocationTargets}
-          onSaveProjectionAsGoal={handleSaveProjectionAsGoal}
-          onOpenAccountDetail={(id) => {
-            setAccountDetailId(id);
-            setDetailReturnTab("investments");
-            setActiveTab("accounts");
-          }}
-        />
-        </Suspense>
-      )}
-
-      {activeTab === "help" && (
-        <Suspense fallback={null}>
-          <HelpView />
-        </Suspense>
-      )}
-
-      {activeTab === "cashflow" && (
-        <Suspense fallback={null}>
-        <CashFlowView
-          cashFlow={cashFlow}
-          range={cashFlowRange}
-          onSetRange={setCashFlowRange}
-          compareLastYear={compareLastYear}
-          onToggleCompareLastYear={() => setCompareLastYear((v) => !v)}
-          yoyCashFlow={yoyCashFlow}
-          onMonthClick={handleMonthClick}
-          topCategoriesData={topCategoriesData}
-          topCategoriesMonth={topCategoriesMonth}
-          onSetTopCategoriesMonth={(year, month) => setTopCategoriesMonth({ year, month })}
-          previousMonthCategorySpending={previousMonthCategorySpending}
-          forecastData={forecastData}
-          forecastDays={forecastDays}
-          onSetForecastDays={setForecastDays}
-          accounts={accounts}
-          onSetAccountInterestRate={handleSetAccountInterestRate}
-          onCalculateDebtPayoff={handleCalculateDebtPayoff}
-          onSetAccountExcludedFromDebtPayoff={handleSetAccountExcludedFromDebtPayoff}
-          layoutWidgets={layoutWidgets}
-          onPinWidget={(id) => addWidgetToDashboard(id, true)}
-        />
-        </Suspense>
-      )}
-
-      {monthDetail && <MonthExpenseDetailDialog detail={monthDetail} onClose={() => setMonthDetail(null)} />}
-
-      {activeTab === "reports" && pendingSetupImport && (
-        <div className="dup-review">
-          <p className="dup-review-summary">
-            Reviewing setup data from this file — uncheck anything you don't want imported.
-            {pendingSetupImport.preview.row_errors > 0 &&
-              ` ${pendingSetupImport.preview.row_errors} row(s) had errors and will be ignored.`}
-          </p>
-
-          {pendingSetupImport.preview.accounts.length > 0 && (
-            <>
-              <h2 className="reports-section-title">Accounts</h2>
-              <table className="dup-review-table">
-                <thead>
-                  <tr>
-                    <th className="select-col"></th>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th className="amount-col">Starting balance</th>
-                    <th>Institution</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingSetupImport.preview.accounts.map((row) => (
-                    <tr key={row.index} className={row.already_exists ? "import-row-duplicate" : undefined}>
-                      <td className="select-col">
-                        <input
-                          type="checkbox"
-                          checked={pendingSetupImport.includedAccounts.has(row.index)}
-                          onChange={() => toggleSetupIncluded("includedAccounts", row.index)}
-                          aria-label={`Include account ${row.name}`}
-                        />
-                      </td>
-                      <td>{row.name}</td>
-                      <td>{row.account_type}</td>
-                      <td className="amount-col">{row.starting_balance ? formatAmount(row.starting_balance) : ""}</td>
-                      <td>{row.institution ?? ""}</td>
-                      <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
+                      {!ledgerNarrow && <th>Member</th>}
+                      {!ledgerNarrow && (
+                        <SortableTh column="category" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+                          Category
+                        </SortableTh>
+                      )}
+                      {!ledgerNarrow && (
+                        <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
+                          Sorted by
+                        </SortableTh>
+                      )}
+                      {!ledgerNarrow && appSettings.apply_to_debt_enabled && <th>Debt</th>}
+                      <th className="actions-col"><span className="sr-only">Actions</span></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {pagedTransactions.map((t) => {
+                      const inLeg = inLegByOutId.get(t.id);
+                      if (inLeg) {
+                        return (
+                          <TransferRow
+                            key={t.id}
+                            out={t}
+                            highlighted={highlightedPaymentRow === t.id}
+                            incoming={inLeg}
+                            selected={selectedIds.has(t.id)}
+                            onToggleSelected={() => toggleSelectedMany([t.id, inLeg.id])}
+                            onUnlink={() => handleUnlinkTransfer(t.id)}
+                            onEditNote={setNotesDialogFor}
+                            showDebtColumn={appSettings.apply_to_debt_enabled}
+                            narrow={ledgerNarrow}
+                            detailsOpen={detailsOpenId === t.id}
+                            onToggleDetails={() => setDetailsOpenId(detailsOpenId === t.id ? null : t.id)}
+                          />
+                        );
+                      }
+                      // Extracted once per row so the same live editor — same
+                      // component, same handlers — can render either as its own
+                      // column (normal width) or folded into the row's Details panel
+                      // (narrow width), never both, without duplicating the editing
+                      // logic itself.
+                      const accountField = (
+                        <RowFieldDropdown
+                          ariaLabel={`Account for "${t.description}"`}
+                          value={String(t.account_id)}
+                          options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
+                          onChange={(value) => handleAccountChangeForTransaction(t.id, value)}
+                        />
+                      );
+                      const memberField = (
+                        <RowFieldDropdown
+                          ariaLabel={`Family member for "${t.description}"`}
+                          value={t.member_id !== null ? String(t.member_id) : ""}
+                          options={[
+                            { value: "", label: "Unassigned" },
+                            ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+                          ]}
+                          onChange={(value) => handleMemberChangeForTransaction(t.id, value)}
+                        />
+                      );
+                      const categoryField = (
+                        <>
+                          {t.split_count > 0 ? (
+                            <span className="split-summary">Split ({t.split_count})</span>
+                          ) : (
+                            <RowFieldDropdown
+                              ariaLabel={`Category for "${t.description}"`}
+                              value={t.category ?? ""}
+                              options={[
+                                // Matches the old native select's `<option disabled>`
+                                // placeholder: describes the current "nothing chosen"
+                                // state without itself being pickable — choosing it
+                                // would otherwise write an empty category back as a
+                                // real, saved choice (and register "" as a category,
+                                // and save a rule sending this merchant to "").
+                                { value: "", label: "Uncategorized", disabled: true },
+                                ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
+                                ...categoryOptions.map((c) => ({ value: c, label: c })),
+                                { value: "__new__", label: "+ New category…" },
+                              ]}
+                              onChange={(value) => handleCategoryChange(t.id, value)}
+                            />
+                          )}
+                          {appSettings.split_purchases_enabled && (
+                            <button type="button" className="modal-secondary split-toggle" onClick={() => toggleSplitEditor(t)}>
+                              {t.split_count > 0 ? "Edit splits" : "Split →"}
+                            </button>
+                          )}
+                        </>
+                      );
+                      const sourceField = (
+                        <>
+                          {t.category_source ? (CATEGORY_SOURCE_LABELS[t.category_source] ?? t.category_source) : ""}
+                          {t.confidence !== null && <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>}
+                        </>
+                      );
+                      const debtField = accounts.find((a) => a.id === t.account_id)?.account_type === "loan" ? (
+                        editingPrincipalId === t.id ? (
+                          <span className="debt-apply-form">
+                            <input
+                              className="debt-apply-amount"
+                              value={principalDraft}
+                              onChange={(e) => setPrincipalDraft(e.target.value)}
+                              title="How much of this transaction counts toward what's owed (e.g. just the principal on a mortgage payment)"
+                            />
+                            <button type="button" className="debt-apply-confirm" onClick={() => handleSetPrincipalAmount(t.id)}>
+                              Save
+                            </button>
+                            <button type="button" className="modal-secondary" onClick={() => setEditingPrincipalId(null)}>
+                              Cancel
+                            </button>
+                          </span>
+                        ) : t.principal_amount !== null ? (
+                          <span className="debt-applied-badge">
+                            Principal: {formatAmount(t.principal_amount)}
+                            <button type="button" className="modal-secondary" onClick={() => handleResetPrincipalAmount(t.id)}>
+                              Reset
+                            </button>
+                          </span>
+                        ) : (
+                          <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startEditingPrincipal(t)}>
+                            Split principal →
+                          </button>
+                        )
+                      ) : t.applied_to_debt ? (
+                        <span className="debt-applied-badge">
+                          → {t.applied_to_debt.debt_account_name} ({formatAmount(t.applied_to_debt.amount)})
+                          <button type="button" className="modal-secondary" onClick={() => handleUnapplyDebtPayment(t.id)}>
+                            Undo
+                          </button>
+                        </span>
+                      ) : applyingDebtId === t.id ? (
+                        <span className="debt-apply-form">
+                          <MenuSelect
+                            ariaLabel={`Debt account to apply "${t.description}" toward`}
+                            value={applyDebtForm.accountId}
+                            onChange={(v) => setApplyDebtForm({ ...applyDebtForm, accountId: v })}
+                            options={debtAccounts.map((a) => ({ value: String(a.id), label: a.name }))}
+                          />
+                          <input
+                            className="debt-apply-amount"
+                            value={applyDebtForm.amount}
+                            onChange={(e) => setApplyDebtForm({ ...applyDebtForm, amount: e.target.value })}
+                            title="How much of this payment counts toward the debt (e.g. just the principal on a mortgage payment)"
+                          />
+                          <button type="button" className="debt-apply-confirm" onClick={() => handleApplyDebtPayment(t.id, t.date)}>
+                            Apply
+                          </button>
+                          <button type="button" className="modal-secondary" onClick={() => setApplyingDebtId(null)}>
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        // The loan case is already handled above — only credit
+                        // (excluded, a payment there needs no principal split) and
+                        // every non-debt account reach here.
+                        // Only money going out can be a debt payment (not income or a transfer in).
+                        debtAccounts.length > 0 &&
+                        parseFloat(t.amount) < 0 &&
+                        accounts.find((a) => a.id === t.account_id)?.account_type !== "credit" && (
+                          <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startApplyingDebtPayment(t)}>
+                            Apply to a debt →
+                          </button>
+                        )
+                      );
+                      return (
+                        <Fragment key={t.id}>
+                          <tr data-payment-row={t.id} tabIndex={-1} className={[selectedIds.has(t.id) ? "ledger-row-selected" : "", highlightedPaymentRow === t.id ? "payment-row-highlight" : ""].filter(Boolean).join(" ") || undefined}>
+                            <td className="select-col">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(t.id)}
+                                onChange={() => toggleSelected(t.id)}
+                                aria-label={`Select transaction ${t.id}`}
+                              />
+                            </td>
+                            <td className="date-col">
+                              {editingDate?.id === t.id ? (
+                                <input
+                                  autoFocus
+                                  type="date"
+                                  className="row-edit-input"
+                                  value={editingDate.value}
+                                  onChange={(e) => setEditingDate({ id: t.id, value: e.target.value })}
+                                  onBlur={() => commitDateEdit(t.id, editingDate.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") commitDateEdit(t.id, editingDate.value);
+                                    if (e.key === "Escape") setEditingDate(null);
+                                  }}
+                                />
+                              ) : (
+                                <span
+                                  className="amount-editable date-cell"
+                                  title="Click to fix the date"
+                                  onClick={() => setEditingDate({ id: t.id, value: t.date })}
+                                >
+                                  {t.date}
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <span className="cell-with-icon">
+                                <span className="row-icon-badge">
+                                  <CategoryIcon category={t.category} iconKey={t.category ? categoryIconMap[t.category] : null} />
+                                </span>
+                                {editingDescription?.id === t.id ? (
+                                  <input
+                                    autoFocus
+                                    className="row-edit-input"
+                                    value={editingDescription.value}
+                                    onChange={(e) => setEditingDescription({ id: t.id, value: e.target.value })}
+                                    onBlur={() => commitDescriptionEdit(t.id, editingDescription.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") commitDescriptionEdit(t.id, editingDescription.value);
+                                      if (e.key === "Escape") setEditingDescription(null);
+                                    }}
+                                  />
+                                ) : (
+                                  <span
+                                    className="amount-editable"
+                                    title="Click to fix the description"
+                                    onClick={() => setEditingDescription({ id: t.id, value: t.description })}
+                                  >
+                                    {t.description}
+                                  </span>
+                                )}
+                              </span>
+                              <AppliedPaymentDetails transaction={t} />
+                              {(anomalyFlagsByTransaction.get(t.id) ?? []).map((flag, i) => (
+                                <InfoTip
+                                  key={i}
+                                  label={flag.kind === "large" ? "unusually large charge" : "possible duplicate"}
+                                  text={flag.detail}
+                                  glyph={flag.kind === "large" ? "⚠" : "⧉"}
+                                  buttonClassName={flag.kind === "large" ? "anomaly-badge anomaly-large" : "anomaly-badge anomaly-duplicate"}
+                                />
+                              ))}
+                              {t.transfer_counterpart_id !== null && (
+                                <button
+                                  type="button"
+                                  className="transfer-badge transfer-badge-button"
+                                  title="Linked as a transfer with a transaction that isn't shown here — click to unlink"
+                                  onClick={() => handleUnlinkTransfer(t.id)}
+                                >
+                                  ⇄ Transfer ×
+                                </button>
+                              )}
+                              <div className="transaction-description-meta">
+                                <div className="tag-pills">
+                                  {t.tags.map((tag) => (
+                                    <span key={tag} className="tag-pill">
+                                      {tag}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveTag(t.id, tag)}
+                                        aria-label={`Remove tag ${tag}`}
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  ))}
+
+                                  <input
+                                    className="tag-input"
+                                    list="known-tags"
+                                    placeholder="+ tag"
+                                    value={newTagText[t.id] ?? ""}
+                                    onChange={(e) =>
+                                      setNewTagText((prev) => ({
+                                        ...prev,
+                                        [t.id]: e.target.value,
+                                      }))
+                                    }
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleAddTag(t.id, newTagText[t.id] ?? "");
+                                      }
+                                    }}
+                                  />
+                                </div>
+
+                                {t.notes ? (
+                                  <button
+                                    type="button"
+                                    className="modal-secondary btn-sm transaction-note-preview"
+                                    onClick={() => setNotesDialogFor(t)}
+                                    title={t.notes}
+                                    aria-label={`Edit note for "${t.description}"`}
+                                  >
+                                    {t.notes.length > 40 ? `${t.notes.slice(0, 40)}…` : t.notes}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="modal-secondary btn-sm transaction-note-add"
+                                    onClick={() => setNotesDialogFor(t)}
+                                    aria-label={`Add note for "${t.description}"`}
+                                  >
+                                    + Add note
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="amount-col">
+                              {editingAmount?.id === t.id ? (
+                                <input
+                                  autoFocus
+                                  className="amount-edit-input"
+                                  value={editingAmount.value}
+                                  onChange={(e) => setEditingAmount({ id: t.id, value: e.target.value })}
+                                  onBlur={() => commitAmountEdit(t.id, editingAmount.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") commitAmountEdit(t.id, editingAmount.value);
+                                    if (e.key === "Escape") setEditingAmount(null);
+                                  }}
+                                />
+                              ) : (
+                                <span
+                                  className="amount-editable"
+                                  title="Click to fix the amount"
+                                  onClick={() => setEditingAmount({ id: t.id, value: t.amount })}
+                                >
+                                  {formatAmount(t.amount)}
+                                </span>
+                              )}
+                            </td>
+                            {!ledgerNarrow && <td className="account-col">{accountField}</td>}
+                            {!ledgerNarrow && <td className="member-col">{memberField}</td>}
+                            {!ledgerNarrow && <td className="category-col">{categoryField}</td>}
+                            {!ledgerNarrow && <td className="source-col">{sourceField}</td>}
+                            {!ledgerNarrow && appSettings.apply_to_debt_enabled && <td className="debt-col">{debtField}</td>}
+                            <td className="actions-col">
+                              {ledgerNarrow && (
+                                <button
+                                  type="button"
+                                  className="modal-secondary"
+                                  aria-expanded={detailsOpenId === t.id}
+                                  onClick={() => setDetailsOpenId(detailsOpenId === t.id ? null : t.id)}
+                                >
+                                  {detailsOpenId === t.id ? "Hide details" : "Details"}
+                                </button>
+                              )}
+                              {confirmingDeleteId === t.id ? (
+                                <span className="row-delete-confirm row-delete-confirm-detailed">
+                                  {(() => {
+                                    const impact = describeDeleteImpact(t.amount, accounts.find((a) => a.id === t.account_id));
+                                    return impact ? <span className="delete-impact-note">{impact}</span> : null;
+                                  })()}
+                                  <span className="row-delete-confirm-actions">
+                                    <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(null)}>
+                                      Cancel
+                                    </button>
+                                    <button type="button" className="btn-danger" onClick={() => handleDeleteTransaction(t.id)}>
+                                      Delete
+                                    </button>
+                                  </span>
+                                </span>
+                              ) : (
+                                <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(t.id)}>
+                                  Delete
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {ledgerNarrow && detailsOpenId === t.id && (
+                            <tr className="ledger-details-row">
+                              <td colSpan={ledgerColumnCount}>
+                                <div className="ledger-details">
+                                  <label className="ledger-details-field">
+                                    <span>Account</span>
+                                    {accountField}
+                                  </label>
+                                  <label className="ledger-details-field">
+                                    <span>Member</span>
+                                    {memberField}
+                                  </label>
+                                  <label className="ledger-details-field">
+                                    <span>Category</span>
+                                    {categoryField}
+                                  </label>
+                                  <label className="ledger-details-field">
+                                    <span>Sorted by</span>
+                                    {sourceField}
+                                  </label>
+                                  {appSettings.apply_to_debt_enabled && (
+                                    <label className="ledger-details-field">
+                                      <span>Debt</span>
+                                      {debtField}
+                                    </label>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {expandedSplitId === t.id && (
+                            <tr className="split-editor-row">
+                              <td colSpan={ledgerColumnCount}>
+                                <div className="split-editor">
+                                  {splitLines.map((line, i) => (
+                                    <div className="split-editor-line" key={i}>
+                                      <MenuSelect
+                                        ariaLabel={`Category for split ${i + 1} of "${t.description}"`}
+                                        value={line.category}
+                                        onChange={(v) => updateSplitLine(i, { category: v })}
+                                        options={categoryOptions.map((c) => ({ value: c, label: c }))}
+                                      />
+                                      <input
+                                        className="debt-apply-amount"
+                                        value={line.amount}
+                                        onChange={(e) => updateSplitLine(i, { amount: e.target.value })}
+                                        placeholder="Amount"
+                                      />
+                                      <input
+                                        value={line.note}
+                                        onChange={(e) => updateSplitLine(i, { note: e.target.value })}
+                                        placeholder="Note (optional)"
+                                      />
+                                      <button type="button" className="modal-secondary" onClick={() => removeSplitLine(i)}>
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <div className="split-editor-actions">
+                                    <button type="button" className="modal-secondary" onClick={addSplitLine}>
+                                      Add line
+                                    </button>
+                                    <span className={Math.abs(splitRemaining(t)) < 0.01 ? "split-remaining split-remaining-ok" : "split-remaining"}>
+                                      Remaining to allocate: {formatAmount(splitRemaining(t).toFixed(2))}
+                                    </span>
+                                    <button type="button" disabled={Math.abs(splitRemaining(t)) >= 0.01} onClick={() => saveSplits(t)}>
+                                      Save splits
+                                    </button>
+                                    {t.split_count > 0 && (
+                                      <button type="button" className="modal-secondary" onClick={() => clearSplits(t)}>
+                                        Clear splits
+                                      </button>
+                                    )}
+                                    <button type="button" className="modal-secondary" onClick={() => setExpandedSplitId(null)}>
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                    {filteredTransactions.length === 0 && (
+                      <tr>
+                        <td colSpan={ledgerColumnCount} className="empty-state">
+                          {transactions.length === 0
+                            ? "No transactions yet — import a CSV to get started."
+                            : "No transactions match your filters."}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 
-          {pendingSetupImport.preview.categories.length > 0 && (
-            <>
-              <h2 className="reports-section-title">Categories</h2>
-              <table className="dup-review-table">
-                <thead>
-                  <tr>
-                    <th className="select-col"></th>
-                    <th>Name</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingSetupImport.preview.categories.map((row) => (
-                    <tr key={row.index} className={row.already_exists ? "import-row-duplicate" : undefined}>
-                      <td className="select-col">
-                        <input
-                          type="checkbox"
-                          checked={pendingSetupImport.includedCategories.has(row.index)}
-                          onChange={() => toggleSetupIncluded("includedCategories", row.index)}
-                          aria-label={`Include category ${row.name}`}
-                        />
-                      </td>
-                      <td>{row.name}</td>
-                      <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
+          {activeTab === "ledger" && filteredTransactions.length > 0 && (
+            <div className="ledger-pagination">
+              <label className="ledger-page-size">
+                Show
+                <MenuSelect
+                  ariaLabel="Rows per page"
+                  value={String(pageSize)}
+                  onChange={(v) => setPageSize(Number(v))}
+                  options={[
+                    { value: "10", label: "10" },
+                    { value: "25", label: "25" },
+                    { value: "50", label: "50" },
+                  ]}
+                />
+                per page
+              </label>
+              <div className="month-nav">
+                <button
+                  type="button"
+                  className="modal-secondary"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  aria-label="Previous page"
+                >
+                  ‹
+                </button>
+                <span className="month-label">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="modal-secondary"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  aria-label="Next page"
+                >
+                  ›
+                </button>
+              </div>
+              <span className="ledger-page-count">{displayTransactions.length} total</span>
+            </div>
           )}
 
-          {pendingSetupImport.preview.budgets.length > 0 && (
-            <>
-              <h2 className="reports-section-title">Budgets</h2>
-              <table className="dup-review-table">
-                <thead>
-                  <tr>
-                    <th className="select-col"></th>
-                    <th>Category</th>
-                    <th>Group</th>
-                    <th className="amount-col">Monthly amount</th>
-                    <th>Period</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingSetupImport.preview.budgets.map((row) => (
-                    <tr key={row.index}>
-                      <td className="select-col">
-                        <input
-                          type="checkbox"
-                          checked={pendingSetupImport.includedBudgets.has(row.index)}
-                          onChange={() => toggleSetupIncluded("includedBudgets", row.index)}
-                          aria-label={`Include budget ${row.category}`}
-                        />
-                      </td>
-                      <td>{row.category}</td>
-                      <td>{row.budget_group}</td>
-                      <td className="amount-col">{formatAmount(row.monthly_amount)}</td>
-                      <td>{row.period ?? "This month"}</td>
-                      <td className="source-col">{row.will_update ? "Will update existing" : "New"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
+          {activeTab === "buckets" && (
+            <Suspense fallback={null}>
+              <BucketsView
+                buckets={buckets}
+                accounts={accounts}
+                familyMembers={familyMembers}
+                onCreateBucket={handleCreateBucket}
+                onUpdateBucketDetails={handleUpdateBucketDetails}
+                onAddContribution={handleAddContribution}
+                onDeleteBucket={handleDeleteBucket}
+              />
+            </Suspense>
           )}
 
-          {pendingSetupImport.preview.buckets.length > 0 && (
-            <>
-              <h2 className="reports-section-title">Goals</h2>
-              <table className="dup-review-table">
-                <thead>
-                  <tr>
-                    <th className="select-col"></th>
-                    <th>Name</th>
-                    <th className="amount-col">Target</th>
-                    <th>Target date</th>
-                    <th>Linked account</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingSetupImport.preview.buckets.map((row) => (
-                    <tr key={row.index} className={row.already_exists ? "import-row-duplicate" : undefined}>
-                      <td className="select-col">
-                        <input
-                          type="checkbox"
-                          checked={pendingSetupImport.includedBuckets.has(row.index)}
-                          onChange={() => toggleSetupIncluded("includedBuckets", row.index)}
-                          aria-label={`Include goal ${row.name}`}
-                        />
-                      </td>
-                      <td>{row.name}</td>
-                      <td className="amount-col">{row.target_amount ? formatAmount(row.target_amount) : ""}</td>
-                      <td>{row.target_date ?? ""}</td>
-                      <td>{row.linked_account_name ?? ""}</td>
-                      <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
+          {activeTab === "budget" && (
+            <Suspense fallback={null}>
+              <BudgetView
+                categories={usedCategories}
+                budgetActuals={budgetMonthActuals}
+                monthFlow={budgetMonthFlow}
+                budgetAlerts={budgetAlerts}
+                monthLabel={budgetMonthLabel}
+                year={budgetYear}
+                month={budgetMonthNum}
+                onPrevMonth={handlePrevBudgetMonth}
+                onNextMonth={handleNextBudgetMonth}
+                onSetBudget={handleSetBudget}
+                onSetCap={handleSetCap}
+                onSetRollover={handleSetRollover}
+                envelopeCapsEnabled={appSettings.envelope_caps_enabled}
+                rolloverEnabled={appSettings.rollover_enabled}
+                onDeleteBudget={handleDeleteBudget}
+                onCategoryClick={handleCategoryClick}
+                onFetchTrend={handleFetchBudgetTrend}
+                onSuggest={handleSuggestBudgets}
+                onApplySuggestions={handleApplyBudgetSuggestions}
+                onOpenMonthReview={() => void handleOpenMonthReview(budgetYear, budgetMonthNum)}
+              />
+            </Suspense>
           )}
 
-          {pendingSetupImport.preview.holdings.length > 0 && (
-            <>
-              <h2 className="reports-section-title">Holdings</h2>
-              <table className="dup-review-table">
-                <thead>
-                  <tr>
-                    <th className="select-col"></th>
-                    <th>Account</th>
-                    <th>Symbol</th>
-                    <th>Name</th>
-                    <th className="amount-col">Shares</th>
-                    <th className="amount-col">Price</th>
-                    <th className="amount-col">Cost basis</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingSetupImport.preview.holdings.map((row) => (
-                    <tr key={row.index} className={row.account_found ? undefined : "import-row-duplicate"}>
-                      <td className="select-col">
-                        <input
-                          type="checkbox"
-                          checked={pendingSetupImport.includedHoldings.has(row.index)}
-                          onChange={() => toggleSetupIncluded("includedHoldings", row.index)}
-                          aria-label={`Include holding ${row.symbol}`}
-                        />
-                      </td>
-                      <td>{row.account_name}</td>
-                      <td>{row.symbol}</td>
-                      <td>{row.name ?? ""}</td>
-                      <td className="amount-col">{row.shares}</td>
-                      <td className="amount-col">{formatAmount(row.price)}</td>
-                      <td className="amount-col">{formatAmount(row.cost_basis)}</td>
-                      <td className="source-col">{row.account_found ? "New" : "Account not found"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
+          {activeTab === "household" && (
+            <Suspense fallback={null}>
+              <HouseholdView
+                transactions={transactions}
+                accounts={accounts}
+                assets={assets}
+                familyMembers={familyMembers}
+                memberBudgetActuals={memberBudgetActuals}
+                monthLabel={budgetMonthLabel}
+                year={budgetYear}
+                month={budgetMonthNum}
+                onPrevMonth={handlePrevBudgetMonth}
+                onNextMonth={handleNextBudgetMonth}
+                onManageMembers={openManageFamilyMembers}
+              />
+            </Suspense>
           )}
 
-          <div className="dup-review-actions">
-            <button className="modal-secondary" onClick={() => setPendingSetupImport(null)} disabled={busy}>
-              Cancel
-            </button>
-            <button
-              onClick={confirmSetupImport}
-              disabled={
-                busy ||
-                pendingSetupImport.includedAccounts.size +
-                  pendingSetupImport.includedCategories.size +
-                  pendingSetupImport.includedBudgets.size +
-                  pendingSetupImport.includedBuckets.size +
-                  pendingSetupImport.includedHoldings.size ===
-                  0
-              }
-            >
-              {busy ? "Importing…" : "Import selected"}
-            </button>
-          </div>
-        </div>
-      )}
+          {categoryTransactions && (
+            <CategoryTransactionsDialog
+              category={categoryTransactions.category}
+              monthLabel={budgetMonthLabel}
+              transactions={categoryTransactions.items}
+              categoryOptions={categoryOptions}
+              onCorrectCategory={handleCorrectCategoryFromDialog}
+              onBulkCorrectCategory={handleBulkCorrectCategoryFromDialog}
+              onClose={() => setCategoryTransactions(null)}
+            />
+          )}
 
-      {activeTab === "accounts" && accountDetail && (
-        <AccountDetailView
-          key={accountDetail.id}
-          account={accountDetail}
-          onBack={() => {
-            if (detailReturnTab) setActiveTab(detailReturnTab);
-            else setAccountDetailId(null);
-          }}
-          backLabel={detailReturnTab === "investments" ? "← Investments" : undefined}
-          onOpenTransactions={() => setActiveTab("ledger")}
-          onMessage={(text, kind) => setStatus(text, kind)}
-        />
-      )}
+          {activeTab === "recurring" && (
+            <Suspense fallback={null}>
+              <RecurringView
+                recurring={recurring}
+                matches={recurringMatches}
+                totals={recurringTotals}
+                candidates={recurringCandidates}
+                accounts={accounts}
+                familyMembers={familyMembers}
+                categoryIconMap={categoryIconMap}
+                onCreate={handleCreateRecurring}
+                onUpdate={handleUpdateRecurring}
+                onDelete={handleDeleteRecurring}
+                onSetStatus={handleSetRecurringStatus}
+                onAddCandidate={handleAddRecurringCandidate}
+                onDismissCandidate={handleDismissRecurringCandidate}
+                onIgnorePriceChange={handleIgnoreRecurringPriceChange}
+              />
+            </Suspense>
+          )}
 
-      {activeTab === "accounts" && !accountDetail && (
-        <Suspense fallback={null}>
-        <AccountsView
-          accounts={accounts}
-          manualAssetsTotal={assets.reduce((s, a) => s + parseFloat(a.value), 0)}
-          netWorthHistory={netWorthHistory}
-          accountContributionDeltas={accountContributionDeltas}
-          onSetStartingBalance={handleSetStartingBalance}
-          onSetBalanceOverride={handleSetBalanceOverride}
-          onUpdateAccountType={handleUpdateAccountType}
-          onDeleteAccount={handleDeleteAccount}
-          onSetAccountDetails={handleSetAccountDetails}
-          familyMembers={familyMembers}
-          onSetAccountMember={handleSetAccountMember}
-          onSetAccountIcon={handleSetAccountIcon}
-          onAddAccount={handleNewAccount}
-          onOpenAccountDetail={setAccountDetailId}
-          assets={assets}
-          onCreateAsset={handleCreateAsset}
-          onUpdateAssetValue={handleUpdateAssetValue}
-          onSetAssetMember={handleSetAssetMember}
-          onDeleteAsset={handleDeleteAsset}
-        />
-        </Suspense>
-      )}
+          {activeTab === "investments" && (
+            <Suspense fallback={null}>
+              <InvestmentsView
+                holdings={holdings}
+                accounts={accounts}
+                onCreate={handleCreateHolding}
+                onUpdatePrice={handleUpdateHoldingPrice}
+                onDelete={handleDeleteHolding}
+                livePricesEnabled={livePriceSettings?.enabled ?? false}
+                onFetchQuote={handleFetchLiveQuote}
+                layoutWidgets={layoutWidgets}
+                onPinWidget={(id) => addWidgetToDashboard(id, true)}
+                portfolioHistory={portfolioHistory}
+                allocationTargets={allocationTargets}
+                onSetAllocationTargets={handleSetAllocationTargets}
+                onSaveProjectionAsGoal={handleSaveProjectionAsGoal}
+                onOpenAccountDetail={(id) => {
+                  setAccountDetailId(id);
+                  setDetailReturnTab("investments");
+                  setActiveTab("accounts");
+                }}
+              />
+            </Suspense>
+          )}
 
-      {activeTab === "reports" && !pendingSetupImport && (
-        <Suspense fallback={null}>
-        <ReportsView
-          accounts={accounts}
-          transactions={transactions}
-          assets={assets}
-          familyMembers={familyMembers}
-          onExportCsv={handleExportReportsCsv}
-          onPrint={() => window.print()}
-          onOpenBudget={() => setActiveTab("budget")}
-          layoutWidgets={layoutWidgets}
-          onPinWidget={(id) => addWidgetToDashboard(id, true)}
-        />
-        </Suspense>
-      )}
+          {activeTab === "help" && (
+            <Suspense fallback={null}>
+              <HelpView />
+            </Suspense>
+          )}
 
-      {activeTab === "settings" && (
-        <Suspense fallback={null}>
-        <SettingsView
-          appVersion={appVersion}
-          dataFileLocation={dataFileLocation}
-          onRelocateDataFile={handleRelocateDataFile}
-          onExportDatabase={handleExportDatabase}
-          backups={backups}
-          onCreateBackupNow={handleCreateBackupNow}
-          onRestoreBackup={handleRestoreBackup}
-          backupCopyDir={backupCopyDir}
-          onSetBackupCopyDir={handleSetBackupCopyDir}
-          onBrowseBackupCopyDir={handleBrowseBackupCopyDir}
-          profiles={profiles}
-          onCreateProfile={handleCreateProfile}
-          onUseExistingDataFile={handlePickExistingDataFile}
-          onSwitchProfile={handleSwitchProfile}
-          onRenameProfile={handleRenameProfile}
-          onSetProfileIcon={handleSetProfileIcon}
-          onDeleteProfile={handleDeleteProfile}
-          onProtected={() => void refreshProtectionState()}
-          livePriceSettings={livePriceSettings}
-          onSetLivePriceApiKey={handleSetLivePriceApiKey}
-          onRefreshLivePrices={handleRefreshLivePrices}
-          appSettings={appSettings}
-          onSetApplyToDebtEnabled={handleSetApplyToDebtEnabled}
-          onSetSplitPurchasesEnabled={handleSetSplitPurchasesEnabled}
-          onSetEnvelopeCapsEnabled={handleSetEnvelopeCapsEnabled}
-          onSetRolloverEnabled={handleSetRolloverEnabled}
-          onSetAutoLinkTransfers={handleSetAutoLinkTransfers}
-          themeStyle={themeStyle}
-          onSetThemeStyle={setThemeStyle}
-          privacyAutoHide={privacyPrefs.autoHide}
-          onSetPrivacyAutoHide={(autoHide) => setPrivacyPrefs((p) => ({ ...p, autoHide }))}
-          onDownloadSetupTemplate={handleDownloadSetupTemplate}
-          onImportSetupData={handleImportSetupData}
-          backgroundSettings={backgroundSettings}
-          onSetTray={handleSetTray}
-          onSetAutostart={handleSetAutostart}
-          onSendTestReminder={handleSendTestReminder}
-          showBillNamesInReminders={showBillNamesInReminders}
-          onSetShowBillNamesInReminders={handleSetShowBillNamesInReminders}
-          categories={usedCategories}
-          onRulesApplied={() => void refresh()}
-          onMessage={(text, kind) => setStatus(text, kind)}
-        />
-        </Suspense>
-      )}
+          {activeTab === "cashflow" && (
+            <Suspense fallback={null}>
+              <CashFlowView
+                cashFlow={cashFlow}
+                range={cashFlowRange}
+                onSetRange={setCashFlowRange}
+                compareLastYear={compareLastYear}
+                onToggleCompareLastYear={() => setCompareLastYear((v) => !v)}
+                yoyCashFlow={yoyCashFlow}
+                onMonthClick={handleMonthClick}
+                topCategoriesData={topCategoriesData}
+                topCategoriesMonth={topCategoriesMonth}
+                onSetTopCategoriesMonth={(year, month) => {
+                  setTopCategoriesData(null);
+                  setTopCategoriesMonth({ year, month });
+                }}
+                previousMonthCategorySpending={previousMonthCategorySpending}
+                forecastData={forecastData}
+                forecastDays={forecastDays}
+                onSetForecastDays={setForecastDays}
+                accounts={accounts}
+                onSetAccountInterestRate={handleSetAccountInterestRate}
+                onCalculateDebtPayoff={handleCalculateDebtPayoff}
+                onSetAccountExcludedFromDebtPayoff={handleSetAccountExcludedFromDebtPayoff}
+                layoutWidgets={layoutWidgets}
+                onPinWidget={(id) => addWidgetToDashboard(id, true)}
+              />
+            </Suspense>
+          )}
 
-      {dialog?.kind === "newAccount" && (
-        <NewAccountDialog
-          familyMembers={familyMembers}
-          onCancel={() => {
-            dialog.resolve(null);
-            setDialog(null);
-          }}
-          onSubmit={(name, accountType, startingBalance, institution, mask, memberId, iconKey) => {
-            dialog.resolve({ name, accountType, startingBalance, institution, mask, memberId, iconKey });
-            setDialog(null);
-          }}
-        />
-      )}
-      {dialog?.kind === "newCategory" && (
-        <NewCategoryDialog
-          onCancel={() => {
-            dialog.resolve(null);
-            setDialog(null);
-          }}
-          onSubmit={async (name, iconKey) => {
-            try {
-              await invoke("create_category", { name, iconKey });
-              await refresh();
-            } catch (e) {
-              setStatus(String(e));
-            }
-            dialog.resolve(name);
-            setDialog(null);
-          }}
-        />
-      )}
-      {dialog?.kind === "confirmInvert" && (
-        <ConfirmInvertDialog
-          onCancel={() => {
-            dialog.resolve(false);
-            setDialog(null);
-          }}
-          onConfirm={() => {
-            dialog.resolve(true);
-            setDialog(null);
-          }}
-        />
-      )}
-      {dialog?.kind === "csvExportWarning" && (
-        <CsvExportWarningDialog
-          onCancel={() => {
-            dialog.resolve(false);
-            setDialog(null);
-          }}
-          onConfirm={() => {
-            dialog.resolve(true);
-            setDialog(null);
-          }}
-        />
-      )}
-      {addWidgetModalOpen && (
-        <AddWidgetDialog
-          currentWidgets={layoutWidgets}
-          accounts={accounts}
-          buckets={buckets}
-          holdings={holdings}
-          onAdd={(id) => addWidgetToDashboard(id, false)}
-          onCancel={() => setAddWidgetModalOpen(false)}
-        />
-      )}
-      {manageCategoriesOpen && (
-        <ManageCategoriesDialog
-          categories={usedCategories}
-          categoryIconMap={categoryIconMap}
-          onCancel={() => setManageCategoriesOpen(false)}
-          onCreate={handleCreateCategory}
-          onSetIcon={handleSetCategoryIcon}
-          onRename={handleRenameCategory}
-          onDelete={handleDeleteCategory}
-        />
-      )}
-      {paletteOpen && <CommandPalette entries={paletteEntries} onRun={runPaletteEntry} onClose={() => setPaletteOpen(false)} />}
-      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
-      {inbox && (
-        <ImportInboxDialog
-          items={inbox}
-          categories={usedCategories}
-          onSetCategory={handleInboxSetCategory}
-          onDelete={handleInboxDelete}
-          onDismiss={handleInboxDismiss}
-          onClose={() => void closeInbox()}
-        />
-      )}
-      {monthReview && (
-        <MonthReviewDialog
-          review={monthReview}
-          goals={buckets}
-          onCategorize={handleReviewCategorize}
-          onFinish={() => void handleFinishMonthReview()}
-          onCancel={() => setMonthReview(null)}
-        />
-      )}
-      {transferReviewOpen && (
-        <TransferReviewDialog
-          pairs={transferCandidatePairs}
-          onLink={handleLinkTransfers}
-          onCancel={() => setTransferReviewOpen(false)}
-        />
-      )}
-      {autoLinkReviewOpen && (
-        <AutoLinkedReviewDialog
-          pairs={autoLinkedPairs}
-          onUnlink={(outId) => void handleUnlinkTransfer(outId)}
-          onLooksRight={(outIds) => void handleMarkAutoLinksReviewed(outIds)}
-          onClose={() => setAutoLinkReviewOpen(false)}
-        />
-      )}
+          {monthDetail && <MonthExpenseDetailDialog detail={monthDetail} onClose={() => setMonthDetail(null)} />}
 
-      {manageFamilyMembersOpen && (
-        <ManageFamilyMembersDialog
-          members={familyMembers}
-          onCancel={() => setManageFamilyMembersOpen(false)}
-          onCreate={handleCreateFamilyMember}
-          onRename={handleRenameFamilyMember}
-          onDelete={handleDeleteFamilyMember}
-        />
-      )}
-      {choosingExistingSource && (
-        <ChooseExistingDataSourceDialog
-          onCancel={() => setChoosingExistingSource(false)}
-          onDatabase={() => void handlePickExistingDatabase()}
-          onPackage={() => void handlePickProtectedPackage()}
-        />
-      )}
-      {pendingExistingDbPath && (
-        <UseExistingDataFileDialog
-          path={pendingExistingDbPath}
-          isProtectedPackage={pendingExistingIsProtected}
-          requiresPassword={pendingExistingRequiresPassword}
-          onCancel={() => {
-            setPendingExistingDbPath(null);
-            setPendingExistingIsProtected(false);
-            setPendingExistingRequiresPassword(false);
-          }}
-          onSubmit={handleAddExistingProfile}
-        />
-      )}
-      {pendingProtectedSwitch && (
-        <SwitchToProtectedProfileDialog
-          profileName={pendingProtectedSwitch.name}
-          onCancel={() => setPendingProtectedSwitch(null)}
-          onSubmit={async (password) => {
-            // unlock_profile only ever resolves once it has already hot-swapped the live backend
-            // connection to the new profile — onDataFileChanged (not the profile-lock-state-changed
-            // broadcast, which StartupGate alone listens to) is what actually remounts this App
-            // instance so it refetches everything for the newly-active profile: StartupGate stays on
-            // its own "open" status across this whole switch, so its event subscription never fires
-            // a re-render that would change what it renders.
-            await unlockProfile(pendingProtectedSwitch.id, password);
-            const name = pendingProtectedSwitch.name;
-            setPendingProtectedSwitch(null);
-            onDataFileChanged(`Switched to "${name}".`);
-          }}
-        />
-      )}
-      {newTransactionOpen && (
-        <NewTransactionDialog
-          accounts={accounts}
-          categories={categoryOptions}
-          familyMembers={familyMembers}
-          defaultAccountId={selectedAccountId}
-          budgetActuals={report?.budget_actuals ?? []}
-          onCancel={() => setNewTransactionOpen(false)}
-          onSubmit={handleCreateManualTransaction}
-        />
-      )}
+          {activeTab === "reports" && pendingSetupImport && (
+            <div className="dup-review">
+              <p className="dup-review-summary">
+                Reviewing setup data from this file — uncheck anything you don't want imported.
+                {pendingSetupImport.preview.row_errors > 0 &&
+                  ` ${pendingSetupImport.preview.row_errors} row(s) had errors and will be ignored.`}
+              </p>
+
+              {pendingSetupImport.preview.accounts.length > 0 && (
+                <>
+                  <h2 className="reports-section-title">Accounts</h2>
+                  <table className="dup-review-table">
+                    <thead>
+                      <tr>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th className="amount-col">Starting balance</th>
+                        <th>Institution</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingSetupImport.preview.accounts.map((row) => (
+                        <tr key={row.index} className={row.already_exists ? "import-row-duplicate" : undefined}>
+                          <td className="select-col">
+                            <input
+                              type="checkbox"
+                              checked={pendingSetupImport.includedAccounts.has(row.index)}
+                              onChange={() => toggleSetupIncluded("includedAccounts", row.index)}
+                              aria-label={`Include account ${row.name}`}
+                            />
+                          </td>
+                          <td>{row.name}</td>
+                          <td>{row.account_type}</td>
+                          <td className="amount-col">{row.starting_balance ? formatAmount(row.starting_balance) : ""}</td>
+                          <td>{row.institution ?? ""}</td>
+                          <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              {pendingSetupImport.preview.categories.length > 0 && (
+                <>
+                  <h2 className="reports-section-title">Categories</h2>
+                  <table className="dup-review-table">
+                    <thead>
+                      <tr>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
+                        <th>Name</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingSetupImport.preview.categories.map((row) => (
+                        <tr key={row.index} className={row.already_exists ? "import-row-duplicate" : undefined}>
+                          <td className="select-col">
+                            <input
+                              type="checkbox"
+                              checked={pendingSetupImport.includedCategories.has(row.index)}
+                              onChange={() => toggleSetupIncluded("includedCategories", row.index)}
+                              aria-label={`Include category ${row.name}`}
+                            />
+                          </td>
+                          <td>{row.name}</td>
+                          <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              {pendingSetupImport.preview.budgets.length > 0 && (
+                <>
+                  <h2 className="reports-section-title">Budgets</h2>
+                  <table className="dup-review-table">
+                    <thead>
+                      <tr>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
+                        <th>Category</th>
+                        <th>Group</th>
+                        <th className="amount-col">Monthly amount</th>
+                        <th>Period</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingSetupImport.preview.budgets.map((row) => (
+                        <tr key={row.index}>
+                          <td className="select-col">
+                            <input
+                              type="checkbox"
+                              checked={pendingSetupImport.includedBudgets.has(row.index)}
+                              onChange={() => toggleSetupIncluded("includedBudgets", row.index)}
+                              aria-label={`Include budget ${row.category}`}
+                            />
+                          </td>
+                          <td>{row.category}</td>
+                          <td>{row.budget_group}</td>
+                          <td className="amount-col">{formatAmount(row.monthly_amount)}</td>
+                          <td>{row.period ?? "This month"}</td>
+                          <td className="source-col">{row.will_update ? "Will update existing" : "New"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              {pendingSetupImport.preview.buckets.length > 0 && (
+                <>
+                  <h2 className="reports-section-title">Goals</h2>
+                  <table className="dup-review-table">
+                    <thead>
+                      <tr>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
+                        <th>Name</th>
+                        <th className="amount-col">Target</th>
+                        <th>Target date</th>
+                        <th>Linked account</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingSetupImport.preview.buckets.map((row) => (
+                        <tr key={row.index} className={row.already_exists ? "import-row-duplicate" : undefined}>
+                          <td className="select-col">
+                            <input
+                              type="checkbox"
+                              checked={pendingSetupImport.includedBuckets.has(row.index)}
+                              onChange={() => toggleSetupIncluded("includedBuckets", row.index)}
+                              aria-label={`Include goal ${row.name}`}
+                            />
+                          </td>
+                          <td>{row.name}</td>
+                          <td className="amount-col">{row.target_amount ? formatAmount(row.target_amount) : ""}</td>
+                          <td>{row.target_date ?? ""}</td>
+                          <td>{row.linked_account_name ?? ""}</td>
+                          <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              {pendingSetupImport.preview.holdings.length > 0 && (
+                <>
+                  <h2 className="reports-section-title">Holdings</h2>
+                  <table className="dup-review-table">
+                    <thead>
+                      <tr>
+                        <th className="select-col"><span className="sr-only">Include</span></th>
+                        <th>Account</th>
+                        <th>Symbol</th>
+                        <th>Name</th>
+                        <th className="amount-col">Shares</th>
+                        <th className="amount-col">Price</th>
+                        <th className="amount-col">What you paid</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingSetupImport.preview.holdings.map((row) => (
+                        <tr key={row.index} className={row.account_found ? undefined : "import-row-duplicate"}>
+                          <td className="select-col">
+                            <input
+                              type="checkbox"
+                              checked={pendingSetupImport.includedHoldings.has(row.index)}
+                              onChange={() => toggleSetupIncluded("includedHoldings", row.index)}
+                              aria-label={`Include holding ${row.symbol}`}
+                            />
+                          </td>
+                          <td>{row.account_name}</td>
+                          <td>{row.symbol}</td>
+                          <td>{row.name ?? ""}</td>
+                          <td className="amount-col">{row.shares}</td>
+                          <td className="amount-col">{formatAmount(row.price)}</td>
+                          <td className="amount-col">{formatAmount(row.cost_basis)}</td>
+                          <td className="source-col">{row.account_found ? "New" : "Account not found"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              <div className="dup-review-actions">
+                <button className="modal-secondary" onClick={() => setPendingSetupImport(null)} disabled={busy}>
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmSetupImport}
+                  disabled={
+                    busy ||
+                    pendingSetupImport.includedAccounts.size +
+                    pendingSetupImport.includedCategories.size +
+                    pendingSetupImport.includedBudgets.size +
+                    pendingSetupImport.includedBuckets.size +
+                    pendingSetupImport.includedHoldings.size ===
+                    0
+                  }
+                >
+                  {busy ? "Importing…" : "Import selected"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "accounts" && accountDetail && (
+            <AccountDetailView
+              key={accountDetail.id}
+              account={accountDetail}
+              onBack={() => {
+                if (detailReturnTab) setActiveTab(detailReturnTab);
+                else setAccountDetailId(null);
+              }}
+              backLabel={detailReturnTab === "investments" ? "← Investments" : undefined}
+              onOpenTransactions={() => setActiveTab("ledger")}
+              onOpenPayment={openPayment}
+              onMessage={(text, kind) => setStatus(text, kind)}
+            />
+          )}
+
+          {activeTab === "accounts" && !accountDetail && (
+            <Suspense fallback={null}>
+              <AccountsView
+                accounts={accounts}
+                manualAssetsTotal={sumMoney(assets.map((a) => a.value))}
+                netWorthHistory={netWorthHistory}
+                accountContributionDeltas={accountContributionDeltas}
+                onSetStartingBalance={handleSetStartingBalance}
+                onSetBalanceOverride={handleSetBalanceOverride}
+                onUpdateAccountType={handleUpdateAccountType}
+                onDeleteAccount={handleDeleteAccount}
+                onSetAccountDetails={handleSetAccountDetails}
+                familyMembers={familyMembers}
+                onSetAccountMember={handleSetAccountMember}
+                onSetAccountIcon={handleSetAccountIcon}
+                onAddAccount={handleNewAccount}
+                onOpenAccountDetail={setAccountDetailId}
+                assets={assets}
+                onCreateAsset={handleCreateAsset}
+                onUpdateAssetValue={handleUpdateAssetValue}
+                onSetAssetMember={handleSetAssetMember}
+                onDeleteAsset={handleDeleteAsset}
+              />
+            </Suspense>
+          )}
+
+          {activeTab === "reports" && !pendingSetupImport && (
+            <Suspense fallback={null}>
+              <ReportsView
+                accounts={accounts}
+                transactions={transactions}
+                assets={assets}
+                familyMembers={familyMembers}
+                onExportCsv={handleExportReportsCsv}
+                onPrint={() => window.print()}
+                onOpenBudget={() => setActiveTab("budget")}
+                layoutWidgets={layoutWidgets}
+                onPinWidget={(id) => addWidgetToDashboard(id, true)}
+              />
+            </Suspense>
+          )}
+
+          {activeTab === "settings" && (
+            <Suspense fallback={null}>
+              <SettingsView
+                appVersion={appVersion}
+                dataFileLocation={dataFileLocation}
+                onRelocateDataFile={handleRelocateDataFile}
+                onExportDatabase={handleExportDatabase}
+                backups={backups}
+                onCreateBackupNow={handleCreateBackupNow}
+                onRestoreBackup={handleRestoreBackup}
+                backupCopyDir={backupCopyDir}
+                onSetBackupCopyDir={handleSetBackupCopyDir}
+                onBrowseBackupCopyDir={handleBrowseBackupCopyDir}
+                profiles={profiles}
+                onCreateProfile={handleCreateProfile}
+                onUseExistingDataFile={handlePickExistingDataFile}
+                onSwitchProfile={handleSwitchProfile}
+                onRenameProfile={handleRenameProfile}
+                onSetProfileIcon={handleSetProfileIcon}
+                onDeleteProfile={handleDeleteProfile}
+                onProtected={() => void refreshProtectionState()}
+                livePriceSettings={livePriceSettings}
+                onSetLivePriceApiKey={handleSetLivePriceApiKey}
+                onRefreshLivePrices={handleRefreshLivePrices}
+                appSettings={appSettings}
+                onSetApplyToDebtEnabled={handleSetApplyToDebtEnabled}
+                onSetSplitPurchasesEnabled={handleSetSplitPurchasesEnabled}
+                onSetEnvelopeCapsEnabled={handleSetEnvelopeCapsEnabled}
+                onSetRolloverEnabled={handleSetRolloverEnabled}
+                onSetAutoLinkTransfers={handleSetAutoLinkTransfers}
+                onSetSafeToSpendEnabled={handleSetSafeToSpendEnabled}
+                themeStyle={themeStyle}
+                onSetThemeStyle={setThemeStyle}
+                appearance={appearance}
+                onSetAppearance={setAppearance}
+                privacyAutoHide={privacyPrefs.autoHide}
+                onSetPrivacyAutoHide={(autoHide) => setPrivacyPrefs((p) => ({ ...p, autoHide }))}
+                onDownloadSetupTemplate={handleDownloadSetupTemplate}
+                onImportSetupData={handleImportSetupData}
+                backgroundSettings={backgroundSettings}
+                onSetTray={handleSetTray}
+                onSetAutostart={handleSetAutostart}
+                onSendTestReminder={handleSendTestReminder}
+                showBillNamesInReminders={showBillNamesInReminders}
+                onSetShowBillNamesInReminders={handleSetShowBillNamesInReminders}
+                categories={usedCategories}
+                onRulesApplied={() => void refresh()}
+                onMessage={(text, kind) => setStatus(text, kind)}
+              />
+            </Suspense>
+          )}
+          </>
+          )}
+
+          {dialog?.kind === "newAccount" && (
+            <NewAccountDialog
+              familyMembers={familyMembers}
+              existingAccountNames={accounts.map((a) => a.name)}
+              onCancel={() => {
+                dialog.resolve(null);
+                setDialog(null);
+              }}
+              onSubmit={(name, accountType, startingBalance, institution, mask, memberId, iconKey) => {
+                dialog.resolve({ name, accountType, startingBalance, institution, mask, memberId, iconKey });
+                setDialog(null);
+              }}
+            />
+          )}
+          {dialog?.kind === "newCategory" && (
+            <NewCategoryDialog
+              onCancel={() => {
+                dialog.resolve(null);
+                setDialog(null);
+              }}
+              onSubmit={async (name, iconKey) => {
+                try {
+                  await invoke("create_category", { name, iconKey });
+                  await refresh();
+                } catch (e) {
+                  setStatus(errorMessage(e));
+                }
+                dialog.resolve(name);
+                setDialog(null);
+              }}
+            />
+          )}
+          {dialog?.kind === "confirmInvert" && (
+            <ConfirmInvertDialog
+              accountName={dialog.accountName}
+              suggestion={dialog.suggestion}
+              onCancel={() => {
+                dialog.resolve(false);
+                setDialog(null);
+              }}
+              onConfirm={() => {
+                dialog.resolve(true);
+                setDialog(null);
+              }}
+            />
+          )}
+          {dialog?.kind === "csvExportWarning" && (
+            <CsvExportWarningDialog
+              onCancel={() => {
+                dialog.resolve(false);
+                setDialog(null);
+              }}
+              onConfirm={() => {
+                dialog.resolve(true);
+                setDialog(null);
+              }}
+            />
+          )}
+          {addWidgetModalOpen && (
+            <AddWidgetDialog
+              currentWidgets={layoutWidgets}
+              accounts={accounts}
+              buckets={buckets}
+              holdings={holdings}
+              safeToSpendEnabled={appSettingsLoaded && appSettings.safe_to_spend_enabled}
+              onAdd={(id) => addWidgetToDashboard(id, false)}
+              onCancel={() => setAddWidgetModalOpen(false)}
+            />
+          )}
+          {manageCategoriesOpen && (
+            <ManageCategoriesDialog
+              categories={usedCategories}
+              categoryIconMap={categoryIconMap}
+              onCancel={() => setManageCategoriesOpen(false)}
+              onCreate={handleCreateCategory}
+              onSetIcon={handleSetCategoryIcon}
+              onRename={handleRenameCategory}
+              onDelete={handleDeleteCategory}
+            />
+          )}
+          {paletteOpen && <CommandPalette entries={paletteEntries} onRun={runPaletteEntry} onClose={() => setPaletteOpen(false)} />}
+          {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+          {inbox && (
+            <ImportInboxDialog
+              items={inbox}
+              categories={usedCategories}
+              onSetCategory={handleInboxSetCategory}
+              onDelete={handleInboxDelete}
+              onDismiss={handleInboxDismiss}
+              onClose={() => void closeInbox()}
+            />
+          )}
+          {monthReview && (
+            <MonthReviewDialog
+              review={monthReview}
+              goals={buckets}
+              onCategorize={handleReviewCategorize}
+              onFinish={() => void handleFinishMonthReview()}
+              onCancel={() => setMonthReview(null)}
+            />
+          )}
+          {transferReviewOpen && (
+            <TransferReviewDialog
+              pairs={transferCandidatePairs}
+              onLink={handleLinkTransfers}
+              onDismiss={handleDismissTransferCandidates}
+              onDismissAll={handleDismissAllTransferCandidates}
+              onCancel={() => setTransferReviewOpen(false)}
+            />
+          )}
+          {notesDialogFor && (
+            <TransactionNotesDialog
+              transaction={notesDialogFor}
+              onSave={(notes) => handleSaveNotes(notesDialogFor.id, notes)}
+              onClose={() => setNotesDialogFor(null)}
+            />
+          )}
+          {autoLinkReviewOpen && (
+            <AutoLinkedReviewDialog
+              pairs={autoLinkedPairs}
+              onUnlink={(outId) => void handleUnlinkTransfer(outId)}
+              onLooksRight={(outIds) => void handleMarkAutoLinksReviewed(outIds)}
+              onClose={() => setAutoLinkReviewOpen(false)}
+            />
+          )}
+
+          {manageFamilyMembersOpen && (
+            <ManageFamilyMembersDialog
+              members={familyMembers}
+              onCancel={() => setManageFamilyMembersOpen(false)}
+              onCreate={handleCreateFamilyMember}
+              onRename={handleRenameFamilyMember}
+              onDelete={handleDeleteFamilyMember}
+            />
+          )}
+          {choosingExistingSource && (
+            <ChooseExistingDataSourceDialog
+              onCancel={() => setChoosingExistingSource(false)}
+              onDatabase={() => void handlePickExistingDatabase()}
+              onPackage={() => void handlePickProtectedPackage()}
+            />
+          )}
+          {pendingExistingDbPath && (
+            <UseExistingDataFileDialog
+              path={pendingExistingDbPath}
+              isProtectedPackage={pendingExistingIsProtected}
+              requiresPassword={pendingExistingRequiresPassword}
+              onCancel={() => {
+                setPendingExistingDbPath(null);
+                setPendingExistingIsProtected(false);
+                setPendingExistingRequiresPassword(false);
+              }}
+              onSubmit={handleAddExistingProfile}
+            />
+          )}
+          {pendingProtectedSwitch && (
+            <SwitchToProtectedProfileDialog
+              profileName={pendingProtectedSwitch.name}
+              onCancel={() => setPendingProtectedSwitch(null)}
+              onSubmit={async (password) => {
+                // unlock_profile only ever resolves once it has already hot-swapped the live backend
+                // connection to the new profile — onDataFileChanged (not the profile-lock-state-changed
+                // broadcast, which StartupGate alone listens to) is what actually remounts this App
+                // instance so it refetches everything for the newly-active profile: StartupGate stays on
+                // its own "open" status across this whole switch, so its event subscription never fires
+                // a re-render that would change what it renders.
+                await unlockProfile(pendingProtectedSwitch.id, password);
+                const name = pendingProtectedSwitch.name;
+                setPendingProtectedSwitch(null);
+                onDataFileChanged(`Switched to "${name}".`);
+              }}
+            />
+          )}
+          {newTransactionOpen && (
+            <NewTransactionDialog
+              accounts={accounts}
+              categories={categoryOptions}
+              familyMembers={familyMembers}
+              defaultAccountId={selectedAccountId}
+              budgetActuals={report?.budget_actuals ?? []}
+              onCancel={() => setNewTransactionOpen(false)}
+              onSubmit={handleCreateManualTransaction}
+            />
+          )}
         </div>
       </div>
     </div>

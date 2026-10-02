@@ -47,8 +47,8 @@ type EditingBalance = { id: number; value: string; mode: "balance" | "limit" };
 type AccountStatKey = "assets" | "liabilities" | "networth";
 
 const ACCOUNT_STAT_LABELS: Record<AccountStatKey, string> = {
-  assets: "Total Assets",
-  liabilities: "Total Liabilities",
+  assets: "What you own",
+  liabilities: "What you owe",
   networth: "Net Worth",
 };
 
@@ -353,7 +353,7 @@ export function AccountsView({
           onClick={() => toggleStat("assets")}
         >
           <span className="stat-value">{formatAmount(assetsTotal)}</span>
-          <span className="stat-label">Total Assets</span>
+          <span className="stat-label">What you own</span>
         </button>
         <button
           type="button"
@@ -363,7 +363,7 @@ export function AccountsView({
           onClick={() => toggleStat("liabilities")}
         >
           <span className="stat-value">{formatAmount(liabilities)}</span>
-          <span className="stat-label">Total Liabilities</span>
+          <span className="stat-label">What you owe</span>
         </button>
         <button
           type="button"

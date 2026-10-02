@@ -42,7 +42,7 @@ try {
   // ---- the three blocks live inside it, in order
   const card = await browser.$("//div[contains(@class,'card')][.//span[contains(@class,'reports-section-title')][normalize-space()='Data']]");
   await card.waitForExist({ timeout: 10000 });
-  const subheads = await card.$$("h3.data-subhead");
+  const subheads = await card.$$("h2.data-subhead");
   const subheadTexts = [];
   for (const h of subheads) subheadTexts.push((await h.getText()).trim());
   if (subheadTexts.join("|") !== "Data file|Backups|Setup data") {

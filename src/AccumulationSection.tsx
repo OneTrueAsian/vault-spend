@@ -16,6 +16,7 @@ import {
   type MonthFlow,
   type PlanFormFields,
 } from "./accumulation";
+import { errorMessage } from "./errorMessage";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -134,7 +135,7 @@ export function AccountAccumulationSection({
   }, [account.id]);
 
   useEffect(() => {
-    load().catch((e) => onMessage(String(e), "error"));
+    load().catch((e) => onMessage(errorMessage(e), "error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
@@ -201,7 +202,7 @@ export function AccountAccumulationSection({
         inflationPct: form.inflation.trim() !== inflation ? form.inflation.trim() : null,
       });
     } catch (e) {
-      setFormError(String(e));
+      setFormError(errorMessage(e));
       return;
     }
     setFormError(null);
@@ -227,7 +228,7 @@ export function AccountAccumulationSection({
       setFormError(null);
       await load();
     } catch (e) {
-      setFormError(String(e));
+      setFormError(errorMessage(e));
     }
   }
 
@@ -486,7 +487,7 @@ export function AccumulationSummaryCard({ accounts, onOpenAccount }: { accounts:
         setLoadError(null);
       })
       .catch((e) => {
-        if (!cancelled) setLoadError(String(e));
+        if (!cancelled) setLoadError(errorMessage(e));
       });
     return () => {
       cancelled = true;
@@ -642,7 +643,7 @@ export function AccumulationSummaryCard({ accounts, onOpenAccount }: { accounts:
       <TodaysDollarsToggle on={todaysDollars} onChange={setTodaysDollars} inflation={inflation} />
       {projectedRows.length > 0 && (
         <div data-acc-combined-chart>
-          <h3 className="acc-chart-title">Combined projection, all accounts</h3>
+          <h2 className="acc-chart-title">Combined projection, all accounts</h2>
           <SeriesChart
             series={[{ key: "combined", name: "All accounts, projected", color: "var(--accent)", points: combinedPoints }]}
             nowX={nowX}

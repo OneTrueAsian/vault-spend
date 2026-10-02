@@ -16,6 +16,7 @@ function account(over: Partial<Account> & Pick<Account, "id" | "name" | "account
     member_name: null,
     checkpoint_date: null,
     icon_key: null,
+    import_flip_signs: null,
     ...over,
   };
 }
@@ -35,6 +36,7 @@ function txn(over: Partial<Transaction> & Pick<Transaction, "id" | "account_id" 
     tags: [],
     member_id: null,
     member_name: null,
+    notes: null,
     ...over,
   };
 }

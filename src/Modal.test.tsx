@@ -19,7 +19,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { ChooseExistingDataSourceDialog, CsvExportWarningDialog, NewAccountDialog, UseExistingDataFileDialog } from "./Modal";
+import { ChooseExistingDataSourceDialog, ConfirmInvertDialog, CsvExportWarningDialog, NewAccountDialog, UseExistingDataFileDialog } from "./Modal";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -70,6 +70,53 @@ describe("NewAccountDialog's autoFocus survives StrictMode's dev-only double-inv
   });
 });
 
+// Adding an account with a name already in use overwrote that account (2026-10-02 QA, H1). The
+// dialog now says so as the person types and won't submit; the backend refuses it as well.
+describe("NewAccountDialog with a name already in use", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const onSubmit = vi.fn();
+
+  beforeEach(() => {
+    onSubmit.mockReset();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(<NewAccountDialog familyMembers={[]} existingAccountNames={["Car Loan", "Everyday Checking"]} onCancel={() => {}} onSubmit={onSubmit} />);
+    });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  // the dialog renders into a portal on document.body
+  const nameInput = () => document.querySelector<HTMLInputElement>('input[placeholder*="Everyday Checking"]')!;
+  const type = (value: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(nameInput(), value);
+      nameInput().dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  const submit = () => act(() => nameInput().form!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+
+  it("says the name is taken, ignoring case and spaces, and does not submit", () => {
+    type("  car LOAN ");
+    expect(nameInput().getAttribute("aria-invalid")).toBe("true");
+    expect(document.body.textContent).toContain('You already have an account called "Car Loan"');
+    submit();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("submits a new name", () => {
+    type("Car Loan 2");
+    expect(nameInput().getAttribute("aria-invalid")).toBe("false");
+    submit();
+    expect(onSubmit).toHaveBeenCalledWith("Car Loan 2", "checking", null, null, null, null, null);
+  });
+});
+
 // Phase C, Task 4 (plan v2 §4.11): a password-protected profile's CSV export
 // asks first, since CSV carries no encryption of its own. This checks the
 // dialog's exact required wording and that Cancel/Export anyway each call
@@ -117,6 +164,69 @@ describe("CsvExportWarningDialog", () => {
     act(() => confirmButton!.click());
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).not.toHaveBeenCalled();
+  });
+});
+
+describe("ConfirmInvertDialog", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const onCancel = vi.fn();
+  const onConfirm = vi.fn();
+  const button = (label: string) => [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === label)!;
+  const hint = () => document.querySelector("[data-import-sign-hint]")?.textContent ?? null;
+
+  function show(props: Partial<React.ComponentProps<typeof ConfirmInvertDialog>> = {}) {
+    act(() => {
+      root.render(<ConfirmInvertDialog onCancel={onCancel} onConfirm={onConfirm} {...props} />);
+    });
+  }
+
+  beforeEach(() => {
+    onCancel.mockReset();
+    onConfirm.mockReset();
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("asks as before when there is nothing to suggest", () => {
+    show({ accountName: "Checking", suggestion: { flip: null, reason: null } });
+    expect(hint()).toBeNull();
+    expect(button("Flip the signs").classList.contains("modal-secondary")).toBe(false);
+    expect(button("Keep as-is").classList.contains("modal-secondary")).toBe(true);
+  });
+
+  it("preselects flipping when the last import into the account flipped, and says so", () => {
+    show({ accountName: "Amex Blue", suggestion: { flip: true, reason: "remembered" } });
+    expect(hint()).toBe("Last import into Amex Blue: flipped the signs.");
+    expect(document.activeElement).toBe(button("Flip the signs"));
+  });
+
+  it("preselects keeping the signs when the last import kept them", () => {
+    show({ accountName: "Capitol One", suggestion: { flip: false, reason: "remembered" } });
+    expect(hint()).toBe("Last import into Capitol One: kept as-is.");
+    expect(document.activeElement).toBe(button("Keep as-is"));
+    expect(button("Keep as-is").classList.contains("modal-secondary")).toBe(false);
+    expect(button("Flip the signs").classList.contains("modal-secondary")).toBe(true);
+  });
+
+  it("explains a suggestion to flip a credit card file that is mostly positive", () => {
+    show({ accountName: "Amex Blue", suggestion: { flip: true, reason: "credit-positive" } });
+    expect(hint()).toBe("Most amounts in this file are positive. For a credit card that usually means charges are shown as positive.");
+    expect(document.activeElement).toBe(button("Flip the signs"));
+  });
+
+  it("still lets either answer be chosen, whatever is preselected", () => {
+    show({ accountName: "Amex Blue", suggestion: { flip: true, reason: "remembered" } });
+    act(() => button("Keep as-is").click());
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    act(() => button("Flip the signs").click());
+    expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });
 

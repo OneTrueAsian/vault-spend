@@ -29,6 +29,10 @@ print(json.dumps(cur.fetchall()))
 const dbDir = await seedDebtPaymentFixture();
 const app = await launchApp({ dbDir });
 try {
+  // The app's own default launch size (800px) sits below the ledger's
+  // narrow-layout breakpoint, where the Debt cell moves behind a per-row
+  // Details toggle instead of its own column.
+  await app.browser.setWindowSize(1280, 900);
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 

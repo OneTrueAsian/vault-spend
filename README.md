@@ -6,8 +6,11 @@ A local, private budgeting and transaction ledger for Windows and macOS.
 There's no service account, no cloud synchronization, and no subscription —
 your data lives in files on your own computer, in independent profiles you
 can each password-protect. Vault Spend only reaches out to the internet for
-two things: a check on GitHub for a newer version when it opens, and live
-investment prices if you set up a price provider.
+three things: its typefaces from Google Fonts and a check on GitHub for a newer
+version, both when it opens, and live investment prices if you set up a price
+provider. None of them sends your financial data. The full
+[legal notice](docs/LEGAL-NOTICE.md) covers these, estimates, backups and
+recovery codes.
 
 Vault Spend is an independent open-source project and is not affiliated
 with, endorsed by, or partnered with any external financial services or

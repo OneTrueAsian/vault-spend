@@ -23,6 +23,28 @@ describe("toCsv", () => {
     expect(dataRow.startsWith("=1+1,")).toBe(false);
     expect(dataRow).toBe("'=1+1,-10");
   });
+
+  // Notes are the first free-text field in any export likely to actually
+  // contain a comma, an embedded quote, or a multi-line value a person
+  // typed — added alongside the Transactions "Notes" export column (Task 3
+  // of the transactions-usability plan). The import side of this same
+  // contract is core's csv_loader ("reads_back_an_optional_notes_column..."
+  // test).
+  it("preserves Unicode text unquoted when it needs no escaping", () => {
+    expect(toCsv(["Notes"], [["Café Résumé — imported vendor"]])).toBe(
+      "Notes\r\nCafé Résumé — imported vendor\r\n",
+    );
+  });
+
+  it("combines comma, quote and newline correctly in one field (the realistic worst case for a note)", () => {
+    const note = 'Split 50/50, "kitchen" stuff\nRe-check total';
+    const csv = toCsv(["Notes"], [[note]]);
+    expect(csv).toBe('Notes\r\n"Split 50/50, ""kitchen"" stuff\nRe-check total"\r\n');
+  });
+
+  it("renders a missing note as an empty field, not the literal string \"null\"", () => {
+    expect(toCsv(["Notes"], [[""]])).toBe("Notes\r\n\r\n");
+  });
 });
 
 describe("sanitizeCsvText", () => {

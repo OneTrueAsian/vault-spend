@@ -5,6 +5,7 @@ import { fmtMoneyShort } from "./charts";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { CategoryIcon } from "./icons";
 import { CADENCE_OPTIONS } from "./cadence";
+import { MenuSelect } from "./MenuSelect";
 
 /** One calendar month forward, clamping the day-of-month into range (Jan
  * 31 + 1 month -> Feb 28/29, not Mar 3) — same reasoning as the backend's
@@ -123,7 +124,7 @@ function SuggestedRecurringSection({
         <span className="reports-section-title">Suggested</span>
       </div>
       <p className="modal-message-secondary">
-        Detected from your transactions — a merchant and amount that's repeated on a consistent schedule but isn't tracked
+        Detected from your transactions — a merchant and amount that's repeated on a consistent schedule but isn't on your list
         here yet.
       </p>
       {candidates.map((c) => (
@@ -215,31 +216,35 @@ function NewRecurringForm({
         onChange={(e) => setAmount(e.target.value)}
         placeholder="Amount (negative = bill)"
       />
-      <select value={cadence} onChange={(e) => setCadence(e.target.value)}>
-        {CADENCE_OPTIONS.map((c) => (
-          <option key={c} value={c}>
-            {c[0].toUpperCase() + c.slice(1)}
-          </option>
-        ))}
-      </select>
+      <MenuSelect
+        ariaLabel="Cadence"
+        value={cadence}
+        onChange={setCadence}
+        options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
+        fill
+      />
       <input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} title="Next/anchor date" />
-      <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-        <option value="">No linked account</option>
-        {accounts.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name}
-          </option>
-        ))}
-      </select>
+      <MenuSelect
+        ariaLabel="Linked account"
+        value={accountId}
+        onChange={setAccountId}
+        options={[
+          { value: "", label: "No linked account" },
+          ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+        ]}
+        fill
+      />
       {familyMembers.length > 0 && (
-        <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-          <option value="">Unassigned</option>
-          {familyMembers.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
+        <MenuSelect
+          ariaLabel="Family member"
+          value={memberId}
+          onChange={setMemberId}
+          options={[
+            { value: "", label: "Unassigned" },
+            ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+          ]}
+          fill
+        />
       )}
       <button type="submit" disabled={!merchant.trim() || !amount.trim() || !anchorDate}>
         Save
@@ -299,39 +304,38 @@ function EditRecurringRow({
       <td>
         <input autoFocus className="row-edit-input" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
         {familyMembers.length > 0 && (
-          <select
-            className="row-edit-input"
+          <MenuSelect
+            ariaLabel="Family member"
             value={memberId}
-            onChange={(e) => setMemberId(e.target.value)}
-            style={{ marginTop: 4 }}
-          >
-            <option value="">Unassigned</option>
-            {familyMembers.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+            onChange={setMemberId}
+            options={[
+              { value: "", label: "Unassigned" },
+              ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+            ]}
+            triggerClassName="row-edit-input"
+          />
         )}
       </td>
       <td>
-        <select className="row-edit-input" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-          <option value="">No linked account</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
+        <MenuSelect
+          ariaLabel="Linked account"
+          value={accountId}
+          onChange={setAccountId}
+          options={[
+            { value: "", label: "No linked account" },
+            ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+          ]}
+          triggerClassName="row-edit-input"
+        />
       </td>
       <td>
-        <select className="row-edit-input" value={cadence} onChange={(e) => setCadence(e.target.value)}>
-          {CADENCE_OPTIONS.map((c) => (
-            <option key={c} value={c}>
-              {c[0].toUpperCase() + c.slice(1)}
-            </option>
-          ))}
-        </select>
+        <MenuSelect
+          ariaLabel="Cadence"
+          value={cadence}
+          onChange={setCadence}
+          options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
+          triggerClassName="row-edit-input"
+        />
       </td>
       <td>
         <input
@@ -546,7 +550,7 @@ export function RecurringView({
         </div>
         <div className="stat tint-blue">
           <span className="stat-value">{formatAmount(totals.monthly_income)}</span>
-          <span className="stat-label">Recurring income (est.)</span>
+          <span className="stat-label">Monthly recurring income (est.)</span>
         </div>
         <div className="stat tint-red">
           <span className="stat-value">{formatAmount(totals.annual_expense)}</span>
@@ -673,7 +677,7 @@ export function RecurringView({
             <th>Next due</th>
             <th className="amount-col">Amount</th>
             <th>Status</th>
-            <th className="actions-col"></th>
+            <th className="actions-col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>

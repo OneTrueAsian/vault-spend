@@ -1,13 +1,13 @@
 // E2E test for Phase 1 item 14b:
-//   - Transactions rows are compact by default, with a Comfortable/Compact
-//     toggle that remembers the choice.
+//   - Transactions rows are compact by default. The Comfortable/Compact
+//     selector is hidden, while an existing saved preference still applies.
 //   - Account cards no longer carry always-visible type/member dropdowns and
 //     a Delete button; an Edit dialog holds type, institution, last four and
 //     (behind a second step) deleting the account.
 //
 // Run with: node e2e/feature65_compact_rows_and_account_edit.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -50,27 +50,39 @@ try {
   if (!(await table.getAttribute("class")).includes("ledger-compact")) throw new Error("rows should be compact by default");
   const compactHeight = await firstRowHeight();
 
-  await (await browser.$("button=Comfortable")).click();
-  await browser.waitUntil(async () => !(await table.getAttribute("class")).includes("ledger-compact"), { timeout: 5000 });
+  if ((await browser.$$(".density-toggle")).length !== 0) throw new Error("the density selector should be hidden");
+  await browser.execute(() => localStorage.setItem("vaultspend-ledger-density", "comfortable"));
+  await browser.refresh();
+  await browser.waitUntil(async () => (await browser.$$("nav button")).length > 0, { timeout: 10000 });
+  await nav("Transactions");
+  const comfortableTable = await browser.$("table.ledger");
+  await comfortableTable.waitForExist({ timeout: 10000 });
+  if ((await comfortableTable.getAttribute("class")).includes("ledger-compact")) throw new Error("a saved Comfortable preference should still apply");
   const comfortableHeight = await firstRowHeight();
   console.log(`row height: compact ${compactHeight}px, comfortable ${comfortableHeight}px`);
   if (!(compactHeight < comfortableHeight)) {
     throw new Error(`compact rows (${compactHeight}px) should be shorter than comfortable ones (${comfortableHeight}px)`);
   }
 
-  // The choice sticks across navigation.
+  // The saved choice sticks across navigation.
   await nav("Dashboard");
   await nav("Transactions");
   const table2 = await browser.$("table.ledger");
   await table2.waitForExist({ timeout: 10000 });
   if ((await table2.getAttribute("class")).includes("ledger-compact")) throw new Error("the Comfortable choice should be remembered");
-  await (await browser.$("button=Compact")).click();
+  await browser.execute(() => localStorage.setItem("vaultspend-ledger-density", "compact"));
+  await browser.refresh();
+  await browser.waitUntil(async () => (await browser.$$("nav button")).length > 0, { timeout: 10000 });
+  await nav("Transactions");
+  const compactTable = await browser.$("table.ledger");
+  await compactTable.waitForExist({ timeout: 10000 });
+  if (!(await compactTable.getAttribute("class")).includes("ledger-compact")) throw new Error("the saved Compact preference should still apply");
 
   // ---- Accounts: no always-visible dropdowns / Delete; Edit dialog instead
   await nav("Accounts");
   const card = await accountCard("Test Checking");
   await card.waitForExist({ timeout: 10000 });
-  const cardSelects = await card.$$("select");
+  const cardSelects = await card.$$("select, .menu-select-toggle");
   if (cardSelects.length !== 0) throw new Error(`the account card should have no dropdowns, found ${cardSelects.length}`);
   const cardText = await card.getText();
   console.log("card:", cardText.replace(/\n/g, " | "));
@@ -84,7 +96,7 @@ try {
   await dialog.waitForExist({ timeout: 10000 });
   await browser.waitUntil(async () => /Edit Test Checking/.test(await dialog.getText()), { timeout: 10000 });
   await (await dialog.$("//label[contains(.,'Institution')]//input")).setValue("Ally");
-  await (await dialog.$("//label[contains(.,'Account type')]//select")).selectByVisibleText("Savings");
+  await chooseMenuOption(await dialog.$("//label[contains(.,'Account type')]//button[contains(@class,'menu-select-toggle')]"), { label: "Savings" });
   await (await dialog.$("button=Save changes")).click();
   await browser.waitUntil(
     async () => {

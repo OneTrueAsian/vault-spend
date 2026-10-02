@@ -32,10 +32,10 @@ async function waitForPersistedLayout(browser, predicate, timeoutMsg) {
 const app = await launchApp();
 try {
   // Default layout, default preset.
-  let presetValue = await app.browser.execute(() => document.querySelector(".dashboard-toolbar select").value);
+  let presetValue = await app.browser.execute(() => document.querySelector(".layout-select-toggle").dataset.value);
   if (presetValue !== "default") throw new Error(`expected the Layout dropdown to start on "default", got "${presetValue}"`);
 
-  const customizeButton = await app.browser.$(".dashboard-toolbar button");
+  const customizeButton = await (await app.browser.$(".dashboard-toolbar")).$("button*=Customize");
   await customizeButton.waitForExist({ timeout: 10000 });
   await customizeButton.click();
 
@@ -51,7 +51,7 @@ try {
   );
   console.log("removed a widget — layout is now", layoutAfterRemove);
 
-  presetValue = await app.browser.execute(() => document.querySelector(".dashboard-toolbar select").value);
+  presetValue = await app.browser.execute(() => document.querySelector(".layout-select-toggle").dataset.value);
   if (presetValue !== "custom") throw new Error(`expected the Layout dropdown to flip to "custom", got "${presetValue}"`);
   console.log("Layout dropdown correctly shows Custom (unsaved)");
 

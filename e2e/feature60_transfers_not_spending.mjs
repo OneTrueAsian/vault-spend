@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature60_transfers_not_spending.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -46,6 +46,13 @@ try {
 
   const donutCard = await app.browser.$("//span[contains(.,'Spending by category')]/ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
   await donutCard.waitForExist({ timeout: 10000 });
+  // The card renders before the month's data loads (reading it once caught "No spending yet this month."
+  // under a loaded machine), so wait for the real spend before checking what else it shows.
+  await waitUntilOrDiagnose(app.browser, async () => (await donutCard.getText()).includes("Groceries"), {
+    timeout: 15000,
+    timeoutMsg: "expected the real Groceries spend in the donut",
+    extra: async () => ({ donut: (await donutCard.getText()).replace(/\s+/g, " ").slice(0, 200) }),
+  });
   const donutText = await donutCard.getText();
   console.log("dashboard spending card:", donutText.replace(/\n/g, " | "));
   if (!donutText.includes("Groceries")) {
@@ -59,6 +66,11 @@ try {
   await cashFlowNav.click();
   const merchantsCard = await app.browser.$("//span[contains(.,'Top merchants')]/ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]");
   await merchantsCard.waitForExist({ timeout: 10000 });
+  await waitUntilOrDiagnose(app.browser, async () => (await merchantsCard.getText()).includes("Green Leaf Grocers"), {
+    timeout: 15000,
+    timeoutMsg: "expected the real merchant in Top merchants",
+    extra: async () => ({ merchants: (await merchantsCard.getText()).replace(/\s+/g, " ").slice(0, 200) }),
+  });
   const merchantsText = await merchantsCard.getText();
   console.log("cash flow top merchants:", merchantsText.replace(/\n/g, " | "));
   if (!merchantsText.includes("Green Leaf Grocers")) {

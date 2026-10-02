@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { launchApp, reclaimWindowFocus } from "./harness.mjs";
+import { launchApp, pickFromMenu, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -38,6 +38,9 @@ try {
     await reclaimWindowFocus(b);
     await (await b.$("#ledger-account-select")).click();
     await b.$('[role="menu"][aria-label="Add to account"]').waitForExist({ timeout: 5000 }).catch(() => {});
+    // :hover stops applying once another window takes OS foreground, so a timeout here in an unfocused
+    // window is the same focus loss as a closed menu: report it as `missing` for the caller to retry.
+    let hoverSettled = true;
     await b.waitUntil(async () => b.execute(() => {
       const reference = document.createElement('span');
       reference.style.background = 'var(--surface-2)';
@@ -45,7 +48,11 @@ try {
       const expected = getComputedStyle(reference).backgroundColor;
       reference.remove();
       return getComputedStyle(document.querySelector('#ledger-account-select')).backgroundColor === expected;
-    }), { timeout: 5000, timeoutMsg: 'Add to hover should use the themed field surface, not the primary-action fill' });
+    }), { timeout: 5000, timeoutMsg: 'Add to hover should use the themed field surface, not the primary-action fill' }).catch(async (error) => {
+      if (await b.execute(() => document.hasFocus())) throw error;
+      hoverSettled = false;
+    });
+    if (!hoverSettled) return { missing: true, hasFocus: false };
     return b.execute(() => {
       const panel = document.querySelector('.account-destination-panel');
       if (!panel) return { missing: true, menuStillOpen: Boolean(document.querySelector('[role="menu"]')), hasFocus: document.hasFocus(), active: document.activeElement?.id || document.activeElement?.tagName };
@@ -53,7 +60,7 @@ try {
       return { radius: getComputedStyle(panel).borderRadius, left: rect.left, right: rect.right, bottom: rect.bottom, width: innerWidth, height: innerHeight };
     });
   }
-  for (const palette of ["classic", "futuristic", "transparent"]) {
+  for (const palette of ["transparent", "futuristic"]) {
     for (const theme of ["light", "dark"]) {
       await b.execute((palette, theme) => { document.documentElement.dataset.palette = palette; document.documentElement.dataset.theme = theme; }, palette, theme);
       let geometry;
@@ -74,11 +81,17 @@ try {
   await b.keys("Enter");
   assert.ok((await b.$("#ledger-account-select").getText()).includes("Savings"));
   await (await b.$("button*=Add transaction")).click();
-  await b.$('.modal-field select').waitForExist({ timeout: 5000 });
-  assert.ok(await b.execute(() => [...document.querySelectorAll('.modal-panel select')].some((el) => el.selectedOptions[0]?.textContent.trim() === 'Savings')));
+  await b.$('.modal-field .menu-select-toggle').waitForExist({ timeout: 5000 });
+  assert.ok(await b.execute(() => [...document.querySelectorAll('.modal-panel .menu-select-toggle')].some((el) => el.textContent.replace('\u25be', '').trim() === 'Savings')));
   await b.keys("Escape");
-  await (await b.$("#ledger-account-select")).click();
-  await (await b.$('.account-destination-new')).click();
+  // Closing a modal hands focus back to its opener one tick after it unmounts.
+  // Opening the dropdown before that lands means the restore steals focus from
+  // the menu and its blur handler closes it, so wait for the hand-back first.
+  await b.waitUntil(
+    async () => b.execute(() => !document.querySelector(".modal-panel") && document.activeElement?.textContent?.startsWith("Add transaction")),
+    { timeout: 5000, timeoutMsg: "focus should return to the Add transaction button once its modal closes" },
+  );
+  await pickFromMenu(b, "#ledger-account-select", ".account-destination-new");
   await b.$(".modal-panel").waitForExist({ timeout: 5000 });
   await b.waitUntil(async () => (await b.$('.modal-panel').getText()).includes('New account'), { timeout: 5000 });
   await b.keys("Escape");
@@ -86,7 +99,7 @@ try {
   await (await b.$("[data-inbox-open]")).click();
   await b.$("[data-inbox-bulk]").waitForExist({ timeout: 5000 });
   assert.equal((await b.$$("[data-inbox-row]")).length, 5);
-  for (const palette of ['classic', 'futuristic', 'transparent']) for (const theme of ['light', 'dark']) {
+  for (const palette of ['transparent', 'futuristic']) for (const theme of ['light', 'dark']) {
     await b.execute((palette, theme) => { document.documentElement.dataset.palette = palette; document.documentElement.dataset.theme = theme; }, palette, theme);
     await (await b.$('[data-inbox-row] .inbox-category-trigger')).click();
     const style = await b.execute(() => {

@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature56_save_custom_dashboard_layout.mjs
 
-import { launchApp } from "./harness.mjs";
+import { chooseMenuOption, launchApp, menuOptionLabels } from "./harness.mjs";
 
 const app = await launchApp();
 try {
@@ -19,8 +19,14 @@ try {
   await removeBtn.waitForExist({ timeout: 5000 });
   await removeBtn.click();
 
-  const select = await app.browser.$('select[title="Layout"]');
-  await app.browser.waitUntil(async () => (await select.getValue()) === "custom", {
+  // The layout picker is a popover menu, not a native <select>: its trigger carries the current value,
+  // and the options only exist while the menu is open.
+  const select = await app.browser.$(".layout-select-toggle");
+  const selectedValue = () => select.getAttribute("data-value");
+  // The shared helpers reopen the menu if another spec's window takes focus and closes it mid-read.
+  const optionLabels = () => menuOptionLabels(select);
+  const chooseLayout = (value) => chooseMenuOption(select, { value });
+  await app.browser.waitUntil(async () => (await selectedValue()) === "custom", {
     timeout: 5000,
     timeoutMsg: "expected removing a widget to fall into the 'custom' (unsaved) layout state",
   });
@@ -36,26 +42,24 @@ try {
   const saveBtn = await form.$("button=Save");
   await saveBtn.click();
 
-  await app.browser.waitUntil(async () => (await select.getValue()) === "custom:Weekly check-in", {
+  await app.browser.waitUntil(async () => (await selectedValue()) === "custom:Weekly check-in", {
     timeout: 5000,
     timeoutMsg: "expected the saved layout to become the dropdown's selected value",
   });
 
-  const optionEls = await select.$$("option");
-  const optionTexts = [];
-  for (const o of optionEls) optionTexts.push(await o.getText());
+  const optionTexts = await optionLabels();
   if (!optionTexts.includes("Weekly check-in")) {
     throw new Error(`expected "Weekly check-in" in the Layout dropdown, got: ${optionTexts.join(", ")}`);
   }
 
   // Switching away and back proves it round-trips as a real named preset,
   // not just a one-off in-memory flag.
-  await select.selectByVisibleText("Default");
-  if ((await select.getValue()) !== "default") {
+  await chooseLayout("default");
+  if ((await selectedValue()) !== "default") {
     throw new Error("expected switching to Default to select the built-in default preset");
   }
-  await select.selectByVisibleText("Weekly check-in");
-  if ((await select.getValue()) !== "custom:Weekly check-in") {
+  await chooseLayout("custom:Weekly check-in");
+  if ((await selectedValue()) !== "custom:Weekly check-in") {
     throw new Error("expected switching back to the saved preset to re-select it");
   }
 
@@ -67,10 +71,7 @@ try {
 
   await app.browser.waitUntil(
     async () => {
-      const opts = await select.$$("option");
-      const texts = [];
-      for (const o of opts) texts.push(await o.getText());
-      return !texts.includes("Weekly check-in");
+      return !(await optionLabels()).includes("Weekly check-in");
     },
     { timeout: 5000, timeoutMsg: 'expected "Weekly check-in" to be removed from the Layout dropdown after Delete' },
   );

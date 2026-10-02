@@ -5,12 +5,13 @@
 //
 // Run with: node e2e/feature18_recurring_edit.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute(
-    "INSERT INTO recurring (merchant, category, amount, cadence, anchor_date) VALUES ('Netflix', NULL, '-15.49', 'monthly', '2026-08-04')"
+    "INSERT INTO recurring (merchant, category, amount, cadence, anchor_date) VALUES ('Netflix', NULL, '-15.49', 'monthly', '${dateInMonth(-2, 4)}')"
 )
 `);
 
@@ -40,8 +41,8 @@ try {
   await app.browser.keys(["Control", "a"]);
   await app.browser.keys("-22.99");
 
-  const cadenceSelect = await app.browser.$(`${editingTable}/td[3]/select`);
-  await cadenceSelect.selectByAttribute("value", "annual");
+  const cadenceSelect = await app.browser.$(`${editingTable}/td[3]//button[contains(@class,'menu-select-toggle')]`);
+  await chooseMenuOption(cadenceSelect, { value: "annual" });
 
   const saveBtn = await app.browser.$("button=Save");
   await saveBtn.click();

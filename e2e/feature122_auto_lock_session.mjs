@@ -2,7 +2,7 @@
 // user keep working, locks at expiry, unmounts in-progress UI state, and closes the backend data
 // boundary. The clock seam used here exists only in debug builds.
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption, withFocusRetry } from "./harness.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -24,7 +24,7 @@ try {
 
   const minutes = await browser.$("[data-auto-lock-minutes]");
   await minutes.waitForEnabled({ timeout: 10000 });
-  await minutes.selectByAttribute("value", "1");
+  await chooseMenuOption(minutes, { value: "1" });
   await browser.waitUntil(async () => (await invoke(browser, "get_auto_lock_settings")).ok?.inactivity_minutes === 1, {
     timeout: 10000,
     timeoutMsg: "the one-minute automatic-lock choice should be saved before exercising the timer",
@@ -39,15 +39,21 @@ try {
   await countdown.waitForExist({ timeout: 5000 });
   assert.equal(await countdown.getAttribute("role"), "status");
   assert.equal(await countdown.getAttribute("aria-live"), "polite");
-  assert.match(await countdown.getText(), /lock in 10 seconds/i);
+  // Raised with 10 seconds left, but it counts down in real time: on a loaded machine a second or more can
+  // pass before it is read, so "9 seconds" is the same correct warning.
+  assert.match(await countdown.getText(), /lock in ([7-9]|10) seconds/i);
   assert.equal(
     await browser.execute(() => document.activeElement?.getAttribute("data-auto-lock-minutes") !== null),
     true,
     "showing the warning must not steal keyboard focus",
   );
-  await browser.waitUntil(async () => /lock in [1-9] seconds/i.test(await countdown.getText()), {
-    timeout: 3000,
-    timeoutMsg: "the visible warning should count down locally between backend ticks",
+  // A window covered by another spec's newly launched one has its timers throttled, so the local countdown
+  // can stall then; withFocusRetry brings it back to the front and waits again (only if it really lost focus).
+  await withFocusRetry(browser, async () => {
+    let seen = "";
+    await browser.waitUntil(async () => /lock in [1-9] seconds/i.test((seen = await countdown.getText())), { timeout: 3000 }).catch(() => {
+      throw new Error(`the visible warning should count down locally between backend ticks (got "${seen}")`);
+    });
   });
 
   await (await browser.$("[data-stay-unlocked]")).click();

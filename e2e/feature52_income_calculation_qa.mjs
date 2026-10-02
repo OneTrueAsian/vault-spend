@@ -107,9 +107,21 @@ async function statValue(app, label) {
 
 const app = await launchApp({ dbDir });
 try {
+  // The app's own default launch size (800px) sits below the ledger's
+  // narrow-layout breakpoint, where the debt-applied "→ Car Loan" badge
+  // this test reads moves behind a per-row Details toggle instead of
+  // showing directly on the page.
+  await app.browser.setWindowSize(1280, 900);
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
   await (await app.browser.$(".stats")).waitForExist({ timeout: 10000 });
+  // The ledger's narrow/wide layout switch depends on a ResizeObserver
+  // callback, which lands asynchronously after the resize above — give it
+  // a moment before reading page content that depends on the wide layout.
+  await app.browser.waitUntil(async () => !(await app.browser.$(".ledger-sort-by").isExisting()), {
+    timeout: 5000,
+    timeoutMsg: "expected the ledger to settle into its wide layout after resizing to 1280x900",
+  });
 
   const txCount = await statValue(app, "Transactions");
   if (txCount !== "9") throw new Error(`expected 9 visible transactions, got ${txCount}`);
@@ -144,8 +156,8 @@ try {
   const accountsNav = await app.browser.$("button*=Accounts");
   await accountsNav.click();
   await (await app.browser.$(".stats")).waitForExist({ timeout: 10000 });
-  const assetsText = await statValue(app, "Total Assets");
-  const liabilitiesText = await statValue(app, "Total Liabilities");
+  const assetsText = await statValue(app, "What you own");
+  const liabilitiesText = await statValue(app, "What you owe");
   const netWorthText = await statValue(app, "Net Worth");
   if (assetsText !== "$7,990.00") throw new Error(`expected Total Assets $7,990.00, got ${assetsText}`);
   // See the file-level comment: "Total Liabilities" is this app's existing

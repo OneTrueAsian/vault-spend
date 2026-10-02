@@ -1,6 +1,6 @@
 /** Small hand-rolled inline-SVG chart components — no charting library,
  * same technique as the Monarch-styled mockup this was adapted from. */
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 
 export function fmtMoneyShort(n: number): string {
   const abs = Math.abs(n);
@@ -55,12 +55,14 @@ export function DonutChart({
   size = 132,
   stroke = 22,
   center,
+  onSelect,
 }: {
   data: { label: string; value: number; color: string }[];
   size?: number;
   stroke?: number;
   /** Optional total shown in the donut's hole, e.g. `{ value: "$1,510", label: "this month" }`. */
   center?: { value: string; label: string };
+  onSelect?: (label: string) => void;
 }) {
   const r = (size - stroke) / 2;
   const cx = size / 2;
@@ -87,6 +89,17 @@ export function DonutChart({
               strokeWidth={stroke}
               strokeDasharray={`${dash} ${circ - dash}`}
               transform={`rotate(${rotate} ${cx} ${cy})`}
+              role={onSelect ? "button" : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+              aria-label={onSelect ? `Show ${d.label} spending, ${d.value.toFixed(2)}` : undefined}
+              onClick={onSelect ? () => onSelect(d.label) : undefined}
+              onKeyDown={onSelect ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(d.label);
+                }
+              } : undefined}
+              className={onSelect ? "donut-interactive-slice" : undefined}
             />
           );
         })}
@@ -176,6 +189,8 @@ export function BarChart({
   onBarClick?: (index: number) => void;
 }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  // useId's colons are fine in an id but not in url(#…), so strip them
+  const barGradId = "bar-" + useId().replace(/:/g, "");
 
   const padL = 46;
   const padR = 12;
@@ -209,6 +224,18 @@ export function BarChart({
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} preserveAspectRatio="xMidYMid meet">
+      {/* A bright-top-to-dim-base gradient per bar. Only the Futuristic style paints with it (fill: var(--bar-fill));
+          the other styles keep the bar's flat fill attribute. */}
+      <defs>
+        {data.map((d, gi) =>
+          d.values.map((v, vi) => (
+            <linearGradient key={`${gi}-${vi}`} id={`${barGradId}-${gi}-${vi}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" style={{ stopColor: `color-mix(in srgb, ${v.color} 65%, white)` }} />
+              <stop offset="100%" style={{ stopColor: `color-mix(in srgb, ${v.color} 38%, transparent)` }} />
+            </linearGradient>
+          )),
+        )}
+      </defs>
       {Array.from({ length: gridCount + 1 }).map((_, i) => {
         const gy = padT + (innerH * i) / gridCount;
         const val = max - (max * i) / gridCount;
@@ -256,7 +283,8 @@ export function BarChart({
                   height={bh}
                   rx={4}
                   fill={v.color}
-                  style={{ pointerEvents: "none" }}
+                  className="chart-bar"
+                  style={{ pointerEvents: "none", color: v.color, "--bar-fill": `url(#${barGradId}-${gi}-${vi})` } as CSSProperties}
                 />
               );
             })}

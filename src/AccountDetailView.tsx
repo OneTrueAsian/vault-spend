@@ -1,13 +1,13 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Account } from "./types";
+import type { Account, AccountTransaction } from "./types";
 import { LineChart } from "./charts";
 import { formatAmount, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
+import { errorMessage } from "./errorMessage";
 // Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
 const AccountAccumulationSection = lazy(() => import("./AccumulationSection").then((m) => ({ default: m.AccountAccumulationSection })));
 
 type BalancePoint = { date: string; balance: string };
-type AccountTransaction = { id: number; date: string; description: string; amount: string; category: string | null; cleared: boolean };
 type ReconciliationStatus = { cleared_balance: string; difference: string; cleared_count: number };
 type LastReconciliation = { statement_date: string; statement_balance: string };
 
@@ -24,6 +24,7 @@ export function AccountDetailView({
   onBack,
   backLabel = "← All accounts",
   onOpenTransactions,
+  onOpenPayment,
   onMessage,
 }: {
   account: Account;
@@ -31,6 +32,7 @@ export function AccountDetailView({
   /** Where Back leads, when it isn't the account list (opened from the Investments tab). */
   backLabel?: string;
   onOpenTransactions: () => void;
+  onOpenPayment: (sourceId: number) => void;
   onMessage: (text: string, kind: "success" | "error" | "info") => void;
 }) {
   const [history, setHistory] = useState<BalancePoint[]>([]);
@@ -52,7 +54,7 @@ export function AccountDetailView({
   }, [account.id]);
 
   useEffect(() => {
-    loadOverview().catch((e) => onMessage(String(e), "error"));
+    loadOverview().catch((e) => onMessage(errorMessage(e), "error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadOverview]);
 
@@ -69,7 +71,7 @@ export function AccountDetailView({
       await loadReconciliation();
       setReconciling(true);
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 
@@ -78,7 +80,7 @@ export function AccountDetailView({
       await invoke("set_transactions_cleared", { ids: [t.id], cleared: !t.cleared });
       await loadReconciliation();
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 
@@ -94,7 +96,7 @@ export function AccountDetailView({
       await loadOverview();
       onMessage(`Reconciled ${account.name} through ${statementDate}.`, "success");
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 
@@ -272,7 +274,16 @@ export function AccountDetailView({
             {transactions.map((t) => (
               <tr key={t.id}>
                 <td>{t.date}</td>
-                <td>{t.description}</td>
+                <td>
+                  {t.description}
+                  {t.payment_source_id != null && (
+                    <button type="button" className="modal-secondary btn-sm view-payment"
+                      aria-label={`View payment from ${t.payment_source_account_name} on ${t.payment_source_date}`}
+                      onClick={() => onOpenPayment(t.payment_source_id!)}>
+                      View payment
+                    </button>
+                  )}
+                </td>
                 <td>{t.category ?? <span className="account-col">—</span>}</td>
                 <td className="amount-col">{formatAmount(t.amount)}</td>
                 <td className="dup-review-check" title={t.cleared ? "Cleared on a statement" : ""}>

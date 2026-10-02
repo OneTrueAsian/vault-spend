@@ -23,6 +23,8 @@
   --surface-2: #eef1f7;
   /* What a toast is painted on; opaque. Transparent overrides it. */
   --status-base: var(--surface);
+  /* What dropdown menus are painted on. Solid here; Transparent makes it a blurred glass. */
+  --menu-bg: var(--status-base);
   --surface-hover: #e6e9f0;
   --sidebar-bg: #fbfbfd;
   --sidebar-bg-hover: #eef1f7;
@@ -55,13 +57,21 @@
 
   --nav-active-shadow: 0 12px 22px rgba(35, 61, 123, 0.24);
 
+  /* Category colors for charts and legends (src/categoryPalette.ts); Futuristic recolors them. */
+  --cat-1: #1E9E76;
+  --cat-2: #3E7CB8;
+  --cat-3: #C08A2E;
+  --cat-4: #8A5FB0;
+  --cat-5: #BD5B3C;
+  --cat-6: #4E8FC9;
+
   --shadow-sm: 0 6px 16px rgba(28, 39, 69, 0.06);
   --shadow-md: 0 14px 32px rgba(28, 39, 69, 0.08);
   --shadow-lg: 0 24px 56px rgba(28, 39, 69, 0.14);
 
   --font-display: "Inter", "Segoe UI", system-ui, sans-serif;
   --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, monospace;
 
   color-scheme: light;
   font-family: var(--font-body);
@@ -156,155 +166,6 @@
   color-scheme: dark;
 }
 
-/* Futuristic — the second optional reskin: a neon cyberpunk palette
-   (electric cyan accent, violet "info", magenta-red "negative") plus its
-   own display/mono type (Orbitron, Rajdhani, Share Tech Mono) so it reads
-   as a genuinely different visual identity, not just a recolor. Like
-   Slate above, it follows the header's Light/Dark/System toggle, so it
-   needs the same three-block structure as the `:root` block up top — a
-   light default, a `prefers-color-scheme: dark` block, and an explicit
-   `data-theme="dark"` override. The sidebar rail stays the same near-
-   black in both modes (Slate's sidebar, by contrast, now follows the
-   current mode — see the `:root` block above), so those tokens repeat
-   unchanged across all three blocks below. */
-:root[data-palette="futuristic"] {
-  --bg: #f3f6fb;
-  --surface: #ffffff;
-  --surface-2: #e9eef6;
-  --surface-hover: #dfe6f0;
-  --sidebar-bg: #030509;
-  --sidebar-bg-hover: #0d1420;
-  --sidebar-bg-active: #142132;
-  --sidebar-text: #8fb8c9;
-  --sidebar-text-dim: #6c92a1;
-  --sidebar-text-active: #e4faff;
-  --sidebar-border: #101c2c;
-
-  --text: #0b1220;
-  --text-muted: #51607a;
-  --text-faint: #5a6b81;
-  --border: #d7dfec;
-  --border-strong: #b9c4d6;
-
-  --accent: #0e7490;
-  --accent-strong: #0b5768;
-  --accent-soft: #e0f7fb;
-  --accent-soft-text: #0b5768;
-  --on-accent: #ffffff;
-
-  --positive: #047857;
-  --positive-soft: #dcfdf4;
-  --negative: #e11d48;
-  --negative-soft: #fde2e8;
-  --warning: #b45309;
-  --warning-soft: #fdf1dc;
-  --info: #7c3aed;
-  --info-soft: #f1e8fd;
-
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
-  --shadow-md: 0 6px 20px rgba(15, 23, 42, 0.1);
-  --shadow-lg: 0 16px 44px rgba(15, 23, 42, 0.14);
-
-  --font-display: "Orbitron", "Segoe UI", system-ui, sans-serif;
-  --font-body: "Rajdhani", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "Share Tech Mono", "SFMono-Regular", Consolas, monospace;
-
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root[data-palette="futuristic"]:not([data-theme="light"]) {
-    --bg: #05070d;
-    --surface: #0b1220;
-    --surface-2: #111a2c;
-    --surface-hover: #1a2740;
-    --sidebar-bg: #030509;
-    --sidebar-bg-hover: #0d1420;
-    --sidebar-bg-active: #142132;
-    --sidebar-text: #8fb8c9;
-    --sidebar-text-dim: #6c92a1;
-    --sidebar-text-active: #e4faff;
-    --sidebar-border: #101c2c;
-
-    --text: #e4faff;
-    --text-muted: #8fb8c9;
-    --text-faint: #6c92a1;
-    --border: #16273a;
-    --border-strong: #223a52;
-
-    --accent: #00e5ff;
-    --accent-strong: #5cf4ff;
-    --accent-soft: #06313d;
-    --accent-soft-text: #7be8fb;
-    --on-accent: #06231a;
-
-    --positive: #39ff9e;
-    --positive-soft: #063a21;
-    --negative: #ff3d6e;
-    --negative-soft: #3a0f1d;
-    --warning: #ffd60a;
-    --warning-soft: #3a2f06;
-    --info: #b084ff;
-    --info-soft: #211640;
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 0 24px rgba(0, 229, 255, 0.12), 0 6px 20px rgba(0, 0, 0, 0.55);
-    --shadow-lg: 0 0 48px rgba(0, 229, 255, 0.16), 0 16px 44px rgba(0, 0, 0, 0.65);
-
-    color-scheme: dark;
-  }
-}
-
-:root[data-palette="futuristic"][data-theme="dark"] {
-  --bg: #05070d;
-  --surface: #0b1220;
-  --surface-2: #111a2c;
-  --surface-hover: #1a2740;
-  --sidebar-bg: #030509;
-  --sidebar-bg-hover: #0d1420;
-  --sidebar-bg-active: #142132;
-  --sidebar-text: #8fb8c9;
-  --sidebar-text-dim: #6c92a1;
-  --sidebar-text-active: #e4faff;
-  --sidebar-border: #101c2c;
-
-  --text: #e4faff;
-  --text-muted: #8fb8c9;
-  --text-faint: #6c92a1;
-  --border: #16273a;
-  --border-strong: #223a52;
-
-  --accent: #00e5ff;
-  --accent-strong: #5cf4ff;
-  --accent-soft: #06313d;
-  --accent-soft-text: #7be8fb;
-  --on-accent: #06231a;
-
-  --positive: #39ff9e;
-  --positive-soft: #063a21;
-  --negative: #ff3d6e;
-  --negative-soft: #3a0f1d;
-  --warning: #ffd60a;
-  --warning-soft: #3a2f06;
-  --info: #b084ff;
-  --info-soft: #211640;
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 0 24px rgba(0, 229, 255, 0.12), 0 6px 20px rgba(0, 0, 0, 0.55);
-  --shadow-lg: 0 0 48px rgba(0, 229, 255, 0.16), 0 16px 44px rgba(0, 0, 0, 0.65);
-
-  color-scheme: dark;
-}
-
-/* Futuristic — the angular icon set (src/icons.tsx) picks up a faint neon
-   glow to match the theme's HUD look, on hover and when a nav item is
-   active. Scoped to the palette attribute so no other theme is affected. */
-[data-palette="futuristic"] .nav-item:hover .ico,
-[data-palette="futuristic"] .nav-item-active .ico,
-[data-palette="futuristic"] .profile-switcher-toggle:hover .ico {
-  filter: drop-shadow(0 0 4px var(--accent));
-}
-
 /* Transparent — the third optional reskin: Apple's own system colors
    (systemBlue/-Green/-Red/-Orange/-Indigo, as documented in Apple's HIG)
    on a frosted-glass surface treatment instead of Slate's solid cards.
@@ -318,34 +179,37 @@
    as SF-Symbols-ish, so no third icon variant is needed. */
 :root[data-palette="transparent"] {
   --bg: #eaebef;
-  --surface: rgba(255, 255, 255, 0.72);
-  --surface-2: rgba(255, 255, 255, 0.55);
+  --surface: rgba(255, 255, 255, 0.40);
+  --surface-2: rgba(255, 255, 255, 0.25);
   --surface-hover: rgba(120, 120, 128, 0.14);
-  --sidebar-bg: rgba(255, 255, 255, 0.55);
+  --sidebar-bg: rgba(255, 255, 255, 0.25);
   --sidebar-bg-hover: rgba(120, 120, 128, 0.14);
-  --sidebar-bg-active: rgba(0, 122, 255, 0.16);
+  --sidebar-bg-active: rgba(0, 88, 184, 0.12);
   --sidebar-text: #3a3a3c;
-  --sidebar-text-dim: rgba(60, 60, 67, 0.5);
+  /* Text colors are solid, not translucent: over the tinted glass a 60%/40% gray fell to
+     2.6-3.4:1. Each of these keeps 4.5:1 on the lightest and tintiest surface it sits on. */
+  --sidebar-text-dim: #5f5f66;
   --sidebar-text-active: #1d1d1f;
   --sidebar-border: rgba(255, 255, 255, 0.4);
 
   --text: #1d1d1f;
-  --text-muted: rgba(60, 60, 67, 0.6);
-  --text-faint: rgba(60, 60, 67, 0.4);
+  --text-muted: #5a5a61;
+  --text-faint: #5f5f66;
   --border: rgba(60, 60, 67, 0.16);
   --border-strong: rgba(60, 60, 67, 0.28);
 
-  --accent: #007aff;
-  --accent-strong: #0064d6;
-  --accent-soft: rgba(0, 122, 255, 0.14);
-  --accent-soft-text: #0058b8;
+  /* #007aff carried white text at only 4.0:1; this blue carries it at 6.8:1 and reads as text too. */
+  --accent: #0058b8;
+  --accent-strong: #004a9c;
+  --accent-soft: rgba(0, 88, 184, 0.12);
+  --accent-soft-text: #004a9c;
   --on-accent: #ffffff;
 
-  --positive: #1e8e3e;
+  --positive: #136d2f; /* 5.3:1 on its own soft tint (goal badges), not 3.5:1 */
   --positive-soft: rgba(52, 199, 89, 0.16);
   --negative: #d70015;
   --negative-soft: rgba(255, 59, 48, 0.14);
-  --warning: #b25000;
+  --warning: #9a4500; /* 5.4:1 on its own soft tint, not 4.3:1 */
   --warning-soft: rgba(255, 149, 0, 0.16);
   --info: #4a48b8;
   --info-soft: rgba(88, 86, 214, 0.14);
@@ -378,6 +242,8 @@
   /* Fully opaque: the colour a toast is painted on. --surface is a 72% wash
      in this style, and a toast floats over table rows and buttons. */
   --status-base: #ffffff;
+  /* Dropdown menus: translucent (lower the last number for more see-through), with a blur behind. */
+  --menu-bg: rgba(255, 255, 255, 0.80);
 
   color-scheme: light;
 }
@@ -390,23 +256,23 @@
     --surface-hover: rgba(120, 120, 128, 0.24);
     --sidebar-bg: rgba(30, 30, 34, 0.5);
     --sidebar-bg-hover: rgba(120, 120, 128, 0.22);
-    --sidebar-bg-active: rgba(10, 132, 255, 0.22);
+    --sidebar-bg-active: rgba(77, 163, 255, 0.18);
     --sidebar-text: rgba(235, 235, 245, 0.65);
-    --sidebar-text-dim: rgba(235, 235, 245, 0.45);
+    --sidebar-text-dim: #9d9da6;
     --sidebar-text-active: #ffffff;
     --sidebar-border: rgba(255, 255, 255, 0.1);
 
     --text: #ffffff;
-    --text-muted: rgba(235, 235, 245, 0.6);
-    --text-faint: rgba(235, 235, 245, 0.38);
+    --text-muted: #a9a9b2;
+    --text-faint: #9d9da6;
     --border: rgba(255, 255, 255, 0.1);
     --border-strong: rgba(255, 255, 255, 0.18);
 
-    --accent: #0a84ff;
-    --accent-strong: #409cff;
-    --accent-soft: rgba(10, 132, 255, 0.22);
-    --accent-soft-text: #6fb4ff;
-    --on-accent: #ffffff;
+    --accent: #4da3ff;
+    --accent-strong: #79baff;
+    --accent-soft: rgba(77, 163, 255, 0.18);
+    --accent-soft-text: #8cc4ff;
+    --on-accent: #0b1a2b;
 
     --positive: #30d158;
     --positive-soft: rgba(48, 209, 88, 0.18);
@@ -430,6 +296,7 @@
     --topbar-glass-bg: rgba(30, 30, 34, 0.88);
 
     --status-base: #1c1c1e;
+    --menu-bg: rgba(28, 28, 30, 0.80);
 
     color-scheme: dark;
   }
@@ -442,23 +309,23 @@
   --surface-hover: rgba(120, 120, 128, 0.24);
   --sidebar-bg: rgba(30, 30, 34, 0.5);
   --sidebar-bg-hover: rgba(120, 120, 128, 0.22);
-  --sidebar-bg-active: rgba(10, 132, 255, 0.22);
+  --sidebar-bg-active: rgba(77, 163, 255, 0.18);
   --sidebar-text: rgba(235, 235, 245, 0.65);
-  --sidebar-text-dim: rgba(235, 235, 245, 0.45);
+  --sidebar-text-dim: #9d9da6;
   --sidebar-text-active: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.1);
 
   --text: #ffffff;
-  --text-muted: rgba(235, 235, 245, 0.6);
-  --text-faint: rgba(235, 235, 245, 0.38);
+  --text-muted: #a9a9b2;
+  --text-faint: #9d9da6;
   --border: rgba(255, 255, 255, 0.1);
   --border-strong: rgba(255, 255, 255, 0.18);
 
-  --accent: #0a84ff;
-  --accent-strong: #409cff;
-  --accent-soft: rgba(10, 132, 255, 0.22);
-  --accent-soft-text: #6fb4ff;
-  --on-accent: #ffffff;
+  --accent: #4da3ff;
+  --accent-strong: #79baff;
+  --accent-soft: rgba(77, 163, 255, 0.18);
+  --accent-soft-text: #8cc4ff;
+  --on-accent: #0b1a2b;
 
   --positive: #30d158;
   --positive-soft: rgba(48, 209, 88, 0.18);
@@ -482,6 +349,7 @@
   --topbar-glass-bg: rgba(30, 30, 34, 0.88);
 
   --status-base: #1c1c1e;
+  --menu-bg: rgba(28, 28, 30, 0.80);
 
   color-scheme: dark;
 }
@@ -617,6 +485,200 @@
    near `.sidebar`/`.nav-item`) rather than here — that positioning is load-
    bearing for a specificity tie against `.nav-item:hover`, not cosmetic. */
 
+/* Retro — an optional reskin: a classic 1990s-desktop colour
+   scheme (gray control faces, white document panes, navy selection, square
+   corners, raised and sunken four-edge borders). Like the others it follows
+   the header's Light/Dark/System toggle, so it needs the same three-block
+   structure: Light is the historical palette; Dark is a modern adaptation of
+   the same geometry (candidates, not historical values). Text uses a local
+   system sans from the font stack below — no font file is bundled or downloaded.
+   Secondary text is #4a4a4a, not the historical #808080 (2.17:1 on #c0c0c0).
+   --status-base and --menu-bg stay opaque. The component geometry (raised
+   buttons, sunken fields, square corners) is in the "Retro" section at
+   the end of this file. */
+:root[data-palette="retro"] {
+  --retro-face: #c0c0c0;
+  --retro-window: #ffffff;
+  --retro-hl: #ffffff;
+  --retro-light: #dfdfdf;
+  --retro-shadow: #808080;
+  --retro-dark: #000000;
+  --retro-sel: #000080;
+  --retro-sel-text: #ffffff;
+
+  --bg: var(--retro-face);
+  --surface: var(--retro-face);
+  --surface-2: #dfdfdf;
+  --status-base: var(--retro-face);
+  --menu-bg: var(--retro-face);
+  --surface-hover: #d4d4d4;
+  --sidebar-bg: var(--retro-face);
+  --sidebar-bg-hover: #dfdfdf;
+  --sidebar-bg-active: var(--retro-sel);
+  --sidebar-text: #000000;
+  --sidebar-text-dim: #4a4a4a;
+  --sidebar-text-active: #000000;
+  --sidebar-border: #808080;
+
+  --text: #000000;
+  --text-muted: #4a4a4a;
+  --text-faint: #4a4a4a;
+  --border: #808080;
+  --border-strong: #404040;
+
+  --accent: #000080;
+  --accent-strong: #1010a0;
+  --accent-soft: #c8c8e0;
+  --accent-soft-text: #000080;
+  --on-accent: #ffffff;
+
+  --positive: #005000;
+  --positive-soft: #b8d4b8;
+  --negative: #a00000;
+  --negative-soft: #e0b8b8;
+  --warning: #6a4200;
+  --warning-soft: #d8d0a8;
+  --info: #004a80;
+  --info-soft: #b8ccd8;
+
+  --nav-active-shadow: none;
+
+  --shadow-sm: none;
+  --shadow-md: 1px 1px 0 #000000;
+  --shadow-lg: 2px 2px 0 rgba(0, 0, 0, 0.5);
+
+  --retro-raised: inset -1px -1px var(--retro-dark), inset 1px 1px var(--retro-hl),
+    inset -2px -2px var(--retro-shadow), inset 2px 2px var(--retro-light);
+  --retro-sunken: inset -1px -1px var(--retro-hl), inset 1px 1px var(--retro-shadow),
+    inset -2px -2px var(--retro-light), inset 2px 2px var(--retro-dark);
+
+  --font-display: "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
+  --font-body: "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
+  --font-mono: "Lucida Console", Consolas, "Courier New", monospace;
+
+  font-size: 13px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="retro"]:not([data-theme="light"]) {
+    --retro-face: #303030;
+    --retro-window: #121212;
+    --retro-hl: #626262;
+    --retro-light: #454545;
+    --retro-shadow: #181818;
+    --retro-dark: #000000;
+    --retro-sel: #304ea5;
+
+    --bg: #1b1b1b;
+    --surface-2: #3a3a3a;
+    --surface-hover: #424242;
+    --sidebar-bg-hover: #3a3a3a;
+    --sidebar-text: #f3f3f3;
+    --sidebar-text-dim: #c4c4c4;
+    --sidebar-text-active: #f3f3f3;
+    --sidebar-border: #000000;
+
+    --text: #f3f3f3;
+    --text-muted: #c4c4c4;
+    --text-faint: #c4c4c4;
+    --border: #626262;
+    --border-strong: #808080;
+
+    --accent: #8aa4f5;
+    --accent-strong: #a8bcf8;
+    --accent-soft: #2a3a6e;
+    --accent-soft-text: #c8d4ff;
+    --on-accent: #0b0b0b;
+
+    --positive: #5fd38d;
+    --positive-soft: #1f3d2b;
+    --negative: #ff8f8f;
+    --negative-soft: #4a2424;
+    --warning: #e8b84a;
+    --warning-soft: #4a3a14;
+    --info: #7fb2ff;
+    --info-soft: #1f3350;
+
+    --shadow-md: 1px 1px 0 #000000;
+    --shadow-lg: 2px 2px 0 #000000;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-palette="retro"][data-theme="dark"] {
+  --retro-face: #303030;
+  --retro-window: #121212;
+  --retro-hl: #626262;
+  --retro-light: #454545;
+  --retro-shadow: #181818;
+  --retro-dark: #000000;
+  --retro-sel: #304ea5;
+
+  --bg: #1b1b1b;
+  --surface-2: #3a3a3a;
+  --surface-hover: #424242;
+  --sidebar-bg-hover: #3a3a3a;
+  --sidebar-text: #f3f3f3;
+  --sidebar-text-dim: #c4c4c4;
+  --sidebar-text-active: #f3f3f3;
+  --sidebar-border: #000000;
+
+  --text: #f3f3f3;
+  --text-muted: #c4c4c4;
+  --text-faint: #c4c4c4;
+  --border: #626262;
+  --border-strong: #808080;
+
+  --accent: #8aa4f5;
+  --accent-strong: #a8bcf8;
+  --accent-soft: #2a3a6e;
+  --accent-soft-text: #c8d4ff;
+  --on-accent: #0b0b0b;
+
+  --positive: #5fd38d;
+  --positive-soft: #1f3d2b;
+  --negative: #ff8f8f;
+  --negative-soft: #4a2424;
+  --warning: #e8b84a;
+  --warning-soft: #4a3a14;
+  --info: #7fb2ff;
+  --info-soft: #1f3350;
+
+  --shadow-md: 1px 1px 0 #000000;
+  --shadow-lg: 2px 2px 0 #000000;
+
+  color-scheme: dark;
+}
+
+/* `:where()` keeps a plain <button> at one class of specificity, so any
+   class-based button (.modal-secondary, .nav-item, .stat…) still overrides
+   it by source order, the same trick Transparent's pill rule uses. Every
+   plain button is a gray raised face; the base accent fill doesn't apply. */
+[data-palette="retro"] :where(button) {
+  background-color: var(--retro-face);
+  color: var(--text);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised);
+  font-weight: 400;
+}
+
+[data-palette="retro"] :where(button):hover {
+  background-color: var(--retro-face);
+  border-color: transparent;
+}
+
+[data-palette="retro"] :where(button):active:not(:disabled) {
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] :where(button):disabled {
+  opacity: 1;
+  color: var(--text-muted);
+  text-shadow: 1px 1px 0 var(--retro-hl);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -634,6 +696,16 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* Settings > Appearance > Reduce motion: the same rule as the OS setting above, chosen in the app. */
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }
 
 html,
@@ -754,14 +826,6 @@ body {
   color: #ffffff;
 }
 
-[data-palette="futuristic"] .nav-item.nav-item-active {
-  color: var(--sidebar-text-active);
-}
-
-[data-palette="futuristic"] .nav-item-active .ico {
-  color: var(--accent-strong);
-}
-
 /* Transparent's active nav item sits on a soft translucent tint
    (--sidebar-bg-active above), not Slate's bold gradient or Futuristic's
    flat dark fill, so it needs its own readable text/icon color — same
@@ -790,7 +854,7 @@ body {
 }
 
 .nav-group-label {
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   font-weight: 700;
@@ -816,7 +880,7 @@ body {
 
 .sidebar-version {
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sidebar-text-dim);
   margin: 0 0 8px 0;
 }
@@ -841,7 +905,7 @@ body {
   color: var(--text-muted);
   padding: 6px 11px;
   border-radius: 7px;
-  font-size: 11.5px;
+  font-size: 12px;
   cursor: pointer;
   font-weight: 600;
 }
@@ -913,8 +977,10 @@ svg.profile-switcher-icon {
   min-width: 200px;
   max-height: 260px;
   overflow-y: auto;
-  /* This menu floats over navigation; glass surfaces let its labels bleed through. */
-  background: var(--status-base);
+  /* Floats over navigation: --menu-bg is a blurred glass in Transparent, solid elsewhere. */
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1008,6 +1074,7 @@ svg.profile-switcher-icon {
 .topbar-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
@@ -1038,7 +1105,9 @@ svg.profile-switcher-icon {
   top: calc(100% + 6px);
   right: 0;
   min-width: 220px;
-  background: var(--surface);
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-md);
@@ -1104,6 +1173,15 @@ svg.profile-switcher-icon {
   padding: 24px 28px 64px;
   max-width: 1180px;
   margin: 0 auto;
+}
+
+/* Every other tab reads better capped at a comfortable line length; the
+   Transactions ledger is a wide table that should use whatever width the
+   window actually has (a 1920px window still stopped at 1180px, forcing a
+   sideways scrollbar the window had room to avoid). */
+.page-ledger {
+  max-width: 1298px;
+  min-width: 0;
 }
 
 /* Per-view header — title, one-line description, and that page's primary
@@ -1252,6 +1330,8 @@ button:disabled {
 
 .view-toggle {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 3px;
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -1295,7 +1375,7 @@ button:disabled {
 .cal-weekday {
   background: var(--surface-2);
   padding: 6px 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1321,7 +1401,7 @@ button:disabled {
 }
 
 .cal-day-num {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -1348,7 +1428,7 @@ button:disabled {
    `title` stays as a supplementary fallback for when the merchant name
    itself is what's truncated. */
 .cal-item-merchant {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1356,7 +1436,7 @@ button:disabled {
 }
 
 .cal-item-amount {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   font-family: var(--font-mono);
@@ -1640,7 +1720,7 @@ button:disabled {
 }
 
 .account-card .sub {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -1937,7 +2017,7 @@ button:disabled {
 }
 
 .donut-hole-lbl {
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1976,20 +2056,20 @@ button:disabled {
 }
 
 .axis-label {
-  font-size: 10.5px;
+  font-size: 12px;
   fill: var(--text-faint);
   font-family: var(--font-body);
 }
 
 .chart-tooltip-title {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   fill: var(--text);
   font-family: var(--font-body);
 }
 
 .chart-tooltip-text {
-  font-size: 11px;
+  font-size: 12px;
   fill: var(--text-muted);
   font-family: var(--font-body);
 }
@@ -2003,7 +2083,7 @@ button:disabled {
 
 .chart-hint {
   margin: 6px 0 0 0;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-faint);
   text-align: center;
 }
@@ -2015,8 +2095,30 @@ button:disabled {
   font-size: 12.5px;
 }
 
+.chart-legend-button {
+  width: 100%;
+  padding: 4px 6px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+}
+
+.chart-legend-button:hover,
+.chart-legend-button:focus-visible {
+  border-color: var(--border);
+  background: var(--surface-hover, var(--surface));
+}
+
+.donut-interactive-slice { cursor: pointer; }
+.donut-interactive-slice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.budget-net-summary { margin-bottom: 18px; }
+.budget-net-summary > .view-sub { margin: 0 0 12px; }
+
 .category-trend {
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-mono);
   color: var(--text-muted);
   min-width: 44px;
@@ -2091,14 +2193,12 @@ button:disabled {
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .icon-img,
-  :root[data-palette="futuristic"]:not([data-theme="light"]) .icon-img {
+  :root:not([data-theme="light"]) .icon-img {
     filter: brightness(0) invert(1);
   }
 }
 
-:root[data-theme="dark"] .icon-img,
-:root[data-palette="futuristic"][data-theme="dark"] .icon-img {
+:root[data-theme="dark"] .icon-img {
   filter: brightness(0) invert(1);
 }
 
@@ -2129,7 +2229,7 @@ button:disabled {
   justify-content: space-between;
 }
 
-.bucket-card-header h3 {
+.bucket-card-header h2 {
   margin: 0;
   font-size: 15px;
   font-family: var(--font-display);
@@ -2168,7 +2268,7 @@ button:disabled {
 .bucket-meta-row {
   display: flex;
   justify-content: space-between;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
   margin: 2px 0 0;
 }
@@ -2331,7 +2431,7 @@ button:disabled {
 }
 
 .group-card-pct {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -2827,7 +2927,7 @@ button:disabled {
 }
 
 .stat-label {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -2848,7 +2948,7 @@ button:disabled {
 }
 
 .stat-delta {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -3048,9 +3148,16 @@ button:disabled {
   pointer-events: none;
 }
 
+/* A message floats over the page for up to 10 seconds. Clicks go through its text to whatever is
+   underneath, so it never blocks a control there (QA L5); its own buttons (Dismiss, Undo) still
+   take clicks. */
 .toast-stack .status {
-  pointer-events: auto;
+  pointer-events: none;
   box-shadow: var(--shadow-md);
+}
+
+.toast-stack .status button {
+  pointer-events: auto;
 }
 
 .status {
@@ -3259,6 +3366,12 @@ button:disabled {
   color: inherit;
 }
 
+/* The global button:hover would paint this toggle accent-blue with dark text. */
+.account-filter-toggle:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
 .account-filter-caret {
   color: var(--text-muted);
   font-size: 11px;
@@ -3272,7 +3385,17 @@ button:disabled {
   min-width: 220px;
   max-height: 340px;
   overflow-y: auto;
-  background: var(--surface);
+  /* --status-base, not --surface: Transparent's --surface is deliberately
+     translucent (the "Liquid Glass" look), which left this menu panel
+     showing the ledger table through it — a composited alpha of 173/255,
+     measured against the real compiled app. --status-base is the same
+     token toasts already use for the identical reason and is just
+     --surface everywhere else, so this is a no-op outside Transparent.
+     --menu-bg is that same solid fill everywhere but Transparent, where it is
+     a lighter glass with a blur behind it so the labels stay readable. */
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow-sm);
@@ -3309,7 +3432,7 @@ button:disabled {
   gap: 7px;
   width: 100%;
   padding: 4px 0;
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
@@ -3415,6 +3538,12 @@ button:disabled {
   width: 1%;
 }
 
+/* The 3% checkbox column is ~28px wide: the table's 14px side padding left the checkbox no room. */
+.ledger .select-col {
+  padding-left: 8px;
+  padding-right: 4px;
+}
+
 .sortable-col {
   cursor: pointer;
   user-select: none;
@@ -3446,6 +3575,8 @@ button:disabled {
   color: inherit;
   text-align: inherit;
   transition: none;
+  /* A two-word header ("Sorted by") wraps in a narrow column instead of running into the next one. */
+  white-space: normal;
 }
 
 .sort-button:focus-visible {
@@ -3476,6 +3607,14 @@ button:disabled {
 
 .ledger {
   width: 100%;
+  /* A deliberate column budget (the <colgroup> in App.tsx), not
+     content-based auto-sizing: auto-layout's min-content calculation uses
+     the widest unbreakable word in a column as a hard floor regardless of
+     available space (e.g. "reimbursements"), which kept forcing the table
+     wider than the window even after every cell was made to wrap. Fixed
+     layout gives every column a real, bounded share of the table's own
+     width instead. */
+  table-layout: fixed;
   border-collapse: collapse;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -3490,6 +3629,53 @@ button:disabled {
   text-align: left;
   font-size: 13.5px;
   border-bottom: 1px solid var(--border);
+}
+
+/* Dates never wrap or spill into the description; less side padding gives the digits room. */
+.ledger td.date-col {
+  white-space: nowrap;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* Below the ledger's narrow breakpoint (App.tsx's `ledgerNarrow`), an
+   accessible replacement for the sortable headers that move into Details —
+   clicking a header is no longer possible once it isn't rendered. */
+.ledger-sort-by {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* A row's Account/Member/Category/Source/Debt (or, for a merged transfer,
+   Accounts/Category/Source), expanded below the narrow breakpoint instead
+   of being squeezed into unreadably thin columns. Same live editors as the
+   wide layout, just laid out as labeled fields instead of table columns. */
+.ledger-details-row td {
+  background: var(--surface-2);
+}
+
+.ledger-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 6px 2px;
+}
+
+.ledger-details-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.ledger-details-field > span:first-child {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
 }
 
 /* Compact density (the default): one-line rows. The tag box and Split button
@@ -3517,9 +3703,8 @@ button:disabled {
 }
 
 .ledger-compact .tag-pills {
-  display: inline-flex;
-  margin: 0 0 0 8px;
-  vertical-align: middle;
+  display: flex;
+  margin: 0;
 }
 
 .ledger-compact select {
@@ -3527,31 +3712,54 @@ button:disabled {
   font-size: 12.5px;
 }
 
-/* The three per-row dropdowns are what made rows wrap: at full width they
-   left the description and category cells too narrow for their tag box and
-   Split button to sit beside them. */
-.ledger-compact .account-col select {
-  width: 118px;
-}
-
-.ledger-compact .member-col select {
-  width: 108px;
-}
-
-.ledger-compact td:has(> select[aria-label^="Category for"]) {
-  white-space: nowrap;
-}
-
-.ledger-compact td:has(> select[aria-label^="Category for"]) select {
-  width: 118px;
-}
-
 .ledger-compact .tag-input {
   width: 46px;
 }
 
-.ledger-compact .tag-pills {
-  flex-wrap: nowrap;
+/* Match the 1.2.8 row-select styling on the current dropdown triggers. */
+.ledger .row-field-toggle {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+  white-space: nowrap;
+  text-align: left;
+  justify-content: space-between;
+  width: auto;
+  min-width: 0;
+}
+
+.ledger .row-field-toggle > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ledger .row-field-toggle .account-filter-caret {
+  flex-shrink: 0;
+}
+
+.ledger-compact .row-field-toggle[aria-label^="Account for"],
+.ledger-compact .row-field-toggle[aria-label^="Category for"] {
+  width: 118px;
+}
+
+.ledger-compact .row-field-toggle[aria-label^="Family member for"] {
+  width: 108px;
+}
+
+/* RowFieldDropdown's menu is portaled to document.body and positioned from
+   the trigger's own getBoundingClientRect (see the component's own
+   comment for why: .ledger-table-scroll's overflow-x: auto also clips
+   vertically per the CSS spec, cutting off a menu opened near the bottom
+   of the table). Only `position` needs overriding here — top/left/bottom/
+   max-width are all set inline by the component, which wins over this
+   stylesheet regardless. */
+.row-field-panel-fixed {
+  position: fixed;
 }
 
 .ledger-compact .source-col {
@@ -3650,7 +3858,7 @@ button:disabled {
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--text);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -3663,6 +3871,13 @@ button:disabled {
 .transfer-amount,
 .transfer-accounts {
   color: var(--text-muted);
+}
+
+.transfer-row-notes {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
 }
 
 .ledger-row-transfer td {
@@ -3757,7 +3972,7 @@ button:disabled {
   display: inline-block;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -3890,7 +4105,7 @@ button:disabled {
   height: 20px;
   border-radius: 50%;
   border: 1px solid var(--border-strong);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .review-step-active .review-step-num {
@@ -4169,7 +4384,7 @@ button:disabled {
 
 .palette-kind {
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -4368,7 +4583,7 @@ button:disabled {
 }
 
 .ledger th {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -4412,6 +4627,15 @@ button:disabled {
 .actions-col {
   width: 1%;
   white-space: nowrap;
+}
+
+/* The ledger table alone uses a fixed column budget (its own <colgroup>);
+   `.actions-col`'s shared `width: 1%; white-space: nowrap;` above is right
+   for every other table that reuses this class, but conflicts with it
+   here. */
+.ledger .actions-col {
+  width: auto;
+  white-space: normal;
 }
 
 .actions-col button,
@@ -4470,7 +4694,7 @@ button:disabled {
   height: 20px;
   padding: 0;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
 }
 
@@ -4537,7 +4761,7 @@ button:disabled {
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-soft-text);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   font-family: var(--font-body);
 }
@@ -4565,7 +4789,7 @@ button:disabled {
 }
 
 .suggested-meta {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -4583,21 +4807,49 @@ button:disabled {
 }
 
 .debt-col {
-  white-space: nowrap;
+  /* Was a blanket nowrap; the fixed column budget (App.tsx's <colgroup>)
+     leaves this column too narrow for that to hold — the "Apply to a
+     debt →" trigger and the active edit form both need to wrap instead of
+     forcing the column, and the whole table, wider than the window. */
+  overflow-wrap: break-word;
 }
 
-.anomaly-badge {
-  display: inline-block;
-  margin-left: 6px;
+.debt-apply-trigger {
+  /* The global `button` rule sets `white-space: nowrap`; undone here so
+     "Apply to a debt →" can wrap onto a second line in the narrow Debt
+     column instead of visually spilling into the next cell. */
+  white-space: normal;
+  text-align: left;
+  /* Compact, so it wraps to two short lines in the ~75px column instead of a four-line pill. */
+  font-size: 12px;
+  line-height: 1.25;
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+
+/* The ledger's warning badges are InfoTips (keyboard focusable, the reason read by screen readers),
+   drawn as a bare symbol instead of InfoTip's round "i". Two classes to outrank .info-tip-button. */
+.info-tip .anomaly-badge,
+.info-tip .anomaly-badge:hover,
+.info-tip .anomaly-badge[aria-expanded="true"] {
+  width: auto;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: 400 14px/1 var(--font-body);
   cursor: help;
-  font-size: 13px;
 }
 
-.anomaly-large {
+.info-tip .anomaly-large,
+.info-tip .anomaly-large:hover {
   color: var(--warning);
 }
 
-.anomaly-duplicate {
+.info-tip .anomaly-duplicate,
+.info-tip .anomaly-duplicate:hover {
   color: var(--negative);
 }
 
@@ -4608,8 +4860,11 @@ button:disabled {
 .split-toggle {
   display: inline-block;
   margin-left: 8px;
-  padding: 0.15em 0.5em;
-  font-size: 0.8em;
+  /* 24px tall and clear of the category menu above it (WCAG 2.5.8 target size). */
+  margin-top: 4px;
+  min-height: 24px;
+  padding: 0.15em 0.6em;
+  font-size: 12px;
 }
 
 .split-editor-row td {
@@ -4659,19 +4914,29 @@ button:disabled {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-  margin-top: 4px;
+  margin: 0;
+}
+
+.transaction-description-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .tag-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
   padding: 1px 6px 1px 8px;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-soft-text);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .tag-pill button {
@@ -4716,7 +4981,7 @@ button:disabled {
 
 .tag-input {
   width: 60px;
-  font-size: 11px;
+  font-size: 12px;
   padding: 1px 6px;
   border-radius: 999px;
   border: 1px dashed var(--border-strong);
@@ -4729,7 +4994,7 @@ button:disabled {
   margin-left: 8px;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   font-family: var(--font-body);
 }
@@ -4748,7 +5013,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
@@ -4807,7 +5072,7 @@ button:disabled {
   color: var(--text-muted);
   border-radius: 999px;
   padding: 2px 9px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
@@ -4972,6 +5237,7 @@ button:disabled {
 
 .debt-applied-badge {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   font-size: 12px;
@@ -4985,6 +5251,7 @@ button:disabled {
 
 .debt-apply-form {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
@@ -5571,7 +5838,7 @@ button:disabled {
   display: inline-block;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   background: var(--accent-soft);
   color: var(--accent-soft-text);
@@ -5657,7 +5924,8 @@ button:disabled {
 }
 
 .modal-field input,
-.modal-field select {
+.modal-field select,
+.modal-field textarea {
   font-family: inherit;
   font-size: 14px;
   font-weight: 400;
@@ -5668,8 +5936,26 @@ button:disabled {
   background: var(--surface);
 }
 
-.modal-field input[aria-invalid="true"] {
+.modal-field textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+.modal-field input[aria-invalid="true"],
+.modal-field textarea[aria-invalid="true"] {
   border-color: var(--negative);
+}
+
+.notes-char-count {
+  margin: -8px 0 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.notes-char-count-over {
+  color: var(--negative);
+  font-weight: 600;
 }
 
 /* A checkbox + its sentence on one line, inside a dialog. */
@@ -5683,6 +5969,32 @@ button:disabled {
 
 .modal-field-inline input {
   padding: 0;
+}
+
+/* In place of a view until the profile's data arrives (DataLoading.tsx). */
+.data-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 240px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.data-loading-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: data-loading-spin 0.9s linear infinite;
+}
+
+@keyframes data-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .field-error {
@@ -5988,7 +6300,7 @@ button:disabled {
   height: 15px;
   display: flex;
   align-items: center;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-faint);
 }
 
@@ -6406,6 +6718,8 @@ svg.profile-card-avatar {
   display: block;
   width: 100%;
   margin-top: 14px;
+  /* Full-width buttons with long labels: wrap rather than spill past the edge in a wider typeface. */
+  white-space: normal;
 }
 
 .profile-gate-forgot-remove {
@@ -6659,7 +6973,7 @@ input[type="checkbox"], input[type="radio"] {
 }
 .account-destination .account-filter-toggle:hover { background: var(--surface-2); }
 .account-destination-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-destination-panel { background: var(--status-base); }
+.account-destination-panel { background: var(--menu-bg); -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5); }
 .account-destination-option {
   display: flex;
   justify-content: space-between;
@@ -6678,6 +6992,8 @@ input[type="checkbox"], input[type="radio"] {
   font-weight: 400;
 }
 .account-destination-option:hover, .account-destination-option[aria-checked="true"] { background: var(--surface-2); }
+.account-destination-option[aria-disabled="true"] { color: var(--text-muted); cursor: default; }
+.account-destination-option[aria-disabled="true"]:hover { background: transparent; }
 .account-destination-new { margin-top: 6px; border-top: 1px solid var(--border); }
 .inbox-controls { min-width: 0; padding: 0; margin: 0; border: 0; }
 .inbox-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; }
@@ -6706,9 +7022,416 @@ input[type="checkbox"], input[type="radio"] {
   padding: 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--status-base);
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
   color: var(--text);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   box-shadow: var(--shadow-md);
+}
+
+/* Applied payment context remains visible in either ledger density. */
+.applied-payment-details { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: 0.85em; color: var(--text-muted); overflow-wrap: anywhere; }
+.payment-account-hint { margin: 0 0 8px; font-size: 0.8rem; color: var(--text-muted); }
+.view-payment { margin-left: 8px; }
+.ledger tr.payment-row-highlight { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ledger tr[data-payment-row]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Legal notice: shown once per version before the profile picker or any lock screen, and read again from Help. */
+.legal-notice {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.legal-notice-card {
+  width: min(720px, 100%);
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.legal-notice-card h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  line-height: 1.25;
+  outline: none;
+}
+
+.legal-notice-card h2 {
+  margin: 18px 0 8px;
+  font-size: 15px;
+}
+
+.legal-notice-card p,
+.legal-notice-card li {
+  line-height: 1.5;
+}
+
+.legal-notice-card p {
+  margin: 0 0 12px;
+}
+
+.legal-notice-version {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.legal-notice-changed {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.legal-notice-full {
+  margin: 14px 0;
+}
+
+.legal-notice-scroll {
+  max-height: 320px;
+  overflow: auto;
+  margin-top: 8px;
+  padding: 4px 14px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+
+.legal-notice-scroll h3 {
+  margin: 18px 0 6px;
+  font-size: 14px;
+}
+
+.legal-notice-scroll h4 {
+  margin: 14px 0 4px;
+  font-size: 13px;
+}
+
+.legal-notice-scroll p,
+.legal-notice-scroll ul {
+  margin: 0 0 10px;
+}
+
+.legal-notice-problem {
+  min-height: 1.5em;
+  color: var(--negative);
+}
+
+.legal-notice-problem:empty {
+  min-height: 0;
+  margin: 0;
+}
+
+.legal-notice-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* MenuSelect: the popover single-select that replaces a native <select>. The trigger shares the
+   account-filter-toggle look; the panel is a top-layer popover (positioned from the trigger in
+   MenuSelect.tsx), so dialogs, scrolling tables and backdrop-filter ancestors cannot clip it. */
+.menu-select {
+  position: relative;
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+/* Fills its field the way a native select does in a form. */
+.menu-select-fill {
+  display: block;
+  width: 100%;
+  /* `auto`, not a pixel basis: in a column form the basis would become the field's height. */
+  flex: 1 1 auto;
+  min-width: 100px;
+}
+
+.import-category-row .menu-select {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 320px;
+}
+
+.menu-select-toggle {
+  width: 100%;
+  justify-content: space-between;
+  background: var(--surface);
+  border-color: var(--border-strong);
+  text-align: left;
+  white-space: normal;
+}
+
+.menu-select-toggle:hover {
+  background: var(--surface-2);
+}
+
+.menu-select-toggle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.menu-select-placeholder > span:first-child {
+  color: var(--text-muted);
+}
+
+.menu-select-panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+}
+
+.menu-select-group {
+  padding: 8px 10px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ---------------------------- Retro ---------------------------- */
+/* Component geometry for the Retro style (tokens are defined near the
+   other palettes above). Every selector is scoped to data-palette="retro",
+   so the other styles are unaffected. Raised = light top/left, dark
+   bottom/right (--retro-raised); sunken is the inverse (--retro-sunken). */
+
+/* Square corners everywhere, pills and circles included. !important is the
+   deliberate blunt tool here: ~150 component rules each set their own radius
+   at varying specificity, and a retro control never has a rounded one. */
+[data-palette="retro"] :is(*, *::before, *::after) {
+  border-radius: 0 !important;
+}
+
+/* Shell and navigation */
+[data-palette="retro"] .sidebar {
+  border-right: 1px solid var(--retro-dark);
+  box-shadow: inset -1px 0 var(--retro-shadow), inset 1px 0 var(--retro-hl);
+}
+
+[data-palette="retro"] .topbar {
+  background: var(--retro-face);
+  border-bottom: 1px solid var(--retro-dark);
+  box-shadow: inset 0 -1px var(--retro-shadow), inset 0 1px var(--retro-hl);
+}
+
+[data-palette="retro"] .topbar h1,
+[data-palette="retro"] .brand-word {
+  font-weight: 700;
+}
+
+[data-palette="retro"] .nav-item {
+  font-size: 13px;
+  font-weight: 400;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+[data-palette="retro"] .nav-item:hover {
+  background: transparent;
+  box-shadow: var(--retro-raised);
+}
+
+[data-palette="retro"] .nav-item.nav-item-active {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+  box-shadow: none;
+  border: 1px dotted var(--retro-sel-text);
+  outline: 1px solid var(--retro-sel);
+  outline-offset: -1px;
+}
+
+[data-palette="retro"] .nav-item.nav-item-active .ico {
+  color: var(--retro-sel-text);
+}
+
+/* Panels and dialogs */
+[data-palette="retro"] .card,
+[data-palette="retro"] .modal-panel,
+[data-palette="retro"] .account-card,
+[data-palette="retro"] .legal-notice-card,
+[data-palette="retro"] .stat,
+[data-palette="retro"] .stat-hero {
+  background-color: var(--retro-face);
+  background-image: none;
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-palette="retro"] .modal-panel {
+  box-shadow: var(--retro-raised), var(--shadow-lg);
+}
+
+[data-palette="retro"] .modal-title {
+  font-weight: 700;
+}
+
+[data-palette="retro"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* Sunken fields: white (or, in the dark adaptation, near-black) interiors */
+[data-palette="retro"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+[data-palette="retro"] textarea,
+[data-palette="retro"] select {
+  background: var(--retro-window);
+  color: var(--text);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] input[aria-invalid="true"],
+[data-palette="retro"] select[aria-invalid="true"],
+[data-palette="retro"] textarea[aria-invalid="true"] {
+  outline: 1px solid var(--negative);
+}
+
+/* Dropdown triggers are sunken like a classic combo box; their panels are raised */
+[data-palette="retro"] .menu-select-toggle,
+[data-palette="retro"] .account-filter-toggle {
+  background: var(--retro-window);
+  color: var(--text);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-sunken);
+  font-weight: 400;
+}
+
+[data-palette="retro"] .menu-select-toggle:hover,
+[data-palette="retro"] .account-filter-toggle:hover,
+[data-palette="retro"] .account-destination .account-filter-toggle:hover {
+  background: var(--retro-window);
+  border-color: transparent;
+}
+
+[data-palette="retro"] .menu-select-panel,
+[data-palette="retro"] .profile-switcher-panel,
+[data-palette="retro"] .more-menu-panel,
+[data-palette="retro"] .account-destination-panel {
+  background: var(--retro-face);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised), var(--shadow-md);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-palette="retro"] .profile-switcher-option:hover,
+[data-palette="retro"] .account-filter-option:hover,
+[data-palette="retro"] .menu-select-panel [role="option"]:hover,
+[data-palette="retro"] .menu-select-panel [role="option"]:focus-visible {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+}
+
+/* Secondary buttons, tabs, and the Light/Dark/System toggle */
+[data-palette="retro"] .modal-secondary {
+  background: var(--retro-face);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised);
+}
+
+[data-palette="retro"] .modal-secondary:hover {
+  background: var(--retro-face);
+  border-color: transparent;
+}
+
+[data-palette="retro"] .tabs,
+[data-palette="retro"] .theme-toggle {
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 2px;
+}
+
+[data-palette="retro"] .tab-btn,
+[data-palette="retro"] .theme-toggle button {
+  background: var(--retro-face);
+  color: var(--text);
+  box-shadow: var(--retro-raised);
+  font-weight: 400;
+}
+
+[data-palette="retro"] .tab-btn:hover,
+[data-palette="retro"] .theme-toggle button:hover {
+  background: var(--retro-face);
+  color: var(--text);
+}
+
+[data-palette="retro"] .tab-btn-active,
+[data-palette="retro"] .theme-toggle button.theme-toggle-active {
+  background: var(--retro-face);
+  box-shadow: var(--retro-sunken);
+  font-weight: 700;
+}
+
+/* Tables: a sunken white document pane with button-like column headers */
+[data-palette="retro"] .ledger {
+  background: var(--retro-window);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] .ledger th {
+  background: var(--retro-face);
+  color: var(--text);
+  box-shadow: var(--retro-raised);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+[data-palette="retro"] .ledger td {
+  border-bottom-color: var(--retro-light);
+}
+
+[data-palette="retro"] .ledger-row-selected td {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+}
+
+/* Progress: a sunken track with a solid navy fill */
+[data-palette="retro"] .progress-track {
+  background: var(--retro-window);
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] .progress-fill {
+  background: var(--retro-sel);
+}
+
+[data-palette="retro"] .progress-fill.warn {
+  background: var(--warning);
+}
+
+[data-palette="retro"] .progress-fill.over {
+  background: var(--negative);
+}
+
+/* Toasts keep their opaque status tint over --status-base */
+[data-palette="retro"] .status {
+  box-shadow: var(--retro-raised);
+  border-color: var(--border-strong);
+}
+
+[data-palette="retro"] .toast-stack .status {
+  box-shadow: var(--retro-raised), var(--shadow-md);
 }

@@ -4,7 +4,7 @@
 //
 // Run with: node e2e/feature5_tags.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, menuOptionLabels } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -39,8 +39,10 @@ try {
   await moreFiltersToggle.waitForExist({ timeout: 5000 });
   await moreFiltersToggle.click();
 
-  const filterOption = await app.browser.$("option=vacation");
-  await filterOption.waitForExist({ timeout: 5000 });
+  const tagFilter = await app.browser.$("//label[.//span[text()='Tag']]//button[contains(@class,'menu-select-toggle')]");
+  await tagFilter.waitForExist({ timeout: 5000 });
+  const tagLabels = await menuOptionLabels(tagFilter);
+  if (!tagLabels.includes("vacation")) throw new Error(`expected "vacation" among the tag filter's options, got: ${tagLabels.join(", ")}`);
   console.log("filter option found");
 
   const reportsNav = await app.browser.$("button*=Reports");

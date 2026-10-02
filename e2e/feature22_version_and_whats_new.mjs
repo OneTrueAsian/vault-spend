@@ -53,6 +53,11 @@ try {
 
   const dialogTitle = await app.browser.$("//h2[contains(@class,'modal-title')][starts-with(text(),\"What's new in\")]");
   await dialogTitle.waitForExist({ timeout: 10000 });
+  // A modal's getText() is "" during its ~160ms fade-in; wait for the text rather than reading once.
+  await app.browser.waitUntil(async () => (await dialogTitle.getText()).trim() !== "", {
+    timeout: 5000,
+    timeoutMsg: "the What's new dialog title never showed any text",
+  });
   const titleText = await dialogTitle.getText();
   console.log("what's new dialog title:", titleText);
   if (!titleText.includes(versionString.slice(1))) {

@@ -1,3 +1,4 @@
+import { MenuSelect } from "./MenuSelect";
 /** What to do with a category an import file uses that the person doesn't have. Sent to
  * `commit_import` as-is (`action` is what the backend reads). Nothing is added to their
  * category list unless it is `create`. */
@@ -73,25 +74,18 @@ export function ImportCategoryReconcile({
                 {u.count} {u.count === 1 ? "row" : "rows"}
               </span>
             </span>
-            <select
+            <MenuSelect
+              ariaLabel={`What to do with the file's “${u.name}” category`}
               value={toValue(choices[u.name])}
-              onChange={(e) => onChange(u.name, fromValue(e.target.value))}
-              aria-label={`What to do with the file's “${u.name}” category`}
-              data-import-category-choice
-              data-import-category-name={u.name}
-            >
-              <option value="skip">Don't use it</option>
-              <option value="create">Add as a new category</option>
-              {categories.length > 0 && (
-                <optgroup label="Use one of my categories">
-                  {categories.map((c) => (
-                    <option key={c} value={`map:${c}`}>
-                      {c}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
+              onChange={(v) => onChange(u.name, fromValue(v))}
+              options={[
+                { value: "skip", label: "Don't use it" },
+                { value: "create", label: "Add as a new category" },
+                ...categories.map((c) => ({ value: `map:${c}`, label: c, group: "Use one of my categories" })),
+              ]}
+              fill
+              triggerAttrs={{ "data-import-category-choice": "", "data-import-category-name": u.name }}
+            />
           </li>
         ))}
       </ul>

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 /** Auto-cancels a two-step delete confirmation a few seconds after it's
  * shown (used alongside a `confirmingDeleteId`/`confirmingBulkDelete`-style
@@ -7,9 +7,15 @@ import { useEffect } from "react";
  * near the same spot. `confirming` is whatever falsy/truthy value already
  * represents "not confirming" for that state (`null`, `false`, ...). */
 export function useAutoCancelDelete(confirming: unknown, cancel: () => void, ms = 4000) {
+  // Callers pass a new `cancel` on every render; keep the latest in a ref so the timer restarts only
+  // when the confirmation itself changes, not on every render.
+  const cancelRef = useRef(cancel);
+  useEffect(() => {
+    cancelRef.current = cancel;
+  });
   useEffect(() => {
     if (!confirming) return;
-    const timer = setTimeout(cancel, ms);
+    const timer = setTimeout(() => cancelRef.current(), ms);
     return () => clearTimeout(timer);
-  }, [confirming]);
+  }, [confirming, ms]);
 }

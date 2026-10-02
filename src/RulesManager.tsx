@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { RuleEditorDialog } from "./Modal";
 import { SortableTh } from "./SortableTh";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
+import { MenuSelect } from "./MenuSelect";
+import { errorMessage } from "./errorMessage";
 
 type Rule = { pattern: string; category: string; match_count: number };
 type SortColumn = "pattern" | "category" | "matches";
@@ -45,7 +47,7 @@ export function RulesManager({
     try {
       setRules(await invoke<Rule[]>("list_rules"));
     } catch (e) {
-      onMessageRef.current(String(e), "error");
+      onMessageRef.current(errorMessage(e), "error");
     }
   }, []);
 
@@ -101,7 +103,7 @@ export function RulesManager({
         onMessage("Saved the rule.", "success");
       }
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 
@@ -112,7 +114,7 @@ export function RulesManager({
       await load();
       onMessage("Deleted the rule. Transactions it already categorized keep their category.", "success");
     } catch (e) {
-      onMessage(String(e), "error");
+      onMessage(errorMessage(e), "error");
     }
   }
 
@@ -147,19 +149,16 @@ export function RulesManager({
           placeholder="Filter rules by text or category…"
           aria-label="Filter rules"
         />
-        <select
+        <MenuSelect
+          ariaLabel="Show rules for one category"
           value={activeCategory}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          aria-label="Show rules for one category"
-          data-rules-category-filter
-        >
-          <option value="">All categories</option>
-          {filterCategories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          onChange={setCategoryFilter}
+          options={[
+            { value: "", label: "All categories" },
+            ...filterCategories.map((c) => ({ value: c, label: c })),
+          ]}
+          triggerAttrs={{ "data-rules-category-filter": "" }}
+        />
         <span className="account-col rules-count" role="status">
           {countText}
         </span>
@@ -183,7 +182,7 @@ export function RulesManager({
               >
                 Matches
               </SortableTh>
-              <th className="actions-col"></th>
+              <th className="actions-col"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>

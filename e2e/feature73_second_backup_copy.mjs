@@ -14,12 +14,13 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
 acct = cur.lastrowid
 cur.execute("INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?,?,?,?,?,?)",
-            (acct, "2026-08-01", "Original", "-10.00", None, f"{acct}|2026-08-01|original|-10.00"))
+            (acct, "${dateInMonth(-2, 1)}", "Original", "-10.00", None, f"{acct}|${dateInMonth(-2, 1)}|original|-10.00"))
 `);
 const copyDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-second-copy-"));
 const backupsDir = path.join(dbDir, "backups");

@@ -76,12 +76,14 @@ export type AppSettings = {
   rollover_enabled: boolean;
   /** Opt-in (off by default): link clear-cut transfer pairs automatically. */
   auto_link_transfers: boolean;
+  safe_to_spend_enabled: boolean;
 };
 
 /** Purely a per-viewer display preference (like `Theme` in App.tsx) — stored
- * in localStorage, never sent to the backend. All three styles follow the
+ * in localStorage, never sent to the backend. All four styles follow the
  * header's separate Light/Dark/System toggle — none of them is dark-only. */
-export type ThemeStyle = "classic" | "futuristic" | "transparent";
+/** "transparent" is the Default look (shown as "Default"); the old Slate style ("classic") is retired. */
+export type ThemeStyle = "transparent" | "futuristic" | "retro";
 
 export type Insight = {
   severity: "warning" | "info" | "positive";
@@ -90,6 +92,7 @@ export type Insight = {
 };
 
 export type AppliedDebtPayment = {
+  date: string;
   debt_account_id: number;
   debt_account_name: string;
   amount: string;
@@ -114,6 +117,10 @@ export type Transaction = {
   tags: string[];
   member_id: number | null;
   member_name: string | null;
+  /** A person's own freeform annotation on this transaction — never used
+   * for categorization, transfer matching, or import dedup. `null` means
+   * no note. See `update_transaction_notes`. */
+  notes: string | null;
 };
 
 export type TransactionSplit = {
@@ -143,6 +150,9 @@ export type Account = {
   /** An explicit icon override (see `AccountTypeIcon`'s `iconKey` prop) —
    * `null` means "keep guessing an icon from `account_type`." */
   icon_key: string | null;
+  /** The "Flip the signs" answer from the last import into this account,
+   * offered again next time — `null` before the first import. */
+  import_flip_signs: boolean | null;
 };
 
 /** A registered category name plus its explicit icon override, if any —
@@ -538,4 +548,18 @@ export type SetupImportSummary = {
   holdings_created: number;
   skipped: string[];
   row_errors: number;
+};
+
+/** Account-side identity and amounts, with live original-payment metadata. */
+export type AccountTransaction = {
+  id: number;
+  date: string;
+  description: string;
+  amount: string;
+  category: string | null;
+  cleared: boolean;
+  payment_source_id: number | null;
+  payment_source_account_id: number | null;
+  payment_source_account_name: string | null;
+  payment_source_date: string | null;
 };

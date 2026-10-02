@@ -10,7 +10,7 @@
 //
 // Run with: node e2e/feature98_rules_list_scroll.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -91,13 +91,13 @@ try {
   if ((await card.$("//th[contains(.,'Category')]").getAttribute("aria-sort")) !== "descending") throw new Error("aria-sort should say descending");
 
   // 5. The category dropdown narrows the list and says how much is showing.
-  const filter = await card.$("select[data-rules-category-filter]");
-  await filter.selectByVisibleText("Shopping");
+  const filter = await card.$("button[data-rules-category-filter]");
+  await chooseMenuOption(filter, { label: "Shopping" });
   await browser.waitUntil(async () => (await rowPatterns()).length === 16, { timeout: 5000, timeoutMsg: "16 of the 80 rules use Shopping" });
   if (!(await rowCategories()).every((c) => c === "Shopping")) throw new Error("only Shopping rules should be listed");
   const status = await card.$(".rules-count").getText();
   if (status !== "Showing 16 of 80 rules") throw new Error(`expected "Showing 16 of 80 rules", got "${status}"`);
-  await filter.selectByVisibleText("All categories");
+  await chooseMenuOption(filter, { label: "All categories" });
   await browser.waitUntil(async () => (await rowPatterns()).length === 80, { timeout: 5000 });
 
   // 6. Half-window: nothing runs off the side.

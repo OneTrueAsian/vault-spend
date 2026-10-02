@@ -12,6 +12,7 @@ const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
 import { RulesManager } from "./RulesManager";
+import { menuOptions, pickMenuOption } from "./menuSelectTestUtils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -48,7 +49,7 @@ describe("RulesManager list", () => {
 
   const patterns = () => [...container.querySelectorAll("tbody tr td:first-child")].map((td) => td.textContent);
   const heading = (label: string) => [...container.querySelectorAll("th")].find((th) => th.textContent?.includes(label))!;
-  const categoryFilter = () => container.querySelector<HTMLSelectElement>("select[data-rules-category-filter]")!;
+  const categoryFilter = () => container.querySelector<HTMLButtonElement>("button[data-rules-category-filter]")!;
 
   async function click(el: Element) {
     await act(async () => {
@@ -56,11 +57,8 @@ describe("RulesManager list", () => {
     });
   }
 
-  async function choose(select: HTMLSelectElement, value: string) {
-    await act(async () => {
-      select.value = value;
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+  async function choose(trigger: HTMLButtonElement, value: string) {
+    pickMenuOption(trigger, value);
   }
 
   async function type(input: HTMLInputElement, value: string) {
@@ -96,7 +94,7 @@ describe("RulesManager list", () => {
   });
 
   it("can be narrowed to one category, and says how much of the list is showing", async () => {
-    const options = [...categoryFilter().querySelectorAll("option")].map((o) => o.textContent);
+    const options = menuOptions(categoryFilter()).map((o) => o.label);
     expect(options).toEqual(["All categories", "Dining Out", "Entertainment", "Groceries", "Income"]);
 
     await choose(categoryFilter(), "Groceries");

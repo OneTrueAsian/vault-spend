@@ -16,7 +16,7 @@
 //
 // Run with: node e2e/feature92_accumulation_details.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { money, monthFromNow, nav, openDetails, parseMoney, text, waitForAccumulation } from "./lib/accumulation.mjs";
 
@@ -165,18 +165,23 @@ try {
 
   // ...and so does the keyboard: the chart takes focus, the arrow keys step through the same points, and the
   // values at the current point are announced (the live region) as well as drawn.
-  // Move the mouse off the chart first, so only the keyboard can bring the tooltip back.
-  await browser.action("pointer").move({ x: 2, y: 2 }).perform();
-  await browser.waitUntil(async () => (await browser.$$("[data-acc-chart] .chart-tooltip-text")).length === 0, { timeout: 5000, timeoutMsg: "the tooltip should go when the mouse leaves the chart" });  await browser.execute(() => document.querySelector("[data-acc-chart] [data-series-chart]").focus());
-  await browser.keys("Home");
-  await browser.waitUntil(async () => (await browser.$$("[data-acc-chart] .chart-tooltip-text")).length >= 1, { timeout: 5000, timeoutMsg: "Home on the focused chart should show the tooltip for its first point" });
-  const firstTitle = await text(browser, "[data-acc-chart] .chart-tooltip-title");
-  await browser.keys("ArrowRight");
-  await browser.waitUntil(async () => (await text(browser, "[data-acc-chart] .chart-tooltip-title")) !== firstTitle, { timeout: 5000, timeoutMsg: "ArrowRight should move the tooltip to the next point" });
-  const announced = await browser.execute(() => document.querySelector("[data-acc-chart] [data-chart-live]")?.textContent ?? "");
+  // Keys go nowhere while another spec's window holds OS focus, so the sequence is retried from the top then.
+  const announced = await withFocusRetry(browser, async () => {
+    // Move the mouse off the chart first, so only the keyboard can bring the tooltip back.
+    await browser.action("pointer").move({ x: 2, y: 2 }).perform();
+    await browser.waitUntil(async () => (await browser.$$("[data-acc-chart] .chart-tooltip-text")).length === 0, { timeout: 5000, timeoutMsg: "the tooltip should go when the mouse leaves the chart" });
+    await browser.execute(() => document.querySelector("[data-acc-chart] [data-series-chart]").focus());
+    await browser.keys("Home");
+    await browser.waitUntil(async () => (await browser.$$("[data-acc-chart] .chart-tooltip-text")).length >= 1, { timeout: 5000, timeoutMsg: "Home on the focused chart should show the tooltip for its first point" });
+    const firstTitle = await text(browser, "[data-acc-chart] .chart-tooltip-title");
+    await browser.keys("ArrowRight");
+    await browser.waitUntil(async () => (await text(browser, "[data-acc-chart] .chart-tooltip-title")) !== firstTitle, { timeout: 5000, timeoutMsg: "ArrowRight should move the tooltip to the next point" });
+    const live = await browser.execute(() => document.querySelector("[data-acc-chart] [data-chart-live]")?.textContent ?? "");
+    await browser.keys("Escape");
+    await browser.waitUntil(async () => (await browser.$$("[data-acc-chart] .chart-tooltip-text")).length === 0, { timeout: 5000, timeoutMsg: "Escape should put the tooltip away" });
+    return live;
+  });
   if (!/Cash invested \$/.test(announced)) fail(`the values at the current point should be announced, got: "${announced}"`);
-  await browser.keys("Escape");
-  await browser.waitUntil(async () => (await browser.$$("[data-acc-chart] .chart-tooltip-text")).length === 0, { timeout: 5000, timeoutMsg: "Escape should put the tooltip away" });
   // ---- a money-out lowers the net; growth goes red when negative ------------------------
   await nav(browser, "Accounts");
   const downId = await openDetails(browser, "Down 529");

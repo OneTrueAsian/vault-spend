@@ -12,6 +12,8 @@ import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
 import { getCurrentGeneration } from "./profileUiState";
 import { ModalShell } from "./Modal";
 import { PasswordForm } from "./PasswordForm";
+import { MenuSelect } from "./MenuSelect";
+import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs, type NeonAccent } from "./themeBootstrap";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -68,7 +70,7 @@ function DataFileBlock({
 }) {
   return (
     <div className="data-block" data-data-file>
-      <h3 className="data-subhead">Data file</h3>
+      <h2 className="data-subhead">Data file</h2>
       <p className="modal-message-secondary">Data file location</p>
       <p className="path-box" style={{ userSelect: "text" }}>
         {dataFileLocation ?? "Loading…"}
@@ -241,7 +243,7 @@ export function BackupsBlock({
   return (
     <div className="data-block" data-backups>
       <div className="data-subhead-row">
-        <h3 className="data-subhead">Backups</h3>
+        <h2 className="data-subhead">Backups</h2>
         <button type="button" className="modal-secondary" onClick={onCreateBackupNow}>
           Back up now
         </button>
@@ -256,7 +258,7 @@ export function BackupsBlock({
           <tr>
             <th>Created</th>
             <th className="amount-col">Size</th>
-            <th className="actions-col"></th>
+            <th className="actions-col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -333,9 +335,11 @@ function LivePricesSection({
   // Keep the picker in sync with the last-saved provider whenever the
   // feature is off, so re-opening Settings pre-selects what was last used
   // rather than always resetting to Alpha Vantage.
+  const savedEnabled = settings?.enabled;
+  const savedProvider = settings?.provider;
   useEffect(() => {
-    if (settings && !settings.enabled) setPickerProvider(settings.provider);
-  }, [settings?.enabled, settings?.provider]);
+    if (savedEnabled === false && savedProvider) setPickerProvider(savedProvider);
+  }, [savedEnabled, savedProvider]);
 
   function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -398,18 +402,13 @@ function LivePricesSection({
         </>
       ) : (
         <>
-          <select
-            aria-label="Live price provider"
-            className="text-input"
+          <MenuSelect
+            ariaLabel="Live price provider"
             value={pickerProvider}
-            onChange={(e) => setPickerProvider(e.target.value as LivePriceProviderId)}
-          >
-            {(Object.keys(LIVE_PRICE_PROVIDERS) as LivePriceProviderId[]).map((id) => (
-              <option key={id} value={id}>
-                {LIVE_PRICE_PROVIDERS[id].label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setPickerProvider(v as LivePriceProviderId)}
+            options={(Object.keys(LIVE_PRICE_PROVIDERS) as LivePriceProviderId[]).map((id) => ({ value: id, label: LIVE_PRICE_PROVIDERS[id].label }))}
+            fill
+          />
           <p className="modal-message-secondary">
             Off by default — holding prices stay fully manual, edited directly on the Investments tab. Add a free{" "}
             {LIVE_PRICE_PROVIDERS[pickerProvider].label} API key to auto-fill prices for new holdings and keep
@@ -442,30 +441,41 @@ function LivePricesSection({
 
 const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string }[] = [
   {
-    id: "classic",
-    label: "Slate",
-    description: "Vault Spend's default look, following the header's Light/Dark/System toggle.",
+    id: "transparent",
+    label: "Default",
+    description:
+      "Vault Spend's standard look — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Follows the header's Light/Dark/System toggle.",
   },
   {
     id: "futuristic",
     label: "Futuristic",
     description:
-      "A neon cyberpunk reskin — electric cyan, violet, and magenta-red accents, plus Orbitron and Share Tech Mono type, and its own angular sidebar icon set. Also follows the header's Light/Dark/System toggle.",
+      "A neon look on deep navy — a glowing accent color you choose, tall narrow headings, rounded panels, and its own angular sidebar icons. When it's selected, you can pick the accent color and how strongly it glows. Also follows the header's Light/Dark/System toggle.",
   },
   {
-    id: "transparent",
-    label: "Transparent",
+    id: "retro",
+    label: "Retro",
     description:
-      "A frosted-glass reskin — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Also follows the header's Light/Dark/System toggle.",
+      "A classic desktop reskin — gray raised and sunken controls, square corners, white document areas, and navy selection, in a plain system sans. Light is the classic gray; Dark is a modern adaptation of the same shapes. Also follows the header's Light/Dark/System toggle.",
   },
 ];
 
-function AppearanceSection({
+const ACCENT_OPTIONS: { id: NeonAccent; label: string }[] = [
+  { id: "cyan", label: "Ion Cyan" },
+  { id: "pink", label: "Rebel Pink" },
+  { id: "violet", label: "Ultraviolet" },
+];
+
+export function AppearanceSection({
   themeStyle,
   onSetThemeStyle,
+  appearance,
+  onSetAppearance,
 }: {
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
+  appearance: AppearancePrefs;
+  onSetAppearance: (next: AppearancePrefs) => void;
 }) {
   return (
     <div className="card">
@@ -492,6 +502,70 @@ function AppearanceSection({
           </label>
         ))}
       </div>
+      {themeStyle === "futuristic" && (
+        <div className="futuristic-options" data-futuristic-options>
+          <span className="feature-toggle-label">Futuristic options</span>
+          <div className="accent-choices" role="radiogroup" aria-label="Accent color">
+            {ACCENT_OPTIONS.map((opt) => {
+              const checked = appearance.accent === opt.id;
+              return (
+                <label key={opt.id} className={`accent-choice${checked ? " accent-choice-checked" : ""}`}>
+                  <input
+                    type="radio"
+                    name="neon-accent"
+                    checked={checked}
+                    onChange={() => onSetAppearance({ ...appearance, accent: opt.id })}
+                  />
+                  <span className={`accent-swatch accent-swatch-${opt.id}`} aria-hidden="true" />
+                  {opt.label}
+                  {checked && (
+                    <span className="accent-check" data-accent-check aria-hidden="true" />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          <label className="neon-intensity">
+            <span className="neon-intensity-head">
+              <span>Neon intensity</span>
+              <span className="neon-intensity-value">{appearance.intensity}%</span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              aria-label="Neon intensity"
+              value={appearance.intensity}
+              onChange={(e) => onSetAppearance({ ...appearance, intensity: Number(e.currentTarget.value) })}
+            />
+            <span className="modal-message-secondary">
+              How strongly the colored glow shows. At 0 the glow is off; text, outlines, and colors that carry
+              meaning stay the same.
+            </span>
+          </label>
+          <div>
+            <button type="button" className="modal-secondary" onClick={() => onSetAppearance(DEFAULT_APPEARANCE_PREFS)}>
+              Reset Futuristic options
+            </button>
+          </div>
+        </div>
+      )}
+      <label className="feature-toggle-row reduce-motion-row">
+        <input
+          type="checkbox"
+          data-reduce-motion
+          checked={appearance.reduceMotion}
+          onChange={(e) => onSetAppearance({ ...appearance, reduceMotion: e.currentTarget.checked })}
+        />
+        <span className="feature-toggle-text">
+          <span className="feature-toggle-label">Reduce motion</span>
+          <span className="modal-message-secondary">
+            Turns off sliding and fading effects in every style. If your computer is set to reduce motion, that is
+            always followed too.
+          </span>
+        </span>
+      </label>
     </div>
   );
 }
@@ -610,7 +684,7 @@ function SetupDataBlock({
 }) {
   return (
     <div className="data-block" data-setup-data>
-      <h3 className="data-subhead">Setup data</h3>
+      <h2 className="data-subhead">Setup data</h2>
       <p className="modal-message-secondary">
         Setting up from scratch? Download the template, fill in your accounts, categories, budgets, goals and holdings,
         then import it in one go.
@@ -634,6 +708,7 @@ function FeatureTogglesSection({
   onSetEnvelopeCapsEnabled,
   onSetRolloverEnabled,
   onSetAutoLinkTransfers,
+  onSetSafeToSpendEnabled,
 }: {
   appSettings: AppSettings;
   onSetApplyToDebtEnabled: (enabled: boolean) => void;
@@ -641,6 +716,7 @@ function FeatureTogglesSection({
   onSetEnvelopeCapsEnabled: (enabled: boolean) => void;
   onSetRolloverEnabled: (enabled: boolean) => void;
   onSetAutoLinkTransfers: (enabled: boolean) => void;
+  onSetSafeToSpendEnabled: (enabled: boolean) => void;
 }) {
   const toggles: { key: keyof AppSettings; label: string; description: string; onChange: (enabled: boolean) => void }[] = [
     {
@@ -675,6 +751,12 @@ function FeatureTogglesSection({
         "Off by default. When on, a pair of transactions that are clearly one move between your own accounts (equal amounts, opposite directions, different accounts, within 3 days, and no other possible match) is linked as soon as it arrives, instead of waiting in “possible transfers”. Every automatic link is listed on Transactions for you to review and unlink.",
       onChange: onSetAutoLinkTransfers,
     },
+    {
+      key: "safe_to_spend_enabled",
+      label: "Safe to spend",
+      description: "Shows the Safe to spend Dashboard widget. Turning this off keeps its saved position and buffer for when you turn it back on.",
+      onChange: onSetSafeToSpendEnabled,
+    },
   ];
 
   return (
@@ -688,7 +770,7 @@ function FeatureTogglesSection({
       </p>
       <div className="feature-toggle-list">
         {toggles.map((t) => (
-          <label key={t.key} className="feature-toggle-row">
+          <label key={t.key} className="feature-toggle-row" data-feature-toggle={t.key}>
             <input type="checkbox" checked={appSettings[t.key]} onChange={(e) => t.onChange(e.target.checked)} />
             <span className="feature-toggle-text">
               <span className="feature-toggle-label">{t.label}</span>
@@ -792,9 +874,11 @@ export function ProfilesSection({
       <table className="ledger">
         <thead>
           <tr>
-            <th></th>
+            <th>
+              <span className="sr-only">Icon</span>
+            </th>
             <th>Name</th>
-            <th className="actions-col"></th>
+            <th className="actions-col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -1060,8 +1144,11 @@ export function SettingsView({
   onSetEnvelopeCapsEnabled,
   onSetRolloverEnabled,
   onSetAutoLinkTransfers,
+  onSetSafeToSpendEnabled,
   themeStyle,
   onSetThemeStyle,
+  appearance,
+  onSetAppearance,
   privacyAutoHide,
   onSetPrivacyAutoHide,
   onDownloadSetupTemplate,
@@ -1119,8 +1206,11 @@ export function SettingsView({
   onSetEnvelopeCapsEnabled: (enabled: boolean) => void;
   onSetRolloverEnabled: (enabled: boolean) => void;
   onSetAutoLinkTransfers: (enabled: boolean) => void;
+  onSetSafeToSpendEnabled: (enabled: boolean) => void;
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
+  appearance: AppearancePrefs;
+  onSetAppearance: (next: AppearancePrefs) => void;
 }) {
   return (
     <div className="reports-view">
@@ -1130,7 +1220,12 @@ export function SettingsView({
           <p className="view-sub">Appearance, profile, and local data.</p>
         </div>
       </div>
-      <AppearanceSection themeStyle={themeStyle} onSetThemeStyle={onSetThemeStyle} />
+      <AppearanceSection
+        themeStyle={themeStyle}
+        onSetThemeStyle={onSetThemeStyle}
+        appearance={appearance}
+        onSetAppearance={onSetAppearance}
+      />
       <PrivacySection autoHide={privacyAutoHide} onSetAutoHide={onSetPrivacyAutoHide} />
       <ProfilesSection
         profiles={profiles}
@@ -1179,6 +1274,7 @@ export function SettingsView({
         onSetEnvelopeCapsEnabled={onSetEnvelopeCapsEnabled}
         onSetRolloverEnabled={onSetRolloverEnabled}
         onSetAutoLinkTransfers={onSetAutoLinkTransfers}
+        onSetSafeToSpendEnabled={onSetSafeToSpendEnabled}
       />
       <RulesManager categories={categories} onRulesApplied={onRulesApplied} onMessage={onMessage} />
       <ReleaseNotesSection currentVersion={appVersion} />

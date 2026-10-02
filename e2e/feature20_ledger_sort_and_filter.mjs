@@ -7,8 +7,9 @@
 //
 // Run with: node e2e/feature20_ledger_sort_and_filter.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
@@ -20,15 +21,15 @@ credit_id = cur.lastrowid
 # lucky coincidence of insertion order.
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-10", "Zebra Store", "-20.00", None, f"{checking_id}|2026-08-10|zebra store|-20.00"),
+    (checking_id, "${dateInMonth(-2, 10)}", "Zebra Store", "-20.00", None, f"{checking_id}|${dateInMonth(-2, 10)}|zebra store|-20.00"),
 )
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-05", "Apple Store", "-50.00", None, f"{checking_id}|2026-08-05|apple store|-50.00"),
+    (checking_id, "${dateInMonth(-2, 5)}", "Apple Store", "-50.00", None, f"{checking_id}|${dateInMonth(-2, 5)}|apple store|-50.00"),
 )
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (credit_id, "2026-08-15", "Coffee Shop", "-5.00", None, f"{credit_id}|2026-08-15|coffee shop|-5.00"),
+    (credit_id, "${dateInMonth(-2, 15)}", "Coffee Shop", "-5.00", None, f"{credit_id}|${dateInMonth(-2, 15)}|coffee shop|-5.00"),
 )
 zebra_id = cur.lastrowid - 2  # the first-inserted row above (Zebra Store)
 cur.execute("INSERT INTO transaction_tags (transaction_id, tag) VALUES (?, ?)", (zebra_id, "urgent"))
@@ -149,10 +150,10 @@ try {
   await moreFiltersToggle.waitForExist({ timeout: 5000 });
   await moreFiltersToggle.click();
 
-  const tagSelect = await app.browser.$("//label[.//span[text()='Tag']]/select");
+  const tagSelect = await app.browser.$("//label[.//span[text()='Tag']]//button[contains(@class,'menu-select-toggle')]");
   await tagSelect.waitForExist({ timeout: 5000 });
-  await tagSelect.selectByVisibleText("urgent");
-  await app.browser.waitUntil(async () => (await tagSelect.getValue()) === "urgent", {
+  await chooseMenuOption(tagSelect, { label: "urgent" });
+  await app.browser.waitUntil(async () => (await menuSelectValue(tagSelect)) === "urgent", {
     timeout: 5000,
     timeoutMsg: "expected the Tag select in More filters to hold 'urgent' after selecting it",
   });

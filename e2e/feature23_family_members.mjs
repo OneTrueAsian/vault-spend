@@ -6,7 +6,7 @@
 //
 // Run with: node e2e/feature23_family_members.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -48,15 +48,40 @@ try {
   const doneButton = await modalPanel.$("button=Done");
   await doneButton.click();
 
-  // Assign the seeded transaction to Alex from the Ledger row.
-  const memberSelect = await app.browser.$(".member-col select");
-  await memberSelect.waitForExist({ timeout: 10000 });
-  await memberSelect.selectByVisibleText("Alex");
-
-  await app.browser.waitUntil(async () => (await memberSelect.getValue()) !== "", {
-    timeout: 10000,
-    timeoutMsg: "expected the ledger row's member select to hold Alex's id after assignment",
-  });
+  // Assign the seeded transaction to Alex from the Ledger row. The row's
+  // account/member/category editors are a RowFieldDropdown popover now,
+  // not a native <select> — and at 800px wide (set here; the app now opens
+  // wider) the ledger is in its narrow layout, so Member sits behind the
+  // row's "Details" toggle rather than its own column.
+  await app.browser.setWindowSize(800, 600);
+  const groceryRow = await app.browser.$("//tr[td[contains(.,'Grocery Run')]]");
+  const detailsToggle = await groceryRow.$("button=Details");
+  await detailsToggle.waitForExist({ timeout: 10000 });
+  await detailsToggle.click();
+  const detailsPanel = await app.browser.$(".ledger-details-row");
+  await detailsPanel.waitForExist({ timeout: 5000 });
+  // The popover is dismissed by outside-click/blur by design; under
+  // parallel load another spec's window can steal OS focus at any point
+  // between opening it and the click landing, closing it before the
+  // assignment takes (see e2e/README's "Another spec's window takes OS
+  // focus" and feature112_inbox_bulk_review.mjs's own retry loop for the
+  // identical class of race on a sibling popover) — retry the whole
+  // open-click-verify sequence, not just the open, since the menu can
+  // close at any step under heavy load.
+  let assigned = false;
+  for (let attempt = 0; attempt < 4 && !assigned; attempt++) {
+    await reclaimWindowFocus(app.browser);
+    const memberTrigger = await (await app.browser.$(".ledger-details-row")).$("[aria-label*='Family member for']");
+    await memberTrigger.click();
+    const alexOption = await app.browser.$("//button[@role='menuitemradio'][.//span[normalize-space()='Alex']]");
+    if (!(await alexOption.isExisting())) continue;
+    await alexOption.click().catch(() => {});
+    assigned = await app.browser
+      .waitUntil(async () => (await (await app.browser.$(".ledger-details-row")).getText()).includes("Alex"), { timeout: 3000 })
+      .then(() => true)
+      .catch(() => false);
+  }
+  if (!assigned) throw new Error("expected the ledger row's member editor to hold Alex after assignment, even after retrying the popover interaction");
   console.log("transaction assigned to Alex");
 
   // The member filter dropdown should now offer Alex, and unchecking her
@@ -97,9 +122,9 @@ try {
   await editButton.click();
   const editDialog = await app.browser.$("[role='dialog']");
   await editDialog.waitForExist({ timeout: 10000 });
-  const accountMemberSelect = await editDialog.$("//label[contains(.,'Family member')]//select");
+  const accountMemberSelect = await editDialog.$("//label[contains(.,'Family member')]//button[contains(@class,'menu-select-toggle')]");
   await accountMemberSelect.waitForExist({ timeout: 10000 });
-  await accountMemberSelect.selectByVisibleText("Alex");
+  await chooseMenuOption(accountMemberSelect, { label: "Alex" });
   await (await editDialog.$("button=Save changes")).click();
   await app.browser.waitUntil(async () => (await (await app.browser.$(".account-card")).getText()).includes("Alex"), {
     timeout: 10000,

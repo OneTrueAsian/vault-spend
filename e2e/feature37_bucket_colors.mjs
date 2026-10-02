@@ -33,7 +33,7 @@ try {
 
   const card = await app.browser.$(".bucket-card");
   await card.waitForExist({ timeout: 10000 });
-  const cardName = await card.$("h3");
+  const cardName = await card.$("h2");
   const nameText = await cardName.getText();
   if (nameText !== "Vacation Fund") throw new Error(`expected the new bucket card, got "${nameText}"`);
 

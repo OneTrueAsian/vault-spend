@@ -93,7 +93,11 @@ try {
     "the third-party notices should be searchable by OpenSSL too",
   );
   await browser.setWindowSize(390, 900);
-  const resourcesBefore = await browser.execute(() => performance.getEntriesByType("resource").length);
+  // Everything the page has fetched, minus the app's own IPC (Tauri sends every command as a fetch to
+  // ipc.localhost, and a background command landing in this window once counted as a "load").
+  const loadedResources = () =>
+    browser.execute(() => performance.getEntriesByType("resource").map((r) => r.name).filter((name) => !name.startsWith("http://ipc.localhost/")));
+  const resourcesBefore = await loadedResources();
   const summary = await browser.$(".third-party-notices summary");
   await summary.scrollIntoView();
   await reclaimWindowFocus(browser);
@@ -122,8 +126,8 @@ try {
   });
   if (fit.preScroll > fit.preClient + 1) throw new Error(`the notices must wrap instead of scrolling sideways: ${JSON.stringify(fit)}`);
   if (fit.docScroll > fit.docClient + 1) throw new Error(`opening the notices must not make the page scroll sideways: ${JSON.stringify(fit)}`);
-  const resourcesAfter = await browser.execute(() => performance.getEntriesByType("resource").length);
-  if (resourcesAfter !== resourcesBefore) throw new Error(`opening the notices must not load anything (${resourcesBefore} -> ${resourcesAfter} resources)`);
+  const loadedSince = (await loadedResources()).slice(resourcesBefore.length);
+  if (loadedSince.length) throw new Error(`opening the notices must not load anything, but loaded: ${loadedSince.join(", ")}`);
 
   // Settings marks password protection as new — for a profile that has not turned it on too.
   await browser.setWindowSize(1300, 1000);

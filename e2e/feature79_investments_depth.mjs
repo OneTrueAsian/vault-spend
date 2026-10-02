@@ -93,7 +93,7 @@ try {
   await name.setValue("Retirement nest egg");
   await (await browser.$("[data-projection-goal-save]")).click();
   await nav("Goals");
-  const card = await browser.$("//div[contains(@class,'bucket-card')][.//h3[contains(normalize-space(.), 'Retirement nest egg')]]");
+  const card = await browser.$("//div[contains(@class,'bucket-card')][.//h2[contains(normalize-space(.), 'Retirement nest egg')]]");
   await card.waitForExist({ timeout: 10000, timeoutMsg: "the saved projection should appear as a goal" });
   const cardText = await card.getText();
   console.log("goal card:", cardText.replace(/\s+/g, " "));

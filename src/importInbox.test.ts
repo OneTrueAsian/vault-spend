@@ -19,6 +19,7 @@ function txn(over: Partial<Transaction> & Pick<Transaction, "id">): Transaction 
     tags: [],
     member_id: null,
     member_name: null,
+    notes: null,
     ...over,
   };
 }
@@ -98,6 +99,22 @@ describe("buildInbox", () => {
 
     expect(items.map((i) => i.transaction.id)).toEqual([1]);
     expect(items[0].reasons[0].kind).toBe("low_confidence");
+  });
+
+  it("lists a contested rule (the merchant's history is split), saying so, but not a reliable one", () => {
+    const items = buildInbox({
+      transactions: [
+        txn({ id: 1, category: "Gas", category_source: "rule", confidence: 0.5 }),
+        txn({ id: 2, category: "Gas", category_source: "rule", confidence: null }),
+      ],
+      flags: [],
+      scopeIds: null,
+    });
+
+    expect(items.map((i) => i.transaction.id)).toEqual([1]);
+    expect(items[0].reasons[0].kind).toBe("low_confidence");
+    expect(items[0].reasons[0].detail).toContain("more than one category");
+    expect(items[0].reasons[0].detail).toContain("Gas");
   });
 
   it("carries unusually large and possible-duplicate flags, several per transaction", () => {

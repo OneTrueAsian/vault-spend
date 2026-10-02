@@ -25,18 +25,19 @@ impl fmt::Display for RowError {
 /// Malformed rows are collected in `errors` rather than aborting the whole
 /// import — a handful of bad rows shouldn't cost the user every good one.
 ///
-/// `account_names` and `tags` are parallel to `transactions` (same index,
-/// same length) — populated only when the source has its own "Account" /
-/// "Tags" column, which a real bank export never does but this app's own
-/// Transactions CSV export does (see `toCsv`'s headers in `src/App.tsx`), so a
-/// round-tripped export can restore both instead of losing them. `None` /
-/// empty for every row otherwise.
+/// `account_names`, `tags` and `notes` are parallel to `transactions` (same
+/// index, same length) — populated only when the source has its own
+/// "Account" / "Tags" / "Notes" column, which a real bank export never does
+/// but this app's own Transactions CSV export does (see `toCsv`'s headers in
+/// `src/App.tsx`), so a round-tripped export can restore all three instead
+/// of losing them. `None` / empty for every row otherwise.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct LoadResult {
     pub transactions: Vec<Transaction>,
     pub errors: Vec<RowError>,
     pub account_names: Vec<Option<String>>,
     pub tags: Vec<Vec<String>>,
+    pub notes: Vec<Option<String>>,
 }
 
 /// Loads transactions from a CSV file at `path`. A header row is required;
@@ -69,6 +70,7 @@ struct ExtraColumns {
     account: Option<usize>,
     category: Option<usize>,
     tags: Option<usize>,
+    notes: Option<usize>,
 }
 
 fn load_from_reader<R: Read>(reader: R, invert_amounts: bool) -> std::io::Result<LoadResult> {
@@ -98,6 +100,7 @@ fn load_from_reader<R: Read>(reader: R, invert_amounts: bool) -> std::io::Result
             account: find_column_exact(first_row, "account"),
             category: find_column_exact(first_row, "category"),
             tags: find_column_exact(first_row, "tags"),
+            notes: find_column_exact(first_row, "notes"),
         };
         (date_col, description_col, amount_source, extra, &rows[1..], 2)
     };
@@ -106,10 +109,11 @@ fn load_from_reader<R: Read>(reader: R, invert_amounts: bool) -> std::io::Result
     for (idx, record) in data_rows.iter().enumerate() {
         let row_number = first_row_number + idx;
         match parse_row(record, date_col, description_col, &amount_source, &extra, invert_amounts) {
-            Ok((tx, account_name, tags)) => {
+            Ok((tx, account_name, tags, notes)) => {
                 result.transactions.push(tx);
                 result.account_names.push(account_name);
                 result.tags.push(tags);
+                result.notes.push(notes);
             }
             Err(message) => result.errors.push(RowError { row_number, message }),
         }
@@ -182,6 +186,10 @@ fn find_amount_source(headers: &csv::StringRecord) -> std::io::Result<AmountSour
     }
 }
 
+/// One parsed row: the transaction itself, plus its optional Account/Tags/
+/// Notes columns (see `LoadResult`'s own doc comment).
+type ParsedRow = (Transaction, Option<String>, Vec<String>, Option<String>);
+
 fn parse_row(
     record: &csv::StringRecord,
     date_col: usize,
@@ -189,7 +197,7 @@ fn parse_row(
     amount_source: &AmountSource,
     extra: &ExtraColumns,
     invert_amounts: bool,
-) -> Result<(Transaction, Option<String>, Vec<String>), String> {
+) -> Result<ParsedRow, String> {
     let date_str = record.get(date_col).ok_or("missing date column")?;
     let raw_description = record.get(description_col).ok_or("missing description column")?;
 
@@ -208,6 +216,7 @@ fn parse_row(
     let category = optional_cell(record, extra.category);
     let account_name = optional_cell(record, extra.account);
     let tags = parse_tags(record, extra.tags);
+    let notes = optional_cell(record, extra.notes);
 
     Ok((
         Transaction {
@@ -218,6 +227,7 @@ fn parse_row(
         },
         account_name,
         tags,
+        notes,
     ))
 }
 
@@ -565,5 +575,24 @@ mod tests {
         assert_eq!(result.account_names, vec![None]);
         assert_eq!(result.transactions[0].category, None);
         assert_eq!(result.tags[0], Vec::<String>::new());
+    }
+
+    #[test]
+    fn reads_back_an_optional_notes_column_case_insensitively_preserving_internal_newlines() {
+        let result = load_str(
+            "Date,Description,Amount,NOTES\n\
+             2026-08-20,Union Realty,-1850.00,\"Receipt checked\nReimbursed by Sam\"\n\
+             2026-08-26,Farmers Market,-42.50,\n",
+        );
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.notes, vec![Some("Receipt checked\nReimbursed by Sam".to_string()), None]);
+    }
+
+    #[test]
+    fn a_real_bank_export_without_a_notes_column_leaves_notes_empty() {
+        let result = load_str("date,description,amount\n2026-08-20,Union Realty,-1850.00\n");
+
+        assert_eq!(result.notes, vec![None]);
     }
 }

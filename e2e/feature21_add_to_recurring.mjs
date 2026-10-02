@@ -7,15 +7,16 @@
 //
 // Run with: node e2e/feature21_add_to_recurring.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
 checking_id = cur.lastrowid
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
-    (checking_id, "2026-08-10", "Streamline Video", "-15.99", "Entertainment", f"{checking_id}|2026-08-10|streamline video|-15.99"),
+    (checking_id, "${dateInMonth(-2, 10)}", "Streamline Video", "-15.99", "Entertainment", f"{checking_id}|${dateInMonth(-2, 10)}|streamline video|-15.99"),
 )
 `);
 
@@ -38,10 +39,8 @@ try {
     throw new Error(`expected an "Add to Recurring…" control, got:\n${barText}`);
   }
 
-  const recurringSelect = await app.browser.$(
-    "//div[contains(@class,'bulk-actions-bar')]//option[text()='Add to Recurring…']/parent::select",
-  );
-  await recurringSelect.selectByAttribute("value", "annual");
+  const recurringSelect = await app.browser.$(".bulk-actions-bar button[aria-label='Add to Recurring…']");
+  await chooseMenuOption(recurringSelect, { value: "annual" });
 
   await app.browser.waitUntil(
     async () => (await app.browser.$(".status").getText()).toLowerCase().includes("added 1"),

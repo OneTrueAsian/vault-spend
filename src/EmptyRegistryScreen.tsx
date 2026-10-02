@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { StartupState } from "./startup";
+import { errorMessage } from "./errorMessage";
 
 /** The registry exists but lists no profiles — a real, if unusual, state (deleting every entry, or
  * a hand-edited file) that must never silently open or invent a Default profile. The only way out
@@ -18,7 +19,7 @@ export function EmptyRegistryScreen({ onResolved }: { onResolved: (next: Startup
       await invoke<string>("create_profile", { name });
       onResolved({ status: "open" });
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

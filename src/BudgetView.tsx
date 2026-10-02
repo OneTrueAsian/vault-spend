@@ -1,11 +1,14 @@
 import { DragEvent, FormEvent, useEffect, useState } from "react";
-import type { BudgetAlert, BudgetSuggestions, ReportBudgetLine } from "./types";
+import type { BudgetAlert, BudgetSuggestions, CashFlow, ReportBudgetLine } from "./types";
 import { formatAmount } from "./format";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { Sparkline } from "./charts";
 import { budgetAllocation, effectiveBudget, monthElapsed } from "./budgetPlan";
+import { budgetNetSummary } from "./budgetNet";
 import { BudgetSuggestDialog, type AppliedSuggestion } from "./BudgetSuggestDialog";
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
+import { MenuSelect } from "./MenuSelect";
+import { sumMoney } from "./money";
 
 type MonthElapsed = NonNullable<ReturnType<typeof monthElapsed>>;
 
@@ -120,20 +123,20 @@ function NewBudgetLineForm({
 
   return (
     <form className="bucket-new-form" onSubmit={handleSubmit}>
-      <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
-        {availableCategories.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
-      <select aria-label="Budget group" value={group} onChange={(e) => setGroup(e.target.value as Group)}>
-        {GROUP_ORDER.map((g) => (
-          <option key={g} value={g}>
-            {GROUP_LABELS[g]}
-          </option>
-        ))}
-      </select>
+      <MenuSelect
+        ariaLabel="Category"
+        value={category}
+        onChange={setCategory}
+        options={availableCategories.map((c) => ({ value: c, label: c }))}
+        fill
+      />
+      <MenuSelect
+        ariaLabel="Budget group"
+        value={group}
+        onChange={(v) => setGroup(v as Group)}
+        options={GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))}
+        fill
+      />
       <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Monthly amount" />
       <button type="submit" disabled={!category || !amount.trim()}>
         Save
@@ -340,18 +343,13 @@ function BudgetRow({
           )}
         </span>
       </div>
-      <select
-        aria-label={`Budget group for ${line.category}`}
-        className="cat-row-group"
+      <MenuSelect
+        ariaLabel={`Budget group for ${line.category}`}
         value={line.budget_group}
-        onChange={(e) => onSetBudget(line.category, line.budgeted, e.target.value)}
-      >
-        {GROUP_ORDER.map((g) => (
-          <option key={g} value={g}>
-            {GROUP_LABELS[g]}
-          </option>
-        ))}
-      </select>
+        onChange={(v) => onSetBudget(line.category, line.budgeted, v)}
+        options={GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))}
+        triggerClassName="cat-row-group"
+      />
       <div className="progress-track cat-row-bar">
         <div className={fillClass} style={{ width: `${pct}%` }} />
         {!isIncome && <PaceMarker elapsed={elapsed} />}
@@ -407,6 +405,7 @@ function BudgetRow({
 export function BudgetView({
   categories,
   budgetActuals,
+  monthFlow,
   budgetAlerts,
   monthLabel,
   year,
@@ -427,6 +426,7 @@ export function BudgetView({
 }: {
   categories: string[];
   budgetActuals: ReportBudgetLine[];
+  monthFlow: CashFlow | null;
   budgetAlerts: BudgetAlert[];
   monthLabel: string;
   /** The month `budgetActuals` is scoped to — only used to work out how
@@ -458,6 +458,11 @@ export function BudgetView({
   const alertByCategory = new Map(budgetAlerts.map((a) => [a.category, a.level]));
   const elapsed = monthElapsed(year, month, new Date());
   const allocation = budgetAllocation(budgetActuals);
+  const netSummary = monthFlow ? budgetNetSummary(budgetActuals, monthFlow.total_income, monthFlow.total_expense) : null;
+  const viewedMonth = year * 12 + month;
+  const today = new Date();
+  const currentMonth = today.getFullYear() * 12 + today.getMonth() + 1;
+  const actualLabel = viewedMonth < currentMonth ? "Money left (final)" : viewedMonth > currentMonth ? "Money left (future month)" : "Money left so far";
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDelete, () => setConfirmingDelete(null));
   const [editingAmount, setEditingAmount] = useState<{ category: string; value: string } | null>(null);
@@ -537,8 +542,8 @@ export function BudgetView({
   // never drift out of sync.
   const groupSummaries = GROUP_ORDER.map((group) => {
     const groupLines = orderedCategories.map((c) => lineByCategory.get(c)!).filter((line) => line.budget_group === group);
-    const groupBudgeted = groupLines.reduce((s, b) => s + effectiveBudget(b), 0);
-    const groupActual = groupLines.reduce((s, b) => s + parseFloat(b.actual), 0);
+    const groupBudgeted = sumMoney(groupLines.map((b) => effectiveBudget(b)));
+    const groupActual = sumMoney(groupLines.map((b) => b.actual));
     return { group, groupLines, groupBudgeted, groupActual };
   }).filter((s) => s.groupLines.length > 0);
 
@@ -547,9 +552,9 @@ export function BudgetView({
   // beating the target is good), so it doesn't belong in a combined
   // budgeted-vs-actual-vs-remaining figure.
   const expenseSummaries = groupSummaries.filter((s) => s.group !== "income");
-  const totalBudgeted = expenseSummaries.reduce((s, g) => s + g.groupBudgeted, 0);
-  const totalActual = expenseSummaries.reduce((s, g) => s + g.groupActual, 0);
-  const totalRemaining = totalBudgeted - totalActual;
+  const totalBudgeted = sumMoney(expenseSummaries.map((g) => g.groupBudgeted));
+  const totalActual = sumMoney(expenseSummaries.map((g) => g.groupActual));
+  const totalRemaining = sumMoney([totalBudgeted, -totalActual]);
 
   return (
     <div className="budget-view">
@@ -580,21 +585,40 @@ export function BudgetView({
         </button>
       </div>
 
+      <section className="card budget-net-summary" aria-label="Monthly money left" data-budget-net-summary>
+        <div className="card-head"><h2 className="reports-section-title">Money left after income and spending</h2></div>
+        <p className="view-sub">Monthly net change for {monthLabel}. This is not an account balance.</p>
+        {netSummary ? (
+          <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+            <div className="stat tint-accent">
+              <span className={netSummary.plannedNet.startsWith("-") ? "stat-value report-over-budget" : "stat-value"} data-planned-net>{formatAmount(netSummary.plannedNet)}</span>
+              <span className="stat-label">Planned money left</span>
+              <span className="view-sub">{formatAmount(netSummary.plannedIncome)} budgeted income − {formatAmount(netSummary.plannedExpense)} budgeted spending</span>
+            </div>
+            <div className="stat tint-blue">
+              <span className={netSummary.actualNet.startsWith("-") ? "stat-value report-over-budget" : "stat-value"} data-actual-net>{formatAmount(netSummary.actualNet)}</span>
+              <span className="stat-label">{actualLabel}</span>
+              <span className="view-sub">{formatAmount(netSummary.actualIncome)} recorded income − {formatAmount(netSummary.actualExpense)} recorded spending</span>
+            </div>
+          </div>
+        ) : <p className="empty-state">Loading monthly totals…</p>}
+      </section>
+
       {expenseSummaries.length > 0 && (
         <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
           <div className="stat tint-accent">
             <span className="stat-value">{formatAmount(totalBudgeted.toFixed(2))}</span>
-            <span className="stat-label">Budgeted</span>
+            <span className="stat-label">Budgeted spending</span>
           </div>
           <div className="stat tint-red">
             <span className="stat-value">{formatAmount(totalActual.toFixed(2))}</span>
-            <span className="stat-label">Actual</span>
+            <span className="stat-label">Spent so far</span>
           </div>
           <div className="stat tint-blue">
             <span className={totalRemaining < 0 ? "stat-value report-over-budget" : "stat-value"}>
               {formatAmount(totalRemaining.toFixed(2))}
             </span>
-            <span className="stat-label">Remaining</span>
+            <span className="stat-label">Left to spend</span>
           </div>
         </div>
       )}

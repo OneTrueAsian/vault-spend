@@ -100,7 +100,10 @@ mod tests {
 
         let text = std::fs::read_to_string(&config_path).unwrap();
         assert!(text.contains("two.db") && !text.contains("one.db"));
-        let temp_files = std::fs::read_dir(&dir).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-")).count();
+        let temp_files = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().contains(".tmp-"))
+            .count();
         assert_eq!(temp_files, 0);
     }
 

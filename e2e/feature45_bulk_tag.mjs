@@ -7,11 +7,12 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
 checking_id = cur.lastrowid
-for date, desc, amount in [("2026-08-10", "Hotel Booking", "-220.00"), ("2026-08-12", "Airport Parking", "-40.00")]:
+for date, desc, amount in [("${dateInMonth(-2, 10)}", "Hotel Booking", "-220.00"), ("${dateInMonth(-2, 12)}", "Airport Parking", "-40.00")]:
     cur.execute(
         "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, ?, ?, ?, ?)",
         (checking_id, date, desc, amount, "Shopping", f"{checking_id}|{date}|{desc.lower()}|{amount}"),

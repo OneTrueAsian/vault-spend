@@ -41,7 +41,7 @@ try {
     }
   }
 
-  for (const palette of ["classic", "futuristic", "transparent"]) {
+  for (const palette of ["transparent", "futuristic"]) {
     for (const theme of ["light", "dark"]) {
       await browser.execute((palette, theme) => {
         document.documentElement.dataset.palette = palette;

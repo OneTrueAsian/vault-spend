@@ -1,0 +1,177 @@
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+/** A row-level single-select — the account/member/category editor for one
+ * ledger row — replacing a native `<select>`. A native select's closed-state
+ * box always clips its selected text to whatever width it's given, in every
+ * engine; there is no CSS that makes it wrap instead. This wraps, so a long
+ * account or category name (the reproduced defect) is fully readable rather
+ * than cut off at a fixed pixel width.
+ *
+ * Does not use the shared `usePopover` hook: a row lives inside the ledger's
+ * scrolling container (`.ledger-table-scroll { overflow-x: auto }`, which
+ * per the CSS spec also clips vertically once either axis is non-visible —
+ * confirmed against the real compiled app, a menu opened on the last visible
+ * row was clipped ~130px short). `usePopover`'s own panel is positioned
+ * `absolute` against its trigger, inheriting whatever ancestor clips it;
+ * this one is portaled to `document.body` and positioned `fixed` from the
+ * trigger's own `getBoundingClientRect()`, the same technique `Modal.tsx`'s
+ * `ModalShell` already uses to escape the Transparent theme's
+ * `backdrop-filter` containing block. */
+export function RowFieldDropdown({
+  options,
+  value,
+  ariaLabel,
+  onChange,
+}: {
+  /** `disabled` marks a placeholder that describes the current "nothing
+   * chosen" state without itself being a choosable value — mirroring a
+   * native `<select>`'s `<option disabled>` placeholder, which can never
+   * be selected either (picking it would otherwise write that empty
+   * value back through onChange as a real, saved choice). */
+  options: { value: string; label: string; disabled?: boolean }[];
+  value: string;
+  ariaLabel: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? value;
+
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: MouseEvent) {
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !panelRef.current || !triggerRef.current) return;
+    const panel = panelRef.current;
+    const trigger = triggerRef.current;
+    function place() {
+      const rect = trigger.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom - 12;
+      const above = rect.top - 12;
+      const wanted = Math.min(panel.scrollHeight + 2, 340);
+      const useAbove = below < wanted && above > below;
+      panel.style.maxHeight = `${Math.max(0, Math.min(wanted, useAbove ? above : below))}px`;
+      panel.style.top = useAbove ? "auto" : `${rect.bottom + 6}px`;
+      panel.style.bottom = useAbove ? `${window.innerHeight - rect.top + 6}px` : "auto";
+      const width = Math.max(rect.width, 220);
+      panel.style.minWidth = `${width}px`;
+      let left = rect.left;
+      const maxLeft = window.innerWidth - 8 - panel.offsetWidth;
+      if (left > maxLeft) left = maxLeft;
+      if (left < 8) left = 8;
+      panel.style.left = `${left}px`;
+    }
+    place();
+    (panel.querySelector<HTMLButtonElement>('[aria-checked="true"]:not([aria-disabled="true"])') ??
+      panel.querySelector<HTMLButtonElement>('[role="menuitemradio"]:not([aria-disabled="true"])'))?.focus();
+    window.addEventListener("resize", place);
+    document.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      document.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
+  function choose(next: string) {
+    if (next === value) return;
+    setOpen(false);
+    triggerRef.current?.focus();
+    onChange(next);
+  }
+
+  return (
+    <div className="account-filter row-field" ref={rootRef}>
+      <button
+        type="button"
+        ref={triggerRef}
+        className="account-filter-toggle row-field-toggle"
+        aria-label={ariaLabel}
+        // The ledger clips a long label with an ellipsis; this keeps the full name readable on hover.
+        title={selectedLabel}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
+        <span>{selectedLabel}</span>
+        <span className="account-filter-caret" aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            id={menuId}
+            className="account-filter-panel row-field-panel row-field-panel-fixed"
+            role="menu"
+            aria-label={ariaLabel}
+            onKeyDown={(e) => {
+              const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([aria-disabled='true'])"));
+              const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+              const next =
+                e.key === "Home"
+                  ? 0
+                  : e.key === "End"
+                    ? buttons.length - 1
+                    : e.key === "ArrowDown"
+                      ? (index + 1) % buttons.length
+                      : e.key === "ArrowUp"
+                        ? (index - 1 + buttons.length) % buttons.length
+                        : -1;
+              if (next >= 0) {
+                e.preventDefault();
+                buttons[next]?.focus();
+              }
+            }}
+          >
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="menuitemradio"
+                aria-checked={option.value === value}
+                aria-disabled={option.disabled ? "true" : undefined}
+                className="account-destination-option"
+                onClick={() => {
+                  if (!option.disabled) choose(option.value);
+                }}
+              >
+                <span>{option.label}</span>
+                <span aria-hidden="true">{option.value === value ? "✓" : ""}</span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}

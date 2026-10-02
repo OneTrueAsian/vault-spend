@@ -2,6 +2,8 @@ import { FormEvent, useState } from "react";
 import type { Asset, FamilyMember } from "./types";
 import { formatAmount, isValidDecimalString, toLocalIsoDate } from "./format";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
+import { MenuSelect } from "./MenuSelect";
+import { sumMoney } from "./money";
 
 const ASSET_TYPE_OPTIONS = ["real_estate", "vehicle", "other"];
 const ASSET_TYPE_LABELS: Record<string, string> = {
@@ -65,13 +67,13 @@ function NewAssetForm({
   return (
     <form className="bucket-new-form" onSubmit={handleSubmit}>
       <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. "Home"' />
-      <select value={assetType} onChange={(e) => setAssetType(e.target.value)}>
-        {ASSET_TYPE_OPTIONS.map((t) => (
-          <option key={t} value={t}>
-            {ASSET_TYPE_LABELS[t]}
-          </option>
-        ))}
-      </select>
+      <MenuSelect
+        ariaLabel="Asset type"
+        value={assetType}
+        onChange={setAssetType}
+        options={ASSET_TYPE_OPTIONS.map((t) => ({ value: t, label: ASSET_TYPE_LABELS[t] }))}
+        fill
+      />
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
@@ -81,14 +83,16 @@ function NewAssetForm({
       {submitAttempted && valueError && <span className="field-error">{valueError}</span>}
       <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes (optional)" />
       {familyMembers.length > 0 && (
-        <select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
-          <option value="">Unassigned</option>
-          {familyMembers.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
+        <MenuSelect
+          ariaLabel="Family member"
+          value={memberId}
+          onChange={setMemberId}
+          options={[
+            { value: "", label: "Unassigned" },
+            ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+          ]}
+          fill
+        />
       )}
       <button type="submit" disabled={!name.trim()}>
         Save
@@ -126,7 +130,7 @@ export function PropertyAssetsSection({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
 
-  const total = assets.reduce((s, a) => s + parseFloat(a.value), 0);
+  const total = sumMoney(assets.map((a) => a.value));
 
   function commitEdit(id: number, value: string) {
     setEditing(null);
@@ -148,7 +152,7 @@ export function PropertyAssetsSection({
             <th className="amount-col">Value</th>
             <th>Member</th>
             <th>Updated</th>
-            <th className="actions-col"></th>
+            <th className="actions-col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -183,17 +187,15 @@ export function PropertyAssetsSection({
                 )}
               </td>
               <td className="member-col">
-                <select
-                  value={a.member_id ?? ""}
-                  onChange={(e) => onSetMember(a.id, e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">Unassigned</option>
-                  {familyMembers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
+                <MenuSelect
+                  ariaLabel={`Family member for ${a.name}`}
+                  value={a.member_id != null ? String(a.member_id) : ""}
+                  onChange={(v) => onSetMember(a.id, v ? Number(v) : null)}
+                  options={[
+                    { value: "", label: "Unassigned" },
+                    ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
+                  ]}
+                />
               </td>
               <td>{a.valued_on}</td>
               <td className="actions-col">
