@@ -1,6 +1,7 @@
 mod auto_lock;
 mod background;
 mod backups;
+mod command_thread;
 mod commands;
 mod comparison_commands;
 mod config;
@@ -13,6 +14,7 @@ mod legacy_migration;
 mod live_price_provider;
 mod live_prices;
 mod maintenance;
+mod perf_log;
 mod profiles;
 mod protection_commands;
 mod protection_leftovers;
@@ -187,7 +189,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(command_thread::off_main_thread(perf_log::timed(tauri::generate_handler![
             launch_commands::get_startup_state,
             launch_commands::retry_startup,
             launch_commands::restore_registry_backup,
@@ -414,7 +416,7 @@ pub fn run() {
             debug_commands::debug_set_main_window_visible,
             #[cfg(debug_assertions)]
             debug_commands::debug_check_reminders,
-        ])
+        ])))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
