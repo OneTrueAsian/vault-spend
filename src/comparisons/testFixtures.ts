@@ -96,6 +96,7 @@ export function comparableIncome(over: Partial<CardView> = {}): CardView {
     universeOptions: ["all"],
     cohortOptions: [],
     stale: false,
+    personalIncomeHint: false,
     ...over,
   };
 }
@@ -110,6 +111,7 @@ export function unavailable(id: MetricId, reason: Reason = { code: "no_benchmark
     universeOptions: [],
     cohortOptions: [],
     stale: false,
+    personalIncomeHint: false,
   };
 }
 
@@ -123,6 +125,7 @@ export function hidden(id: MetricId): CardView {
     universeOptions: [],
     cohortOptions: [],
     stale: false,
+    personalIncomeHint: false,
   };
 }
 
@@ -133,7 +136,7 @@ export function response(over: Partial<ComparisonsResponse> = {}, cards: CardVie
     setupRevision: 3,
     repairs: [],
     packageError: null,
-    report: { packageVersion: "2026.09.1", mode: "household", cards },
+    report: { packageVersion: "2026.09.1", cards },
     ...over,
   };
 }

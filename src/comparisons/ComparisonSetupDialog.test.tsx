@@ -70,7 +70,7 @@ describe("ComparisonSetupDialog", () => {
 
     const [generation, revision, sent] = api.saveComparisonSetup.mock.calls[0] as [number, number, ComparisonSetup];
     expect([generation, revision]).toEqual([4, 0]);
-    expect(sent.mode).toBe("household");
+    expect("mode" in sent).toBe(false);
     expect(sent.householdReferencePerson).toEqual({ kind: "owner" });
     expect(sent.people.map((p) => p.inHousehold)).toEqual([true, true, true]);
     expect(sent.people[0].age?.age).toEqual({ kind: "exact", age: 42 });
@@ -104,16 +104,10 @@ describe("ComparisonSetupDialog", () => {
     expect(sent.people[0].age).toBeNull();
   });
 
-  it("sets up an individual comparison for the chosen person", async () => {
-    api.saveComparisonSetup.mockResolvedValue({ status: "saved", revision: 1, setup: {} });
+  it("has no household / one person choice", () => {
     mount();
-    pickMenuOption(q("button[aria-label^='Compare']")!, "individual");
-    type(ageInput(), "29");
-    act(() => save().click());
-    await flush();
-    const sent = api.saveComparisonSetup.mock.calls[0][2] as ComparisonSetup;
-    expect(sent.mode).toBe("individual");
-    expect(sent.individualPerson).toEqual({ kind: "owner" });
+    expect(q("button[aria-label^='Compare']")).toBeNull();
+    expect(document.body.textContent).not.toContain("One person");
   });
 
   it("keeps the dialog open with the draft when the save is refused", async () => {
@@ -143,7 +137,8 @@ describe("ComparisonSetupDialog", () => {
   it("explains each question with an info tip", () => {
     mount();
     const tips = [...document.querySelectorAll<HTMLButtonElement>("[data-info-tip]")].map((b) => b.dataset.infoTip);
-    expect(tips).toEqual(expect.arrayContaining(["Compare", "Who shares your finances?", "Whose age should we use?", "Age of me"]));
+    expect(tips).toEqual(expect.arrayContaining(["Who shares your finances?", "Whose age should we use?", "Age of me"]));
+    expect(tips).not.toContain("Compare");
     for (const b of document.querySelectorAll<HTMLButtonElement>("[data-info-tip]")) {
       expect(document.getElementById(b.getAttribute("aria-describedby")!)?.textContent?.trim()).not.toBe("");
     }

@@ -2,7 +2,6 @@
 // input. The backend validates again on save, so these only keep a draft well-formed while it is edited.
 import type {
   AgeInput,
-  ComparisonMode,
   ComparisonSetup,
   DebtClass,
   InvestmentClass,
@@ -13,16 +12,14 @@ import type {
   Universe,
 } from "./types";
 
-export const SETUP_FORMAT_VERSION = 1;
+export const SETUP_FORMAT_VERSION = 2;
 export const MIN_AGE = 18;
 export const MAX_AGE = 120;
 
-export function emptySetup(mode: ComparisonMode): ComparisonSetup {
+export function emptySetup(): ComparisonSetup {
   return {
     formatVersion: SETUP_FORMAT_VERSION,
-    mode,
     householdReferencePerson: null,
-    individualPerson: null,
     people: [],
     income: { householdMethod: "total", householdTotal: null, perPerson: [] },
     spending: { period: null, accountIds: [], completenessConfirmed: false, manualAnnual: null, categoryMappings: [] },
@@ -52,11 +49,7 @@ export function syncPeople(setup: ComparisonSetup, members: { id: number; name: 
   return added.length === 0 ? setup : { ...setup, people: [...setup.people, ...added] };
 }
 
-export const setMode = (setup: ComparisonSetup, mode: ComparisonMode): ComparisonSetup => ({ ...setup, mode });
-
-export function setReferencePerson(setup: ComparisonSetup, person: PersonRef | null): ComparisonSetup {
-  return setup.mode === "household" ? { ...setup, householdReferencePerson: person } : { ...setup, individualPerson: person };
-}
+export const setReferencePerson = (setup: ComparisonSetup, person: PersonRef | null): ComparisonSetup => ({ ...setup, householdReferencePerson: person });
 
 function mapPerson(setup: ComparisonSetup, person: PersonRef, f: (p: ComparisonSetup["people"][number]) => ComparisonSetup["people"][number]) {
   return { ...setup, people: setup.people.map((p) => (samePerson(p.person, person) ? f(p) : p)) };
@@ -153,18 +146,14 @@ export function confirmBalances(setup: ComparisonSetup, metric: MetricId, today:
   return { ...setup, balanceConfirmations: [...kept, { metric, confirmedOn: today }] };
 }
 
-export function setManualOverride(setup: ComparisonSetup, metric: MetricId, subject: PersonRef | null, amount: ManualAmount | null): ComparisonSetup {
-  const same = (o: ComparisonSetup["manualOverrides"][number]) => o.metric === metric && (subject === null ? o.subject === null : samePerson(o.subject, subject));
-  const index = setup.manualOverrides.findIndex(same);
-  if (amount === null) return { ...setup, manualOverrides: setup.manualOverrides.filter((o) => !same(o)) };
-  const entry = { metric, subject, amount };
-  if (index < 0) return { ...setup, manualOverrides: [...setup.manualOverrides, entry] };
-  return { ...setup, manualOverrides: setup.manualOverrides.map((o, i) => (i === index ? entry : o)) };
+export function setManualOverride(setup: ComparisonSetup, metric: MetricId, amount: ManualAmount | null): ComparisonSetup {
+  const kept = setup.manualOverrides.filter((o) => o.metric !== metric);
+  return { ...setup, manualOverrides: amount ? [...kept, { metric, amount }] : kept };
 }
 
-export function setCohortChoice(setup: ComparisonSetup, mode: ComparisonMode, metric: MetricId, referenceId: string | null): ComparisonSetup {
-  const kept = setup.cohortChoices.filter((c) => !(c.mode === mode && c.metric === metric));
-  return { ...setup, cohortChoices: referenceId ? [...kept, { mode, metric, referenceId }] : kept };
+export function setCohortChoice(setup: ComparisonSetup, metric: MetricId, referenceId: string | null): ComparisonSetup {
+  const kept = setup.cohortChoices.filter((c) => c.metric !== metric);
+  return { ...setup, cohortChoices: referenceId ? [...kept, { metric, referenceId }] : kept };
 }
 
 export function setUniversePreference(setup: ComparisonSetup, metric: MetricId, universe: Universe | null): ComparisonSetup {

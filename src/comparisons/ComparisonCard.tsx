@@ -1,5 +1,5 @@
 import { MenuSelect } from "../MenuSelect";
-import type { CardView, ComparisonMode, MetricId, Universe } from "./types";
+import type { CardView, MetricId, Universe } from "./types";
 import {
   ageGroupLabel,
   barWidths,
@@ -40,13 +40,11 @@ const STATISTIC = { mean: "Average", median: "Median" } as const;
  * CSS while amounts are hidden. */
 export function ComparisonCard({
   view,
-  mode,
   onExplore,
   onChooseUniverse,
   onChooseCohort,
 }: {
   view: CardView;
-  mode: ComparisonMode;
   onExplore: () => void;
   onChooseUniverse: (universe: Universe) => void;
   onChooseCohort: (referenceId: string) => void;
@@ -155,7 +153,7 @@ export function ComparisonCard({
       )}
 
       <footer className="cmp-card-foot">
-        <span className="cmp-source">{adjusted ? sourceLabel(adjusted.reference.sourceId) : mode === "household" ? "Household" : "Individual"}</span>
+        <span className="cmp-source">{adjusted ? sourceLabel(adjusted.reference.sourceId) : "Household"}</span>
         <button type="button" className="cmp-explore" onClick={onExplore} aria-label={`Explore ${title.toLowerCase()} comparison`}>
           Explore ↗
         </button>

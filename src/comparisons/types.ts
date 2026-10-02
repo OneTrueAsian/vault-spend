@@ -43,9 +43,7 @@ export type DebtClass = "mortgage" | "credit_card" | "student_loan" | "vehicle" 
 
 export interface ComparisonSetup {
   formatVersion: number;
-  mode: ComparisonMode;
   householdReferencePerson: PersonRef | null;
-  individualPerson: PersonRef | null;
   people: PersonSetup[];
   income: IncomeSetup;
   spending: SpendingSetup;
@@ -55,8 +53,8 @@ export interface ComparisonSetup {
   debtExclusions: SourceRef[];
   allocations: { source: SourceRef; person: PersonRef; basisPoints: number }[];
   balanceConfirmations: { metric: MetricId; confirmedOn: string }[];
-  manualOverrides: { metric: MetricId; subject: PersonRef | null; amount: ManualAmount }[];
-  cohortChoices: { mode: ComparisonMode; metric: MetricId; referenceId: string }[];
+  manualOverrides: { metric: MetricId; amount: ManualAmount }[];
+  cohortChoices: { metric: MetricId; referenceId: string }[];
   universePreferences: { metric: MetricId; universe: Universe }[];
 }
 
@@ -180,15 +178,16 @@ export interface CardView {
   visible: boolean;
   definitionId: string | null;
   metric: MetricComputation;
-  secondary: { label: string; definitionId: string; result: ComparisonCardResult }[];
+  secondary: { label: string; definitionId: string; person: PersonRef | null; result: ComparisonCardResult }[];
   universeOptions: Universe[];
   cohortOptions: { id: string; ageMin: number; ageMax: number | null }[];
   stale: boolean;
+  /** Income card only: income is one household total, so no one's own pay is compared. */
+  personalIncomeHint: boolean;
 }
 
 export interface ComparisonsReport {
   packageVersion: string;
-  mode: ComparisonMode;
   cards: CardView[];
 }
 

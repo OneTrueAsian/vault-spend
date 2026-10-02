@@ -113,6 +113,7 @@ describe("ComparisonDetailsDialog", () => {
         {
           label: "Home debt",
           definitionId: "sipp_home_debt_median",
+          person: null,
           result: { ...comparableIncome().result, metric: "debt", localValue: "150000", reference: adjusted({ metric: "debt" }, "140000") },
         },
       ],
@@ -144,7 +145,7 @@ describe("ComparisonDetailsDialog", () => {
   it("masks a card's amounts and leaves its age group and source visible", () => {
     act(() =>
       root.render(
-        <ComparisonCard view={comparableIncome()} mode="household" onExplore={() => {}} onChooseUniverse={() => {}} onChooseCohort={() => {}} />,
+        <ComparisonCard view={comparableIncome()} onExplore={() => {}} onChooseUniverse={() => {}} onChooseCohort={() => {}} />,
       ),
     );
     const stop = startPrivacyMask(document.body);

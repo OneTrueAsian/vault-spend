@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MenuSelect } from "../MenuSelect";
 import type { Account, Asset, FamilyMember, Transaction } from "../types";
 import { ComparisonCard } from "./ComparisonCard";
 import { ComparisonDetailsDialog } from "./ComparisonDetailsDialog";
 import { ComparisonDetailsPanel } from "./ComparisonDetailsPanel";
 import { ComparisonSetupDialog } from "./ComparisonSetupDialog";
 import { getComparisonSetup, getComparisons, saveComparisonSetup, useGeneration } from "./api";
-import { personLabel } from "./format";
-import { personKey, setCohortChoice, setReferencePerson, setUniversePreference } from "./setupDraft";
+import { setCohortChoice, setUniversePreference } from "./setupDraft";
 import type { ComparisonSetup, ComparisonsResponse, MetricId, Universe } from "./types";
 import "./Comparisons.css";
 
@@ -84,11 +82,9 @@ export function ComparisonsView({
   }
 
   const report = loaded?.response.report ?? null;
-  const setup = loaded?.setup ?? null;
   const visible = report?.cards.filter((c) => c.visible) ?? [];
   const hiddenCount = (report?.cards.length ?? 0) - visible.length;
   const exploringCard = report?.cards.find((c) => c.result.metric === exploring) ?? null;
-  const mode = report?.mode ?? setup?.mode ?? "household";
   const configured = loaded?.response.configured ?? false;
 
   // Decide once, on the first read of a configured setup (so also right after first-use setup), whether
@@ -103,7 +99,7 @@ export function ComparisonsView({
   }
 
   return (
-    <div className="cmp-page" data-comparisons-page data-cmp-mode={mode}>
+    <div className="cmp-page" data-comparisons-page>
       {error && (
         <div className="cmp-banner cmp-banner-error" role="alert" data-cmp-error>
           <span>Could not load comparisons: {error}</span>
@@ -152,22 +148,6 @@ export function ComparisonsView({
         </div>
       )}
 
-      {report && setup && mode === "individual" && (
-        <div className="cmp-person-bar" data-cmp-person-bar>
-          <span className="cmp-person-label">Comparing</span>
-          <MenuSelect
-            ariaLabel="Person to compare"
-            value={setup.individualPerson ? personKey(setup.individualPerson) : ""}
-            placeholder="Choose a person…"
-            options={setup.people.map((p) => ({ value: personKey(p.person), label: personLabel(p.person, members) }))}
-            onChange={(key) => {
-              const chosen = setup.people.find((p) => personKey(p.person) === key);
-              if (chosen) void patchSetup((s) => setReferencePerson(s, chosen.person));
-            }}
-          />
-        </div>
-      )}
-
       {report && (
         <>
           <div className="cmp-grid" data-cmp-grid>
@@ -175,10 +155,9 @@ export function ComparisonsView({
               <ComparisonCard
                 key={view.result.metric}
                 view={view}
-                mode={mode}
                 onExplore={() => setExploring(view.result.metric)}
                 onChooseUniverse={(u: Universe) => void patchSetup((s) => setUniversePreference(s, view.result.metric, u))}
-                onChooseCohort={(id) => void patchSetup((s) => setCohortChoice(s, s.mode, view.result.metric, id))}
+                onChooseCohort={(id) => void patchSetup((s) => setCohortChoice(s, view.result.metric, id))}
               />
             ))}
           </div>

@@ -25,7 +25,6 @@ import {
   setInvestmentClass,
   setManualAnnualSpending,
   setManualOverride,
-  setMode,
   setPersonIncome,
   setReferencePerson,
   setSavingsOverride,
@@ -35,7 +34,7 @@ import {
   syncPeople,
 } from "./setupDraft";
 import "./Comparisons.css";
-import type { ComparisonMode, ComparisonSetup, DebtClass, InvestmentClass, MetricId, PersonRef, Repair, SetupProblem, SourceRef } from "./types";
+import type { ComparisonSetup, DebtClass, InvestmentClass, MetricId, Repair, SetupProblem, SourceRef } from "./types";
 
 const INVESTMENT_CLASSES: { value: InvestmentClass | ""; label: string }[] = [
   { value: "", label: "Not chosen yet" },
@@ -207,7 +206,7 @@ export function ComparisonDetailsPanel({
         <p className="modal-message-secondary">
           Comparisons line your finances up against published figures for people your age.
         </p>
-        <button type="button" data-cmp-settings-start onClick={() => setDraft(syncPeople(emptySetup("household"), familyMembers))}>
+        <button type="button" data-cmp-settings-start onClick={() => setDraft(syncPeople(emptySetup(), familyMembers))}>
           Set up comparisons
         </button>
       </div>
@@ -215,9 +214,7 @@ export function ComparisonDetailsPanel({
   }
 
   const inHousehold = draft.people.filter((p) => p.inHousehold);
-  const subjectChoices = draft.mode === "household" ? inHousehold : draft.people;
-  const subject = draft.mode === "household" ? draft.householdReferencePerson : draft.individualPerson;
-  const subjectForOverrides: PersonRef | null = draft.mode === "household" ? null : draft.individualPerson;
+  const subject = draft.householdReferencePerson;
 
   const cashAccounts = accounts.filter((a) => ["checking", "savings", "other", "investment"].includes(a.account_type));
   const investmentSources: { source: SourceRef; name: string }[] = [
@@ -258,34 +255,16 @@ export function ComparisonDetailsPanel({
         <h3>Who is compared</h3>
         <div className="cmp-settings-row">
           <span className="cmp-row-label">
-            Compare
-            <InfoTip label="Compare" text={FIELD_TIPS.compare} />
+            Age used for the household
+            <InfoTip label="Age used for the household" text={FIELD_TIPS.subjectHousehold} />
           </span>
           <MenuSelect
-            ariaLabel="Comparison mode"
-            value={draft.mode}
-            options={[
-              { value: "household", label: "My household" },
-              { value: "individual", label: "One person" },
-            ]}
-            onChange={(v) => edit((s) => setMode(s, v as ComparisonMode))}
-          />
-        </div>
-        <div className="cmp-settings-row">
-          <span className="cmp-row-label">
-            {draft.mode === "household" ? "Age used for the household" : "Person compared"}
-            <InfoTip
-              label={draft.mode === "household" ? "Age used for the household" : "Person compared"}
-              text={draft.mode === "household" ? FIELD_TIPS.subjectHousehold : FIELD_TIPS.subjectIndividual}
-            />
-          </span>
-          <MenuSelect
-            ariaLabel={draft.mode === "household" ? "Household reference person" : "Person compared"}
+            ariaLabel="Household reference person"
             value={subject ? personKey(subject) : ""}
             placeholder="Choose a person…"
-            options={subjectChoices.map((p) => ({ value: personKey(p.person), label: personLabel(p.person, members) }))}
+            options={inHousehold.map((p) => ({ value: personKey(p.person), label: personLabel(p.person, members) }))}
             onChange={(key) => {
-              const chosen = subjectChoices.find((p) => personKey(p.person) === key);
+              const chosen = inHousehold.find((p) => personKey(p.person) === key);
               if (chosen) edit((s) => setReferencePerson(s, chosen.person));
             }}
           />
@@ -322,58 +301,44 @@ export function ComparisonDetailsPanel({
         <p className="modal-message-secondary">
           Published income is before tax, so it is never estimated from your tracked take-home pay. Enter what you earn in a year.
         </p>
-        {draft.mode === "household" ? (
-          <>
-            <div className="cmp-settings-row">
-              <span className="cmp-row-label">
-                Enter income as
-                <InfoTip label="Enter income as" text={FIELD_TIPS.incomeMethod} />
-              </span>
-              <MenuSelect
-                ariaLabel="Household income method"
-                value={draft.income.householdMethod}
-                options={[
-                  { value: "total", label: "One household total" },
-                  { value: "by_person", label: "Separately for each person" },
-                ]}
-                onChange={(v) => edit((s) => setHouseholdIncomeMethod(s, v as "total" | "by_person"))}
-              />
-            </div>
-            {draft.income.householdMethod === "total" ? (
-              <AmountEditor
-                key="household-total"
-                label="Household income per year"
-                value={draft.income.householdTotal}
-                onChange={(a) => edit((s) => setHouseholdTotal(s, a))}
-                hint="What you enter for each person is kept if you switch methods."
-                tip={FIELD_TIPS.income}
-              />
-            ) : (
-              inHousehold.map((p) => (
-                <AmountEditor
-                  key={personKey(p.person)}
-                  label={`${personLabel(p.person, members)}: income per year`}
-                  tip={FIELD_TIPS.income}
-                  value={draft.income.perPerson.find((e) => personKey(e.person) === personKey(p.person))?.grossAnnual ?? null}
-                  onChange={(a) => edit((s) => setPersonIncome(s, p.person, a))}
-                />
-              ))
-            )}
-          </>
+        <div className="cmp-settings-row">
+          <span className="cmp-row-label">
+            Enter income as
+            <InfoTip label="Enter income as" text={FIELD_TIPS.incomeMethod} />
+          </span>
+          <MenuSelect
+            ariaLabel="Household income method"
+            value={draft.income.householdMethod}
+            options={[
+              { value: "total", label: "One household total" },
+              { value: "by_person", label: "Separately for each person" },
+            ]}
+            onChange={(v) => edit((s) => setHouseholdIncomeMethod(s, v as "total" | "by_person"))}
+          />
+        </div>
+        {draft.income.householdMethod === "total" ? (
+          <AmountEditor
+            key="household-total"
+            label="Household income per year"
+            value={draft.income.householdTotal}
+            onChange={(a) => edit((s) => setHouseholdTotal(s, a))}
+            hint="What you enter for each person is kept if you switch methods."
+            tip={FIELD_TIPS.income}
+          />
         ) : (
-          draft.individualPerson && (
+          inHousehold.map((p) => (
             <AmountEditor
-              key={personKey(draft.individualPerson)}
-              label={`${personLabel(draft.individualPerson, members)}: income per year`}
+              key={personKey(p.person)}
+              label={`${personLabel(p.person, members)}: income per year`}
               tip={FIELD_TIPS.income}
-              value={draft.income.perPerson.find((e) => personKey(e.person) === personKey(draft.individualPerson as PersonRef))?.grossAnnual ?? null}
-              onChange={(a) => edit((s) => setPersonIncome(s, draft.individualPerson as PersonRef, a))}
+              value={draft.income.perPerson.find((e) => personKey(e.person) === personKey(p.person))?.grossAnnual ?? null}
+              onChange={(a) => edit((s) => setPersonIncome(s, p.person, a))}
             />
-          )
+          ))
         )}
       </section>
 
-      {draft.mode === "household" && (
+      {(
         <section className="cmp-settings-group" data-cmp-group="spending">
           <h3>Spending</h3>
           <span className="cmp-tip-field">
@@ -556,13 +521,12 @@ export function ComparisonDetailsPanel({
           example because you have an account you have not added. The app&apos;s own total is still shown in the details.
         </p>
         {(["savings", "investments", "debt", "spending"] as const)
-          .filter((m) => m !== "spending" || draft.mode === "household")
           .map((m) => (
             <AmountEditor
-              key={`${m}-${subjectForOverrides ? personKey(subjectForOverrides) : "household"}`}
+              key={m}
               label={`${metricTitle(m)}: your own total`}
-              value={draft.manualOverrides.find((o) => o.metric === m && (subjectForOverrides ? o.subject !== null && personKey(o.subject) === personKey(subjectForOverrides) : o.subject === null))?.amount ?? null}
-              onChange={(a) => edit((s) => setManualOverride(s, m, subjectForOverrides, a))}
+              value={draft.manualOverrides.find((o) => o.metric === m)?.amount ?? null}
+              onChange={(a) => edit((s) => setManualOverride(s, m, a))}
               hint={MANUAL_HINT[m]}
               tip={FIELD_TIPS.manualTotal[m]}
             />

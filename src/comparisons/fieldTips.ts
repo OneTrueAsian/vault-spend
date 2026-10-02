@@ -4,12 +4,8 @@ import type { MetricId } from "./types";
  * reviewed (and kept consistent) without reading the forms. Written for anyone, including people new to
  * money terms: plain words, no app jargon such as "tracked" or "published". */
 export const FIELD_TIPS = {
-  compare:
-    "Choose My household to add up the money of everyone who shares your finances and compare the total. Savings, investments and debt can only be compared this way. Choose One person to compare a single person's income, which is the only figure available for a single person.",
   subjectHousehold:
     "The national figures are grouped by age. For a household, the age used is that of the person who owns or rents your home. Choose that person.",
-  subjectIndividual:
-    "The person whose income is compared. The national figures are grouped by age, so this person's age decides which group they are compared with.",
   shares:
     "Tick this for a partner or family member who shares money with you, for example through a joint bank account or shared bills. Their income and accounts are then counted too. Leave it unticked for a roommate who handles their own money.",
   age: "Only used to compare you with people of a similar age (for example 25 to 29). If you would rather not give an exact age, choose Age range. The range must fit inside one of those age groups.",

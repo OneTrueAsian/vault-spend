@@ -24,9 +24,9 @@ vi.mock("./api", () => ({
 
 import { ComparisonsView } from "./ComparisonsView";
 
-function setupWithOwner(mode: "household" | "individual" = "household"): ComparisonSetup {
-  const s = syncPeople(emptySetup(mode), []);
-  return { ...s, individualPerson: { kind: "owner" } };
+function setupWithOwner(): ComparisonSetup {
+  const s = syncPeople(emptySetup(), []);
+  return { ...s, householdReferencePerson: { kind: "owner" } };
 }
 
 const setupResponse = (setup: ComparisonSetup | null, revision = 3): SetupResponse => ({ generation: 1, revision, setup, repairs: [] });
@@ -199,21 +199,12 @@ describe("ComparisonsView", () => {
     });
   });
 
-  it("has no mode switch and no settings button on the page, in either mode", async () => {
+  it("has no mode switch, person selector or settings button on the page", async () => {
     loads(response({}, [comparableIncome()]));
     await mount();
     expect(q("[data-cmp-person-bar]")).toBeNull();
     expect(all("button").map((b) => b.textContent)).not.toContain("Comparison settings");
     expect(all("[role='switch'], [data-cmp-mode-switch]")).toHaveLength(0);
-  });
-
-  it("shows the permanent person selector only in individual mode", async () => {
-    const r = response({}, [comparableIncome()]);
-    r.report!.mode = "individual";
-    loads(r, setupWithOwner("individual"));
-    await mount();
-    expect(q("[data-cmp-person-bar]")).not.toBeNull();
-    expect(q("[data-cmp-person-bar]")?.textContent).toContain("Me");
   });
 
   it("shows the first-use setup prompt when nothing is configured", async () => {

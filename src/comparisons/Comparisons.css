@@ -65,17 +65,6 @@
   color: var(--text-muted);
 }
 
-.cmp-person-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.cmp-person-label {
-  color: var(--text-muted);
-  font-size: 12.5px;
-}
-
 .cmp-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

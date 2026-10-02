@@ -29,9 +29,9 @@ describe("ComparisonCard", () => {
     container.remove();
   });
 
-  const show = (view: CardView, mode: "household" | "individual" = "household") =>
+  const show = (view: CardView) =>
     act(() => {
-      root.render(<ComparisonCard view={view} mode={mode} onExplore={onExplore} onChooseUniverse={onChooseUniverse} onChooseCohort={onChooseCohort} />);
+      root.render(<ComparisonCard view={view} onExplore={onExplore} onChooseUniverse={onChooseUniverse} onChooseCohort={onChooseCohort} />);
     });
   const text = () => container.textContent ?? "";
   const q = (sel: string) => container.querySelector<HTMLElement>(sel);
@@ -126,7 +126,7 @@ describe("ComparisonCard", () => {
   it("does not show an unconfirmed, partly assigned total next to a benchmark gap", () => {
     const view = unavailable("savings");
     view.metric = metric("savings", { value: "0", origin: { kind: "derived" }, completeness: "partial" });
-    show(view, "individual");
+    show(view);
     expect(q("[data-cmp-local]")).toBeNull();
     expect(text()).toContain("No matching benchmark");
   });

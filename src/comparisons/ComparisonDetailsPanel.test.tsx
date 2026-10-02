@@ -57,7 +57,7 @@ const accounts: Account[] = [
 const assets: Asset[] = [{ id: 5, name: "Rental", asset_type: "property", value: "100000", valued_on: "2026-09-01", notes: null, member_id: null, member_name: null }];
 
 const stored = (): ComparisonSetup => {
-  let s = syncPeople(emptySetup("household"), members);
+  let s = syncPeople(emptySetup(), members);
   s = setAge(s, { kind: "owner" }, { kind: "exact", age: 42 }, "2026-09-01");
   return { ...s, householdReferencePerson: { kind: "owner" } };
 };
@@ -114,7 +114,6 @@ describe("ComparisonDetailsPanel", () => {
       await mount();
       const labels = tipLabels();
       for (const label of [
-        "Compare",
         "Age used for the household",
         "Shares my finances",
         "Age of Me",
@@ -140,7 +139,6 @@ describe("ComparisonDetailsPanel", () => {
         expect(labels, `no info tip for "${label}"`).toContain(label);
       }
       for (const label of labels) expect(tipText(label!).trim(), `the "${label}" tip has no text`).not.toBe("");
-      expect(tipText("Compare")).toMatch(/only figure available for a single person/);
     });
 
     it("says each typed total is optional and where the app's own total comes from", async () => {
@@ -162,13 +160,6 @@ describe("ComparisonDetailsPanel", () => {
       api.getComparisonSetup.mockResolvedValue(response(stored()));
       await mount();
       for (const label of tipLabels()) expect(tipText(label!), label).not.toMatch(/\btracked\b|\bpublished\b/i);
-    });
-
-    it("explains the person compared when comparing one person", async () => {
-      api.getComparisonSetup.mockResolvedValue(response({ ...stored(), mode: "individual", individualPerson: { kind: "owner" } }));
-      await mount();
-      expect(tipLabels()).toContain("Person compared");
-      expect(tipLabels()).toContain("Me: income per year");
     });
 
     it("points each typed amount at its explanation for screen readers", async () => {
@@ -233,14 +224,12 @@ describe("ComparisonDetailsPanel", () => {
     expect((api.saveComparisonSetup.mock.calls[0][2] as ComparisonSetup).people[0].age?.age).toEqual({ kind: "band", min: 25, max: 34 });
   });
 
-  it("changes household or individual mode here, not on the Comparisons page", async () => {
+  it("has no comparison mode or person-compared controls", async () => {
     api.getComparisonSetup.mockResolvedValue(response(stored()));
-    api.saveComparisonSetup.mockImplementation(async (_g: number, _r: number, setup: ComparisonSetup) => ({ status: "saved", revision: 3, setup }));
     await mount();
-    pickMenuOption(trigger("Comparison mode"), "individual");
-    act(() => save().click());
-    await flush();
-    expect((api.saveComparisonSetup.mock.calls[0][2] as ComparisonSetup).mode).toBe("individual");
+    expect(container.querySelector("button[aria-label^='Comparison mode']")).toBeNull();
+    expect(container.querySelector("button[aria-label^='Person compared']")).toBeNull();
+    expect(container.querySelector("button[aria-label^='Household reference person']")).not.toBeNull();
   });
 
   it("lets a roommate be left out of the financial unit", async () => {

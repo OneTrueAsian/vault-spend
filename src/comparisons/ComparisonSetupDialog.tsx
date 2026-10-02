@@ -7,12 +7,12 @@ import { toLocalIsoDate } from "../format";
 import { AgeField } from "./AgeField";
 import { saveComparisonSetup } from "./api";
 import { personLabel } from "./format";
-import { emptySetup, personKey, setAge, setInHousehold, setMode, setReferencePerson, syncPeople } from "./setupDraft";
-import type { AgeInput, ComparisonMode, ComparisonSetup, PersonRef } from "./types";
+import { emptySetup, personKey, setAge, setInHousehold, setReferencePerson, syncPeople } from "./setupDraft";
+import type { AgeInput, ComparisonSetup, PersonRef } from "./types";
 
 type Member = { id: number; name: string };
 
-/** The light first-use setup: household or individual, whose age to use, and who shares the finances.
+/** The light first-use setup: whose age to use, and who shares the finances.
  * Everything else (income, accounts, classifications, shares) is configured under Settings >
  * Comparisons. Nothing is saved until Save; Cancel discards the draft. */
 export function ComparisonSetupDialog({
@@ -26,7 +26,6 @@ export function ComparisonSetupDialog({
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const [mode, setModeState] = useState<ComparisonMode>("household");
   const [subjectKey, setSubjectKey] = useState("owner");
   const [outsiders, setOutsiders] = useState<Set<number>>(new Set());
   const [age, setAgeState] = useState<AgeInput | null>(null);
@@ -35,11 +34,11 @@ export function ComparisonSetupDialog({
 
   const everyone: PersonRef[] = useMemo(() => [{ kind: "owner" }, ...members.map((m): PersonRef => ({ kind: "member", id: m.id }))], [members]);
   const inHousehold = everyone.filter((p) => p.kind === "owner" || !outsiders.has(p.id));
-  const choices = mode === "household" ? inHousehold : everyone;
+  const choices = inHousehold;
   const subject = choices.find((p) => personKey(p) === subjectKey) ?? choices[0];
 
   function build(): ComparisonSetup {
-    let draft = syncPeople(setMode(emptySetup(mode), mode), members);
+    let draft = syncPeople(emptySetup(), members);
     for (const id of outsiders) draft = setInHousehold(draft, { kind: "member", id }, false);
     draft = setReferencePerson(draft, subject);
     return age ? setAge(draft, subject, age, toLocalIsoDate()) : draft;
@@ -96,24 +95,7 @@ export function ComparisonSetupDialog({
           </p>
         )}
 
-        <div className="modal-field">
-          <span>
-            Compare
-            <InfoTip label="Compare" text={FIELD_TIPS.compare} />
-          </span>
-          <MenuSelect
-            ariaLabel="Compare"
-            fill
-            value={mode}
-            options={[
-              { value: "household", label: "My household" },
-              { value: "individual", label: "One person" },
-            ]}
-            onChange={(v) => setModeState(v as ComparisonMode)}
-          />
-        </div>
-
-        {mode === "household" && members.length > 0 && (
+        {members.length > 0 && (
           <fieldset className="cmp-members">
             <legend>
               Who shares your finances?
@@ -149,14 +131,11 @@ export function ComparisonSetupDialog({
         {choices.length > 1 && (
           <div className="modal-field">
             <span>
-              {mode === "household" ? "Whose age should we use?" : "Whose finances are these?"}
-              <InfoTip
-                label={mode === "household" ? "Whose age should we use?" : "Whose finances are these?"}
-                text={mode === "household" ? FIELD_TIPS.subjectHousehold : FIELD_TIPS.subjectIndividual}
-              />
+              Whose age should we use?
+              <InfoTip label="Whose age should we use?" text={FIELD_TIPS.subjectHousehold} />
             </span>
             <MenuSelect
-              ariaLabel={mode === "household" ? "Reference person" : "Person"}
+              ariaLabel="Reference person"
               fill
               value={personKey(subject)}
               options={choices.map((p) => ({ value: personKey(p), label: personLabel(p, members) }))}
