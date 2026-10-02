@@ -396,7 +396,7 @@ mod tests {
         let dek = key_file.unlock_with_password("correct horse battery staple").unwrap();
         let opened = Store::open_with_key(&target_path, DatabaseKey::Raw(dek.as_bytes())).unwrap();
         // A fresh database always seeds the standard starter categories (see `DEFAULT_CATEGORIES`
-        // in core/src/store.rs) — the real signal that this is a genuinely fresh schema and not a
+        // in core/src/store/schema.rs) — the real signal that this is a genuinely fresh schema and not a
         // copy of some other, already-populated profile is the absence of any account or
         // transaction, which only a real profile would ever have.
         assert!(opened.list_accounts(chrono::Local::now().date_naive()).unwrap().is_empty());
