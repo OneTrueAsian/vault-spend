@@ -166,155 +166,6 @@
   color-scheme: dark;
 }
 
-/* Futuristic — the second optional reskin: a neon cyberpunk palette
-   (electric cyan accent, violet "info", magenta-red "negative") plus its
-   own display/mono type (Orbitron, Rajdhani, Share Tech Mono) so it reads
-   as a genuinely different visual identity, not just a recolor. Like
-   Slate above, it follows the header's Light/Dark/System toggle, so it
-   needs the same three-block structure as the `:root` block up top — a
-   light default, a `prefers-color-scheme: dark` block, and an explicit
-   `data-theme="dark"` override. The sidebar rail stays the same near-
-   black in both modes (Slate's sidebar, by contrast, now follows the
-   current mode — see the `:root` block above), so those tokens repeat
-   unchanged across all three blocks below. */
-:root[data-palette="futuristic"] {
-  --bg: #f3f6fb;
-  --surface: #ffffff;
-  --surface-2: #e9eef6;
-  --surface-hover: #dfe6f0;
-  --sidebar-bg: #030509;
-  --sidebar-bg-hover: #0d1420;
-  --sidebar-bg-active: #142132;
-  --sidebar-text: #8fb8c9;
-  --sidebar-text-dim: #6c92a1;
-  --sidebar-text-active: #e4faff;
-  --sidebar-border: #101c2c;
-
-  --text: #0b1220;
-  --text-muted: #51607a;
-  --text-faint: #5a6b81;
-  --border: #d7dfec;
-  --border-strong: #b9c4d6;
-
-  --accent: #0e7490;
-  --accent-strong: #0b5768;
-  --accent-soft: #e0f7fb;
-  --accent-soft-text: #0b5768;
-  --on-accent: #ffffff;
-
-  --positive: #047857;
-  --positive-soft: #dcfdf4;
-  --negative: #e11d48;
-  --negative-soft: #fde2e8;
-  --warning: #b45309;
-  --warning-soft: #fdf1dc;
-  --info: #7c3aed;
-  --info-soft: #f1e8fd;
-
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
-  --shadow-md: 0 6px 20px rgba(15, 23, 42, 0.1);
-  --shadow-lg: 0 16px 44px rgba(15, 23, 42, 0.14);
-
-  --font-display: "Orbitron", "Segoe UI", system-ui, sans-serif;
-  --font-body: "Rajdhani", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "Share Tech Mono", "SFMono-Regular", Consolas, monospace;
-
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root[data-palette="futuristic"]:not([data-theme="light"]) {
-    --bg: #05070d;
-    --surface: #0b1220;
-    --surface-2: #111a2c;
-    --surface-hover: #1a2740;
-    --sidebar-bg: #030509;
-    --sidebar-bg-hover: #0d1420;
-    --sidebar-bg-active: #142132;
-    --sidebar-text: #8fb8c9;
-    --sidebar-text-dim: #6c92a1;
-    --sidebar-text-active: #e4faff;
-    --sidebar-border: #101c2c;
-
-    --text: #e4faff;
-    --text-muted: #8fb8c9;
-    --text-faint: #6c92a1;
-    --border: #16273a;
-    --border-strong: #223a52;
-
-    --accent: #00e5ff;
-    --accent-strong: #5cf4ff;
-    --accent-soft: #06313d;
-    --accent-soft-text: #7be8fb;
-    --on-accent: #06231a;
-
-    --positive: #39ff9e;
-    --positive-soft: #063a21;
-    --negative: #ff3d6e;
-    --negative-soft: #3a0f1d;
-    --warning: #ffd60a;
-    --warning-soft: #3a2f06;
-    --info: #b084ff;
-    --info-soft: #211640;
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 0 24px rgba(0, 229, 255, 0.12), 0 6px 20px rgba(0, 0, 0, 0.55);
-    --shadow-lg: 0 0 48px rgba(0, 229, 255, 0.16), 0 16px 44px rgba(0, 0, 0, 0.65);
-
-    color-scheme: dark;
-  }
-}
-
-:root[data-palette="futuristic"][data-theme="dark"] {
-  --bg: #05070d;
-  --surface: #0b1220;
-  --surface-2: #111a2c;
-  --surface-hover: #1a2740;
-  --sidebar-bg: #030509;
-  --sidebar-bg-hover: #0d1420;
-  --sidebar-bg-active: #142132;
-  --sidebar-text: #8fb8c9;
-  --sidebar-text-dim: #6c92a1;
-  --sidebar-text-active: #e4faff;
-  --sidebar-border: #101c2c;
-
-  --text: #e4faff;
-  --text-muted: #8fb8c9;
-  --text-faint: #6c92a1;
-  --border: #16273a;
-  --border-strong: #223a52;
-
-  --accent: #00e5ff;
-  --accent-strong: #5cf4ff;
-  --accent-soft: #06313d;
-  --accent-soft-text: #7be8fb;
-  --on-accent: #06231a;
-
-  --positive: #39ff9e;
-  --positive-soft: #063a21;
-  --negative: #ff3d6e;
-  --negative-soft: #3a0f1d;
-  --warning: #ffd60a;
-  --warning-soft: #3a2f06;
-  --info: #b084ff;
-  --info-soft: #211640;
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 0 24px rgba(0, 229, 255, 0.12), 0 6px 20px rgba(0, 0, 0, 0.55);
-  --shadow-lg: 0 0 48px rgba(0, 229, 255, 0.16), 0 16px 44px rgba(0, 0, 0, 0.65);
-
-  color-scheme: dark;
-}
-
-/* Futuristic — the angular icon set (src/icons.tsx) picks up a faint neon
-   glow to match the theme's HUD look, on hover and when a nav item is
-   active. Scoped to the palette attribute so no other theme is affected. */
-[data-palette="futuristic"] .nav-item:hover .ico,
-[data-palette="futuristic"] .nav-item-active .ico,
-[data-palette="futuristic"] .profile-switcher-toggle:hover .ico {
-  filter: drop-shadow(0 0 4px var(--accent));
-}
-
 /* Transparent — the third optional reskin: Apple's own system colors
    (systemBlue/-Green/-Red/-Orange/-Indigo, as documented in Apple's HIG)
    on a frosted-glass surface treatment instead of Slate's solid cards.
@@ -970,14 +821,6 @@ body {
    overridden back below. */
 .nav-item-active .ico {
   color: #ffffff;
-}
-
-[data-palette="futuristic"] .nav-item.nav-item-active {
-  color: var(--sidebar-text-active);
-}
-
-[data-palette="futuristic"] .nav-item-active .ico {
-  color: var(--accent-strong);
 }
 
 /* Transparent's active nav item sits on a soft translucent tint
@@ -2347,14 +2190,12 @@ button:disabled {
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .icon-img,
-  :root[data-palette="futuristic"]:not([data-theme="light"]) .icon-img {
+  :root:not([data-theme="light"]) .icon-img {
     filter: brightness(0) invert(1);
   }
 }
 
-:root[data-theme="dark"] .icon-img,
-:root[data-palette="futuristic"][data-theme="dark"] .icon-img {
+:root[data-theme="dark"] .icon-img {
   filter: brightness(0) invert(1);
 }
 

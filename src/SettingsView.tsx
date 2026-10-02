@@ -448,7 +448,7 @@ const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string 
     id: "futuristic",
     label: "Futuristic",
     description:
-      "A neon cyberpunk reskin — electric cyan, violet, and magenta-red accents, plus Orbitron and Share Tech Mono type, and its own angular sidebar icon set. Also follows the header's Light/Dark/System toggle.",
+      "A neon look on deep navy — a glowing accent color you choose, tall narrow headings, rounded panels, and its own angular sidebar icons. When it's selected, you can pick the accent color and how strongly it glows. Also follows the header's Light/Dark/System toggle.",
   },
   {
     id: "retro",

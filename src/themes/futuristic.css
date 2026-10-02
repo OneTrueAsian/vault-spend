@@ -13,8 +13,700 @@
 @import "@fontsource/space-mono/latin-400.css";
 @import "@fontsource/space-mono/latin-700.css";
 
+/* ------------------------------------------------------------------ Tokens
+   Three blocks, like every palette: light by default, dark when the system is dark and no explicit
+   light is chosen, and explicit dark. The navigation rail stays dark in light mode.
+
+   Names used only by this file:
+   --neon / --neon-rgb  the bright accent (Ion Cyan, Rebel Pink or Ultraviolet), for glows, the rail and
+                        decorative edges. In dark mode --accent is the same color; in light mode --accent
+                        is the darker ink version so text and outlines stay readable on light panels.
+   --glow               0..1 from Settings > Neon intensity (--neon-glow, set on the root by
+                        themeBootstrap.ts). Only shadows and ambient light use it; text, borders,
+                        focus rings and status colors never do.
+   --border-soft        inner rules and chart grid lines.
+   --field-bg           the inside of text fields and closed selectors. */
+
 :root[data-palette="futuristic"] {
+  --glow: var(--neon-glow, 0.7);
+  --neon: #00e5ff;
+  --neon-rgb: 0, 229, 255;
+
+  --bg: #eef4f8;
+  --surface: #f8fbfd;
+  --surface-2: #e6eef4;
+  --surface-hover: #dde8f0;
+  --status-base: #f8fbfd;
+  --menu-bg: #f8fbfd;
+  --field-bg: #ffffff;
+  --grid-line: rgb(16 35 51 / 0.04);
+  --card-bg: linear-gradient(155deg, #fbfdfe, #f4f8fb);
+  /* Light: the primary button is a solid ink fill with white text (a tint of ink reads as disabled). */
+  --btn-bg: var(--accent);
+  --btn-bg-hover: var(--accent-strong);
+  --btn-border-hover: var(--accent-strong);
+  --btn-text: var(--on-accent);
+  --btn-shadow: none;
+
+  --sidebar-bg: #090d17;
+  --sidebar-bg-hover: #142133;
+  --sidebar-bg-active: linear-gradient(90deg, rgba(var(--neon-rgb), 0.18), rgba(var(--neon-rgb), 0.045));
+  --sidebar-text: #a6b9ca;
+  --sidebar-text-dim: #7890a7;
+  --sidebar-text-active: #ecfbff;
+  --sidebar-border: #1c3042;
+
+  --text: #102333;
+  --text-muted: #405d70;
+  --text-faint: #4f6b7e;
+  --border: #b6c9d5;
+  --border-soft: #cfdee7;
+  --border-strong: #6e8899;
+
+  --accent: #006f84;
+  --accent-rgb: 0, 111, 132;
+  --accent-strong: #00566a;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  --accent-soft-text: var(--accent);
+  --on-accent: #ffffff;
+
+  --positive: #16683f;
+  --positive-soft: color-mix(in srgb, var(--positive) 12%, var(--surface));
+  --negative: #ad1f62;
+  --negative-soft: color-mix(in srgb, var(--negative) 12%, var(--surface));
+  --warning: #785300;
+  --warning-soft: color-mix(in srgb, var(--warning) 12%, var(--surface));
+  --info: #6248af;
+  --info-soft: color-mix(in srgb, var(--info) 12%, var(--surface));
+
+  --cat-1: #006f84;
+  --cat-2: #ad1f62;
+  --cat-3: #6248af;
+  --cat-4: #16683f;
+  --cat-5: #785300;
+  --cat-6: #2f5fa8;
+
+  --nav-active-shadow: inset 3px 0 var(--neon), 0 0 calc(22px * var(--glow)) rgba(var(--neon-rgb), 0.1);
+  --shadow-sm: 0 1px 2px rgb(16 35 51 / 0.08);
+  --shadow-md: 0 8px 24px rgb(16 35 51 / 0.1);
+  --shadow-lg: 0 18px 44px rgb(16 35 51 / 0.16);
+
   --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
   --font-body: "DM Sans", "Segoe UI", sans-serif;
   --font-mono: "Space Mono", Consolas, monospace;
+
+  --radius-panel: 12px;
+  --radius-card: 10px;
+  --radius-control: 7px;
+  --radius-small: 5px;
+  --radius-menu: 10px;
+  --radius-dialog: 14px;
+
+  color-scheme: light;
+}
+
+:root[data-palette="futuristic"][data-accent="pink"] {
+  --neon: #ff4bac;
+  --neon-rgb: 255, 75, 172;
+  --accent: #ad1f62;
+  --accent-rgb: 173, 31, 98;
+  --accent-strong: #8c1950;
+}
+
+:root[data-palette="futuristic"][data-accent="violet"] {
+  --neon: #a181ff;
+  --neon-rgb: 161, 129, 255;
+  --accent: #6248af;
+  --accent-rgb: 98, 72, 175;
+  --accent-strong: #4f3a8f;
+}
+
+/* Dark: the exact Neon Ledger palette. Kept as one list so the media-query block and the explicit
+   data-theme="dark" block cannot drift apart (they differ only in their selector). */
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="futuristic"]:not([data-theme="light"]) {
+    --bg: #070b13;
+    --surface: #101723;
+    --surface-2: #121c2a;
+    --surface-hover: #172436;
+    --status-base: #121c2a;
+    --menu-bg: #101c2b;
+    --field-bg: #0a111c;
+    --grid-line: rgb(34 68 91 / 0.07);
+    --card-bg: linear-gradient(155deg, #131e2c, #0c131f);
+    /* Dark: a tinted outline with accent text, as in the mock. */
+    --btn-bg: rgba(var(--neon-rgb), 0.12);
+    --btn-bg-hover: rgba(var(--neon-rgb), 0.25);
+    --btn-border-hover: var(--neon);
+    --btn-text: var(--neon);
+    --btn-shadow: inset 0 0 calc(14px * var(--glow)) rgba(var(--neon-rgb), 0.12);
+
+    --text: #e9f4fc;
+    --text-muted: #8da5ba;
+    --text-faint: #7f99ae;
+    --border: #263549;
+    --border-soft: #1c2939;
+    --border-strong: #557090;
+
+    --accent: var(--neon);
+    --accent-rgb: var(--neon-rgb);
+    --accent-strong: color-mix(in srgb, var(--neon) 72%, #ffffff);
+    --accent-soft: color-mix(in srgb, var(--neon) 14%, var(--surface));
+    --accent-soft-text: var(--neon);
+    --on-accent: #04121a;
+
+    --positive: #8cf5a8;
+    --positive-soft: color-mix(in srgb, var(--positive) 14%, var(--surface));
+    --negative: #ff4bac;
+    --negative-soft: color-mix(in srgb, var(--negative) 14%, var(--surface));
+    --warning: #ffc470;
+    --warning-soft: color-mix(in srgb, var(--warning) 14%, var(--surface));
+    --info: #a181ff;
+    --info-soft: color-mix(in srgb, var(--info) 14%, var(--surface));
+
+    --cat-1: #00e5ff;
+    --cat-2: #ff4bac;
+    --cat-3: #a181ff;
+    --cat-4: #8cf5a8;
+    --cat-5: #ffc470;
+    --cat-6: #6bb7ff;
+
+    --shadow-sm: 0 10px 35px rgb(0 0 0 / 0.12);
+    --shadow-md: 0 14px 36px rgb(0 0 0 / 0.45), 0 0 calc(16px * var(--glow)) rgba(var(--neon-rgb), 0.08);
+    --shadow-lg: 0 18px 48px rgb(0 0 0 / 0.6), 0 0 calc(24px * var(--glow)) rgba(var(--neon-rgb), 0.12);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-palette="futuristic"][data-theme="dark"] {
+  --bg: #070b13;
+  --surface: #101723;
+  --surface-2: #121c2a;
+  --surface-hover: #172436;
+  --status-base: #121c2a;
+  --menu-bg: #101c2b;
+  --field-bg: #0a111c;
+  --grid-line: rgb(34 68 91 / 0.07);
+  --card-bg: linear-gradient(155deg, #131e2c, #0c131f);
+  /* Dark: a tinted outline with accent text, as in the mock. */
+  --btn-bg: rgba(var(--neon-rgb), 0.12);
+  --btn-bg-hover: rgba(var(--neon-rgb), 0.25);
+  --btn-border-hover: var(--neon);
+  --btn-text: var(--neon);
+  --btn-shadow: inset 0 0 calc(14px * var(--glow)) rgba(var(--neon-rgb), 0.12);
+
+  --text: #e9f4fc;
+  --text-muted: #8da5ba;
+  --text-faint: #7f99ae;
+  --border: #263549;
+  --border-soft: #1c2939;
+  --border-strong: #557090;
+
+  --accent: var(--neon);
+  --accent-rgb: var(--neon-rgb);
+  --accent-strong: color-mix(in srgb, var(--neon) 72%, #ffffff);
+  --accent-soft: color-mix(in srgb, var(--neon) 14%, var(--surface));
+  --accent-soft-text: var(--neon);
+  --on-accent: #04121a;
+
+  --positive: #8cf5a8;
+  --positive-soft: color-mix(in srgb, var(--positive) 14%, var(--surface));
+  --negative: #ff4bac;
+  --negative-soft: color-mix(in srgb, var(--negative) 14%, var(--surface));
+  --warning: #ffc470;
+  --warning-soft: color-mix(in srgb, var(--warning) 14%, var(--surface));
+  --info: #a181ff;
+  --info-soft: color-mix(in srgb, var(--info) 14%, var(--surface));
+
+  --cat-1: #00e5ff;
+  --cat-2: #ff4bac;
+  --cat-3: #a181ff;
+  --cat-4: #8cf5a8;
+  --cat-5: #ffc470;
+  --cat-6: #6bb7ff;
+
+  --shadow-sm: 0 10px 35px rgb(0 0 0 / 0.12);
+  --shadow-md: 0 14px 36px rgb(0 0 0 / 0.45), 0 0 calc(16px * var(--glow)) rgba(var(--neon-rgb), 0.08);
+  --shadow-lg: 0 18px 48px rgb(0 0 0 / 0.6), 0 0 calc(24px * var(--glow)) rgba(var(--neon-rgb), 0.12);
+
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ Components
+   Selectors start with :where([data-palette="futuristic"]) so each rule keeps the specificity of the
+   component class it restyles: it beats App.css's equal rule by coming later, and still loses to a
+   more specific state rule there (a modifier class, :hover on a compound, etc.). Only looks change
+   here: colors, borders, corners, type, shadows. Layout and sizes stay App.css's. */
+
+/* Page atmosphere: a restrained 46px grid and two soft blooms behind the scrolling content. They sit in
+   the background of .main itself, so they can never cover text, menus or the privacy mask, and at
+   Neon intensity 0 only the plain canvas color and the faint grid remain. */
+:where([data-palette="futuristic"]) .main {
+  background:
+    radial-gradient(38vw 35vw at 92% -12%, rgba(var(--neon-rgb), calc(0.11 * var(--glow))), transparent 70%),
+    radial-gradient(30vw 35vw at 45% 118%, rgb(255 75 172 / calc(0.08 * var(--glow))), transparent 70%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 46px 46px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 46px 46px,
+    var(--bg);
+}
+
+/* Navigation rail */
+:where([data-palette="futuristic"]) .sidebar {
+  position: relative;
+  background: linear-gradient(165deg, #0c1320, #070b13 57%, #0c1420);
+  box-shadow: 12px 0 70px rgb(0 0 0 / 0.28);
+}
+
+/* The lit edge at the top of the rail's right border. */
+:where([data-palette="futuristic"]) .sidebar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 210px;
+  background: linear-gradient(var(--neon), transparent);
+  box-shadow: 0 0 calc(22px * var(--glow)) var(--neon);
+  pointer-events: none;
+}
+
+:where([data-palette="futuristic"]) .brand-word {
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+:where([data-palette="futuristic"]) .brand-mark {
+  filter: drop-shadow(0 0 calc(9px * var(--glow)) rgba(var(--neon-rgb), 0.7));
+}
+
+:where([data-palette="futuristic"]) .nav-group-label {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+:where([data-palette="futuristic"]) .nav-item {
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font-weight: 600;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+:where([data-palette="futuristic"]) .nav-item:hover {
+  color: #ffffff;
+}
+
+:where([data-palette="futuristic"]) .nav-item.nav-item-active {
+  color: var(--sidebar-text-active);
+  border-color: rgba(var(--neon-rgb), 0.33);
+}
+
+:where([data-palette="futuristic"]) .nav-item-active .ico {
+  color: var(--neon);
+}
+
+/* The angular icon set picks up a faint glow on hover and when active. */
+:where([data-palette="futuristic"]) :is(.nav-item:hover, .nav-item-active, .profile-switcher-toggle:hover) .ico {
+  filter: drop-shadow(0 0 calc(5px * var(--glow)) rgba(var(--neon-rgb), 0.8));
+}
+
+:where([data-palette="futuristic"]) .sidebar-version {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+/* Profile switcher: closed on the rail (always dark), open as a menu. */
+:where([data-palette="futuristic"]) .profile-switcher-toggle {
+  border-radius: var(--radius-control);
+  border-color: #263549;
+  background: #101927;
+  color: var(--sidebar-text-active);
+}
+
+:where([data-palette="futuristic"]) .profile-switcher-toggle:hover,
+:where([data-palette="futuristic"]) .profile-switcher-toggle[aria-expanded="true"] {
+  border-color: rgba(var(--neon-rgb), 0.5);
+  background: #142335;
+}
+
+/* Every open menu: profile switcher, MenuSelect, account/category filters, More, and the menus in
+   dialogs. Opaque, 10px corners, a faint accent edge. */
+:where([data-palette="futuristic"]) :is(
+    .profile-switcher-panel,
+    .menu-select-panel,
+    .more-menu-panel,
+    .account-filter-panel,
+    .account-destination-panel,
+    .bucket-contribute-panel
+  ) {
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid rgba(var(--accent-rgb), 0.38);
+  border-radius: var(--radius-menu);
+  box-shadow: 0 18px 36px rgb(0 0 0 / 0.35), 0 0 calc(16px * var(--glow)) rgba(var(--neon-rgb), 0.12);
+}
+
+:where([data-palette="futuristic"]) :is(
+    .profile-switcher-option,
+    .more-menu-item,
+    .account-filter-option,
+    .account-destination-option
+  ) {
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+}
+
+:where([data-palette="futuristic"]) :is(
+    .profile-switcher-option:hover,
+    .more-menu-item:hover,
+    .account-filter-option:hover,
+    .account-destination-option:hover,
+    .account-destination-option:focus-visible
+  ) {
+  border-color: rgba(var(--accent-rgb), 0.3);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+:where([data-palette="futuristic"]) .account-destination-option[aria-checked="true"] {
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.14);
+}
+
+:where([data-palette="futuristic"]) .menu-select-group {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+/* Closed selectors and filter triggers */
+:where([data-palette="futuristic"]) :is(.menu-select-toggle, .account-filter-toggle) {
+  border-radius: var(--radius-control);
+  border-color: var(--border-strong);
+  background: var(--field-bg);
+  color: var(--text);
+}
+
+:where([data-palette="futuristic"]) :is(.menu-select-toggle, .account-filter-toggle):hover {
+  background: var(--surface-2);
+  border-color: rgba(var(--accent-rgb), 0.55);
+}
+
+:where([data-palette="futuristic"]) :is(.menu-select-toggle, .account-filter-toggle)[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+
+/* Header */
+:where([data-palette="futuristic"]) .topbar {
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border-bottom-color: var(--border-soft);
+}
+
+:where([data-palette="futuristic"]) .topbar h1 {
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Segmented controls: Light/Dark/System, tab strips, report ranges, ledger density, comparison
+   choices. Comparisons.css loads lazily (after this file), so its two selectors repeat their class to
+   outrank the equal rules there. */
+:where([data-palette="futuristic"]) :is(.theme-toggle, .tabs, .view-toggle, .density-toggle, .cmp-choice.cmp-choice) {
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+:where([data-palette="futuristic"]) :is(.theme-toggle button, .tab-btn, .view-toggle button, .density-toggle button, .cmp-choice.cmp-choice button) {
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+}
+
+:where([data-palette="futuristic"]) :is(
+    .theme-toggle button.theme-toggle-active,
+    .tab-btn-active,
+    .view-toggle button.view-toggle-active,
+    .density-toggle .density-toggle-active,
+    .cmp-choice.cmp-choice button.cmp-choice-active
+  ) {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--accent);
+  box-shadow: inset 0 -2px var(--accent);
+}
+
+/* Page headings */
+:where([data-palette="futuristic"]) .view-title {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+:where([data-palette="futuristic"]) :is(.reports-section-title, .card-title, .modal-title) {
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+}
+
+/* Panels and cards: 12px panels with a short lit tick on the top edge (drawn as a background layer, so
+   no positioning changes). */
+:where([data-palette="futuristic"]) .card {
+  border-radius: var(--radius-panel);
+  background:
+    linear-gradient(var(--neon), var(--neon)) 12px 0 / 21px 1px no-repeat,
+    var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+:where([data-palette="futuristic"]) :is(.stat, .stat-hero, .account-card, .cmp-card.cmp-card) {
+  border-radius: var(--radius-card);
+}
+
+:where([data-palette="futuristic"]) .stat-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 0.035em;
+}
+
+/* Hero figures use the condensed display face, as in the mock; table amounts keep the mono face. */
+:where([data-palette="futuristic"]) :is(.safe-amount, .review-figure, .reconcile-figure) {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+}
+
+:where([data-palette="futuristic"]) .safe-amount {
+  font-size: 40px;
+}
+
+:where([data-palette="futuristic"]) .stat-label {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+}
+
+/* Buttons. A plain button is a tinted accent outline; classed buttons keep their own looks
+   (`:where(...) button` has the specificity of `button`, so any class beats it). */
+:where([data-palette="futuristic"]) button {
+  border-radius: var(--radius-control);
+  border-color: var(--accent);
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* The inner glow only on plain buttons: a classed button (nav item, tab, legend entry, …) that sets no
+   shadow of its own must not inherit one. Zero specificity, and the base button rule sets no shadow. */
+:where([data-palette="futuristic"]) :where(button:not([class])) {
+  box-shadow: var(--btn-shadow);
+}
+
+:where([data-palette="futuristic"]) button:hover {
+  background-color: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
+}
+
+:where([data-palette="futuristic"]) .modal-secondary {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--text);
+  box-shadow: none;
+}
+
+:where([data-palette="futuristic"]) .modal-secondary:hover {
+  background: var(--surface-hover);
+  border-color: rgba(var(--accent-rgb), 0.55);
+}
+
+:where([data-palette="futuristic"]) .btn-danger {
+  background-color: var(--negative);
+  border-color: var(--negative);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+
+/* Fields */
+:where([data-palette="futuristic"]) :is(.text-input, .account-select, textarea) {
+  border-radius: var(--radius-control);
+  border-color: var(--border-strong);
+  background: var(--field-bg);
+}
+
+:where([data-palette="futuristic"]) input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]) {
+  border-radius: var(--radius-control);
+}
+
+/* Focus: a 2px accent ring with a 3px gap on every interactive control, at every Neon intensity. */
+:where([data-palette="futuristic"]) :is(button, a, input, select, textarea, [tabindex], summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Tables */
+:where([data-palette="futuristic"]) .ledger {
+  border-radius: var(--radius-panel);
+}
+
+:where([data-palette="futuristic"]) .ledger th {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  background: var(--surface-2);
+}
+
+:where([data-palette="futuristic"]) :is(.ledger th, .ledger td) {
+  border-bottom-color: var(--border-soft);
+}
+
+:where([data-palette="futuristic"]) .ledger tr:hover td {
+  background: rgba(var(--accent-rgb), 0.055);
+}
+
+/* Meters */
+:where([data-palette="futuristic"]) .progress-track {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 80%, var(--surface));
+}
+
+:where([data-palette="futuristic"]) .chart-legend-swatch {
+  border-radius: 2px;
+}
+
+/* Dialogs and toasts */
+:where([data-palette="futuristic"]) .modal-panel {
+  border-radius: var(--radius-dialog);
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+:where([data-palette="futuristic"]) .status {
+  border-radius: var(--radius-control);
+}
+
+/* Small labels */
+:where([data-palette="futuristic"]) :is(.status-pill, .tag-pill, .cmp-kind.cmp-kind) {
+  border-radius: var(--radius-small);
+}
+
+/* Settings > Appearance: accent choices and the Neon intensity slider (shown only for Futuristic,
+   so these need no palette scope; the swatches show the bright accent on purpose). */
+.futuristic-options {
+  display: grid;
+  gap: 14px;
+  margin: 14px 0 6px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 10px);
+  background: var(--surface-2);
+}
+
+.accent-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.accent-choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control, 7px);
+  background: var(--field-bg, var(--surface));
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.accent-choice:hover {
+  border-color: var(--accent);
+}
+
+.accent-choice-checked {
+  border: 2px solid var(--accent);
+  padding: 9px 11px;
+  font-weight: 600;
+}
+
+.accent-choice:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* The radio stays in the accessibility tree and keyboard order; the swatch and outline show it. */
+.accent-choice input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.accent-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex: none;
+}
+
+.accent-swatch-cyan {
+  background: #00e5ff;
+  box-shadow: 0 0 calc(9px * var(--glow, 0.7)) #00e5ff;
+}
+
+.accent-swatch-pink {
+  background: #ff4bac;
+  box-shadow: 0 0 calc(9px * var(--glow, 0.7)) #ff4bac;
+}
+
+.accent-swatch-violet {
+  background: #a181ff;
+  box-shadow: 0 0 calc(9px * var(--glow, 0.7)) #a181ff;
+}
+
+.accent-check::before {
+  content: "✓";
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.neon-intensity {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+}
+
+.neon-intensity-head {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.neon-intensity-value {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.neon-intensity input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.reduce-motion-row {
+  margin-top: 10px;
 }

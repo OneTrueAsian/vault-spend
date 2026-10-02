@@ -261,6 +261,13 @@ describe("Settings AppearanceSection", () => {
     expect(checked[0].closest(".feature-toggle-row")?.textContent).toContain("Default");
   });
 
+  it("describes Futuristic by its look and its options, not by font names", () => {
+    show();
+    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.startsWith("Futuristic"))!;
+    expect(row.textContent).not.toMatch(/orbitron|rajdhani|share tech/i);
+    expect(row.textContent).toMatch(/accent/i);
+  });
+
   it("describes Retro without naming Microsoft or Windows", () => {
     show();
     const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.includes("Retro"))!;

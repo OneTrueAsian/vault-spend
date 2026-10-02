@@ -41,6 +41,13 @@ describe("HelpView", () => {
     expect(text).not.toContain("The only network requests Vault Spend makes");
   });
 
+  it("explains Futuristic's accent and glow choices and the Reduce motion option", () => {
+    const text = container.textContent ?? "";
+    expect(text).toContain("Ion Cyan, Rebel Pink, or Ultraviolet");
+    expect(text).toContain("Neon intensity");
+    expect(text).toContain("Reduce motion");
+  });
+
   it("explains that rules ignore store numbers", () => {
     expect(container.textContent).toContain("ignoring store numbers");
   });

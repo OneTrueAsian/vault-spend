@@ -1300,18 +1300,22 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "Can I change how Vault Spend looks?",
-    tags: ["appearance", "theme", "dark mode", "light mode", "default", "futuristic", "transparent", "glass", "retro", "style", "color"],
+    tags: ["appearance", "theme", "dark mode", "light mode", "default", "futuristic", "transparent", "glass", "retro", "style", "color", "accent", "glow", "neon", "motion", "animation"],
     answer: (
       <p>
         Yes — the Settings tab has an Appearance section with a Light/Dark/
         System toggle (now in the header) plus three visual styles:{" "}
         <strong>Default</strong> (a frosted-glass look with a translucent,
         blurred sidebar and cards), <strong>Futuristic</strong> (a neon
-        style with its own type and sidebar icons), and{" "}
+        style on deep navy with its own type and sidebar icons; pick its
+        accent color, Ion Cyan, Rebel Pink, or Ultraviolet, and turn its glow
+        up or down with Neon intensity), and{" "}
         <strong>Retro</strong> (gray raised and sunken controls, square
         corners, and navy selection; its Dark mode is a modern adaptation of
         the same look). All three follow the Light/Dark/System toggle. Switching is instant and purely visual —
-        nothing about your data changes.
+        nothing about your data changes. <strong>Reduce motion</strong>, in
+        the same section, turns off sliding and fading effects in every
+        style.
       </p>
     ),
   },
