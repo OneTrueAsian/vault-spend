@@ -350,3 +350,38 @@ fn a_version_1_setup_saved_in_one_person_mode_loads_as_a_household_setup() {
         vec![CohortChoice { metric: MetricId::Income, reference_id: "cps_hinc02_money_income_median:40-44".into() }]
     );
 }
+
+/// What the old first-use dialog really saved in One person mode: no household age person, and the
+/// person's income typed per person while the household method stayed "total".
+#[test]
+fn a_version_1_one_person_setup_keeps_its_age_person_and_income() {
+    let dir = temp_dir("v1-realistic");
+    let path = dir.join("v1.db");
+    drop(Store::open(&path).unwrap());
+    let v1 = serde_json::json!({
+        "formatVersion": 1,
+        "mode": "individual",
+        "householdReferencePerson": null,
+        "individualPerson": { "kind": "owner" },
+        "people": [
+            { "person": { "kind": "owner" }, "age": { "age": { "kind": "exact", "age": 29 }, "confirmedOn": "2026-09-01" }, "inHousehold": true }
+        ],
+        "income": { "householdMethod": "total", "householdTotal": null, "perPerson": [
+            { "person": { "kind": "owner" }, "grossAnnual": { "value": "70000", "measuredOn": "2026-09-01", "explanation": "Pay stub" } }
+        ] },
+        "spending": { "period": null, "accountIds": [], "completenessConfirmed": false, "manualAnnual": null, "categoryMappings": [] },
+        "savingsOverrides": [], "investmentClasses": [], "debtClasses": [], "debtExclusions": [], "allocations": [],
+        "balanceConfirmations": [], "manualOverrides": [], "cohortChoices": [], "universePreferences": []
+    });
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute(
+            "INSERT INTO comparison_setup (id, format_version, revision, payload, updated_at) VALUES (1, 1, 2, ?1, 'x')",
+            [v1.to_string()],
+        )
+        .unwrap();
+    }
+    let setup = Store::open(&path).unwrap().get_comparison_setup().unwrap().setup.unwrap();
+    assert_eq!(setup.household_reference_person, Some(PersonRef::Owner), "the compared person's age is used for the household");
+    assert_eq!(setup.income.household_method, HouseholdIncomeMethod::ByPerson, "their typed income still counts");
+}

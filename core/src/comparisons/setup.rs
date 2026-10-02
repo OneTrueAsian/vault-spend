@@ -245,8 +245,30 @@ pub fn upgrade_v1_payload(payload: &str) -> serde_json::Result<String> {
     let mut v: Value = serde_json::from_str(payload)?;
     if let Some(o) = v.as_object_mut() {
         o.insert("formatVersion".into(), Value::from(SETUP_FORMAT_VERSION));
-        o.remove("mode");
-        o.remove("individualPerson");
+        let was_one_person = o.remove("mode").as_ref().and_then(Value::as_str) == Some("individual");
+        let compared = o.remove("individualPerson").filter(|p| !p.is_null());
+        if was_one_person {
+            // One person mode kept its own age person and typed income per person under the "total"
+            // method; carry both over so the setup still compares the same person and income.
+            let in_household = |p: &Value| {
+                o.get("people").and_then(Value::as_array).is_some_and(|people| {
+                    people.iter().any(|e| e.get("person") == Some(p) && e.get("inHousehold") == Some(&Value::Bool(true)))
+                })
+            };
+            if let Some(p) = compared
+                && o.get("householdReferencePerson").is_none_or(Value::is_null)
+                && in_household(&p)
+            {
+                o.insert("householdReferencePerson".into(), p);
+            }
+            if let Some(income) = o.get_mut("income").and_then(Value::as_object_mut) {
+                let has_total = income.get("householdTotal").is_some_and(|t| !t.is_null());
+                let has_per_person = income.get("perPerson").and_then(Value::as_array).is_some_and(|a| !a.is_empty());
+                if !has_total && has_per_person {
+                    income.insert("householdMethod".into(), Value::from("by_person"));
+                }
+            }
+        }
         if let Some(Value::Array(choices)) = o.get_mut("cohortChoices") {
             choices.retain(|c| c.get("mode").and_then(Value::as_str) != Some("individual"));
             for c in choices.iter_mut().filter_map(Value::as_object_mut) {
