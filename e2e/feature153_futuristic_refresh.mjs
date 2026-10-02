@@ -152,6 +152,11 @@ try {
   // Survives a reload, and is on the page as soon as the app shows.
   await browser.refresh();
   await (await browser.$(".brand-word")).waitForExist({ timeout: 20000 });
+  // the sidebar shows before the view (loaded on demand), and look() reads both
+  await browser.waitUntil(() => browser.execute(() => Boolean(document.querySelector(".nav-item-active") && document.querySelector(".view-title"))), {
+    timeout: 10000,
+    timeoutMsg: "the view never showed after the reload",
+  });
   now = await look(browser);
   assert.deepEqual(
     { palette: now.palette, accent: now.accentAttr, glow: now.glow },

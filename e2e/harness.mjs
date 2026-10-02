@@ -103,6 +103,16 @@ async function connectWithRetries(options, { attempts = 20, delayMs = 100 } = {}
   throw lastErr;
 }
 
+// Closes any status message with its Dismiss button, as a person would. A success message stays up
+// for 10 seconds and, at the 800x600 test window, can sit over the control a spec clicks next: the
+// driver then refuses the click ("element click intercepted") and WebdriverIO retries it until the
+// message goes, which cost about 10 seconds a click (most of feature103's run time).
+export async function dismissStatusMessages(browser) {
+  for (const button of await browser.$$(".status-dismiss")) {
+    await button.click().catch(() => {}); // it may have closed on its own meanwhile
+  }
+}
+
 // Every fresh test DB (localStorage is per-webview-origin, not shared with a real install) hits
 // the first-launch welcome dialog, which blocks clicks on everything behind its overlay — dismiss
 // it here once so no individual spec needs to know about it. `launchApp` already calls this itself

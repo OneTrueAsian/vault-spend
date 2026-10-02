@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { seedFixtureInto } from "./seed.mjs";
 import { dateInMonth } from "./dates.mjs";
+import { dismissStatusMessages } from "../harness.mjs";
 
 const INIT_DB_EXE = path.resolve("target/debug/init_db.exe");
 
@@ -96,6 +97,7 @@ cur.execute(
 export async function enableProtectionThroughUI(browser, password) {
   const turnOnBtn = await browser.$("button=Turn on password protection…");
   await turnOnBtn.waitForExist({ timeout: 10000 });
+  await dismissStatusMessages(browser); // the profile's opening message can cover the button
   await turnOnBtn.click();
   const passwordField = await browser.$("#protection-setup-password");
   await passwordField.waitForExist({ timeout: 5000 });
