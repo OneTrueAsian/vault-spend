@@ -228,6 +228,18 @@ class Move(Base):
         self.assertIn("\n#[test]\nfn lists_nothing() {\n    assert!", text)
         self.assertEqual(self.fp(self.store, tests), before)
 
+    def test_registers_after_the_leading_declarations_not_at_the_bottom_or_inside_a_wrapped_use(self):
+        text = STORE.replace(
+            "mod sign_flip;\n",
+            "mod sign_flip;\npub use self::sign_flip::{\n    FlipSignsError,\n    FlipSignsSummary,\n};\n",
+        ).replace("mod tests {", "mod tests_inline {")
+        text += "\n#[cfg(test)]\nmod tests;\n"
+        self.store.write_text(text, encoding="utf-8", newline="")
+        s.register(self.store, "things", ["Thing"])
+        out = self.store.read_text(encoding="utf-8")
+        self.assertIn("    FlipSignsSummary,\n};\nmod things;\npub use self::things::{Thing};\n", out)
+        self.assertTrue(out.endswith("#[cfg(test)]\nmod tests;\n"))
+
     def test_refuses_a_name_that_is_not_there_and_changes_nothing(self):
         with self.assertRaises(SystemExit):
             s.move(self.store, self.root / "store" / "x.rs", ["no_such_fn"], "impl", "impl", self.header)
@@ -539,14 +551,26 @@ def move(src, dest, names, where, container_kind, header=None):
     return [it["name"] for it in found], pub_names
 
 
+def leading_decls_end(lines):
+    """Line index just past the leading run of top-level use/mod declarations (whole items, so a `pub use`
+    that rustfmt wrapped over several lines counts to its closing `};`)."""
+    end = 0
+    for it in parse_items(lines):
+        if it["container"] is not None or it["kind"] == "comment":
+            continue
+        if not TOP_DECL_RE.match(first_code_line(lines[it["start"] : it["end"]])):
+            break
+        end = it["end"]
+    return end
+
+
 def register(parent, stem, pub_names):
-    """Declare `mod stem;` in `parent` after its last top-level use/mod line (once), and re-export `pub_names`."""
+    """Declare `mod stem;` in `parent` after its leading use/mod declarations (once), and re-export `pub_names`."""
     lines = read_lines(parent)
     nl = newline_of(lines)
     decl = f"mod {stem};{nl}"
     if decl not in lines:
-        last = max(i for i, l in enumerate(lines) if TOP_DECL_RE.match(l))
-        lines.insert(last + 1, decl)
+        lines.insert(leading_decls_end(lines), decl)
     if pub_names:
         lines.insert(lines.index(decl) + 1, f"pub use self::{stem}::{{{', '.join(sorted(pub_names))}}};{nl}")
     Path(parent).write_text("".join(lines), encoding="utf-8", newline="")
@@ -624,7 +648,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: Run the tests and watch them pass**
 
 Run: `python -m unittest discover -s tools -p "test_split_rust_items.py"`
-Expected: `Ran 9 tests ... OK`
+Expected: `Ran 10 tests ... OK`
 
 - [ ] **Step 5: Check that the parser covers the real file**
 
@@ -1072,7 +1096,7 @@ use crate::store::budgets::month_key_back;
 
 - [ ] **Step 4: Widen what other modules reach to `pub(super)`**
 
-- `core/src/store/budgets.rs`: `    fn month_key_back(` → `    pub(super) fn month_key_back(` (a budgets test calls it).
+- `core/src/store/budgets.rs`: `fn month_key_back(` → `pub(super) fn month_key_back(` (top-level function) (a budgets test calls it).
 
 Nothing else changes visibility. If the compiler names another private item, it means the mapping has drifted: stop and report.
 
