@@ -49,8 +49,7 @@ async function assertActiveNavIgnoresHover(app, themeLabel) {
   // a "before" snapshot taken right after a theme switch can land
   // mid-transition and mismatch a fully-settled "during" snapshot even
   // though nothing about hover actually changed anything.
-  // Wait until two reads 150ms apart agree: the style switch lands a frame after the click, and each
-  // style has its own transition length (Futuristic's is 180ms), so a fixed pause can still land mid-way.
+  // Wait until two reads 150ms apart agree, since the style switch lands a frame after the click.
   let before = await activeNavBackground(app);
   await app.browser.waitUntil(
     async () => {
@@ -77,6 +76,11 @@ async function assertActiveNavIgnoresHover(app, themeLabel) {
 
 const app = await launchApp();
 try {
+  // This spec checks which styles win, not animations, so it runs with transitions off (the app's own
+  // Reduce motion switch). It must be on before the first style switch: under the parallel runner a
+  // background window's animation clock can stall, and a transition already running (the active nav
+  // item's background, from the previous style) then sits on its first color for as long as you wait.
+  await app.browser.execute(() => document.documentElement.setAttribute("data-motion", "reduced"));
   const settingsNav = await app.browser.$("button*=Settings");
   await settingsNav.click();
 
