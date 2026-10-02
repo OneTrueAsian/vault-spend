@@ -138,6 +138,7 @@ import type {
   YoyCashFlow,
 } from "./types";
 import "./App.css";
+import "./themes/futuristic.css";
 import { MenuSelect } from "./MenuSelect";
 
 type ImportSummary = {

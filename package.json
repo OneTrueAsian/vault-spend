@@ -16,6 +16,9 @@
     "tauri:dev:sandbox": "cross-env VAULTSPEND_DB_DIR=$INIT_CWD/.dev-sandbox tauri dev"
   },
   "dependencies": {
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/dm-sans": "^5.3.0",
+    "@fontsource/space-mono": "^5.3.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-notification": "^2.3.3",

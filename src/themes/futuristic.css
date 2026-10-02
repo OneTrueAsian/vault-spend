@@ -1,0 +1,20 @@
+/* Futuristic ("Neon Ledger"): loaded after App.css (see App.tsx), so its rules win ties with the base
+   ones. Everything here is scoped to :root[data-palette="futuristic"], so Default and Retro are untouched.
+   Typefaces are bundled (SIL OFL, see docs/THIRD-PARTY-FONTS.md): only the Latin files, and only the
+   weights used. A browser fetches a face only when text uses it, so other styles download nothing. */
+@import "@fontsource/barlow-condensed/latin-500.css";
+@import "@fontsource/barlow-condensed/latin-600.css";
+@import "@fontsource/barlow-condensed/latin-700.css";
+@import "@fontsource/barlow-condensed/latin-800.css";
+@import "@fontsource/dm-sans/latin-400.css";
+@import "@fontsource/dm-sans/latin-500.css";
+@import "@fontsource/dm-sans/latin-600.css";
+@import "@fontsource/dm-sans/latin-700.css";
+@import "@fontsource/space-mono/latin-400.css";
+@import "@fontsource/space-mono/latin-700.css";
+
+:root[data-palette="futuristic"] {
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "DM Sans", "Segoe UI", sans-serif;
+  --font-mono: "Space Mono", Consolas, monospace;
+}
