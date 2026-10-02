@@ -6648,6 +6648,8 @@ svg.profile-card-avatar {
   display: block;
   width: 100%;
   margin-top: 14px;
+  /* Full-width buttons with long labels: wrap rather than spill past the edge in a wider typeface. */
+  white-space: normal;
 }
 
 .profile-gate-forgot-remove {
