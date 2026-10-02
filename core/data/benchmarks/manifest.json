@@ -53,6 +53,12 @@
       "metric": "savings",
       "mode": "household",
       "universe": "holders"
+    },
+    {
+      "definitionId": "bls_ce_total_expenditures_mean",
+      "metric": "spending",
+      "mode": "household",
+      "universe": "all"
     }
   ],
   "cpi": {
@@ -64,11 +70,6 @@
   },
   "formatVersion": 1,
   "gaps": [
-    {
-      "metric": "spending",
-      "mode": "household",
-      "reason": "BLS Consumer Expenditure tables are published only through bls.gov, which rejects automated downloads, so no reviewed, reproducible extract exists yet. Needs a maintainer-downloaded workbook and definition review (consumer unit vs household, total expenditure vs category sum)."
-    },
     {
       "metric": "spending",
       "mode": "individual",
@@ -90,8 +91,8 @@
       "reason": "Same as individual investments: only household-level SIPP debt tables are published by age."
     }
   ],
-  "packageVersion": "2026.09.1",
-  "recordsSha256": "2bbd7a72a8b1bf8c3b09f7962534387c3b24b8f16569a7859660966dda1b0fe1",
+  "packageVersion": "2026.10.1",
+  "recordsSha256": "2abeb7dde6746f1ec203efede2efbe141e4ed8d7516dc90f2359f94358dc8347",
   "sources": [
     {
       "dataset": "CPS ASEC 2026, PINC-01 (total work experience, both sexes, all races)",
@@ -128,6 +129,15 @@
       "retrieved": "2026-09-30",
       "sha256": "b251389ffca5d04c5f0410a88844009be0641de565c125f9ae74581efa9ddf75",
       "url": "https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/debt_tables_dy2024.xlsx"
+    },
+    {
+      "dataset": "Consumer Expenditure Surveys 2024, total average annual expenditures by age of reference person (series CXUTOTALEXPLB0402M to CXUTOTALEXPLB0409M; labels from the series titles on ALFRED)",
+      "id": "bls_ce_2024",
+      "provider": "U.S. Bureau of Labor Statistics",
+      "released": null,
+      "retrieved": "2026-10-01",
+      "sha256": "110e018ee76dbf133b3434b6142b6fa3aaad76481bd7e831825fe7343db33029",
+      "url": "https://api.bls.gov/publicAPI/v2/timeseries/data/"
     }
   ],
   "suppressed": [],

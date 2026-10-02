@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  sourceLabel,
   ageGroupLabel,
   ageInputLabel,
   barWidths,
@@ -97,6 +98,16 @@ describe("labels", () => {
 });
 
 describe("card notices", () => {
+  it("says a gap is what the reference data lacks, never that no source publishes it", () => {
+    const body = cardNotice(result("unavailable", [{ code: "no_benchmark" }]))?.body ?? "";
+    expect(body).toBe("No published figure for this is included in the reference data, so nothing is substituted.");
+    expect(body).not.toMatch(/do not publish/);
+  });
+
+  it("names the Consumer Expenditure source", () => {
+    expect(sourceLabel("bls_ce_2024")).toBe("U.S. Bureau of Labor Statistics, Consumer Expenditure Surveys 2024");
+  });
+
   it("explains a source gap as the benchmark's limit, not the person's mistake", () => {
     expect(cardNotice(result("unavailable", [{ code: "no_benchmark" }]))?.title).toBe("No matching benchmark");
     expect(cardNotice(result("unavailable", [{ code: "benchmark_removed" }]))?.title).toBe(

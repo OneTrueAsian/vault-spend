@@ -1,6 +1,6 @@
 use super::common::*;
 use budget_core::comparisons::package::{Package, PackageError};
-use budget_core::comparisons::types::{ComparisonMode, MetricId};
+use budget_core::comparisons::types::{ComparisonMode, MetricId, Statistic};
 use rust_decimal::Decimal;
 use serde_json::json;
 use std::str::FromStr;
@@ -26,9 +26,22 @@ fn bundled_package_loads_and_has_individual_income() {
 #[test]
 fn bundled_package_documents_its_gaps() {
     let pkg = Package::bundled().unwrap();
-    assert!(pkg.gap_reason(MetricId::Spending, ComparisonMode::Household).is_some());
+    assert!(pkg.gap_reason(MetricId::Spending, ComparisonMode::Individual).is_some());
+    assert!(pkg.references(MetricId::Spending, ComparisonMode::Individual).next().is_none());
     assert!(pkg.gap_reason(MetricId::Income, ComparisonMode::Household).is_none());
-    assert!(pkg.references(MetricId::Spending, ComparisonMode::Household).next().is_none());
+    assert!(pkg.gap_reason(MetricId::Spending, ComparisonMode::Household).is_none());
+}
+
+#[test]
+fn bundled_household_spending_is_the_bls_average_by_age_of_reference_person() {
+    let pkg = Package::bundled().unwrap();
+    let hit = pkg
+        .references(MetricId::Spending, ComparisonMode::Household)
+        .find(|r| r.age_min == 35 && r.age_max == Some(44))
+        .expect("35-44 household spending");
+    assert_eq!(hit.value, dec("91229"));
+    assert_eq!(hit.statistic, Statistic::Mean, "the Consumer Expenditure Surveys publish averages, shown as such");
+    assert_eq!(hit.definition_id, "bls_ce_total_expenditures_mean");
 }
 
 #[test]

@@ -3,7 +3,7 @@
 //   - household income, savings, investments and debt are compared with the cohort for the reference
 //     person's age, with the CPI-adjusted reference, the dollar and percent difference, and details that
 //     reconcile to the accounts counted;
-//   - the household spending benchmark does not exist, so that card stays visible as unavailable;
+//   - household spending is compared with the BLS average (labelled Average, not Median) for the age group;
 //   - changing the reference person or crossing a cohort boundary changes exactly which reference is used;
 //   (Individual mode is covered by feature149.)
 //   (A zero balance, a typed total and its staleness are covered by feature148.)
@@ -57,13 +57,17 @@ try {
   await expectComparison(browser, "investments", "sipp_retirement_accounts_median:35-44", 80000, "35–44");
   await expectComparison(browser, "debt", "sipp_total_debt_median:35-44", 150000, "35–44");
 
-  // Order matches the design, and the unsupported household domain is visible, not hidden or invented.
+  // Household spending: the typed yearly total against the BLS average for the age group, labelled as an
+  // average (the Consumer Expenditure Surveys publish means, not medians).
+  await expectComparison(browser, "spending", "bls_ce_total_expenditures_mean:35-44", 87000, "35–44");
+  const spending = await cardText(browser, "spending");
+  assert.ok(spending.includes("Average") && !spending.includes("Median"), `spending should be labelled an average, got: ${spending}`);
+  assert.ok(spending.includes("Bureau of Labor Statistics"), `spending should name its source, got: ${spending}`);
+
+  // Order matches the design.
   const order = [];
   for (const c of await browser.$$("[data-comparisons-page] [data-metric]")) order.push(await c.getAttribute("data-metric"));
   assert.deepEqual(order, ["spending", "investments", "income", "savings", "debt"]);
-  const spending = await cardText(browser, "spending");
-  assert.ok(spending.includes("No matching benchmark"), `spending is an explicit benchmark gap, got: ${spending}`);
-  assert.equal((await (await metric(browser, "spending")).$$("[data-cmp-difference]")).length, 0, "no invented spending comparison");
 
   // Holders-only populations are labelled; the all-households income figure is not.
   assert.ok((await (await metric(browser, "savings")).$("[data-cmp-holders-only]").isExisting()), "savings reference is holders-only");

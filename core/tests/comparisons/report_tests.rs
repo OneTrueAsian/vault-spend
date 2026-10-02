@@ -5,7 +5,7 @@ use budget_core::comparisons::package::Package;
 use budget_core::comparisons::report::{build_report, CardView, ComparisonsReport};
 use budget_core::comparisons::setup::*;
 use budget_core::comparisons::types::{
-    AgeInput, CardStatus, Completeness, ComparisonMode, MetricId, Reason, Universe,
+    AgeInput, CardStatus, Completeness, ComparisonMode, MetricId, Reason, Statistic, Universe,
 };
 use budget_core::models::AccountType;
 use rust_decimal::Decimal;
@@ -78,9 +78,30 @@ fn cards_missing_user_input_are_hidden_but_benchmark_gaps_stay_visible() {
     let income = card(&report, MetricId::Income);
     assert_eq!((income.result.status, income.visible), (CardStatus::MissingInput, false));
     let spending = card(&report, MetricId::Spending);
-    assert_eq!(spending.result.status, CardStatus::Unavailable, "no household spending benchmark ships");
+    assert_eq!((spending.result.status, spending.visible), (CardStatus::MissingInput, false), "household spending has a benchmark now");
+
+    let mut individual = setup_42();
+    individual.mode = ComparisonMode::Individual;
+    individual.individual_person = Some(PersonRef::Owner);
+    let report = build_report(bundled(), &individual, &empty_snapshot());
+    let savings = card(&report, MetricId::Savings);
+    assert_eq!(savings.result.status, CardStatus::Unavailable, "no individual savings benchmark ships");
+    assert!(savings.visible);
+    assert!(savings.result.reasons.contains(&Reason::NoBenchmark));
+}
+
+#[test]
+fn household_spending_entered_by_hand_is_compared_with_the_average_for_the_age_group() {
+    let mut setup = setup_42();
+    setup.spending.manual_annual = Some(amount("87000"));
+    let report = build_report(bundled(), &setup, &empty_snapshot());
+    let spending = card(&report, MetricId::Spending);
+    assert_eq!(spending.result.status, CardStatus::Comparable);
+    let r = spending.result.reference.as_ref().unwrap();
+    assert_eq!(r.reference.definition_id, "bls_ce_total_expenditures_mean");
+    assert_eq!((r.reference.age_min, r.reference.age_max), (35, Some(44)));
+    assert_eq!(r.reference.statistic, Statistic::Mean);
     assert!(spending.visible);
-    assert!(spending.result.reasons.contains(&Reason::NoBenchmark));
 }
 
 #[test]

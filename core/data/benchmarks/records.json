@@ -2,6 +2,209 @@
   {
     "ageMax": 24,
     "ageMin": 15,
+    "annotation": "Average (mean), not median: the Consumer Expenditure Surveys publish averages, which high spenders pull up. 2024, in 2024 dollars (priced at the 2024 average CPI). A consumer unit is close to, not the same as, a household. Total expenditures include insurance and pension contributions. The BLS API publishes no standard errors for these series, so the 30% reliability check could not be applied.",
+    "definitionId": "bls_ce_total_expenditures_mean",
+    "dollarBasis": {
+      "kind": "annual_average",
+      "period": "2024"
+    },
+    "geography": "US",
+    "id": "bls_ce_total_expenditures_mean:15-24",
+    "metric": "spending",
+    "mode": "household",
+    "period": {
+      "from": "2024-01-01",
+      "kind": "flow",
+      "to": "2024-12-31"
+    },
+    "population": "Households (BLS consumer units), total yearly spending",
+    "reliability": "ok",
+    "sourceId": "bls_ce_2024",
+    "sourceLocator": "bls_ce_total_expenditures_2024.json#CXUTOTALEXPLB0402M/2024 (Under Age 25)",
+    "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+    "statistic": "mean",
+    "uncertainty": null,
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "47283"
+  },
+  {
+    "ageMax": 34,
+    "ageMin": 25,
+    "annotation": "Average (mean), not median: the Consumer Expenditure Surveys publish averages, which high spenders pull up. 2024, in 2024 dollars (priced at the 2024 average CPI). A consumer unit is close to, not the same as, a household. Total expenditures include insurance and pension contributions. The BLS API publishes no standard errors for these series, so the 30% reliability check could not be applied.",
+    "definitionId": "bls_ce_total_expenditures_mean",
+    "dollarBasis": {
+      "kind": "annual_average",
+      "period": "2024"
+    },
+    "geography": "US",
+    "id": "bls_ce_total_expenditures_mean:25-34",
+    "metric": "spending",
+    "mode": "household",
+    "period": {
+      "from": "2024-01-01",
+      "kind": "flow",
+      "to": "2024-12-31"
+    },
+    "population": "Households (BLS consumer units), total yearly spending",
+    "reliability": "ok",
+    "sourceId": "bls_ce_2024",
+    "sourceLocator": "bls_ce_total_expenditures_2024.json#CXUTOTALEXPLB0403M/2024 (from Age 25 to 34)",
+    "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+    "statistic": "mean",
+    "uncertainty": null,
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "74475"
+  },
+  {
+    "ageMax": 44,
+    "ageMin": 35,
+    "annotation": "Average (mean), not median: the Consumer Expenditure Surveys publish averages, which high spenders pull up. 2024, in 2024 dollars (priced at the 2024 average CPI). A consumer unit is close to, not the same as, a household. Total expenditures include insurance and pension contributions. The BLS API publishes no standard errors for these series, so the 30% reliability check could not be applied.",
+    "definitionId": "bls_ce_total_expenditures_mean",
+    "dollarBasis": {
+      "kind": "annual_average",
+      "period": "2024"
+    },
+    "geography": "US",
+    "id": "bls_ce_total_expenditures_mean:35-44",
+    "metric": "spending",
+    "mode": "household",
+    "period": {
+      "from": "2024-01-01",
+      "kind": "flow",
+      "to": "2024-12-31"
+    },
+    "population": "Households (BLS consumer units), total yearly spending",
+    "reliability": "ok",
+    "sourceId": "bls_ce_2024",
+    "sourceLocator": "bls_ce_total_expenditures_2024.json#CXUTOTALEXPLB0404M/2024 (from Age 35 to 44)",
+    "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+    "statistic": "mean",
+    "uncertainty": null,
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "91229"
+  },
+  {
+    "ageMax": 54,
+    "ageMin": 45,
+    "annotation": "Average (mean), not median: the Consumer Expenditure Surveys publish averages, which high spenders pull up. 2024, in 2024 dollars (priced at the 2024 average CPI). A consumer unit is close to, not the same as, a household. Total expenditures include insurance and pension contributions. The BLS API publishes no standard errors for these series, so the 30% reliability check could not be applied.",
+    "definitionId": "bls_ce_total_expenditures_mean",
+    "dollarBasis": {
+      "kind": "annual_average",
+      "period": "2024"
+    },
+    "geography": "US",
+    "id": "bls_ce_total_expenditures_mean:45-54",
+    "metric": "spending",
+    "mode": "household",
+    "period": {
+      "from": "2024-01-01",
+      "kind": "flow",
+      "to": "2024-12-31"
+    },
+    "population": "Households (BLS consumer units), total yearly spending",
+    "reliability": "ok",
+    "sourceId": "bls_ce_2024",
+    "sourceLocator": "bls_ce_total_expenditures_2024.json#CXUTOTALEXPLB0405M/2024 (from Age 45 to 54)",
+    "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+    "statistic": "mean",
+    "uncertainty": null,
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "100327"
+  },
+  {
+    "ageMax": 64,
+    "ageMin": 55,
+    "annotation": "Average (mean), not median: the Consumer Expenditure Surveys publish averages, which high spenders pull up. 2024, in 2024 dollars (priced at the 2024 average CPI). A consumer unit is close to, not the same as, a household. Total expenditures include insurance and pension contributions. The BLS API publishes no standard errors for these series, so the 30% reliability check could not be applied.",
+    "definitionId": "bls_ce_total_expenditures_mean",
+    "dollarBasis": {
+      "kind": "annual_average",
+      "period": "2024"
+    },
+    "geography": "US",
+    "id": "bls_ce_total_expenditures_mean:55-64",
+    "metric": "spending",
+    "mode": "household",
+    "period": {
+      "from": "2024-01-01",
+      "kind": "flow",
+      "to": "2024-12-31"
+    },
+    "population": "Households (BLS consumer units), total yearly spending",
+    "reliability": "ok",
+    "sourceId": "bls_ce_2024",
+    "sourceLocator": "bls_ce_total_expenditures_2024.json#CXUTOTALEXPLB0406M/2024 (from Age 55 to 64)",
+    "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+    "statistic": "mean",
+    "uncertainty": null,
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "84946"
+  },
+  {
+    "ageMax": 74,
+    "ageMin": 65,
+    "annotation": "Average (mean), not median: the Consumer Expenditure Surveys publish averages, which high spenders pull up. 2024, in 2024 dollars (priced at the 2024 average CPI). A consumer unit is close to, not the same as, a household. Total expenditures include insurance and pension contributions. The BLS API publishes no standard errors for these series, so the 30% reliability check could not be applied.",
+    "definitionId": "bls_ce_total_expenditures_mean",
+    "dollarBasis": {
+      "kind": "annual_average",
+      "period": "2024"
+    },
+    "geography": "US",
+    "id": "bls_ce_total_expenditures_mean:65-74",
+    "metric": "spending",
+    "mode": "household",
+    "period": {
+      "from": "2024-01-01",
+      "kind": "flow",
+      "to": "2024-12-31"
+    },
+    "population": "Households (BLS consumer units), total yearly spending",
+    "reliability": "ok",
+    "sourceId": "bls_ce_2024",
+    "sourceLocator": "bls_ce_total_expenditures_2024.json#CXUTOTALEXPLB0408M/2024 (from Age 65 to 74)",
+    "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+    "statistic": "mean",
+    "uncertainty": null,
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "65354"
+  },
+  {
+    "ageMax": null,
+    "ageMin": 75,
+    "annotation": "Average (mean), not median: the Consumer Expenditure Surveys publish averages, which high spenders pull up. 2024, in 2024 dollars (priced at the 2024 average CPI). A consumer unit is close to, not the same as, a household. Total expenditures include insurance and pension contributions. The BLS API publishes no standard errors for these series, so the 30% reliability check could not be applied.",
+    "definitionId": "bls_ce_total_expenditures_mean",
+    "dollarBasis": {
+      "kind": "annual_average",
+      "period": "2024"
+    },
+    "geography": "US",
+    "id": "bls_ce_total_expenditures_mean:75-",
+    "metric": "spending",
+    "mode": "household",
+    "period": {
+      "from": "2024-01-01",
+      "kind": "flow",
+      "to": "2024-12-31"
+    },
+    "population": "Households (BLS consumer units), total yearly spending",
+    "reliability": "ok",
+    "sourceId": "bls_ce_2024",
+    "sourceLocator": "bls_ce_total_expenditures_2024.json#CXUTOTALEXPLB0409M/2024 (Age 75 or over)",
+    "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+    "statistic": "mean",
+    "uncertainty": null,
+    "unit": "usd_per_year",
+    "universe": "all",
+    "value": "55834"
+  },
+  {
+    "ageMax": 24,
+    "ageMin": 15,
     "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {

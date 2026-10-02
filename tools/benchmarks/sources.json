@@ -1,5 +1,5 @@
 {
-  "packageVersion": "2026.09.1",
+  "packageVersion": "2026.10.1",
   "transformationVersion": "1",
   "sources": [
     {
@@ -41,6 +41,72 @@
       "sha256": "b251389ffca5d04c5f0410a88844009be0641de565c125f9ae74581efa9ddf75",
       "released": "2026-07-15",
       "retrieved": "2026-09-30"
+    },
+    {
+      "id": "bls_ce_2024",
+      "provider": "U.S. Bureau of Labor Statistics",
+      "dataset": "Consumer Expenditure Surveys 2024, total average annual expenditures by age of reference person (series CXUTOTALEXPLB0402M to CXUTOTALEXPLB0409M; labels from the series titles on ALFRED)",
+      "url": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+      "file": "bls_ce_total_expenditures_2024.json",
+      "request": {
+        "seriesid": [
+          "CXUTOTALEXPLB0402M",
+          "CXUTOTALEXPLB0403M",
+          "CXUTOTALEXPLB0404M",
+          "CXUTOTALEXPLB0405M",
+          "CXUTOTALEXPLB0406M",
+          "CXUTOTALEXPLB0407M",
+          "CXUTOTALEXPLB0408M",
+          "CXUTOTALEXPLB0409M"
+        ],
+        "startyear": "2024",
+        "endyear": "2024"
+      },
+      "series": {
+        "CXUTOTALEXPLB0402M": {
+          "label": "Under Age 25",
+          "ageMin": 15,
+          "ageMax": 24
+        },
+        "CXUTOTALEXPLB0403M": {
+          "label": "from Age 25 to 34",
+          "ageMin": 25,
+          "ageMax": 34
+        },
+        "CXUTOTALEXPLB0404M": {
+          "label": "from Age 35 to 44",
+          "ageMin": 35,
+          "ageMax": 44
+        },
+        "CXUTOTALEXPLB0405M": {
+          "label": "from Age 45 to 54",
+          "ageMin": 45,
+          "ageMax": 54
+        },
+        "CXUTOTALEXPLB0406M": {
+          "label": "from Age 55 to 64",
+          "ageMin": 55,
+          "ageMax": 64
+        },
+        "CXUTOTALEXPLB0407M": {
+          "label": "Age 65 or over",
+          "ageMin": 65,
+          "ageMax": null
+        },
+        "CXUTOTALEXPLB0408M": {
+          "label": "from Age 65 to 74",
+          "ageMin": 65,
+          "ageMax": 74
+        },
+        "CXUTOTALEXPLB0409M": {
+          "label": "Age 75 or over",
+          "ageMin": 75,
+          "ageMax": null
+        }
+      },
+      "sha256": "110e018ee76dbf133b3434b6142b6fa3aaad76481bd7e831825fe7343db33029",
+      "released": null,
+      "retrieved": "2026-10-01"
     }
   ],
   "cpi": {
@@ -51,11 +117,6 @@
     "note": "CPI-U all items, U.S. city average, not seasonally adjusted (BLS series CUUR0000SA0), fetched through FRED because the BLS download host rejects automated clients. October 2025 was never published."
   },
   "gaps": [
-    {
-      "metric": "spending",
-      "mode": "household",
-      "reason": "BLS Consumer Expenditure tables are published only through bls.gov, which rejects automated downloads, so no reviewed, reproducible extract exists yet. Needs a maintainer-downloaded workbook and definition review (consumer unit vs household, total expenditure vs category sum)."
-    },
     {
       "metric": "spending",
       "mode": "individual",

@@ -31,11 +31,19 @@ export function record(id) {
   return r;
 }
 
+/** The CPI a figure is priced at: one month, or the average of a year's twelve (BLS spending is 2024 dollars). */
+function basisCpi(basis) {
+  if (basis.kind === "month") return Number(cpi.months[basis.period]);
+  const months = Array.from({ length: 12 }, (_, i) => cpi.months[`${basis.period}-${String(i + 1).padStart(2, "0")}`]);
+  if (months.some((m) => m === undefined)) throw new Error(`no complete ${basis.period} CPI year for an annual-average basis`);
+  return months.reduce((sum, m) => sum + Number(m), 0) / 12;
+}
+
 /** The reference after the app's documented inflation adjustment (CPI of the latest month / of its basis). */
 export function adjusted(id) {
   const r = record(id);
   const latest = Object.keys(cpi.months).sort().at(-1);
-  const factor = Math.round((Number(cpi.months[latest]) / Number(cpi.months[r.dollarBasis.period])) * 1e6) / 1e6;
+  const factor = Math.round((Number(cpi.months[latest]) / basisCpi(r.dollarBasis)) * 1e6) / 1e6;
   return { original: Number(r.value), adjusted: Math.round(Number(r.value) * factor * 100) / 100, factor, latest };
 }
 
@@ -159,6 +167,8 @@ export async function seedComparisonHousehold() {
   const TODAY = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   const confirmations = ["savings", "investments", "debt"].map((metric) => ({ metric, confirmedOn: TODAY }));
   const setup = baseSetup(TODAY, {
+    // Typed, since the fixture has no 12 months of history to add up.
+    spending: { period: null, accountIds: [], completenessConfirmed: true, manualAnnual: { value: "87000", measuredOn: TODAY, explanation: "Estimate" }, categoryMappings: [] },
     balanceConfirmations: confirmations,
     investmentClasses: [
       { source: { kind: "account", id: 2 }, class: "retirement" },

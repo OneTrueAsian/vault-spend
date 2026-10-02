@@ -212,6 +212,42 @@ def parse_sipp(path, sheet, se_sheet, keys):
     return out
 
 
+# ------------------------------------------------------------------ BLS API (CE)
+
+def normalize_bls_response(resp):
+    """{seriesID: {year: value}} from a BLS API v2 response, without what changes on every call
+    (responseTime, messages), so the cached file can be pinned by sha256 like a workbook."""
+    if resp.get("status") != "REQUEST_SUCCEEDED":
+        raise SourceLayoutError(f"BLS API: request failed ({resp.get('status')}: {resp.get('message')})")
+    out = {}
+    for series in (resp.get("Results") or {}).get("series") or []:
+        out[series["seriesID"]] = {d["year"]: d["value"] for d in series.get("data") or [] if d.get("period") == "A01"}
+    return out
+
+
+def bls_cache_bytes(normalized):
+    return (json.dumps(normalized, sort_keys=True, indent=2) + "\n").encode("utf-8")
+
+
+def parse_ce(path, series_map, year):
+    """BLS Consumer Expenditure series (one per age of reference person) -> cells for `year`.
+
+    `series_map` gives each series' published label and age bounds (from the series titles). The API
+    publishes no standard errors for these series, so `se` is MISSING. Roll-up bands (65 and over, beside
+    65-74 and 75+) are dropped like every other source's."""
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    out = []
+    for sid, meta in series_map.items():
+        if sid not in data:
+            raise SourceLayoutError(f"BLS CE: series {sid} is not in the cached response")
+        raw = data[sid].get(year)
+        out.append({"ageMin": meta["ageMin"], "ageMax": meta["ageMax"], "label": meta["label"],
+                    "value": MISSING if raw is None else parse_number(raw), "se": MISSING,
+                    "locator": f"{sid}/{year}"})
+    return finest_cohorts(out)
+
+
 # ----------------------------------------------------------------------- assembly
 
 def col_letter(n):
@@ -231,8 +267,9 @@ def _record(src, metric, mode, definition, population, universe, stat, unit, per
         "universe": universe, "geography": "US", "ageMin": cell["ageMin"], "ageMax": cell["ageMax"],
         "statistic": stat, "value": money(value), "unit": unit, "period": period, "dollarBasis": basis,
         "sourceId": src["id"], "sourceUrl": src["url"],
-        "sourceLocator": f"{src['file']}!{cell.get('sheet', '')}{'!' if cell.get('sheet') else ''}"
-                         f"{col_letter(cell['column'])}{cell['row']} ({cell['label']})",
+        "sourceLocator": (f"{src['file']}#{cell['locator']} ({cell['label']})" if "locator" in cell else
+                          f"{src['file']}!{cell.get('sheet', '')}{'!' if cell.get('sheet') else ''}"
+                          f"{col_letter(cell['column'])}{cell['row']} ({cell['label']})"),
         "uncertainty": None if se_dec is None else {"kind": "se", "value": money(se_dec)},
         "annotation": annotation, "reliability": reliability(value, se_dec),
     }
@@ -307,6 +344,16 @@ def assemble(config, cache_dir):
         add("sipp_debt_2024", "debt", "household", definition, label, "holders", "median", "usd_balance",
             stock, wealth_basis, parse_sipp(debt, "Table 1", "Table 1A", [key]), debt_note, "Table 1")
 
+    ce = by_id["bls_ce_2024"]
+    add("bls_ce_2024", "spending", "household", "bls_ce_total_expenditures_mean",
+        "Households (BLS consumer units), total yearly spending", "all",
+        "mean", "usd_per_year", _flow(2024), {"kind": "annual_average", "period": "2024"},
+        parse_ce(path("bls_ce_2024"), ce["series"], "2024"),
+        "Average (mean), not median: the Consumer Expenditure Surveys publish averages, which high spenders pull up. "
+        "2024, in 2024 dollars (priced at the 2024 average CPI). A consumer unit is close to, not the same as, a "
+        "household. Total expenditures include insurance and pension contributions. The BLS API publishes no "
+        "standard errors for these series, so the 30% reliability check could not be applied.")
+
     cpi_months = read_cpi(os.path.join(cache_dir, config["cpi"]["file"]))
     cpi = {"series": config["cpi"]["series"], "months": cpi_months}
     manifest = {
@@ -373,16 +420,30 @@ def sha256_file(path):
     return h.hexdigest()
 
 
-def ensure_cache(config, cache_dir, offline):
+def post_json(url, body):
+    """POST a JSON body and return the decoded JSON answer (the BLS API)."""
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json",
+                                                          "User-Agent": "vault-spend-benchmark-build"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return json.load(resp)
+
+
+def ensure_cache(config, cache_dir, offline, post_json=post_json):
     os.makedirs(cache_dir, exist_ok=True)
     for src in list(config["sources"]) + [config["cpi"] | {"id": "cpi_u_all_items"}]:
         target = os.path.join(cache_dir, src["file"])
         if not os.path.exists(target):
             if offline:
                 raise SystemExit(f"--offline: {src['file']} is not in {cache_dir}")
-            req = urllib.request.Request(src["url"], headers={"User-Agent": "vault-spend-benchmark-build"})
-            with urllib.request.urlopen(req, timeout=60) as resp, open(target, "wb") as out:
-                out.write(resp.read())
+            if "request" in src:
+                # An API source: the cached file is the normalised answer, so it can be pinned.
+                answer = post_json(src["url"], json.dumps(src["request"]).encode("utf-8"))
+                with open(target, "wb") as out:
+                    out.write(bls_cache_bytes(normalize_bls_response(answer)))
+            else:
+                req = urllib.request.Request(src["url"], headers={"User-Agent": "vault-spend-benchmark-build"})
+                with urllib.request.urlopen(req, timeout=60) as resp, open(target, "wb") as out:
+                    out.write(resp.read())
         actual = sha256_file(target)
         if actual != src["sha256"]:
             raise SystemExit(f"{src['file']}: sha256 {actual} does not match the pinned {src['sha256']}. "

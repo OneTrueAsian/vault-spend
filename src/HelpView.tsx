@@ -822,8 +822,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
     answer: (
       <>
         <p>
-          <strong>Reports → Comparisons</strong> lines your income, savings, investments and debt up against figures
-          published by public surveys for people your age. You enter an exact age or an age range once; each card then
+          <strong>Reports → Comparisons</strong> lines your income, savings, investments, debt and household spending up
+          against figures published by public surveys for people your age. You enter an exact age or an age range once; each card then
           says which published age group and which people it describes, because every survey draws its own groups. Where
           your range spans several published groups you pick the one to compare with, and where none matches a
           closely-related group is used only with a clear Approximate warning.
@@ -839,9 +839,16 @@ const FAQ_ENTRIES: FaqEntry[] = [
           The published figures are medians or averages from past surveys, brought up to the latest prices on file. The
           difference shown is how far you are from that figure, not where you rank. Some published figures only describe
           people who hold the item (a retirement account, a mortgage), and those are labelled; if you hold none, the
-          card says it is not comparable instead of comparing you with zero. When no public source covers a comparison,
-          its card says so and nothing is substituted. Everything is calculated on your computer; nothing you enter is
-          sent anywhere, and Hide amounts covers these figures too.
+          card says it is not comparable instead of comparing you with zero. When the reference data has no figure for a
+          comparison (savings, investments, debt and spending are published for households, not for one person), its
+          card says so and nothing is substituted. Everything is calculated on your computer; nothing you enter is sent
+          anywhere, and Hide amounts covers these figures too.
+        </p>
+        <p>
+          <strong>Spending</strong> is compared for the household only, with the U.S. Bureau of Labor Statistics&apos;
+          average yearly spending for households whose main earner is your age. It is an average, not a median, so a
+          few high spenders pull it up, and it counts insurance and pension contributions as spending. Use the yearly
+          total you track here, or type one in <strong>Your details</strong>.
         </p>
       </>
     ),

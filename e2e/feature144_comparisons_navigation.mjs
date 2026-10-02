@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
-import { nav, openReportsTab, setInput, waitForCards } from "./lib/comparisons.mjs";
+import { nav, openReportsTab, setInput } from "./lib/comparisons.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '5000.00')")
@@ -87,12 +87,13 @@ try {
   await browser.$("[data-cmp-unconfigured]").waitForExist({ reverse: true, timeout: 15000 });
   await browser.$("[data-cmp-grid]").waitForExist({ timeout: 15000 });
 
-  // Missing details hide their cards; the household has no published spending benchmark, so that card stays.
-  await waitForCards(browser);
-  const shown = [];
-  for (const c of await browser.$$("[data-comparisons-page] [data-metric]")) shown.push(await c.getAttribute("data-metric"));
-  assert.deepEqual(shown, ["spending"], `only the benchmark-gap card is visible before any details are entered, got ${shown}`);
-  const note = await (await browser.$("[data-cmp-hidden-note]")).getText();
+  // Missing details hide their cards. Every household domain has a published figure, so before any details
+  // are entered nothing is shown, and the page says so instead of showing an empty grid.
+  const hiddenNote = await browser.$("[data-cmp-hidden-note]");
+  await hiddenNote.waitForExist({ timeout: 15000, timeoutMsg: "the page should say comparisons are hidden until details are added" });
+  assert.equal((await browser.$$("[data-comparisons-page] [data-metric]")).length, 0, "no card should show before any details are entered");
+  assert.ok(await (await browser.$("[data-cmp-nothing-yet]")).isExisting(), "the page should say nothing can be compared yet");
+  const note = await hiddenNote.getText();
   assert.ok(note.includes("Show your details") && !note.includes("Settings"), `the page offers the details panel, got: ${note}`);
 
   // The panel opens by itself because cards are waiting for details; it is on this page, not in Settings.

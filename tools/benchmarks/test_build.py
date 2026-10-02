@@ -265,6 +265,90 @@ def _package(records, **manifest_over):
     return manifest, records, cpi
 
 
+CE_SERIES = {
+    "CXUTOTALEXPLB0402M": {"label": "Under Age 25", "ageMin": 15, "ageMax": 24},
+    "CXUTOTALEXPLB0403M": {"label": "from Age 25 to 34", "ageMin": 25, "ageMax": 34},
+    "CXUTOTALEXPLB0407M": {"label": "Age 65 or over", "ageMin": 65, "ageMax": None},
+    "CXUTOTALEXPLB0408M": {"label": "from Age 65 to 74", "ageMin": 65, "ageMax": 74},
+    "CXUTOTALEXPLB0409M": {"label": "Age 75 or over", "ageMin": 75, "ageMax": None},
+}
+
+
+def _bls_response(values, year="2024", status="REQUEST_SUCCEEDED", response_time=123):
+    """A BLS API v2 response shaped like the real one. Values are SYNTHETIC."""
+    return {
+        "status": status, "responseTime": response_time, "message": [],
+        "Results": {"series": [
+            {"seriesID": sid, "data": [] if v is None else [{"year": year, "period": "A01", "periodName": "Annual", "value": v,
+                                                             "footnotes": [{}]}]}
+            for sid, v in values.items()
+        ]},
+    }
+
+
+class BlsApiSource(unittest.TestCase):
+    """The BLS Consumer Expenditure figures come from the BLS API (bls.gov's pages reject scripts)."""
+
+    def test_normalised_response_ignores_what_changes_between_calls(self):
+        a = build.normalize_bls_response(_bls_response({"CXUTOTALEXPLB0403M": "60000"}, response_time=5))
+        b = build.normalize_bls_response(_bls_response({"CXUTOTALEXPLB0403M": "60000"}, response_time=999))
+        self.assertEqual(a, b)
+        self.assertEqual(a, {"CXUTOTALEXPLB0403M": {"2024": "60000"}})
+
+    def test_failed_request_is_an_error_not_an_empty_source(self):
+        with self.assertRaises(build.SourceLayoutError):
+            build.normalize_bls_response(_bls_response({"CXUTOTALEXPLB0403M": "60000"}, status="REQUEST_NOT_PROCESSED"))
+
+    def test_ce_cohorts_carry_their_published_bounds_and_drop_the_roll_up(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "ce.json")
+            with open(path, "wb") as f:
+                f.write(build.bls_cache_bytes(build.normalize_bls_response(_bls_response(
+                    {"CXUTOTALEXPLB0402M": "40000", "CXUTOTALEXPLB0403M": "60000", "CXUTOTALEXPLB0407M": "55000",
+                     "CXUTOTALEXPLB0408M": "58000", "CXUTOTALEXPLB0409M": "50000"}))))
+            cells = build.parse_ce(path, CE_SERIES, "2024")
+        by_age = {(c["ageMin"], c["ageMax"]): c for c in cells}
+        self.assertEqual(set(by_age), {(15, 24), (25, 34), (65, 74), (75, None)}, "65 and over is a roll-up of 65-74 and 75+")
+        self.assertEqual(by_age[(25, 34)]["value"], Decimal("60000"))
+        self.assertIs(by_age[(25, 34)]["se"], build.MISSING, "the API publishes no standard errors")
+        self.assertEqual(by_age[(25, 34)]["locator"], "CXUTOTALEXPLB0403M/2024")
+
+    def test_ce_value_missing_for_the_year_is_reported_missing_not_zero(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "ce.json")
+            with open(path, "wb") as f:
+                f.write(build.bls_cache_bytes(build.normalize_bls_response(_bls_response({"CXUTOTALEXPLB0403M": None}))))
+            cells = build.parse_ce(path, {"CXUTOTALEXPLB0403M": CE_SERIES["CXUTOTALEXPLB0403M"]}, "2024")
+        self.assertIs(cells[0]["value"], build.MISSING)
+
+    def test_ce_series_not_in_the_response_is_a_layout_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "ce.json")
+            with open(path, "wb") as f:
+                f.write(build.bls_cache_bytes({}))
+            with self.assertRaises(build.SourceLayoutError):
+                build.parse_ce(path, {"CXUTOTALEXPLB0403M": CE_SERIES["CXUTOTALEXPLB0403M"]}, "2024")
+
+    def test_api_source_is_fetched_with_its_request_and_pinned_on_the_normalised_bytes(self):
+        sent = []
+
+        def fake_post(url, body):
+            sent.append((url, json.loads(body)))
+            return _bls_response({"CXUTOTALEXPLB0403M": "60000"}, response_time=len(sent))
+
+        normalized = build.bls_cache_bytes({"CXUTOTALEXPLB0403M": {"2024": "60000"}})
+        src = {"id": "ce", "url": "https://api.example/ts", "file": "ce.json",
+               "request": {"seriesid": ["CXUTOTALEXPLB0403M"], "startyear": "2024", "endyear": "2024"},
+               "sha256": __import__("hashlib").sha256(normalized).hexdigest()}
+        cpi = {"file": "cpi.csv", "url": "x", "sha256": __import__("hashlib").sha256(b"cpi").hexdigest()}
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "cpi.csv"), "wb") as f:
+                f.write(b"cpi")
+            build.ensure_cache({"sources": [src], "cpi": cpi}, d, offline=False, post_json=fake_post)
+            self.assertEqual(_read(os.path.join(d, "ce.json")), normalized)
+        self.assertEqual(sent, [("https://api.example/ts", src["request"])])
+
+
 class PackageValidation(unittest.TestCase):
     def test_valid_package_passes(self):
         self.assertEqual(validate.check(*_package([_record()])), [])
@@ -413,14 +497,27 @@ class ShippedPackageGoldenCells(unittest.TestCase):
         self.assertIn("2025-07", cpi["months"])
         self.assertNotIn("2025-10", cpi["months"])
 
+    def test_household_spending_matches_the_bls_series_as_an_average(self):
+        # Total average annual expenditures by age of reference person, 2024 (BLS series CXUTOTALEXPLB04..M,
+        # titles confirmed on ALFRED): under 25 47283, 25-34 74475, 35-44 91229, 45-54 100327, 55-64 84946,
+        # 65-74 65354, 75+ 55834.
+        for age, value in (("15-24", "47283"), ("25-34", "74475"), ("35-44", "91229"), ("45-54", "100327"),
+                           ("55-64", "84946"), ("65-74", "65354"), ("75-", "55834")):
+            r = self.by_id[f"bls_ce_total_expenditures_mean:{age}"]
+            self.assertEqual(r["value"], value, age)
+            self.assertEqual((r["metric"], r["mode"], r["statistic"], r["universe"]), ("spending", "household", "mean", "all"))
+            self.assertEqual(r["dollarBasis"], {"kind": "annual_average", "period": "2024"})
+            self.assertEqual(r["period"], {"kind": "flow", "from": "2024-01-01", "to": "2024-12-31"})
+        self.assertNotIn("bls_ce_total_expenditures_mean:65-", self.by_id, "65 and over is a roll-up and must not overlap")
+
     def test_unsupported_domains_are_documented_as_gaps(self):
         manifest = json.loads(_read(os.path.join(PACKAGE_DIR, "manifest.json")))
         gaps = {(g["metric"], g["mode"]) for g in manifest["gaps"]}
         shipped = {(c["metric"], c["mode"]) for c in manifest["capabilities"]}
         self.assertEqual(gaps & shipped, set())
-        self.assertIn(("spending", "household"), gaps)
+        self.assertIn(("spending", "individual"), gaps)
         self.assertEqual(shipped, {("income", "individual"), ("income", "household"), ("savings", "household"),
-                                   ("investments", "household"), ("debt", "household")})
+                                   ("investments", "household"), ("debt", "household"), ("spending", "household")})
 
 
 if __name__ == "__main__":

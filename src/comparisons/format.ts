@@ -146,7 +146,7 @@ export function cardNotice(result: ComparisonCardResult): CardNotice | null {
       }
       return {
         title: "No matching benchmark",
-        body: "Public sources do not publish a comparable figure for this, so nothing is substituted.",
+        body: "No published figure for this is included in the reference data, so nothing is substituted.",
         tone: "info",
       };
     case "missing_input":
@@ -159,6 +159,7 @@ const SOURCE_LABELS: Record<string, string> = {
   cps_hinc02_2026: "U.S. Census Bureau, CPS ASEC 2026",
   sipp_wealth_2024: "U.S. Census Bureau, SIPP 2025",
   sipp_debt_2024: "U.S. Census Bureau, SIPP 2025",
+  bls_ce_2024: "U.S. Bureau of Labor Statistics, Consumer Expenditure Surveys 2024",
 };
 
 /** A readable source name; an id the app does not know is shown as is. */

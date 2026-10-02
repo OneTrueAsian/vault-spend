@@ -25,6 +25,8 @@ const TODAY = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,
 const LONG = "An exceptionally long name that keeps going well past what any card could comfortably hold on one line";
 
 const setup = baseSetup(TODAY, {
+  // Every card, including Spending (household spending has a published figure, so it needs a total to show).
+  spending: { period: null, accountIds: [], completenessConfirmed: true, manualAnnual: { value: "87000", measuredOn: TODAY, explanation: "Estimate" }, categoryMappings: [] },
   balanceConfirmations: ["savings", "investments", "debt"].map((metric) => ({ metric, confirmedOn: TODAY })),
   investmentClasses: [
     { source: { kind: "account", id: 2 }, class: "retirement" },
