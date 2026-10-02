@@ -12,7 +12,7 @@ vi.mock("@tauri-apps/plugin-opener", () => opener);
 import { ComparisonDetailsDialog } from "./ComparisonDetailsDialog";
 import { ComparisonCard } from "./ComparisonCard";
 import { adjusted, comparableIncome, metric, unavailable } from "./testFixtures";
-import type { CardView } from "./types";
+import type { CardView, ComparisonCardResult } from "./types";
 
 describe("ComparisonDetailsDialog", () => {
   let container: HTMLDivElement;
@@ -29,7 +29,8 @@ describe("ComparisonDetailsDialog", () => {
     container.remove();
   });
 
-  const show = (view: CardView) => act(() => root.render(<ComparisonDetailsDialog view={view} onClose={() => {}} />));
+  const MEMBERS = [{ id: 7, name: "Jordan" }];
+  const show = (view: CardView) => act(() => root.render(<ComparisonDetailsDialog view={view} members={MEMBERS} onClose={() => {}} />));
   const text = () => document.querySelector("[data-cmp-details]")?.textContent ?? "";
 
   it("names the population, age group, statistic, period, dollar basis, uncertainty and source", () => {
@@ -124,6 +125,43 @@ describe("ComparisonDetailsDialog", () => {
     expect(t).toContain("Student loans");
     expect(t).not.toContain("Credit cards");
     expect(text()).toContain("$150,000 vs $140,000");
+  });
+
+  const personal = (person: CardView["secondary"][number]["person"], over: Partial<ComparisonCardResult>) => ({
+    label: "Personal income",
+    definitionId: "cps_pinc01_money_income_median",
+    person,
+    result: { ...comparableIncome().result, ...over },
+  });
+
+  it("lists each person's own income against people their age", () => {
+    show({
+      ...comparableIncome(),
+      secondary: [
+        personal({ kind: "owner" }, { localValue: "78000", reference: adjusted({ id: "cps_pinc01_money_income_median:40-44", ageMin: 40, ageMax: 44 }, "66000") }),
+        personal({ kind: "member", id: 7 }, { localValue: "64000", reference: adjusted({ id: "cps_pinc01_money_income_median:30-34", ageMin: 30, ageMax: 34 }, "58000") }),
+      ],
+    });
+    const t = text();
+    expect(t).toContain("Each person's income");
+    expect(t).toContain("Me, compared with ages 40–44");
+    expect(t).toContain("$78,000 vs $66,000");
+    expect(t).toContain("Jordan, compared with ages 30–34");
+    expect(t).toContain("$64,000 vs $58,000");
+    expect(document.querySelectorAll("[data-cmp-personal]").length).toBe(2);
+  });
+
+  it("asks for an exact age when a person's range spans two age groups", () => {
+    show({
+      ...comparableIncome(),
+      secondary: [personal({ kind: "member", id: 7 }, { status: "cohort_choice_required", localValue: null, reference: null, dollarDifference: null, percentDifference: null })],
+    });
+    expect(text()).toContain("Enter an exact age, or a range inside one age group, to compare Jordan's income.");
+  });
+
+  it("suggests entering income per person when it is one household total", () => {
+    show({ ...comparableIncome(), personalIncomeHint: true });
+    expect(text()).toContain("Enter income for each person to also see how each person's pay compares with people their age.");
   });
 
   it("says plainly when there is nothing to compare with", () => {

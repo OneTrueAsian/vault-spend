@@ -7,10 +7,12 @@ import {
   differenceText,
   formatWhole,
   metricTitle,
+  personLabel,
   populationLabel,
   referencePeriodLabel,
   sourceLabel,
 } from "./format";
+import { personKey } from "./setupDraft";
 
 const EXCLUDE_TEXT: Record<ExcludeReason, string> = {
   default_type_not_included: "This kind of account does not count here",
@@ -34,12 +36,22 @@ const CLASS_LABELS: Record<string, string> = {
 /** The working behind one card: what makes up your figure, what was left out and why, exactly which
  * published figure it is compared with (population, age group, period, dollar basis, uncertainty,
  * source) and how the difference was calculated. */
-export function ComparisonDetailsDialog({ view, onClose }: { view: CardView; onClose: () => void }) {
+export function ComparisonDetailsDialog({
+  view,
+  members,
+  onClose,
+}: {
+  view: CardView;
+  members: { id: number; name: string }[];
+  onClose: () => void;
+}) {
   const { result, metric } = view;
   const title = metricTitle(result.metric);
   const ref = result.reference;
   const notice = cardNotice(result);
   const classRows = Object.entries(metric.classTotals).filter(([, v]) => parseFloat(v) !== 0);
+  const breakdown = view.secondary.filter((s) => s.person === null);
+  const personal = view.secondary.filter((s) => s.person !== null);
 
   return (
     <ModalShell
@@ -127,10 +139,10 @@ export function ComparisonDetailsDialog({ view, onClose }: { view: CardView; onC
           </section>
         )}
 
-        {view.secondary.length > 0 && (
+        {breakdown.length > 0 && (
           <section>
             <h3 className="cmp-details-heading">Also compared</h3>
-            {view.secondary.map((s) => {
+            {breakdown.map((s) => {
               const n = cardNotice(s.result);
               return (
                 <div key={s.definitionId} className="cmp-breakdown" data-cmp-secondary={s.definitionId}>
@@ -141,6 +153,45 @@ export function ComparisonDetailsDialog({ view, onClose }: { view: CardView; onC
                   <b>
                     {s.result.dollarDifference !== null && s.result.reference
                       ? `${formatWhole(s.result.localValue ?? "0")} vs ${formatWhole(s.result.reference.adjustedValue)}`
+                      : s.result.localValue !== null
+                        ? formatWhole(s.result.localValue)
+                        : "—"}
+                  </b>
+                </div>
+              );
+            })}
+          </section>
+        )}
+
+        {(personal.length > 0 || view.personalIncomeHint) && (
+          <section>
+            <h3 className="cmp-details-heading">Each person&apos;s income</h3>
+            {view.personalIncomeHint && (
+              <p className="modal-message-secondary" data-cmp-personal-hint>
+                Enter income for each person to also see how each person&apos;s pay compares with people their age.
+              </p>
+            )}
+            {personal.map((s) => {
+              const name = personLabel(s.person!, members);
+              const key = personKey(s.person!);
+              const line = s.result.reference;
+              if (s.result.status === "cohort_choice_required") {
+                return (
+                  <p key={key} className="modal-message-secondary" data-cmp-personal={key}>
+                    Enter an exact age, or a range inside one age group, to compare {name}&apos;s income.
+                  </p>
+                );
+              }
+              const n = cardNotice(s.result);
+              return (
+                <div key={key} className="cmp-breakdown" data-cmp-personal={key}>
+                  <span>
+                    {line ? `${name}, compared with ages ${ageGroupLabel(line.reference.ageMin, line.reference.ageMax)}` : name}
+                    {n && <span className="cmp-share"> · {n.title}</span>}
+                  </span>
+                  <b>
+                    {s.result.dollarDifference !== null && line
+                      ? `${formatWhole(s.result.localValue ?? "0")} vs ${formatWhole(line.adjustedValue)}`
                       : s.result.localValue !== null
                         ? formatWhole(s.result.localValue)
                         : "—"}

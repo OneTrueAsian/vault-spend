@@ -208,7 +208,7 @@ export function ComparisonsView({
         </section>
       )}
 
-      {exploringCard && <ComparisonDetailsDialog view={exploringCard} onClose={() => setExploring(null)} />}
+      {exploringCard && <ComparisonDetailsDialog view={exploringCard} members={members} onClose={() => setExploring(null)} />}
       {settingUp && generation !== null && (
         <ComparisonSetupDialog
           generation={generation}
