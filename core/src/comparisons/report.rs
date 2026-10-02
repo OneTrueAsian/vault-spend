@@ -4,10 +4,11 @@ use super::cohort::{match_cohort, CohortMatch};
 use super::engine::{compare, CardQuery, LocalMeasure};
 use super::metrics::{compute_metrics, MetricComputation, Origin, Snapshot};
 use super::package::Package;
-use super::setup::ComparisonSetup;
+use super::setup::{ComparisonSetup, HouseholdIncomeMethod, PersonRef};
 use super::types::{
-    AgeInput, CardStatus, Completeness, ComparisonCardResult, ComparisonMode, MetricId, Reference, Universe,
+    AgeInput, CardStatus, Completeness, ComparisonCardResult, ComparisonMode, MetricId, Reference, Unit, Universe,
 };
+use rust_decimal::Decimal;
 use serde::Serialize;
 
 /// The published definition each headline card compares against. A definition the current package
@@ -50,6 +51,8 @@ pub struct CohortOption {
 pub struct SecondaryCard {
     pub label: String,
     pub definition_id: String,
+    /// The household member a personal line is about; `None` for a breakdown of the household's own figure.
+    pub person: Option<PersonRef>,
     pub result: ComparisonCardResult,
 }
 
@@ -69,6 +72,8 @@ pub struct CardView {
     pub cohort_options: Vec<CohortOption>,
     /// A typed total older than its warning threshold. Warning only; it still applies.
     pub stale: bool,
+    /// Income card only: income is entered as one household total, so no one's own pay can be compared.
+    pub personal_income_hint: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -139,6 +144,45 @@ fn is_visible(result: &ComparisonCardResult) -> bool {
     }
 }
 
+const PERSONAL_INCOME: &str = "cps_pinc01_money_income_median";
+
+/// Each household member's own yearly income against the median for people their age, when income
+/// is entered per person. A member with no income entry or no age gets no line; a roommate never does.
+fn personal_income_lines(pkg: &Package, setup: &ComparisonSetup) -> Vec<SecondaryCard> {
+    if setup.income.household_method != HouseholdIncomeMethod::ByPerson {
+        return Vec::new();
+    }
+    setup
+        .people
+        .iter()
+        .filter(|p| p.in_household)
+        .filter_map(|p| {
+            let age = p.age.as_ref()?.age;
+            let income = &setup.income.per_person.iter().find(|e| e.person == p.person)?.gross_annual;
+            let query = CardQuery {
+                metric: MetricId::Income,
+                mode: ComparisonMode::Individual,
+                definition_id: Some(PERSONAL_INCOME),
+                age: Some(age),
+                selected_cohort: None,
+                universe_preference: None,
+                local: LocalMeasure {
+                    value: Some(income.value),
+                    unit: Unit::UsdPerYear,
+                    holds_item: income.value > Decimal::ZERO,
+                    completeness: Completeness::Confirmed,
+                },
+            };
+            Some(SecondaryCard {
+                label: "Personal income".into(),
+                definition_id: PERSONAL_INCOME.into(),
+                person: Some(p.person.clone()),
+                result: compare(pkg, &query),
+            })
+        })
+        .collect()
+}
+
 pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot) -> ComparisonsReport {
     let age = subject_age(setup);
     let cards = compute_metrics(snapshot, setup)
@@ -169,8 +213,12 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
                     local.value = Some(total);
                     local.holds_item = true;
                     let q = CardQuery { definition_id: Some(def), local, selected_cohort: None, ..query.clone() };
-                    secondary.push(SecondaryCard { label: (*label).into(), definition_id: (*def).into(), result: compare(pkg, &q) });
+                    secondary.push(SecondaryCard { label: (*label).into(), definition_id: (*def).into(), person: None, result: compare(pkg, &q) });
                 }
+            }
+
+            if id == MetricId::Income {
+                secondary.extend(personal_income_lines(pkg, setup));
             }
 
             let stale = matches!(metric.origin, Origin::Entered { stale: true, .. });
@@ -181,6 +229,7 @@ pub fn build_report(pkg: &Package, setup: &ComparisonSetup, snapshot: &Snapshot)
                 cohort_options: cohort_options(pkg, setup, id, definition, chosen_universe),
                 secondary,
                 stale,
+                personal_income_hint: id == MetricId::Income && setup.income.household_method == HouseholdIncomeMethod::Total,
                 metric,
                 result,
             }

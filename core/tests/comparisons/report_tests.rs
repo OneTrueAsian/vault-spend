@@ -2,7 +2,7 @@ use super::common::*;
 use super::setup_tests::{amount, base_setup, person, today};
 use budget_core::comparisons::metrics::{AccountSnap, Snapshot};
 use budget_core::comparisons::package::Package;
-use budget_core::comparisons::report::{build_report, CardView, ComparisonsReport};
+use budget_core::comparisons::report::{build_report, CardView, ComparisonsReport, SecondaryCard};
 use budget_core::comparisons::setup::*;
 use budget_core::comparisons::types::{
     AgeInput, CardStatus, Completeness, MetricId, Reason, Statistic, Universe,
@@ -269,4 +269,77 @@ fn debt_setup() -> ComparisonSetup {
     let mut setup = setup_42();
     setup.debt_classes = vec![DebtClassification { source: SourceRef::Account { id: 2 }, class: DebtClass::Mortgage }];
     setup
+}
+
+const PERSONAL: &str = "cps_pinc01_money_income_median";
+
+fn by_person(setup: &mut ComparisonSetup, incomes: &[(PersonRef, &str)]) {
+    setup.income.household_method = HouseholdIncomeMethod::ByPerson;
+    setup.income.per_person = incomes.iter().map(|(p, v)| PersonIncome { person: p.clone(), gross_annual: amount(v) }).collect();
+}
+
+fn personal_lines(report: &ComparisonsReport) -> Vec<&SecondaryCard> {
+    card(report, MetricId::Income).secondary.iter().filter(|s| s.definition_id == PERSONAL).collect()
+}
+
+#[test]
+fn each_household_member_with_an_income_and_an_age_gets_a_personal_line() {
+    let mut setup = setup_42();
+    age(&mut setup, person(7), AgeInput::Exact { age: 31 });
+    by_person(&mut setup, &[(PersonRef::Owner, "78000"), (person(7), "64000")]);
+    let report = build_report(bundled(), &setup, &empty_snapshot());
+    let lines = personal_lines(&report);
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0].person, Some(PersonRef::Owner));
+    let owner = lines[0].result.reference.as_ref().unwrap();
+    assert_eq!((owner.reference.age_min, owner.reference.age_max), (40, Some(44)));
+    assert_eq!(lines[0].result.local_value, Some(dec("78000")));
+    assert_eq!(lines[0].result.status, CardStatus::Comparable);
+    assert_eq!(lines[1].person, Some(person(7)));
+    assert_eq!(lines[1].result.reference.as_ref().unwrap().reference.id, format!("{PERSONAL}:30-34"));
+    assert!(!card(&report, MetricId::Income).personal_income_hint);
+}
+
+#[test]
+fn a_member_without_an_age_or_an_income_gets_no_line_and_a_roommate_never_does() {
+    let mut setup = setup_42();
+    age(&mut setup, person(8), AgeInput::Exact { age: 29 });
+    // 7 shares the finances but has no age; 8 is a roommate with an age and an old income entry.
+    by_person(&mut setup, &[(PersonRef::Owner, "78000"), (person(7), "64000"), (person(8), "40000")]);
+    let report = build_report(bundled(), &setup, &empty_snapshot());
+    let people: Vec<_> = personal_lines(&report).iter().map(|s| s.person.clone()).collect();
+    assert_eq!(people, vec![Some(PersonRef::Owner)]);
+}
+
+#[test]
+fn an_age_range_spanning_two_personal_age_groups_asks_for_an_exact_age_instead_of_guessing() {
+    let mut setup = setup_42();
+    age(&mut setup, PersonRef::Owner, AgeInput::Band { min: 40, max: Some(49) });
+    by_person(&mut setup, &[(PersonRef::Owner, "78000")]);
+    let report = build_report(bundled(), &setup, &empty_snapshot());
+    let line = personal_lines(&report)[0];
+    assert_eq!(line.result.status, CardStatus::CohortChoiceRequired);
+    assert!(line.result.dollar_difference.is_none());
+}
+
+#[test]
+fn a_zero_or_negative_personal_income_is_not_compared_with_people_who_have_income() {
+    let mut setup = setup_42();
+    by_person(&mut setup, &[(PersonRef::Owner, "-500")]);
+    let report = build_report(bundled(), &setup, &empty_snapshot());
+    let line = personal_lines(&report)[0];
+    assert_eq!(line.result.status, CardStatus::NotComparable);
+    assert!(line.result.percent_difference.is_none());
+}
+
+#[test]
+fn a_household_total_shows_the_hint_and_no_personal_lines_even_with_old_per_person_entries() {
+    let mut setup = setup_42();
+    by_person(&mut setup, &[(PersonRef::Owner, "78000")]);
+    setup.income.household_method = HouseholdIncomeMethod::Total;
+    setup.income.household_total = Some(amount("120000"));
+    let report = build_report(bundled(), &setup, &empty_snapshot());
+    assert!(personal_lines(&report).is_empty());
+    assert!(card(&report, MetricId::Income).personal_income_hint);
+    assert!(!card(&report, MetricId::Savings).personal_income_hint, "the hint belongs to the Income card only");
 }
