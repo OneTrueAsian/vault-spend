@@ -19,6 +19,7 @@ import { launchApp } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { commitReviewedImport } from "./lib/importReview.mjs";
 
 const PASSWORD = "correct horse battery staple";
 
@@ -34,6 +35,14 @@ async function invoke(browser, command, args = {}) {
     args,
   );
 }
+// The import review screen asks about rows the app can't place; these rows are about notes, so
+// they are left uncategorized the way "Leave the rest uncategorized" would.
+async function reviewed(browser, args) {
+  const result = await commitReviewedImport(browser, args);
+  if (result.error !== undefined) throw new Error(`commit_import failed: ${result.error}`);
+  return result.ok;
+}
+
 async function ok(browser, command, args) {
   const r = await invoke(browser, command, args);
   if (r.error !== undefined) throw new Error(`${command} failed: ${r.error}`);
@@ -156,7 +165,7 @@ try {
   );
   const accounts = await ok(browser, "list_accounts");
   const checkingId = accounts.find((a) => a.name === "Checking").id;
-  await ok(browser, "commit_import", {
+  await reviewed(browser, {
     path: csvPath,
     invertAmounts: false,
     defaultAccountId: checkingId,
@@ -191,7 +200,7 @@ try {
     csvPath2,
     ["date,description,amount,notes", `${dateInMonth(-1, 6)},Good Row,-10.00,"fine"`, `${dateInMonth(-1, 7)},Bad Row,-20.00,"${tooLongNote}"`, ""].join("\n"),
   );
-  const commitResult = await ok(browser, "commit_import", {
+  const commitResult = await reviewed(browser, {
     path: csvPath2,
     invertAmounts: false,
     defaultAccountId: checkingId,

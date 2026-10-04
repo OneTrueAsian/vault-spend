@@ -539,9 +539,17 @@ const IMPORTING_ENTRY: HelpEntry = {
           row, or override which account a specific row should land in.
         </li>
         <li>
-          Confirm the import. Each new transaction is auto-categorized
-          where possible; anything it can't confidently place is left
-          Uncategorized for you to set yourself.
+          The preview also sorts out categories before anything is saved.
+          Each row is filed by your rules and past choices where the app is
+          at least half sure. Any row it isn't sure about appears under{" "}
+          <strong>Needs your choice</strong>: pick a category for it, or
+          choose "Leave uncategorized." <strong>"Leave the rest
+          uncategorized"</strong> does that for every row still waiting.
+          The import button stays off until every checked row has a choice.
+        </li>
+        <li>
+          Confirm the import. Choosing a category for a row also teaches the
+          app that merchant, so it can file it on its own next time.
         </li>
         <li>
           A <strong>Review transactions</strong> dialog then lists the ones
@@ -935,7 +943,10 @@ const FAQ_ENTRIES: FaqEntry[] = [
         too. Importing a file that has its own Category column never adds
         categories on its own: any name you don't already have is listed on
         the review screen, where you can use one of your own categories for
-        it, add it as a new one, or not use it.
+        it, add it as a new one, or let the app guess from your rules. When
+        you use one of your own categories for a name, the app remembers
+        that choice for your next import, from any account; you can change it
+        there each time.
       </p>
     ),
   },

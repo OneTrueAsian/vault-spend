@@ -20,6 +20,7 @@ import path from "node:path";
 import { launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
+import { commitReviewedImport } from "./lib/importReview.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -80,6 +81,14 @@ async function call(browser, command, args = {}) {
     args,
   );
 }
+// The import review screen asks about rows the app can't place; these rows are about notes, so
+// they are left uncategorized the way "Leave the rest uncategorized" would.
+async function reviewed(browser, args) {
+  const result = await commitReviewedImport(browser, args);
+  if (result.error !== undefined) throw new Error(`commit_import failed: ${result.error}`);
+  return result.ok;
+}
+
 async function ok(browser, command, args) {
   const r = await call(browser, command, args);
   if (r.error !== undefined) throw new Error(`${command} failed: ${r.error}`);
@@ -183,7 +192,7 @@ async function withApp1(browser) {
   // ---- 5. An imported transaction supports notes just like a manual one --
   const accounts = await ok(browser, "list_accounts");
   const checkingId = accounts.find((a) => a.name === "Checking").id;
-  await ok(browser, "commit_import", {
+  await reviewed(browser, {
     path: csvPath,
     invertAmounts: false,
     defaultAccountId: checkingId,

@@ -48,6 +48,14 @@ describe("HelpView", () => {
     expect(text).toContain("Reduce motion");
   });
 
+  it("explains that unsure import rows wait for a choice and that file category choices are remembered", () => {
+    const text = container.textContent ?? "";
+    expect(text).toContain("Needs your choice");
+    expect(text).toContain("Leave the rest uncategorized");
+    expect(text).toContain("remembers that choice for your next import");
+    expect(text).not.toContain("or not use it");
+  });
+
   it("explains that rules ignore store numbers", () => {
     expect(container.textContent).toContain("ignoring store numbers");
   });

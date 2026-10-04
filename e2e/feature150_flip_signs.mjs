@@ -108,6 +108,11 @@ try {
   await (await browser.$("button=Flip the signs")).click();
   const importButton = await browser.$("button*=Import 3 transaction");
   await importButton.waitForDisplayed({ timeout: 10000 });
+  // A fresh profile has no history to guess these merchants from, so the review asks about them;
+  // this spec is about signs, so they are left uncategorized.
+  const leaveRest = await browser.$("button=Leave the rest uncategorized");
+  if (await leaveRest.isExisting()) await leaveRest.click();
+  await importButton.waitForEnabled({ timeout: 5000, timeoutMsg: "Import should turn on once every row has a choice" });
   await importButton.click();
   await waitUntilOrDiagnose(browser, async () => (await amountOf("RING MULTI PLAN")) === "-9.99", {
     timeout: 10000,
