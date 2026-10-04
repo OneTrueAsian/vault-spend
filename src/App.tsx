@@ -65,6 +65,7 @@ import { CATEGORY_SOURCE_LABELS, NAV_GROUP_LABELS, NAV_GROUP_ORDER, NAV_ITEMS, P
 
 import { useLedgerFilters } from "./useLedgerFilters";
 
+import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
 import { ImportReviewPanel } from "./ImportReviewPanel";
 import { useImportReview } from "./useImportReview";
 // Eager stylesheet modules keep the original cascade and prevent lazy views from reloading base rules.
@@ -3678,55 +3679,13 @@ function App({
           )}
 
           {activeTab === "ledger" && reviewIds && reviewIds.size > 0 && (
-            <div className="dup-review">
-      <p className="dup-review-summary">
-        Just categorized {reviewIds.size} transaction(s). Review and fix any that are wrong.
-      </p>
-      <table className="dup-review-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Description</th>
-            <th className="amount-col">Amount</th>
-            <th>Category</th>
-            <th>Source</th>
-          </tr>
-        </thead>
-        <tbody>
-          {transactions
-            .filter((t) => reviewIds.has(t.id))
-            .map((t) => (
-              <tr key={t.id}>
-                <td>{t.date}</td>
-                <td>{t.description}</td>
-                <td className="amount-col">{formatAmount(t.amount)}</td>
-                <td>
-                  <MenuSelect
-                    ariaLabel={`Category for "${t.description}"`}
-                    value={t.category ?? ""}
-                    onChange={(v) => handleCategoryChange(t.id, v)}
-                    options={[
-                      { value: "", label: "Uncategorized", disabled: true },
-                      ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
-                      ...categoryOptions.map((c) => ({ value: c, label: c })),
-                      { value: "__new__", label: "+ New category…" },
-                    ]}
-                  />
-                </td>
-                <td className="source-col">
-                  {t.category_source ?? ""}
-                  {t.confidence !== null && (
-                    <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
-      <div className="dup-review-actions">
-        <button onClick={() => setReviewIds(null)}>Done</button>
-      </div>
-    </div>
+            <RecategorizedReviewPanel
+              reviewIds={reviewIds}
+              transactions={transactions}
+              handleCategoryChange={handleCategoryChange}
+              categoryOptions={categoryOptions}
+              setReviewIds={setReviewIds}
+            />
           )}
 
           {activeTab === "ledger" && stats && (
