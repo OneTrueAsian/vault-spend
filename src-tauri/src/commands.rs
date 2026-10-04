@@ -1,10 +1,11 @@
 use budget_core::categorizer;
 use budget_core::classifier::Classifier;
+use budget_core::import_resolution;
 use budget_core::importer;
 use budget_core::learner;
 use budget_core::models::AccountType;
 use budget_core::rules::RuleSet;
-use budget_core::store::{CategorySource, ImportCategoryChoice, Store, NOTES_MAX_CHARS};
+use budget_core::store::{import_category_key, CategorySource, ImportCategoryChoice, Store, NOTES_MAX_CHARS};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -1123,6 +1124,11 @@ pub struct ImportRow {
     /// The row's own Category column, when the file has one (a bank's CSV export does) —
     /// what the file calls it, not necessarily a category the person has.
     pub category: Option<String>,
+    /// The person's category the file's one matches (any casing), in their spelling.
+    pub matched_category: Option<String>,
+    /// What the rules or the auto-categorizer would file the row under, for every row without a
+    /// `matched_category` (see `budget_core::import_resolution::row_facts`).
+    pub suggestion: Option<SuggestionDto>,
 }
 
 #[derive(Serialize)]
@@ -1132,12 +1138,40 @@ pub struct ImportPreview {
     /// Category names the file uses that the person doesn't have. Nothing is created for
     /// these unless the review screen sends back a `Create` choice for them.
     pub unmatched_categories: Vec<UnmatchedCategoryDto>,
+    /// A fingerprint of the file as reviewed; `commit_import` refuses a file that changed since.
+    pub review_token: String,
+    /// A guess less sure than this waits for the person's choice (`IMPORT_CHOICE_BELOW`).
+    pub choice_below: f64,
+}
+
+/// A rule's or the auto-categorizer's answer for one row, as the review screen sees it.
+#[derive(Serialize)]
+pub struct SuggestionDto {
+    pub category: String,
+    /// "rule" or "guess" (the auto-categorizer).
+    pub source: &'static str,
+    pub confidence: Option<f64>,
+}
+
+impl From<budget_core::import_resolution::Suggestion> for SuggestionDto {
+    fn from(s: budget_core::import_resolution::Suggestion) -> Self {
+        SuggestionDto {
+            category: s.category,
+            source: match s.source {
+                CategorySource::Rule => "rule",
+                _ => "guess",
+            },
+            confidence: s.confidence,
+        }
+    }
 }
 
 #[derive(Serialize)]
 pub struct UnmatchedCategoryDto {
     pub name: String,
     pub count: usize,
+    /// The category the person mapped this name to on an earlier import, filled in for them.
+    pub remembered_category: Option<String>,
 }
 
 /// What the review screen decided for one unmatched file category (see `commit_import`).
@@ -1377,7 +1411,11 @@ pub fn flip_transaction_signs(ids: Vec<i64>, state: tauri::State<AppStateHandle>
 #[tauri::command]
 pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<ImportPreview, String> {
     let state = state.lock()?;
+    preview_import_for(&state, &path, invert_amounts, account_id)
+}
 
+/// `preview_import` against an already-locked profile. A pure read: nothing is created or remembered.
+fn preview_import_for(state: &AppState, path: &str, invert_amounts: bool, account_id: i64) -> Result<ImportPreview, String> {
     let loaded = importer::load_transactions(&path, invert_amounts).map_err(|e| e.to_string())?;
     let row_errors = loaded.errors.len();
 
@@ -1403,12 +1441,18 @@ pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state
         }
     }
 
+    let (history, classifier) = build_classifier(state)?;
+    let facts =
+        import_resolution::row_facts(&state.store, &loaded.transactions, &state.rules, &history, Some(&classifier)).map_err(|e| e.to_string())?;
+    let remembered = state.store.import_category_mappings().map_err(|e| e.to_string())?;
+
     let rows = loaded
         .transactions
         .iter()
         .zip(flags.iter())
+        .zip(facts)
         .enumerate()
-        .map(|(index, (tx, is_duplicate))| ImportRow {
+        .map(|(index, ((tx, is_duplicate), facts))| ImportRow {
             index,
             date: tx.date.to_string(),
             description: tx.description.clone(),
@@ -1416,6 +1460,8 @@ pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state
             is_duplicate: *is_duplicate,
             account_name: loaded.account_names.get(index).cloned().flatten(),
             category: tx.category.as_deref().map(str::trim).filter(|c| !c.is_empty()).map(str::to_string),
+            matched_category: facts.matched_category,
+            suggestion: facts.suggestion.map(SuggestionDto::from),
         })
         .collect();
 
@@ -1425,6 +1471,7 @@ pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state
         .map_err(|e| e.to_string())?
         .into_iter()
         .map(|u| UnmatchedCategoryDto {
+            remembered_category: remembered.get(&import_category_key(&u.name)).cloned(),
             name: u.name,
             count: u.count,
         })
@@ -1434,6 +1481,8 @@ pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state
         rows,
         row_errors,
         unmatched_categories,
+        review_token: import_resolution::review_token(&loaded),
+        choice_below: import_resolution::IMPORT_CHOICE_BELOW,
     })
 }
 
@@ -5020,6 +5069,100 @@ mod tests {
     fn a_choice_with_an_unknown_action_is_refused_rather_than_guessed() {
         let result: Result<std::collections::HashMap<String, CategoryChoiceDto>, _> = serde_json::from_str(r#"{"Dining": {"action": "adopt"}}"#);
         assert!(result.is_err());
+    }
+
+    // ---- import review: what the screen is told about each row (2026-10-04) ----
+
+    /// A fresh profile in its own temp folder, with an import file holding `csv`.
+    fn import_fixture(name: &str, csv: &str) -> (AppState, std::path::PathBuf, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("vaultspend-import-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let state = AppState::open(dir.join("profile.db")).unwrap();
+        let file = dir.join("bank.csv");
+        std::fs::write(&file, csv).unwrap();
+        (state, file, dir)
+    }
+
+    fn checking(state: &AppState) -> i64 {
+        state.store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap()
+    }
+
+    const BANK_CSV: &str = "Date,Description,Amount,Category\n\
+        2026-01-05,SUNNY MARKET,-20.00,groceries\n\
+        2026-01-06,HOMEGOODS 123,-45.00,Merchandise\n\
+        2026-01-07,ZZQX UNKNOWABLE,-9.99,\n";
+
+    #[test]
+    fn the_preview_tells_the_screen_each_rows_match_guess_and_remembered_choice() {
+        let (state, file, dir) = import_fixture("preview-facts", BANK_CSV);
+        state.store.create_category("Groceries", None).unwrap();
+        state.store.create_category("Shopping", None).unwrap();
+        state.store.set_import_category_mapping("MERCHANDISE", "Shopping").unwrap();
+        let account = checking(&state);
+
+        let preview = preview_import_for(&state, file.to_str().unwrap(), false, account).unwrap();
+
+        assert_eq!(preview.rows[0].matched_category.as_deref(), Some("Groceries"));
+        assert!(preview.rows[0].suggestion.is_none());
+        assert_eq!(preview.rows[1].matched_category, None);
+        assert_eq!(preview.unmatched_categories.len(), 1);
+        assert_eq!(preview.unmatched_categories[0].remembered_category.as_deref(), Some("Shopping"));
+        assert_eq!(preview.rows[2].matched_category, None);
+        assert_eq!(preview.choice_below, budget_core::import_resolution::IMPORT_CHOICE_BELOW);
+        assert_eq!(preview.review_token.len(), 64);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_rule_suggestion_reaches_the_screen_as_rule_and_a_classifier_one_as_guess() {
+        let rule = SuggestionDto::from(budget_core::import_resolution::Suggestion {
+            category: "Dining".into(),
+            source: CategorySource::Rule,
+            confidence: None,
+        });
+        let guess = SuggestionDto::from(budget_core::import_resolution::Suggestion {
+            category: "Dining".into(),
+            source: CategorySource::Classifier,
+            confidence: Some(0.42),
+        });
+        let rule = serde_json::to_value(rule).unwrap();
+        let guess = serde_json::to_value(guess).unwrap();
+        assert_eq!(rule, serde_json::json!({"category": "Dining", "source": "rule", "confidence": null}));
+        assert_eq!(guess, serde_json::json!({"category": "Dining", "source": "guess", "confidence": 0.42}));
+    }
+
+    #[test]
+    fn previewing_an_import_changes_nothing() {
+        let (state, file, dir) = import_fixture("preview-read-only", BANK_CSV);
+        state.store.create_category("Groceries", None).unwrap();
+        let account = checking(&state);
+        let categories_before = state.store.list_categories().unwrap();
+        let today = chrono::Local::now().date_naive();
+        let accounts_before = state.store.list_accounts(today).unwrap().len();
+        let rules_before = format!("{:?}", state.store.load_rules().unwrap());
+
+        preview_import_for(&state, file.to_str().unwrap(), true, account).unwrap();
+
+        assert_eq!(state.store.list_categories().unwrap(), categories_before);
+        assert_eq!(state.store.list_accounts(today).unwrap().len(), accounts_before);
+        assert_eq!(format!("{:?}", state.store.load_rules().unwrap()), rules_before);
+        assert!(state.store.import_category_mappings().unwrap().is_empty());
+        assert!(state.store.all_transactions().unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_review_token_changes_when_the_file_changes() {
+        let (state, file, dir) = import_fixture("preview-token", BANK_CSV);
+        let account = checking(&state);
+        let first = preview_import_for(&state, file.to_str().unwrap(), false, account).unwrap().review_token;
+        let again = preview_import_for(&state, file.to_str().unwrap(), false, account).unwrap().review_token;
+        assert_eq!(first, again);
+        std::fs::write(&file, BANK_CSV.replace("SUNNY MARKET", "SUNNY MART")).unwrap();
+        let changed = preview_import_for(&state, file.to_str().unwrap(), false, account).unwrap().review_token;
+        assert_ne!(first, changed);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
