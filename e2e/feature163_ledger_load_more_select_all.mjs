@@ -9,7 +9,7 @@
 // Run with: node e2e/run-all.mjs --spec=163
 
 import assert from "node:assert/strict";
-import { chooseMenuOption, launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { chooseMenuOption, launchApp, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -41,21 +41,32 @@ async function invoke(command, args = {}) {
 }
 const renderedRows = () => browser.execute(() => document.querySelectorAll("table.ledger tbody tr[data-payment-row]").length);
 const shownLabel = async () => (await (await browser.$("[data-ledger-shown]")).getText()).trim();
-const selectedCount = async () => {
-  const el = await browser.$(".bulk-actions-count");
-  return (await el.isExisting()) ? (await el.getText()).trim() : "";
+// Read disappearing elements in one call. Between isExisting() and getText(), a completed change
+// can remove the bulk bar; WebDriver then implicitly waits for the old element to return.
+const selectedCount = () => browser.execute(() => document.querySelector(".bulk-actions-count")?.textContent?.trim() ?? "");
+const note = () => browser.execute(() => document.querySelector("[data-select-all-note]")?.textContent?.trim() ?? null);
+const selectAll = async () => {
+  const checkbox = await browser.$('[aria-label="Select all matching transactions"]');
+  const expected = !(await checkbox.isSelected());
+  await withFocusRetry(browser, async () => {
+    if ((await checkbox.isSelected()) === expected) return;
+    await checkbox.click();
+    await waitUntilOrDiagnose(browser, async () => (await checkbox.isSelected()) === expected, {
+      timeoutMsg: "Select all should toggle the batch selection",
+    });
+  });
 };
-const note = async () => {
-  const el = await browser.$("[data-select-all-note]");
-  return (await el.isExisting()) ? (await el.getText()).trim() : null;
-};
-const selectAll = async () => (await browser.$('[aria-label="Select all matching transactions"]')).click();
 const categorized = async () => (await invoke("list_transactions")).filter((t) => t.category === "Groceries").length;
 
 async function setCategoryForSelection() {
   const before = await categorized();
-  await chooseMenuOption(await browser.$('button[aria-label^="Set category to"]'), { value: "Groceries" });
-  await waitUntilOrDiagnose(browser, async () => (await selectedCount()) === "", { timeoutMsg: "the change should clear the selection" });
+  // Another test window can steal focus between locating an option and clicking it. Include the
+  // result in the focus-aware step; a click that WebDriver accepted may never reach the app.
+  await withFocusRetry(browser, async () => {
+    if ((await selectedCount()) === "") return; // the first attempt already applied the change
+    await chooseMenuOption(await browser.$('button[aria-label^="Set category to"]'), { value: "Groceries" });
+    await waitUntilOrDiagnose(browser, async () => (await selectedCount()) === "", { timeoutMsg: "the change should clear the selection" });
+  });
   return (await categorized()) - before;
 }
 
@@ -101,7 +112,7 @@ try {
   assert.equal(await categorized(), 600, "every row was changed exactly once across the three batches");
 
   // ---- 4. Ticking rows one by one stops at 250 ----------------------------------------------------
-  // 249 ticked through the page's own handler for speed, then the 250th and 251st by real clicks.
+  // 250 ticked through the page's own handler for speed, then the 251st by a real click.
   await (await browser.$("[data-ledger-show-more]")).click();
   await (await browser.$("[data-ledger-show-more]")).click();
   await (await browser.$("[data-ledger-show-more]")).click();
@@ -113,9 +124,11 @@ try {
   });
   await waitUntilOrDiagnose(browser, async () => (await selectedCount()) === "250 selected", { timeoutMsg: "250 rows ticked one by one" });
   const box251 = await browser.$("(//table[contains(@class,'ledger')]//tbody//tr[@data-payment-row]//td[contains(@class,'select-col')]//input[@type='checkbox'])[251]");
-  await box251.click();
-  await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.body.innerText)).includes("A change can apply to at most 250 transactions at a time."), {
-    timeoutMsg: "the 251st tick should be refused with a message",
+  await withFocusRetry(browser, async () => {
+    await box251.click();
+    await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.body.innerText)).includes("A change can apply to at most 250 transactions at a time."), {
+      timeoutMsg: "the 251st tick should be refused with a message",
+    });
   });
   assert.equal(await selectedCount(), "250 selected");
 
