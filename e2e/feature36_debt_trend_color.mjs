@@ -14,38 +14,45 @@
 //
 // Run with: node e2e/feature36_debt_trend_color.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { monthFromNow } from "./lib/dates.mjs";
+
+/** The debt tile's colour class, arrow text and arrow class, read together in one go. */
+async function readDebtTile(browser) {
+  return browser.execute(() => {
+    const tile = document.querySelector('[data-stat="debt"]');
+    const value = tile?.querySelector(".stat-value");
+    const delta = tile?.querySelector(".stat-delta");
+    return {
+      valueClass: value?.getAttribute("class") ?? null,
+      deltaText: delta?.textContent?.trim() ?? null,
+      deltaClass: delta?.getAttribute("class") ?? null,
+    };
+  });
+}
 
 async function checkDebtTile(dbDir, { expectClass, expectArrow, label }) {
   const app = await launchApp({ dbDir });
   try {
-    const stats = await app.browser.$$(".stat");
-    const debtTile = stats[2];
-    await debtTile.waitForExist({ timeout: 10000 });
-
-    const value = await debtTile.$(".stat-value");
-    // The tile exists before the report behind it has loaded; wait for the colour to settle.
-    await app.browser
-      .waitUntil(async () => (await value.getAttribute("class")).includes(expectClass), { timeout: 10000 })
-      .catch(() => {});
-    const valueClass = await value.getAttribute("class");
-    if (!valueClass.includes(expectClass)) {
-      throw new Error(`[${label}] expected debt value class to include "${expectClass}", got "${valueClass}"`);
-    }
-
-    const delta = await debtTile.$(".stat-delta");
-    const deltaText = await delta.getText();
-    if (!deltaText.startsWith(expectArrow)) {
-      throw new Error(`[${label}] expected debt delta to start with "${expectArrow}", got "${deltaText}"`);
-    }
-    const deltaClass = await delta.getAttribute("class");
     const expectDeltaClass = expectArrow === "▼" ? "up" : "down";
-    if (!deltaClass.includes(expectDeltaClass)) {
-      throw new Error(`[${label}] expected debt delta class to include "${expectDeltaClass}", got "${deltaClass}"`);
-    }
-    console.log(`[${label}] OK — value class "${valueClass}", delta "${deltaText}"`);
+    const settled = (t) =>
+      (t.valueClass ?? "").split(" ").includes(expectClass) &&
+      (t.deltaText ?? "").startsWith(expectArrow) &&
+      (t.deltaClass ?? "").split(" ").includes(expectDeltaClass);
+    // The tile appears before the six-month history behind it has loaded (the dashboard loads it
+    // separately), showing any debt in red with no arrow at all. That placeholder alone already
+    // matches the "growing" case's colour, so wait for the colour and the arrow together.
+    let last = null;
+    await waitUntilOrDiagnose(
+      app.browser,
+      async () => {
+        last = await readDebtTile(app.browser);
+        return settled(last);
+      },
+      { timeout: 15000, timeoutMsg: `[${label}] the debt tile never showed "${expectClass}" with a ${expectArrow} arrow`, extra: () => last },
+    );
+    console.log(`[${label}] OK — value class "${last.valueClass}", delta "${last.deltaText}"`);
   } finally {
     await app.close();
   }

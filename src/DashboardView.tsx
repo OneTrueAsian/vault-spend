@@ -600,6 +600,7 @@ export function DashboardView({
           expandedStat === "debt" ? "stat stat-hero tint-red stat-clickable stat-expanded" : "stat stat-hero tint-red stat-clickable"
         }
         onClick={() => toggleStat("debt")}
+        data-stat="debt"
       >
         <div className="stat-top">
           <span className="mini-ico mini-ico-plain">
