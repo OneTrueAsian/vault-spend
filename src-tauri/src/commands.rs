@@ -995,7 +995,7 @@ pub struct AppState {
     /// The last import preview's per-row results, so `commit_import` settles the rows exactly as
     /// the review screen showed them (and runs the categorizer once, not twice). Only ever set
     /// here by `preview_import`; the screen can't supply it.
-    pub import_review: Option<ImportReview>,
+    pub import_review: Option<Box<ImportReview>>,
 }
 
 /// One import preview, as `commit_import` reuses it: the file's review token and each row's facts.
@@ -1469,10 +1469,10 @@ fn preview_import_for(state: &mut AppState, path: &str, invert_amounts: bool, ac
         import_resolution::row_facts(&state.store, &loaded.transactions, &state.rules, &history, Some(&classifier)).map_err(|e| e.to_string())?;
     let remembered = state.store.import_category_mappings().map_err(|e| e.to_string())?;
     let review_token = import_resolution::review_token(&loaded);
-    state.import_review = Some(ImportReview {
+    state.import_review = Some(Box::new(ImportReview {
         token: review_token.clone(),
         facts: facts.clone(),
-    });
+    }));
 
     let rows = loaded
         .transactions
@@ -5313,7 +5313,7 @@ mod tests {
         2026-01-07,QQXZ UNKNOWABLE,-9.99,\n";
 
     fn review_state(name: &str, csv: &str) -> (AppState, std::path::PathBuf, std::path::PathBuf, i64) {
-        let (mut state, file, dir) = import_fixture(name, csv);
+        let (state, file, dir) = import_fixture(name, csv);
         for c in ["Groceries", "Shopping", "Home", "Dining"] {
             state.store.create_category(c, None).unwrap();
         }
