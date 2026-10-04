@@ -175,8 +175,21 @@ try {
     await browser.waitUntil(async () => (await browser.$$("[data-acc-chart] .chart-tooltip-text")).length >= 1, { timeout: 5000, timeoutMsg: "Home on the focused chart should show the tooltip for its first point" });
     const firstTitle = await text(browser, "[data-acc-chart] .chart-tooltip-title");
     await browser.keys("ArrowRight");
-    await browser.waitUntil(async () => (await text(browser, "[data-acc-chart] .chart-tooltip-title")) !== firstTitle, { timeout: 5000, timeoutMsg: "ArrowRight should move the tooltip to the next point" });
-    const live = await browser.execute(() => document.querySelector("[data-acc-chart] [data-chart-live]")?.textContent ?? "");
+    // The tooltip and the announcement are read in one call: the chart clears both when it loses focus, so a
+    // separate read could catch an empty announcement after another window took focus, which isn't an error
+    // the retry would see. Losing focus before both show times this wait out, and the sequence is retried.
+    let live = "";
+    await browser.waitUntil(
+      async () => {
+        const now = await browser.execute(() => ({
+          title: document.querySelector("[data-acc-chart] .chart-tooltip-title")?.textContent ?? "",
+          live: document.querySelector("[data-acc-chart] [data-chart-live]")?.textContent ?? "",
+        }));
+        live = now.live;
+        return now.title !== "" && now.title !== firstTitle && now.live !== "";
+      },
+      { timeout: 5000, timeoutMsg: "ArrowRight should move the tooltip to the next point and announce it" },
+    );
     await browser.keys("Escape");
     await browser.waitUntil(async () => (await browser.$$("[data-acc-chart] .chart-tooltip-text")).length === 0, { timeout: 5000, timeoutMsg: "Escape should put the tooltip away" });
     return live;
