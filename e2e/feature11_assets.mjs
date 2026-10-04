@@ -108,7 +108,7 @@ try {
   await confirmDeleteBtn.click();
 
   await app.browser.waitUntil(
-    async () => (await propertySection.getText()).includes("No property or valuables tracked yet"),
+    async () => (await propertySection.getText()).includes("No property or valuables added yet"),
     { timeout: 10000, timeoutMsg: "expected the asset to be gone after delete" },
   );
 

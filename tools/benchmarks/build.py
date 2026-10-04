@@ -297,14 +297,14 @@ def assemble(config, cache_dir):
             cell = dict(cell, sheet=sheet)
             if cell["value"] is MISSING:
                 suppressed.append({"definitionId": definition, "ageMin": cell["ageMin"],
-                                   "ageMax": cell["ageMax"], "reason": "suppressed or not published by the source"})
+                                   "ageMax": cell["ageMax"], "reason": "suppressed or not released by the source"})
                 continue
             records.append(_record(by_id[src_id], metric, mode, definition, population, universe, stat,
                                    unit, period, basis, cell, note))
 
     income_basis = {"kind": "month", "period": "2025-07"}
     income_note = ("Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the "
-                   "October 2025 CPI was never published, so no complete annual average exists.")
+                   "October 2025 CPI was never released, so no complete annual average exists.")
 
     def as_cells(rows):
         return [{"ageMin": r["ageMin"], "ageMax": r["ageMax"], "label": r["label"], "value": r["median"],

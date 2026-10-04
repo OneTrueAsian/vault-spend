@@ -88,7 +88,7 @@ describe("HelpView", () => {
 
     expect(text).toContain("How do the age-based comparisons in Reports work?");
     expect(text).toContain("Income is before tax");
-    expect(text).toContain("which published age group");
+    expect(text).toContain("which survey age group");
     expect(text).toContain("past surveys");
     expect(text).toContain("nothing is substituted");
     expect(text).toContain("Your details");

@@ -318,7 +318,7 @@ const INTENTS: Intent[] = [
       const total = ctx.accounts
         .filter((a) => groupOf(a.account_type) === "credit" || groupOf(a.account_type) === "loan")
         .reduce((s, a) => s + owedAmount(a), 0);
-      return total > 0 ? `You owe ${formatAmount(total)} in total.` : "You have no debt tracked — nice.";
+      return total > 0 ? `You owe ${formatAmount(total)} in total.` : "You have no debt in Vault Spend — nice.";
     },
   },
   {
@@ -335,7 +335,7 @@ const INTENTS: Intent[] = [
     pattern: /(?:how much (?:are|is)|what (?:are|is)) my (?:subscriptions|recurring bills|recurring)|how much do i spend on (?:subscriptions|recurring bills)/,
     handle: (_m, ctx) => {
       const bills = ctx.recurring.filter((r) => parseFloat(r.amount) < 0);
-      if (bills.length === 0) return "No recurring bills tracked yet.";
+      if (bills.length === 0) return "No recurring bills set up yet.";
       const total = bills.reduce((s, r) => s + monthlyEquivalent(r), 0);
       return `Your recurring bills add up to about ${formatAmount(total)}/mo, across ${bills.length} recurring bill${bills.length === 1 ? "" : "s"}.`;
     },
@@ -344,7 +344,7 @@ const INTENTS: Intent[] = [
     pattern: /when is my next bill due|what'?s due soon|when'?s my next bill/,
     handle: (_m, ctx) => {
       const bills = ctx.recurring.filter((r) => parseFloat(r.amount) < 0).sort((a, b) => (a.next_date < b.next_date ? -1 : 1));
-      if (bills.length === 0) return "No recurring bills tracked yet.";
+      if (bills.length === 0) return "No recurring bills set up yet.";
       const next = bills[0];
       return `Your next bill is ${next.merchant} for ${formatAmount(next.amount)} on ${next.next_date}.`;
     },

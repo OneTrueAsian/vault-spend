@@ -271,7 +271,7 @@ export function ComparisonDetailsDialog({
             tell you what share of people are above or below you.
           </p>
           <p>
-            Published figures describe a past period, so they are brought up to the latest prices on file using the Consumer Price Index. That adjusts for
+            The official figures describe a past period, so they are brought up to the latest prices on file using the Consumer Price Index. That adjusts for
             inflation; it does not make an old survey a current one. Everything is calculated on this computer; nothing about you is sent anywhere.
           </p>
         </section>

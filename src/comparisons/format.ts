@@ -100,13 +100,13 @@ export function cardNotice(result: ComparisonCardResult): CardNotice | null {
     case "approximate":
       return {
         title: "Approximate",
-        body: "No published age group matches exactly, so the nearest published group is shown. Treat the difference as a rough guide.",
+        body: "No age group in the official figures matches exactly, so the nearest one is shown. Treat the difference as a rough guide.",
         tone: "warning",
       };
     case "cohort_choice_required":
       return {
         title: "Choose the age group to compare with",
-        body: "The age range you entered spans more than one published group. Pick the one to use for this comparison.",
+        body: "The age range you entered covers more than one age group in the official figures. Pick the one to use for this comparison.",
         tone: "info",
       };
     case "incomplete":
@@ -136,17 +136,17 @@ export function cardNotice(result: ComparisonCardResult): CardNotice | null {
         };
       }
       if (has("no_matching_age_benchmark")) {
-        return { title: "No matching age benchmark", body: "No published figure covers your age group.", tone: "info" };
+        return { title: "No matching age benchmark", body: "No official figure covers your age group.", tone: "info" };
       }
       if (has("unit_mismatch")) {
-        return { title: "Different kinds of figure", body: "Your figure and the published one are not measured the same way.", tone: "info" };
+        return { title: "Different kinds of figure", body: "Your figure and the official one are not measured the same way.", tone: "info" };
       }
       if (has("cpi_unavailable")) {
-        return { title: "Cannot adjust for inflation", body: "The price data needed to bring the published figure up to date is missing.", tone: "info" };
+        return { title: "Cannot adjust for inflation", body: "The price data needed to bring the official figure up to date is missing.", tone: "info" };
       }
       return {
         title: "No matching benchmark",
-        body: "No published figure for this is included in the reference data, so nothing is substituted.",
+        body: "No official figure for this is included in the reference data, so nothing is substituted.",
         tone: "info",
       };
     case "missing_input":

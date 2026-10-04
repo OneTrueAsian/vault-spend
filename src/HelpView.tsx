@@ -326,7 +326,7 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         bills/income, each showing its next expected date and editable in
         place. A <strong>Suggested</strong> section above it auto-detects
         merchant/amount pairs in your transactions that look recurring but aren't
-        tracked yet, so you can add them with one click instead of typing
+        on your list yet, so you can add them with one click instead of typing
         them in by hand. Each bill is also checked against your transactions:
         it shows when a matching charge has posted, flags a bill that looks{" "}
         <strong>missed</strong>, and calls out a <strong>price change</strong>{" "}
@@ -831,14 +831,14 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <>
         <p>
           <strong>Reports → Comparisons</strong> lines your income, savings, investments, debt and household spending up
-          against figures published by public surveys for people your age. You enter an exact age or an age range once; each card then
-          says which published age group and which people it describes, because every survey draws its own groups. Where
-          your range spans several published groups you pick the one to compare with, and where none matches a
+          against official figures from public surveys for people your age. You enter an exact age or an age range once; each card then
+          says which survey age group and which people it describes, because every survey draws its own groups. Where
+          your range covers several survey age groups you pick the one to compare with, and where none matches a
           closely-related group is used only with a clear Approximate warning.
         </p>
         <p>
-          <strong>Income is before tax.</strong> Published incomes are gross, so you type your own; Vault Spend never
-          guesses it from your take-home pay. Savings, investments and debt come from your tracked accounts once you
+          <strong>Income is before tax.</strong> The official incomes are before tax too, so you type your own; Vault Spend never
+          guesses it from your take-home pay. Savings, investments and debt come from your accounts in Vault Spend once you
           confirm they are complete, and you can classify accounts or enter a total yourself in the{" "}
           <strong>Your details</strong> panel under the cards on that same page.
         </p>
@@ -848,8 +848,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
           to the typical pay of people their age.
         </p>
         <p>
-          The published figures are medians or averages from past surveys, brought up to the latest prices on file. The
-          difference shown is how far you are from that figure, not where you rank. Some published figures only describe
+          The official figures are middle values or averages from past surveys, brought up to the latest prices on file. The
+          difference shown is how far you are from that figure, not where you rank. Some official figures only describe
           people who hold the item (a retirement account, a mortgage), and those are labelled; if you hold none, the
           card says it is not comparable instead of comparing you with zero. When the reference data has no figure for a
           comparison, its card says so and nothing is substituted. Everything is calculated on your computer; nothing you enter is sent
@@ -957,8 +957,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <p>
         The Recurring tab's "Suggested" section looks for a merchant and
         amount that's repeated at least 3 times on a roughly consistent
-        schedule (weekly, biweekly, monthly, or annual) but isn't tracked
-        yet. Add it with one click to start it, or dismiss it if it's not
+        schedule (weekly, biweekly, monthly, or annual) but isn't on
+        your list yet. Add it with one click to start it, or dismiss it if it's not
         actually recurring — a dismissed suggestion won't reappear.
       </p>
     ),

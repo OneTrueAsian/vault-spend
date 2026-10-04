@@ -100,7 +100,7 @@ describe("labels", () => {
 describe("card notices", () => {
   it("says a gap is what the reference data lacks, never that no source publishes it", () => {
     const body = cardNotice(result("unavailable", [{ code: "no_benchmark" }]))?.body ?? "";
-    expect(body).toBe("No published figure for this is included in the reference data, so nothing is substituted.");
+    expect(body).toBe("No official figure for this is included in the reference data, so nothing is substituted.");
     expect(body).not.toMatch(/do not publish/);
   });
 

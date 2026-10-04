@@ -219,7 +219,7 @@ export function PropertyAssetsSection({
           {assets.length === 0 && (
             <tr>
               <td colSpan={6} className="empty-state">
-                No property or valuables tracked yet.
+                No property or valuables added yet.
               </td>
             </tr>
           )}

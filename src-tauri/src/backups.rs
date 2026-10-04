@@ -171,7 +171,7 @@ fn publish_with_checkpoints(staged_db: &Path, final_db: &Path, after_key: &str, 
     let staged_key = budget_core::protection::keyfile::key_file_path_for(staged_db);
     let final_key = budget_core::protection::keyfile::key_file_path_for(final_db);
     if final_db.exists() || final_key.exists() {
-        return Err(format!("{} already exists, so the backup was not published over it", final_db.display()));
+        return Err(format!("{} already exists, so the new backup was not saved over it", final_db.display()));
     }
     let has_key = staged_key.exists();
     flush_to_disk(staged_db);
