@@ -12,7 +12,7 @@ import { CHANGELOG } from "./changelog";
 import { THEME_STORAGE_KEY, THEME_STYLE_STORAGE_KEY, applyAppearancePrefs, readStoredAppearancePrefs, readThemeStyle, saveAppearancePrefs, type AppearancePrefs } from "./themeBootstrap";
 import { AddWidgetDialog, CategoryTransactionsDialog, ConfirmInvertDialog, CsvExportWarningDialog, ManageCategoriesDialog, ManageFamilyMembersDialog, MonthExpenseDetailDialog, NewAccountDialog, NewCategoryDialog, NewTransactionDialog, TransferReviewDialog, AutoLinkedReviewDialog, ChooseExistingDataSourceDialog, SwitchToProtectedProfileDialog, UseExistingDataFileDialog, WelcomeDialog, WhatsNewDialog } from "./Modal";
 import { TransactionNotesDialog } from "./TransactionNotesDialog";
-import { flipConfirmText, importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
+import { importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
 import { DEFAULT_LAYOUT, loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 import { lockCurrentProfile, unlockProfile } from "./protection";
@@ -39,7 +39,6 @@ import { monthReviewDue } from "./monthReview";
 import { loadPrivacyPrefs, savePrivacyPrefs, startPrivacyMask, type PrivacyPrefs } from "./privacy";
 import { distinctMerchants, similarOfferText } from "./similarRules";
 import { canLinkAsTransfer, collapseTransferPairs } from "./transfers";
-import { CADENCE_OPTIONS } from "./cadence";
 
 import { UpdateBanner } from "./UpdateBanner";
 import { NavIcon, CategoryIcon } from "./icons";
@@ -63,6 +62,7 @@ import { CATEGORY_SOURCE_LABELS, NAV_GROUP_LABELS, NAV_GROUP_ORDER, NAV_ITEMS, P
 import { LedgerSavedFilters } from "./LedgerSavedFilters";
 import { useLedgerFilters } from "./useLedgerFilters";
 
+import { LedgerBulkActions } from "./LedgerBulkActions";
 import { LedgerFilterBar } from "./LedgerFilterBar";
 import { SetupImportReviewPanel } from "./SetupImportReviewPanel";
 import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
@@ -3764,102 +3764,27 @@ function App({
             </p>
           )}
           {activeTab === "ledger" && selectedIds.size > 0 && (
-            <div className="bulk-actions-bar">
-      <span className="bulk-actions-count">{selectedIds.size} selected</span>
-      <MenuSelect
-        ariaLabel="Set category to…"
-        placeholder="Set category to…"
-        value={""}
-        onChange={(v) => handleBulkCategoryChange(v)}
-        options={[
-          ...categoryOptions.map((c) => ({ value: c, label: c })),
-          { value: "__new__", label: "+ New category…" },
-        ]}
-      />
-      <MenuSelect
-        ariaLabel="Add to Recurring…"
-        placeholder="Add to Recurring…"
-        value={""}
-        onChange={(v) => handleAddSelectedToRecurring(v)}
-        options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
-      />
-      {familyMembers.length > 0 && (
-        <MenuSelect
-          ariaLabel="Set member to…"
-          placeholder="Set member to…"
-          value={""}
-          onChange={(v) => handleBulkMemberChange(v)}
-          options={[
-            { value: "__none__", label: "Unassigned" },
-            ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
-          ]}
-        />
-      )}
-      <span className="bulk-tag-input">
-        <input
-          list="known-tags"
-          placeholder="+ Add tag…"
-          value={bulkTagText}
-          onChange={(e) => setBulkTagText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleBulkAddTag(bulkTagText);
-            }
-          }}
-        />
-        <button type="button" className="modal-secondary" disabled={!bulkTagText.trim()} onClick={() => handleBulkAddTag(bulkTagText)}>
-          Add tag
-        </button>
-      </span>
-      {confirmingBulkDelete ? (
-        <span className="row-delete-confirm">
-          <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(false)}>
-            Cancel
-          </button>
-          <button type="button" className="btn-danger" onClick={handleBulkDelete}>
-            Delete {selectedIds.size}
-          </button>
-        </span>
-      ) : (
-        <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(true)}>
-          Delete selected
-        </button>
-      )}
-      {confirmingBulkFlip ? (
-        <span className="row-delete-confirm" data-flip-signs-confirm>
-          <span>{flipConfirmText(selectedIds.size, selectedAccountNames)}</span>
-          <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkFlip(false)}>
-            Cancel
-          </button>
-          <button type="button" onClick={handleBulkFlipSigns}>
-            Flip {selectedIds.size}
-          </button>
-        </span>
-      ) : (
-        <button
-          type="button"
-          className="modal-secondary"
-          onClick={() => setConfirmingBulkFlip(true)}
-          title="For rows imported the wrong way round: money out becomes money in and the other way round"
-        >
-          Flip signs…
-        </button>
-      )}
-      {selectedPairForLink && (
-        <button
-          type="button"
-          className="modal-secondary"
-          onClick={handleLinkSelectedAsTransfer}
-          title="These two look like the two sides of one move between your own accounts"
-        >
-          Link as transfer
-        </button>
-      )}
-      <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
-        Clear selection
-      </button>
-    </div>
+            <LedgerBulkActions
+              selectedIds={selectedIds}
+              handleBulkCategoryChange={handleBulkCategoryChange}
+              categoryOptions={categoryOptions}
+              handleAddSelectedToRecurring={handleAddSelectedToRecurring}
+              familyMembers={familyMembers}
+              handleBulkMemberChange={handleBulkMemberChange}
+              bulkTagText={bulkTagText}
+              setBulkTagText={setBulkTagText}
+              handleBulkAddTag={handleBulkAddTag}
+              confirmingBulkDelete={confirmingBulkDelete}
+              setConfirmingBulkDelete={setConfirmingBulkDelete}
+              handleBulkDelete={handleBulkDelete}
+              confirmingBulkFlip={confirmingBulkFlip}
+              selectedAccountNames={selectedAccountNames}
+              setConfirmingBulkFlip={setConfirmingBulkFlip}
+              handleBulkFlipSigns={handleBulkFlipSigns}
+              selectedPairForLink={selectedPairForLink}
+              handleLinkSelectedAsTransfer={handleLinkSelectedAsTransfer}
+              setSelectedIds={setSelectedIds}
+            />
           )}
 
           {activeTab === "ledger" && (
