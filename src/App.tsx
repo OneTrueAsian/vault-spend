@@ -30,7 +30,6 @@ import { SortableTh } from "./SortableTh";
 import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel } from "./ledgerPaging";
 import { SELECT_ALL_CAP, canSelectMore, isBatchSelected, selectAllNext, selectAllNote, unselectBatch, type SelectAllBatch } from "./ledgerSelection";
 
-import { AccountDestinationDropdown } from "./AccountDestinationDropdown";
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
 import type { PaletteEntry } from "./paletteSearch";
@@ -62,6 +61,7 @@ import { CATEGORY_SOURCE_LABELS, NAV_GROUP_LABELS, NAV_GROUP_ORDER, NAV_ITEMS, P
 import { LedgerSavedFilters } from "./LedgerSavedFilters";
 import { useLedgerFilters } from "./useLedgerFilters";
 
+import { AppTopBar } from "./AppTopBar";
 import { LedgerBulkActions } from "./LedgerBulkActions";
 import { LedgerFilterBar } from "./LedgerFilterBar";
 import { SetupImportReviewPanel } from "./SetupImportReviewPanel";
@@ -3455,120 +3455,30 @@ function App({
       </aside>
 
       <div className="main" ref={mainScrollRef}>
-        <header className="topbar">
-      <div>
-        <h1>Vault Spend</h1>
-        <p className="subtitle">Own your Data, Own your Money!</p>
-      </div>
-      <div className="topbar-actions">
-        <button
-          type="button"
-          className={privacyPrefs.hidden ? "privacy-toggle privacy-toggle-on" : "privacy-toggle"}
-          data-privacy-toggle
-          aria-pressed={privacyPrefs.hidden}
-          title={privacyPrefs.hidden ? "Amounts are hidden — click to show them" : "Hide every dollar amount on screen"}
-          onClick={() => setPrivacyPrefs((p) => ({ ...p, hidden: !p.hidden }))}
-        >
-          {privacyPrefs.hidden ? "Show amounts" : "Hide amounts"}
-        </button>
-        <div className="theme-toggle" role="group" aria-label="Theme">
-          {(["light", "dark", "system"] as Theme[]).map((t) => (
-            <button key={t} className={theme === t ? "theme-toggle-active" : ""} onClick={() => setTheme(t)}>
-              {t[0].toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-        {activeTab === "ledger" && (
-          <div className="import-controls">
-            <label
-              className="import-controls-label"
-              htmlFor="ledger-account-select"
-              title="The account that Import transactions… and Add transaction… start on"
-            >
-              Add to
-            </label>
-            <AccountDestinationDropdown
+        <AppTopBar
+              privacyPrefs={privacyPrefs}
+              setPrivacyPrefs={setPrivacyPrefs}
+              theme={theme}
+              setTheme={setTheme}
+              activeTab={activeTab}
               accounts={accounts}
-              value={selectedAccountId}
-              onChange={handleAccountSelectChange}
-              disabled={busy || importReview.pendingImport !== null || !dataLoaded}
-              emptyLabel={dataLoaded ? undefined : "Loading…"}
+              selectedAccountId={selectedAccountId}
+              handleAccountSelectChange={handleAccountSelectChange}
+              busy={busy}
+              importReview={importReview}
+              dataLoaded={dataLoaded}
+              handleImport={handleImport}
+              setNewTransactionOpen={setNewTransactionOpen}
+              moreMenuRef={moreMenuRef}
+              setMoreMenuOpen={setMoreMenuOpen}
+              moreMenuOpen={moreMenuOpen}
+              moreMenuShouldRender={moreMenuShouldRender}
+              moreMenuClosing={moreMenuClosing}
+              openManageCategories={openManageCategories}
+              openManageFamilyMembers={openManageFamilyMembers}
+              handleRecategorize={handleRecategorize}
+              handleExportLedgerCsv={handleExportLedgerCsv}
             />
-            <button onClick={handleImport} disabled={busy || importReview.pendingImport !== null || !dataLoaded}>
-              {busy ? "Importing…" : "Import transactions…"}
-            </button>
-            <button
-              className="modal-secondary"
-              onClick={() => setNewTransactionOpen(true)}
-              disabled={busy || importReview.pendingImport !== null || !dataLoaded}
-            >
-              Add transaction…
-            </button>
-            <div className="more-menu" ref={moreMenuRef}>
-              <button
-                type="button"
-                className="modal-secondary btn-icon"
-                onClick={() => setMoreMenuOpen((v) => !v)}
-                disabled={busy || importReview.pendingImport !== null || !dataLoaded}
-                aria-label="More actions"
-                title="More actions"
-                aria-haspopup="true"
-                aria-expanded={moreMenuOpen}
-              >
-                ⋯
-              </button>
-              {moreMenuShouldRender && (
-                <div className={moreMenuClosing ? "more-menu-panel more-menu-panel-closing" : "more-menu-panel"}>
-                  <button
-                    type="button"
-                    className="more-menu-item"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      openManageCategories();
-                    }}
-                  >
-                    Manage categories…
-                  </button>
-                  <button
-                    type="button"
-                    className="more-menu-item"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      openManageFamilyMembers();
-                    }}
-                  >
-                    Manage family members…
-                  </button>
-                  <div className="more-menu-divider"></div>
-                  <button
-                    type="button"
-                    className="more-menu-item"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      handleRecategorize();
-                    }}
-                    title="Re-run categorization on every Uncategorized transaction using what's been learned so far"
-                  >
-                    Categorize uncategorized
-                  </button>
-                  <div className="more-menu-divider"></div>
-                  <button
-                    type="button"
-                    className="more-menu-item"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      handleExportLedgerCsv();
-                    }}
-                  >
-                    Export CSV…
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </header>
 
         <div className={activeTab === "ledger" ? "page page-ledger" : "page"} role="main">
 
