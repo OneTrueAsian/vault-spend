@@ -1,3 +1,4 @@
+import "./Rules.css";
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { openUrl } from "@tauri-apps/plugin-opener";

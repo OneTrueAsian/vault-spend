@@ -1,3 +1,35 @@
+// Eager stylesheet modules keep the original cascade and prevent lazy views from reloading base rules.
+import "./App.css";
+import "./AppShell.css";
+import "./SharedButtons.css";
+import "./SharedCards.css";
+import "./AccountsCards.css";
+import "./BudgetAndGoals.css";
+import "./DashboardCards.css";
+import "./Ledger.css";
+import "./Rules.css";
+import "./FirstRunChecklist.css";
+import "./Modal.css";
+import "./AppResponsive.css";
+import "./CashFlowCharts.css";
+import "./AccumulationSection.css";
+import "./LaunchErrorScreen.css";
+import "./ProfileAccess.css";
+import "./ProtectionSetupDialog.css";
+import "./SharedControls.css";
+import "./AppliedPaymentDetails.css";
+import "./LegalNotice.css";
+import "./MenuSelect.css";
+import "./themes/retro.css";
+import "./themes/futuristic.css";
+import { LedgerSavedFilters } from "./LedgerSavedFilters";
+import { useLedgerFilters } from "./useLedgerFilters";
+import { LedgerTable } from "./LedgerTable";
+import { AppTopBar } from "./AppTopBar";
+import { LedgerBulkActions } from "./LedgerBulkActions";
+import { LedgerFilterBar } from "./LedgerFilterBar";
+import { SetupImportReviewPanel } from "./SetupImportReviewPanel";
+import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { pickDefaultAccountId } from "./accountGroups";
@@ -9,11 +41,43 @@ import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
 import { toCsv } from "./csv";
 import { buildSetupTemplate } from "./setupTemplate";
 import { CHANGELOG } from "./changelog";
-import { THEME_STORAGE_KEY, THEME_STYLE_STORAGE_KEY, applyAppearancePrefs, readStoredAppearancePrefs, readThemeStyle, saveAppearancePrefs, type AppearancePrefs } from "./themeBootstrap";
-import { AddWidgetDialog, CategoryTransactionsDialog, ConfirmInvertDialog, CsvExportWarningDialog, ManageCategoriesDialog, ManageFamilyMembersDialog, MonthExpenseDetailDialog, NewAccountDialog, NewCategoryDialog, NewTransactionDialog, TransferReviewDialog, AutoLinkedReviewDialog, ChooseExistingDataSourceDialog, SwitchToProtectedProfileDialog, UseExistingDataFileDialog, WelcomeDialog, WhatsNewDialog } from "./Modal";
+import {
+  THEME_STORAGE_KEY,
+  THEME_STYLE_STORAGE_KEY,
+  applyAppearancePrefs,
+  readStoredAppearancePrefs,
+  readThemeStyle,
+  saveAppearancePrefs,
+  type AppearancePrefs,
+} from "./themeBootstrap";
+import {
+  AddWidgetDialog,
+  CategoryTransactionsDialog,
+  ConfirmInvertDialog,
+  CsvExportWarningDialog,
+  ManageCategoriesDialog,
+  ManageFamilyMembersDialog,
+  MonthExpenseDetailDialog,
+  NewAccountDialog,
+  NewCategoryDialog,
+  NewTransactionDialog,
+  TransferReviewDialog,
+  AutoLinkedReviewDialog,
+  ChooseExistingDataSourceDialog,
+  SwitchToProtectedProfileDialog,
+  UseExistingDataFileDialog,
+  WelcomeDialog,
+  WhatsNewDialog,
+} from "./Modal";
 import { TransactionNotesDialog } from "./TransactionNotesDialog";
 import { importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
-import { DEFAULT_LAYOUT, loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
+import {
+  DEFAULT_LAYOUT,
+  loadDashboardLayout,
+  parseWidgetId,
+  saveDashboardLayout,
+  type WidgetId,
+} from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 import { lockCurrentProfile, unlockProfile } from "./protection";
 import { hasObservableUnsavedInput } from "./unsavedInput";
@@ -24,8 +88,18 @@ import { usePaymentSource } from "./usePaymentSource";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
 
+import { ImportReviewPanel } from "./ImportReviewPanel";
+import { useImportReview } from "./useImportReview";
 import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel } from "./ledgerPaging";
-import { SELECT_ALL_CAP, canSelectMore, isBatchSelected, selectAllNext, selectAllNote, unselectBatch, type SelectAllBatch } from "./ledgerSelection";
+import {
+  SELECT_ALL_CAP,
+  canSelectMore,
+  isBatchSelected,
+  selectAllNext,
+  selectAllNote,
+  unselectBatch,
+  type SelectAllBatch,
+} from "./ledgerSelection";
 
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
@@ -35,38 +109,6 @@ import { monthReviewDue } from "./monthReview";
 import { loadPrivacyPrefs, savePrivacyPrefs, startPrivacyMask, type PrivacyPrefs } from "./privacy";
 import { distinctMerchants, similarOfferText } from "./similarRules";
 import { canLinkAsTransfer, collapseTransferPairs } from "./transfers";
-
-import { UpdateBanner } from "./UpdateBanner";
-import { NavIcon } from "./icons";
-import { formatAmount, toLocalIsoDate } from "./format";
-import { summarizeLivePriceRefresh } from "./livePriceStatus";
-import { useAutoCancelDelete } from "./useAutoCancelDelete";
-import { useDelayedVisibility } from "./useDelayedVisibility";
-import { DataLoading } from "./DataLoading";
-
-import { ensureUiStateMigrated, getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
-import type { Account, AllocationTarget, AnomalyFlag, BackgroundSettings, AppSettings, Asset, Backup, Bucket, BudgetAlert, BudgetSuggestions, CashFlow, MonthReview, CategoryAmount, CategoryIconEntry, CategoryTransaction, DebtPayoffPlan, FamilyMember, BillAwareForecast, Holding, AccountContributionDelta, Insight, LivePriceProviderId, LivePriceRefreshSummary, LivePriceSettings, MemberBudgetActual, MonthExpenseDetail, NetWorthPoint, Profile, PortfolioPoint, Recurring, RecurringCandidate, RecurringMatch, RecurringTotals, Report, ReportBudgetLine, MaintenanceSummary, SetupImportPreview, SetupImportSummary, SinkingFundContribution, ThemeStyle, Transaction, TransactionSplit, YoyCashFlow } from "./types";
-import "./App.css";
-import "./themes/futuristic.css";
-import { MenuSelect } from "./MenuSelect";
-import { errorMessage } from "./errorMessage";
-import { sumMoney } from "./money";
-import { StatusBanner } from "./StatusBanner";
-import { compareTransactionsBy } from "./ledgerHelpers";
-import { NAV_ORDER_STORAGE_KEY, getLastUsedAccountId, loadLedgerDensity, loadNavOrder, setLastUsedAccountId, type LedgerDensity } from "./appStorage";
-import { NAV_GROUP_LABELS, NAV_GROUP_ORDER, NAV_ITEMS, PINNED_NAV_ITEMS, UNCATEGORIZED_FILTER, type LedgerSortColumn, type NewAccountResult, type PendingDialog, type Stats, type StatusKind, type Tab, type Theme } from "./appTypes";
-import { LedgerSavedFilters } from "./LedgerSavedFilters";
-import { useLedgerFilters } from "./useLedgerFilters";
-import { LedgerTable } from "./LedgerTable";
-import { AppTopBar } from "./AppTopBar";
-import { LedgerBulkActions } from "./LedgerBulkActions";
-import { LedgerFilterBar } from "./LedgerFilterBar";
-import { SetupImportReviewPanel } from "./SetupImportReviewPanel";
-import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
-import { ImportReviewPanel } from "./ImportReviewPanel";
-import { useImportReview } from "./useImportReview";
-// Eager stylesheet modules keep the original cascade and prevent lazy views from reloading base rules.
-
 // Each tab view is its own chunk, loaded only the first time its tab is
 // actually opened, instead of every tab's code shipping in the one
 // startup bundle regardless of whether the user ever visits it.
@@ -81,6 +123,88 @@ const HouseholdView = lazy(() => import("./HouseholdView").then((m) => ({ defaul
 const CashFlowView = lazy(() => import("./CashFlowView").then((m) => ({ default: m.CashFlowView })));
 const DashboardView = lazy(() => import("./DashboardView").then((m) => ({ default: m.DashboardView })));
 const HelpView = lazy(() => import("./HelpView").then((m) => ({ default: m.HelpView })));
+
+import { UpdateBanner } from "./UpdateBanner";
+import { NavIcon } from "./icons";
+import { formatAmount, toLocalIsoDate } from "./format";
+import { summarizeLivePriceRefresh } from "./livePriceStatus";
+import { useAutoCancelDelete } from "./useAutoCancelDelete";
+import { useDelayedVisibility } from "./useDelayedVisibility";
+import { DataLoading } from "./DataLoading";
+
+import { ensureUiStateMigrated, getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
+import type {
+  Account,
+  AllocationTarget,
+  AnomalyFlag,
+  BackgroundSettings,
+  AppSettings,
+  Asset,
+  Backup,
+  Bucket,
+  BudgetAlert,
+  BudgetSuggestions,
+  CashFlow,
+  MonthReview,
+  CategoryAmount,
+  CategoryIconEntry,
+  CategoryTransaction,
+  DebtPayoffPlan,
+  FamilyMember,
+  BillAwareForecast,
+  Holding,
+  AccountContributionDelta,
+  Insight,
+  LivePriceProviderId,
+  LivePriceRefreshSummary,
+  LivePriceSettings,
+  MemberBudgetActual,
+  MonthExpenseDetail,
+  NetWorthPoint,
+  Profile,
+  PortfolioPoint,
+  Recurring,
+  RecurringCandidate,
+  RecurringMatch,
+  RecurringTotals,
+  Report,
+  ReportBudgetLine,
+  MaintenanceSummary,
+  SetupImportPreview,
+  SetupImportSummary,
+  SinkingFundContribution,
+  ThemeStyle,
+  Transaction,
+  TransactionSplit,
+  YoyCashFlow,
+} from "./types";
+import { MenuSelect } from "./MenuSelect";
+import { errorMessage } from "./errorMessage";
+import { sumMoney } from "./money";
+import { StatusBanner } from "./StatusBanner";
+import { compareTransactionsBy } from "./ledgerHelpers";
+import {
+  NAV_ORDER_STORAGE_KEY,
+  getLastUsedAccountId,
+  loadLedgerDensity,
+  loadNavOrder,
+  setLastUsedAccountId,
+  type LedgerDensity,
+} from "./appStorage";
+import {
+  NAV_GROUP_LABELS,
+  NAV_GROUP_ORDER,
+  NAV_ITEMS,
+  PINNED_NAV_ITEMS,
+  UNCATEGORIZED_FILTER,
+  type LedgerSortColumn,
+  type NewAccountResult,
+  type PendingDialog,
+  type Stats,
+  type StatusKind,
+  type Tab,
+  type Theme,
+} from "./appTypes";
 
 function App({
   initialStatus,
@@ -649,7 +773,7 @@ function App({
   // Wraps the raw state setter so ~90 existing `setStatus(errorMessage(e))` catch
   // blocks stay one-line error reports (kind defaults to "error" there) while
   // confirmations/in-progress messages opt into "success"/"info" explicitly —
-  // see the `.status-*` rules in App.css for what each kind looks like.
+  // see the `.status-*` rules in DashboardCards.css for what each kind looks like.
   function setStatus(text: string, kind: StatusKind = "error") {
     setStatusState(text ? { text, kind } : null);
   }

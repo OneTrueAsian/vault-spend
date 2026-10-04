@@ -1,0 +1,338 @@
+/* ------------------------------ Stats/cards ------------------------------ */
+
+.buckets-view,
+.budget-view,
+.reports-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  padding: 3px;
+  width: fit-content;
+  margin-bottom: 4px;
+}
+
+.month-nav button {
+  border: none;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--text-muted);
+}
+
+.month-nav button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.month-nav .month-label {
+  padding: 0 8px;
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 108px;
+  text-align: center;
+}
+
+.view-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  gap: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 3px;
+  width: fit-content;
+  margin-bottom: 14px;
+}
+
+.view-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.view-toggle button:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.view-toggle button.view-toggle-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.cal-weekday {
+  background: var(--surface-2);
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.cal-day {
+  background: var(--surface);
+  min-height: 78px;
+  padding: 5px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cal-day-empty {
+  background: var(--surface-2);
+}
+
+.cal-day-today {
+  background: var(--accent-soft);
+}
+
+.cal-day-num {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cal-day-today .cal-day-num {
+  color: var(--accent-soft-text);
+}
+
+.cal-item {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* The amount used to live only in this element's `title` attribute —
+   invisible without a mouse (no hover on touch, unreachable by keyboard
+   focus per WCAG 1.4.13, and it made this calendar strictly less
+   informative than the List view sitting right next to it, which shows
+   the amount as a plain column). Both lines are real visible text now;
+   `title` stays as a supplementary fallback for when the merchant name
+   itself is what's truncated. */
+.cal-item-merchant {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-item-amount {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.cal-item-due-soon {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.cal-item-due-soon .cal-item-amount {
+  color: var(--warning);
+}
+
+.reports-section-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  margin: 0;
+}
+
+.breakdown-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.breakdown-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.breakdown-list li:last-child {
+  border-bottom: none;
+}
+
+.reports-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.help-view h2.reports-section-title {
+  margin-bottom: 12px;
+}
+
+.help-view h3 {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  margin: 16px 0 4px 0;
+}
+
+.help-view h3:first-of-type {
+  margin-top: 0;
+}
+
+.help-view p {
+  margin: 0 0 10px 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.help-view ul,
+.help-view ol {
+  margin: 0 0 4px 0;
+  padding-left: 20px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.help-view li {
+  margin-bottom: 8px;
+}
+
+.help-search {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  margin: 0 0 16px 0;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+}
+
+.help-faq-entry {
+  padding: 14px 0;
+}
+
+.help-faq-entry:first-child {
+  padding-top: 0;
+}
+
+.help-faq-entry:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.help-faq-entry h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin: 0 0 5px;
+}
+
+.help-faq-entry p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+.help-faq-entry p + p {
+  margin-top: 8px;
+}
+
+.tour-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tour-list > li {
+  position: relative;
+  padding: 11px 0 11px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Plain document flow, not `display: flex` — a bullet's text is free to
+   contain more than one inline element (e.g. several `<strong>` phrases),
+   and flex would lay each of those out as its own side-by-side column
+   instead of running text, wrapping normally, the way multiple `<strong>`
+   tags inside one flex child otherwise do. */
+.tour-list > li:first-child {
+  padding-top: 0;
+}
+
+.tour-list > li:first-child::before {
+  top: 7px;
+}
+
+.tour-list > li:last-child {
+  border-bottom: none;
+}
+
+.tour-list > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.path-box {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  padding: 8px 11px;
+  border-radius: 8px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  margin: 6px 0 10px;
+}
+
+.account-group-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 22px 0 10px;
+}
+
+.account-group-title:first-of-type {
+  margin-top: 0;
+}

@@ -1,3 +1,4 @@
+import "./ProtectionSetupDialog.css";
 import { useState } from "react";
 import { ModalShell } from "./Modal";
 import { beginProtectionSetup, cancelProtectionSetup, commitProtectionSetup, type SetupChallenge } from "./protection";

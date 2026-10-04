@@ -1,3 +1,4 @@
+import "./MenuSelect.css";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 export interface MenuSelectOption {

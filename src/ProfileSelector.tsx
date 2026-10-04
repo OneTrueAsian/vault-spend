@@ -1,3 +1,4 @@
+import "./ProfileAccess.css";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ProfileIcon } from "./icons";

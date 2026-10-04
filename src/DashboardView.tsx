@@ -1,3 +1,5 @@
+import "./DashboardCards.css";
+import "./FirstRunChecklist.css";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { MenuSelect } from "./MenuSelect";
 import { Check, Info, Leaf, LineChart as LineChartIcon, MessageCircleQuestion } from "lucide-react";

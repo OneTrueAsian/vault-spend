@@ -1,3 +1,4 @@
+import "./CashFlowCharts.css";
 import { useEffect, useState } from "react";
 import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPlan, YoyCashFlow } from "./types";
 import { lowestPoint } from "./safeToSpend";

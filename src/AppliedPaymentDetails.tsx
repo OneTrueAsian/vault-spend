@@ -1,3 +1,4 @@
+import "./AppliedPaymentDetails.css";
 import type { Transaction } from "./types";
 import { formatAmount } from "./format";
 

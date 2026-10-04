@@ -1,3 +1,4 @@
+import "./AccountsCards.css";
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";

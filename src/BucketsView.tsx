@@ -1,3 +1,4 @@
+import "./BudgetAndGoals.css";
 import { FormEvent, useState } from "react";
 import type { Account, Bucket, FamilyMember } from "./types";
 import { formatAmount, toLocalIsoDate } from "./format";

@@ -2,7 +2,7 @@ import type { StatusKind } from "./appTypes";
 
 /** The one status line shared by every success confirmation, error, and
  * in-progress message in the app (~90+ call sites) — styled by `kind` so an
- * error doesn't look identical to a routine confirmation (see App.css's
+ * error doesn't look identical to a routine confirmation (see DashboardCards.css's
  * `.status-*` rules), with its own dismiss button since errors stay up
  * longer than the auto-dismiss timer and a raw error string is worth being
  * able to clear once read. */

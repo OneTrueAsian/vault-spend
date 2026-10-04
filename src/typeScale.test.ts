@@ -1,7 +1,7 @@
 // No readable text below 12px (2026-10-02 QA, L2: 39 declarations went as low as 9.5px, including
 // chart axes, calendar entries, stat labels and table headers). Only arrow glyphs drawn as text
 // (disclosure markers, a menu caret) may be smaller.
-import { readFileSync } from "node:fs";
+import { readAppStyles, readCssWithImports } from "./cssTestUtils";
 import { describe, expect, it } from "vitest";
 
 const SHEETS = ["./App.css", "./themes/futuristic.css", "./InfoTip.css", "./AutoLockSession.css"];
@@ -11,7 +11,7 @@ describe("type scale", () => {
   it("sets no text below 12px outside arrow glyphs", () => {
     const tooSmall: string[] = [];
     for (const sheet of SHEETS) {
-      const css = readFileSync(new URL(sheet, import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      const css = (sheet === "./App.css" ? readAppStyles() : readCssWithImports(new URL(sheet, import.meta.url))).replace(/\/\*[\s\S]*?\*\//g, "");
       for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
         const selector = rule[1].trim();
         for (const size of rule[2].matchAll(/font-size:\s*([\d.]+)px/g)) {

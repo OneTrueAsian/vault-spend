@@ -1,0 +1,84 @@
+/* Launch error screen: shown instead of the app when no profile could be opened. */
+.launch-error {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.launch-error-card {
+  width: min(560px, 100%);
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.launch-error-card h1 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  line-height: 1.25;
+  outline: none;
+}
+
+.launch-error-card h2 {
+  margin: 22px 0 8px;
+  font-size: 15px;
+}
+
+.launch-error-card p {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.launch-error-card details {
+  margin: 0 0 14px;
+}
+
+.launch-error-card pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.launch-error-problem {
+  min-height: 1.5em;
+  color: var(--negative);
+}
+
+/* Nothing to say: keep the live region in the page but take no room. */
+.launch-error-problem:empty {
+  min-height: 0;
+  margin: 0;
+}
+
+.launch-error-actions,
+.launch-error-profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.launch-error-confirm {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  outline: none;
+}
+
+.launch-error-confirm h2 {
+  margin-top: 0;
+}

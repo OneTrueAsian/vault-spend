@@ -1,3 +1,4 @@
+import "./LegalNotice.css";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { bundledLegalNotice } from "./legalNotice";
 import { acknowledgeLegalNotice, getLegalNoticeAcknowledgement } from "./legalNoticeApi";

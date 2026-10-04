@@ -31,7 +31,7 @@ export function flatIconEntry(id: FlatIconId): IconEntry {
 /** Renders whichever kind of `IconEntry` it's given — sizing is left to the
  * caller's CSS (`className`). A Lucide icon recolors via `currentColor` on
  * its own; a monochrome bundled image gets `icon-img` (dark-mode invert,
- * see App.css); a full-color bundled image gets `icon-img-color` instead —
+ * see BudgetAndGoals.css); a full-color bundled image gets `icon-img-color` instead —
  * no filter, so its own colors show through. */
 export function IconEntryGlyph({ entry, className }: { entry: IconEntry; className?: string }) {
   if (entry.kind === "image") {
@@ -54,7 +54,7 @@ export function IconEntryGlyph({ entry, className }: { entry: IconEntry; classNa
  * explicit choice," same convention every icon picker in this app uses.
  *
  * `size="lg"` renders larger swatches (see `.icon-picker-swatch-lg` in
- * App.css) — the default "sm" size is legible for simple flat-color
+ * BudgetAndGoals.css) — the default "sm" size is legible for simple flat-color
  * glyphs (a house, a car, a gift box), but the profile-avatar set's
  * detailed illustrated faces need more pixels to actually tell apart, so
  * `profileIcons.tsx`'s picker opts into "lg". */

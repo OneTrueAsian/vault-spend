@@ -1,3 +1,4 @@
+import "./Ledger.css";
 import type * as React from "react";
 
 import { Fragment } from "react";

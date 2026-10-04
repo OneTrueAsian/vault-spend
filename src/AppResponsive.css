@@ -1,0 +1,45 @@
+/* --------------------------- Responsive --------------------------- */
+
+@media (max-width: 760px) {
+  .sidebar {
+    width: 68px;
+  }
+
+  .brand-word,
+  .nav-item span.nav-text,
+  .nav-group-label {
+    display: none;
+  }
+
+  .nav-item {
+    justify-content: center;
+  }
+
+  .sidebar-foot {
+    display: none;
+  }
+
+  .profile-switcher-name,
+  .profile-switcher .account-filter-caret {
+    display: none;
+  }
+
+  .profile-switcher-toggle {
+    justify-content: center;
+    padding: 8px;
+  }
+
+  .profile-switcher-panel {
+    left: 0;
+    right: auto;
+    min-width: 180px;
+  }
+
+  .page {
+    padding: 18px 14px 48px;
+  }
+
+  .topbar {
+    padding: 14px 16px;
+  }
+}

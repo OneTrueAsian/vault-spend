@@ -1,3 +1,4 @@
+import "./BudgetAndGoals.css";
 import { DragEvent, FormEvent, useEffect, useState } from "react";
 import type { BudgetAlert, BudgetSuggestions, CashFlow, ReportBudgetLine } from "./types";
 import { formatAmount } from "./format";

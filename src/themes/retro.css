@@ -1,0 +1,228 @@
+/* ---------------------------- Retro ---------------------------- */
+/* Component geometry for the Retro style (tokens are defined near the
+   other palettes above). Every selector is scoped to data-palette="retro",
+   so the other styles are unaffected. Raised = light top/left, dark
+   bottom/right (--retro-raised); sunken is the inverse (--retro-sunken). */
+
+/* Square corners everywhere, pills and circles included. !important is the
+   deliberate blunt tool here: ~150 component rules each set their own radius
+   at varying specificity, and a retro control never has a rounded one. */
+[data-palette="retro"] :is(*, *::before, *::after) {
+  border-radius: 0 !important;
+}
+
+/* Shell and navigation */
+[data-palette="retro"] .sidebar {
+  border-right: 1px solid var(--retro-dark);
+  box-shadow: inset -1px 0 var(--retro-shadow), inset 1px 0 var(--retro-hl);
+}
+
+[data-palette="retro"] .topbar {
+  background: var(--retro-face);
+  border-bottom: 1px solid var(--retro-dark);
+  box-shadow: inset 0 -1px var(--retro-shadow), inset 0 1px var(--retro-hl);
+}
+
+[data-palette="retro"] .topbar h1,
+[data-palette="retro"] .brand-word {
+  font-weight: 700;
+}
+
+[data-palette="retro"] .nav-item {
+  font-size: 13px;
+  font-weight: 400;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+[data-palette="retro"] .nav-item:hover {
+  background: transparent;
+  box-shadow: var(--retro-raised);
+}
+
+[data-palette="retro"] .nav-item.nav-item-active {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+  box-shadow: none;
+  border: 1px dotted var(--retro-sel-text);
+  outline: 1px solid var(--retro-sel);
+  outline-offset: -1px;
+}
+
+[data-palette="retro"] .nav-item.nav-item-active .ico {
+  color: var(--retro-sel-text);
+}
+
+/* Panels and dialogs */
+[data-palette="retro"] .card,
+[data-palette="retro"] .modal-panel,
+[data-palette="retro"] .account-card,
+[data-palette="retro"] .legal-notice-card,
+[data-palette="retro"] .stat,
+[data-palette="retro"] .stat-hero {
+  background-color: var(--retro-face);
+  background-image: none;
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-palette="retro"] .modal-panel {
+  box-shadow: var(--retro-raised), var(--shadow-lg);
+}
+
+[data-palette="retro"] .modal-title {
+  font-weight: 700;
+}
+
+[data-palette="retro"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* Sunken fields: white (or, in the dark adaptation, near-black) interiors */
+[data-palette="retro"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+[data-palette="retro"] textarea,
+[data-palette="retro"] select {
+  background: var(--retro-window);
+  color: var(--text);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] input[aria-invalid="true"],
+[data-palette="retro"] select[aria-invalid="true"],
+[data-palette="retro"] textarea[aria-invalid="true"] {
+  outline: 1px solid var(--negative);
+}
+
+/* Dropdown triggers are sunken like a classic combo box; their panels are raised */
+[data-palette="retro"] .menu-select-toggle,
+[data-palette="retro"] .account-filter-toggle {
+  background: var(--retro-window);
+  color: var(--text);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-sunken);
+  font-weight: 400;
+}
+
+[data-palette="retro"] .menu-select-toggle:hover,
+[data-palette="retro"] .account-filter-toggle:hover,
+[data-palette="retro"] .account-destination .account-filter-toggle:hover {
+  background: var(--retro-window);
+  border-color: transparent;
+}
+
+[data-palette="retro"] .menu-select-panel,
+[data-palette="retro"] .profile-switcher-panel,
+[data-palette="retro"] .more-menu-panel,
+[data-palette="retro"] .account-destination-panel {
+  background: var(--retro-face);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised), var(--shadow-md);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-palette="retro"] .profile-switcher-option:hover,
+[data-palette="retro"] .account-filter-option:hover,
+[data-palette="retro"] .menu-select-panel [role="option"]:hover,
+[data-palette="retro"] .menu-select-panel [role="option"]:focus-visible {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+}
+
+/* Secondary buttons, tabs, and the Light/Dark/System toggle */
+[data-palette="retro"] .modal-secondary {
+  background: var(--retro-face);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised);
+}
+
+[data-palette="retro"] .modal-secondary:hover {
+  background: var(--retro-face);
+  border-color: transparent;
+}
+
+[data-palette="retro"] .tabs,
+[data-palette="retro"] .theme-toggle {
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 2px;
+}
+
+[data-palette="retro"] .tab-btn,
+[data-palette="retro"] .theme-toggle button {
+  background: var(--retro-face);
+  color: var(--text);
+  box-shadow: var(--retro-raised);
+  font-weight: 400;
+}
+
+[data-palette="retro"] .tab-btn:hover,
+[data-palette="retro"] .theme-toggle button:hover {
+  background: var(--retro-face);
+  color: var(--text);
+}
+
+[data-palette="retro"] .tab-btn-active,
+[data-palette="retro"] .theme-toggle button.theme-toggle-active {
+  background: var(--retro-face);
+  box-shadow: var(--retro-sunken);
+  font-weight: 700;
+}
+
+/* Tables: a sunken white document pane with button-like column headers */
+[data-palette="retro"] .ledger {
+  background: var(--retro-window);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] .ledger th {
+  background: var(--retro-face);
+  color: var(--text);
+  box-shadow: var(--retro-raised);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+[data-palette="retro"] .ledger td {
+  border-bottom-color: var(--retro-light);
+}
+
+[data-palette="retro"] .ledger-row-selected td {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+}
+
+/* Progress: a sunken track with a solid navy fill */
+[data-palette="retro"] .progress-track {
+  background: var(--retro-window);
+  box-shadow: var(--retro-sunken);
+}
+
+[data-palette="retro"] .progress-fill {
+  background: var(--retro-sel);
+}
+
+[data-palette="retro"] .progress-fill.warn {
+  background: var(--warning);
+}
+
+[data-palette="retro"] .progress-fill.over {
+  background: var(--negative);
+}
+
+/* Toasts keep their opaque status tint over --status-base */
+[data-palette="retro"] .status {
+  box-shadow: var(--retro-raised);
+  border-color: var(--border-strong);
+}
+
+[data-palette="retro"] .toast-stack .status {
+  box-shadow: var(--retro-raised), var(--shadow-md);
+}

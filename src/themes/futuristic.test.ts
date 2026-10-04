@@ -1,6 +1,7 @@
 // Futuristic's typefaces ship inside the app (SIL Open Font License), so the look holds offline and the
 // theme adds no request to Google Fonts. The theme's CSS is loaded after App.css so it wins ties.
 import { existsSync, readFileSync } from "node:fs";
+import { readAppStyles } from "../cssTestUtils";
 import { describe, expect, it } from "vitest";
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
@@ -118,7 +119,7 @@ describe("Futuristic stylesheet", () => {
   });
 
   it("is the only place Futuristic is styled", () => {
-    const app = read("../App.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const app = readAppStyles(false).replace(/\/\*[\s\S]*?\*\//g, "");
     expect(app).not.toContain('data-palette="futuristic"');
   });
 });

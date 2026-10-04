@@ -1,3 +1,4 @@
+import "./AccumulationSection.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, InvestmentAccumulation, PortfolioPoint } from "./types";
