@@ -56,6 +56,12 @@ describe("HelpView", () => {
     expect(text).not.toContain("or not use it");
   });
 
+  it("explains that Select all works in batches of 250 and how Show more works", () => {
+    const text = container.textContent ?? "";
+    expect(text).toContain("at most 250 transactions at a time");
+    expect(text).toContain("Show 50 more");
+  });
+
   it("explains that rules ignore store numbers", () => {
     expect(container.textContent).toContain("ignoring store numbers");
   });

@@ -1084,6 +1084,20 @@ const FAQ_ENTRIES: FaqEntry[] = [
     ),
   },
   {
+    question: "How do I change lots of transactions at once?",
+    tags: ["select all", "bulk", "many", "250", "show more", "load more", "batch"],
+    answer: (
+      <p>
+        On the Transactions tab, filter to the rows you want, then tick the box at the top of the
+        table. That selects every matching row, including ones further down that aren&apos;t shown
+        yet. A change can apply to at most 250 transactions at a time, so with more than that it
+        selects the first 250 and says so: make your change, then tick the box again for the next
+        250. The table shows rows a few at a time; use <strong>Show 50 more</strong> under it (or
+        pick 25, 50 or 100 at a time) to see further down.
+      </p>
+    ),
+  },
+  {
     question: "How do budgets carry forward month to month?",
     tags: ["budget", "carry forward", "monthly", "rollover", "cap"],
     answer: (
