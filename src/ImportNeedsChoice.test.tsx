@@ -73,13 +73,11 @@ describe("ImportNeedsChoice", () => {
     expect(text).toContain("12.50");
   });
 
-  it("says how many rows still need a choice, in the right number", () => {
+  it("says how many rows it lists, in the right number", () => {
     show([row(1), row(2)]);
-    expect(container.textContent).toContain("2 rows need a category");
-    show([row(1), row(2)], new Map([[1, "Dining"]]));
-    expect(container.textContent).toContain("1 row needs a category");
+    expect(container.querySelector("h3")?.textContent).toBe("Pick a category for 2 rows");
     show([row(1)], new Map([[1, null]]));
-    expect(container.textContent).toContain("Every row here has a choice");
+    expect(container.querySelector("h3")?.textContent).toBe("Pick a category for 1 row");
   });
 
   it("preselects nothing", () => {
@@ -123,16 +121,24 @@ describe("ImportNeedsChoice", () => {
     expect(lines().map((l) => l.getAttribute("data-choice-state"))).toEqual(["category", "uncategorized"]);
   });
 
-  it("explains a weak guess and a missing one in plain words", () => {
+  it("gives the app's best guess, or says it has none, in a few words", () => {
     show([row(1, { suggestion: { category: "Groceries", source: "guess", confidence: 0.31 } }), row(2)]);
-    expect(lines()[0].textContent).toContain("Possible category: Groceries. The app is less than half sure.");
-    expect(lines()[1].textContent).toContain("The app couldn't find a category.");
+    expect(lines()[0].textContent).toContain("Best guess: Groceries");
+    expect(lines()[0].textContent).not.toContain("half sure");
+    expect(lines()[1].textContent).toContain("No guess");
+  });
+
+  it("names the bank's own category for the row, so the person sees the box above would settle it", () => {
+    show([row(1, { category: "Merchandise", suggestion: { category: "Groceries", source: "guess", confidence: 0.2 } }), row(2)]);
+    expect(lines()[0].textContent).toContain("Your bank calls it Merchandise");
+    expect(lines()[0].textContent).toContain("Best guess: Groceries");
+    expect(lines()[1].textContent).not.toContain("Your bank calls it");
   });
 
   it("does not mention a guess for a category the person no longer has", () => {
     show([row(1, { suggestion: { category: "Gone", source: "guess", confidence: 0.3 } })]);
     expect(lines()[0].textContent).not.toContain("Gone");
-    expect(lines()[0].textContent).toContain("The app couldn't find a category.");
+    expect(lines()[0].textContent).toContain("No guess");
   });
 
   it("has a Leave the rest uncategorized button, off once every row has a choice", () => {

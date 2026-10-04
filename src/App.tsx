@@ -28,7 +28,7 @@ import { LedgerTable } from "./LedgerTable";
 import { AppTopBar } from "./AppTopBar";
 import { LedgerBulkActions } from "./LedgerBulkActions";
 import { LedgerFilterBar } from "./LedgerFilterBar";
-import { SetupImportReviewPanel } from "./SetupImportReviewPanel";
+import { SetupImportReviewDialog } from "./SetupImportReviewDialog";
 import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -88,7 +88,7 @@ import { usePaymentSource } from "./usePaymentSource";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
 
-import { ImportReviewPanel } from "./ImportReviewPanel";
+import { ImportReviewDialog } from "./ImportReviewDialog";
 import { useImportReview } from "./useImportReview";
 import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel, transactionsInRows } from "./ledgerPaging";
 import {
@@ -3710,8 +3710,17 @@ function App({
             </div>
           )}
 
-          {activeTab === "ledger" && (
-            <ImportReviewPanel review={importReview} accounts={accounts} categoryOptions={categoryOptions} busy={busy} />
+          {/* Pop-ups over whichever tab started them, so they are in front of the person wherever
+              they had scrolled (the setup-data one is started from Settings). */}
+          <ImportReviewDialog review={importReview} accounts={accounts} categoryOptions={categoryOptions} busy={busy} />
+          {pendingSetupImport && (
+            <SetupImportReviewDialog
+              pending={pendingSetupImport}
+              busy={busy}
+              onToggle={toggleSetupIncluded}
+              onCancel={() => setPendingSetupImport(null)}
+              onConfirm={confirmSetupImport}
+            />
           )}
 
           {activeTab === "ledger" && reviewIds && reviewIds.size > 0 && (
@@ -4106,16 +4115,6 @@ function App({
           )}
 
           {monthDetail && <MonthExpenseDetailDialog detail={monthDetail} onClose={() => setMonthDetail(null)} />}
-
-          {activeTab === "reports" && pendingSetupImport && (
-            <SetupImportReviewPanel
-              pendingSetupImport={pendingSetupImport}
-              toggleSetupIncluded={toggleSetupIncluded}
-              setPendingSetupImport={setPendingSetupImport}
-              busy={busy}
-              confirmSetupImport={confirmSetupImport}
-            />
-          )}
 
           {activeTab === "accounts" && accountDetail && (
             <AccountDetailView

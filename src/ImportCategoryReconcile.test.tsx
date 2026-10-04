@@ -52,16 +52,16 @@ describe("ImportCategoryReconcile", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("says how many categories are unfamiliar and that none will be added on its own", () => {
+  it("says in plain words that these are the bank's categories, and that the choice is remembered", () => {
     show();
     const text = container.textContent ?? "";
-    expect(text).toContain("2 categories in this file aren't in your list");
-    expect(text).toMatch(/won't add them unless you say so/i);
+    expect(text).toContain("Your bank uses 2 categories you don't have");
+    expect(text).toContain("Pick one of yours for each. The app will remember it next time.");
   });
 
   it("uses the singular for a single category", () => {
     show({ "Gas/Automotive": { action: "skip" } }, [{ name: "Gas/Automotive", count: 1 }]);
-    expect(container.textContent).toContain("1 category in this file isn't in your list");
+    expect(container.textContent).toContain("Your bank uses 1 category you don't have");
   });
 
   it("lists each category with how many rows use it, one dropdown each", () => {
@@ -127,13 +127,6 @@ describe("ImportCategoryReconcile", () => {
     const withMemory = [{ name: "Merchandise", count: 12, remembered_category: "Groceries" }];
     show({ Merchandise: { action: "skip" } }, withMemory);
     expect(container.textContent).not.toContain("Your choice from last time");
-  });
-
-  it("explains that unsure rows wait for a choice and that picks are remembered", () => {
-    show();
-    const text = container.textContent ?? "";
-    expect(text).toMatch(/remember/i);
-    expect(text).toMatch(/choose/i);
   });
 
   it("locks every control while the import is being saved", () => {

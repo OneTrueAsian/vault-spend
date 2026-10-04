@@ -188,7 +188,7 @@ export function useImportReview({
         setImportRowChoices(carried.rowChoices);
         setAccountOverrides(carried.accountOverrides);
         setStatus(
-          `${message} The review below has been updated${carried.fileChanged ? " from the changed file" : ""}. Check it and import again.`,
+          `${message} The review has been updated${carried.fileChanged ? " from the changed file" : ""}. Check it and import again.`,
         );
         // So the category menus match what the review was just checked against; the review itself
         // is already updated, so a failed list reload here only leaves the menus as they were.
@@ -202,11 +202,12 @@ export function useImportReview({
     // Saved. The review closes now, so the same file can't be imported twice by accident.
     clearPendingImport();
     const skipped = totalRows - includedCount;
+    const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
     const imported =
-      `Imported ${summary.inserted} transaction(s)` +
-      (skipped ? ` — ${skipped} excluded` : "") +
-      (summary.auto_linked ? ` — linked ${summary.auto_linked} transfer${summary.auto_linked === 1 ? "" : "s"} automatically` : "") +
-      (summary.row_errors ? ` — ${summary.row_errors} row(s) couldn't be read` : "");
+      `Imported ${count(summary.inserted, "transaction", "transactions")}` +
+      (skipped ? ` — ${skipped} left out` : "") +
+      (summary.auto_linked ? ` — linked ${count(summary.auto_linked, "transfer", "transfers")} automatically` : "") +
+      (summary.row_errors ? ` — ${count(summary.row_errors, "row", "rows")} couldn't be read` : "");
     try {
       await refresh();
       if (summary.inserted_ids.length > 0) onImported(summary.inserted_ids);

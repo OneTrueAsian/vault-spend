@@ -38,6 +38,7 @@ export function ModalShell({
   wide,
   headerAction,
   footer,
+  dismissOnOverlayClick = true,
 }: {
   title: string;
   onCancel: () => void;
@@ -50,6 +51,9 @@ export function ModalShell({
   /** Pins these controls below a body that scrolls on its own: the header and
    * the footer stay on screen however small the window or long the content. */
   footer?: React.ReactNode;
+  /** A click outside the panel cancels it. Pass `false` for a dialog holding work a stray click
+   * shouldn't throw away (an import review); Escape still cancels. */
+  dismissOnOverlayClick?: boolean;
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -150,7 +154,7 @@ export function ModalShell({
   // `.page`) becomes its containing block — laying it out against the whole
   // scrolled page instead of the window, so it could sit mostly off-screen.
   return createPortal(
-    <div className="modal-overlay" onClick={onCancel}>
+    <div className="modal-overlay" onClick={dismissOnOverlayClick ? onCancel : undefined}>
       <div
         ref={panelRef}
         className={["modal-panel", wide ? "modal-panel-wide" : "", footer ? "modal-panel-fixed-chrome" : ""].filter(Boolean).join(" ")}

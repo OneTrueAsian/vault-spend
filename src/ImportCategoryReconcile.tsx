@@ -58,7 +58,7 @@ export function ImportCategoryReconcile({
     <div className="import-category-reconcile" role="group" aria-labelledby="import-category-reconcile-title" data-import-category-reconcile>
       <div className="import-category-reconcile-head">
         <strong id="import-category-reconcile-title">
-          {unmatched.length} {many ? "categories" : "category"} in this file {many ? "aren't" : "isn't"} in your list
+          Your bank uses {unmatched.length} {many ? "categories" : "category"} you don't have
         </strong>
         <span className="import-category-reconcile-all">
           <button type="button" className="modal-secondary" onClick={() => onSetAll("skip")} disabled={disabled}>
@@ -69,11 +69,7 @@ export function ImportCategoryReconcile({
           </button>
         </span>
       </div>
-      <p className="modal-message-secondary">
-        Vault Spend won't add them unless you say so. For each one, use a category you already have, add it as a new category, or
-        let the app guess from your rules and past choices. If the app isn't sure about a row, you'll choose its category below
-        before importing. When you pick one of your categories here, the app remembers it for your next import.
-      </p>
+      <p className="modal-message-secondary">Pick one of yours for each. The app will remember it next time.</p>
       <ul className="import-category-list">
         {unmatched.map((u) => (
           <li key={u.name} className="import-category-row">

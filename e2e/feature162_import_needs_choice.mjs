@@ -119,7 +119,7 @@ try {
   await startImport();
   assert.deepEqual(await needsChoiceRows(), [0, 1], "the Merchandise row and the unknown merchant need a choice");
   assert.equal(await (await importButton()).isEnabled(), false, "Import waits for them");
-  assert.equal(await remainingText(), "Choose a category for 2 more rows, or leave them uncategorized.");
+  assert.equal(await remainingText(), "2 rows still need a category");
   assert.equal(await menuSelectValue(await rowMenu(1)), "", "nothing is preselected");
   await shoot("review-1440");
   await browser.setWindowSize(720, 900);
@@ -130,7 +130,7 @@ try {
   await waitUntilOrDiagnose(browser, async () => JSON.stringify(await needsChoiceRows()) === "[1]", {
     timeoutMsg: "mapping Merchandise should settle its row",
   });
-  assert.equal(await remainingText(), "Choose a category for 1 more row, or leave it uncategorized.");
+  assert.equal(await remainingText(), "1 row still needs a category");
   await chooseMenuOption(await rowMenu(1), { value: "cat:Dining Out" });
   await (await importButton()).waitForEnabled({ timeout: 5000, timeoutMsg: "Import should turn on once every row has a choice" });
   assert.equal(await remainingText(), "");
@@ -159,7 +159,7 @@ try {
     timeoutMsg: "checking the row again should ask about it",
   });
   assert.equal(await (await importButton()).isEnabled(), false);
-  assert.equal(await remainingText(), "Choose a category for 1 more row, or leave it uncategorized.");
+  assert.equal(await remainingText(), "1 row still needs a category");
   assert.equal(
     await (await browser.$('[data-import-choice-row="2"]')).getAttribute("data-choice-state"),
     "uncategorized",
@@ -187,7 +187,7 @@ try {
   await (await importButton()).click();
   await waitUntilOrDiagnose(
     browser,
-    async () => (await browser.execute(() => document.body.innerText)).includes("This file changed. Review it again before importing. The review below has been updated from the changed file."),
+    async () => (await browser.execute(() => document.body.innerText)).includes("This file changed. Review it again before importing. The review has been updated from the changed file."),
     { timeoutMsg: "the refusal should be shown, with the review read again" },
   );
   assert.equal(await (await importButton()).isDisplayed(), true, "the review stays open");
@@ -212,7 +212,7 @@ try {
   await invoke("delete_category", { name: "Entertainment" });
   await (await importButton()).waitForEnabled({ timeout: 5000 });
   await (await importButton()).click();
-  await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.body.innerText)).includes("The review below has been updated. Check it and import again."), {
+  await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.body.innerText)).includes("The review has been updated. Check it and import again."), {
     timeoutMsg: "the refusal should say the review was updated",
   });
   assert.match(await browser.execute(() => document.body.innerText), /Entertainment/, "the refusal names the missing category");

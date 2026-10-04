@@ -12,15 +12,16 @@ function toValue(choices: RowChoices, index: number): string {
   return choice == null ? LEAVE_UNCATEGORIZED : `cat:${choice}`;
 }
 
+/** "Your bank calls it Merchandise · Best guess: Shopping": the bank's own name for the row, when
+ * the file has one (choosing for it in the box above settles every row that uses it), and the
+ * app's guess, which is under half sure or the row wouldn't be here. */
 function hint(row: ImportRow, categories: string[]): string {
   const s = row.suggestion;
-  if (s && categories.includes(s.category)) {
-    return `Possible category: ${s.category}. The app is less than half sure.`;
-  }
-  return "The app couldn't find a category.";
+  const guess = s && categories.includes(s.category) ? `Best guess: ${s.category}` : "No guess";
+  return row.category ? `Your bank calls it ${row.category} · ${guess}` : guess;
 }
 
-/** The import review screen's "Needs your choice" list: checked rows the app can't place with at
+/** The import review's "Pick a category" list: checked rows the app can't place with at
  * least 50% confidence. Each gets a category menu with nothing preselected, including "Leave
  * uncategorized"; Import stays off until every one has a choice. Renders nothing when no row
  * needs one. */
@@ -50,18 +51,12 @@ export function ImportNeedsChoice({
     <section className="import-needs-choice" aria-labelledby="import-needs-choice-title" data-import-needs-choice>
       <div className="import-category-reconcile-head">
         <h3 id="import-needs-choice-title" className="import-needs-choice-title">
-          Needs your choice
+          Pick a category for {rows.length} {rows.length === 1 ? "row" : "rows"}
         </h3>
         <button type="button" className="modal-secondary" onClick={onLeaveRest} disabled={disabled || remaining === 0}>
           Leave the rest uncategorized
         </button>
       </div>
-      <p className="modal-message-secondary">
-        {remaining === 0
-          ? "Every row here has a choice. "
-          : `${remaining} ${remaining === 1 ? "row needs" : "rows need"} a category. `}
-        The app isn't sure what these are. Choose a category for each one, or leave it uncategorized and sort it out later.
-      </p>
       <ul className="import-category-list">
         {rows.map((r) => {
           const value = toValue(choices, r.index);

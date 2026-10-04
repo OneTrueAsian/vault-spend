@@ -50,7 +50,8 @@ describe("HelpView", () => {
 
   it("explains that unsure import rows wait for a choice and that file category choices are remembered", () => {
     const text = container.textContent ?? "";
-    expect(text).toContain("Needs your choice");
+    expect(text).toContain("Pick a category");
+    expect(text).toContain("opens in a window");
     expect(text).toContain("Leave the rest uncategorized");
     expect(text).toContain("remembers that choice for your next import");
     expect(text).not.toContain("or not use it");

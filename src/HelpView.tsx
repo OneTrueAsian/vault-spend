@@ -533,7 +533,8 @@ const IMPORTING_ENTRY: HelpEntry = {
           tab and choose "Flip signs…" (choosing it again undoes it).
         </li>
         <li>
-          You'll see a preview of every row before anything is saved. Rows
+          A review of every row opens in a window over the page before
+          anything is saved. Rows
           that look like duplicates of something already in your transactions are
           unchecked by default (see the FAQ below) — check or uncheck any
           row, or override which account a specific row should land in.
@@ -542,7 +543,7 @@ const IMPORTING_ENTRY: HelpEntry = {
           The preview also sorts out categories before anything is saved.
           Each row is filed by your rules and past choices where the app is
           at least half sure. Any row it isn't sure about appears under{" "}
-          <strong>Needs your choice</strong>: pick a category for it, or
+          <strong>Pick a category</strong>: pick a category for it, or
           choose "Leave uncategorized." <strong>"Leave the rest
           uncategorized"</strong> does that for every row still waiting.
           The import button stays off until every checked row has a choice.
