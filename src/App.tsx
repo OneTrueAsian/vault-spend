@@ -60,7 +60,7 @@ import { StatusBanner } from "./StatusBanner";
 import { compareTransactionsBy, describeDeleteImpact } from "./ledgerHelpers";
 import { NAV_ORDER_STORAGE_KEY, getLastUsedAccountId, loadLedgerDensity, loadNavOrder, setLastUsedAccountId, type LedgerDensity } from "./appStorage";
 import { CATEGORY_SOURCE_LABELS, NAV_GROUP_LABELS, NAV_GROUP_ORDER, NAV_ITEMS, PINNED_NAV_ITEMS, UNCATEGORIZED_FILTER, type LedgerSortColumn, type NewAccountResult, type PendingDialog, type Stats, type StatusKind, type Tab, type Theme } from "./appTypes";
-
+import { LedgerSavedFilters } from "./LedgerSavedFilters";
 import { useLedgerFilters } from "./useLedgerFilters";
 
 import { LedgerFilterBar } from "./LedgerFilterBar";
@@ -3742,86 +3742,20 @@ function App({
           )}
 
           {activeTab === "ledger" && (
-            <div className="saved-filter-bar">
-      {savedFilters.map((f) => (
-        <span key={f.name} className="saved-filter-chip">
-          <button type="button" onClick={() => applySavedFilter(f)} title={`Apply saved filter "${f.name}"`}>
-            {f.name}
-          </button>
-          <button
-            type="button"
-            className="saved-filter-chip-remove"
-            onClick={() => deleteSavedFilter(f.name)}
-            aria-label={`Remove saved filter ${f.name}`}
-          >
-            ×
-          </button>
-        </span>
-      ))}
-      {savingFilter ? (
-        <form
-          className="saved-filter-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            saveCurrentFilter();
-          }}
-        >
-          <input
-            autoFocus
-            value={newFilterName}
-            onChange={(e) => setNewFilterName(e.target.value)}
-            placeholder='e.g. "Uncategorized this month"'
-          />
-          <button type="submit" className="btn-sm" disabled={!newFilterName.trim()}>
-            Save
-          </button>
-          <button
-            type="button"
-            className="modal-secondary btn-sm"
-            onClick={() => {
-              setSavingFilter(false);
-              setNewFilterName("");
-            }}
-          >
-            Cancel
-          </button>
-        </form>
-      ) : (
-        <button type="button" className="modal-secondary btn-sm" onClick={() => setSavingFilter(true)}>
-          + Save current filter…
-        </button>
-      )}
-      {transferCandidatePairs.length > 0 && (
-        <button type="button" className="modal-secondary btn-sm transfer-suggestion" onClick={() => setTransferReviewOpen(true)}>
-          ⇄ {transferCandidatePairs.length} possible transfer{transferCandidatePairs.length === 1 ? "" : "s"} — review
-        </button>
-      )}
-      {autoLinkedPairs.length > 0 && (
-        <button
-          type="button"
-          className="modal-secondary btn-sm transfer-suggestion"
-          data-autolink-review
-          onClick={() => setAutoLinkReviewOpen(true)}
-        >
-          ⇄ {autoLinkedPairs.length} auto-linked — review
-        </button>
-      )}
-      {/* Hidden by request; keep the original selector available to restore.
-      <div className="density-toggle" role="group" aria-label="Row density">
-        {(["comfortable", "compact"] as LedgerDensity[]).map((d) => (
-          <button
-            key={d}
-            type="button"
-            className={ledgerDensity === d ? "density-toggle-active" : ""}
-            aria-pressed={ledgerDensity === d}
-            onClick={() => setLedgerDensity(d)}
-          >
-            {d === "comfortable" ? "Comfortable" : "Compact"}
-          </button>
-        ))}
-      </div>
-      */}
-    </div>
+            <LedgerSavedFilters
+              savedFilters={savedFilters}
+              applySavedFilter={applySavedFilter}
+              deleteSavedFilter={deleteSavedFilter}
+              savingFilter={savingFilter}
+              saveCurrentFilter={saveCurrentFilter}
+              newFilterName={newFilterName}
+              setNewFilterName={setNewFilterName}
+              setSavingFilter={setSavingFilter}
+              transferCandidatePairs={transferCandidatePairs}
+              setTransferReviewOpen={setTransferReviewOpen}
+              autoLinkedPairs={autoLinkedPairs}
+              setAutoLinkReviewOpen={setAutoLinkReviewOpen}
+            />
           )}
 
           {activeTab === "ledger" && selectedIds.size > 0 && selectAllMessage && (
