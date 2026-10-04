@@ -1,0 +1,573 @@
+{
+ "files": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/files.rs",
+   "from": "top",
+   "items": [
+    "BackupDto",
+    "BackupNowDto",
+    "copy_database_for_relocation",
+    "create_backup_now",
+    "export_database",
+    "export_protected_package",
+    "get_backup_copy_dir",
+    "get_data_file_location",
+    "list_backups",
+    "relocate_data_file",
+    "restore_backup",
+    "set_backup_copy_dir",
+    "write_text_file"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: where the data file lives, moving and exporting it, protected packages, and backups.",
+    "",
+    "use super::*;",
+    "",
+    "#[cfg(test)]",
+    "mod tests;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "system": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/system.rs",
+   "from": "top",
+   "items": [
+    "AppSettingsDto",
+    "BackgroundSettingsDto",
+    "LegalNoticeAcknowledgementDto",
+    "RolledAccountDto",
+    "acknowledge_legal_notice",
+    "download_update_asset",
+    "get_app_settings",
+    "get_background_settings",
+    "get_current_generation",
+    "get_legal_notice_acknowledgement",
+    "send_test_reminder",
+    "set_apply_to_debt_enabled",
+    "set_auto_link_transfers",
+    "set_autostart_enabled",
+    "set_envelope_caps_enabled",
+    "set_rollover_enabled",
+    "set_safe_to_spend_enabled",
+    "set_split_purchases_enabled",
+    "set_tray_enabled",
+    "take_maintenance_summary"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: tray, start-up, reminders, the legal notice, updates, app-wide switches and maintenance.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "profiles": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/profiles.rs",
+   "from": "top",
+   "items": [
+    "ProfileDto",
+    "add_existing_profile",
+    "create_profile",
+    "delete_profile",
+    "get_profile_ui_state",
+    "is_ui_state_migrated",
+    "list_profiles",
+    "mark_ui_state_migrated",
+    "path_looks_password_protected",
+    "rename_profile",
+    "set_profile_icon",
+    "set_profile_ui_state",
+    "switch_profile"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: profiles (list, create, switch, add, rename, delete) and their saved screen state.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "import": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/import.rs",
+   "from": "top",
+   "items": [
+    "CategoryChoiceDto",
+    "CommitImportRequest",
+    "ImportCategoryChoice",
+    "ImportPreview",
+    "ImportRow",
+    "ImportSignCounts",
+    "ImportSummary",
+    "SetupAccountRowDto",
+    "SetupBucketRowDto",
+    "SetupBudgetRowDto",
+    "SetupCategoryRowDto",
+    "SetupHoldingRowDto",
+    "SetupImportPreviewDto",
+    "SetupImportSummaryDto",
+    "SuggestionDto",
+    "UnmatchedCategoryDto",
+    "commit_import",
+    "commit_import_for",
+    "commit_setup_import",
+    "count_import_signs",
+    "current_month_key",
+    "preview_import",
+    "preview_import_for",
+    "preview_setup_import"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: importing files (preview, settle, commit), the sign question, and the setup-data template.",
+    "",
+    "use super::*;",
+    "",
+    "#[cfg(test)]",
+    "mod tests;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "transactions": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/transactions.rs",
+   "from": "top",
+   "items": [
+    "AnomalyFlagDto",
+    "AppliedDebtPaymentDto",
+    "FlipSignsDto",
+    "Stats",
+    "TransactionDto",
+    "TransactionSplitDto",
+    "TransferCandidateDto",
+    "add_tag",
+    "apply_debt_payment",
+    "bulk_correct_category",
+    "bulk_create_recurring_from_transactions",
+    "bulk_delete_transactions",
+    "bulk_set_transaction_member",
+    "correct_category",
+    "create_manual_transaction",
+    "delete_transaction",
+    "dismiss_anomaly_flag",
+    "dismiss_transfer_candidates",
+    "flip_transaction_signs",
+    "get_stats",
+    "get_transaction_splits",
+    "link_transfer",
+    "list_all_tags",
+    "list_all_transfer_candidate_pairs",
+    "list_anomaly_flags",
+    "list_auto_linked_transfers",
+    "list_transactions",
+    "list_transactions_by_ids",
+    "list_transfer_candidates",
+    "mark_auto_links_reviewed",
+    "recategorize_uncategorized",
+    "remove_tag",
+    "restore_transactions",
+    "restore_transfer_candidates",
+    "set_transaction_member",
+    "set_transaction_splits",
+    "transaction_dto",
+    "unapply_debt_payment",
+    "unlink_transfer",
+    "update_transaction_account",
+    "update_transaction_amount",
+    "update_transaction_date",
+    "update_transaction_description",
+    "update_transaction_notes",
+    "update_transaction_principal_amount"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: the ledger \u2014 listing, editing, splitting, tagging, transfers, bulk changes and review flags.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "categories": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/categories.rs",
+   "from": "top",
+   "items": [
+    "CategoryDto",
+    "RuleDto",
+    "RulePreviewDto",
+    "create_category",
+    "delete_category",
+    "delete_rule",
+    "list_categories",
+    "list_categories_with_icons",
+    "list_rules",
+    "preview_rule",
+    "reload_rules",
+    "rename_category",
+    "save_rule",
+    "set_category_icon"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: categories and categorization rules.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "accounts": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/accounts.rs",
+   "from": "top",
+   "items": [
+    "AccountDto",
+    "AccountTransactionDto",
+    "BalancePointDto",
+    "FamilyMemberDto",
+    "LastReconciliationDto",
+    "ReconciliationStatusDto",
+    "account_balance_history",
+    "account_transaction_dtos",
+    "create_account",
+    "create_family_member",
+    "delete_account",
+    "delete_family_member",
+    "finish_reconciliation",
+    "last_reconciliation",
+    "list_account_transactions",
+    "list_accounts",
+    "list_family_members",
+    "reconcile_candidates",
+    "reconciliation_status",
+    "rename_family_member",
+    "set_account_balance_override",
+    "set_account_details",
+    "set_account_excluded_from_debt_payoff",
+    "set_account_icon",
+    "set_account_interest_rate",
+    "set_account_member",
+    "set_account_starting_balance",
+    "set_transactions_cleared",
+    "update_account_type"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: accounts, household members, balance history and reconciling.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "budgets": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/budgets.rs",
+   "from": "top",
+   "items": [
+    "BucketDto",
+    "BudgetAlertDto",
+    "BudgetSuggestionDto",
+    "BudgetSuggestionsDto",
+    "BudgetTrendPointDto",
+    "CategoryTransactionDto",
+    "MemberBudgetActualDto",
+    "MonthReviewDto",
+    "OverBudgetLineDto",
+    "SinkingFundContributionDto",
+    "add_bucket_contribution",
+    "budget_actuals_for_month",
+    "budget_actuals_trend",
+    "budget_alerts_for_month",
+    "check_sinking_fund_contributions",
+    "create_bucket",
+    "delete_bucket",
+    "delete_budget",
+    "list_buckets",
+    "list_reviewed_months",
+    "month_review",
+    "monthly_budget_actuals_by_member",
+    "set_bucket_member",
+    "set_bucket_tracks_account",
+    "set_budget",
+    "set_budget_cap",
+    "set_budget_rollover",
+    "set_month_reviewed",
+    "spending_transactions_for_category",
+    "suggest_budgets",
+    "transactions_for_category",
+    "update_bucket_details"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: budgets, goals (buckets), month reviews and budget alerts.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "reports": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/reports.rs",
+   "from": "top",
+   "items": [
+    "AccountContributionDeltaDto",
+    "BillAwareForecastDto",
+    "CashFlowDto",
+    "CategoryAmountDto",
+    "CategoryMonthAmountDto",
+    "DailySpendAmountDto",
+    "DebtPayoffLineDto",
+    "DebtPayoffPlanDto",
+    "ForecastEventDto",
+    "ForecastPointDto",
+    "InsightDto",
+    "LargeExpenseDto",
+    "MerchantAmountDto",
+    "MinimumPaymentInput",
+    "MonthExpenseDetailDto",
+    "MonthTotalDto",
+    "NetWorthPointDto",
+    "ReportBudgetLineDto",
+    "ReportDto",
+    "YoyCashFlowDto",
+    "account_contribution_deltas",
+    "average_monthly_spend",
+    "bill_aware_forecast",
+    "cash_flow_for_range",
+    "cash_flow_forecast",
+    "category_spending_by_month",
+    "category_spending_for_month",
+    "daily_spending",
+    "dashboard_insights",
+    "debt_payoff_projection",
+    "get_cash_flow",
+    "get_report",
+    "last_day_of_month",
+    "month_expense_detail",
+    "month_range",
+    "month_totals_for_range",
+    "net_worth_history",
+    "spending_this_month",
+    "year_over_year_cash_flow"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: reports, insights, debt payoff, cash flow, forecasts and net worth.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "recurring": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/recurring.rs",
+   "from": "top",
+   "items": [
+    "PriceChangeDto",
+    "RecurringCandidateDto",
+    "RecurringDto",
+    "RecurringMatchDto",
+    "RecurringTotalsDto",
+    "create_recurring",
+    "delete_recurring",
+    "dismiss_recurring_candidate",
+    "dismiss_recurring_price_change",
+    "list_recurring",
+    "list_recurring_candidates",
+    "recurring_matches",
+    "recurring_totals",
+    "set_recurring_member",
+    "set_recurring_status",
+    "update_recurring"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: recurring bills and income, their matches and suggestions.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "investments": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/investments.rs",
+   "from": "top",
+   "items": [
+    "AllocationTargetDto",
+    "ContributionMonthDto",
+    "FailedQuote",
+    "HoldingDto",
+    "InvestmentAccumulationDto",
+    "InvestmentPlanDto",
+    "LivePriceRefreshSummary",
+    "LivePriceSettingsDto",
+    "PortfolioPointDto",
+    "account_value_history",
+    "accumulation_dto",
+    "create_holding",
+    "delete_holding",
+    "fetch_live_quote",
+    "get_inflation_pct",
+    "get_live_price_settings",
+    "investment_accumulation",
+    "list_allocation_targets",
+    "list_holdings",
+    "list_investment_accumulation",
+    "portfolio_history",
+    "refresh_live_prices",
+    "set_allocation_target",
+    "set_investment_plan",
+    "set_live_price_settings",
+    "update_holding_price"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: holdings, portfolio history, investment plans, allocation targets and live prices.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "assets": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/assets.rs",
+   "from": "top",
+   "items": [
+    "AssetDto",
+    "create_asset",
+    "delete_asset",
+    "list_assets",
+    "set_asset_member",
+    "update_asset_value"
+   ],
+   "where": "end",
+   "header": [
+    "//! Commands: property and valuables.",
+    "",
+    "use super::*;",
+    ""
+   ],
+   "register": "src-tauri/src/commands.rs",
+   "reexport": true
+  }
+ ],
+ "tests-files": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/files/tests.rs",
+   "from": "tests",
+   "items": [
+    "protected_store_for_package_test",
+    "exporting_a_protected_profile_writes_a_complete_package",
+    "importing_a_protected_package_requires_its_password_and_intact_database",
+    "relocating_an_encrypted_database_copies_its_key_file"
+   ],
+   "where": "end",
+   "header": [
+    "use super::*;"
+   ]
+  }
+ ],
+ "tests-import": [
+  {
+   "src": "src-tauri/src/commands.rs",
+   "dest": "src-tauri/src/commands/import/tests.rs",
+   "from": "tests",
+   "items": [
+    "the_review_screens_category_choices_are_read_as_sent",
+    "a_choice_with_an_unknown_action_is_refused_rather_than_guessed",
+    "// ---- import review: what the screen i",
+    "import_fixture",
+    "checking",
+    "BANK_CSV",
+    "the_preview_tells_the_screen_each_rows_match_guess_and_remembered_choice",
+    "a_rule_suggestion_reaches_the_screen_as_rule_and_a_classifier_one_as_guess",
+    "previewing_an_import_changes_nothing",
+    "the_review_token_changes_when_the_file_changes",
+    "// ---- import commit: every row settled",
+    "REVIEW_CSV",
+    "review_state",
+    "panel",
+    "picks",
+    "request",
+    "everything",
+    "category_of",
+    "an_import_with_a_row_still_needing_a_choice_is_refused_and_writes_nothing",
+    "an_import_whose_file_changed_after_review_is_refused",
+    "an_import_naming_a_row_or_account_that_does_not_exist_is_refused",
+    "an_import_choosing_a_category_the_person_does_not_have_is_refused",
+    "a_choice_sent_for_a_row_that_did_not_need_one_is_refused",
+    "two_choices_for_one_file_category_under_different_casing_are_refused",
+    "a_settled_import_saves_every_row_remembers_the_mapping_and_learns_the_pick",
+    "a_row_left_uncategorized_stays_that_way_even_when_the_same_import_teaches_a_matching_rule",
+    "letting_the_app_guess_forgets_a_remembered_mapping",
+    "a_choice_for_a_file_category_only_unchecked_rows_use_changes_no_memory",
+    "// ---- what the old reconcile_import_ca",
+    "CASINGS_CSV",
+    "an_import_never_adds_a_category_unless_told_to",
+    "every_casing_of_a_matching_file_category_uses_the_persons_spelling",
+    "adding_a_file_category_adds_it_once_for_every_casing",
+    "mapping_every_casing_of_a_file_category_creates_nothing",
+    "mapping_to_a_category_that_does_not_exist_is_refused_and_writes_nothing",
+    "// ---- the import decides from what the",
+    "a_rule_learned_while_the_review_is_open_does_not_overrule_the_screen",
+    "the_preview_is_remembered_by_its_review_token_and_cleared_by_a_successful_import",
+    "a_failed_import_keeps_the_preview_for_a_retry",
+    "without_a_remembered_preview_the_import_works_the_rows_out_again",
+    "a_category_deleted_while_the_review_is_open_refuses_the_import_and_names_it",
+    "adding_a_file_category_files_its_rows_under_it"
+   ],
+   "where": "end",
+   "header": [
+    "use super::*;"
+   ]
+  }
+ ]
+}
