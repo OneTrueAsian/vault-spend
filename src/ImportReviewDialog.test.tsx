@@ -50,6 +50,7 @@ function review(rows: ImportRow[], over: Partial<ImportReview> = {}): ImportRevi
     leaveRestOfRowsUncategorized: vi.fn(),
     confirmPendingImport: vi.fn(),
     cancelPendingImport: vi.fn(),
+    notice: null,
     ...over,
   } as ImportReview;
 }
@@ -131,6 +132,22 @@ describe("ImportReviewDialog", () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     });
     expect(r.cancelPendingImport).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows why an import was refused inside the dialog, where the person is looking", () => {
+    show(review([row(0)], { notice: "This file changed. The review has been updated. Check it and import again." }));
+    const alert = dialog()!.querySelector("[role='alert']");
+    expect(alert?.textContent).toBe("This file changed. The review has been updated. Check it and import again.");
+  });
+
+  it("shows no notice when there is none", () => {
+    show(review([row(0)], { notice: null }));
+    expect(dialog()!.querySelector("[role='alert']")).toBeNull();
+  });
+
+  it("draws no card of its own inside the dialog", () => {
+    show(review([row(0)]));
+    expect(dialog()!.querySelector(".dup-review")).toBeNull();
   });
 
   it("does not cancel while the import is being saved", () => {

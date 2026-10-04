@@ -70,6 +70,8 @@ const remainingText = async () => (await (await browser.$("#import-remaining-cho
 const needsChoiceRows = async () =>
   browser.execute(() => [...document.querySelectorAll("[data-import-choice-row]")].map((li) => Number(li.getAttribute("data-import-choice-row"))));
 const rowMenu = (index) => browser.$(`button[data-import-row-choice][data-import-row-index="${index}"]`);
+// Why an Import was refused, shown inside the review dialog (a toast would sit behind its backdrop).
+const refusal = () => browser.execute(() => document.querySelector("[role='dialog'] [role='alert']")?.textContent ?? null);
 const panelMenu = (name) => browser.$(`button[data-import-category-choice][data-import-category-name="${name}"]`);
 const reviewCheckbox = (description) => browser.$(`//table[contains(@class,'dup-review-table')]//tr[.//td[normalize-space()='${description}']]//input[@type='checkbox']`);
 
@@ -187,8 +189,8 @@ try {
   await (await importButton()).click();
   await waitUntilOrDiagnose(
     browser,
-    async () => (await browser.execute(() => document.body.innerText)).includes("This file changed. Review it again before importing. The review has been updated from the changed file."),
-    { timeoutMsg: "the refusal should be shown, with the review read again" },
+    async () => ((await refusal()) ?? "").includes("This file changed. Review it again before importing. The review has been updated from the changed file."),
+    { timeoutMsg: "the refusal should be shown inside the review, with the review read again" },
   );
   assert.equal(await (await importButton()).isDisplayed(), true, "the review stays open");
   assert.equal(await menuSelectValue(await panelMenu("Merchandise")), "skip", "the file category choice is kept");
@@ -212,10 +214,10 @@ try {
   await invoke("delete_category", { name: "Entertainment" });
   await (await importButton()).waitForEnabled({ timeout: 5000 });
   await (await importButton()).click();
-  await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.body.innerText)).includes("The review has been updated. Check it and import again."), {
-    timeoutMsg: "the refusal should say the review was updated",
+  await waitUntilOrDiagnose(browser, async () => ((await refusal()) ?? "").includes("The review has been updated. Check it and import again."), {
+    timeoutMsg: "the refusal should say, inside the review, that it was updated",
   });
-  assert.match(await browser.execute(() => document.body.innerText), /Entertainment/, "the refusal names the missing category");
+  assert.match(await refusal(), /Entertainment/, "the refusal names the missing category");
   assert.equal(await (await browser.$('[data-import-choice-row="0"]')).getAttribute("data-choice-state"), "unresolved", "the pick of the deleted category asks again");
   assert.equal(await (await browser.$('[data-import-choice-row="1"]')).getAttribute("data-choice-state"), "uncategorized", "other picks are kept");
   assert.ok(!(await menuOptionLabels(await rowMenu(0))).includes("Entertainment"), "the deleted category is no longer offered");

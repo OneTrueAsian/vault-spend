@@ -2041,6 +2041,28 @@
   font-size: 13.5px;
 }
 
+/* An import review in its dialog: the dialog is the frame, so no card of its own. */
+.import-review-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.import-review-dialog > .dup-review-summary {
+  margin: 0;
+}
+
+/* Why the last Import was refused, at the top of the review where the person is looking. */
+.import-review-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--negative);
+  border-radius: 10px;
+  color: var(--negative);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
 /* The import review's "categories in this file aren't in your list" panel: one row per
    unfamiliar category, each with its own choice, so nothing is added to the list unasked. */
 .import-category-reconcile {

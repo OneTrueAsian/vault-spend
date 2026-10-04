@@ -76,6 +76,11 @@ describe("SetupImportReviewDialog", () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
+  it("draws no card of its own inside the dialog", () => {
+    show(pending());
+    expect(dialog().querySelector(".dup-review")).toBeNull();
+  });
+
   it("turns Import selected off when nothing is ticked", () => {
     const p = pending();
     p.includedAccounts = new Set();

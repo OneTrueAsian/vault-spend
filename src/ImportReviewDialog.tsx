@@ -40,6 +40,7 @@ export function ImportReviewDialog({
     leaveRestOfRowsUncategorized,
     confirmPendingImport,
     cancelPendingImport,
+    notice,
   } = review;
   if (!pendingImport) return null;
 
@@ -76,7 +77,12 @@ export function ImportReviewDialog({
       footer={footer}
       dismissOnOverlayClick={false}
     >
-      <div className="dup-review import-review-dialog">
+      <div className="import-review-dialog">
+        {notice && (
+          <p role="alert" className="import-review-notice">
+            {notice}
+          </p>
+        )}
         <p className="dup-review-summary">
           Untick anything you don't want. You can change the account on any row.
           {row_errors > 0 && ` ${count(row_errors, "row", "rows")} couldn't be read.`}

@@ -46,6 +46,9 @@ export function useImportReview({
   // The person's category for each row the app couldn't place (see ImportNeedsChoice): a category,
   // or null for "Leave uncategorized". A row with no entry has no choice yet.
   const [importRowChoices, setImportRowChoices] = useState<RowChoices>(new Map());
+  // Why the last Import was refused. Shown inside the review: a status message would sit behind
+  // the dialog's dimmed backdrop, out of sight.
+  const [notice, setNotice] = useState<string | null>(null);
 
   /** Reads `path` and opens its review. */
   async function begin(path: string, invertAmounts: boolean, accountId: number) {
@@ -70,6 +73,7 @@ export function useImportReview({
       setAccountOverrides(seedAccountOverrides(preview, accounts, accountId));
       setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories));
       setImportRowChoices(new Map());
+      setNotice(null);
       setPendingImport({ path, invertAmounts, defaultAccountId: accountId, preview });
       setStatus("");
     } catch (e) {
@@ -117,6 +121,7 @@ export function useImportReview({
     setAccountOverrides(new Map());
     setImportCategoryChoices({});
     setImportRowChoices(new Map());
+    setNotice(null);
   }
 
   /** A change to the unfamiliar-category panel; a row it now settles drops its own choice. */
@@ -142,6 +147,7 @@ export function useImportReview({
     // Import is off until every checked row is settled; this is the same check, in case it is reached another way.
     if (includedIndices.size === 0 || unresolvedRows(rows, includedIndices, importCategoryChoices, importRowChoices, choice_below).length > 0) return;
     setBusy(true);
+    setNotice(null);
     setStatus("Importing…", "info");
     const totalRows = rows.length;
     const includedCount = includedIndices.size;
@@ -187,14 +193,14 @@ export function useImportReview({
         setImportCategoryChoices(carried.panel);
         setImportRowChoices(carried.rowChoices);
         setAccountOverrides(carried.accountOverrides);
-        setStatus(
-          `${message} The review has been updated${carried.fileChanged ? " from the changed file" : ""}. Check it and import again.`,
-        );
+        setStatus("");
+        setNotice(`${message} The review has been updated${carried.fileChanged ? " from the changed file" : ""}. Check it and import again.`);
         // So the category menus match what the review was just checked against; the review itself
         // is already updated, so a failed list reload here only leaves the menus as they were.
         refresh().catch(() => undefined);
       } catch {
-        setStatus(message);
+        setStatus("");
+        setNotice(message);
       }
       setBusy(false);
       return;
@@ -239,6 +245,7 @@ export function useImportReview({
     leaveRestOfRowsUncategorized,
     confirmPendingImport,
     cancelPendingImport,
+    notice,
   };
 }
 

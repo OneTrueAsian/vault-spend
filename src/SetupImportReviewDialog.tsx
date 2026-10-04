@@ -66,7 +66,7 @@ export function SetupImportReviewDialog({
       footer={footer}
       dismissOnOverlayClick={false}
     >
-      <div className="dup-review">
+      <div className="import-review-dialog">
         <p className="dup-review-summary">
           Untick anything you don't want.
           {errors > 0 && ` ${errors} ${errors === 1 ? "row had a problem and will be skipped" : "rows had problems and will be skipped"}.`}
