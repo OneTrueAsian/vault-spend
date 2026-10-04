@@ -446,3 +446,158 @@ fn list_categories_with_icons_matches_list_categories_by_name() {
 fn choices(pairs: &[(&str, ImportCategoryChoice)]) -> std::collections::HashMap<String, ImportCategoryChoice> {
     pairs.iter().map(|(name, choice)| (name.to_string(), choice.clone())).collect()
 }
+
+// ---- remembered import file categories (2026-10-04) ----
+//
+// When the person maps a bank's file category ("Merchandise") to one of theirs, the next
+// import fills that choice in. Keyed by the file's name trimmed and lower-cased; the target
+// is always one of their categories, in their spelling.
+
+#[test]
+fn an_import_category_key_is_the_trimmed_lower_cased_name() {
+    assert_eq!(import_category_key("  Gas/Automotive "), "gas/automotive");
+    assert_eq!(import_category_key("MERCHANDISE"), "merchandise");
+}
+
+#[test]
+fn a_remembered_mapping_is_read_back_by_its_key_in_the_persons_spelling() {
+    let store = Store::open_in_memory().unwrap();
+    store.create_category("Shopping", None).unwrap();
+    store.set_import_category_mapping(" Merchandise ", "shopping").unwrap();
+
+    let mappings = store.import_category_mappings().unwrap();
+    assert_eq!(mappings.len(), 1);
+    assert_eq!(mappings.get("merchandise").map(String::as_str), Some("Shopping"));
+}
+
+#[test]
+fn setting_a_mapping_again_replaces_the_earlier_one() {
+    let store = Store::open_in_memory().unwrap();
+    store.create_category("Shopping", None).unwrap();
+    store.create_category("Home", None).unwrap();
+    store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
+    store.set_import_category_mapping("MERCHANDISE", "Home").unwrap();
+
+    let mappings = store.import_category_mappings().unwrap();
+    assert_eq!(mappings.len(), 1);
+    assert_eq!(mappings.get("merchandise").map(String::as_str), Some("Home"));
+}
+
+#[test]
+fn removing_a_mapping_forgets_it_under_any_casing() {
+    let store = Store::open_in_memory().unwrap();
+    store.create_category("Shopping", None).unwrap();
+    store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
+    store.remove_import_category_mapping("  merchandise").unwrap();
+    assert!(store.import_category_mappings().unwrap().is_empty());
+    // removing one that isn't there is harmless
+    store.remove_import_category_mapping("Never Seen").unwrap();
+}
+
+#[test]
+fn a_mapping_to_a_category_the_person_does_not_have_is_refused() {
+    let store = Store::open_in_memory().unwrap();
+    let err = store.set_import_category_mapping("Merchandise", "Nope").unwrap_err();
+    assert!(
+        matches!(err, ImportCategoryError::UnknownCategory(ref name) if name == "Nope"),
+        "got {err:?}"
+    );
+    assert!(store.import_category_mappings().unwrap().is_empty());
+    // the refusal must not register the category either
+    assert_eq!(store.find_category("Nope").unwrap(), None);
+}
+
+#[test]
+fn a_mapping_with_an_empty_name_or_target_is_refused() {
+    let store = Store::open_in_memory().unwrap();
+    store.create_category("Shopping", None).unwrap();
+    assert!(store.set_import_category_mapping("   ", "Shopping").is_err());
+    assert!(store.set_import_category_mapping("Merchandise", "  ").is_err());
+    assert!(store.import_category_mappings().unwrap().is_empty());
+}
+
+#[test]
+fn a_mapping_follows_its_category_when_it_is_renamed_or_merged() {
+    let store = Store::open_in_memory().unwrap();
+    store.create_category("Shopping", None).unwrap();
+    store.create_category("Household", None).unwrap();
+    store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
+    store.set_import_category_mapping("Home Improvement", "Household").unwrap();
+
+    store.rename_category("Shopping", "Stuff").unwrap();
+    // a merge: rename into a category that already exists
+    store.rename_category("Household", "Stuff").unwrap();
+
+    let mappings = store.import_category_mappings().unwrap();
+    assert_eq!(mappings.get("merchandise").map(String::as_str), Some("Stuff"));
+    assert_eq!(mappings.get("home improvement").map(String::as_str), Some("Stuff"));
+}
+
+#[test]
+fn deleting_a_category_forgets_the_mappings_that_point_at_it() {
+    let store = Store::open_in_memory().unwrap();
+    store.create_category("Shopping", None).unwrap();
+    store.create_category("Home", None).unwrap();
+    store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
+    store.set_import_category_mapping("Hardware", "Home").unwrap();
+    store.delete_category("Shopping").unwrap();
+
+    let mappings = store.import_category_mappings().unwrap();
+    assert_eq!(mappings.len(), 1);
+    assert!(!mappings.contains_key("merchandise"));
+    let raw: i64 = store
+        .conn
+        .query_row(
+            "SELECT COUNT(*) FROM import_category_mappings WHERE file_category = 'merchandise'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(raw, 0, "the row itself is gone, not just hidden");
+}
+
+#[test]
+fn a_stale_mapping_is_never_read_back() {
+    // A mapping whose target vanished some other way (older data, a direct registry edit)
+    // is ignored rather than handed to an import.
+    let store = Store::open_in_memory().unwrap();
+    store.create_category("Shopping", None).unwrap();
+    store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
+    store.conn.execute("DELETE FROM categories WHERE name = 'Shopping'", []).unwrap();
+    assert!(store.import_category_mappings().unwrap().is_empty());
+}
+
+#[test]
+fn mappings_are_shared_by_every_account_in_a_profile_but_not_across_profiles() {
+    let one = Store::open_in_memory().unwrap();
+    let other = Store::open_in_memory().unwrap();
+    one.create_category("Shopping", None).unwrap();
+    other.create_category("Shopping", None).unwrap();
+    // keyed by name only: there is no account in the mapping at all
+    one.set_import_category_mapping("Merchandise", "Shopping").unwrap();
+    assert_eq!(one.import_category_mappings().unwrap().len(), 1);
+    assert!(other.import_category_mappings().unwrap().is_empty());
+}
+
+#[test]
+fn a_mapping_survives_closing_and_reopening_the_database() {
+    let dir = std::env::temp_dir().join(format!("vaultspend-import-mapping-test-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let db_path = dir.join("test.db");
+    if db_path.exists() {
+        std::fs::remove_file(&db_path).unwrap();
+    }
+    {
+        let store = Store::open(&db_path).unwrap();
+        store.create_category("Shopping", None).unwrap();
+        store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
+    }
+    {
+        let store = Store::open(&db_path).unwrap();
+        assert_eq!(
+            store.import_category_mappings().unwrap().get("merchandise").map(String::as_str),
+            Some("Shopping")
+        );
+    }
+    std::fs::remove_dir_all(&dir).ok();
+}

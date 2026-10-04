@@ -23,7 +23,7 @@ pub use self::budgets::{
     BudgetActual, BudgetAlert, BudgetLine, BudgetSuggestion, BudgetSuggestions, CategoryTransaction, MemberBudgetActual, MonthReview, OverBudgetLine,
 };
 mod categories;
-pub use self::categories::{CategoryCounts, ImportCategoryChoice, ImportCategoryError, StoredCategory, UnmatchedImportCategory};
+pub use self::categories::{CategoryCounts, ImportCategoryChoice, ImportCategoryError, StoredCategory, UnmatchedImportCategory, import_category_key};
 mod family;
 mod insights;
 pub use self::insights::{AnomalyFlag, Insight, LargeExpense};
