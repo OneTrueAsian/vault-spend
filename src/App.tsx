@@ -166,302 +166,37 @@ import "./themes/futuristic.css";
 import { MenuSelect } from "./MenuSelect";
 import { errorMessage } from "./errorMessage";
 import { sumMoney } from "./money";
+import { StatusBanner } from "./StatusBanner";
+import { compareTransactionsBy, describeDeleteImpact } from "./ledgerHelpers";
+import {
+  NAV_ORDER_STORAGE_KEY,
+  getLastUsedAccountId,
+  loadLedgerDensity,
+  loadNavOrder,
+  loadSavedFilters,
+  saveSavedFilters,
+  setLastUsedAccountId,
+  type LedgerDensity,
+} from "./appStorage";
+import {
+  CATEGORY_SOURCE_LABELS,
+  NAV_GROUP_LABELS,
+  NAV_GROUP_ORDER,
+  NAV_ITEMS,
+  PINNED_NAV_ITEMS,
+  UNCATEGORIZED_FILTER,
+  type ImportSummary,
+  type LedgerSortColumn,
+  type NewAccountResult,
+  type PendingDialog,
+  type PendingImport,
+  type SavedLedgerFilter,
+  type Stats,
+  type StatusKind,
+  type Tab,
+  type Theme,
+} from "./appTypes";
 
-type ImportSummary = {
-  inserted: number;
-  row_errors: number;
-  inserted_ids: number[];
-  /** Transfer pairs linked automatically by this import (0 unless auto-linking is on). */
-  auto_linked: number;
-};
-
-type PendingImport = {
-  path: string;
-  invertAmounts: boolean;
-  defaultAccountId: number;
-  preview: ImportPreview;
-};
-
-type Stats = {
-  total: number;
-  auto_categorized: number;
-  user_confirmed: number;
-  uncategorized: number;
-};
-
-type NewAccountResult = {
-  name: string;
-  accountType: string;
-  startingBalance: string | null;
-  institution: string | null;
-  mask: string | null;
-  memberId: number | null;
-  iconKey: string | null;
-};
-
-type PendingDialog =
-  | {
-    kind: "newAccount";
-    resolve: (result: NewAccountResult | null) => void;
-  }
-  | { kind: "newCategory"; resolve: (name: string | null) => void }
-  | { kind: "confirmInvert"; resolve: (invert: boolean) => void; accountName?: string; suggestion?: ImportSignSuggestion }
-  | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
-
-/** How a transaction got its category, in words (the backend stores rule / user / classifier). */
-const CATEGORY_SOURCE_LABELS: Record<string, string> = { rule: "Your rule", user: "You", classifier: "Suggested" };
-
-type Tab =
-  | "dashboard"
-  | "accounts"
-  | "ledger"
-  | "buckets"
-  | "budget"
-  | "cashflow"
-  | "reports"
-  | "recurring"
-  | "investments"
-  | "household"
-  | "settings"
-  | "help";
-
-/** Groups the sidebar organizes its (reorderable) tabs under — Settings
- * and Help are pinned below these instead of belonging to a group, so
- * they're never part of the drag-to-reorder set (see `PINNED_NAV_ITEMS`). */
-type NavGroup = "overview" | "money" | "planning" | "insights";
-const NAV_GROUP_ORDER: NavGroup[] = ["overview", "money", "planning", "insights"];
-const NAV_GROUP_LABELS: Record<NavGroup, string> = {
-  overview: "Overview",
-  money: "Money",
-  planning: "Planning",
-  insights: "Insights",
-};
-
-type Theme = "light" | "dark" | "system";
-
-type StatusKind = "success" | "error" | "info";
-
-type LedgerSortColumn = "date" | "description" | "amount" | "account" | "category" | "source";
-
-function compareTransactionsBy(a: Transaction, b: Transaction, column: LedgerSortColumn): number {
-  switch (column) {
-    case "date":
-      return a.date.localeCompare(b.date);
-    case "description":
-      return a.description.localeCompare(b.description);
-    case "amount":
-      return parseFloat(a.amount) - parseFloat(b.amount);
-    case "account":
-      return a.account_name.localeCompare(b.account_name);
-    case "category":
-      return (a.category ?? "").localeCompare(b.category ?? "");
-    case "source":
-      return (a.category_source ?? "").localeCompare(b.category_source ?? "");
-  }
-}
-
-/** What deleting a transaction will do to its account's number, worded to
- * match what that account actually displays — "balance" for cash/other
- * accounts, "amount owed" for credit/loan (see AccountsView's identical
- * framing). Credit and loan both track "amount owed" in a way that moves
- * opposite a plain balance: a credit account's tracked value is
- * *available* credit (owed = limit − available), and a loan's
- * `current_balance` is owed directly but a positive (payment) transaction
- * *reduces* it (see `account_balance_as_of` on the Rust side) — so for
- * both, removing a negative transaction raises the tracked number and
- * therefore *lowers* what's owed, the opposite direction from every other
- * account type, where the tracked value and "owed" move together. Returns
- * `null` for a zero amount (no impact to explain) or an unknown account. */
-function describeDeleteImpact(amount: string, account: Account | undefined): string | null {
-  if (!account) return null;
-  const parsed = parseFloat(amount);
-  if (Number.isNaN(parsed) || parsed === 0) return null;
-
-  const isCredit = account.account_type === "credit";
-  const isLoan = account.account_type === "loan";
-  const label = isCredit || isLoan ? "amount owed" : "balance";
-  const trackedValueGoesUp = parsed < 0; // removing a negative (expense) frees up that much
-  const displayedNumberGoesUp = isCredit || isLoan ? !trackedValueGoesUp : trackedValueGoesUp;
-  const direction = displayedNumberGoesUp ? "increase" : "decrease";
-  return `Deleting this will ${direction} ${account.name}'s ${label} by ${formatAmount(Math.abs(parsed).toFixed(2))}.`;
-}
-
-/** The sidebar's reorderable tabs — grouped for display (see `NavGroup`)
- * but reordered as one flat sequence via drag-and-drop; rendering then
- * re-partitions that sequence by `group`, so a drag effectively only ever
- * reorders within its own group (dropping across a group boundary changes
- * the stored order but never moves an item out of its group visually) —
- * this keeps the mental model of the grouped redesign intact without
- * needing separate per-group order state. Settings and Help are pinned
- * outside this entirely (see `PINNED_NAV_ITEMS`), not reorderable. */
-const NAV_ITEMS: { id: Tab; label: string; icon: string; group: NavGroup }[] = [
-  { id: "dashboard", label: "Dashboard", icon: "home", group: "overview" },
-  { id: "accounts", label: "Accounts", icon: "bank", group: "money" },
-  { id: "ledger", label: "Transactions", icon: "swap", group: "money" },
-  { id: "recurring", label: "Recurring", icon: "repeat", group: "money" },
-  { id: "budget", label: "Budget", icon: "pie", group: "planning" },
-  { id: "buckets", label: "Goals", icon: "flag", group: "planning" },
-  { id: "cashflow", label: "Cash Flow", icon: "trend", group: "insights" },
-  { id: "investments", label: "Investments", icon: "barchart", group: "insights" },
-  { id: "household", label: "Household", icon: "users", group: "insights" },
-  { id: "reports", label: "Reports", icon: "wallet", group: "insights" },
-];
-
-/** Fixed, non-reorderable — rendered below a divider, outside every
- * group. */
-const PINNED_NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
-  { id: "settings", label: "Settings", icon: "settings" },
-  { id: "help", label: "Help", icon: "help" },
-];
-
-const NAV_ORDER_STORAGE_KEY = "meadow-nav-order";
-// Per-viewer, like the theme: how tall Transactions rows are. Compact is the
-// default — the comfortable layout stacked the tag box and Split button under
-// their cells and made every row ~75px tall.
-const LEDGER_DENSITY_STORAGE_KEY = "vaultspend-ledger-density";
-type LedgerDensity = "comfortable" | "compact";
-function loadLedgerDensity(): LedgerDensity {
-  try {
-    return localStorage.getItem(LEDGER_DENSITY_STORAGE_KEY) === "comfortable" ? "comfortable" : "compact";
-  } catch {
-    return "compact"; // private window, blocked site data, etc. — just use the default
-  }
-}
-// Which account a fresh import/manual transaction defaults to. Without
-// this, the default falls back to whichever account sorts first
-// alphabetically (list_accounts orders by name) — for most households
-// that's not their everyday checking account, so a CSV import or quick
-// add could silently land in the wrong place. Global rather than
-// per-profile, same as theme/nav-order above; a stale id from another
-// profile (or a deleted account) is harmless since callers only ever use
-// this as a first guess and fall back to accounts[0] when it doesn't
-// match a real, current account.
-const LAST_USED_ACCOUNT_STORAGE_KEY = "vaultspend-last-used-account-id";
-function getLastUsedAccountId(): number | null {
-  try {
-    const raw = localStorage.getItem(LAST_USED_ACCOUNT_STORAGE_KEY);
-    return raw ? Number(raw) : null;
-  } catch {
-    return null; // private window, blocked site data, etc. — just skip the preference
-  }
-}
-function setLastUsedAccountId(id: number) {
-  try {
-    localStorage.setItem(LAST_USED_ACCOUNT_STORAGE_KEY, String(id));
-  } catch {
-    // best effort, same as every other localStorage write in this file
-  }
-}
-/** Sentinel `filterCategory` value meaning "no category assigned" — kept
- * distinct from any real category name the same way the per-row category
- * `<select>`s already use `"__new__"` for "+ New category…". */
-const UNCATEGORIZED_FILTER = "__uncategorized__";
-
-/** A named snapshot of the Transactions tab's filter bar — a per-viewer shortcut,
- * same localStorage tier as theme/nav order. `filterAccountIds`/
- * `filterMemberIds` are stored as plain arrays (`Set` doesn't survive
- * `JSON.stringify`) and rehydrated back to `Set`s on apply — see
- * `applySavedFilter`. A saved account/category/tag that's since been
- * deleted just matches nothing once applied, the same as typing a filter
- * that happens to match zero rows — nothing here needs it to still exist. */
-type SavedLedgerFilter = {
-  name: string;
-  searchText: string;
-  filterCategory: string;
-  filterAccountIds: number[] | "all";
-  filterMemberIds: number[] | "all";
-  filterFrom: string;
-  filterTo: string;
-  filterTag: string;
-};
-
-async function loadSavedFilters(): Promise<SavedLedgerFilter[]> {
-  try {
-    const stored = await getProfileUiState("saved_filters");
-    if (stored) {
-      const parsed: unknown = JSON.parse(stored);
-      if (Array.isArray(parsed)) return parsed as SavedLedgerFilter[];
-    }
-  } catch {
-    // corrupt/unavailable value — fall back to no saved filters
-  }
-  return [];
-}
-
-async function saveSavedFilters(filters: SavedLedgerFilter[]) {
-  try {
-    const generation = await getCurrentGeneration();
-    await setProfileUiState("saved_filters", JSON.stringify(filters), generation);
-  } catch {
-    // per-viewer preference only — fine to skip if the save fails
-  }
-}
-
-/** Reads the sidebar's saved custom order — a per-viewer UI preference,
- * same as theme, so it lives in localStorage rather than the database.
- * Unknown ids (an old order from a build with different tabs) are
- * dropped; any tab missing from a stored order (a new tab shipped since
- * the user last reordered) is appended at the end rather than hidden. */
-function loadNavOrder(): Tab[] {
-  const known = NAV_ITEMS.map((item) => item.id);
-  try {
-    const stored = localStorage.getItem(NAV_ORDER_STORAGE_KEY);
-    if (stored) {
-      const parsed: unknown = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        const filtered = parsed.filter((id): id is Tab => known.includes(id as Tab));
-        const missing = known.filter((id) => !filtered.includes(id));
-        return [...filtered, ...missing];
-      }
-    }
-  } catch {
-    // corrupt/unavailable storage — fall back to the default order
-  }
-  return known;
-}
-
-/** The one status line shared by every success confirmation, error, and
- * in-progress message in the app (~90+ call sites) — styled by `kind` so an
- * error doesn't look identical to a routine confirmation (see App.css's
- * `.status-*` rules), with its own dismiss button since errors stay up
- * longer than the auto-dismiss timer and a raw error string is worth being
- * able to clear once read. */
-function StatusBanner({
-  text,
-  kind,
-  action,
-  onDismiss,
-}: {
-  text: string;
-  kind: StatusKind;
-  /** An optional extra button (e.g. "Undo") next to the dismiss ×, as a
-   * sibling — not nested inside it, so it's independently clickable/
-   * focusable. Used by the Transactions tab's bulk-delete undo toast, which is its
-   * own independent piece of state from `status` (see `undoToast` below)
-   * precisely so a routine confirmation elsewhere can't clobber an active
-   * undo window — both just render through this one shared component. */
-  action?: { label: string; onClick: () => void };
-  onDismiss: () => void;
-}) {
-  return (
-    <p className={`status status-${kind}`} role={kind === "error" ? "alert" : "status"}>
-      <svg className="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        {kind === "success" && <path d="M20 6 9 17l-5-5" />}
-        {kind === "error" && <><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></>}
-        {kind === "info" && <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>}
-      </svg>
-      <span className="status-text">{text}</span>
-      {action && (
-        <button type="button" className="status-action" onClick={action.onClick}>
-          {action.label}
-        </button>
-      )}
-      <button type="button" className="status-dismiss" onClick={onDismiss} aria-label="Dismiss message">
-        ×
-      </button>
-    </p>
-  );
-}
 
 function App({
   initialStatus,
