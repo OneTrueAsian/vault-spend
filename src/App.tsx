@@ -90,7 +90,7 @@ import { AccountDetailView } from "./AccountDetailView";
 
 import { ImportReviewPanel } from "./ImportReviewPanel";
 import { useImportReview } from "./useImportReview";
-import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel } from "./ledgerPaging";
+import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel, transactionsInRows } from "./ledgerPaging";
 import {
   SELECT_ALL_CAP,
   canSelectMore,
@@ -1070,6 +1070,11 @@ function App({
   // both actually on screen, and before paging so page sizes stay honest.
   const { rows: displayTransactions, inLegByOutId } = useMemo(() => collapseTransferPairs(sortedTransactions), [sortedTransactions]);
   const pagedTransactions = displayTransactions.slice(0, shownCount);
+  // The count under the table is in transactions, like the selection: a merged transfer row is two.
+  const shownTransactions = transactionsInRows(
+    displayTransactions.map((t) => (inLegByOutId.has(t.id) ? 2 : 1)),
+    shownCount,
+  );
 
   // Suggested transfers (equal-and-opposite amounts in different accounts a
   // few days apart) — fetched whenever the Transactions tab is showing and
@@ -3937,7 +3942,7 @@ function App({
                 at a time
               </label>
               <span className="ledger-page-count" aria-live="polite" data-ledger-shown>
-                {ledgerShownLabel(Math.min(shownCount, displayTransactions.length), displayTransactions.length)}
+                {ledgerShownLabel(shownTransactions.shown, shownTransactions.total)}
               </span>
               {showMoreLabel(shownCount, displayTransactions.length, pageSize) && (
                 <button type="button" className="modal-secondary" onClick={() => setShownCount((count) => count + pageSize)} data-ledger-show-more>

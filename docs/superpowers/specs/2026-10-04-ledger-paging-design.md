@@ -44,6 +44,14 @@ loaded in full; this change is to what the ledger shows and selects.
 - Changing a filter, the search or the sort starts batches over.
 - Ticking rows one by one also stops at 250, with the status "A change can apply to at most 250
   transactions at a time."
+- Amended during UAT prep (2026-10-04): a later batch's note says so, so the person can tell the
+  press moved on: "Selected the next 250 of the 958 matching transactions (250 done in earlier
+  batches). Apply your change, then press Select all again for the next 250.", and the last one
+  "Selected the last 208 of the 958 matching transactions (750 done in earlier batches). Apply
+  your change to finish." Earlier batches that no longer match the filter don't count.
+- Also amended: "Showing 50 of N transactions" counts transactions, like the note and the
+  selection. It used to count rows, so with transfers (one row, two transactions) the pager and
+  the note gave different totals for the same ledger (869 vs 958 on the household demo).
 
 ## Testing
 

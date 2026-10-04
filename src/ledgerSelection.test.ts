@@ -100,4 +100,29 @@ describe("selectAllNote", () => {
   it("says nothing when every matching row is selected", () => {
     expect(selectAllNote(selectAllNext(rows(12), new Set(), null))).toBeNull();
   });
+
+  it("says a later batch is the next one and how many earlier batches covered", () => {
+    const first = selectAllNext(rows(958), new Set(), null);
+    const second = selectAllNext(rows(958), new Set(), first.batch);
+    expect(second.doneBefore).toBe(250);
+    expect(selectAllNote(second)).toBe(
+      "Selected the next 250 of the 958 matching transactions (250 done in earlier batches). Apply your change, then press Select all again for the next 250.",
+    );
+  });
+
+  it("says when a batch is the last one", () => {
+    let r = selectAllNext(rows(600), new Set(), null);
+    r = selectAllNext(rows(600), new Set(), r.batch);
+    r = selectAllNext(rows(600), new Set(), r.batch);
+    expect(selectAllNote(r)).toBe("Selected the last 100 of the 600 matching transactions (500 done in earlier batches). Apply your change to finish.");
+  });
+
+  it("treats a batch as a first one when earlier batches dropped out of the filter", () => {
+    const first = selectAllNext(rows(600), new Set(), null);
+    const second = selectAllNext(rows(350, 251), new Set(), first.batch);
+    expect(second.doneBefore).toBe(0);
+    expect(selectAllNote(second)).toBe(
+      "Selected 250 of the 350 matching transactions. A change can apply to at most 250 at a time: apply your change, then press Select all again for the next 100.",
+    );
+  });
 });

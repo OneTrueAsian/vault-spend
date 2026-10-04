@@ -3,7 +3,8 @@
 //
 //   1. 600 rows: "Showing 50 of 600 transactions"; Show 50 more adds 50 rows.
 //   2. Select all selects 250 (more than are shown) and says how to do the rest.
-//   3. After a bulk category change, Select all picks the next 250, then the last 100, with no note.
+//   3. After a bulk category change, Select all picks the next 250, then the last 100; each later
+//      batch's note says which batch it is and how many earlier batches covered.
 //   4. Ticking rows one by one stops at 250.
 //
 // Run with: node e2e/run-all.mjs --spec=163
@@ -103,11 +104,14 @@ try {
   assert.equal(await setCategoryForSelection(), 250, "the change applies to the 250 selected");
   await selectAll();
   await waitUntilOrDiagnose(browser, async () => (await selectedCount()) === "250 selected", { timeoutMsg: "the second batch should be 250" });
-  assert.match(await note(), /for the next 100\.$/);
+  assert.equal(
+    await note(),
+    "Selected the next 250 of the 600 matching transactions (250 done in earlier batches). Apply your change, then press Select all again for the next 100.",
+  );
   assert.equal(await setCategoryForSelection(), 250, "the second batch is 250 new rows, not the first ones again");
   await selectAll();
   await waitUntilOrDiagnose(browser, async () => (await selectedCount()) === "100 selected", { timeoutMsg: "the last batch should be 100" });
-  assert.equal(await note(), null, "no note once every remaining row is selected");
+  assert.equal(await note(), "Selected the last 100 of the 600 matching transactions (500 done in earlier batches). Apply your change to finish.");
   assert.equal(await setCategoryForSelection(), 100);
   assert.equal(await categorized(), 600, "every row was changed exactly once across the three batches");
 

@@ -22,3 +22,16 @@ export function showMoreLabel(shown: number, total: number, step: number): strin
 export function rowsToShowFor(index: number, shown: number, step: number): number {
   return Math.max(shown, Math.ceil((index + 1) / step) * step);
 }
+
+/** How many transactions the first `shownRows` rows hold, and how many all of them hold. `sizes`
+ * is each matching row's transaction count: a transfer between two accounts shows as one row but
+ * is two transactions, and every count on the tab (the selection, Select all) counts transactions. */
+export function transactionsInRows(sizes: number[], shownRows: number): { shown: number; total: number } {
+  let shown = 0;
+  let total = 0;
+  sizes.forEach((size, i) => {
+    total += size;
+    if (i < shownRows) shown += size;
+  });
+  return { shown, total };
+}
