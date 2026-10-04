@@ -5,7 +5,7 @@ use budget_core::importer;
 use budget_core::learner;
 use budget_core::models::AccountType;
 use budget_core::rules::RuleSet;
-use budget_core::store::{import_category_key, CategorySource, ImportCategoryChoice, Store, NOTES_MAX_CHARS};
+use budget_core::store::{import_category_key, CategorySource, ImportCategoryChoice, ImportCategoryError, Store, NOTES_MAX_CHARS};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -1094,7 +1094,7 @@ pub struct FamilyMemberDto {
     pub name: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct ImportSummary {
     pub inserted: usize,
     pub row_errors: usize,
@@ -1311,11 +1311,16 @@ fn build_classifier(state: &AppState) -> Result<(Vec<(String, String)>, Classifi
 /// callers that need to show the user exactly what changed (see
 /// `recategorize_uncategorized`) don't have to separately diff the transactions.
 fn categorize_uncategorized(state: &mut AppState) -> Result<Vec<i64>, String> {
+    categorize_uncategorized_except(state, &std::collections::HashSet::new())
+}
+
+/// `categorize_uncategorized`, leaving the rows in `skip` alone (an import's own rows, already settled).
+fn categorize_uncategorized_except(state: &mut AppState, skip: &std::collections::HashSet<i64>) -> Result<Vec<i64>, String> {
     let (history, classifier) = build_classifier(state)?;
     let all = state.store.all_transactions().map_err(|e| e.to_string())?;
     let mut categorized_ids = Vec::new();
     for stored in all {
-        if stored.transaction.category.is_some() {
+        if stored.transaction.category.is_some() || skip.contains(&stored.id) {
             continue;
         }
         if let Some((category, source, confidence)) =
@@ -1416,7 +1421,7 @@ pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state
 
 /// `preview_import` against an already-locked profile. A pure read: nothing is created or remembered.
 fn preview_import_for(state: &AppState, path: &str, invert_amounts: bool, account_id: i64) -> Result<ImportPreview, String> {
-    let loaded = importer::load_transactions(&path, invert_amounts).map_err(|e| e.to_string())?;
+    let loaded = importer::load_transactions(path, invert_amounts).map_err(|e| e.to_string())?;
     let row_errors = loaded.errors.len();
 
     let mut resolved_accounts = Vec::with_capacity(loaded.transactions.len());
@@ -1494,131 +1499,229 @@ fn preview_import_for(state: &AppState, path: &str, invert_amounts: bool, accoun
 /// when creating one by hand — so a full multi-account Transactions export
 /// re-imports into the right accounts with zero manual setup; else
 /// `default_account_id` (the one picked before the file was chosen), for
-/// a real bank export with no Account column at all. Tags parsed from the
-/// file are attached after insert, once each row has a real id. Unlike
-/// the old preview-time duplicate check, nothing here re-decides what
-/// counts as a duplicate — the user already made that call by checking or
-/// unchecking each row.
+/// a real bank export with no Account column at all. Unlike the old
+/// preview-time duplicate check, nothing here re-decides what counts as a
+/// duplicate — the user already made that call by checking or unchecking
+/// each row.
+///
+/// Every row's category is settled before anything is written (see
+/// `budget_core::import_resolution`): the file's own category when it is
+/// one of the person's, else the review screen's choice for that file
+/// category (`category_choices`, falling back to the remembered one), else
+/// a sure rule or auto-categorizer answer, else the person's `row_choices`
+/// pick for that row (`None` = leave it uncategorized). An included row
+/// still needing a choice, a file that changed since `review_token` was
+/// issued, or any other bad input refuses the whole import, and nothing is
+/// written: the import itself is one transaction.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn commit_import(
     path: String,
     invert_amounts: bool,
     default_account_id: i64,
+    review_token: String,
     included_indices: Vec<usize>,
     account_overrides: std::collections::HashMap<usize, i64>,
     category_choices: Option<std::collections::HashMap<String, CategoryChoiceDto>>,
+    row_choices: std::collections::HashMap<usize, Option<String>>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<ImportSummary, String> {
     let mut state = state.lock()?;
+    commit_import_for(
+        &mut state,
+        CommitImportRequest {
+            path,
+            invert_amounts,
+            default_account_id,
+            review_token,
+            included_indices,
+            account_overrides,
+            category_choices,
+            row_choices,
+        },
+    )
+}
 
-    let loaded = importer::load_transactions(&path, invert_amounts).map_err(|e| e.to_string())?;
+/// `commit_import`'s arguments, so the same logic runs against an already-locked profile in tests.
+pub struct CommitImportRequest {
+    pub path: String,
+    pub invert_amounts: bool,
+    pub default_account_id: i64,
+    pub review_token: String,
+    pub included_indices: Vec<usize>,
+    pub account_overrides: std::collections::HashMap<usize, i64>,
+    pub category_choices: Option<std::collections::HashMap<String, CategoryChoiceDto>>,
+    /// A missing key means no choice was made; a `None` value means "Leave uncategorized".
+    pub row_choices: std::collections::HashMap<usize, Option<String>>,
+}
+
+fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<ImportSummary, String> {
+    use budget_core::import_resolution::Automatic;
+    use budget_core::store::{ImportAccount, ImportBatch, ImportBatchRow, RowCategory};
+
+    let loaded = importer::load_transactions(&req.path, req.invert_amounts).map_err(|e| e.to_string())?;
+    if import_resolution::review_token(&loaded) != req.review_token {
+        return Err("This file changed. Review it again before importing.".to_string());
+    }
     let mut row_errors = loaded.errors.len();
 
-    let included: std::collections::HashSet<usize> = included_indices.into_iter().collect();
-    let mut selected: Vec<(usize, budget_core::models::Transaction)> = loaded
-        .transactions
-        .into_iter()
-        .enumerate()
-        .filter(|(index, _)| included.contains(index))
-        .collect();
+    let mut included: Vec<usize> = req.included_indices.clone();
+    included.sort_unstable();
+    included.dedup();
+    if included.iter().any(|&i| i >= loaded.transactions.len()) {
+        return Err("This import names a row the file doesn't have. Review it again before importing.".to_string());
+    }
 
-    // Validated before anything is written, same reasoning as the category
-    // choices below: a row whose note is over the limit used to reach
-    // `update_transaction_notes` only *after* its own transaction (and
-    // every other selected row's) was already inserted, so the length
-    // rejection aborted the whole command with rows already committed,
-    // `inserted_ids` lost (breaking the import-undo toast), and
-    // categorize_uncategorized/auto-link skipped — an error shown to the
-    // user while totals had already changed. Dropped here instead, same
-    // "skip the bad row, keep the rest" contract `row_errors` already
-    // gives every other kind of malformed row.
-    selected.retain(|(index, _)| {
-        let ok = loaded
-            .notes
-            .get(*index)
-            .and_then(|o| o.as_deref())
-            .is_none_or(|n| n.trim().chars().count() <= NOTES_MAX_CHARS);
-        if !ok {
-            row_errors += 1;
-        }
-        ok
-    });
-
-    // An import only lands in categories the person already has. A category the file brings
-    // that they don't have is mapped, created or skipped as the review screen chose (skipped
-    // when it wasn't asked about) — never adopted on its own. Settled for the rows being
-    // imported only, before anything is written, so a bad choice changes nothing.
-    let choices: std::collections::HashMap<String, ImportCategoryChoice> = category_choices
+    // Every row is settled from the profile as it was before this import: the same rules,
+    // history and remembered choices for the whole file.
+    let sent: std::collections::HashMap<String, ImportCategoryChoice> = req
+        .category_choices
         .unwrap_or_default()
         .into_iter()
         .map(|(name, choice)| (name, choice.into()))
         .collect();
-    let mut settled: Vec<budget_core::models::Transaction> = selected.iter().map(|(_, tx)| tx.clone()).collect();
-    state
-        .store
-        .reconcile_import_categories(&mut settled, &choices)
-        .map_err(|e| e.to_string())?;
-    for ((_, tx), settled) in selected.iter_mut().zip(settled) {
-        tx.category = settled.category;
-    }
-
-    // One imported row plus its optional Tags/Notes columns, grouped by destination account.
-    type PendingRow = (budget_core::models::Transaction, Vec<String>, Option<String>);
-    let mut by_account: std::collections::HashMap<i64, Vec<PendingRow>> = std::collections::HashMap::new();
-    for (index, tx) in selected {
-        let account_id = if let Some(explicit) = account_overrides.get(&index).copied() {
-            explicit
-        } else if let Some(name) = loaded.account_names.get(index).and_then(|o| o.as_deref()) {
-            state
-                .store
-                .get_or_create_account(name, AccountType::Checking)
-                .map_err(|e| e.to_string())?
-        } else {
-            default_account_id
-        };
-        let tags = loaded.tags.get(index).cloned().unwrap_or_default();
-        let notes = loaded.notes.get(index).cloned().flatten();
-        by_account.entry(account_id).or_default().push((tx, tags, notes));
-    }
-
-    let mut inserted = 0;
-    let mut inserted_ids: Vec<i64> = Vec::new();
-    for (account_id, rows) in by_account {
-        let (txns, tags_per_row, notes_per_row): (Vec<_>, Vec<_>, Vec<_>) = rows.into_iter().fold(
-            (Vec::new(), Vec::new(), Vec::new()),
-            |(mut txns, mut tags, mut notes), (tx, row_tags, row_notes)| {
-                txns.push(tx);
-                tags.push(row_tags);
-                notes.push(row_notes);
-                (txns, tags, notes)
-            },
-        );
-        let ids = state.store.save_transactions_with_ids(account_id, &txns).map_err(|e| e.to_string())?;
-        inserted += ids.len();
-        inserted_ids.extend(ids.iter().copied());
-        for ((id, tags), notes) in ids.into_iter().zip(tags_per_row).zip(notes_per_row) {
-            for tag in tags {
-                state.store.add_tag(id, &tag).map_err(|e| e.to_string())?;
-            }
-            if let Some(notes) = notes {
-                state.store.update_transaction_notes(id, Some(&notes)).map_err(|e| e.to_string())?;
+    let remembered = state.store.import_category_mappings().map_err(|e| e.to_string())?;
+    let panel = import_resolution::effective_panel_choices(&sent, &remembered).map_err(|e| e.to_string())?;
+    for choice in panel.values() {
+        if let ImportCategoryChoice::MapTo(target) = choice {
+            if state.store.find_category(target).map_err(|e| e.to_string())?.is_none() {
+                return Err(ImportCategoryError::UnknownCategory(target.trim().to_string()).to_string());
             }
         }
     }
+    let (history, classifier) = build_classifier(state)?;
+    let facts =
+        import_resolution::row_facts(&state.store, &loaded.transactions, &state.rules, &history, Some(&classifier)).map_err(|e| e.to_string())?;
 
-    // Offered again the next time a file is imported into this account (see `StoredAccount::import_flip_signs`).
-    state
-        .store
-        .set_account_import_flip_signs(default_account_id, invert_amounts)
-        .map_err(|e| e.to_string())?;
+    let mut categories: std::collections::HashMap<usize, RowCategory> = std::collections::HashMap::new();
+    let mut unsettled = 0usize;
+    let mut chosen: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    for &index in &included {
+        let category = match import_resolution::automatic(&facts[index], &panel) {
+            Some(Automatic::File(_)) => RowCategory::AsFiled,
+            Some(Automatic::Guess(s)) => RowCategory::Guess {
+                category: s.category,
+                source: s.source,
+                confidence: s.confidence,
+            },
+            None => match req.row_choices.get(&index) {
+                None => {
+                    unsettled += 1;
+                    continue;
+                }
+                Some(pick) => {
+                    chosen.insert(index);
+                    match pick {
+                        None => RowCategory::LeaveUncategorized,
+                        Some(name) => match state.store.find_category(name).map_err(|e| e.to_string())? {
+                            Some(spelling) => RowCategory::Chosen(spelling),
+                            None => return Err(ImportCategoryError::UnknownCategory(name.trim().to_string()).to_string()),
+                        },
+                    }
+                }
+            },
+        };
+        categories.insert(index, category);
+    }
+    if unsettled > 0 {
+        let rows = if unsettled == 1 {
+            "1 more row".to_string()
+        } else {
+            format!("{unsettled} more rows")
+        };
+        return Err(format!("Choose a category for {rows}, or leave them uncategorized."));
+    }
+    // A pick for a row that is unchecked, or that no longer needs one, is a stale screen: refuse it
+    // rather than let it override the file's own category or the screen's file-category choice.
+    if req.row_choices.keys().any(|i| !chosen.contains(i)) {
+        return Err("Some choices no longer match this import. Review it again before importing.".to_string());
+    }
 
-    categorize_uncategorized(&mut state)?;
-    let auto_linked = state.store.auto_link_transfers_if_enabled().map_err(|e| e.to_string())?.len();
+    let mut batch = ImportBatch {
+        sign_preference: Some((req.default_account_id, req.invert_amounts)),
+        ..ImportBatch::default()
+    };
+    // Each unfamiliar file category the included rows use, by key, in the file's first spelling.
+    let mut used_names: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for &index in &included {
+        // A row whose note is over the limit is skipped, like any other unreadable row, before
+        // anything is written ("skip the bad row, keep the rest").
+        let note_ok = loaded
+            .notes
+            .get(index)
+            .and_then(|o| o.as_deref())
+            .is_none_or(|n| n.trim().chars().count() <= NOTES_MAX_CHARS);
+        if !note_ok {
+            row_errors += 1;
+            continue;
+        }
+        let row_facts = &facts[index];
+        let category = categories.remove(&index).expect("every included row was settled above");
+        if row_facts.matched_category.is_none() {
+            if let Some(name) = &row_facts.file_category {
+                used_names.entry(import_category_key(name)).or_insert_with(|| name.clone());
+            }
+        }
+        let mut transaction = loaded.transactions[index].clone();
+        transaction.category = match (&category, import_resolution::automatic(row_facts, &panel)) {
+            (RowCategory::AsFiled, Some(Automatic::File(name))) => Some(name),
+            _ => None,
+        };
+        let account = if let Some(explicit) = req.account_overrides.get(&index).copied() {
+            ImportAccount::Existing(explicit)
+        } else if let Some(name) = loaded.account_names.get(index).and_then(|o| o.as_deref()) {
+            ImportAccount::Named(name.to_string())
+        } else {
+            ImportAccount::Existing(req.default_account_id)
+        };
+        batch.rows.push(ImportBatchRow {
+            account,
+            transaction,
+            tags: loaded.tags.get(index).cloned().unwrap_or_default(),
+            notes: loaded.notes.get(index).cloned().flatten(),
+            category,
+        });
+    }
+    // Only names the screen actually decided, for rows being imported, change what is remembered:
+    // "use one of mine" is remembered, "let the app guess" forgets, "add it" needs no memory.
+    for (key, name) in &used_names {
+        if let Some(choice) = sent.iter().find(|(n, _)| import_category_key(n) == *key).map(|(_, c)| c) {
+            match choice {
+                ImportCategoryChoice::MapTo(target) => batch.remember.push((name.clone(), target.clone())),
+                ImportCategoryChoice::Skip => batch.forget.push(name.clone()),
+                ImportCategoryChoice::Create => {}
+            }
+        }
+        if let Some(ImportCategoryChoice::Create) = panel.get(key) {
+            batch.create_categories.push(name.clone());
+        }
+    }
+
+    let outcome = state.store.commit_import_batch(&batch).map_err(|e| e.to_string())?;
+    // The stored rules already have them; the in-memory ones learn only now that the import is saved.
+    for (description, category) in &outcome.taught {
+        learner::learn_from_correction(&mut state.rules, description, category);
+    }
+
+    // The usual passes over older rows run after the import is saved and never undo it: a failure
+    // here only goes to the log, since the import itself already succeeded. This import's own rows
+    // are left out, so a row the person left uncategorized stays that way.
+    let just_imported: std::collections::HashSet<i64> = outcome.inserted_ids.iter().copied().collect();
+    if let Err(e) = categorize_uncategorized_except(state, &just_imported) {
+        eprintln!("import saved; categorizing older rows failed: {e}");
+    }
+    let auto_linked = match state.store.auto_link_transfers_if_enabled() {
+        Ok(linked) => linked.len(),
+        Err(e) => {
+            eprintln!("import saved; linking transfers failed: {e}");
+            0
+        }
+    };
 
     Ok(ImportSummary {
-        inserted,
+        inserted: outcome.inserted_ids.len(),
         row_errors,
-        inserted_ids,
+        inserted_ids: outcome.inserted_ids,
         auto_linked,
     })
 }
@@ -5162,6 +5265,266 @@ mod tests {
         std::fs::write(&file, BANK_CSV.replace("SUNNY MARKET", "SUNNY MART")).unwrap();
         let changed = preview_import_for(&state, file.to_str().unwrap(), false, account).unwrap().review_token;
         assert_ne!(first, changed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ---- import commit: every row settled, all or nothing (2026-10-04) ----
+
+    // Nonsense merchants, so no starter rule guesses them and a fresh profile has no history.
+    const REVIEW_CSV: &str = "Date,Description,Amount,Category\n\
+        2026-01-05,QQXZ MARKET,-20.00,groceries\n\
+        2026-01-06,QQXZ HOMEGOODS,-45.00,Merchandise\n\
+        2026-01-07,QQXZ UNKNOWABLE,-9.99,\n";
+
+    fn review_state(name: &str, csv: &str) -> (AppState, std::path::PathBuf, std::path::PathBuf, i64) {
+        let (state, file, dir) = import_fixture(name, csv);
+        for c in ["Groceries", "Shopping", "Home", "Dining"] {
+            state.store.create_category(c, None).unwrap();
+        }
+        let account = checking(&state);
+        (state, file, dir, account)
+    }
+
+    fn panel(entries: &[(&str, &str)]) -> Option<std::collections::HashMap<String, CategoryChoiceDto>> {
+        let json = serde_json::Value::Object(
+            entries
+                .iter()
+                .map(|(name, choice)| {
+                    let v = match *choice {
+                        "skip" => serde_json::json!({"action": "skip"}),
+                        "create" => serde_json::json!({"action": "create"}),
+                        target => serde_json::json!({"action": "map_to", "category": target}),
+                    };
+                    (name.to_string(), v)
+                })
+                .collect(),
+        );
+        Some(serde_json::from_value(json).unwrap())
+    }
+
+    fn picks(entries: &[(usize, Option<&str>)]) -> std::collections::HashMap<usize, Option<String>> {
+        entries.iter().map(|(i, c)| (*i, c.map(str::to_string))).collect()
+    }
+
+    fn request(
+        state: &AppState,
+        file: &std::path::Path,
+        account: i64,
+        included: &[usize],
+        category_choices: Option<std::collections::HashMap<String, CategoryChoiceDto>>,
+        row_choices: std::collections::HashMap<usize, Option<String>>,
+    ) -> CommitImportRequest {
+        let review_token = preview_import_for(state, file.to_str().unwrap(), false, account).unwrap().review_token;
+        CommitImportRequest {
+            path: file.to_str().unwrap().to_string(),
+            invert_amounts: false,
+            default_account_id: account,
+            review_token,
+            included_indices: included.to_vec(),
+            account_overrides: std::collections::HashMap::new(),
+            category_choices,
+            row_choices,
+        }
+    }
+
+    /// Everything an import could change, so a refusal can be shown to change none of it.
+    fn everything(state: &AppState) -> String {
+        format!(
+            "{:?}|{:?}|{:?}|{:?}|{}|{}",
+            state.store.list_categories().unwrap(),
+            state
+                .store
+                .import_category_mappings()
+                .unwrap()
+                .into_iter()
+                .collect::<std::collections::BTreeMap<_, _>>(),
+            state.store.load_rules().unwrap(),
+            state.rules,
+            state.store.list_accounts(chrono::Local::now().date_naive()).unwrap().len(),
+            state.store.all_transactions().unwrap().len(),
+        )
+    }
+
+    fn category_of(state: &AppState, id: i64) -> (Option<String>, Option<CategorySource>) {
+        let t = state.store.transactions_by_ids(&[id]).unwrap().remove(0);
+        (t.transaction.category, t.category_source)
+    }
+
+    #[test]
+    fn an_import_with_a_row_still_needing_a_choice_is_refused_and_writes_nothing() {
+        let (mut state, file, dir, account) = review_state("commit-unsettled", REVIEW_CSV);
+        let before = everything(&state);
+        let req = request(&state, &file, account, &[0, 1, 2], panel(&[("Merchandise", "skip")]), picks(&[]));
+        let err = commit_import_for(&mut state, req).unwrap_err();
+        assert!(err.contains("Choose a category"), "got {err}");
+        assert_eq!(everything(&state), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_import_whose_file_changed_after_review_is_refused() {
+        let (mut state, file, dir, account) = review_state("commit-changed", REVIEW_CSV);
+        let req = request(&state, &file, account, &[0, 2], None, picks(&[(2, None)]));
+        std::fs::write(&file, REVIEW_CSV.replace("QQXZ MARKET", "QQXZ MART")).unwrap();
+        let before = everything(&state);
+        let err = commit_import_for(&mut state, req).unwrap_err();
+        assert_eq!(err, "This file changed. Review it again before importing.");
+        assert_eq!(everything(&state), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_import_naming_a_row_or_account_that_does_not_exist_is_refused() {
+        let (mut state, file, dir, account) = review_state("commit-bad-index", REVIEW_CSV);
+        let before = everything(&state);
+        let req = request(&state, &file, account, &[0, 7], None, picks(&[]));
+        assert!(commit_import_for(&mut state, req).is_err());
+        let mut req = request(&state, &file, account, &[0], None, picks(&[]));
+        req.account_overrides.insert(0, account + 999);
+        assert!(commit_import_for(&mut state, req).is_err());
+        assert_eq!(everything(&state), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_import_choosing_a_category_the_person_does_not_have_is_refused() {
+        let (mut state, file, dir, account) = review_state("commit-unknown-pick", REVIEW_CSV);
+        let before = everything(&state);
+        let req = request(&state, &file, account, &[2], None, picks(&[(2, Some("Nope"))]));
+        let err = commit_import_for(&mut state, req).unwrap_err();
+        assert!(err.contains("Nope"), "got {err}");
+        assert_eq!(everything(&state), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_choice_sent_for_a_row_that_did_not_need_one_is_refused() {
+        // Row 0's file category matches Groceries, so a leftover pick for it must not override that.
+        let (mut state, file, dir, account) = review_state("commit-stale-pick", REVIEW_CSV);
+        let before = everything(&state);
+        let req = request(&state, &file, account, &[0, 2], None, picks(&[(0, Some("Dining")), (2, None)]));
+        assert!(commit_import_for(&mut state, req).is_err());
+        assert_eq!(everything(&state), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn two_choices_for_one_file_category_under_different_casing_are_refused() {
+        let (mut state, file, dir, account) = review_state("commit-conflict", REVIEW_CSV);
+        let before = everything(&state);
+        let req = request(
+            &state,
+            &file,
+            account,
+            &[1],
+            panel(&[("Merchandise", "skip"), ("MERCHANDISE", "create")]),
+            picks(&[(1, None)]),
+        );
+        assert!(commit_import_for(&mut state, req).is_err());
+        assert_eq!(everything(&state), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_settled_import_saves_every_row_remembers_the_mapping_and_learns_the_pick() {
+        let (mut state, file, dir, account) = review_state("commit-success", REVIEW_CSV);
+        let req = request(
+            &state,
+            &file,
+            account,
+            &[0, 1, 2],
+            panel(&[("Merchandise", "Shopping")]),
+            picks(&[(2, Some("dining"))]),
+        );
+        let summary = commit_import_for(&mut state, req).unwrap();
+
+        assert_eq!(summary.inserted, 3);
+        let ids = &summary.inserted_ids;
+        assert_eq!(category_of(&state, ids[0]), (Some("Groceries".into()), None));
+        assert_eq!(category_of(&state, ids[1]), (Some("Shopping".into()), None));
+        assert_eq!(category_of(&state, ids[2]), (Some("Dining".into()), Some(CategorySource::User)));
+        assert_eq!(state.rules.categorize("QQXZ UNKNOWABLE").as_deref(), Some("Dining"), "taught in memory");
+        assert_eq!(
+            state.store.import_category_mappings().unwrap().get("merchandise").map(String::as_str),
+            Some("Shopping")
+        );
+
+        // and it all survives a restart
+        drop(state);
+        let reopened = AppState::open(dir.join("profile.db")).unwrap();
+        assert_eq!(reopened.rules.categorize("QQXZ UNKNOWABLE").as_deref(), Some("Dining"));
+        assert_eq!(
+            reopened.store.import_category_mappings().unwrap().get("merchandise").map(String::as_str),
+            Some("Shopping")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_row_left_uncategorized_stays_that_way_even_when_the_same_import_teaches_a_matching_rule() {
+        let csv = "Date,Description,Amount\n\
+            2026-01-05,QQXZ PIZZA,-20.00\n\
+            2026-01-06,QQXZ PIZZA,-21.00\n";
+        let (mut state, file, dir, account) = review_state("commit-leave", csv);
+        // An older uncategorized row from before this import still gets the usual pass afterwards.
+        state
+            .store
+            .save_transactions(
+                account,
+                &[budget_core::models::Transaction {
+                    date: chrono::NaiveDate::from_ymd_opt(2025, 12, 1).unwrap(),
+                    description: "QQXZ PIZZA OLD".into(),
+                    amount: rust_decimal::Decimal::new(-500, 2),
+                    category: None,
+                }],
+            )
+            .unwrap();
+        let req = request(&state, &file, account, &[0, 1], None, picks(&[(0, Some("Dining")), (1, None)]));
+        let summary = commit_import_for(&mut state, req).unwrap();
+
+        assert_eq!(category_of(&state, summary.inserted_ids[0]).0.as_deref(), Some("Dining"));
+        assert_eq!(category_of(&state, summary.inserted_ids[1]), (None, None));
+        let old = state
+            .store
+            .all_transactions()
+            .unwrap()
+            .into_iter()
+            .find(|t| t.transaction.description == "QQXZ PIZZA OLD")
+            .unwrap();
+        assert_eq!(old.transaction.category.as_deref(), Some("Dining"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn letting_the_app_guess_forgets_a_remembered_mapping() {
+        let (mut state, file, dir, account) = review_state("commit-forget", REVIEW_CSV);
+        state.store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
+        let req = request(&state, &file, account, &[1], panel(&[("Merchandise", "skip")]), picks(&[(1, None)]));
+        commit_import_for(&mut state, req).unwrap();
+        assert!(state.store.import_category_mappings().unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_choice_for_a_file_category_only_unchecked_rows_use_changes_no_memory() {
+        let (mut state, file, dir, account) = review_state("commit-excluded", REVIEW_CSV);
+        state.store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
+        let req = request(&state, &file, account, &[0], panel(&[("Merchandise", "Home")]), picks(&[]));
+        commit_import_for(&mut state, req).unwrap();
+        assert_eq!(
+            state.store.import_category_mappings().unwrap().get("merchandise").map(String::as_str),
+            Some("Shopping")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn adding_a_file_category_files_its_rows_under_it() {
+        let (mut state, file, dir, account) = review_state("commit-create", REVIEW_CSV);
+        let req = request(&state, &file, account, &[1], panel(&[("Merchandise", "create")]), picks(&[]));
+        let summary = commit_import_for(&mut state, req).unwrap();
+        assert_eq!(category_of(&state, summary.inserted_ids[0]).0.as_deref(), Some("Merchandise"));
+        assert!(state.store.import_category_mappings().unwrap().is_empty(), "adding needs no memory");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

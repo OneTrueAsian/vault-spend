@@ -25,6 +25,8 @@ pub use self::budgets::{
 mod categories;
 pub use self::categories::{CategoryCounts, ImportCategoryChoice, ImportCategoryError, StoredCategory, UnmatchedImportCategory, import_category_key};
 mod family;
+mod imports;
+pub use self::imports::{ImportAccount, ImportBatch, ImportBatchError, ImportBatchOutcome, ImportBatchRow, RowCategory};
 mod insights;
 pub use self::insights::{AnomalyFlag, Insight, LargeExpense};
 mod rules;

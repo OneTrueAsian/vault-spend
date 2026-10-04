@@ -101,7 +101,7 @@ impl From<rusqlite::Error> for NotesError {
 /// trimmed of leading/trailing whitespace (internal whitespace/newlines are
 /// preserved exactly) and rejected — without truncating — if it's over
 /// `NOTES_MAX_CHARS` Unicode scalar values.
-fn normalize_notes(notes: Option<&str>) -> Result<Option<String>, NotesError> {
+pub(super) fn normalize_notes(notes: Option<&str>) -> Result<Option<String>, NotesError> {
     let Some(raw) = notes else { return Ok(None) };
     let trimmed = raw.trim();
     if trimmed.is_empty() {
