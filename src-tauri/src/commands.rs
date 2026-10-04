@@ -992,6 +992,16 @@ fn parse_date(date: &str) -> Result<chrono::NaiveDate, String> {
 pub struct AppState {
     pub store: Store,
     pub rules: RuleSet,
+    /// The last import preview's per-row results, so `commit_import` settles the rows exactly as
+    /// the review screen showed them (and runs the categorizer once, not twice). Only ever set
+    /// here by `preview_import`; the screen can't supply it.
+    pub import_review: Option<ImportReview>,
+}
+
+/// One import preview, as `commit_import` reuses it: the file's review token and each row's facts.
+pub struct ImportReview {
+    pub token: String,
+    pub facts: Vec<import_resolution::RowFacts>,
 }
 
 pub type AppStateHandle = crate::runtime::AppRuntime;
@@ -1005,7 +1015,11 @@ impl AppState {
         // delete every one of them and "delete them all" sticks.
         store.seed_default_rules_once().map_err(|e| e.to_string())?;
         let rules = store.load_rules().map_err(|e| e.to_string())?;
-        Ok(AppState { store, rules })
+        Ok(AppState {
+            store,
+            rules,
+            import_review: None,
+        })
     }
 
     /// The keyed counterpart to `open`, used once a password has unwrapped a profile's database
@@ -1015,7 +1029,11 @@ impl AppState {
         let store = Store::open_with_key(db_path, key).map_err(|e| e.to_string())?;
         store.seed_default_rules_once().map_err(|e| e.to_string())?;
         let rules = store.load_rules().map_err(|e| e.to_string())?;
-        Ok(AppState { store, rules })
+        Ok(AppState {
+            store,
+            rules,
+            import_review: None,
+        })
     }
 }
 
@@ -1415,12 +1433,12 @@ pub fn flip_transaction_signs(ids: Vec<i64>, state: tauri::State<AppStateHandle>
 
 #[tauri::command]
 pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<ImportPreview, String> {
-    let state = state.lock()?;
-    preview_import_for(&state, &path, invert_amounts, account_id)
+    let mut state = state.lock()?;
+    preview_import_for(&mut state, &path, invert_amounts, account_id)
 }
 
 /// `preview_import` against an already-locked profile. A pure read: nothing is created or remembered.
-fn preview_import_for(state: &AppState, path: &str, invert_amounts: bool, account_id: i64) -> Result<ImportPreview, String> {
+fn preview_import_for(state: &mut AppState, path: &str, invert_amounts: bool, account_id: i64) -> Result<ImportPreview, String> {
     let loaded = importer::load_transactions(path, invert_amounts).map_err(|e| e.to_string())?;
     let row_errors = loaded.errors.len();
 
@@ -1450,6 +1468,11 @@ fn preview_import_for(state: &AppState, path: &str, invert_amounts: bool, accoun
     let facts =
         import_resolution::row_facts(&state.store, &loaded.transactions, &state.rules, &history, Some(&classifier)).map_err(|e| e.to_string())?;
     let remembered = state.store.import_category_mappings().map_err(|e| e.to_string())?;
+    let review_token = import_resolution::review_token(&loaded);
+    state.import_review = Some(ImportReview {
+        token: review_token.clone(),
+        facts: facts.clone(),
+    });
 
     let rows = loaded
         .transactions
@@ -1486,7 +1509,7 @@ fn preview_import_for(state: &AppState, path: &str, invert_amounts: bool, accoun
         rows,
         row_errors,
         unmatched_categories,
-        review_token: import_resolution::review_token(&loaded),
+        review_token,
         choice_below: import_resolution::IMPORT_CHOICE_BELOW,
     })
 }
@@ -1589,9 +1612,15 @@ fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<I
             }
         }
     }
-    let (history, classifier) = build_classifier(state)?;
-    let facts =
-        import_resolution::row_facts(&state.store, &loaded.transactions, &state.rules, &history, Some(&classifier)).map_err(|e| e.to_string())?;
+    // Settled the way the review screen showed them: the preview's own results when this is the
+    // file it reviewed, worked out again only when there is none (the app restarted, say).
+    let facts = match state.import_review.as_ref() {
+        Some(review) if review.token == req.review_token && review.facts.len() == loaded.transactions.len() => review.facts.clone(),
+        _ => {
+            let (history, classifier) = build_classifier(state)?;
+            import_resolution::row_facts(&state.store, &loaded.transactions, &state.rules, &history, Some(&classifier)).map_err(|e| e.to_string())?
+        }
+    };
 
     let mut categories: std::collections::HashMap<usize, RowCategory> = std::collections::HashMap::new();
     let mut unsettled = 0usize;
@@ -1698,6 +1727,7 @@ fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<I
     }
 
     let outcome = state.store.commit_import_batch(&batch).map_err(|e| e.to_string())?;
+    state.import_review = None;
     // The stored rules already have them; the in-memory ones learn only now that the import is saved.
     for (description, category) in &outcome.taught {
         learner::learn_from_correction(&mut state.rules, description, category);
@@ -5198,13 +5228,13 @@ mod tests {
 
     #[test]
     fn the_preview_tells_the_screen_each_rows_match_guess_and_remembered_choice() {
-        let (state, file, dir) = import_fixture("preview-facts", BANK_CSV);
+        let (mut state, file, dir) = import_fixture("preview-facts", BANK_CSV);
         state.store.create_category("Groceries", None).unwrap();
         state.store.create_category("Shopping", None).unwrap();
         state.store.set_import_category_mapping("MERCHANDISE", "Shopping").unwrap();
         let account = checking(&state);
 
-        let preview = preview_import_for(&state, file.to_str().unwrap(), false, account).unwrap();
+        let preview = preview_import_for(&mut state, file.to_str().unwrap(), false, account).unwrap();
 
         assert_eq!(preview.rows[0].matched_category.as_deref(), Some("Groceries"));
         assert!(preview.rows[0].suggestion.is_none());
@@ -5237,7 +5267,7 @@ mod tests {
 
     #[test]
     fn previewing_an_import_changes_nothing() {
-        let (state, file, dir) = import_fixture("preview-read-only", BANK_CSV);
+        let (mut state, file, dir) = import_fixture("preview-read-only", BANK_CSV);
         state.store.create_category("Groceries", None).unwrap();
         let account = checking(&state);
         let categories_before = state.store.list_categories().unwrap();
@@ -5245,7 +5275,7 @@ mod tests {
         let accounts_before = state.store.list_accounts(today).unwrap().len();
         let rules_before = format!("{:?}", state.store.load_rules().unwrap());
 
-        preview_import_for(&state, file.to_str().unwrap(), true, account).unwrap();
+        preview_import_for(&mut state, file.to_str().unwrap(), true, account).unwrap();
 
         assert_eq!(state.store.list_categories().unwrap(), categories_before);
         assert_eq!(state.store.list_accounts(today).unwrap().len(), accounts_before);
@@ -5257,13 +5287,19 @@ mod tests {
 
     #[test]
     fn the_review_token_changes_when_the_file_changes() {
-        let (state, file, dir) = import_fixture("preview-token", BANK_CSV);
+        let (mut state, file, dir) = import_fixture("preview-token", BANK_CSV);
         let account = checking(&state);
-        let first = preview_import_for(&state, file.to_str().unwrap(), false, account).unwrap().review_token;
-        let again = preview_import_for(&state, file.to_str().unwrap(), false, account).unwrap().review_token;
+        let first = preview_import_for(&mut state, file.to_str().unwrap(), false, account)
+            .unwrap()
+            .review_token;
+        let again = preview_import_for(&mut state, file.to_str().unwrap(), false, account)
+            .unwrap()
+            .review_token;
         assert_eq!(first, again);
         std::fs::write(&file, BANK_CSV.replace("SUNNY MARKET", "SUNNY MART")).unwrap();
-        let changed = preview_import_for(&state, file.to_str().unwrap(), false, account).unwrap().review_token;
+        let changed = preview_import_for(&mut state, file.to_str().unwrap(), false, account)
+            .unwrap()
+            .review_token;
         assert_ne!(first, changed);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -5277,7 +5313,7 @@ mod tests {
         2026-01-07,QQXZ UNKNOWABLE,-9.99,\n";
 
     fn review_state(name: &str, csv: &str) -> (AppState, std::path::PathBuf, std::path::PathBuf, i64) {
-        let (state, file, dir) = import_fixture(name, csv);
+        let (mut state, file, dir) = import_fixture(name, csv);
         for c in ["Groceries", "Shopping", "Home", "Dining"] {
             state.store.create_category(c, None).unwrap();
         }
@@ -5307,7 +5343,7 @@ mod tests {
     }
 
     fn request(
-        state: &AppState,
+        state: &mut AppState,
         file: &std::path::Path,
         account: i64,
         included: &[usize],
@@ -5354,7 +5390,7 @@ mod tests {
     fn an_import_with_a_row_still_needing_a_choice_is_refused_and_writes_nothing() {
         let (mut state, file, dir, account) = review_state("commit-unsettled", REVIEW_CSV);
         let before = everything(&state);
-        let req = request(&state, &file, account, &[0, 1, 2], panel(&[("Merchandise", "skip")]), picks(&[]));
+        let req = request(&mut state, &file, account, &[0, 1, 2], panel(&[("Merchandise", "skip")]), picks(&[]));
         let err = commit_import_for(&mut state, req).unwrap_err();
         assert!(err.contains("Choose a category"), "got {err}");
         assert_eq!(everything(&state), before);
@@ -5364,7 +5400,7 @@ mod tests {
     #[test]
     fn an_import_whose_file_changed_after_review_is_refused() {
         let (mut state, file, dir, account) = review_state("commit-changed", REVIEW_CSV);
-        let req = request(&state, &file, account, &[0, 2], None, picks(&[(2, None)]));
+        let req = request(&mut state, &file, account, &[0, 2], None, picks(&[(2, None)]));
         std::fs::write(&file, REVIEW_CSV.replace("QQXZ MARKET", "QQXZ MART")).unwrap();
         let before = everything(&state);
         let err = commit_import_for(&mut state, req).unwrap_err();
@@ -5377,9 +5413,9 @@ mod tests {
     fn an_import_naming_a_row_or_account_that_does_not_exist_is_refused() {
         let (mut state, file, dir, account) = review_state("commit-bad-index", REVIEW_CSV);
         let before = everything(&state);
-        let req = request(&state, &file, account, &[0, 7], None, picks(&[]));
+        let req = request(&mut state, &file, account, &[0, 7], None, picks(&[]));
         assert!(commit_import_for(&mut state, req).is_err());
-        let mut req = request(&state, &file, account, &[0], None, picks(&[]));
+        let mut req = request(&mut state, &file, account, &[0], None, picks(&[]));
         req.account_overrides.insert(0, account + 999);
         assert!(commit_import_for(&mut state, req).is_err());
         assert_eq!(everything(&state), before);
@@ -5390,7 +5426,7 @@ mod tests {
     fn an_import_choosing_a_category_the_person_does_not_have_is_refused() {
         let (mut state, file, dir, account) = review_state("commit-unknown-pick", REVIEW_CSV);
         let before = everything(&state);
-        let req = request(&state, &file, account, &[2], None, picks(&[(2, Some("Nope"))]));
+        let req = request(&mut state, &file, account, &[2], None, picks(&[(2, Some("Nope"))]));
         let err = commit_import_for(&mut state, req).unwrap_err();
         assert!(err.contains("Nope"), "got {err}");
         assert_eq!(everything(&state), before);
@@ -5402,7 +5438,7 @@ mod tests {
         // Row 0's file category matches Groceries, so a leftover pick for it must not override that.
         let (mut state, file, dir, account) = review_state("commit-stale-pick", REVIEW_CSV);
         let before = everything(&state);
-        let req = request(&state, &file, account, &[0, 2], None, picks(&[(0, Some("Dining")), (2, None)]));
+        let req = request(&mut state, &file, account, &[0, 2], None, picks(&[(0, Some("Dining")), (2, None)]));
         assert!(commit_import_for(&mut state, req).is_err());
         assert_eq!(everything(&state), before);
         let _ = std::fs::remove_dir_all(&dir);
@@ -5413,7 +5449,7 @@ mod tests {
         let (mut state, file, dir, account) = review_state("commit-conflict", REVIEW_CSV);
         let before = everything(&state);
         let req = request(
-            &state,
+            &mut state,
             &file,
             account,
             &[1],
@@ -5429,7 +5465,7 @@ mod tests {
     fn a_settled_import_saves_every_row_remembers_the_mapping_and_learns_the_pick() {
         let (mut state, file, dir, account) = review_state("commit-success", REVIEW_CSV);
         let req = request(
-            &state,
+            &mut state,
             &file,
             account,
             &[0, 1, 2],
@@ -5479,7 +5515,7 @@ mod tests {
                 }],
             )
             .unwrap();
-        let req = request(&state, &file, account, &[0, 1], None, picks(&[(0, Some("Dining")), (1, None)]));
+        let req = request(&mut state, &file, account, &[0, 1], None, picks(&[(0, Some("Dining")), (1, None)]));
         let summary = commit_import_for(&mut state, req).unwrap();
 
         assert_eq!(category_of(&state, summary.inserted_ids[0]).0.as_deref(), Some("Dining"));
@@ -5499,7 +5535,7 @@ mod tests {
     fn letting_the_app_guess_forgets_a_remembered_mapping() {
         let (mut state, file, dir, account) = review_state("commit-forget", REVIEW_CSV);
         state.store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
-        let req = request(&state, &file, account, &[1], panel(&[("Merchandise", "skip")]), picks(&[(1, None)]));
+        let req = request(&mut state, &file, account, &[1], panel(&[("Merchandise", "skip")]), picks(&[(1, None)]));
         commit_import_for(&mut state, req).unwrap();
         assert!(state.store.import_category_mappings().unwrap().is_empty());
         let _ = std::fs::remove_dir_all(&dir);
@@ -5509,7 +5545,7 @@ mod tests {
     fn a_choice_for_a_file_category_only_unchecked_rows_use_changes_no_memory() {
         let (mut state, file, dir, account) = review_state("commit-excluded", REVIEW_CSV);
         state.store.set_import_category_mapping("Merchandise", "Shopping").unwrap();
-        let req = request(&state, &file, account, &[0], panel(&[("Merchandise", "Home")]), picks(&[]));
+        let req = request(&mut state, &file, account, &[0], panel(&[("Merchandise", "Home")]), picks(&[]));
         commit_import_for(&mut state, req).unwrap();
         assert_eq!(
             state.store.import_category_mappings().unwrap().get("merchandise").map(String::as_str),
@@ -5531,7 +5567,7 @@ mod tests {
         let (mut state, file, dir, account) = review_state("commit-no-adopt", CASINGS_CSV);
         let before = state.store.list_categories().unwrap();
         let req = request(
-            &state,
+            &mut state,
             &file,
             account,
             &[0, 1, 2, 3],
@@ -5546,7 +5582,7 @@ mod tests {
     #[test]
     fn every_casing_of_a_matching_file_category_uses_the_persons_spelling() {
         let (mut state, file, dir, account) = review_state("commit-spelling", CASINGS_CSV);
-        let req = request(&state, &file, account, &[2, 3], None, picks(&[]));
+        let req = request(&mut state, &file, account, &[2, 3], None, picks(&[]));
         let summary = commit_import_for(&mut state, req).unwrap();
         for id in &summary.inserted_ids {
             assert_eq!(category_of(&state, *id).0.as_deref(), Some("Groceries"));
@@ -5557,7 +5593,7 @@ mod tests {
     #[test]
     fn adding_a_file_category_adds_it_once_for_every_casing() {
         let (mut state, file, dir, account) = review_state("commit-create-once", CASINGS_CSV);
-        let req = request(&state, &file, account, &[0, 1], panel(&[("Pet Care", "create")]), picks(&[]));
+        let req = request(&mut state, &file, account, &[0, 1], panel(&[("Pet Care", "create")]), picks(&[]));
         let summary = commit_import_for(&mut state, req).unwrap();
         for id in &summary.inserted_ids {
             assert_eq!(category_of(&state, *id).0.as_deref(), Some("Pet Care"));
@@ -5577,7 +5613,7 @@ mod tests {
     fn mapping_every_casing_of_a_file_category_creates_nothing() {
         let (mut state, file, dir, account) = review_state("commit-map-casings", CASINGS_CSV);
         let before = state.store.list_categories().unwrap();
-        let req = request(&state, &file, account, &[0, 1], panel(&[("Pet Care", "Home")]), picks(&[]));
+        let req = request(&mut state, &file, account, &[0, 1], panel(&[("Pet Care", "Home")]), picks(&[]));
         let summary = commit_import_for(&mut state, req).unwrap();
         for id in &summary.inserted_ids {
             assert_eq!(category_of(&state, *id).0.as_deref(), Some("Home"));
@@ -5590,17 +5626,78 @@ mod tests {
     fn mapping_to_a_category_that_does_not_exist_is_refused_and_writes_nothing() {
         let (mut state, file, dir, account) = review_state("commit-map-missing", CASINGS_CSV);
         let before = everything(&state);
-        let req = request(&state, &file, account, &[0, 1], panel(&[("Pet Care", "Nope")]), picks(&[]));
+        let req = request(&mut state, &file, account, &[0, 1], panel(&[("Pet Care", "Nope")]), picks(&[]));
         let err = commit_import_for(&mut state, req).unwrap_err();
         assert!(err.contains("Nope"), "got {err}");
         assert_eq!(everything(&state), before);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    // ---- the import decides from what the review showed (2026-10-04) ----
+
+    #[test]
+    fn a_rule_learned_while_the_review_is_open_does_not_overrule_the_screen() {
+        // Row 2 needed a choice when previewed. A rule learned elsewhere in the app before Import is
+        // pressed must not turn the person's pick into a "stale" refusal: the import settles rows
+        // the way the screen showed them.
+        let (mut state, file, dir, account) = review_state("commit-cached-facts", REVIEW_CSV);
+        let req = request(&mut state, &file, account, &[2], None, picks(&[(2, Some("Dining"))]));
+        state.store.upsert_rule("QQXZ UNKNOWABLE", "Home").unwrap();
+        state.rules = state.store.load_rules().unwrap();
+        let summary = commit_import_for(&mut state, req).unwrap();
+        assert_eq!(
+            category_of(&state, summary.inserted_ids[0]),
+            (Some("Dining".into()), Some(CategorySource::User))
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_preview_is_remembered_by_its_review_token_and_cleared_by_a_successful_import() {
+        let (mut state, file, dir, account) = review_state("commit-cache-life", REVIEW_CSV);
+        let req = request(&mut state, &file, account, &[0], None, picks(&[]));
+        assert_eq!(state.import_review.as_ref().map(|r| r.token.as_str()), Some(req.review_token.as_str()));
+        commit_import_for(&mut state, req).unwrap();
+        assert!(state.import_review.is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_failed_import_keeps_the_preview_for_a_retry() {
+        let (mut state, file, dir, account) = review_state("commit-cache-retry", REVIEW_CSV);
+        let req = request(&mut state, &file, account, &[2], None, picks(&[(2, Some("Nope"))]));
+        let token = req.review_token.clone();
+        assert!(commit_import_for(&mut state, req).is_err());
+        assert_eq!(state.import_review.as_ref().map(|r| r.token.as_str()), Some(token.as_str()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn without_a_remembered_preview_the_import_works_the_rows_out_again() {
+        let (mut state, file, dir, account) = review_state("commit-no-cache", REVIEW_CSV);
+        let req = request(&mut state, &file, account, &[0, 2], None, picks(&[(2, None)]));
+        state.import_review = None;
+        let summary = commit_import_for(&mut state, req).unwrap();
+        assert_eq!(summary.inserted, 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_category_deleted_while_the_review_is_open_refuses_the_import_and_names_it() {
+        let (mut state, file, dir, account) = review_state("commit-deleted-category", REVIEW_CSV);
+        let before_rows = state.store.all_transactions().unwrap().len();
+        let req = request(&mut state, &file, account, &[0], None, picks(&[]));
+        state.store.delete_category("Groceries").unwrap();
+        let err = commit_import_for(&mut state, req).unwrap_err();
+        assert!(err.contains("Groceries"), "got {err}");
+        assert_eq!(state.store.all_transactions().unwrap().len(), before_rows);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn adding_a_file_category_files_its_rows_under_it() {
         let (mut state, file, dir, account) = review_state("commit-create", REVIEW_CSV);
-        let req = request(&state, &file, account, &[1], panel(&[("Merchandise", "create")]), picks(&[]));
+        let req = request(&mut state, &file, account, &[1], panel(&[("Merchandise", "create")]), picks(&[]));
         let summary = commit_import_for(&mut state, req).unwrap();
         assert_eq!(category_of(&state, summary.inserted_ids[0]).0.as_deref(), Some("Merchandise"));
         assert!(state.store.import_category_mappings().unwrap().is_empty(), "adding needs no memory");

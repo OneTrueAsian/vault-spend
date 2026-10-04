@@ -7,7 +7,8 @@
 //   2. The next file: the remembered mapping is filled in and says so, the learned merchant needs
 //      no choice, and "Leave the rest uncategorized" settles only the checked rows (an unchecked
 //      row never holds Import up, and checking it again asks about it).
-//   3. A failed import (the file changed after review) keeps every choice on screen; switching a
+//   3. A refused import (the file changed, or a picked category was deleted) reads the file again and
+//      keeps every choice that still applies; switching a
 //      remembered file category to "Let the app guess" and importing forgets it.
 //
 // The native file picker is answered by wrapping window.fetch, as feature150 does: a
@@ -20,7 +21,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { chooseMenuOption, launchApp, menuSelectValue, waitUntilOrDiagnose } from "./harness.mjs";
+import { chooseMenuOption, launchApp, menuOptionLabels, menuSelectValue, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -184,19 +185,40 @@ try {
   await chooseMenuOption(await rowMenu(0), { value: "cat:Shopping" });
   fs.writeFileSync(third, ["Date,Description,Amount,Category", ...thirdRows, `${dateInMonth(-1, 21)},QQXZ EXTRA,-1.00,`, ""].join("\n"));
   await (await importButton()).click();
-  await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.body.innerText)).includes("This file changed. Review it again before importing."), {
-    timeoutMsg: "the refusal should be shown",
-  });
+  await waitUntilOrDiagnose(
+    browser,
+    async () => (await browser.execute(() => document.body.innerText)).includes("This file changed. Review it again before importing. The review below has been updated from the changed file."),
+    { timeoutMsg: "the refusal should be shown, with the review read again" },
+  );
   assert.equal(await (await importButton()).isDisplayed(), true, "the review stays open");
-  assert.equal(await menuSelectValue(await panelMenu("Merchandise")), "skip", "the panel choice is kept");
-  assert.equal(await (await browser.$('[data-import-choice-row="0"]')).getAttribute("data-choice-state"), "category", "the row choice is kept");
+  assert.equal(await menuSelectValue(await panelMenu("Merchandise")), "skip", "the file category choice is kept");
+  assert.deepEqual(await needsChoiceRows(), [0, 1], "the changed file's rows are shown, its new row included");
+  assert.equal(
+    await (await browser.$('[data-import-choice-row="0"]')).getAttribute("data-choice-state"),
+    "unresolved",
+    "row picks start over, since the file's rows may be different rows now",
+  );
   const kept = await invoke("preview_import", { path: third, invertAmounts: false, accountId: (await invoke("list_accounts"))[0].id });
   assert.equal(kept.unmatched_categories.find((u) => u.name === "Merchandise")?.remembered_category, "Shopping", "a failed import changes no memory");
   await (await browser.$("//div[contains(@class,'dup-review-actions')]//button[normalize-space()='Cancel']")).click();
 
+  // A category deleted elsewhere while the review is open: the import is refused and names it, the
+  // review is read again, and only the pick of the deleted category asks again.
   await startImport();
   await chooseMenuOption(await panelMenu("Merchandise"), { value: "skip" });
-  await waitUntilOrDiagnose(browser, async () => (await needsChoiceRows()).includes(0), { timeoutMsg: "the row should need a choice" });
+  await waitUntilOrDiagnose(browser, async () => JSON.stringify(await needsChoiceRows()) === "[0,1]", { timeoutMsg: "both rows should need a choice" });
+  await chooseMenuOption(await rowMenu(0), { value: "cat:Entertainment" });
+  await chooseMenuOption(await rowMenu(1), { value: "__leave__" });
+  await invoke("delete_category", { name: "Entertainment" });
+  await (await importButton()).waitForEnabled({ timeout: 5000 });
+  await (await importButton()).click();
+  await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.body.innerText)).includes("The review below has been updated. Check it and import again."), {
+    timeoutMsg: "the refusal should say the review was updated",
+  });
+  assert.match(await browser.execute(() => document.body.innerText), /Entertainment/, "the refusal names the missing category");
+  assert.equal(await (await browser.$('[data-import-choice-row="0"]')).getAttribute("data-choice-state"), "unresolved", "the pick of the deleted category asks again");
+  assert.equal(await (await browser.$('[data-import-choice-row="1"]')).getAttribute("data-choice-state"), "uncategorized", "other picks are kept");
+  assert.ok(!(await menuOptionLabels(await rowMenu(0))).includes("Entertainment"), "the deleted category is no longer offered");
   await (await browser.$("button=Leave the rest uncategorized")).click();
   await (await importButton()).waitForEnabled({ timeout: 5000 });
   await (await importButton()).click();

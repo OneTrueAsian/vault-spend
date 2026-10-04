@@ -147,3 +147,73 @@ export function leaveRestUncategorized(
   for (const r of unresolvedRows(rows, included, panel, choices, choiceBelow)) next.set(r.index, null);
   return next;
 }
+
+/** Rows whose file names an account the person already has (any casing) start on that account. */
+export function seedAccountOverrides(
+  preview: ImportPreview,
+  accounts: { id: number; name: string }[],
+  defaultAccountId: number,
+): Map<number, number> {
+  const overrides = new Map<number, number>();
+  for (const row of preview.rows) {
+    if (!row.account_name) continue;
+    const matched = accounts.find((a) => a.name.toLowerCase() === row.account_name!.toLowerCase());
+    if (matched && matched.id !== defaultAccountId) overrides.set(row.index, matched.id);
+  }
+  return overrides;
+}
+
+/** A file category's starting choice: the person's earlier choice when it is still one of their
+ * categories, else "Let the app guess". */
+function defaultPanelChoice(u: UnmatchedCategory, categories: string[]): CategoryChoice {
+  return u.remembered_category && categories.includes(u.remembered_category)
+    ? { action: "map_to", category: u.remembered_category }
+    : { action: "skip" };
+}
+
+export type ReviewChoices = {
+  included: Set<number>;
+  panel: Record<string, CategoryChoice>;
+  rowChoices: RowChoices;
+  accountOverrides: Map<number, number>;
+};
+
+/** The review after the file was read again (an import was refused): every choice that still
+ * applies is kept. File category choices carry over by name (any casing) unless they point at a
+ * category that no longer exists. When the file is unchanged, the checked rows, accounts and row
+ * choices carry over too, minus picks of vanished categories and rows the fresh review now places
+ * itself. When the file changed, its rows may be different rows, so they start over. */
+export function carryOverReview(
+  before: ReviewChoices & { preview: ImportPreview; defaultAccountId: number },
+  next: ImportPreview,
+  categories: string[],
+  accounts: { id: number; name: string }[],
+): ReviewChoices & { fileChanged: boolean } {
+  const fileChanged = before.preview.review_token !== next.review_token;
+  const panel: Record<string, CategoryChoice> = {};
+  for (const u of next.unmatched_categories) {
+    const earlier = panelChoiceFor(u.name, before.panel);
+    const stillValid = earlier && (earlier.action !== "map_to" || categories.includes(earlier.category));
+    panel[u.name] = stillValid ? earlier : defaultPanelChoice(u, categories);
+  }
+  if (fileChanged) {
+    return {
+      fileChanged,
+      panel,
+      included: new Set(next.rows.filter((r) => !r.is_duplicate).map((r) => r.index)),
+      rowChoices: new Map(),
+      accountOverrides: seedAccountOverrides(next, accounts, before.defaultAccountId),
+    };
+  }
+  const indices = new Set(next.rows.map((r) => r.index));
+  const kept: RowChoices = new Map(
+    [...before.rowChoices].filter(([i, c]) => indices.has(i) && (c === null || categories.includes(c))),
+  );
+  return {
+    fileChanged,
+    panel,
+    included: new Set([...before.included].filter((i) => indices.has(i))),
+    rowChoices: pruneRowChoices(next.rows, panel, kept, next.choice_below),
+    accountOverrides: new Map([...before.accountOverrides].filter(([i]) => indices.has(i))),
+  };
+}

@@ -4,12 +4,14 @@
 // Worked out here so changing a panel choice or a checkbox needs no call to the backend.
 import { describe, expect, it } from "vitest";
 import {
+  carryOverReview,
   isSure,
   leaveRestUncategorized,
   pruneRowChoices,
   rowChoicesToSend,
   rowNeedsChoice,
   unresolvedRows,
+  type ImportPreview,
   type ImportRow,
   type RowChoices,
   type Suggestion,
@@ -149,5 +151,88 @@ describe("row choices", () => {
     ]);
     expect(next).not.toBe(choices);
     expect(choices.has(1)).toBe(false);
+  });
+});
+
+describe("carryOverReview", () => {
+  const preview = (over: Partial<ImportPreview> = {}): ImportPreview => ({
+    rows: [
+      row(0, { category: "Merchandise" }),
+      row(1),
+      row(2, { is_duplicate: true }),
+      row(3, { account_name: "Card" }),
+    ],
+    row_errors: 0,
+    unmatched_categories: [{ name: "Merchandise", count: 1, remembered_category: null }],
+    review_token: "same",
+    choice_below: BELOW,
+    ...over,
+  });
+  const categories = ["Dining", "Shopping"];
+  const accounts = [
+    { id: 1, name: "Checking" },
+    { id: 2, name: "Card" },
+  ];
+  const before = {
+    preview: preview(),
+    defaultAccountId: 1,
+    included: new Set([0, 1, 3]),
+    panel: { Merchandise: { action: "skip" } } as Record<string, CategoryChoice>,
+    rowChoices: new Map<number, string | null>([
+      [0, "Shopping"],
+      [1, null],
+    ]),
+    accountOverrides: new Map([[3, 2]]),
+  };
+
+  it("keeps every choice when the same file is reviewed again", () => {
+    const next = carryOverReview(before, preview(), categories, accounts);
+    expect(next.fileChanged).toBe(false);
+    expect([...next.included]).toEqual([0, 1, 3]);
+    expect(next.panel).toEqual({ Merchandise: { action: "skip" } });
+    expect([...next.rowChoices.entries()]).toEqual([
+      [0, "Shopping"],
+      [1, null],
+    ]);
+    expect([...next.accountOverrides.entries()]).toEqual([[3, 2]]);
+  });
+
+  it("drops a choice of a category that no longer exists, so that row asks again", () => {
+    const next = carryOverReview(before, preview(), ["Dining"], accounts);
+    expect(next.rowChoices.has(0)).toBe(false);
+    expect(next.rowChoices.get(1)).toBeNull();
+  });
+
+  it("puts a file category mapped to a vanished category back to its default", () => {
+    const mapped = { ...before, panel: { Merchandise: { action: "map_to", category: "Gone" } } as Record<string, CategoryChoice> };
+    const next = carryOverReview(mapped, preview(), categories, accounts);
+    expect(next.panel).toEqual({ Merchandise: { action: "skip" } });
+  });
+
+  it("drops a row's choice once the fresh review places that row itself", () => {
+    const sure = preview({ rows: [row(0, { category: "Merchandise" }), row(1, { suggestion: rule("Dining") }), row(2, { is_duplicate: true }), row(3)] });
+    const next = carryOverReview(before, sure, categories, accounts);
+    expect(next.rowChoices.has(1)).toBe(false);
+  });
+
+  it("starts the rows over when the file itself changed, keeping file category choices by name", () => {
+    const changed = preview({
+      review_token: "different",
+      rows: [row(0, { category: "merchandise" }), row(1, { is_duplicate: true }), row(2, { account_name: "card" })],
+      unmatched_categories: [
+        { name: "merchandise", count: 1, remembered_category: null },
+        { name: "Fuel", count: 1, remembered_category: "Dining" },
+      ],
+    });
+    const mapped = { ...before, panel: { Merchandise: { action: "map_to", category: "Shopping" } } as Record<string, CategoryChoice> };
+    const next = carryOverReview(mapped, changed, categories, accounts);
+    expect(next.fileChanged).toBe(true);
+    expect([...next.included]).toEqual([0, 2]);
+    expect(next.rowChoices.size).toBe(0);
+    expect([...next.accountOverrides.entries()]).toEqual([[2, 2]]);
+    expect(next.panel).toEqual({
+      merchandise: { action: "map_to", category: "Shopping" },
+      Fuel: { action: "map_to", category: "Dining" },
+    });
   });
 });

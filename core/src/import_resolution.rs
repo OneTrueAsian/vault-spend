@@ -128,6 +128,8 @@ pub fn row_facts(
     classifier: Option<&Classifier>,
 ) -> rusqlite::Result<Vec<RowFacts>> {
     let mut out = Vec::with_capacity(txns.len());
+    // A bank file repeats its merchants; each description is categorized once.
+    let mut answers: HashMap<&str, Option<Suggestion>> = HashMap::new();
     for tx in txns {
         let file_category = tx.category.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(str::to_string);
         let matched_category = match &file_category {
@@ -136,15 +138,19 @@ pub fn row_facts(
         };
         let suggestion = if matched_category.is_some() {
             None
+        } else if let Some(known) = answers.get(tx.description.as_str()) {
+            known.clone()
         } else {
-            match categorizer::categorize(&tx.description, rules, history, classifier) {
+            let answer = match categorizer::categorize(&tx.description, rules, history, classifier) {
                 Some((category, source, confidence)) => store.find_category(&category)?.map(|category| Suggestion {
                     category,
                     source,
                     confidence,
                 }),
                 None => None,
-            }
+            };
+            answers.insert(tx.description.as_str(), answer.clone());
+            answer
         };
         out.push(RowFacts {
             matched_category,

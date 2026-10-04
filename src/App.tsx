@@ -55,7 +55,9 @@ import { SortableTh } from "./SortableTh";
 import { ImportCategoryReconcile, defaultCategoryChoices, type CategoryChoice } from "./ImportCategoryReconcile";
 import { ImportNeedsChoice } from "./ImportNeedsChoice";
 import {
+  carryOverReview,
   leaveRestUncategorized,
+  seedAccountOverrides,
   pruneRowChoices,
   rowChoicesToSend,
   rowNeedsChoice,
@@ -3039,15 +3041,7 @@ function App({
       // user still sees exactly what will happen and can change it.
       // Unmatched account names (commit_import creates those fresh) are
       // left showing the default, with a hint below the dropdown instead.
-      const seededOverrides = new Map<number, number>();
-      for (const row of preview.rows) {
-        if (!row.account_name) continue;
-        const matched = accounts.find((a) => a.name.toLowerCase() === row.account_name!.toLowerCase());
-        if (matched && matched.id !== accountId) {
-          seededOverrides.set(row.index, matched.id);
-        }
-      }
-      setAccountOverrides(seededOverrides);
+      setAccountOverrides(seedAccountOverrides(preview, accounts, accountId));
       setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories));
       setImportRowChoices(new Map());
       setPendingImport({ path, invertAmounts, defaultAccountId: accountId, preview });
@@ -3130,8 +3124,44 @@ function App({
         rowChoices: rowChoicesToSend(rows, includedIndices, importCategoryChoices, importRowChoices, choice_below),
       });
     } catch (e) {
-      // Nothing was saved: keep every choice on screen so the person can fix the problem and try again.
-      setStatus(errorMessage(e));
+      // Nothing was saved. Something may have changed since the review was opened (the file, or a
+      // category deleted elsewhere), so the file is read again and every choice that still applies
+      // is kept; the person checks the updated review and tries again.
+      const message = errorMessage(e);
+      try {
+        const next = await invoke<ImportPreview>("preview_import", {
+          path: pendingImport.path,
+          invertAmounts: pendingImport.invertAmounts,
+          accountId: pendingImport.defaultAccountId,
+        });
+        const categories = await invoke<string[]>("list_categories");
+        const carried = carryOverReview(
+          {
+            preview: pendingImport.preview,
+            defaultAccountId: pendingImport.defaultAccountId,
+            included: includedIndices,
+            panel: importCategoryChoices,
+            rowChoices: importRowChoices,
+            accountOverrides,
+          },
+          next,
+          categories,
+          accounts,
+        );
+        setPendingImport({ ...pendingImport, preview: next });
+        setIncludedIndices(carried.included);
+        setImportCategoryChoices(carried.panel);
+        setImportRowChoices(carried.rowChoices);
+        setAccountOverrides(carried.accountOverrides);
+        setStatus(
+          `${message} The review below has been updated${carried.fileChanged ? " from the changed file" : ""}. Check it and import again.`,
+        );
+        // So the category menus match what the review was just checked against; the review itself
+        // is already updated, so a failed list reload here only leaves the menus as they were.
+        refresh().catch(() => undefined);
+      } catch {
+        setStatus(message);
+      }
       setBusy(false);
       return;
     }
