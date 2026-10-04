@@ -107,7 +107,8 @@ try {
   await browser.keys("Enter");
   row = await waitForPayment();
   await browser.waitUntil(async () => await browser.execute(() => document.activeElement?.getAttribute("data-payment-row") === "201"), { timeout: 5000 });
-  assert.match(await (await browser.$(".ledger-pagination")).getText(), /Page 2 of 2/);
+  // The ledger showed more rows to reach the payment (61 rows; it was past the first 50).
+  assert.match(await (await browser.$("[data-ledger-shown]")).getText(), /Showing all 61 transactions/);
   assert.equal(await (await browser.$('[aria-label="Search description"]')).getValue(), "");
   assert.ok(await (await browser.$("button=More filters")).isExisting());
   assert.match(await (await browser.$(".category-filter-toggle")).getText(), /All categories/);

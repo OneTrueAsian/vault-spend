@@ -54,6 +54,16 @@ import { AccountDetailView } from "./AccountDetailView";
 import { SortableTh } from "./SortableTh";
 import { ImportCategoryReconcile, defaultCategoryChoices, type CategoryChoice } from "./ImportCategoryReconcile";
 import { ImportNeedsChoice } from "./ImportNeedsChoice";
+import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel } from "./ledgerPaging";
+import {
+  SELECT_ALL_CAP,
+  canSelectMore,
+  isBatchSelected,
+  selectAllNext,
+  selectAllNote,
+  unselectBatch,
+  type SelectAllBatch,
+} from "./ledgerSelection";
 import {
   carryOverReview,
   leaveRestUncategorized,
@@ -1234,7 +1244,11 @@ function App({
   //   }
   // }
   const [pageSize, setPageSize] = useState(50);
-  const [currentPage, setCurrentPage] = useState(1);
+  // How many matching rows the ledger shows; "Show N more" adds a step (see ledgerPaging.ts).
+  const [shownCount, setShownCount] = useState(50);
+  // The current Select all batch (see ledgerSelection.ts), and the note it leaves when capped.
+  const [selectAllBatch, setSelectAllBatch] = useState<SelectAllBatch | null>(null);
+  const [selectAllMessage, setSelectAllMessage] = useState<string | null>(null);
 
   // Below this container width (not window width — the sidebar eats into
   // that), Member/Source/Debt/Account/Category move out of the table into
@@ -1361,8 +1375,7 @@ function App({
   // Done after filtering and sorting so it only ever merges legs that are
   // both actually on screen, and before paging so page sizes stay honest.
   const { rows: displayTransactions, inLegByOutId } = useMemo(() => collapseTransferPairs(sortedTransactions), [sortedTransactions]);
-  const totalPages = Math.max(1, Math.ceil(displayTransactions.length / pageSize));
-  const pagedTransactions = displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pagedTransactions = displayTransactions.slice(0, shownCount);
 
   // Suggested transfers (equal-and-opposite amounts in different accounts a
   // few days apart) — fetched whenever the Transactions tab is showing and
@@ -1472,18 +1485,19 @@ function App({
   // account, member, category, source, and debt (if enabled).
   const ledgerColumnCount = ledgerNarrow ? 5 : appSettings.apply_to_debt_enabled ? 10 : 9;
 
-  // a filter/page-size change can leave `currentPage` pointing past the end
-  // (or the transaction list can shrink out from under it) — snap back rather than
-  // showing an empty page the user didn't ask for
+  // A new filter, search, sort or step starts over: the first step of rows, and fresh Select all batches.
   useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
-
-  useEffect(() => {
-    if (pendingPaymentId === null) setCurrentPage(1);
-    // Pending navigation owns pagination during the explicit filter reset.
+    if (pendingPaymentId === null) setShownCount(pageSize);
+    setSelectAllBatch(null);
+    setSelectAllMessage(null);
+    // Pending navigation owns how many rows show during the explicit filter reset.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag, pageSize]);
+  }, [searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag, pageSize, sortColumn, sortDirection]);
+
+  // The Select all note only describes a selection that is still there.
+  useEffect(() => {
+    if (selectedIds.size === 0) setSelectAllMessage(null);
+  }, [selectedIds]);
 
   useEffect(() => {
     if (pendingPaymentId === null) return;
@@ -1494,8 +1508,8 @@ function App({
       setStatus("Payment is no longer available.", "info");
       return;
     }
-    const page = Math.floor(index / pageSize) + 1;
-    if (currentPage !== page) { setCurrentPage(page); return; }
+    const needed = rowsToShowFor(index, shownCount, pageSize);
+    if (needed !== shownCount) { setShownCount(needed); return; }
     const rowId = displayTransactions[index].id;
     setDetailsOpenId(rowId);
     setHighlightedPaymentRow(rowId);
@@ -1503,7 +1517,7 @@ function App({
     row?.focus();
     row?.scrollIntoView({ block: "center" });
     setPendingPaymentId(null);
-  }, [pendingPaymentId, activeTab, displayTransactions, inLegByOutId, pageSize, currentPage]);
+  }, [pendingPaymentId, activeTab, displayTransactions, inLegByOutId, pageSize, shownCount]);
 
   useEffect(() => {
     if (highlightedPaymentRow === null) return;
@@ -3809,6 +3823,11 @@ function App({
   }
 
   function toggleSelectedMany(ids: number[]) {
+    const adding = ids.filter((id) => !selectedIds.has(id)).length;
+    if (adding > 0 && !canSelectMore(selectedIds, adding)) {
+      setStatus(`A change can apply to at most ${SELECT_ALL_CAP} transactions at a time.`, "info");
+      return;
+    }
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (ids.every((id) => next.has(id))) {
@@ -3821,6 +3840,10 @@ function App({
   }
 
   function toggleSelected(id: number) {
+    if (!selectedIds.has(id) && !canSelectMore(selectedIds, 1)) {
+      setStatus(`A change can apply to at most ${SELECT_ALL_CAP} transactions at a time.`, "info");
+      return;
+    }
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -3832,22 +3855,21 @@ function App({
     });
   }
 
-  function toggleSelectAllOnPage() {
-    // A merged transfer row stands for two transactions — select both.
-    const pageIds = pagedTransactions.flatMap((t) => {
+  function toggleSelectAll() {
+    if (isBatchSelected(selectAllBatch, selectedIds)) {
+      setSelectedIds(new Set());
+      setSelectAllBatch((batch) => (batch ? unselectBatch(batch) : batch));
+      return;
+    }
+    // Every matching row, not just those shown; a merged transfer row stands for two transactions.
+    const rows = displayTransactions.map((t) => {
       const inLeg = inLegByOutId.get(t.id);
       return inLeg ? [t.id, inLeg.id] : [t.id];
     });
-    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allSelected) {
-        pageIds.forEach((id) => next.delete(id));
-      } else {
-        pageIds.forEach((id) => next.add(id));
-      }
-      return next;
-    });
+    const result = selectAllNext(rows, selectedIds, selectAllBatch);
+    setSelectedIds(result.selected);
+    setSelectAllBatch(result.batch);
+    setSelectAllMessage(selectAllNote(result));
   }
 
   async function handleBulkCategoryChange(value: string) {
@@ -4560,6 +4582,11 @@ function App({
             </div>
           )}
 
+          {activeTab === "ledger" && selectedIds.size > 0 && selectAllMessage && (
+            <p className="select-all-note" role="status" data-select-all-note>
+              {selectAllMessage}
+            </p>
+          )}
           {activeTab === "ledger" && selectedIds.size > 0 && (
             <div className="bulk-actions-bar">
               <span className="bulk-actions-count">{selectedIds.size} selected</span>
@@ -4709,9 +4736,9 @@ function App({
                       <th className="select-col">
                         <input
                           type="checkbox"
-                          checked={pagedTransactions.length > 0 && pagedTransactions.every((t) => selectedIds.has(t.id))}
-                          onChange={toggleSelectAllOnPage}
-                          aria-label="Select all on this page"
+                          checked={isBatchSelected(selectAllBatch, selectedIds)}
+                          onChange={toggleSelectAll}
+                          aria-label="Select all matching transactions"
                         />
                       </th>
                       <SortableTh column="date" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
@@ -5197,41 +5224,21 @@ function App({
               <label className="ledger-page-size">
                 Show
                 <MenuSelect
-                  ariaLabel="Rows per page"
+                  ariaLabel="Rows at a time"
                   value={String(pageSize)}
                   onChange={(v) => setPageSize(Number(v))}
-                  options={[
-                    { value: "10", label: "10" },
-                    { value: "25", label: "25" },
-                    { value: "50", label: "50" },
-                  ]}
+                  options={LEDGER_STEPS.map((step) => ({ value: String(step), label: String(step) }))}
                 />
-                per page
+                at a time
               </label>
-              <div className="month-nav">
-                <button
-                  type="button"
-                  className="modal-secondary"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage <= 1}
-                  aria-label="Previous page"
-                >
-                  ‹
+              <span className="ledger-page-count" aria-live="polite" data-ledger-shown>
+                {ledgerShownLabel(Math.min(shownCount, displayTransactions.length), displayTransactions.length)}
+              </span>
+              {showMoreLabel(shownCount, displayTransactions.length, pageSize) && (
+                <button type="button" className="modal-secondary" onClick={() => setShownCount((count) => count + pageSize)} data-ledger-show-more>
+                  {showMoreLabel(shownCount, displayTransactions.length, pageSize)}
                 </button>
-                <span className="month-label">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  type="button"
-                  className="modal-secondary"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage >= totalPages}
-                  aria-label="Next page"
-                >
-                  ›
-                </button>
-              </div>
-              <span className="ledger-page-count">{displayTransactions.length} total</span>
+              )}
             </div>
           )}
 

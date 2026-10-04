@@ -3508,6 +3508,13 @@ button:disabled {
   margin-right: auto;
 }
 
+/* Select all stopped at 250: says so above the bulk bar, and how to do the rest. */
+.select-all-note {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 .bulk-actions-bar select {
   font-family: inherit;
   font-size: 13px;
