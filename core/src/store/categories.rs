@@ -196,47 +196,6 @@ impl Store {
         Ok(seen)
     }
 
-    /// Settles every row's file-supplied category before the rows are saved, so an import only
-    /// ever lands in categories the person has. A category that matches one of theirs (any
-    /// casing) takes their spelling; one they don't have follows `choices` (keyed by the file's
-    /// name, any casing): `MapTo` an existing category, `Create` it (the only way an import adds
-    /// a category), or `Skip` — and a name with no choice is skipped too, never adopted. A
-    /// `MapTo` that names a category that doesn't exist is refused before anything is changed.
-    pub fn reconcile_import_categories(
-        &self,
-        txns: &mut [Transaction],
-        choices: &std::collections::HashMap<String, ImportCategoryChoice>,
-    ) -> Result<(), ImportCategoryError> {
-        for choice in choices.values() {
-            if let ImportCategoryChoice::MapTo(target) = choice
-                && self.find_category(target)?.is_none()
-            {
-                return Err(ImportCategoryError::UnknownCategory(target.trim().to_string()));
-            }
-        }
-        for tx in txns.iter_mut() {
-            let Some(name) = tx.category.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(str::to_string) else {
-                tx.category = None;
-                continue;
-            };
-            if let Some(existing) = self.find_category(&name)? {
-                tx.category = Some(existing);
-                continue;
-            }
-            let choice = choices.iter().find(|(key, _)| key.trim().eq_ignore_ascii_case(&name));
-            tx.category = match choice {
-                Some((_, ImportCategoryChoice::MapTo(target))) => self.find_category(target)?,
-                Some((key, ImportCategoryChoice::Create)) => {
-                    let spelling = key.trim();
-                    self.create_category(spelling, None)?;
-                    self.find_category(spelling)?
-                }
-                Some((_, ImportCategoryChoice::Skip)) | None => None,
-            };
-        }
-        Ok(())
-    }
-
     /// The remembered import file categories, keyed by `import_category_key`, each with the
     /// person's category in their spelling. A mapping whose category no longer exists is left
     /// out, never handed to an import.

@@ -128,105 +128,6 @@ fn unmatched_import_categories_lists_only_names_the_person_does_not_have() {
 }
 
 #[test]
-fn reconciling_an_import_never_creates_a_category_on_its_own() {
-    let store = Store::open_in_memory().unwrap();
-    let before = store.list_categories().unwrap();
-    let mut rows = vec![tx_in("Merchandise", "HOMEDEPOT.COM")];
-
-    store.reconcile_import_categories(&mut rows, &choices(&[])).unwrap();
-
-    assert_eq!(rows[0].category, None, "a category the person doesn't have is left off, not adopted");
-    assert_eq!(store.list_categories().unwrap(), before, "and nothing was added to their list");
-}
-
-#[test]
-fn a_file_category_that_matches_an_existing_one_uses_the_existing_spelling() {
-    let store = Store::open_in_memory().unwrap();
-    let mut rows = vec![tx_in("GROCERIES", "a"), tx_in("groceries", "b")];
-
-    store.reconcile_import_categories(&mut rows, &choices(&[])).unwrap();
-
-    assert_eq!(rows[0].category.as_deref(), Some("Groceries"));
-    assert_eq!(rows[1].category.as_deref(), Some("Groceries"));
-    assert_eq!(
-        store
-            .list_categories()
-            .unwrap()
-            .iter()
-            .filter(|c| c.eq_ignore_ascii_case("groceries"))
-            .count(),
-        1
-    );
-}
-
-#[test]
-fn mapping_a_file_category_to_an_existing_one_creates_nothing() {
-    let store = Store::open_in_memory().unwrap();
-    let before = store.list_categories().unwrap();
-    let mut rows = vec![tx_in("Dining", "a"), tx_in("dining", "b")];
-
-    store
-        .reconcile_import_categories(&mut rows, &choices(&[("Dining", ImportCategoryChoice::MapTo("Dining Out".to_string()))]))
-        .unwrap();
-
-    assert_eq!(rows[0].category.as_deref(), Some("Dining Out"));
-    assert_eq!(
-        rows[1].category.as_deref(),
-        Some("Dining Out"),
-        "the choice covers every casing of the name"
-    );
-    assert_eq!(store.list_categories().unwrap(), before);
-}
-
-#[test]
-fn skipping_a_file_category_imports_the_rows_without_one() {
-    let store = Store::open_in_memory().unwrap();
-    let before = store.list_categories().unwrap();
-    let mut rows = vec![tx_in("Merchandise", "a")];
-
-    store
-        .reconcile_import_categories(&mut rows, &choices(&[("Merchandise", ImportCategoryChoice::Skip)]))
-        .unwrap();
-
-    assert_eq!(rows[0].category, None);
-    assert_eq!(store.list_categories().unwrap(), before);
-}
-
-#[test]
-fn creating_a_file_category_adds_it_once_with_the_files_spelling() {
-    let store = Store::open_in_memory().unwrap();
-    let mut rows = vec![tx_in("Pet Care", "a"), tx_in("pet care", "b")];
-
-    store
-        .reconcile_import_categories(&mut rows, &choices(&[("Pet Care", ImportCategoryChoice::Create)]))
-        .unwrap();
-
-    assert_eq!(rows[0].category.as_deref(), Some("Pet Care"));
-    assert_eq!(rows[1].category.as_deref(), Some("Pet Care"));
-    assert_eq!(
-        store
-            .list_categories()
-            .unwrap()
-            .iter()
-            .filter(|c| c.eq_ignore_ascii_case("pet care"))
-            .count(),
-        1
-    );
-}
-
-#[test]
-fn mapping_to_a_category_that_does_not_exist_is_refused_and_changes_nothing() {
-    let store = Store::open_in_memory().unwrap();
-    let before = store.list_categories().unwrap();
-    let mut rows = vec![tx_in("Dining", "a")];
-
-    let result = store.reconcile_import_categories(&mut rows, &choices(&[("Dining", ImportCategoryChoice::MapTo("Nope".to_string()))]));
-
-    assert!(result.is_err(), "a mapping can only point at a category that already exists");
-    assert_eq!(store.list_categories().unwrap(), before);
-}
-
-#[test]
 fn set_category_if_registered_only_uses_categories_the_person_has() {
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);
@@ -441,10 +342,6 @@ fn list_categories_with_icons_matches_list_categories_by_name() {
 
     assert_eq!(names, with_icons.iter().map(|c| c.name.clone()).collect::<Vec<_>>());
     assert!(with_icons.iter().any(|c| c.name == "Pet Care" && c.icon_key.is_none()));
-}
-
-fn choices(pairs: &[(&str, ImportCategoryChoice)]) -> std::collections::HashMap<String, ImportCategoryChoice> {
-    pairs.iter().map(|(name, choice)| (name.to_string(), choice.clone())).collect()
 }
 
 // ---- remembered import file categories (2026-10-04) ----

@@ -5518,6 +5518,85 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    // ---- what the old reconcile_import_categories tests covered, on the commit path ----
+
+    const CASINGS_CSV: &str = "Date,Description,Amount,Category\n\
+        2026-01-05,QQXZ A,-1.00,Pet Care\n\
+        2026-01-06,QQXZ B,-2.00,pet care\n\
+        2026-01-07,QQXZ C,-3.00,GROCERIES\n\
+        2026-01-08,QQXZ D,-4.00,groceries\n";
+
+    #[test]
+    fn an_import_never_adds_a_category_unless_told_to() {
+        let (mut state, file, dir, account) = review_state("commit-no-adopt", CASINGS_CSV);
+        let before = state.store.list_categories().unwrap();
+        let req = request(
+            &state,
+            &file,
+            account,
+            &[0, 1, 2, 3],
+            panel(&[("Pet Care", "skip")]),
+            picks(&[(0, None), (1, None)]),
+        );
+        commit_import_for(&mut state, req).unwrap();
+        assert_eq!(state.store.list_categories().unwrap(), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn every_casing_of_a_matching_file_category_uses_the_persons_spelling() {
+        let (mut state, file, dir, account) = review_state("commit-spelling", CASINGS_CSV);
+        let req = request(&state, &file, account, &[2, 3], None, picks(&[]));
+        let summary = commit_import_for(&mut state, req).unwrap();
+        for id in &summary.inserted_ids {
+            assert_eq!(category_of(&state, *id).0.as_deref(), Some("Groceries"));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn adding_a_file_category_adds_it_once_for_every_casing() {
+        let (mut state, file, dir, account) = review_state("commit-create-once", CASINGS_CSV);
+        let req = request(&state, &file, account, &[0, 1], panel(&[("Pet Care", "create")]), picks(&[]));
+        let summary = commit_import_for(&mut state, req).unwrap();
+        for id in &summary.inserted_ids {
+            assert_eq!(category_of(&state, *id).0.as_deref(), Some("Pet Care"));
+        }
+        let pet_care = state
+            .store
+            .list_categories()
+            .unwrap()
+            .into_iter()
+            .filter(|c| c.eq_ignore_ascii_case("pet care"))
+            .count();
+        assert_eq!(pet_care, 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn mapping_every_casing_of_a_file_category_creates_nothing() {
+        let (mut state, file, dir, account) = review_state("commit-map-casings", CASINGS_CSV);
+        let before = state.store.list_categories().unwrap();
+        let req = request(&state, &file, account, &[0, 1], panel(&[("Pet Care", "Home")]), picks(&[]));
+        let summary = commit_import_for(&mut state, req).unwrap();
+        for id in &summary.inserted_ids {
+            assert_eq!(category_of(&state, *id).0.as_deref(), Some("Home"));
+        }
+        assert_eq!(state.store.list_categories().unwrap(), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn mapping_to_a_category_that_does_not_exist_is_refused_and_writes_nothing() {
+        let (mut state, file, dir, account) = review_state("commit-map-missing", CASINGS_CSV);
+        let before = everything(&state);
+        let req = request(&state, &file, account, &[0, 1], panel(&[("Pet Care", "Nope")]), picks(&[]));
+        let err = commit_import_for(&mut state, req).unwrap_err();
+        assert!(err.contains("Nope"), "got {err}");
+        assert_eq!(everything(&state), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn adding_a_file_category_files_its_rows_under_it() {
         let (mut state, file, dir, account) = review_state("commit-create", REVIEW_CSV);
