@@ -21,7 +21,7 @@ import { TransferRow } from "./TransferRow";
 import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
 import { matchesPaymentAccount, paymentDisplayIndex } from "./paymentDiscovery";
 import { usePaymentSource } from "./usePaymentSource";
-import { CategoryFilterDropdown } from "./CategoryFilterDropdown";
+
 import { RowFieldDropdown } from "./RowFieldDropdown";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
@@ -40,9 +40,7 @@ import { loadPrivacyPrefs, savePrivacyPrefs, startPrivacyMask, type PrivacyPrefs
 import { distinctMerchants, similarOfferText } from "./similarRules";
 import { canLinkAsTransfer, collapseTransferPairs } from "./transfers";
 import { CADENCE_OPTIONS } from "./cadence";
-import { AccountFilterDropdown } from "./AccountFilterDropdown";
-import { MemberFilterDropdown } from "./MemberFilterDropdown";
-import { MoreFiltersPopover } from "./MoreFiltersPopover";
+
 import { UpdateBanner } from "./UpdateBanner";
 import { NavIcon, CategoryIcon } from "./icons";
 import { formatAmount, toLocalIsoDate } from "./format";
@@ -65,6 +63,7 @@ import { CATEGORY_SOURCE_LABELS, NAV_GROUP_LABELS, NAV_GROUP_ORDER, NAV_ITEMS, P
 
 import { useLedgerFilters } from "./useLedgerFilters";
 
+import { LedgerFilterBar } from "./LedgerFilterBar";
 import { SetupImportReviewPanel } from "./SetupImportReviewPanel";
 import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
 import { ImportReviewPanel } from "./ImportReviewPanel";
@@ -3720,32 +3719,26 @@ function App({
           )}
 
           {activeTab === "ledger" && (
-            <div className="ledger-filters">
-      <input
-        type="search"
-        placeholder="Search description…"
-        aria-label="Search description"
-        value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
-      />
-      <CategoryFilterDropdown options={categoryFilterOptions} value={filterCategory} onChange={setFilterCategory} />
-      <AccountFilterDropdown accounts={accounts} value={filterAccountIds} onChange={setFilterAccountIds} />
-      <MemberFilterDropdown members={familyMembers} value={filterMemberIds} onChange={setFilterMemberIds} />
-      <MoreFiltersPopover
-        filterFrom={filterFrom}
-        onSetFrom={setFilterFrom}
-        filterTo={filterTo}
-        onSetTo={setFilterTo}
-        filterTag={filterTag}
-        allTags={allTags}
-        onSetTag={setFilterTag}
-      />
-      <datalist id="known-tags">
-        {allTags.map((tag) => (
-          <option key={tag} value={tag} />
-        ))}
-      </datalist>
-    </div>
+            <LedgerFilterBar
+              searchText={searchText}
+              setSearchText={setSearchText}
+              categoryFilterOptions={categoryFilterOptions}
+              filterCategory={filterCategory}
+              setFilterCategory={setFilterCategory}
+              accounts={accounts}
+              filterAccountIds={filterAccountIds}
+              setFilterAccountIds={setFilterAccountIds}
+              familyMembers={familyMembers}
+              filterMemberIds={filterMemberIds}
+              setFilterMemberIds={setFilterMemberIds}
+              filterFrom={filterFrom}
+              setFilterFrom={setFilterFrom}
+              filterTo={filterTo}
+              setFilterTo={setFilterTo}
+              filterTag={filterTag}
+              allTags={allTags}
+              setFilterTag={setFilterTag}
+            />
           )}
 
           {activeTab === "ledger" && (
