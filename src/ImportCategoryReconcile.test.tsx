@@ -136,6 +136,16 @@ describe("ImportCategoryReconcile", () => {
     expect(text).toMatch(/choose/i);
   });
 
+  it("locks every control while the import is being saved", () => {
+    act(() => {
+      root.render(
+        <ImportCategoryReconcile unmatched={unmatched} categories={mine} choices={defaultCategoryChoices(unmatched)} onChange={onChange} onSetAll={onSetAll} disabled />,
+      );
+    });
+    expect(selects().every((b) => b.disabled)).toBe(true);
+    expect([...container.querySelectorAll("button:not([data-import-category-choice])")].every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+  });
+
   it("has one-click ways to not use any of them or to add them all", () => {
     show();
     const buttons = [...container.querySelectorAll("button")];

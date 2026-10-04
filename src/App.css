@@ -5366,6 +5366,49 @@ button:disabled {
   max-width: 320px;
 }
 
+/* The import review's "Needs your choice" list: rows the app couldn't place, each waiting for the
+   person's category (or "Leave uncategorized") before Import turns on. Same card as the panel above. */
+.import-needs-choice {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.import-needs-choice .modal-message-secondary {
+  margin: 6px 0 10px 0;
+}
+
+.import-needs-choice-title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.import-needs-choice-row .import-category-name {
+  flex: 1 1 260px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.import-needs-choice-date,
+.import-needs-choice-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.import-needs-choice-date {
+  color: var(--text-muted);
+}
+
+/* "Choose a category for 3 more rows…", beside the Import button it is keeping off. */
+.import-remaining-choices {
+  margin: 0 auto 0 0;
+  align-self: center;
+  color: var(--text-muted);
+}
+
 /* Settings > Categorization rules. The list only ever grows (every merchant correction adds a
    rule), so it scrolls inside its own region instead of lengthening the page, keeps its column
    headings in view, and uses tighter rows than the ledger tables. */
@@ -5472,6 +5515,7 @@ button:disabled {
 
 .dup-review-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
 }

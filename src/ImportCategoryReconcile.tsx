@@ -40,6 +40,7 @@ export function ImportCategoryReconcile({
   choices,
   onChange,
   onSetAll,
+  disabled = false,
 }: {
   unmatched: UnmatchedCategory[];
   /** The person's own categories — the only ones a file category can be filed under. */
@@ -47,6 +48,8 @@ export function ImportCategoryReconcile({
   choices: Record<string, CategoryChoice>;
   onChange: (name: string, choice: CategoryChoice) => void;
   onSetAll: (action: "skip" | "create") => void;
+  /** While the import is being saved. */
+  disabled?: boolean;
 }) {
   if (unmatched.length === 0) return null;
   const many = unmatched.length !== 1;
@@ -58,10 +61,10 @@ export function ImportCategoryReconcile({
           {unmatched.length} {many ? "categories" : "category"} in this file {many ? "aren't" : "isn't"} in your list
         </strong>
         <span className="import-category-reconcile-all">
-          <button type="button" className="modal-secondary" onClick={() => onSetAll("skip")}>
+          <button type="button" className="modal-secondary" onClick={() => onSetAll("skip")} disabled={disabled}>
             Let the app guess for all
           </button>
-          <button type="button" className="modal-secondary" onClick={() => onSetAll("create")}>
+          <button type="button" className="modal-secondary" onClick={() => onSetAll("create")} disabled={disabled}>
             Add all as new categories
           </button>
         </span>
@@ -88,6 +91,7 @@ export function ImportCategoryReconcile({
               ariaLabel={`What to do with the file's “${u.name}” category`}
               value={toValue(choices[u.name])}
               onChange={(v) => onChange(u.name, fromValue(v))}
+              disabled={disabled}
               options={[
                 { value: "skip", label: "Let the app guess" },
                 { value: "create", label: "Add as a new category" },

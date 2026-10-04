@@ -52,7 +52,17 @@ import { RowFieldDropdown } from "./RowFieldDropdown";
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
 import { SortableTh } from "./SortableTh";
-import { ImportCategoryReconcile, defaultCategoryChoices, type CategoryChoice, type UnmatchedCategory } from "./ImportCategoryReconcile";
+import { ImportCategoryReconcile, defaultCategoryChoices, type CategoryChoice } from "./ImportCategoryReconcile";
+import { ImportNeedsChoice } from "./ImportNeedsChoice";
+import {
+  leaveRestUncategorized,
+  pruneRowChoices,
+  rowChoicesToSend,
+  rowNeedsChoice,
+  unresolvedRows,
+  type ImportPreview,
+  type RowChoices,
+} from "./importResolution";
 import { AccountDestinationDropdown } from "./AccountDestinationDropdown";
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
@@ -151,30 +161,6 @@ type ImportSummary = {
   inserted_ids: number[];
   /** Transfer pairs linked automatically by this import (0 unless auto-linking is on). */
   auto_linked: number;
-};
-
-type ImportRow = {
-  index: number;
-  date: string;
-  description: string;
-  amount: string;
-  is_duplicate: boolean;
-  /** The row's own Account column, when the file has one — this app's own
-   * Transactions CSV export does. `commit_import` routes the row there by
-   * default (creating that account if none matches by name) unless the
-   * row's dropdown is changed. */
-  account_name: string | null;
-  /** The row's own Category column, when the file has one — the file's name for it, which
-   * may not be a category the person has (see `unmatched_categories`). */
-  category: string | null;
-};
-
-type ImportPreview = {
-  rows: ImportRow[];
-  row_errors: number;
-  /** Category names the file uses that the person doesn't have. Nothing is added for these
-   * unless the review screen sends back a "create" choice. */
-  unmatched_categories: UnmatchedCategory[];
 };
 
 type PendingImport = {
@@ -1163,9 +1149,13 @@ function App({
   const [includedIndices, setIncludedIndices] = useState<Set<number>>(new Set());
   const [accountOverrides, setAccountOverrides] = useState<Map<number, number>>(new Map());
   // What to do with each category the file uses that the person doesn't have (see
-  // ImportCategoryReconcile). Every one starts as "don't use it", so an import that
+  // ImportCategoryReconcile). Each starts on the person's choice from an earlier import, or
+  // "Let the app guess" (adds nothing to their list), so an import that
   // isn't reviewed closely adds nothing to their category list.
   const [importCategoryChoices, setImportCategoryChoices] = useState<Record<string, CategoryChoice>>({});
+  // The person's category for each row the app couldn't place (see ImportNeedsChoice): a category,
+  // or null for "Leave uncategorized". A row with no entry has no choice yet.
+  const [importRowChoices, setImportRowChoices] = useState<RowChoices>(new Map());
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
   const [manageFamilyMembersOpen, setManageFamilyMembersOpen] = useState(false);
   const [newTransactionOpen, setNewTransactionOpen] = useState(false);
@@ -3059,6 +3049,7 @@ function App({
       }
       setAccountOverrides(seededOverrides);
       setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories));
+      setImportRowChoices(new Map());
       setPendingImport({ path, invertAmounts, defaultAccountId: accountId, preview });
       setStatus("");
     } catch (e) {
@@ -3100,45 +3091,71 @@ function App({
     });
   }
 
-  async function confirmPendingImport() {
-    if (!pendingImport) return;
-    setBusy(true);
-    setStatus("Importing…", "info");
-    const totalRows = pendingImport.preview.rows.length;
-    const includedCount = includedIndices.size;
-    try {
-      const summary = await invoke<ImportSummary>("commit_import", {
-        path: pendingImport.path,
-        invertAmounts: pendingImport.invertAmounts,
-        defaultAccountId: pendingImport.defaultAccountId,
-        includedIndices: Array.from(includedIndices),
-        accountOverrides: Object.fromEntries(accountOverrides),
-        categoryChoices: importCategoryChoices,
-      });
-      await refresh();
-      if (summary.inserted_ids.length > 0) setInboxRequest(new Set(summary.inserted_ids));
-      const skipped = totalRows - includedCount;
-      setStatus(
-        `Imported ${summary.inserted} transaction(s)` +
-        (skipped ? ` — ${skipped} excluded` : "") +
-        (summary.auto_linked ? ` — linked ${summary.auto_linked} transfer${summary.auto_linked === 1 ? "" : "s"} automatically` : "") +
-        (summary.row_errors ? ` — ${summary.row_errors} row(s) couldn't be read` : ""),
-        summary.row_errors ? "error" : "success",
-      );
-    } catch (e) {
-      setStatus(errorMessage(e));
-    } finally {
-      setBusy(false);
-      setPendingImport(null);
-      setImportCategoryChoices({});
-    }
-  }
-
-  function cancelPendingImport() {
+  function clearPendingImport() {
     setPendingImport(null);
     setIncludedIndices(new Set());
     setAccountOverrides(new Map());
     setImportCategoryChoices({});
+    setImportRowChoices(new Map());
+  }
+
+  /** A change to the unfamiliar-category panel; a row it now settles drops its own choice. */
+  function updateImportCategoryChoices(next: Record<string, CategoryChoice>) {
+    setImportCategoryChoices(next);
+    if (pendingImport) {
+      const { rows, choice_below } = pendingImport.preview;
+      setImportRowChoices((prev) => pruneRowChoices(rows, next, prev, choice_below));
+    }
+  }
+
+  async function confirmPendingImport() {
+    if (!pendingImport || busy) return;
+    const { rows, choice_below } = pendingImport.preview;
+    // Import is off until every checked row is settled; this is the same check, in case it is reached another way.
+    if (includedIndices.size === 0 || unresolvedRows(rows, includedIndices, importCategoryChoices, importRowChoices, choice_below).length > 0) return;
+    setBusy(true);
+    setStatus("Importing…", "info");
+    const totalRows = rows.length;
+    const includedCount = includedIndices.size;
+    let summary: ImportSummary;
+    try {
+      summary = await invoke<ImportSummary>("commit_import", {
+        path: pendingImport.path,
+        invertAmounts: pendingImport.invertAmounts,
+        defaultAccountId: pendingImport.defaultAccountId,
+        reviewToken: pendingImport.preview.review_token,
+        includedIndices: Array.from(includedIndices),
+        accountOverrides: Object.fromEntries(accountOverrides),
+        categoryChoices: importCategoryChoices,
+        rowChoices: rowChoicesToSend(rows, includedIndices, importCategoryChoices, importRowChoices, choice_below),
+      });
+    } catch (e) {
+      // Nothing was saved: keep every choice on screen so the person can fix the problem and try again.
+      setStatus(errorMessage(e));
+      setBusy(false);
+      return;
+    }
+    // Saved. The review closes now, so the same file can't be imported twice by accident.
+    clearPendingImport();
+    const skipped = totalRows - includedCount;
+    const imported =
+      `Imported ${summary.inserted} transaction(s)` +
+      (skipped ? ` — ${skipped} excluded` : "") +
+      (summary.auto_linked ? ` — linked ${summary.auto_linked} transfer${summary.auto_linked === 1 ? "" : "s"} automatically` : "") +
+      (summary.row_errors ? ` — ${summary.row_errors} row(s) couldn't be read` : "");
+    try {
+      await refresh();
+      if (summary.inserted_ids.length > 0) setInboxRequest(new Set(summary.inserted_ids));
+      setStatus(imported, summary.row_errors ? "error" : "success");
+    } catch (e) {
+      setStatus(`${imported}. The list couldn't be updated: ${errorMessage(e)}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function cancelPendingImport() {
+    clearPendingImport();
     setStatus("Import cancelled.", "info");
   }
 
@@ -4201,10 +4218,31 @@ function App({
                 unmatched={pendingImport.preview.unmatched_categories}
                 categories={categoryOptions}
                 choices={importCategoryChoices}
-                onChange={(name, choice) => setImportCategoryChoices((prev) => ({ ...prev, [name]: choice }))}
+                disabled={busy}
+                onChange={(name, choice) => updateImportCategoryChoices({ ...importCategoryChoices, [name]: choice })}
                 onSetAll={(action) =>
-                  setImportCategoryChoices(
+                  updateImportCategoryChoices(
                     Object.fromEntries(pendingImport.preview.unmatched_categories.map((u) => [u.name, { action } as CategoryChoice])),
+                  )
+                }
+              />
+              <ImportNeedsChoice
+                rows={pendingImport.preview.rows.filter(
+                  (r) => includedIndices.has(r.index) && rowNeedsChoice(r, importCategoryChoices, pendingImport.preview.choice_below),
+                )}
+                categories={categoryOptions}
+                choices={importRowChoices}
+                disabled={busy}
+                onChoose={(index, category) => setImportRowChoices((prev) => new Map(prev).set(index, category))}
+                onLeaveRest={() =>
+                  setImportRowChoices((prev) =>
+                    leaveRestUncategorized(
+                      pendingImport.preview.rows,
+                      includedIndices,
+                      importCategoryChoices,
+                      prev,
+                      pendingImport.preview.choice_below,
+                    ),
                   )
                 }
               />
@@ -4220,6 +4258,7 @@ function App({
                             pendingImport.preview.rows.every((r) => includedIndices.has(r.index))
                           }
                           onChange={toggleSelectAllImportRows}
+                          disabled={busy}
                           aria-label="Select all"
                         />
                       </th>
@@ -4238,6 +4277,7 @@ function App({
                             type="checkbox"
                             checked={includedIndices.has(row.index)}
                             onChange={() => toggleIncluded(row.index)}
+                            disabled={busy}
                           />
                         </td>
                         <td>{row.date}</td>
@@ -4248,6 +4288,7 @@ function App({
                             ariaLabel={`Account for "${row.description}"`}
                             value={String(accountOverrides.get(row.index) ?? pendingImport.defaultAccountId)}
                             onChange={(v) => setImportRowAccount(row.index, Number(v))}
+                            disabled={busy}
                             options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
                           />
                           {row.account_name &&
@@ -4263,14 +4304,35 @@ function App({
                   </tbody>
                 </table>
               </div>
-              <div className="dup-review-actions">
-                <button className="modal-secondary" onClick={cancelPendingImport} disabled={busy}>
-                  Cancel
-                </button>
-                <button onClick={confirmPendingImport} disabled={busy || includedIndices.size === 0}>
-                  {busy ? "Importing…" : `Import ${includedIndices.size} transaction(s)`}
-                </button>
-              </div>
+              {(() => {
+                const remaining = unresolvedRows(
+                  pendingImport.preview.rows,
+                  includedIndices,
+                  importCategoryChoices,
+                  importRowChoices,
+                  pendingImport.preview.choice_below,
+                ).length;
+                return (
+                  <div className="dup-review-actions">
+                    <p id="import-remaining-choices" className="import-remaining-choices" aria-live="polite" data-import-remaining={remaining}>
+                      {remaining > 0
+                        ? `Choose a category for ${remaining} more ${remaining === 1 ? "row" : "rows"}, or leave ${remaining === 1 ? "it" : "them"} uncategorized.`
+                        : ""}
+                    </p>
+                    <button className="modal-secondary" onClick={cancelPendingImport} disabled={busy}>
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmPendingImport}
+                      disabled={busy || includedIndices.size === 0 || remaining > 0}
+                      aria-describedby="import-remaining-choices"
+                      data-import-confirm
+                    >
+                      {busy ? "Importing…" : `Import ${includedIndices.size} transaction(s)`}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
