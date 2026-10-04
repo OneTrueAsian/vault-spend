@@ -5,6 +5,8 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
+/// Returns the currently-resolved data file path, for display on the
+/// Reports tab's Settings section.
 #[tauri::command]
 pub fn get_data_file_location(paths: tauri::State<crate::config::AppPaths>) -> String {
     current_db_path(&paths).to_string_lossy().to_string()
@@ -357,6 +359,17 @@ pub fn restore_backup(
     Ok(())
 }
 
+/// Writes arbitrary text (CSV export content) to a path the user already
+/// picked via a native save dialog on the frontend — the frontend builds
+/// the CSV itself (it already holds exactly the filtered/visible rows to
+/// export), this just does the actual filesystem write, which sandboxed
+/// frontend JS can't do directly.
+///
+/// Prepends a UTF-8 byte-order-mark: without one, Excel (and other Windows
+/// tools) guesses the file is Windows-1252 rather than UTF-8, and any
+/// non-ASCII character (an em dash, a curly quote, an accented name) comes
+/// back as mojibake. `setup_import::load_setup_csv` strips a leading BOM
+/// back out when reading a file this produced, so the round trip is safe.
 #[tauri::command]
 pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     let mut bytes = vec![0xEF, 0xBB, 0xBF];
