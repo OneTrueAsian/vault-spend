@@ -71,7 +71,7 @@
 }
 
 .row-menu-check-on::before {
-  content: "¹3";
+  content: "✓";
 }
 
 .row-menu-divider {
