@@ -70,7 +70,7 @@ export const WIDGET_CATALOG: { id: FixedWidgetId; label: string; group: "core" |
   { id: "stat_investments", label: "Investments", group: "core" },
   { id: "runway", label: "Runway", group: "core" },
   { id: "safe_to_spend", label: "Safe to spend", group: "core" },
-  { id: "needs_a_look", label: "Needs a look", group: "core" },
+  { id: "needs_a_look", label: "To do", group: "core" },
   { id: "trend_spending", label: "Trend & spending", group: "core" },
   { id: "budget_bills", label: "Budget & bills", group: "core" },
   { id: "recent_transactions", label: "Recent transactions", group: "core" },

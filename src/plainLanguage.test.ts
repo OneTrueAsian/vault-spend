@@ -34,4 +34,21 @@ describe("plain-language copy", () => {
     }
     expect(hits).toEqual([]);
   });
+
+  // Help and page subtitles name things the way the screens do (UI review, 2026-10-04): Accounts
+  // says "What you own" / "What you owe", the Dashboard card is "To do", and "sinking fund" is a
+  // term most people don't know. Help's search keywords may still list it (a lone quoted string
+  // in a `tags` list), so someone who knows the word can find the topic.
+  it("uses the screens' own names, not old or technical ones", () => {
+    const OLD = /\b(Total Assets|Total Liabilities|Needs a look|[Ss]inking[- ][Ff]unds?)\b/;
+    const searchKeyword = /^\s*("[^"]*",?\s*)+$|\btags:\s*\[/;
+    const hits: string[] = [];
+    // What's new describes past releases in the names they had then.
+    for (const file of sourceFiles(SRC).filter((f) => !f.endsWith("changelog.ts"))) {
+      withoutComments(readFileSync(file, "utf8")).forEach((line, i) => {
+        if (OLD.test(line) && !searchKeyword.test(line)) hits.push(`${relative(SRC, file)}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    expect(hits).toEqual([]);
+  });
 });

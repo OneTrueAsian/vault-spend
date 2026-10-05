@@ -28,7 +28,9 @@ export function hardCodedDates(dir = E2E_DIR) {
 }
 
 describe("e2e fixtures", () => {
-  it("spell no calendar dates outside comments (use lib/dates.mjs)", () => {
+  // It reads every spec from disk; the first read of freshly written files (a new checkout, which the
+  // virus scanner checks) once took 5.9 s inside a full run, past vitest's 5 s default.
+  it("spell no calendar dates outside comments (use lib/dates.mjs)", { timeout: 30_000 }, () => {
     expect(hardCodedDates()).toEqual([]);
   });
 });

@@ -1847,6 +1847,85 @@
   text-decoration: none;
 }
 
+/* The Recurring list reuses `.ledger`'s look but not the Transactions table's fixed column plan
+   (that table sets its widths in a <colgroup>; this one has none, so a fixed layout forced its
+   seven columns equal and the status buttons ran under Edit). Its columns size to their content;
+   the merchant column gets room for a two-word name. */
+table.ledger.recurring-table {
+  table-layout: auto;
+}
+
+table.ledger.recurring-table td[data-label="Merchant"] {
+  min-width: 11em;
+}
+
+table.ledger.recurring-table td[data-label="Status"],
+table.ledger.recurring-table td[data-label="Next due"] {
+  white-space: nowrap;
+}
+
+table.ledger.recurring-table .actions-col {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Too narrow for seven columns side by side (a half-width window): each item becomes a small
+   card. Name and amount, then account and cadence, then the next due date, then the status
+   buttons and Edit / Delete. */
+@media (max-width: 1100px) {
+  table.ledger.recurring-table thead {
+    display: none;
+  }
+
+  table.ledger.recurring-table,
+  table.ledger.recurring-table tbody {
+    display: block;
+  }
+
+  table.ledger.recurring-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name amount"
+      "account cadence"
+      "due due"
+      "status actions";
+    align-items: center;
+    gap: 6px 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  table.ledger.recurring-table tr:last-child {
+    border-bottom: 0;
+  }
+
+  table.ledger.recurring-table td {
+    display: block;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  table.ledger.recurring-table td[data-label="Merchant"] { grid-area: name; min-width: 0; }
+  table.ledger.recurring-table td[data-label="Amount"] { grid-area: amount; text-align: right; }
+  table.ledger.recurring-table td[data-label="Account"] { grid-area: account; color: var(--text-muted); }
+  table.ledger.recurring-table td[data-label="Cadence"] { grid-area: cadence; justify-self: end; }
+  table.ledger.recurring-table td[data-label="Next due"] { grid-area: due; }
+  table.ledger.recurring-table td[data-label="Status"] { grid-area: status; }
+  table.ledger.recurring-table td[data-label="Actions"] { grid-area: actions; width: auto; }
+
+  table.ledger.recurring-table td[data-label="Next due"]::before {
+    content: "Next due ";
+    color: var(--text-muted);
+  }
+
+  table.ledger.recurring-table .status-pill-group {
+    flex-wrap: wrap;
+  }
+}
+
 .insights-list {
   list-style: none;
   margin: 0;

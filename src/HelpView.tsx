@@ -110,8 +110,8 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         time from the same dropdown, or delete it when you no longer need
         it. <strong>Safe to spend</strong> shows what's left of your
         cash after the Recurring bills due before your next paycheck (with an
-        optional buffer you choose to keep), and <strong>Needs a look</strong>{" "}
-        opens with a <strong>To do</strong> list — uncategorized transactions,
+        optional buffer you choose to keep), and the <strong>To do</strong>{" "}
+        card lists what needs you — uncategorized transactions,
         bills due in the next 3 days, everyday accounts with no activity for
         30+ days, Recurring bills that look missed or changed price, and a
         finished month waiting for its <strong>month-end review</strong> —
@@ -150,8 +150,8 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
     node: (
       <li>
         <strong>Accounts</strong> — every account grouped by type (cash,
-        credit, loan, investment, other), with running totals for Total
-        Assets, Total Liabilities, and Net Worth — click any of those for a
+        credit, loan, investment, other), with running totals for What you
+        own, What you owe, and Net worth — click any of those for a
         breakdown of <strong>what changed</strong> and which accounts drove
         it. Add an account here, or click <strong>Edit</strong> on any card to
         change its type, institution, last-4 digits, and which family member
@@ -819,7 +819,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         <p>
           When a profile is open, an unprotected one names the bill; a protected one does so only if you turn on{" "}
           <strong>Show bill names in reminders</strong> in Settings. Routine housekeeping, such as rolling a month
-          forward, automatic sinking-fund contributions and the daily portfolio snapshot, also waits until you unlock
+          forward, a goal's automatic monthly contribution and the daily portfolio snapshot, also waits until you unlock
           and then runs.
         </p>
       </>
@@ -1120,9 +1120,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["auto-contribute", "sinking fund", "goal", "monthly", "automatic", "insurance", "gifts"],
     answer: (
       <p>
-        It turns the goal into a sinking fund for an irregular annual cost —
-        insurance, gifts, an annual subscription — that's easier to save for
-        a little at a time than all at once. The next time you open the app
+        It sets money aside for the goal every month, for a cost that comes
+        once a year or so — insurance, gifts, an annual subscription — and is
+        easier to save for a little at a time than all at once. The next time you open the app
         after a new calendar month starts, Vault Spend logs that amount as a
         contribution automatically (you'll see a one-time notice naming
         which goal(s) it applied to) — at most once per goal per month, and

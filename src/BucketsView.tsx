@@ -423,7 +423,7 @@ export function BucketsView({
       <div className="page-top">
         <div>
           <h1 className="view-title">Goals</h1>
-          <p className="view-sub">Savings goals and sinking funds.</p>
+          <p className="view-sub">Money you're setting aside for something, like a holiday or a yearly bill.</p>
         </div>
       </div>
       {buckets.length === 0 && (

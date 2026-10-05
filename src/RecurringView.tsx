@@ -668,7 +668,7 @@ export function RecurringView({
 
       {view === "list" && (
       <div className="table-scroll">
-      <table className="ledger">
+      <table className="ledger recurring-table" data-recurring-table>
         <thead>
           <tr>
             <th>Merchant</th>
@@ -696,7 +696,7 @@ export function RecurringView({
               />
             ) : (
               <tr key={r.id} className={r.status === "canceled" ? "recurring-row-canceled" : undefined}>
-                <td>
+                <td data-label="Merchant">
                   <div className="cell-with-icon">
                     <span className="row-icon-badge">
                       <CategoryIcon category={r.category} iconKey={r.category ? categoryIconMap[r.category] : null} />
@@ -707,11 +707,11 @@ export function RecurringView({
                     </div>
                   </div>
                 </td>
-                <td>{r.account_name ?? <span className="account-col">—</span>}</td>
-                <td>
+                <td data-label="Account">{r.account_name ?? <span className="account-col">—</span>}</td>
+                <td data-label="Cadence">
                   <span className="confidence-badge">{r.cadence}</span>
                 </td>
-                <td>
+                <td data-label="Next due">
                   {r.next_date}
                   {isDueSoon(r.next_date) && <span className="budget-alert-badge budget-alert-warning">Due soon</span>}
                   {(() => {
@@ -723,11 +723,11 @@ export function RecurringView({
                     ) : null;
                   })()}
                 </td>
-                <td className="amount-col">{formatAmount(r.amount)}</td>
-                <td>
+                <td className="amount-col" data-label="Amount">{formatAmount(r.amount)}</td>
+                <td data-label="Status">
                   <StatusPill status={r.status} onSetStatus={(status) => onSetStatus(r.id, status)} />
                 </td>
-                <td className="actions-col">
+                <td className="actions-col" data-label="Actions">
                   {confirmingDeleteId === r.id ? (
                     <span className="row-delete-confirm">
                       <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(null)}>

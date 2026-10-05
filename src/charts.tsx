@@ -5,10 +5,19 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEv
 export function fmtMoneyShort(n: number): string {
   const abs = Math.abs(n);
   let s: string;
-  if (abs >= 1000000) s = (abs / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
-  else if (abs >= 1000) s = (abs / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+  // The thresholds sit where rounding reaches the next unit, so 999,960 reads "$1M", not "$1000k".
+  if (abs >= 999_950) s = (abs / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  else if (abs >= 999.5) s = (abs / 1000).toFixed(1).replace(/\.0$/, "") + "k";
   else s = abs.toFixed(0);
   return (n < 0 ? "-" : "") + "$" + s;
+}
+
+/** The left gutter a chart needs for its value-axis labels, which are drawn right-aligned 8 units
+ * left of the plot. Axis text is 12px (`.axis-label`) and a digit about 0.6em wide; never less
+ * than the 46 units the charts always had, so short labels look as before. */
+export function axisGutter(labels: string[], fontSize = 12): number {
+  const widest = Math.max(0, ...labels.map((l) => l.length));
+  return Math.max(46, Math.ceil(widest * fontSize * 0.62) + 10);
 }
 
 export function ProgressRing({
@@ -192,17 +201,17 @@ export function BarChart({
   // useId's colons are fine in an id but not in url(#…), so strip them
   const barGradId = "bar-" + useId().replace(/:/g, "");
 
-  const padL = 46;
   const padR = 12;
   const padT = 14;
   const padB = 26;
-  const innerW = width - padL - padR;
   const innerH = height - padT - padB;
   let max = 0;
   data.forEach((d) => d.values.forEach((v) => { max = Math.max(max, Math.abs(v.value)); }));
   max = max === 0 ? 1 : max * 1.15;
-  const groupW = innerW / (data.length || 1);
   const gridCount = 4;
+  const padL = axisGutter(Array.from({ length: gridCount + 1 }, (_, i) => fmtMoneyShort(max - (max * i) / gridCount)));
+  const innerW = width - padL - padR;
+  const groupW = innerW / (data.length || 1);
 
   const hovered = hoveredIndex !== null ? data[hoveredIndex] : null;
 
@@ -354,11 +363,9 @@ export function LineChart({
 }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const padL = 46;
   const padR = 12;
   const padT = 14;
   const padB = 26;
-  const innerW = width - padL - padR;
   const innerH = height - padT - padB;
   const values = points.map((p) => p.value);
   let min = Math.min(...values);
@@ -371,11 +378,13 @@ export function LineChart({
   const minPad = min - span * 0.12;
   const maxPad = max + span * 0.12;
   const spanPad = maxPad - minPad || 1;
+  const gridCount = 4;
+  const padL = axisGutter(Array.from({ length: gridCount + 1 }, (_, i) => formatValue(maxPad - (spanPad * i) / gridCount)));
+  const innerW = width - padL - padR;
   const x = (i: number) => padL + (points.length === 1 ? innerW / 2 : (innerW * i) / (points.length - 1));
   const y = (v: number) => padT + innerH - ((v - minPad) / spanPad) * innerH;
   const linePts = points.map((p, i) => `${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
   const areaPts = `${x(0).toFixed(1)},${(padT + innerH).toFixed(1)} ${linePts} ${x(points.length - 1).toFixed(1)},${(padT + innerH).toFixed(1)}`;
-  const gridCount = 4;
   const lastX = x(points.length - 1);
   const lastY = y(points[points.length - 1]?.value ?? 0);
   const gradId = "grad-" + Math.random().toString(36).slice(2, 8);
@@ -585,11 +594,9 @@ export function SeriesChart({
   // Nothing to draw (an account with no deposits, no value history and no plan yet): a grid of
   // made-up axis labels would only mislead, so leave it to the caller's own note.
   if (drawn.length === 0) return null;
-  const padL = 46;
   const padR = 14;
   const padT = 14;
   const padB = 26;
-  const innerW = width - padL - padR;
   const innerH = height - padT - padB;
 
   const allX = drawn.flatMap((s) => s.points.map((p) => p.x));
@@ -605,10 +612,12 @@ export function SeriesChart({
   const vMaxRaw = Math.max(0, ...allV);
   const vMax = vMaxRaw === vMin ? vMin + 1 : vMaxRaw + (vMaxRaw - vMin) * 0.08;
   const spanV = vMax - vMin;
+  const gridCount = 4;
+  const padL = axisGutter(Array.from({ length: gridCount + 1 }, (_, i) => formatValue(vMax - (spanV * i) / gridCount)));
+  const innerW = width - padL - padR;
   const x = (v: number) => padL + ((v - xMin) / spanX) * innerW;
   const y = (v: number) => padT + innerH - ((v - vMin) / spanV) * innerH;
 
-  const gridCount = 4;
   const xTicks = timeTicks(xMin, xMax, width < 480 ? 4 : 6);
 
   const sortedX = Array.from(new Set(allX)).sort((a, b) => a - b);
