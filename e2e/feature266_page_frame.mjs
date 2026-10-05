@@ -22,7 +22,7 @@
 
 import os from "node:os";
 import path from "node:path";
-import { launchApp, reclaimWindowFocus, waitUntilOrDiagnose } from "./harness.mjs";
+import { chooseStyle, launchApp, reclaimWindowFocus, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -40,33 +40,6 @@ const { browser } = app;
 
 async function nav(label) {
   await browser.execute((text) => [...document.querySelectorAll(".nav-item")].find((b) => b.textContent.trim() === text).click(), label);
-}
-
-/** Picks a style on Settings > Appearance, the way a person does. */
-async function chooseStyle(label, palette) {
-  await nav("Settings");
-  // Wait for the row itself, not just the group: the click below needs it to exist.
-  await waitUntilOrDiagnose(
-    browser,
-    () =>
-      browser.execute(
-        (text) =>
-          [...document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')].some(
-            (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
-          ),
-        label,
-      ),
-    { timeoutMsg: `Settings > Appearance should offer ${label}` },
-  );
-  await browser.execute((text) => {
-    const row = [...document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')].find(
-      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
-    );
-    row.querySelector("input").click();
-  }, label);
-  await waitUntilOrDiagnose(browser, () => browser.execute((p) => document.documentElement.dataset.palette === p, palette), {
-    timeoutMsg: `choosing ${label} should apply it`,
-  });
 }
 
 /** Clicks Light / Dark / System in the sidebar. */
@@ -226,7 +199,7 @@ try {
     ["Retro", "retro"],
   ]) {
     await browser.setWindowSize(1440, 1000);
-    await chooseStyle(label, palette);
+    await chooseStyle(browser, label, palette);
     for (const [width, height] of [
       [1200, 780],
       [1280, 800],
@@ -260,7 +233,7 @@ try {
 
   // A narrow window (icon-only sidebar), from a known state (Default, Light): the one-button switch
   // and the eye.
-  await chooseStyle("Default", "transparent");
+  await chooseStyle(browser, "Default", "transparent");
   await chooseMode("Light");
   await waitUntilOrDiagnose(browser, () => browser.execute(() => document.documentElement.dataset.theme === "light"), {
     timeoutMsg: "Light should apply before the narrow-window checks",

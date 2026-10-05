@@ -5,6 +5,9 @@ interface SidebarNavProps {
   /** The reorderable tabs, in the person's saved order. */
   items: typeof NAV_ITEMS;
   activeTab: Tab;
+  /** The narrow, icon-only sidebar: each tab's name shows beside it on hover, so the native
+   * reorder tooltip is left off there rather than stacking under the name. */
+  iconOnly?: boolean;
   dragNavTab: Tab | null;
   onSelect: (tab: Tab) => void;
   onDragStartItem: (tab: Tab) => void;
@@ -17,7 +20,7 @@ interface SidebarNavProps {
 /** The sidebar's tabs: the grouped, reorderable ones, then Settings and Help pinned below. Every tab
  * carries its name as `aria-label` (and its id as `data-tab`), because in a narrow window the visible
  * name is hidden and only the icon shows; the name then appears on hover and focus. */
-export function SidebarNav({ items, activeTab, dragNavTab, onSelect, onDragStartItem, onDragEndItem, onDropItem, onMoveItem }: SidebarNavProps) {
+export function SidebarNav({ items, activeTab, iconOnly = false, dragNavTab, onSelect, onDragStartItem, onDragEndItem, onDropItem, onMoveItem }: SidebarNavProps) {
   return (
     <>
       {NAV_GROUP_ORDER.map((group) => (
@@ -51,7 +54,7 @@ export function SidebarNav({ items, activeTab, dragNavTab, onSelect, onDragStart
                     }
                   }}
                   aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                  title="Drag to reorder, or focus and press Alt+↑/↓"
+                  title={iconOnly ? undefined : "Drag to reorder, or focus and press Alt+↑/↓"}
                   onDragStart={(e) => {
                     // Native drag-and-drop requires a payload via setData or
                     // the browser treats the drag as invalid and shows

@@ -127,7 +127,7 @@ const HelpView = lazy(() => import("./HelpView").then((m) => ({ default: m.HelpV
 
 import { UpdateBanner } from "./UpdateBanner";
 import { SidebarNav } from "./SidebarNav";
-import { useDismiss } from "./useDismiss";
+import { useSidebarOverlay } from "./useSidebarOverlay";
 import { formatAmount, toLocalIsoDate } from "./format";
 import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
@@ -242,19 +242,14 @@ function App({
   const [navOrder, setNavOrder] = useState<Tab[]>(loadNavOrder);
   const [dragNavTab, setDragNavTab] = useState<Tab | null>(null);
   // Below 1000px the sidebar shows icons only; "Show names" lays the full sidebar over the page
-  // until a tab is chosen, Escape is pressed or the person clicks outside it.
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  // (see useSidebarOverlay for what closes it).
   const sidebarRef = useRef<HTMLElement>(null);
-  useDismiss(sidebarExpanded, [sidebarRef], () => setSidebarExpanded(false));
-  useEffect(() => {
-    // Widening the window past the icon-only layout ends "Show names", so narrowing it again
-    // starts from icons rather than an overlay nobody asked for this time.
-    const query = window.matchMedia?.("(max-width: 1000px)");
-    if (!query) return;
-    const collapse = () => setSidebarExpanded(false);
-    query.addEventListener("change", collapse);
-    return () => query.removeEventListener("change", collapse);
-  }, []);
+  const {
+    expanded: sidebarExpanded,
+    setExpanded: setSidebarExpanded,
+    iconOnly: sidebarIconOnly,
+    handleBlur: handleSidebarBlur,
+  } = useSidebarOverlay(sidebarRef);
   const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(DEFAULT_LAYOUT);
   // Set once the person changes the layout, so a slow first read of the saved one (it arrives
   // asynchronously after mount) can't land afterwards and undo what they just did.
@@ -1257,7 +1252,7 @@ function App({
   }
 
   // Privacy mode: hides every dollar amount on screen (see privacy.ts). Two
-  // per-viewer preferences: the on/off toggle in the header, and an opt-in
+  // per-viewer preferences: the on/off button at the bottom of the sidebar, and an opt-in
   // "also hide whenever this window isn't in front" from Settings.
   const [privacyPrefs, setPrivacyPrefs] = useState<PrivacyPrefs>(loadPrivacyPrefs);
   const [windowFocused, setWindowFocused] = useState(() => document.hasFocus());
@@ -3509,7 +3504,7 @@ function App({
       {!showWelcome && whatsNewVersion && (
         <WhatsNewDialog version={whatsNewVersion} notes={CHANGELOG[whatsNewVersion]} onClose={dismissWhatsNew} />
       )}
-      <aside className="sidebar" ref={sidebarRef}>
+      <aside className="sidebar" id="app-sidebar" ref={sidebarRef} onBlur={handleSidebarBlur}>
         {/* Only this part scrolls, so the controls below never cover a tab. */}
         <div className="sidebar-scroll">
           <button
@@ -3517,6 +3512,7 @@ function App({
             className="sidebar-expand"
             data-sidebar-expand
             aria-expanded={sidebarExpanded}
+            aria-controls="app-sidebar"
             aria-label={sidebarExpanded ? "Hide names" : "Show names"}
             title={sidebarExpanded ? "Hide names" : "Show names"}
             onClick={() => setSidebarExpanded((v) => !v)}
@@ -3538,6 +3534,7 @@ function App({
           />
           <SidebarNav
             items={orderedNavItems}
+            iconOnly={sidebarIconOnly}
             activeTab={activeTab}
             dragNavTab={dragNavTab}
             onSelect={(tab) => {

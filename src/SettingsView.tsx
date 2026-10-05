@@ -445,19 +445,19 @@ const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string 
     id: "transparent",
     label: "Default",
     description:
-      "Vault Spend's standard look — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Follows the header's Light/Dark/System toggle.",
+      "Vault Spend's standard look — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Follows the Light/Dark/System switch at the bottom of the sidebar.",
   },
   {
     id: "futuristic",
     label: "Futuristic",
     description:
-      "A neon look on deep navy — a glowing accent color you choose, tall narrow headings, rounded panels, and its own angular sidebar icons. When it's selected, you can pick the accent color and how strongly it glows. Also follows the header's Light/Dark/System toggle.",
+      "A neon look on deep navy — a glowing accent color you choose, tall narrow headings, rounded panels, and its own angular sidebar icons. When it's selected, you can pick the accent color and how strongly it glows. Also follows the Light/Dark/System switch at the bottom of the sidebar.",
   },
   {
     id: "retro",
     label: "Retro",
     description:
-      "A classic desktop reskin — gray raised and sunken controls, square corners, white document areas, and navy selection, in a plain system sans. Light is the classic gray; Dark is a modern adaptation of the same shapes. Also follows the header's Light/Dark/System toggle.",
+      "A classic desktop reskin — gray raised and sunken controls, square corners, white document areas, and navy selection, in a plain system sans. Light is the classic gray; Dark is a modern adaptation of the same shapes. Also follows the Light/Dark/System switch at the bottom of the sidebar.",
   },
 ];
 
@@ -578,7 +578,7 @@ function PrivacySection({ autoHide, onSetAutoHide }: { autoHide: boolean; onSetA
         <span className="reports-section-title">Privacy</span>
       </div>
       <p className="modal-message-secondary">
-        The header's "Hide amounts" button covers every dollar figure on screen with ••••, so you can open Vault Spend
+        The Hide amounts button at the bottom of the sidebar covers every dollar figure on screen with ••••, so you can open Vault Spend
         with someone next to you. It hides the numbers, not the charts' shapes.
       </p>
       <div className="feature-toggle-list">

@@ -357,8 +357,10 @@
    `position` here is additive — Slate/Futuristic never reference this
    selector and are laid out exactly as before. */
 [data-palette="transparent"] .app-shell {
-  padding: 14px;
-  gap: 14px;
+  --shell-pad: 14px;
+  --shell-gap: 14px;
+  padding: var(--shell-pad);
+  gap: var(--shell-gap);
   position: relative;
   isolation: isolate;
 }
@@ -390,8 +392,8 @@
 }
 
 /* The sidebar's glass: the colour wash behind it, blurred. It is a layer of
-   its own, fixed over the sidebar's place (14px in from the window's
-   edges, like the sidebar), rather than a backdrop-filter on the sidebar
+   its own, fixed over the sidebar's place (--shell-pad in from the
+   window's edges, like the sidebar), rather than a backdrop-filter on the sidebar
    itself: an element with a backdrop-filter traps `position: fixed`
    children inside its own box, where the sidebar clips them, and the
    names beside the icons of the narrow sidebar and its profile menu
@@ -400,10 +402,10 @@
 [data-palette="transparent"] .sidebar::before {
   content: "";
   position: fixed;
-  top: 14px;
-  bottom: 14px;
-  left: 14px;
-  width: 224px;
+  top: var(--shell-pad);
+  bottom: var(--shell-pad);
+  left: var(--shell-pad);
+  width: var(--sidebar-w);
   z-index: -1;
   border-radius: 22px;
   backdrop-filter: blur(24px) saturate(1.7);
@@ -469,7 +471,7 @@
 /* Retro — an optional reskin: a classic 1990s-desktop colour
    scheme (gray control faces, white document panes, navy selection, square
    corners, raised and sunken four-edge borders). Like the others it follows
-   the header's Light/Dark/System toggle, so it needs the same three-block
+   the Light/Dark/System switch, so it needs the same three-block
    structure: Light is the historical palette; Dark is a modern adaptation of
    the same geometry (candidates, not historical values). Text uses a local
    system sans from the font stack below — no font file is bundled or downloaded.

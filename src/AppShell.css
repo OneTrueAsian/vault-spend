@@ -1,6 +1,16 @@
 /* ---------------------------- App shell ---------------------------- */
 
+/* The shell's layout sizes, shared by the sidebar, its narrow icon-only
+   form (AppResponsive.css) and Default's floating panels (App.css). */
 .app-shell {
+  --sidebar-w: 224px;
+  --rail-w: 68px;
+  --sidebar-expanded-w: 232px;
+  /* Space around the shell's panels, and between them (Default only). */
+  --shell-pad: 0px;
+  --shell-gap: 0px;
+  /* From the icon rail's edge to a name or menu shown beside it. */
+  --popout-gap: 8px;
   display: flex;
   height: 100vh;
   width: 100%;
@@ -8,7 +18,7 @@
 }
 
 .sidebar {
-  width: 224px;
+  width: var(--sidebar-w);
   flex: 0 0 auto;
   background: var(--sidebar-bg);
   color: var(--sidebar-text);

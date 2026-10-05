@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_WINDOW_SIZE,
+  applyLaunchWindowSize,
   applyWindowSize,
   chooseMenuOption,
+  chooseStyle,
   dismissFirstLaunchDialogs,
   menuOptionLabels,
   pickFromMenu,
@@ -390,12 +392,37 @@ describe("window size", () => {
       },
     };
     trackWindowSize(browser);
-    await applyWindowSize(browser, DEFAULT_WINDOW_SIZE);
+    expect(await applyWindowSize(browser, DEFAULT_WINDOW_SIZE)).toEqual({ width: 1280, height: 800 });
     expect(state.size).toEqual({ width: 1280, height: 800 });
     expect(asked).toEqual([
       [1280, 800],
       [1280, 800],
     ]);
+  });
+
+  const stuckAt800 = () => ({
+    async getWindowSize() {
+      return { width: 800, height: 600 };
+    },
+    async setWindowSize() {},
+  });
+
+  it("applyWindowSize returns the size the window ended at when the size never holds", async () => {
+    expect(await applyWindowSize(stuckAt800(), DEFAULT_WINDOW_SIZE)).toEqual({ width: 800, height: 600 });
+  });
+
+  it("applyLaunchWindowSize logs the size it ended at and throws when the launch default does not hold", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await expect(applyLaunchWindowSize(stuckAt800(), DEFAULT_WINDOW_SIZE)).rejects.toThrow(/1280x800.*800x600/);
+      expect(log).toHaveBeenCalledWith("[harness] window 800x600");
+      log.mockClear();
+      const fine = { async getWindowSize() { return { width: 1280, height: 800 }; }, async setWindowSize() {} };
+      expect(await applyLaunchWindowSize(fine, DEFAULT_WINDOW_SIZE)).toEqual({ width: 1280, height: 800 });
+      expect(log).toHaveBeenCalledWith("[harness] window 1280x800");
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it("trackWindowSize records sizes a spec sets itself", async () => {
@@ -408,6 +435,52 @@ describe("window size", () => {
     trackWindowSize(browser);
     await browser.setWindowSize(800, 600);
     expect(requestedWindowSize(browser)).toEqual({ width: 800, height: 600 });
+  });
+});
+
+describe("chooseStyle", () => {
+  /** Settings > Appearance, whose style rows render only after `rowsAfter` reads (a lazy page). */
+  function fakeAppearance({ rowsAfter = 1, labels = ["Default", "Futuristic", "Retro"] } = {}) {
+    const state = { reads: 0, palette: "transparent", settingsClicks: 0, radioClicks: 0 };
+    const rows = labels.map((label) => ({
+      querySelector(selector) {
+        if (selector === ".feature-toggle-label") return { textContent: label };
+        if (selector === "input") return { click: () => (state.radioClicks++, (state.palette = label.toLowerCase())) };
+        return null;
+      },
+    }));
+    const browser = {
+      async $(selector) {
+        expect(selector).toBe(".nav-item[data-tab=settings]");
+        return { click: async () => state.settingsClicks++ };
+      },
+      async execute(fn, ...args) {
+        globalThis.document = {
+          documentElement: { dataset: { palette: state.palette } },
+          querySelectorAll: () => (state.reads++ >= rowsAfter ? rows : []),
+        };
+        return fn(...args);
+      },
+      async waitUntil(condition, { timeoutMsg } = {}) {
+        for (let i = 0; i < 3; i++) if (await condition()) return true;
+        throw new Error(timeoutMsg ?? "waitUntil timed out");
+      },
+    };
+    return { browser, state };
+  }
+
+  it("opens Settings, waits for the style's row, then chooses it", async () => {
+    const { browser, state } = fakeAppearance({ rowsAfter: 1 });
+    await chooseStyle(browser, "Retro", "retro");
+    expect(state.settingsClicks).toBe(1);
+    expect(state.radioClicks).toBe(1);
+    expect(state.palette).toBe("retro");
+  });
+
+  it("fails by name, without clicking, when the style is never offered", async () => {
+    const { browser, state } = fakeAppearance({ labels: ["Default"] });
+    await expect(chooseStyle(browser, "Retro", "retro")).rejects.toThrow(/should offer Retro/);
+    expect(state.radioClicks).toBe(0);
   });
 });
 

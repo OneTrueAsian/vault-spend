@@ -26,9 +26,9 @@
   }
 
   /* Narrow side padding, so a short window's scrollbar still leaves the
-     icons room in the 68px rail. */
+     icons room in the narrow rail. */
   .app-shell:not(.sidebar-expanded) .sidebar {
-    width: 68px;
+    width: var(--rail-w);
     --sidebar-pad-x: 6px;
   }
 
@@ -63,7 +63,7 @@
   .app-shell:not(.sidebar-expanded) .nav-item:is(:hover, :focus-visible)::after {
     content: attr(aria-label);
     position: fixed;
-    left: 76px;
+    left: calc(var(--shell-pad) + var(--rail-w) + var(--popout-gap));
     z-index: 40;
     padding: 5px 10px;
     border-radius: 8px;
@@ -120,11 +120,11 @@
   }
 
   /* The profile menu opens beside the rail, level with the switcher
-     (usePopover places a fixed panel), instead of inside the 68px rail,
+     (usePopover places a fixed panel), instead of inside the narrow rail,
      which would cut it off. */
   .app-shell:not(.sidebar-expanded) .profile-switcher-panel {
     position: fixed;
-    left: 76px;
+    left: calc(var(--shell-pad) + var(--rail-w) + var(--popout-gap));
     right: auto;
     width: max-content;
     max-width: 280px;
@@ -132,49 +132,35 @@
   }
 
   /* Names shown: the full sidebar over the page, and the page held where
-     it was, so nothing under it jumps sideways. */
+     it was (the rail's width plus the gap after it), so nothing under it
+     jumps sideways. */
   .app-shell.sidebar-expanded .sidebar {
     position: absolute;
-    inset-block: 0;
-    left: 0;
+    inset: var(--shell-pad) auto var(--shell-pad) var(--shell-pad);
     height: auto;
-    width: 232px;
+    width: var(--sidebar-expanded-w);
     z-index: 30;
     box-shadow: var(--shadow-lg, 0 8px 24px rgb(0 0 0 / 0.25));
   }
 
   .app-shell.sidebar-expanded .main {
-    margin-left: 68px;
+    margin-left: calc(var(--rail-w) + var(--shell-gap));
   }
 
   /* Default (see-through) style: its glass layer (App.css) takes the
      sidebar's width. The current tab's own small blur goes, because a
      backdrop-filter would trap the tab's name inside the tab. */
   [data-palette="transparent"] .app-shell:not(.sidebar-expanded) .sidebar::before {
-    width: 68px;
+    width: var(--rail-w);
   }
 
   [data-palette="transparent"] .app-shell.sidebar-expanded .sidebar::before {
-    width: 232px;
+    width: var(--sidebar-expanded-w);
   }
 
   [data-palette="transparent"] .nav-item.nav-item-active {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-  }
-
-  /* Default floats the sidebar 14px in from the window's edges. */
-  [data-palette="transparent"] .app-shell:not(.sidebar-expanded) .nav-item:is(:hover, :focus-visible)::after,
-  [data-palette="transparent"] .app-shell:not(.sidebar-expanded) .profile-switcher-panel {
-    left: 90px;
-  }
-
-  [data-palette="transparent"] .app-shell.sidebar-expanded .sidebar {
-    inset: 14px auto 14px 14px;
-  }
-
-  [data-palette="transparent"] .app-shell.sidebar-expanded .main {
-    margin-left: 82px;
   }
 }
 

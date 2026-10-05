@@ -25,11 +25,12 @@ describe("SidebarNav names", () => {
     container.remove();
   });
 
-  function render(onSelect = vi.fn()) {
+  function render(onSelect = vi.fn(), iconOnly = false) {
     act(() =>
       root.render(
         <SidebarNav
           items={NAV_ITEMS}
+          iconOnly={iconOnly}
           activeTab="dashboard"
           dragNavTab={null}
           onSelect={onSelect}
@@ -62,6 +63,21 @@ describe("SidebarNav names", () => {
       expect(text, button.dataset.tab).not.toBeNull();
       expect(text!.textContent).toBe(button.getAttribute("aria-label"));
       expect(text!.style.display).not.toBe("none");
+    }
+  });
+
+  it("hints at reordering in the full sidebar, but not under the names of the icon-only one", () => {
+    const reorderable = () => [...container.querySelectorAll<HTMLButtonElement>("button.nav-item[draggable]")];
+    render();
+    expect(reorderable().length).toBe(NAV_ITEMS.length);
+    for (const b of reorderable()) {
+      expect(b.title).toBe("Drag to reorder, or focus and press Alt+↑/↓");
+      expect(b.getAttribute("aria-keyshortcuts")).toBe("Alt+ArrowUp Alt+ArrowDown");
+    }
+    render(vi.fn(), true);
+    for (const b of reorderable()) {
+      expect(b.hasAttribute("title")).toBe(false);
+      expect(b.getAttribute("aria-keyshortcuts")).toBe("Alt+ArrowUp Alt+ArrowDown");
     }
   });
 

@@ -31,6 +31,19 @@ describe("page frame", () => {
     expect(hits).toEqual([]);
   });
 
+  it("never sends people to the removed top bar ('the header's' button or toggle)", () => {
+    const hits = sources
+      .filter((s) => !/\.test\.tsx$/.test(s.rel))
+      .filter((s) => /the header's|in the header\b/i.test(s.text))
+      .map((s) => s.rel);
+    expect(hits).toEqual([]);
+  });
+
+  it("points Settings > Privacy at Hide amounts at the bottom of the sidebar", () => {
+    const settings = sources.find((s) => s.rel === "SettingsView.tsx")!.text;
+    expect(settings).toContain("The Hide amounts button at the bottom of the sidebar covers every dollar figure");
+  });
+
   it("keeps the tagline only in the welcome dialog and About", () => {
     const hits = sources
       .filter((s) => s.text.includes("Own your Data, Own your Money!"))

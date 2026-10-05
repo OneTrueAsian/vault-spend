@@ -1,5 +1,5 @@
 // E2E test for Phase 2 item 16 (privacy mode):
-//   - the header's "Hide amounts" button covers every dollar figure with ••••
+//   - the "Hide amounts" button at the bottom of the sidebar covers every dollar figure with ••••
 //     on the page you're on AND on pages you open afterwards;
 //   - turning it off brings the figures back;
 //   - Settings' "also hide when this window isn't in front" hides on blur

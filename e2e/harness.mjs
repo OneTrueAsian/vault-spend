@@ -185,13 +185,28 @@ export function trackWindowSize(browser) {
   }
 }
 
-/** Sets the window size, asking again (up to 3 times in all) until it holds. */
+/** Sets the window size, asking again (up to 3 times in all) until it holds, and returns the size the
+ * window ended at. A size it cannot take (narrower than the app's minimum, say) is left as it ends. */
 export async function applyWindowSize(browser, { width, height }) {
+  let now;
   for (let attempt = 0; attempt < 3; attempt++) {
     await browser.setWindowSize(width, height);
-    const now = await browser.getWindowSize();
-    if (now.width === width && now.height === height) return;
+    now = await browser.getWindowSize();
+    if (now.width === width && now.height === height) break;
   }
+  return now;
+}
+
+/** The size every spec starts at (launchApp's `windowSize`). Logs the size the window ended at, and
+ * throws, naming both sizes, if it isn't the one asked for: a spec run at the wrong size would fail
+ * later in a confusing place (the narrow layout hides names and columns), so it fails here instead. */
+export async function applyLaunchWindowSize(browser, size) {
+  const ended = await applyWindowSize(browser, size);
+  console.log(`[harness] window ${ended.width}x${ended.height}`);
+  if (ended.width !== size.width || ended.height !== size.height) {
+    throw new Error(`launchApp should start the window at ${size.width}x${size.height}, but it stayed at ${ended.width}x${ended.height} after 3 attempts`);
+  }
+  return ended;
 }
 
 // Under the parallel runner, every other spec's app window that launches takes OS foreground from
@@ -319,6 +334,29 @@ export async function waitUntilOrDiagnose(browser, condition, { timeout = 10000,
   }
 }
 
+/** Picks a visual style on Settings > Appearance the way a person does: opens Settings, waits for that
+ * style's row (the click needs the row itself, not just its group), clicks its radio and waits until
+ * the style (`palette`, the value of `<html data-palette>`) is applied. */
+export async function chooseStyle(browser, label, palette) {
+  await (await browser.$(".nav-item[data-tab=settings]")).click();
+  const styleRows = (text) =>
+    [...document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')].filter(
+      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    ).length;
+  await waitUntilOrDiagnose(browser, async () => (await browser.execute(styleRows, label)) > 0, {
+    timeoutMsg: `Settings > Appearance should offer ${label}`,
+  });
+  await browser.execute((text) => {
+    const row = [...document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')].find(
+      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    );
+    row.querySelector("input").click();
+  }, label);
+  await waitUntilOrDiagnose(browser, () => browser.execute((p) => document.documentElement.dataset.palette === p, palette), {
+    timeoutMsg: `choosing ${label} should apply it`,
+  });
+}
+
 // Kills a process and everything it started. tauri-driver starts msedgedriver, which starts the app, so a
 // plain child.kill() would leave both running.
 function killTree(pid) {
@@ -432,8 +470,8 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
     // shows its names (DEFAULT_WINDOW_SIZE); `windowSize: null` keeps the size the window opened at.
     trackWindowSize(session);
     if (windowSize) {
-      await applyWindowSize(session, windowSize);
-      mark(`window set to ${windowSize.width}x${windowSize.height}`);
+      const ended = await applyLaunchWindowSize(session, windowSize);
+      mark(`window set to ${ended.width}x${ended.height}`);
     }
     try {
       await session.$(ready).waitForExist({ timeout: 15000 });

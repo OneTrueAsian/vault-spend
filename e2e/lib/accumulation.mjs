@@ -4,6 +4,8 @@
 // figures (a closed-form formula, NOT the app's month-by-month loop, so the
 // specs check the app's numbers against something that isn't the app).
 
+import { dismissStatusMessages, waitUntilOrDiagnose } from "../harness.mjs";
+
 export async function nav(browser, label) {
   for (const b of await browser.$$("nav button")) {
     if ((await b.getText()).trim() === label) {
@@ -96,7 +98,27 @@ export function futureValue(start, monthly, pct, months) {
 
 export { monthFromNow } from "./dates.mjs";
 
+/** Clicks Save and waits for the save to finish: the "Saved the plan" message (cleared first, so an
+ * earlier save's message can't count) or the form's own error. A fixed pause was not enough under
+ * the parallel runner: a later read still saw the figures from before the save. */
 export async function saveAndSettle(browser) {
+  const outcome = () =>
+    browser.execute(() => ({
+      saved: [...document.querySelectorAll(".status .status-text")].some((s) => /^Saved the plan for /.test(s.textContent)),
+      error: !!document.querySelector("[data-acc-error]"),
+    }));
+  await dismissStatusMessages(browser);
+  await browser.waitUntil(async () => !(await outcome()).saved, { timeout: 5000, timeoutMsg: "the previous save's message should close" });
   await (await browser.$("[data-acc-save]")).click();
-  await browser.pause(500);
+  await waitUntilOrDiagnose(
+    browser,
+    async () => {
+      const o = await outcome();
+      return o.saved || o.error;
+    },
+    { timeout: 15000, timeoutMsg: "Save should finish with the saved message or the form's error", extra: outcome },
+  );
+  // A refusal from the app (not the form's own check) replaces the message after a round trip, and an
+  // earlier refusal's message looks the same until then.
+  if ((await outcome()).error) await browser.pause(500);
 }

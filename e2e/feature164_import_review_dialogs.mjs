@@ -93,9 +93,17 @@ try {
   await waitUntilOrDiagnose(browser, async () => (await dialogTitle()) === "Import 2 transactions into Checking", {
     timeoutMsg: "the review should open as a dialog named for its rows and account",
   });
-  assert.equal(await inViewport("[role='dialog'] .modal-title"), true, "the dialog's title is on screen");
-  assert.equal(await inViewport("button[data-import-confirm]"), true, "Import is on screen without scrolling");
-  assert.equal(await (await browser.$("button[data-import-confirm]")).getText(), "Import 2 transactions");
+  const onScreen = async () => ({ title: await inViewport("[role='dialog'] .modal-title"), confirm: await inViewport("button[data-import-confirm]") });
+  await waitUntilOrDiagnose(browser, async () => {
+    const o = await onScreen();
+    return o.title && o.confirm;
+  }, { timeoutMsg: "the dialog's title and its Import button should be on screen without scrolling", extra: onScreen });
+  // WebDriver's text is the rendered text, empty while the dialog is still fading in: wait for it.
+  const confirmText = () => browser.execute(() => document.querySelector("button[data-import-confirm]")?.innerText.trim() ?? null);
+  await waitUntilOrDiagnose(browser, async () => (await confirmText()) === "Import 2 transactions", {
+    timeoutMsg: "the dialog's Import button should read Import 2 transactions",
+    extra: confirmText,
+  });
 
   // A click on the dimmed page around it keeps the review open.
   await browser.execute(() => document.querySelector(".modal-overlay").dispatchEvent(new MouseEvent("click", { bubbles: true })));
@@ -122,7 +130,10 @@ try {
   await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.body.textContent)).includes("Imported 2 transactions"), {
     timeoutMsg: "the import should report \"Imported 2 transactions\"",
   });
-  assert.equal(await dialogTitle() === "Import 2 transactions into Checking", false, "the review closed");
+  await waitUntilOrDiagnose(browser, async () => (await dialogTitle()) !== "Import 2 transactions into Checking", {
+    timeoutMsg: "the review should close once the import is done",
+    extra: dialogTitle,
+  });
   const close = await browser.$("[data-inbox-close]");
   if (await close.isExisting()) await close.click();
 
@@ -132,7 +143,11 @@ try {
   await waitUntilOrDiagnose(browser, async () => (await dialogTitle()) === "Import setup data", {
     timeoutMsg: "the setup-data review should open over Settings",
   });
-  assert.match(await (await browser.$("[role='dialog']")).getText(), /QQXZ Setup Savings/);
+  const dialogText = () => browser.execute(() => document.querySelector("[role='dialog']")?.innerText ?? null);
+  await waitUntilOrDiagnose(browser, async () => /QQXZ Setup Savings/.test((await dialogText()) ?? ""), {
+    timeoutMsg: "the setup-data review should list QQXZ Setup Savings",
+    extra: dialogText,
+  });
   await (await browser.$("//div[@role='dialog']//button[normalize-space()='Import selected']")).click();
   await waitUntilOrDiagnose(browser, async () => (await invoke("list_accounts")).some((a) => a.name === "QQXZ Setup Savings"), {
     timeoutMsg: "Import selected should create the account",

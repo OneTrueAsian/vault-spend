@@ -60,7 +60,13 @@ the real rendered DOM.
 tab's `aria-label` and visually hidden text, so `button*=Settings` still
 finds a tab). A spec that needs the narrow layout calls
 `browser.setWindowSize(800, 600)` itself; `launchApp({ windowSize: null })`
-keeps the size the window opened at.
+keeps the size the window opened at. The launch prints the size the window
+ended at (`[harness] window 1280x800`) and fails at once if it isn't the size
+asked for, rather than letting the spec fail later in the narrow layout.
+
+To switch visual style the way a person does, use `chooseStyle(browser,
+"Retro", "retro")` from `harness.mjs`: it opens Settings, waits for that
+style's row, chooses it and waits until it applies.
 
 ## Running the full suite
 

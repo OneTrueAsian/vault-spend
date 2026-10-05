@@ -117,8 +117,8 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         finished month waiting for its <strong>month-end review</strong> —
         each row jumping to where it's fixed. New here also see a{" "}
         <strong>Get started</strong> checklist and the{" "}
-        <strong>Ask the Vault</strong> question box (see FAQ below). The
-        header's <strong>Hide amounts</strong> button covers every dollar
+        <strong>Ask the Vault</strong> question box (see FAQ below). The{" "}
+        <strong>Hide amounts</strong> button at the bottom of the sidebar covers every dollar
         figure with •••• for when someone's looking over your shoulder, and{" "}
         <strong>Ctrl+K</strong> opens a command palette that jumps to any tab,
         account, goal, or transaction (press <strong>?</strong> for the
@@ -1197,7 +1197,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["privacy", "hide amounts", "mask", "blur", "screen", "over the shoulder", "settings", "auto hide"],
     answer: (
       <p>
-        The header's button covers every dollar figure in the app with ••••
+        The button at the bottom of the sidebar covers every dollar figure in the app with ••••
         until you press it again, so you can open Vault Spend with someone
         next to you. It hides the numbers, not the shapes of charts or what
         a hover tooltip says. In Settings → Privacy you can also have the
@@ -1330,7 +1330,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     answer: (
       <p>
         Yes — the Settings tab has an Appearance section with a Light/Dark/
-        System toggle (now in the header) plus three visual styles:{" "}
+        System switch (also at the bottom of the sidebar) plus three visual styles:{" "}
         <strong>Default</strong> (a frosted-glass look with a translucent,
         blurred sidebar and cards), <strong>Futuristic</strong> (a neon
         style on deep navy with its own type and sidebar icons; pick its
