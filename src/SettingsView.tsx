@@ -735,14 +735,14 @@ function FeatureTogglesSection({
     {
       key: "envelope_caps_enabled",
       label: "Envelope Caps",
-      description: 'Shows the "Cap" checkbox on Budget categories, for warning at 90% instead of the default 80%.',
+      description: 'Adds "Warn at 90%" to each Budget category\'s ⋯ menu, for warning at 90% instead of the default 80%.',
       onChange: onSetEnvelopeCapsEnabled,
     },
     {
       key: "rollover_enabled",
       label: "Rollover unspent",
       description:
-        'Lets a Budget category carry what it didn\'t spend into next month (the "Roll over unspent" checkbox on each line). Off: nothing rolls over, and each category\'s choice is remembered for when you turn it back on.',
+        'Lets a Budget category carry what it didn\'t spend into next month ("Roll over unspent" in each line\'s ⋯ menu). Off: nothing rolls over, and each category\'s choice is remembered for when you turn it back on.',
       onChange: onSetRolloverEnabled,
     },
     {

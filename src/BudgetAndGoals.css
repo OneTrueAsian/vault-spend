@@ -332,8 +332,60 @@
 
 .donut-interactive-slice { cursor: pointer; }
 .donut-interactive-slice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.budget-net-summary { margin-bottom: 18px; }
-.budget-net-summary > .view-sub { margin: 0 0 12px; }
+/* Budget (s2): the month's totals in one strip — four cells side by side, two by two below
+   900px. The small breakdown line and the income allocation note sit under the cells. */
+/* .budget-view is a flex column with an 18px gap, which spaces the strip from the groups; a card's
+   own bottom margin would double it. */
+.budget-summary {
+  padding: 16px 20px;
+  margin-bottom: 0;
+}
+
+.budget-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+
+@media (max-width: 900px) {
+  .budget-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.budget-summary-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.budget-summary-cell .stat-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-summary-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-summary-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Inside the strip the allocation note is one more line of it, not a box in a box; it keeps its
+   colour (muted, positive when balanced, negative and bold when over). */
+.budget-summary .budget-allocation {
+  margin: 4px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  font-size: 12px;
+}
 
 .category-trend {
   font-size: 12px;
@@ -603,66 +655,31 @@
   background: var(--negative);
 }
 
-.group-cards {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-@media (max-width: 900px) {
-  .group-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.group-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px 16px;
-  box-shadow: var(--shadow-sm);
+/* A budget group's heading: its name, then how it's going ("$X of $Y · 64% used"), with the
+   group's progress bar full width underneath (these replaced the old row of group tiles). */
+.budget-group-head {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  margin: 0 0 8px;
 }
 
-.group-card-title {
-  font-size: 12px;
-  font-weight: 700;
+.budget-group-head-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.budget-group-progress {
+  font-size: 13px;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
 }
 
-.group-card-amt {
-  font-family: var(--font-mono);
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.group-card-amt .of {
-  font-family: var(--font-body);
-  font-weight: 400;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.group-card-pct {
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.group-card-pct.ok {
-  color: var(--positive);
-}
-
-.group-card-pct.warn {
-  color: var(--warning);
-}
-
-.group-card-pct.over {
-  color: var(--negative);
+.budget-group-track {
+  height: 6px;
 }
 
 .cat-list {
@@ -685,10 +702,13 @@
  * into — the category name column drifted sideways row to row. Every
  * track here is either a fixed length or an `fr`/`minmax` share, never
  * content-sized, so the math is identical for every row regardless of
- * what's actually printed in it. */
-.cat-row {
+ * what's actually printed in it. The heading row (`.cat-list-head`) uses
+ * the same template so each heading sits over its column:
+ * Category | bar | Budget | Spent | Left | ⋯ */
+.cat-row,
+.cat-list-head {
   display: grid;
-  grid-template-columns: minmax(230px, 1.4fr) 152px minmax(70px, 1fr) 134px 134px 134px 130px;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(120px, 2fr) 110px 110px 110px 36px;
   align-items: center;
   gap: 14px;
   padding: 12px 16px;
@@ -697,6 +717,18 @@
 
 .cat-row:last-child {
   border-bottom: none;
+}
+
+.cat-list-head {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cat-list-head > :nth-child(n + 3):nth-child(-n + 5) {
+  text-align: right;
 }
 
 .cat-row-name {
@@ -719,8 +751,8 @@
   white-space: nowrap;
 }
 
-/* Sparkline / alert badge / "Warn at 90%" toggle — sits under the name so
-   none of them compete with it for width. */
+/* Sparkline / alert badge / rolled-in note / setting markers — sits under the
+   name so none of them compete with it for width. */
 .cat-row-meta {
   display: flex;
   align-items: center;
@@ -729,24 +761,23 @@
   min-width: 0;
 }
 
-.cat-row-group {
-  width: 100%;
-  font-family: inherit;
-  font-size: 13px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: inherit;
+/* What the ⋯ menu has switched on for this row ("Rolls over", "Warns at 90%"),
+   so the settings stay visible at a glance. */
+.cat-row-marker {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .cat-row-bar {
+  width: 100%;
   min-width: 0;
 }
 
 .cat-amt {
   font-family: var(--font-mono);
   font-size: 12.8px;
+  font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
@@ -758,17 +789,71 @@
   font-weight: 600;
 }
 
-.cat-row-actions {
-  justify-self: end;
+/* The typed budget field fills its column, its figure lined up with the
+   amounts beside it. */
+.budget-amount-input {
+  box-sizing: border-box;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12.8px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
 }
 
-/* `.cat-row`'s grid template has ~1000px of fixed-width columns before any
-   gap/padding — comfortably wider than the app's own 800px default window,
-   which is why `.cat-list`'s `overflow-x: auto` was doing real work (one
-   horizontal scrollbar per budget-group section, just to reach the amount
-   columns or Delete button). Below that width, wrap instead of scroll: the
-   category name/trend/badges keep their own full-width line, everything
-   else reflows beneath it. */
+/* While amounts are hidden the budget shows as (masked) text you click to edit;
+   a real button for the keyboard, styled as plain text. */
+.cat-amt button.amount-editable {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.cat-amt button.amount-editable:hover,
+.cat-amt button.amount-editable:focus-visible {
+  border-bottom-color: var(--text-muted);
+}
+
+.cat-row-actions {
+  justify-self: end;
+  position: relative;
+}
+
+/* The ⋯ column is only wide enough for the button, so the Cancel / Delete
+   confirm that replaces it sits over the right end of its own row, on the
+   same surface as an open menu (as in the Transactions table). */
+.cat-row .row-delete-confirm {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 2;
+  transform: translateY(-50%);
+  align-items: center;
+  width: max-content;
+  padding: 6px 8px;
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* The grid template above is ~670px of columns plus gaps and padding; below
+   1100px of window the page beside the sidebar can be narrower than that.
+   Wrap instead of scroll: the category name/trend/badges keep their own
+   full-width line, then the bar, then the amounts and ⋯. The heading row can't
+   line up with wrapped cells, so it hides and each amount carries its own
+   heading in front of it (from the cell's data-label). */
 @media (max-width: 1100px) {
   .cat-row {
     display: flex;
@@ -776,21 +861,41 @@
     row-gap: 8px;
   }
 
+  .cat-list-head {
+    display: none;
+  }
+
   .cat-row-name {
     flex: 1 1 100%;
   }
 
-  .cat-row-group {
-    flex: 0 1 140px;
-    width: auto;
-  }
-
+  /* The bar gets its own full-width line under the name, so the three amounts and the ⋯ fit on
+     one line beneath it even at 800px (beside the bar, a long Difference pushed the ⋯ onto a
+     line of its own). */
   .cat-row-bar {
-    flex: 1 1 120px;
+    flex: 1 1 100%;
+    width: auto;
   }
 
   .cat-amt {
     flex: 0 1 auto;
+  }
+
+  .cat-amt[data-label]::before {
+    content: attr(data-label) " ";
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .cat-amt-budget {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .cat-amt-budget .budget-amount-input {
+    width: 96px;
   }
 
   .cat-row-actions {

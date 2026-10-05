@@ -1,5 +1,5 @@
 import "./BudgetAndGoals.css";
-import { DragEvent, FormEvent, useEffect, useState } from "react";
+import { DragEvent, FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { BudgetAlert, BudgetSuggestions, CashFlow, ReportBudgetLine } from "./types";
 import { formatAmount } from "./format";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
@@ -10,6 +10,8 @@ import { BudgetSuggestDialog, type AppliedSuggestion } from "./BudgetSuggestDial
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import { MenuSelect } from "./MenuSelect";
 import { sumMoney } from "./money";
+import { RowMenu, type RowMenuItem } from "./RowMenu";
+import { groupProgressLabel } from "./budgetSummary";
 
 type MonthElapsed = NonNullable<ReturnType<typeof monthElapsed>>;
 
@@ -48,6 +50,20 @@ const GROUP_LABELS: Record<Group, string> = {
   flexible: "Flexible Spending",
   nonmonthly: "Non-Monthly",
 };
+/** The shorter names a row's "Move to …" menu items use. */
+const GROUP_SHORT_LABELS: Record<Group, string> = {
+  income: "Income",
+  fixed: "Fixed",
+  flexible: "Flexible",
+  nonmonthly: "Non-Monthly",
+};
+
+/** The three amount columns' headings. A row's cells repeat them as `data-label`, which the
+ * narrow (stacked) layout prints in front of each amount once the heading row is hidden. Income
+ * is coming in, not going out, so its columns say what was received and how far that is from the
+ * plan. */
+const EXPENSE_COLUMNS = ["Budget", "Spent", "Left"] as const;
+const INCOME_COLUMNS = ["Budget", "Received", "Difference"] as const;
 
 /** A per-profile display preference (same mechanism as saved filters — see
  * profileUiState.ts) — one flat list covering every category ever manually
@@ -149,10 +165,17 @@ function NewBudgetLineForm({
   );
 }
 
+/** An amount as a budget field shows it: two decimals, no "$" or thousands commas. */
+function fieldAmount(amount: string): string {
+  const n = Number(amount);
+  return Number.isFinite(n) ? n.toFixed(2) : amount;
+}
+
 function BudgetRow({
   line,
   alertLevel,
   elapsed,
+  amountsHidden,
   editingAmount,
   setEditingAmount,
   onSetBudget,
@@ -179,9 +202,12 @@ function BudgetRow({
   alertLevel: "warning" | "over" | undefined;
   /** See `PaceMarker` — null outside the current month. */
   elapsed: MonthElapsed | null;
+  /** "Hide amounts" is on. The privacy mask skips `<input>` values, so the budget figure then
+   * shows as maskable text and only becomes a field once clicked. */
+  amountsHidden: boolean;
   editingAmount: { category: string; value: string } | null;
   setEditingAmount: (v: { category: string; value: string } | null) => void;
-  onSetBudget: (category: string, monthlyAmount: string, budgetGroup: string) => void;
+  onSetBudget: (category: string, monthlyAmount: string, budgetGroup: string) => void | Promise<void>;
   onSetCap: (category: string, capEnabled: boolean) => void;
   onSetRollover: (category: string, rolloverEnabled: boolean) => void;
   envelopeCapsEnabled: boolean;
@@ -197,10 +223,8 @@ function BudgetRow({
   onDragOver: (e: DragEvent) => void;
   onDrop: (e: DragEvent) => void;
   onDragEnd: () => void;
-  /** Keyboard-accessible alternative to the drag handle — reorders within
-   * this category's own group, same as dragging does, for anyone who'd
-   * rather click than drag (same pairing as the Dashboard widget
-   * customizer's ↑/↓ buttons). */
+  /** Keyboard-accessible alternative to the drag handle (the row menu's Move up / Move down) —
+   * reorders within this category's own group, same as dragging does. */
   canMoveUp: boolean;
   canMoveDown: boolean;
   onMoveUp: () => void;
@@ -213,6 +237,8 @@ function BudgetRow({
   // Store::budget_alerts_for_month), so the badge text here can't drift
   // out of sync with which threshold actually applies.
   const effectiveCap = line.cap_enabled && envelopeCapsEnabled;
+  const showsRollover = !isIncome && rolloverEnabled && line.rollover_enabled;
+  const showsCap = !isIncome && effectiveCap;
   // For expenses, "remaining" is budgeted minus actual (positive = under
   // budget). Income is the opposite — exceeding the expected amount is
   // good, so the sign flips for the income group.
@@ -221,19 +247,85 @@ function BudgetRow({
   const rolledIn = parseFloat(line.rollover) || 0;
   const actual = parseFloat(line.actual);
   const remaining = isIncome ? actual - budgeted : budgeted - actual;
-  const remainingLabel = isIncome ? "diff" : remaining < 0 ? "over" : "left";
+  const showsRolledIn = rolloverEnabled && rolledIn > 0;
   // The consumption bar mirrors the same alert classification as the
   // badge, so a row flagged "Over"/"80%+" also reads red/amber at a
   // glance, not just via the badge text.
   const pct = budgeted > 0 ? Math.min(100, (actual / budgeted) * 100) : actual > 0 ? 100 : 0;
   const fillClass =
     alertLevel === "over" ? "progress-fill over" : alertLevel === "warning" ? "progress-fill warn" : "progress-fill";
+  const columns = isIncome ? INCOME_COLUMNS : EXPENSE_COLUMNS;
 
-  function commitAmountEdit(value: string) {
+  /** Saves a typed budget. An empty or unchanged amount saves nothing (null). */
+  function commitAmountEdit(value: string): Promise<void> | null {
     setEditingAmount(null);
-    if (!value.trim()) return;
-    onSetBudget(line.category, value.trim(), line.budget_group);
+    const amount = value.trim();
+    if (!amount || Number(amount) === Number(line.budgeted)) return null;
+    return Promise.resolve(onSetBudget(line.category, amount, line.budget_group));
   }
+
+  // The always-visible budget field (amounts shown): a local draft that follows the saved amount
+  // and saves on blur (Enter blurs). An empty or unchanged field shows the saved amount again; so
+  // does a save the app turns down, once it has said why (unless you're typing in it again).
+  // Shown with two decimals ("250.00"), however it was typed and stored ("250").
+  const shownBudget = fieldAmount(line.budgeted);
+  const [draft, setDraft] = useState(shownBudget);
+  const savedBudget = useRef(shownBudget);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    savedBudget.current = shownBudget;
+    setDraft(shownBudget);
+  }, [shownBudget]);
+
+  function commitDraft() {
+    const saving = commitAmountEdit(draft);
+    if (!saving) {
+      setDraft(shownBudget);
+      return;
+    }
+    void saving.finally(() => {
+      if (document.activeElement !== inputRef.current) setDraft(savedBudget.current);
+    });
+  }
+
+  // Delete… swaps the ⋯ menu for Cancel / Delete. When that confirm goes away without deleting
+  // (Cancel, or it timing out) and focus has nowhere to be, it goes back to this row's ⋯.
+  const rowRef = useRef<HTMLDivElement>(null);
+  const confirming = confirmingDelete === line.category;
+  const wasConfirming = useRef(false);
+  useLayoutEffect(() => {
+    if (wasConfirming.current && !confirming) {
+      const active = document.activeElement;
+      if (!active || active === document.body) rowRef.current?.querySelector<HTMLElement>("[data-row-menu]")?.focus();
+    }
+    wasConfirming.current = confirming;
+  }, [confirming]);
+
+  const menuItems: (RowMenuItem | false)[] = [
+    !isIncome &&
+      rolloverEnabled && {
+        kind: "check",
+        label: "Roll over unspent",
+        checked: line.rollover_enabled,
+        onToggle: (next) => onSetRollover(line.category, next),
+      },
+    !isIncome &&
+      envelopeCapsEnabled && {
+        kind: "check",
+        label: "Warn at 90%",
+        checked: line.cap_enabled,
+        onToggle: (next) => onSetCap(line.category, next),
+      },
+    { kind: "divider" },
+    ...GROUP_ORDER.filter((g) => g !== line.budget_group).map(
+      (g): RowMenuItem => ({ label: `Move to ${GROUP_SHORT_LABELS[g]}`, onSelect: () => void onSetBudget(line.category, line.budgeted, g) }),
+    ),
+    { kind: "divider" },
+    { label: "Move up", onSelect: onMoveUp, disabled: !canMoveUp },
+    { label: "Move down", onSelect: onMoveDown, disabled: !canMoveDown },
+    { kind: "divider" },
+    { label: "Delete…", danger: true, onSelect: () => setConfirmingDelete(line.category) },
+  ];
 
   // Flexible Spending only — this is the group most likely to actually
   // drift month to month (Fixed/Income are close to flat by definition),
@@ -251,8 +343,11 @@ function BudgetRow({
     };
   }, [line.category, line.budget_group, onFetchTrend]);
 
+  const editingHidden = editingAmount?.category === line.category ? editingAmount : null;
+
   return (
     <div
+      ref={rowRef}
       draggable
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -261,16 +356,8 @@ function BudgetRow({
       className={isDragging ? "cat-row budget-row-dragging" : "cat-row"}
     >
       <div className="cat-row-name">
-        <span className="drag-handle" title="Drag to reorder">
+        <span className="drag-handle" title="Drag to reorder (or use Move up / Move down in the ⋯ menu)" aria-hidden="true">
           ⠿
-        </span>
-        <span className="cat-row-move-buttons">
-          <button type="button" className="modal-secondary" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Move up">
-            ↑
-          </button>
-          <button type="button" className="modal-secondary" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Move down">
-            ↓
-          </button>
         </span>
         <span className="cat-row-name-stack">
           <span
@@ -280,11 +367,9 @@ function BudgetRow({
           >
             {line.category}
           </span>
-          {/* Second line, not inline beside the name: the badge, sparkline
-              and warn-toggle used to share the name's own row and squeezed
-              it down to "Subscri…" / "Dining …" in the fixed-width name
-              column. */}
-          {(trend || alertLevel || (!isIncome && (rolloverEnabled || envelopeCapsEnabled))) && (
+          {/* Second line, not inline beside the name, so none of these squeeze the name. The
+              markers keep the ⋯ menu's settings visible at a glance. */}
+          {(trend || alertLevel || showsRolledIn || showsRollover || showsCap) && (
             <span className="cat-row-meta">
               {trend && (
                 <Sparkline
@@ -309,84 +394,90 @@ function BudgetRow({
                   {alertLevel === "over" ? "Over" : Math.abs(remaining) < 0.005 ? "100%" : effectiveCap ? "90%+" : "80%+"}
                 </span>
               )}
-              {!isIncome && rolloverEnabled && (
-                <label
-                  className="budget-cap-toggle"
-                  title="Carry whatever you don't spend this month into next month's budget for this category"
-                >
-                  <input
-                    type="checkbox"
-                    checked={line.rollover_enabled}
-                    onChange={(e) => onSetRollover(line.category, e.target.checked)}
-                  />
-                  Roll over unspent
-                </label>
-              )}
-              {rolloverEnabled && rolledIn > 0 && (
+              {showsRolledIn && (
                 <span className="rollover-note" data-rollover-note title="Unspent budget carried in from earlier months">
                   + {formatAmount(rolledIn.toFixed(2))} rolled in
                 </span>
               )}
-              {!isIncome && envelopeCapsEnabled && (
-                <label
-                  className="budget-cap-toggle"
-                  title="Only warn once this category hits 90% of its budget instead of the default 80% — for a category you're already watching closely"
+              {showsRollover && (
+                <span
+                  className="cat-row-marker"
+                  data-rollover-marker
+                  title="Whatever you don't spend this month carries into next month's budget for this category"
                 >
-                  <input
-                    type="checkbox"
-                    checked={line.cap_enabled}
-                    onChange={(e) => onSetCap(line.category, e.target.checked)}
-                  />
-                  Warn at 90%
-                </label>
+                  Rolls over
+                </span>
+              )}
+              {showsCap && (
+                <span
+                  className="cat-row-marker"
+                  data-cap-marker
+                  title="Warns once this category reaches 90% of its budget instead of the usual 80%"
+                >
+                  Warns at 90%
+                </span>
               )}
             </span>
           )}
         </span>
       </div>
-      <MenuSelect
-        ariaLabel={`Budget group for ${line.category}`}
-        value={line.budget_group}
-        onChange={(v) => onSetBudget(line.category, line.budgeted, v)}
-        options={GROUP_ORDER.map((g) => ({ value: g, label: GROUP_LABELS[g] }))}
-        triggerClassName="cat-row-group"
-      />
       <div className="progress-track cat-row-bar">
         <div className={fillClass} style={{ width: `${pct}%` }} />
         {!isIncome && <PaceMarker elapsed={elapsed} />}
       </div>
-      <span className="cat-amt">
-        {editingAmount?.category === line.category ? (
+      <span className="cat-amt cat-amt-budget" data-label={columns[0]}>
+        {!amountsHidden ? (
+          <input
+            ref={inputRef}
+            className="budget-amount-input"
+            aria-label={`Budget for ${line.category}`}
+            inputMode="decimal"
+            title="This month's budget — type a new amount, then press Enter or Tab"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              if (e.key === "Escape") setDraft(shownBudget);
+            }}
+          />
+        ) : editingHidden ? (
           <input
             autoFocus
-            className="amount-edit-input"
-            value={editingAmount.value}
+            className="budget-amount-input"
+            aria-label={`Budget for ${line.category}`}
+            inputMode="decimal"
+            value={editingHidden.value}
             onChange={(e) => setEditingAmount({ category: line.category, value: e.target.value })}
-            onBlur={() => commitAmountEdit(editingAmount.value)}
+            onBlur={() => commitAmountEdit(editingHidden.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") commitAmountEdit(editingAmount.value);
+              if (e.key === "Enter") commitAmountEdit(editingHidden.value);
               if (e.key === "Escape") setEditingAmount(null);
             }}
           />
         ) : (
-          <span
+          <button
+            type="button"
             className="amount-editable"
-            title="Click to adjust this month's budget"
-            onClick={() => setEditingAmount({ category: line.category, value: line.budgeted })}
+            aria-label={`Change the budget for ${line.category}`}
+            title="Click to change this month's budget"
+            onClick={() => setEditingAmount({ category: line.category, value: fieldAmount(line.budgeted) })}
           >
             {formatAmount(line.budgeted)}
-          </span>
-        )}{" "}
-        budget
+          </button>
+        )}
       </span>
-      <span className="cat-amt">{formatAmount(line.actual)} actual</span>
-      <span className={remaining < 0 ? "cat-amt neg" : "cat-amt"}>
-        {formatAmount(remaining.toFixed(2))} {remainingLabel}
+      <span className="cat-amt" data-label={columns[1]}>
+        {formatAmount(line.actual)}
+      </span>
+      <span className={remaining < 0 ? "cat-amt neg" : "cat-amt"} data-label={columns[2]}>
+        {formatAmount(remaining.toFixed(2))}
       </span>
       <span className="cat-row-actions">
-        {confirmingDelete === line.category ? (
+        {confirming ? (
           <span className="row-delete-confirm">
-            <button type="button" className="modal-secondary" onClick={() => setConfirmingDelete(null)}>
+            {/* Focus lands here (the ⋯ that opened the confirm is gone), so Enter or Space cancels. */}
+            <button type="button" className="modal-secondary" autoFocus onClick={() => setConfirmingDelete(null)}>
               Cancel
             </button>
             <button type="button" className="btn-danger" onClick={() => onDeleteBudget(line.category)}>
@@ -394,9 +485,7 @@ function BudgetRow({
             </button>
           </span>
         ) : (
-          <button type="button" className="modal-secondary" onClick={() => setConfirmingDelete(line.category)}>
-            Delete
-          </button>
+          <RowMenu label={`Settings for ${line.category}`} items={menuItems} />
         )}
       </span>
     </div>
@@ -424,6 +513,7 @@ export function BudgetView({
   onSuggest,
   onApplySuggestions,
   onOpenMonthReview,
+  amountsHidden,
 }: {
   categories: string[];
   budgetActuals: ReportBudgetLine[];
@@ -436,7 +526,7 @@ export function BudgetView({
   month: number;
   onPrevMonth: () => void;
   onNextMonth: () => void;
-  onSetBudget: (category: string, monthlyAmount: string, budgetGroup: string) => void;
+  onSetBudget: (category: string, monthlyAmount: string, budgetGroup: string) => void | Promise<void>;
   onSetCap: (category: string, capEnabled: boolean) => void;
   onSetRollover: (category: string, rolloverEnabled: boolean) => void;
   envelopeCapsEnabled: boolean;
@@ -450,6 +540,8 @@ export function BudgetView({
   onApplySuggestions: (rows: AppliedSuggestion[]) => Promise<void>;
   /** Opens the month-end review for the viewed month. */
   onOpenMonthReview: () => void;
+  /** "Hide amounts" is on — see `BudgetRow`'s budget field. */
+  amountsHidden: boolean;
 }) {
   const [suggestions, setSuggestions] = useState<BudgetSuggestions | null>(null);
   async function openSuggestions() {
@@ -538,9 +630,8 @@ export function BudgetView({
     saveCategoryOrder(next);
   }
 
-  // One summary per non-empty group — computed once and shared by both the
-  // top `.group-cards` row and the detailed table below it, so the two
-  // never drift out of sync.
+  // One summary per non-empty group — its heading's progress line and bar,
+  // and the page's totals, all come from this one computation.
   const groupSummaries = GROUP_ORDER.map((group) => {
     const groupLines = orderedCategories.map((c) => lineByCategory.get(c)!).filter((line) => line.budget_group === group);
     const groupBudgeted = sumMoney(groupLines.map((b) => effectiveBudget(b)));
@@ -556,6 +647,12 @@ export function BudgetView({
   const totalBudgeted = sumMoney(expenseSummaries.map((g) => g.groupBudgeted));
   const totalActual = sumMoney(expenseSummaries.map((g) => g.groupActual));
   const totalRemaining = sumMoney([totalBudgeted, -totalActual]);
+  const netBreakdown = netSummary
+    ? {
+        planned: `${formatAmount(netSummary.plannedIncome)} budgeted income − ${formatAmount(netSummary.plannedExpense)} budgeted spending`,
+        actual: `${formatAmount(netSummary.actualIncome)} recorded income − ${formatAmount(netSummary.actualExpense)} recorded spending`,
+      }
+    : null;
 
   return (
     <div className="budget-view">
@@ -586,115 +683,114 @@ export function BudgetView({
         </button>
       </div>
 
-      <section className="card budget-net-summary" aria-label="Monthly money left" data-budget-net-summary>
-        <div className="card-head"><h2 className="reports-section-title">Money left after income and spending</h2></div>
-        <p className="view-sub">Monthly net change for {monthLabel}. This is not an account balance.</p>
-        {netSummary ? (
-          <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-            <div className="stat tint-accent">
-              <span className={netSummary.plannedNet.startsWith("-") ? "stat-value report-over-budget" : "stat-value"} data-planned-net>{formatAmount(netSummary.plannedNet)}</span>
-              <span className="stat-label">Planned money left</span>
-              <span className="view-sub">{formatAmount(netSummary.plannedIncome)} budgeted income − {formatAmount(netSummary.plannedExpense)} budgeted spending</span>
-            </div>
-            <div className="stat tint-blue">
-              <span className={netSummary.actualNet.startsWith("-") ? "stat-value report-over-budget" : "stat-value"} data-actual-net>{formatAmount(netSummary.actualNet)}</span>
-              <span className="stat-label">{actualLabel}</span>
-              <span className="view-sub">{formatAmount(netSummary.actualIncome)} recorded income − {formatAmount(netSummary.actualExpense)} recorded spending</span>
-            </div>
-          </div>
-        ) : <p className="empty-state">Loading monthly totals…</p>}
-      </section>
-
-      {expenseSummaries.length > 0 && (
-        <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-          <div className="stat tint-accent">
+      {/* One strip for the month's totals (s2). The two money-left breakdowns stay as the net
+          cell's tooltip and as the small line under the strip, so nothing they said is lost. */}
+      <section className="card budget-summary" data-budget-summary aria-label="This month's budget">
+        <div className="budget-summary-grid">
+          <div className="budget-summary-cell">
+            <span className="stat-label">Planned spending</span>
             <span className="stat-value">{formatAmount(totalBudgeted.toFixed(2))}</span>
-            <span className="stat-label">Budgeted spending</span>
           </div>
-          <div className="stat tint-red">
-            <span className="stat-value">{formatAmount(totalActual.toFixed(2))}</span>
+          <div className="budget-summary-cell">
             <span className="stat-label">Spent so far</span>
+            <span className="stat-value">{formatAmount(totalActual.toFixed(2))}</span>
           </div>
-          <div className="stat tint-blue">
+          <div className="budget-summary-cell">
+            <span className="stat-label">Left to spend</span>
             <span className={totalRemaining < 0 ? "stat-value report-over-budget" : "stat-value"}>
               {formatAmount(totalRemaining.toFixed(2))}
             </span>
-            <span className="stat-label">Left to spend</span>
+          </div>
+          <div
+            className="budget-summary-cell"
+            title={
+              netBreakdown
+                ? `Planned: ${netBreakdown.planned}\n${actualLabel}: ${netBreakdown.actual}\nThis is how much this month's income and spending change your money, not an account balance.`
+                : undefined
+            }
+          >
+            <span className="stat-label">Money left after income</span>
+            {netSummary ? (
+              <>
+                <span className={netSummary.plannedNet.startsWith("-") ? "stat-value report-over-budget" : "stat-value"} data-planned-net>
+                  {formatAmount(netSummary.plannedNet)}
+                </span>
+                <span className="budget-summary-sub">
+                  {actualLabel}:{" "}
+                  <span className={netSummary.actualNet.startsWith("-") ? "report-over-budget" : undefined} data-actual-net>
+                    {formatAmount(netSummary.actualNet)}
+                  </span>
+                </span>
+              </>
+            ) : (
+              <span className="budget-summary-sub">Loading…</span>
+            )}
           </div>
         </div>
-      )}
-
-      {allocation && (
-        <p className={`budget-allocation budget-allocation-${allocation.status}`} data-allocation={allocation.status}>
-          {allocation.status === "unallocated" &&
-            `${formatAmount(allocation.unallocated.toFixed(2))} of your ${formatAmount(allocation.income.toFixed(2))} budgeted income isn't assigned to any expense yet.`}
-          {allocation.status === "balanced" && `Every dollar of your ${formatAmount(allocation.income.toFixed(2))} budgeted income is assigned.`}
-          {allocation.status === "over" &&
-            `Your expenses are budgeted ${formatAmount(Math.abs(allocation.unallocated).toFixed(2))} past your ${formatAmount(allocation.income.toFixed(2))} budgeted income.`}
-        </p>
-      )}
-
-      {groupSummaries.length > 0 && (
-        <div className="group-cards">
-          {groupSummaries.map(({ group, groupBudgeted, groupActual }) => {
-            const isIncome = group === "income";
-            const pct = groupBudgeted > 0 ? (groupActual / groupBudgeted) * 100 : 0;
-            // Expense groups: at/under budget is good, over is bad. Income
-            // is the mirror image — meeting or beating the target is good,
-            // falling short is what deserves a warning color.
-            const status = isIncome
-              ? pct >= 100
-                ? "ok"
-                : pct >= 80
-                  ? "warn"
-                  : "over"
-              : pct > 100
-                ? "over"
-                : pct >= 80
-                  ? "warn"
-                  : "ok";
-            const fillClass = status === "over" ? "progress-fill over" : status === "warn" ? "progress-fill warn" : "progress-fill";
-            const pctLabel =
-              status === "over"
-                ? isIncome
-                  ? `${pct.toFixed(0)}% received`
-                  : "Over budget"
-                : pct >= 99.5 && pct <= 100.5
-                  ? "On target"
-                  : `${pct.toFixed(0)}% ${isIncome ? "received" : "used"}`;
-            return (
-              <div className="group-card" key={group}>
-                <span className="group-card-title">{GROUP_LABELS[group]}</span>
-                <span className="group-card-amt">
-                  {formatAmount(groupActual.toFixed(2))} <span className="of">of {formatAmount(groupBudgeted.toFixed(2))}</span>
-                </span>
-                <div className="progress-track">
-                  <div className={fillClass} style={{ width: `${Math.min(pct, 100)}%` }}></div>
-                  {!isIncome && <PaceMarker elapsed={elapsed} />}
-                </div>
-                <span className={`group-card-pct ${status}`}>{pctLabel}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+        {netBreakdown && (
+          <p className="budget-summary-note" data-budget-summary-note>
+            Planned: {netBreakdown.planned} · {actualLabel}: {netBreakdown.actual}
+          </p>
+        )}
+        {allocation && (
+          <p className={`budget-allocation budget-allocation-${allocation.status}`} data-allocation={allocation.status}>
+            {allocation.status === "unallocated" &&
+              `${formatAmount(allocation.unallocated.toFixed(2))} of your ${formatAmount(allocation.income.toFixed(2))} budgeted income isn't assigned to any expense yet.`}
+            {allocation.status === "balanced" && `Every dollar of your ${formatAmount(allocation.income.toFixed(2))} budgeted income is assigned.`}
+            {allocation.status === "over" &&
+              `Your expenses are budgeted ${formatAmount(Math.abs(allocation.unallocated).toFixed(2))} past your ${formatAmount(allocation.income.toFixed(2))} budgeted income.`}
+          </p>
+        )}
+      </section>
 
       {groupSummaries.map(({ group, groupLines, groupBudgeted, groupActual }) => {
+        const isIncome = group === "income";
+        const columns = isIncome ? INCOME_COLUMNS : EXPENSE_COLUMNS;
+        const pct = groupBudgeted > 0 ? (groupActual / groupBudgeted) * 100 : 0;
+        // Expense groups: at/under budget is good, over is bad. Income is the mirror image —
+        // meeting or beating the target is good, falling short is what gets the warning colour.
+        const status = isIncome
+          ? pct >= 100
+            ? "ok"
+            : pct >= 80
+              ? "warn"
+              : "over"
+          : pct > 100
+            ? "over"
+            : pct >= 80
+              ? "warn"
+              : "ok";
+        const fillClass = status === "over" ? "progress-fill over" : status === "warn" ? "progress-fill warn" : "progress-fill";
         return (
-          <div key={group}>
-            <h2 className="reports-section-title">
-              {GROUP_LABELS[group]}{" "}
-              <span className="account-col">
-                {formatAmount(groupActual.toFixed(2))} of {formatAmount(groupBudgeted.toFixed(2))}
-              </span>
-            </h2>
+          <section key={group} className="budget-group" data-budget-group={group}>
+            <div className="budget-group-head">
+              <div className="budget-group-head-line">
+                <h2 className="reports-section-title">{GROUP_LABELS[group]}</h2>
+                <span className="budget-group-progress" data-group-progress>
+                  {groupProgressLabel(group, groupActual, groupBudgeted)}
+                </span>
+              </div>
+              <div className="progress-track budget-group-track">
+                <div className={fillClass} style={{ width: `${Math.min(pct, 100)}%` }}></div>
+                {!isIncome && <PaceMarker elapsed={elapsed} />}
+              </div>
+            </div>
             <div className="cat-list">
+              <div className="cat-list-head">
+                <span>Category</span>
+                <span aria-hidden="true"></span>
+                <span>{columns[0]}</span>
+                <span>{columns[1]}</span>
+                <span>{columns[2]}</span>
+                <span className="sr-only">Settings</span>
+              </div>
               {groupLines.map((line, i) => (
                 <BudgetRow
                   key={line.category}
                   line={line}
                   alertLevel={alertByCategory.get(line.category)}
                   elapsed={elapsed}
+                  amountsHidden={amountsHidden}
                   editingAmount={editingAmount}
                   setEditingAmount={setEditingAmount}
                   onSetBudget={onSetBudget}
@@ -733,7 +829,7 @@ export function BudgetView({
                 />
               ))}
             </div>
-          </div>
+          </section>
         );
       })}
       {budgetActuals.length === 0 && <p className="empty-state">No budget lines yet.</p>}

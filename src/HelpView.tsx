@@ -245,9 +245,11 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
     ],
     node: (
       <li>
-        <strong>Budget</strong> — this month's budgeted vs. actual per
-        category, with prev/next month navigation and reordering (drag a
-        row, or use the ↑/↓ buttons next to it). Click any category name to
+        <strong>Budget</strong> — this month's budget, spending and what's
+        left per category, with prev/next month navigation. Type a new amount
+        straight into a category's Budget field. Each row's ⋯ menu holds its
+        settings, moving it to another group, and reordering (or drag the
+        row by its ⠿ handle). Click any category name to
         see every transaction behind that number and fix any that are
         miscategorized, right from that screen. A line under the summary shows
         how much of your budgeted income no expense line has claimed yet, and
@@ -255,8 +257,8 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
         through the month you are — a bar filled past the tick is running
         ahead of an even pace. <strong>"Suggest from 3-month average"</strong>{" "}
         proposes an amount per category from your recent spending, which you
-        accept line by line. Tick <strong>"Roll over unspent"</strong> on a
-        category to carry what's left into next month's budget (see FAQ), and
+        accept line by line. Turn on <strong>"Roll over unspent"</strong> in a
+        category's ⋯ menu to carry what's left into next month's budget (see FAQ), and
         use <strong>"Month-end review"</strong> on a finished month for a
         short walk through how it went — what ran over, what's still
         uncategorized, and how your goals moved.
@@ -1108,7 +1110,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         month. Changing the current month's amount never changes a past
         month's numbers. This copy happens the first time you open a given
         month — so if you browse ahead to a future month before finishing
-        your edits (amount, group, or the 90% "Cap" toggle) in the current
+        your edits (amount, group, or "Warn at 90%") in the current
         one, that future month locks in whatever the current month looked
         like at that moment and won't retroactively pick up later changes.
         Finish editing the current month first, then move forward.
@@ -1137,7 +1139,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
     answer: (
       <>
       <p>
-        Tick it on a category and whatever you don't spend there in a month
+        Turn it on in a category's ⋯ menu (the row then says "Rolls over")
+        and whatever you don't spend there in a month
         is added to that category's budget the next month — a $400 grocery
         line with $100 left over gives you $500 to spend the month after,
         and the row shows "+ $100.00 rolled in". Going over doesn't carry a
@@ -1149,7 +1152,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <p>
         Settings → Feature toggles has a master <strong>Rollover
         unspent</strong> switch, on by default. Turn it off and nothing
-        carries into a later month — the per-category checkboxes and
+        carries into a later month — the per-category setting and
         "rolled in" notes disappear from Budget, and every budget and earlier
         month stays exactly as it was. Each category's own tick is
         remembered, so turning the switch back on picks up where you left

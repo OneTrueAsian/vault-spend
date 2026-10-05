@@ -3,7 +3,8 @@
 //   1. Recurring's stat row orphaned a redundant fifth "Active items" card
 //      onto a second row (it repeated the subtitle's own count).
 //   2. Budget category names were truncated ("Subscri…") because the alert
-//      badge, sparkline and the cryptic "Cap" toggle shared the name's row.
+//      badge, sparkline and the cryptic "Cap" toggle shared the name's row
+//      (that setting is "Warn at 90%" in the row's ⋯ menu since 1.3.0).
 //   3. Transactions dates wrapped at their hyphens ("2026-" / "09-18").
 //   4. The Transactions header's account control was labeled "Account" and
 //      read like a filter; it's really where imports/new transactions start.
@@ -14,6 +15,7 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { budgetRowMenuItems, readBudgetRow } from "./lib/budgetRows.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -58,9 +60,13 @@ try {
   await name.waitForExist({ timeout: 10000 });
   const truncated = await browser.execute((el) => el.scrollWidth > el.clientWidth, name);
   if (truncated) throw new Error("the Subscriptions category name is still truncated with its badge showing");
-  const rowText = await (await name.parentElement().parentElement().parentElement()).getText();
-  if (!rowText.includes("Warn at 90%")) throw new Error(`expected the toggle to read "Warn at 90%", got:\n${rowText}`);
-  if (/\bCap\b/.test(rowText)) throw new Error(`the cryptic "Cap" label should be gone, got:\n${rowText}`);
+  // The setting lives in the row's ⋯ menu since 1.3.0, still worded "Warn at 90%".
+  const rowText = (await readBudgetRow(browser, "Subscriptions")).text;
+  const menuLabels = (await budgetRowMenuItems(browser, "Subscriptions")).map((item) => item.label);
+  if (!menuLabels.includes("Warn at 90%")) throw new Error(`expected the menu's setting to read "Warn at 90%", got: ${JSON.stringify(menuLabels)}`);
+  if (/\bCap\b/.test(rowText) || menuLabels.some((l) => /\bCap\b/.test(l))) {
+    throw new Error(`the cryptic "Cap" label should be gone, got:\n${rowText}\n${JSON.stringify(menuLabels)}`);
+  }
 
   // 3 + 4. Transactions: a single-line date, and an honest account label.
   await nav("Transactions");

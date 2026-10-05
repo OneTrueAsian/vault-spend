@@ -1,12 +1,12 @@
-// E2E test for the Budget tab's new ↑/↓ reorder buttons (U-6 from the
-// performance/UI review) — a keyboard-accessible alternative to the
-// existing drag handle, mirroring the Dashboard widget customizer's own
-// up/down pattern. Seeds two Flexible categories, clicks "Move down" on
-// the first, and confirms the on-screen row order actually swapped.
+// E2E test for the Budget tab's keyboard-accessible reordering (U-6 from the
+// performance/UI review) — an alternative to the drag handle. Since 1.3.0 it
+// lives in each row's ⋯ settings menu ("Move up" / "Move down"). Seeds two
+// Flexible categories, chooses "Move down" on the first, and confirms the
+// on-screen row order actually swapped.
 //
 // Run with: node e2e/feature46_budget_reorder_buttons.mjs
 
-import { launchApp } from "./harness.mjs";
+import { chooseRowAction, launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -47,16 +47,15 @@ try {
   }
   const [firstCategory, secondCategory] = orderBefore;
 
-  const firstRow = (await app.browser.$$(".cat-row"))[0];
-  const moveDownButton = await firstRow.$("button[aria-label='Move down']");
-  await moveDownButton.click();
+  // The first row's "Move up" is there but disabled; "Move down" moves it.
+  await chooseRowAction(app.browser, async () => (await app.browser.$(".cat-row")).$("[data-row-menu]"), "Move down");
 
   await app.browser.waitUntil(
     async () => {
       const order = await currentOrder();
       return order[0] === secondCategory;
     },
-    { timeout: 5000, timeoutMsg: `expected "${secondCategory}" to move to the first row after clicking Move down` },
+    { timeout: 5000, timeoutMsg: `expected "${secondCategory}" to move to the first row after choosing Move down` },
   );
 
   const orderAfter = await currentOrder();

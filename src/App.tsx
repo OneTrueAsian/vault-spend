@@ -3959,6 +3959,7 @@ function App({
                 onSuggest={handleSuggestBudgets}
                 onApplySuggestions={handleApplyBudgetSuggestions}
                 onOpenMonthReview={() => void handleOpenMonthReview(budgetYear, budgetMonthNum)}
+                amountsHidden={amountsHidden}
               />
             </Suspense>
           )}
