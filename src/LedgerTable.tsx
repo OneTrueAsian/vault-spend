@@ -7,6 +7,8 @@ import { TransferRow } from "./TransferRow";
 import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
 
 import { RowFieldDropdown } from "./RowFieldDropdown";
+import { RowMenu } from "./RowMenu";
+import { ledgerRowActions, type LedgerRowActionId } from "./ledgerRowActions";
 
 import { SortableTh } from "./SortableTh";
 
@@ -28,6 +30,8 @@ interface LedgerTableProps {
   setLedgerScrollEl: React.Dispatch<React.SetStateAction<HTMLDivElement | null>>;
   ledgerDensity: LedgerDensity;
   ledgerNarrow: boolean;
+  /** The Member column shows only with two or more family members (see App.tsx). */
+  showMemberCol: boolean;
   appSettings: AppSettings;
   selectAllBatch: SelectAllBatch | null;
   selectedIds: Set<number>;
@@ -78,13 +82,16 @@ interface LedgerTableProps {
   newTagText: Record<number, string>;
   setNewTagText: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   handleAddTag: (id: number, tag: string) => Promise<void>;
+  /** The row whose tag field is open (from its menu's "Add tag…"), or null. */
+  taggingId: number | null;
+  setTaggingId: React.Dispatch<React.SetStateAction<number | null>>;
   editingAmount: { id: number; value: string; } | null;
   setEditingAmount: React.Dispatch<React.SetStateAction<{ id: number; value: string; } | null>>;
   commitAmountEdit: (id: number, value: string) => Promise<void>;
   confirmingDeleteId: number | null;
   setConfirmingDeleteId: React.Dispatch<React.SetStateAction<number | null>>;
   handleDeleteTransaction: (id: number) => Promise<void>;
-  ledgerColumnCount: 5 | 10 | 9;
+  ledgerColumnCount: number;
   expandedSplitId: number | null;
   splitLines: { category: string; amount: string; note: string; }[];
   updateSplitLine: (index: number, patch: Partial<{ category: string; amount: string; note: string; }>) => void;
@@ -102,6 +109,7 @@ export function LedgerTable({
   setLedgerScrollEl,
   ledgerDensity,
   ledgerNarrow,
+  showMemberCol,
   appSettings,
   selectAllBatch,
   selectedIds,
@@ -152,6 +160,8 @@ export function LedgerTable({
   newTagText,
   setNewTagText,
   handleAddTag,
+  taggingId,
+  setTaggingId,
   editingAmount,
   setEditingAmount,
   commitAmountEdit,
@@ -178,14 +188,14 @@ export function LedgerTable({
           <col style={{ width: ledgerNarrow ? "6%" : "3%" }} />
           {/* the date needs ~80px in every style's font: 7% left it ~38px and it ran into the description */}
           <col style={{ width: ledgerNarrow ? "16%" : "11%" }} />
-          <col style={{ width: ledgerNarrow ? "43%" : "17%" }} />
-          <col style={{ width: ledgerNarrow ? "16%" : "8%" }} />
-          {!ledgerNarrow && <col style={{ width: "14%" }} />}
+          {/* The description takes whatever the optional Member column leaves. */}
+          <col style={{ width: ledgerNarrow ? "43%" : showMemberCol ? "22%" : "29%" }} />
+          <col style={{ width: ledgerNarrow ? "16%" : "10%" }} />
+          {!ledgerNarrow && <col style={{ width: showMemberCol ? "16%" : "17%" }} />}
+          {!ledgerNarrow && showMemberCol && <col style={{ width: "8%" }} />}
+          {!ledgerNarrow && <col style={{ width: "15%" }} />}
           {!ledgerNarrow && <col style={{ width: "10%" }} />}
-          {!ledgerNarrow && <col style={{ width: "13%" }} />}
-          {!ledgerNarrow && <col style={{ width: "8%" }} />}
-          {!ledgerNarrow && appSettings.apply_to_debt_enabled && <col style={{ width: "8%" }} />}
-          <col style={{ width: ledgerNarrow ? "19%" : "7%" }} />
+          <col style={{ width: ledgerNarrow ? "19%" : "5%" }} />
         </colgroup>
         <thead>
           <tr>
@@ -211,7 +221,7 @@ export function LedgerTable({
                 Account
               </SortableTh>
             )}
-            {!ledgerNarrow && <th>Member</th>}
+            {!ledgerNarrow && showMemberCol && <th className="member-col">Member</th>}
             {!ledgerNarrow && (
               <SortableTh column="category" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
                 Category
@@ -222,7 +232,6 @@ export function LedgerTable({
                 Sorted by
               </SortableTh>
             )}
-            {!ledgerNarrow && appSettings.apply_to_debt_enabled && <th>Debt</th>}
             <th className="actions-col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -240,7 +249,7 @@ export function LedgerTable({
                   onToggleSelected={() => toggleSelectedMany([t.id, inLeg.id])}
                   onUnlink={() => handleUnlinkTransfer(t.id)}
                   onEditNote={setNotesDialogFor}
-                  showDebtColumn={appSettings.apply_to_debt_enabled}
+                  showMemberCol={showMemberCol}
                   narrow={ledgerNarrow}
                   detailsOpen={detailsOpenId === t.id}
                   onToggleDetails={() => setDetailsOpenId(detailsOpenId === t.id ? null : t.id)}
@@ -254,6 +263,7 @@ export function LedgerTable({
             // logic itself.
             const accountField = (
               <RowFieldDropdown
+                variant="plain"
                 ariaLabel={`Account for "${t.description}"`}
                 value={String(t.account_id)}
                 options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
@@ -262,10 +272,13 @@ export function LedgerTable({
             );
             const memberField = (
               <RowFieldDropdown
+                variant="plain"
                 ariaLabel={`Family member for "${t.description}"`}
                 value={t.member_id !== null ? String(t.member_id) : ""}
+                // No one chosen reads as a blank cell; the menu still offers "No one" first.
+                displayLabel={t.member_id === null ? "" : undefined}
                 options={[
-                  { value: "", label: "Unassigned" },
+                  { value: "", label: "No one" },
                   ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
                 ]}
                 onChange={(value) => handleMemberChangeForTransaction(t.id, value)}
@@ -277,6 +290,10 @@ export function LedgerTable({
                   <span className="split-summary">Split ({t.split_count})</span>
                 ) : (
                   <RowFieldDropdown
+                    variant="plain"
+                    // Red: this row needs you (see s4's colour rule).
+                    triggerClassName={t.category ? undefined : "row-field-needs"}
+                    displayLabel={t.category ? undefined : "Needs a category"}
                     ariaLabel={`Category for "${t.description}"`}
                     value={t.category ?? ""}
                     options={[
@@ -294,11 +311,6 @@ export function LedgerTable({
                     onChange={(value) => handleCategoryChange(t.id, value)}
                   />
                 )}
-                {appSettings.split_purchases_enabled && (
-                  <button type="button" className="modal-secondary split-toggle" onClick={() => toggleSplitEditor(t)}>
-                    {t.split_count > 0 ? "Edit splits" : "Split →"}
-                  </button>
-                )}
               </>
             );
             const sourceField = (
@@ -307,13 +319,18 @@ export function LedgerTable({
                 {t.confidence !== null && <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>}
               </>
             );
-            const debtField = accounts.find((a) => a.id === t.account_id)?.account_type === "loan" ? (
+            const rowAccount = accounts.find((a) => a.id === t.account_id);
+            const isLoanAccount = rowAccount?.account_type === "loan";
+            // The state of a debt payment stays visible under the description; the actions that
+            // start one (Split principal…, Apply to a debt…) are in the row's ⋯ menu.
+            const debtState = !appSettings.apply_to_debt_enabled ? null : isLoanAccount ? (
               editingPrincipalId === t.id ? (
                 <span className="debt-apply-form">
                   <input
                     className="debt-apply-amount"
                     value={principalDraft}
                     onChange={(e) => setPrincipalDraft(e.target.value)}
+                    aria-label={`Principal for "${t.description}"`}
                     title="How much of this transaction counts toward what's owed (e.g. just the principal on a mortgage payment)"
                   />
                   <button type="button" className="debt-apply-confirm" onClick={() => handleSetPrincipalAmount(t.id)}>
@@ -330,11 +347,7 @@ export function LedgerTable({
                     Reset
                   </button>
                 </span>
-              ) : (
-                <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startEditingPrincipal(t)}>
-                  Split principal →
-                </button>
-              )
+              ) : null
             ) : t.applied_to_debt ? (
               <span className="debt-applied-badge">
                 → {t.applied_to_debt.debt_account_name} ({formatAmount(t.applied_to_debt.amount)})
@@ -354,6 +367,7 @@ export function LedgerTable({
                   className="debt-apply-amount"
                   value={applyDebtForm.amount}
                   onChange={(e) => setApplyDebtForm({ ...applyDebtForm, amount: e.target.value })}
+                  aria-label={`Amount of "${t.description}" to apply`}
                   title="How much of this payment counts toward the debt (e.g. just the principal on a mortgage payment)"
                 />
                 <button type="button" className="debt-apply-confirm" onClick={() => handleApplyDebtPayment(t.id, t.date)}>
@@ -363,19 +377,28 @@ export function LedgerTable({
                   Cancel
                 </button>
               </span>
-            ) : (
-              // The loan case is already handled above — only credit
-              // (excluded, a payment there needs no principal split) and
-              // every non-debt account reach here.
-              // Only money going out can be a debt payment (not income or a transfer in).
-              debtAccounts.length > 0 &&
-              parseFloat(t.amount) < 0 &&
-              accounts.find((a) => a.id === t.account_id)?.account_type !== "credit" && (
-                <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startApplyingDebtPayment(t)}>
-                  Apply to a debt →
-                </button>
-              )
-            );
+            ) : null;
+            const runAction: Record<LedgerRowActionId, () => void> = {
+              split: () => void toggleSplitEditor(t),
+              principal: () => startEditingPrincipal(t),
+              applyDebt: () => startApplyingDebtPayment(t),
+              note: () => setNotesDialogFor(t),
+              tag: () => setTaggingId(t.id),
+              delete: () => setConfirmingDeleteId(t.id),
+            };
+            const menuItems = ledgerRowActions(t, {
+              splitEnabled: appSettings.split_purchases_enabled,
+              debtEnabled: appSettings.apply_to_debt_enabled,
+              isLoanAccount,
+              // Only a loan or card can take a payment, and a card's own payments need no principal split.
+              canApplyToDebt: debtAccounts.length > 0 && rowAccount?.account_type !== "credit",
+              hasPrincipalOverride: t.principal_amount !== null,
+              hasAppliedDebt: t.applied_to_debt !== null,
+            }).map((action) => ({ label: action.label, onSelect: runAction[action.id], danger: action.id === "delete" }));
+            const closeTagging = () => {
+              setTaggingId(null);
+              setNewTagText((prev) => ({ ...prev, [t.id]: "" }));
+            };
             return (
               <Fragment key={t.id}>
                 <tr data-payment-row={t.id} tabIndex={-1} className={[selectedIds.has(t.id) ? "ledger-row-selected" : "", highlightedPaymentRow === t.id ? "payment-row-highlight" : ""].filter(Boolean).join(" ") || undefined}>
@@ -458,62 +481,56 @@ export function LedgerTable({
                         ⇄ Transfer ×
                       </button>
                     )}
-                    <div className="transaction-description-meta">
-                      <div className="tag-pills">
-                        {t.tags.map((tag) => (
-                          <span key={tag} className="tag-pill">
-                            {tag}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveTag(t.id, tag)}
-                              aria-label={`Remove tag ${tag}`}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-
-                        <input
-                          className="tag-input"
-                          list="known-tags"
-                          placeholder="+ tag"
-                          value={newTagText[t.id] ?? ""}
-                          onChange={(e) =>
-                            setNewTagText((prev) => ({
-                              ...prev,
-                              [t.id]: e.target.value,
-                            }))
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              handleAddTag(t.id, newTagText[t.id] ?? "");
-                            }
-                          }}
-                        />
+                    {(t.tags.length > 0 || t.notes || taggingId === t.id || debtState) && (
+                      <div className="transaction-description-meta">
+                        {(t.tags.length > 0 || taggingId === t.id) && (
+                          <div className="tag-pills">
+                            {t.tags.map((tag) => (
+                              <span key={tag} className="tag-pill">
+                                {tag}
+                                <button type="button" onClick={() => handleRemoveTag(t.id, tag)} aria-label={`Remove tag ${tag}`}>
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                            {taggingId === t.id && (
+                              <input
+                                autoFocus
+                                className="tag-input"
+                                list="known-tags"
+                                aria-label={`New tag for "${t.description}"`}
+                                placeholder="tag"
+                                value={newTagText[t.id] ?? ""}
+                                onChange={(e) => setNewTagText((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    void handleAddTag(t.id, newTagText[t.id] ?? "");
+                                    setTaggingId(null);
+                                  } else if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    closeTagging();
+                                  }
+                                }}
+                                onBlur={closeTagging}
+                              />
+                            )}
+                          </div>
+                        )}
+                        {t.notes && (
+                          <button
+                            type="button"
+                            className="transaction-note-preview"
+                            onClick={() => setNotesDialogFor(t)}
+                            title={t.notes}
+                            aria-label={`Edit note for "${t.description}"`}
+                          >
+                            {t.notes.length > 40 ? `${t.notes.slice(0, 40)}…` : t.notes}
+                          </button>
+                        )}
+                        {debtState}
                       </div>
-
-                      {t.notes ? (
-                        <button
-                          type="button"
-                          className="modal-secondary btn-sm transaction-note-preview"
-                          onClick={() => setNotesDialogFor(t)}
-                          title={t.notes}
-                          aria-label={`Edit note for "${t.description}"`}
-                        >
-                          {t.notes.length > 40 ? `${t.notes.slice(0, 40)}…` : t.notes}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="modal-secondary btn-sm transaction-note-add"
-                          onClick={() => setNotesDialogFor(t)}
-                          aria-label={`Add note for "${t.description}"`}
-                        >
-                          + Add note
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </td>
                   <td className="amount-col">
                     {editingAmount?.id === t.id ? (
@@ -539,10 +556,9 @@ export function LedgerTable({
                     )}
                   </td>
                   {!ledgerNarrow && <td className="account-col">{accountField}</td>}
-                  {!ledgerNarrow && <td className="member-col">{memberField}</td>}
+                  {!ledgerNarrow && showMemberCol && <td className="member-col">{memberField}</td>}
                   {!ledgerNarrow && <td className="category-col">{categoryField}</td>}
                   {!ledgerNarrow && <td className="source-col">{sourceField}</td>}
-                  {!ledgerNarrow && appSettings.apply_to_debt_enabled && <td className="debt-col">{debtField}</td>}
                   <td className="actions-col">
                     {ledgerNarrow && (
                       <button
@@ -570,9 +586,7 @@ export function LedgerTable({
                         </span>
                       </span>
                     ) : (
-                      <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(t.id)}>
-                        Delete
-                      </button>
+                      <RowMenu label={`Actions for "${t.description}"`} items={menuItems} />
                     )}
                   </td>
                 </tr>
@@ -584,10 +598,13 @@ export function LedgerTable({
                           <span>Account</span>
                           {accountField}
                         </label>
-                        <label className="ledger-details-field">
-                          <span>Member</span>
-                          {memberField}
-                        </label>
+                        {/* Unlike the wide table's Member column, kept with one person too, so a row can still be assigned. */}
+                        {familyMembers.length >= 1 && (
+                          <label className="ledger-details-field">
+                            <span>Member</span>
+                            {memberField}
+                          </label>
+                        )}
                         <label className="ledger-details-field">
                           <span>Category</span>
                           {categoryField}
@@ -596,12 +613,6 @@ export function LedgerTable({
                           <span>Sorted by</span>
                           {sourceField}
                         </label>
-                        {appSettings.apply_to_debt_enabled && (
-                          <label className="ledger-details-field">
-                            <span>Debt</span>
-                            {debtField}
-                          </label>
-                        )}
                       </div>
                     </td>
                   </tr>

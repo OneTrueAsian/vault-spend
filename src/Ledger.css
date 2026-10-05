@@ -492,6 +492,51 @@
   width: 108px;
 }
 
+/* s1: the account, member and category cells read as plain text, not a column of boxes. The caret
+   appears on hover, on keyboard focus and while the menu is open, so it's still clearly a choice.
+   Specificity (0,4,0)+ outranks SharedControls' field list (0,3,1, which sets the 6px 10px padding),
+   Retro's sunken `[data-palette="retro"] .account-filter-toggle` and every style's hover rule. */
+.ledger .row-field .row-field-toggle.row-field-toggle-plain,
+.ledger .row-field .row-field-toggle.row-field-toggle-plain:hover,
+.ledger .row-field .row-field-toggle.row-field-toggle-plain[aria-expanded="true"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+  padding: 2px 0;
+}
+
+.ledger .row-field .row-field-toggle.row-field-toggle-plain .account-filter-caret {
+  opacity: 0;
+}
+
+.ledger .row-field .row-field-toggle.row-field-toggle-plain:hover .account-filter-caret,
+.ledger .row-field .row-field-toggle.row-field-toggle-plain:focus-visible .account-filter-caret,
+.ledger .row-field .row-field-toggle.row-field-toggle-plain[aria-expanded="true"] .account-filter-caret {
+  opacity: 1;
+}
+
+/* An uncategorized row: "Needs a category" in red, the "needs you" colour (s4). */
+.ledger .row-field .row-field-toggle.row-field-toggle-plain.row-field-needs {
+  color: var(--negative);
+}
+
+/* The one line that replaced the four count tiles above the table. */
+.ledger-needs-category {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  color: var(--negative);
+  font-weight: 600;
+}
+
+.ledger-needs-category .btn-sm {
+  font-weight: 600;
+}
+
 /* RowFieldDropdown's menu is portaled to document.body and positioned from
    the trigger's own getBoundingClientRect (see the component's own
    comment for why: .ledger-table-scroll's overflow-x: auto also clips
@@ -513,10 +558,6 @@
   font-size: 12px;
 }
 
-.ledger-compact .split-toggle {
-  margin-left: 6px;
-  white-space: nowrap;
-}
 
 .safe-amount {
   margin: 4px 0 2px;
@@ -1343,6 +1384,13 @@
   font-family: var(--font-mono);
 }
 
+/* `.ledger th, .ledger td { text-align: left }` (0,1,1) outranks the bare `.amount-col`, which left
+   every amount ragged; this puts the ledger's amounts (and their heading) back on the right. */
+.ledger .amount-col {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .source-col {
   color: var(--text-muted);
   font-size: 12px;
@@ -1386,6 +1434,38 @@
   gap: 6px;
   white-space: normal;
   max-width: 220px;
+}
+
+/* s1: the actions column is now just wide enough for the ⋯, so the confirm that replaces it sits over
+   the right end of its own row (one line: what deleting does, then Cancel and Delete) instead of
+   squeezing into the column and stretching the row tall. */
+.ledger td.actions-col {
+  position: relative;
+}
+
+.ledger .row-delete-confirm.row-delete-confirm-detailed {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  z-index: 2;
+  transform: translateY(-50%);
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: min(460px, 70vw);
+  padding: 6px 8px;
+  /* The same readable surface as every open menu (frosted in Default, solid elsewhere). */
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.ledger .row-delete-confirm-detailed .delete-impact-note {
+  max-width: 280px;
 }
 
 .delete-impact-note {
@@ -1531,26 +1611,7 @@
   flex: none;
 }
 
-.debt-col {
-  /* Was a blanket nowrap; the fixed column budget (App.tsx's <colgroup>)
-     leaves this column too narrow for that to hold — the "Apply to a
-     debt →" trigger and the active edit form both need to wrap instead of
-     forcing the column, and the whole table, wider than the window. */
-  overflow-wrap: break-word;
-}
 
-.debt-apply-trigger {
-  /* The global `button` rule sets `white-space: nowrap`; undone here so
-     "Apply to a debt →" can wrap onto a second line in the narrow Debt
-     column instead of visually spilling into the next cell. */
-  white-space: normal;
-  text-align: left;
-  /* Compact, so it wraps to two short lines in the ~75px column instead of a four-line pill. */
-  font-size: 12px;
-  line-height: 1.25;
-  padding: 3px 8px;
-  border-radius: 8px;
-}
 
 /* The ledger's warning badges are InfoTips (keyboard focusable, the reason read by screen readers),
    drawn as a bare symbol instead of InfoTip's round "i". Two classes to outrank .info-tip-button. */
@@ -1582,15 +1643,6 @@
   font-weight: 600;
 }
 
-.split-toggle {
-  display: inline-block;
-  margin-left: 8px;
-  /* 24px tall and clear of the category menu above it (WCAG 2.5.8 target size). */
-  margin-top: 4px;
-  min-height: 24px;
-  padding: 0.15em 0.6em;
-  font-size: 12px;
-}
 
 .split-editor-row td {
   background: var(--surface-muted, var(--surface));
@@ -1703,8 +1755,29 @@
   cursor: pointer;
 }
 
+/* A row's note, previewed under its description as quiet text; it opens the note dialog. */
+.transaction-note-preview,
+.transaction-note-preview:hover {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  font-style: italic;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.transaction-note-preview:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 .tag-input {
-  width: 60px;
+  width: 90px;
   font-size: 12px;
   padding: 1px 6px;
   border-radius: 999px;

@@ -25,6 +25,9 @@ export function RowFieldDropdown({
   value,
   ariaLabel,
   onChange,
+  variant = "boxed",
+  displayLabel,
+  triggerClassName,
 }: {
   /** `disabled` marks a placeholder that describes the current "nothing
    * chosen" state without itself being a choosable value — mirroring a
@@ -35,6 +38,12 @@ export function RowFieldDropdown({
   value: string;
   ariaLabel: string;
   onChange: (value: string) => void;
+  /** "plain" reads as ordinary table text (no box; the caret shows on hover, focus or while open). */
+  variant?: "boxed" | "plain";
+  /** Overrides the trigger's text, e.g. "" so a row with no family member shows a blank cell. */
+  displayLabel?: string;
+  /** Extra class on the trigger, e.g. `row-field-needs` for a "needs you" state. */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -42,6 +51,7 @@ export function RowFieldDropdown({
   const panelRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const selectedLabel = options.find((o) => o.value === value)?.label ?? value;
+  const shownLabel = displayLabel ?? selectedLabel;
 
   useDismiss(open, [rootRef, panelRef], (reason) => {
     setOpen(false);
@@ -69,7 +79,7 @@ export function RowFieldDropdown({
       <button
         type="button"
         ref={triggerRef}
-        className="account-filter-toggle row-field-toggle"
+        className={["account-filter-toggle row-field-toggle", variant === "plain" ? "row-field-toggle-plain" : "", triggerClassName ?? ""].filter(Boolean).join(" ")}
         aria-label={ariaLabel}
         // The ledger clips a long label with an ellipsis; this keeps the full name readable on hover.
         title={selectedLabel}
@@ -84,7 +94,7 @@ export function RowFieldDropdown({
           }
         }}
       >
-        <span>{selectedLabel}</span>
+        {shownLabel !== "" && <span>{shownLabel}</span>}
         <span className="account-filter-caret" aria-hidden="true">
           ▾
         </span>

@@ -58,7 +58,7 @@ describe("TransferRow", () => {
     container.remove();
   });
 
-  function show(out: Transaction, incoming: Transaction, opts: { narrow?: boolean; detailsOpen?: boolean } = {}) {
+  function show(out: Transaction, incoming: Transaction, opts: { narrow?: boolean; detailsOpen?: boolean; showMemberCol?: boolean } = {}) {
     act(() => {
       root.render(
         <table>
@@ -70,7 +70,7 @@ describe("TransferRow", () => {
               onToggleSelected={onToggleSelected}
               onUnlink={onUnlink}
               onEditNote={onEditNote}
-              showDebtColumn={false}
+              showMemberCol={opts.showMemberCol ?? true}
               narrow={opts.narrow ?? false}
               detailsOpen={opts.detailsOpen ?? false}
               onToggleDetails={onToggleDetails}
@@ -95,54 +95,78 @@ describe("TransferRow", () => {
   });
 
   const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.includes(label));
+  const openMenu = () => act(() => container.querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
+  const menuLabels = () => [...document.body.querySelectorAll(".row-menu-panel [role='menuitem']")].map((b) => b.textContent);
+  const choose = (label: string) => {
+    openMenu();
+    const item = [...document.body.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role='menuitem']")].find((b) => b.textContent === label);
+    expect(item, `expected the menu item "${label}", found ${JSON.stringify(menuLabels())}`).not.toBeUndefined();
+    act(() => item!.click());
+  };
 
-  it("offers separate note actions for the outgoing and incoming legs, each labeled with its account", () => {
+  it("puts Unlink and each leg's note action in one ⋯ menu, each note labeled with its account", () => {
     const out = txn({ id: 1, account_name: "Checking", notes: null });
     const incoming = txn({ id: 2, account_name: "Savings", notes: null });
     show(out, incoming);
-    expect(button("Checking"), "expected an outgoing-leg note action labeled with its account").not.toBeUndefined();
-    expect(button("Savings"), "expected an incoming-leg note action labeled with its account").not.toBeUndefined();
+    expect(container.querySelectorAll("[data-row-menu]")).toHaveLength(1);
+    expect(button("Unlink")).toBeUndefined();
+    expect(container.textContent).not.toContain("Add note");
+    openMenu();
+    expect(menuLabels()).toEqual(["Unlink transfer…", "Add note to Checking…", "Add note to Savings…"]);
   });
 
-  it("clicking the outgoing leg's note action edits the outgoing transaction, not the incoming one", () => {
+  it("choosing the outgoing leg's note action edits the outgoing transaction, not the incoming one", () => {
     const out = txn({ id: 1, account_name: "Checking", notes: null });
     const incoming = txn({ id: 2, account_name: "Savings", notes: null });
     show(out, incoming);
-    act(() => button("Checking")!.click());
+    choose("Add note to Checking…");
     expect(onEditNote).toHaveBeenCalledWith(out);
   });
 
-  it("clicking the incoming leg's note action edits the incoming transaction, not the outgoing one", () => {
+  it("choosing the incoming leg's note action edits the incoming transaction, not the outgoing one", () => {
     const out = txn({ id: 1, account_name: "Checking", notes: null });
     const incoming = txn({ id: 2, account_name: "Savings", notes: null });
     show(out, incoming);
-    act(() => button("Savings")!.click());
+    choose("Add note to Savings…");
     expect(onEditNote).toHaveBeenCalledWith(incoming);
   });
 
-  it("previews an existing note instead of offering to add one", () => {
+  it("previews an existing note and offers to edit it instead of adding one", () => {
     const out = txn({ id: 1, account_name: "Checking", notes: "Reimbursed by Sam" });
     const incoming = txn({ id: 2, account_name: "Savings", notes: null });
     show(out, incoming);
     expect(container.textContent).toContain("Reimbursed by Sam");
-    expect(button("Checking")?.textContent).not.toContain("Add note");
-    expect(button("Savings")?.textContent).toContain("Add note");
+    act(() => button("Reimbursed by Sam")!.click());
+    expect(onEditNote).toHaveBeenCalledWith(out);
+    openMenu();
+    expect(menuLabels()).toEqual(["Unlink transfer…", "Edit note for Checking…", "Add note to Savings…"]);
   });
 
   it("does not copy a note from one leg onto the other", () => {
     const out = txn({ id: 1, account_name: "Checking", notes: "Only on the outgoing leg" });
     const incoming = txn({ id: 2, account_name: "Savings", notes: null });
     show(out, incoming);
-    const savingsButton = button("Savings");
-    expect(savingsButton?.textContent).not.toContain("Only on the outgoing leg");
+    expect(button("Savings")).toBeUndefined();
+    expect(container.querySelectorAll(".transaction-note-preview")).toHaveLength(1);
   });
 
-  it("still unlinks when Unlink is clicked", () => {
+  it("still unlinks when Unlink transfer… is chosen", () => {
     const out = txn({ id: 1, account_name: "Checking" });
     const incoming = txn({ id: 2, account_name: "Savings" });
     show(out, incoming);
-    act(() => button("Unlink")!.click());
+    choose("Unlink transfer…");
     expect(onUnlink).toHaveBeenCalledTimes(1);
+  });
+
+  it("spans the accounts line over the member column only when that column shows", () => {
+    const out = txn({ id: 1, account_name: "Checking" });
+    const incoming = txn({ id: 2, account_name: "Savings" });
+    show(out, incoming, { showMemberCol: true });
+    expect(container.querySelector<HTMLTableCellElement>("td.transfer-accounts")!.colSpan).toBe(2);
+    expect(container.querySelectorAll("tr[data-payment-row] td")).toHaveLength(8);
+    show(out, incoming, { showMemberCol: false });
+    expect(container.querySelector<HTMLTableCellElement>("td.transfer-accounts")!.colSpan).toBe(1);
+    expect(container.querySelectorAll("tr[data-payment-row] td")).toHaveLength(8);
   });
 
   describe("narrow layout", () => {

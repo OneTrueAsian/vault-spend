@@ -25,6 +25,7 @@ import "./themes/futuristic.css";
 import { LedgerSavedFilters } from "./LedgerSavedFilters";
 import { useLedgerFilters } from "./useLedgerFilters";
 import { LedgerTable } from "./LedgerTable";
+import { LedgerNeedsCategory } from "./LedgerNeedsCategory";
 import { SidebarControls } from "./SidebarControls";
 import { LedgerPageActions } from "./LedgerPageActions";
 import { LedgerBulkActions } from "./LedgerBulkActions";
@@ -184,7 +185,7 @@ import { MenuSelect } from "./MenuSelect";
 import { errorMessage } from "./errorMessage";
 import { sumMoney } from "./money";
 import { StatusBanner } from "./StatusBanner";
-import { compareTransactionsBy } from "./ledgerHelpers";
+import { compareTransactionsBy, ledgerColumnCount as computeLedgerColumnCount } from "./ledgerHelpers";
 import {
   NAV_ORDER_STORAGE_KEY,
   getLastUsedAccountId,
@@ -321,6 +322,8 @@ function App({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [allTags, setAllTags] = useState<string[]>([]);
   const [newTagText, setNewTagText] = useState<Record<number, string>>({});
+  // The ledger row whose tag field is open (its ⋯ menu's "Add tag…").
+  const [taggingId, setTaggingId] = useState<number | null>(null);
   const [notesDialogFor, setNotesDialogFor] = useState<Transaction | null>(null);
   const [bulkTagText, setBulkTagText] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -1186,12 +1189,11 @@ function App({
     () => [...new Set(transactions.filter((t) => selectedIds.has(t.id)).map((t) => t.account_name))].sort(),
     [selectedIds, transactions],
   );
-  // The Debt column is the only one of the three feature toggles that's a
-  // whole dedicated table column — Split lives inside the Category cell,
-  // so hiding it doesn't change the column count.
-  // select, date, description, amount, actions — plus, when not narrow,
-  // account, member, category, source, and debt (if enabled).
-  const ledgerColumnCount = ledgerNarrow ? 5 : appSettings.apply_to_debt_enabled ? 10 : 9;
+  // The Member column earns its space only when there's more than one person to choose between.
+  const showMemberCol = familyMembers.length >= 2;
+  // select, date, description, amount, actions — plus, when not narrow, account, [member], category
+  // and source. Debt payments live under the description and in the row's ⋯ menu, not a column.
+  const ledgerColumnCount = computeLedgerColumnCount(ledgerNarrow, showMemberCol);
 
   // A new filter, search, sort or step starts over: the first step of rows, and fresh Select all batches.
   useEffect(() => {
@@ -3650,9 +3652,13 @@ function App({
             <div className="page-top">
               <div>
                 <h1 className="view-title">Transactions</h1>
-                <p className="view-sub">
+                <p className="view-sub" data-ledger-subtitle>
                   {transactions.length} transaction{transactions.length === 1 ? "" : "s"} across {accounts.length} account
                   {accounts.length === 1 ? "" : "s"}.
+                  {/* The counts the old tiles showed, kept here. */}
+                  {stats && (stats.auto_categorized > 0 || stats.user_confirmed > 0)
+                    ? ` ${stats.auto_categorized} sorted automatically, ${stats.user_confirmed} by you.`
+                    : null}
                 </p>
               </div>
               <div className="page-actions">
@@ -3708,33 +3714,11 @@ function App({
           )}
 
           {activeTab === "ledger" && stats && (
-            <div className="stats">
-              <div className="stat tint-accent">
-                <span className="stat-value">{stats.total}</span>
-                <span className="stat-label">Transactions</span>
-              </div>
-              <div className="stat tint-blue">
-                <span className="stat-value">{stats.auto_categorized}</span>
-                <span className="stat-label">Auto-categorized</span>
-              </div>
-              <div className="stat tint-teal">
-                <span className="stat-value">{stats.user_confirmed}</span>
-                <span className="stat-label">Corrected by you</span>
-              </div>
-              <button
-                type="button"
-                className={
-                  filterCategory === UNCATEGORIZED_FILTER
-                    ? "stat tint-red stat-clickable stat-expanded"
-                    : "stat tint-red stat-clickable"
-                }
-                onClick={() => setFilterCategory((c) => (c === UNCATEGORIZED_FILTER ? "all" : UNCATEGORIZED_FILTER))}
-                title="Show only transactions that need a category"
-              >
-                <span className="stat-value">{stats.uncategorized}</span>
-                <span className="stat-label">Needs a category</span>
-              </button>
-            </div>
+            <LedgerNeedsCategory
+              count={stats.uncategorized}
+              active={filterCategory === UNCATEGORIZED_FILTER}
+              onToggle={() => setFilterCategory((c) => (c === UNCATEGORIZED_FILTER ? "all" : UNCATEGORIZED_FILTER))}
+            />
           )}
 
           {activeTab === "ledger" && (
@@ -3840,6 +3824,7 @@ function App({
               setLedgerScrollEl={setLedgerScrollEl}
               ledgerDensity={ledgerDensity}
               ledgerNarrow={ledgerNarrow}
+              showMemberCol={showMemberCol}
               appSettings={appSettings}
               selectAllBatch={selectAllBatch}
               selectedIds={selectedIds}
@@ -3890,6 +3875,8 @@ function App({
               newTagText={newTagText}
               setNewTagText={setNewTagText}
               handleAddTag={handleAddTag}
+              taggingId={taggingId}
+              setTaggingId={setTaggingId}
               editingAmount={editingAmount}
               setEditingAmount={setEditingAmount}
               commitAmountEdit={commitAmountEdit}

@@ -46,3 +46,11 @@ export function describeDeleteImpact(amount: string, account: Account | undefine
   const direction = displayedNumberGoesUp ? "increase" : "decrease";
   return `Deleting this will ${direction} ${account.name}'s ${label} by ${formatAmount(Math.abs(parsed).toFixed(2))}.`;
 }
+
+/** How many columns the Transactions table has, for full-width rows (`colSpan`): select, date,
+ * description, amount and actions always; account, category and "Sorted by" when not narrow; and the
+ * member column only when it shows (wide, and two or more family members). */
+export function ledgerColumnCount(narrow: boolean, showMemberCol: boolean): number {
+  if (narrow) return 5;
+  return 8 + (showMemberCol ? 1 : 0);
+}

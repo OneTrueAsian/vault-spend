@@ -172,4 +172,36 @@ describe("RowFieldDropdown", () => {
       expect(document.activeElement).toBe(menuButton("Groceries"));
     });
   });
+
+  describe("plain variant", () => {
+    it("is boxed by default", () => {
+      show("1");
+      expect(trigger().classList.contains("row-field-toggle-plain")).toBe(false);
+    });
+
+    it("adds the plain class and any extra trigger class, keeping the aria-label", () => {
+      act(() => {
+        root.render(
+          <RowFieldDropdown options={OPTIONS} value="1" ariaLabel='Account for "Green Leaf Grocers"' onChange={onChange} variant="plain" triggerClassName="row-field-needs" />,
+        );
+      });
+      expect(trigger().classList.contains("row-field-toggle-plain")).toBe(true);
+      expect(trigger().classList.contains("row-field-needs")).toBe(true);
+      expect(trigger().getAttribute("aria-label")).toBe('Account for "Green Leaf Grocers"');
+    });
+
+    it("lets displayLabel blank the trigger text while the menu still lists every option", () => {
+      const members = [
+        { value: "", label: "No one" },
+        { value: "1", label: "Alex" },
+      ];
+      act(() => {
+        root.render(<RowFieldDropdown options={members} value="" ariaLabel='Family member for "Coffee"' onChange={onChange} variant="plain" displayLabel="" />);
+      });
+      expect(trigger().textContent).toBe("▾");
+      openMenu();
+      expect([...document.querySelectorAll("[role='menuitemradio']")].map((b) => b.textContent?.replace("✓", ""))).toEqual(["No one", "Alex"]);
+      expect(menuButton("No one").getAttribute("aria-checked")).toBe("true");
+    });
+  });
 });

@@ -1,6 +1,8 @@
 /* RowMenu: the shared "⋯" actions menu on a row. The panel is portaled and positioned inline by
    useFixedPanel; `.row-field-panel-fixed` (Ledger.css) supplies position: fixed. */
-.row-menu-toggle {
+/* `button.` (0,1,1) outranks each style's plain-button look, e.g. Retro's raised
+   `[data-palette="retro"] :where(button)` (0,1,0): the trigger is a quiet glyph, not a button face. */
+button.row-menu-toggle {
   width: 28px;
   height: 28px;
   padding: 0;
@@ -10,16 +12,21 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
+  box-shadow: none;
   color: var(--text-muted);
-  font-size: 1.1em;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
 }
 
-.row-menu-toggle:hover,
-.row-menu-toggle:focus-visible,
-.row-menu-toggle[aria-expanded="true"] {
+/* (0,2,1) also outranks the global `button:hover` accent fill and Retro's `:where(button):hover`. */
+button.row-menu-toggle:hover,
+button.row-menu-toggle:focus-visible,
+button.row-menu-toggle[aria-expanded="true"] {
+  background: var(--surface-2);
   border-color: var(--border);
+  color: var(--text);
 }
 
 .row-menu-panel {
@@ -35,38 +42,72 @@
   box-shadow: var(--shadow-sm);
 }
 
-.row-menu-item {
+/* Two classes (0,2,0) so an item never picks up a style's plain-button look (the base button's
+   centred text, Retro's raised face). */
+.row-menu-panel .row-menu-item {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   width: 100%;
   min-height: 32px;
   padding: 0 10px;
   background: transparent;
   border: 0;
   border-radius: 6px;
+  box-shadow: none;
   color: var(--text);
   font: inherit;
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
 }
 
-.row-menu-item:hover,
-.row-menu-item:focus-visible {
+.row-menu-panel .row-menu-item:hover,
+.row-menu-panel .row-menu-item:focus-visible {
   background: var(--accent-soft);
+  border-color: transparent;
 }
 
-.row-menu-item:focus-visible {
+.row-menu-panel .row-menu-item:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
-.row-menu-item[aria-disabled="true"] {
+.row-menu-panel .row-menu-item[aria-disabled="true"] {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.row-menu-item-danger {
+.row-menu-panel .row-menu-item-danger {
   color: var(--negative);
+}
+
+/* Each style's menus, matching its other open menus (MenuSelect, the filters, More). */
+[data-palette="futuristic"] .row-menu-panel {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid rgba(var(--accent-rgb), 0.38);
+  border-radius: var(--radius-menu);
+  box-shadow: 0 18px 36px rgb(0 0 0 / 0.35), 0 0 calc(16px * var(--glow)) rgba(var(--neon-rgb), 0.12);
+}
+
+[data-palette="futuristic"] .row-menu-panel .row-menu-item:hover,
+[data-palette="futuristic"] .row-menu-panel .row-menu-item:focus-visible {
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+[data-palette="retro"] .row-menu-panel {
+  background: var(--retro-face);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised), var(--shadow-md);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+[data-palette="retro"] .row-menu-panel .row-menu-item:hover,
+[data-palette="retro"] .row-menu-panel .row-menu-item:focus-visible {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
 }
 
 .row-menu-check {

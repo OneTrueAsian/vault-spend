@@ -2,6 +2,7 @@ import { ArrowLeftRight } from "lucide-react";
 import type { Transaction } from "./types";
 import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
 import { formatAmount } from "./format";
+import { RowMenu, type RowMenuItem } from "./RowMenu";
 
 /** One linked transfer shown as a single Transactions row instead of two —
  * "Everyday Checking → High-Yield Savings", with the amount unsigned (money
@@ -12,32 +13,28 @@ import { formatAmount } from "./format";
  * again. Selecting the row selects both legs. Each leg is still its own
  * transaction underneath, though, so each keeps its own note action. */
 
-/** One leg's note action — its own account label, its own transaction, never
- * the other leg's. Mirrors the plain row's Add note/Edit note button so the
- * two look and behave the same, just addressed at one specific leg. */
-function LegNoteAction({ leg, role, onEditNote }: { leg: Transaction; role: "outgoing" | "incoming"; onEditNote: (t: Transaction) => void }) {
-  const preview = leg.notes && leg.notes.length > 28 ? `${leg.notes.slice(0, 28)}…` : leg.notes;
-  return leg.notes ? (
+/** One leg's note, previewed as muted text under the description (it opens the note dialog). The
+ * Add/Edit actions themselves live in the row's `⋯` menu, one per leg, each named by its account. */
+function LegNotePreview({ leg, role, onEditNote }: { leg: Transaction; role: "outgoing" | "incoming"; onEditNote: (t: Transaction) => void }) {
+  if (!leg.notes) return null;
+  const preview = leg.notes.length > 28 ? `${leg.notes.slice(0, 28)}…` : leg.notes;
+  return (
     <button
       type="button"
-      className="modal-secondary btn-sm transaction-note-preview"
+      className="transaction-note-preview"
       onClick={() => onEditNote(leg)}
       title={leg.notes}
       aria-label={`Edit note for ${leg.account_name} (${role} leg)`}
     >
       {leg.account_name}: {preview}
     </button>
-  ) : (
-    <button
-      type="button"
-      className="modal-secondary btn-sm transaction-note-add"
-      onClick={() => onEditNote(leg)}
-      aria-label={`Add note for ${leg.account_name} (${role} leg)`}
-    >
-      {leg.account_name}: + Add note
-    </button>
   );
 }
+
+const legNoteItem = (leg: Transaction, onEditNote: (t: Transaction) => void): RowMenuItem => ({
+  label: leg.notes ? `Edit note for ${leg.account_name}…` : `Add note to ${leg.account_name}…`,
+  onSelect: () => onEditNote(leg),
+});
 
 export function TransferRow({
   out,
@@ -47,7 +44,7 @@ export function TransferRow({
   onToggleSelected,
   onUnlink,
   onEditNote,
-  showDebtColumn,
+  showMemberCol,
   narrow,
   detailsOpen,
   onToggleDetails,
@@ -60,8 +57,8 @@ export function TransferRow({
   onUnlink: () => void;
   /** Each leg is still its own transaction, so notes are edited per leg. */
   onEditNote: (t: Transaction) => void;
-  /** Whether the ledger has its (empty here) Debt column, so this row lines up. */
-  showDebtColumn: boolean;
+  /** Whether the ledger shows its Member column; the accounts line spans it so this row lines up. */
+  showMemberCol: boolean;
   /** Below the ledger's narrow breakpoint, the account line, Transfer badge,
    * and Source move into an expandable Details panel, same as an ordinary
    * row's Account/Member/Category/Source/Debt do. */
@@ -97,16 +94,18 @@ export function TransferRow({
           </span>
           <AppliedPaymentDetails transaction={out} />
           <AppliedPaymentDetails transaction={incoming} />
-          <div className="transfer-row-notes">
-            <LegNoteAction leg={out} role="outgoing" onEditNote={onEditNote} />
-            <LegNoteAction leg={incoming} role="incoming" onEditNote={onEditNote} />
-          </div>
+          {(out.notes || incoming.notes) && (
+            <div className="transfer-row-notes">
+              <LegNotePreview leg={out} role="outgoing" onEditNote={onEditNote} />
+              <LegNotePreview leg={incoming} role="incoming" onEditNote={onEditNote} />
+            </div>
+          )}
         </td>
         <td className="amount-col">
           <span className="transfer-amount">{formatAmount(incoming.amount)}</span>
         </td>
         {!narrow && (
-          <td className="account-col transfer-accounts" colSpan={2}>
+          <td className="account-col transfer-accounts" colSpan={showMemberCol ? 2 : 1}>
             {accountsLine}
           </td>
         )}
@@ -116,16 +115,20 @@ export function TransferRow({
           </td>
         )}
         {!narrow && <td className="source-col">linked</td>}
-        {!narrow && showDebtColumn && <td className="debt-col"></td>}
         <td className="actions-col">
           {narrow && (
             <button type="button" className="modal-secondary" aria-expanded={detailsOpen} onClick={onToggleDetails}>
               {detailsOpen ? "Hide details" : "Details"}
             </button>
           )}
-          <button type="button" className="modal-secondary" onClick={onUnlink} title="Show these as two separate transactions again">
-            Unlink
-          </button>
+          <RowMenu
+            label={`Actions for the transfer from ${out.account_name} to ${incoming.account_name}`}
+            items={[
+              { label: "Unlink transfer…", onSelect: onUnlink },
+              legNoteItem(out, onEditNote),
+              legNoteItem(incoming, onEditNote),
+            ]}
+          />
         </td>
       </tr>
       {narrow && detailsOpen && (
