@@ -269,7 +269,7 @@ Drop the big top bar. Hide amounts and Light / Dark / System move to the bottom 
 - Modify: `src/SettingsView.tsx` (`AboutSection`, line ~1106: add the tagline line)
 - Modify: `src/App.css` (line ~420: any sticky offset that assumed the top bar)
 - Create: `src/frameLayout.test.ts` (source guard)
-- Modify E2E: `feature38_theme_style`, `feature142_retro_theme`, `feature153_futuristic_refresh`, `feature157_loading_state`, `feature88_text_inputs_match` (they reference `.topbar`), `feature61_layout_fixes` and `feature112_inbox_bulk_review` (import controls). Create `e2e/feature166_page_frame.mjs`.
+- Modify E2E: `feature38_theme_style`, `feature142_retro_theme`, `feature153_futuristic_refresh`, `feature157_loading_state`, `feature88_text_inputs_match` (they reference `.topbar`), `feature61_layout_fixes` and `feature112_inbox_bulk_review` (import controls). Create `e2e/feature266_page_frame.mjs`.
 
 **Interfaces:**
 - Produces: `SidebarControls(props: { privacyHidden: boolean; onTogglePrivacy: () => void; theme: Theme; onSetTheme: (t: Theme) => void })`. It keeps the existing hooks `button.privacy-toggle[data-privacy-toggle]` and `.theme-toggle` / `.theme-toggle-active` so the existing E2E selectors still work. It adds a `button.theme-cycle[data-theme-cycle]`, which Task 3 shows in icon mode.
@@ -299,13 +299,13 @@ Drop the big top bar. Hide amounts and Light / Dark / System move to the bottom 
 - [ ] **Step 6: E2E.**
   - Update the five `.topbar` specs. Theme and privacy selectors are unchanged; only selectors scoped by `.topbar` change, to `.sidebar-controls`.
   - In `feature157_loading_state`, change whatever it waited on in the top bar to the sidebar.
-  - Create `e2e/feature166_page_frame.mjs`. Launch, set the window to 1440×1000, and check each of these with `waitUntilOrDiagnose`:
+  - Create `e2e/feature266_page_frame.mjs`. Launch, set the window to 1440×1000, and check each of these with `waitUntilOrDiagnose`:
     - there's no `.topbar` element
     - `.sidebar-foot [data-privacy-toggle]` and `.sidebar-foot .theme-toggle` are displayed
     - on Transactions, `.page-top .page-actions` contains the buttons "Import transactions…" and "Add transaction…"
     - on the Dashboard, after `document.querySelector('.main').scrollTop = 400`, no element with `position: sticky|fixed` and a height over 60px sits at the top of `.main` (the old cover-up)
     - clicking "Dark" sets `document.documentElement.dataset.theme` (or whatever `feature38` already reads) to dark
-  - Rebuild, then run `npm run e2e -- --spec=smoke,38,142,153,157,88,61,112,72,146,89,95,166`. Expected: all PASS.
+  - Rebuild, then run `npm run e2e -- --spec=smoke,38,142,153,157,88,61,112,72,146,89,95,266`. Expected: all PASS.
 - [ ] **Step 7: Commit**: `"Drop the top bar: theme and Hide amounts in the sidebar, page actions beside titles"`.
 
 ---
@@ -315,7 +315,7 @@ Drop the big top bar. Hide amounts and Light / Dark / System move to the bottom 
 **Files:**
 - Modify: `src/AppResponsive.css` (breakpoint 760 → 1000px), `src/AppShell.css`, `src/App.tsx` (sidebar markup around line 3498)
 - Modify: `e2e/harness.mjs` (`launchApp` default window size), `e2e/harness.test.mjs`
-- Create: `src/sidebarNames.test.tsx`, `e2e/feature167_icon_sidebar.mjs`
+- Create: `src/sidebarNames.test.tsx`, `e2e/feature267_icon_sidebar.mjs`
 
 **Interfaces:**
 - Consumes: `SidebarControls` from Task 2 (its `[data-theme-cycle]` button).
@@ -334,7 +334,7 @@ Drop the big top bar. Hide amounts and Light / Dark / System move to the bottom 
   - Sidebar foot in icon mode: hide `.theme-toggle` and show `[data-theme-cycle]`. The privacy button shows an eye glyph, with its text visually hidden but still present.
 - [ ] **Step 4:** Run `npm test`, lint and tsc. Expected: PASS.
 - [ ] **Step 5: E2E window default.** With the rail kicking in at 1000px, the 800×600 default window would hide nav text from the `button*=Settings` selectors (49 uses). In `launchApp`, add an option `windowSize = { width: 1280, height: 800 }` that is applied after launch. `reclaimWindowFocus` already re-applies the last size it set, so make it read the stored value. Specs that need the narrow layout already call `setWindowSize(800, …)` explicitly; leave them alone. Update `e2e/harness.test.mjs` for the new default.
-- [ ] **Step 6: New spec** `e2e/feature167_icon_sidebar.mjs`:
+- [ ] **Step 6: New spec** `e2e/feature267_icon_sidebar.mjs`:
   - At 900×800, `.nav-item[data-tab=budget]` has rendered width under 80px. `aria-label` is "Budget". `browser.execute(() => getComputedStyle(document.querySelector('.nav-item[data-tab=budget] .nav-text')).position)` returns `"absolute"`.
   - Focusing it shows the tooltip (the computed `::after` content is `"Budget"`).
   - Clicking `[data-sidebar-expand]` makes the sidebar at least 200px wide. Clicking the Budget tab collapses it, and the active tab is Budget.
@@ -352,7 +352,7 @@ Make each row plain text, put the actions in the `⋯` menu, right-align amounts
 **Files:**
 - Modify: `src/LedgerTable.tsx`, `src/TransferRow.tsx`, `src/Ledger.css`, `src/RowFieldDropdown.tsx` (add a `plain` variant), `src/App.tsx` (stats tiles at ~3736, ledger subtitle at ~3700, `ledgerColumnCount`)
 - Create: `src/ledgerRowActions.ts`, `src/ledgerRowActions.test.ts`, `src/LedgerNeedsCategory.tsx`, `src/LedgerNeedsCategory.test.tsx`
-- Modify E2E: specs that click row-level Split, Apply to a debt, Split principal, + Add note, + tag or Delete. Find them all with `grep -ln "split-toggle\|debt-apply-trigger\|transaction-note-add\|tag-input\|button=Delete\|Needs a category\|stat-label\|member-col\|Unassigned" e2e/*.mjs`. Today that includes 1, 4, 5, 12, 23, 28, 49, 57, 159. Create `e2e/feature168_calm_ledger.mjs`.
+- Modify E2E: specs that click row-level Split, Apply to a debt, Split principal, + Add note, + tag or Delete. Find them all with `grep -ln "split-toggle\|debt-apply-trigger\|transaction-note-add\|tag-input\|button=Delete\|Needs a category\|stat-label\|member-col\|Unassigned" e2e/*.mjs`. Today that includes 1, 4, 5, 12, 23, 28, 49, 57, 159. Create `e2e/feature268_calm_ledger.mjs`.
 
 **Interfaces:**
 - Consumes: `RowMenu`, `RowMenuItem` and `chooseRowAction` (Task 1).
@@ -426,13 +426,13 @@ describe("ledgerRowActions", () => {
 - [ ] **Step 7:** Run `npm test`, lint and tsc. Expected: PASS.
 - [ ] **Step 8: E2E.**
   - In every spec found with the grep above, replace the clicks on the old row buttons with `chooseRowAction(browser, async () => (await row).$("[data-row-menu]"), "Split…")` (or the matching label). Replace stat-tile reads with `[data-needs-category]`.
-  - New `e2e/feature168_calm_ledger.mjs`, run on the household demo data path the other ledger specs use, at 1440×1000:
+  - New `e2e/feature268_calm_ledger.mjs`, run on the household demo data path the other ledger specs use, at 1440×1000:
     - count visible rows in the first `innerHeight` of `.ledger-table-scroll` and assert at least 12 (the review measured 7)
     - every amount cell's right edge lines up within 1px
     - the `⋯` menu on the last visible row opens fully inside the window, above the trigger (Review Focus 5)
     - choosing "Add tag…" then typing `trip` and Enter adds a `trip` pill
     - the needs-category line appears after making one transaction uncategorized, and "Review" filters to it
-  - Rebuild, then run `npm run e2e -- --spec=smoke,1,4,5,12,23,28,49,57,159,138,163,168` plus any other spec the grep found. Expected: PASS.
+  - Rebuild, then run `npm run e2e -- --spec=smoke,1,4,5,12,23,28,49,57,159,138,163,268` plus any other spec the grep found. Expected: PASS.
 - [ ] **Step 9: Commit**: `"Calm the Transactions table: plain cells, ⋯ row menu, right-aligned amounts, one needs-a-category line"`.
 
 ---
@@ -442,7 +442,7 @@ describe("ledgerRowActions", () => {
 **Files:**
 - Modify: `src/BudgetView.tsx` (summary at ~588–628, group tiles at ~641–682, `BudgetRow` at ~240–402), `src/BudgetAndGoals.css`, `src/App.tsx` (pass `amountsHidden` to `BudgetView`)
 - Create: `src/budgetSummary.ts`, `src/budgetSummary.test.ts`, `src/BudgetView.test.tsx`
-- Modify E2E: grep `e2e/*.mjs` for `data-planned-net|data-actual-net|budget-cap-toggle|cat-row|group-card|Roll over|Warn at 90|Budget group for|Move up` and update those specs. Create `e2e/feature169_budget_rows.mjs`.
+- Modify E2E: grep `e2e/*.mjs` for `data-planned-net|data-actual-net|budget-cap-toggle|cat-row|group-card|Roll over|Warn at 90|Budget group for|Move up` and update those specs. Create `e2e/feature269_budget_rows.mjs`.
 
 **Interfaces:**
 - Consumes: `RowMenu` (Task 1).
@@ -494,7 +494,7 @@ describe("ledgerRowActions", () => {
 - [ ] **Step 7:** Pass `amountsHidden` from `App.tsx` (the existing `amountsHidden` at line ~1265). Run `npm test`, lint and tsc. Expected: PASS.
 - [ ] **Step 8: E2E.**
   - Update the specs the grep found. Group changes now go through `chooseRowAction(…, "Move to Flexible")`, and the toggles through the check items.
-  - New `e2e/feature169_budget_rows.mjs` at 1440×1000:
+  - New `e2e/feature269_budget_rows.mjs` at 1440×1000:
     - the first category row's top sits less than 420px below `.view-title`'s top (the review measured about 700px of totals)
     - typing `250` into `input[aria-label="Budget for Groceries"]` then Tab saves (reload the tab and the value stays)
     - toggling "Roll over unspent" in the menu shows the "Rolls over" marker
@@ -509,7 +509,7 @@ describe("ledgerRowActions", () => {
 
 **Files:**
 - Modify: `src/dashboardLayout.ts` (`DEFAULT_LAYOUT`, `loadDashboardLayout`), `src/dashboardLayout.test.ts`, `src/DashboardView.tsx` (header ~1200–1308, runway ~656), `src/DashboardCards.css`
-- Modify E2E: `feature39_dashboard_customize`, `feature56_save_custom_dashboard_layout`, `feature132_layout_load_race`, plus any spec that reads `.quick-actions`. Create `e2e/feature170_dashboard_order.mjs`.
+- Modify E2E: `feature39_dashboard_customize`, `feature56_save_custom_dashboard_layout`, `feature132_layout_load_race`, plus any spec that reads `.quick-actions`. Create `e2e/feature270_dashboard_order.mjs`.
 
 **Interfaces:**
 - Produces: `OLD_DEFAULT_LAYOUT_V1: readonly WidgetId[]`, the pre-1.3.0 default, exported for the migration test. `loadDashboardLayout()` returns the new `DEFAULT_LAYOUT` when the saved list equals `OLD_DEFAULT_LAYOUT_V1` exactly.
@@ -532,13 +532,13 @@ describe("ledgerRowActions", () => {
 - [ ] **Step 7:** Run `npm test` (including a `DashboardView` render assertion that `.ledger-qa` (whatever `LedgerQaBox`'s root class is) is the first element after `.page-top`, so the owner's rule is pinned), lint and tsc. Expected: PASS.
 - [ ] **Step 8: E2E.**
   - Update 39, 56 and 132: Customize is now chosen from the Layout menu with `chooseMenuOption(trigger, { label: "Customize…" })`.
-  - New `e2e/feature170_dashboard_order.mjs`:
+  - New `e2e/feature270_dashboard_order.mjs`:
     - Ask the Vault's input is displayed and at least 50% of `.page` width (the size didn't shrink)
     - the four stat tiles together span at least 95% of their row
     - in a fresh profile, the To do card (when present) comes before Safe to spend and before Runway in DOM order
     - the ring card contains "Goal: 6 months"
     - the Layout trigger text starts with "Layout:"
-  - Rebuild, run `--spec=39,56,132,127,36,42,170,smoke`. Expected: PASS.
+  - Rebuild, run `--spec=39,56,132,127,36,42,270,smoke`. Expected: PASS.
 - [ ] **Step 9: Commit**: `"Dashboard: money first, To do next, full-width tiles, Layout menu with Customize, labelled ring (Ask the Vault unchanged)"`.
 
 ---
@@ -550,7 +550,7 @@ The rule: **red only for things that need you**: over budget, a bill past due, a
 **Files:**
 - Create: `src/colourStatus.ts`, `src/colourStatus.test.ts`, `src/budgetAlertText.ts`, `src/budgetAlertText.test.ts`
 - Modify: `src/DashboardView.tsx` (debt tile ~597–625, alert banner ~696–706), `src/BudgetView.tsx` (income/net colours, the `100%` badge ~293–305), `src/RecurringView.tsx` (tile tints), `src/Ledger.css`/`DashboardCards.css`/`BudgetAndGoals.css` as needed
-- Modify E2E: `feature36` (debt tile colour; it reads `data-stat="debt"`), plus grep for `report-over-budget|report-good|approaching` in `e2e/*.mjs`. Create `e2e/feature171_colour_meaning.mjs`.
+- Modify E2E: `feature36` (debt tile colour; it reads `data-stat="debt"`), plus grep for `report-over-budget|report-good|approaching` in `e2e/*.mjs`. Create `e2e/feature271_colour_meaning.mjs`.
 
 **Interfaces:**
 - Produces:
@@ -581,7 +581,7 @@ The rule: **red only for things that need you**: over budget, a bill past due, a
 - [ ] **Step 5:** Run `npm test`, lint and tsc. Expected: PASS.
 - [ ] **Step 6: E2E.**
   - Update `feature36` so it expects the debt *value* to be neutral and the *delta* coloured.
-  - New `e2e/feature171_colour_meaning.mjs`:
+  - New `e2e/feature271_colour_meaning.mjs`:
     - on the household demo, the Debt `.stat-value` computed colour equals the Net worth `.stat-value` colour
     - the budget alert banner text contains a category name
     - on the Budget tab in the current month, the income heading progress fill isn't the `--negative` colour (read `getComputedStyle(document.documentElement).getPropertyValue('--negative')` and compare)
@@ -599,7 +599,7 @@ Lists show "Oct 4" for the current year and "Oct 4, 2025" for other years. Date 
 - Create: `src/DateField.tsx`, `src/DateField.css`, `src/DateField.test.tsx`
 - Modify display sites (from `rg -n "\{[a-z.]*\.(date|next_date|valued_on)\}" src --glob '!Mobile*' --glob '!mobile*'`): `AccountDetailView.tsx:234,277`, `AppliedPaymentDetails.tsx:12`, `CashFlowView.tsx:384,394`, `CategorySpendDialog.tsx:39`, `DashboardView.tsx:856,885`, `ImportInboxDialog.tsx:201`, `ImportNeedsChoice.tsx:68`, `ImportReviewDialog.tsx:134`, `InvestmentsView.tsx:643`, `ledgerQa.ts:415`, `LedgerTable.tsx:410`, `Modal.tsx:1070,1794,1807,1877`, `RecategorizedReviewPanel.tsx:44`, `ReportsOverview.tsx:542`, `RecurringView.tsx:715`, `SafeToSpendCard.tsx:93`, `TransferRow.tsx:89`, `PropertyAssets.tsx:200`, `App.tsx:1795,2138`. Also `ReportsOverview.tsx:498,521`, which hand-build "Oct 4, 2026"; switch those to the helper.
 - Modify date inputs (`rg -n 'type="date"' src --glob '!Mobile*' --glob '!mobile*'`): `AccountDetailView`, `BucketsView`, `comparisons/AmountEditor`, `LedgerTable`, `Modal`, `MoreFiltersPopover`, `RecurringView`. There are 10 inputs.
-- Modify E2E: grep `e2e/*.mjs` for assertions that read *displayed* ISO dates (`getText()` compared to `/\d{4}-\d{2}-\d{2}/` or a literal date). Today 18 files contain ISO literals; most are fixture inputs (leave those). Update only reads of on-screen text. Create `e2e/feature172_dates.mjs`.
+- Modify E2E: grep `e2e/*.mjs` for assertions that read *displayed* ISO dates (`getText()` compared to `/\d{4}-\d{2}-\d{2}/` or a literal date). Today 18 files contain ISO literals; most are fixture inputs (leave those). Update only reads of on-screen text. Create `e2e/feature272_dates.mjs`.
 
 **Interfaces:**
 - Produces:
@@ -628,7 +628,7 @@ Lists show "Oct 4" for the current year and "Oct 4, 2025" for other years. Date 
 - [ ] **Step 6:** Run `npm test` (fix any snapshot or text expectations that read ISO on screen), lint and tsc. Expected: PASS.
 - [ ] **Step 7: E2E.**
   - Update the display-reading assertions.
-  - New `e2e/feature172_dates.mjs`:
+  - New `e2e/feature272_dates.mjs`:
     - the first ledger row's date cell matches `/^[A-Z][a-z]{2} \d{1,2}(, \d{4})?$/`
     - a date field in Add transaction shows "Oct 4, 2026"-style text (build the expected text from today's date in the spec, never hard-coded; see the `no-hardcoded-dates` guard)
     - `setValue` on the inner input changes the saved transaction date
@@ -642,7 +642,7 @@ Lists show "Oct 4" for the current year and "Oct 4, 2025" for other years. Date 
 
 **Files:**
 - Modify: `src/charts.tsx` (`SeriesChart` lines ~578–590 already measure; `BarChart` at ~187; `LineChart` at ~344), `src/charts.test.ts`, `src/BarChart.test.tsx`, `src/CashFlowCharts.css`
-- Create: `e2e/feature173_chart_width.mjs`
+- Create: `e2e/feature273_chart_width.mjs`
 
 **Interfaces:**
 - Produces: `useMeasuredWidth(fallback: number, min = 280): [RefObject<HTMLDivElement | null>, number]`, extracted from `SeriesChart`. `BarChart` and `LineChart` wrap their `<svg>` in `<div ref={ref} className="chart-fit">` and draw at the measured width, with `viewBox` width equal to the measured width. Drop `preserveAspectRatio="xMidYMid meet"` scaling.
@@ -652,7 +652,7 @@ Lists show "Oct 4" for the current year and "Oct 4, 2025" for other years. Date 
 - [ ] **Step 3: Implement** the hook, and use it in all three charts (SeriesChart switches to the hook too, with no behaviour change). For `BarChart`, cap `barW` at 48px so wide cards don't get absurd bars, and centre each bar in its group. Keep `axisGutter` (bug 3's fix).
 - [ ] **Step 4:** In `CashFlowCharts.css` and any card CSS that sets a `max-width` on the chart wrapper, remove the cap so `.chart-fit` is `width: 100%`.
 - [ ] **Step 5:** Run `npm test`, lint and tsc. Expected: PASS.
-- [ ] **Step 6: E2E** `e2e/feature173_chart_width.mjs`: at 1440×1000, on Cash Flow and on an account's detail page, each chart `<svg>`'s width is at least 90% of its `.card`'s content width. Rebuild, run 173 plus `92,89,93`. Expected: PASS.
+- [ ] **Step 6: E2E** `e2e/feature273_chart_width.mjs`: at 1440×1000, on Cash Flow and on an account's detail page, each chart `<svg>`'s width is at least 90% of its `.card`'s content width. Rebuild, run 173 plus `92,89,93`. Expected: PASS.
 - [ ] **Step 7: Commit**: `"Charts draw at their card's full width"`.
 
 ---
@@ -661,7 +661,7 @@ Lists show "Oct 4" for the current year and "Oct 4, 2025" for other years. Date 
 
 **Files:**
 - Modify: `src/AccountsView.tsx` (card ~128–200), `src/AccountsCards.css`, `src/accountGroups.ts` (add `accountTypeLabel`), `src/accountGroups.test.ts`, the account-type icon mapping (find it with `rg -n "AccountTypeIcon" src/icons`)
-- Modify E2E: `feature23`, `53`, `59`, `65`, `92`, `158` (they use `.account-card`). Create `e2e/feature174_account_rows.mjs`.
+- Modify E2E: `feature23`, `53`, `59`, `65`, `92`, `158` (they use `.account-card`). Create `e2e/feature274_account_rows.mjs`.
 
 **Interfaces:**
 - Consumes: `RowMenu` (Task 1).
@@ -684,7 +684,7 @@ Lists show "Oct 4" for the current year and "Oct 4, 2025" for other years. Date 
 - [ ] **Step 4:** Run `npm test`, lint and tsc. Expected: PASS.
 - [ ] **Step 5: E2E.**
   - Update the six specs. Details now opens by clicking `.account-card-open`, and Edit by `chooseRowAction(..., "Edit…")`.
-  - New `feature174_account_rows.mjs`:
+  - New `feature274_account_rows.mjs`:
     - all account cards in a group have the same left x and width
     - the balances' right edges line up within 1px
     - no card text contains a lowercase account type at word start (`/\b(savings|checking|property|loan)\b/`)
@@ -699,7 +699,7 @@ Lists show "Oct 4" for the current year and "Oct 4, 2025" for other years. Date 
 **Files:**
 - Modify: `src/BucketsView.tsx` (`NewBucketForm` at line 72, empty state at line 429), `src/BudgetAndGoals.css`
 - Create: `src/BucketsView.test.tsx` (or extend it if it exists)
-- Create: `e2e/feature175_goals_empty.mjs`
+- Create: `e2e/feature275_goals_empty.mjs`
 
 **Interfaces:**
 - Produces: `NewBucketForm` takes controlled `open: boolean`, `onOpenChange: (open: boolean) => void` and `initialName?: string`. Its own `useState` for `open` goes away. `BucketsView` owns `const [newGoalOpen, setNewGoalOpen] = useState(false)` and `const [newGoalName, setNewGoalName] = useState("")`.
@@ -714,7 +714,7 @@ Lists show "Oct 4" for the current year and "Oct 4, 2025" for other years. Date 
 - [ ] **Step 2:** Run. Expected: FAIL.
 - [ ] **Step 3: Implement.** Lift `open` into props as above. When `buckets.length === 0 && !newGoalOpen`, render the centred block `.goals-empty` (heading "No goals yet", the sentence, the primary button, and a row of three `modal-secondary` example buttons that set the name and open the form). When the form is open, show it inside the same centred block. Remove the old `<p className="empty-state">` line.
 - [ ] **Step 4:** Run `npm test`, lint and tsc. Expected: PASS.
-- [ ] **Step 5: E2E** `feature175_goals_empty.mjs`: in a fresh profile on Goals, the block is centred (its centre is within 40px of `.page`'s centre). Clicking "Emergency fund" then saving creates a goal named "Emergency fund". Rebuild, run 175 plus `8,84`. Expected: PASS.
+- [ ] **Step 5: E2E** `feature275_goals_empty.mjs`: in a fresh profile on Goals, the block is centred (its centre is within 40px of `.page`'s centre). Clicking "Emergency fund" then saving creates a goal named "Emergency fund". Rebuild, run 175 plus `8,84`. Expected: PASS.
 - [ ] **Step 6: Commit**: `"Goals: a clear empty page with Create a goal and three examples"`.
 
 ---
@@ -750,7 +750,7 @@ Lists show "Oct 4" for the current year and "Oct 4, 2025" for other years. Date 
 **Files:**
 - Modify: `src/Modal.tsx` (`NewTransactionDialog`, lines 436–560)
 - Create: `src/transactionDirection.ts`, `src/transactionDirection.test.ts`, extend or create `src/NewTransactionDialog.test.tsx`
-- Modify E2E: `feature28`, `53`, `58`, `84`, `91` (they find the amount by the placeholder "Negative = money out"). Create `e2e/feature176_money_in_out.mjs`.
+- Modify E2E: `feature28`, `53`, `58`, `84`, `91` (they find the amount by the placeholder "Negative = money out"). Create `e2e/feature276_money_in_out.mjs`.
 
 **Interfaces:**
 - Produces:
@@ -809,8 +809,8 @@ describe("directionLabels", () => {
 - [ ] **Step 4:** Run `npm test`, lint and tsc. Expected: PASS.
 - [ ] **Step 5: E2E.**
   - Update the five specs. Use `[data-amount-input]`, type the absolute value, and click "Money in" where the old test typed a positive number. Expected balances must stay exactly as before.
-  - New `feature176_money_in_out.mjs`: add `-25` with Money out, and the ledger shows −$25.00. Add `25` with Money in, and it shows $25.00. On a credit card account the switch reads Charge | Payment.
-  - Rebuild, run `--spec=28,53,58,84,91,176,smoke`. Expected: PASS.
+  - New `feature276_money_in_out.mjs`: add `-25` with Money out, and the ledger shows −$25.00. Add `25` with Money in, and it shows $25.00. On a credit card account the switch reads Charge | Payment.
+  - Rebuild, run `--spec=28,53,58,84,91,276,smoke`. Expected: PASS.
 - [ ] **Step 6: Commit**: `"Add transaction: Money out / Money in switch (Charge / Payment on cards and loans) instead of a minus sign"`.
 
 ---
@@ -861,7 +861,7 @@ This task is last so Help describes the finished UI.
 - Create: `src/HelpLink.tsx`
 - Modify: every view's `page-top` title (Dashboard, Transactions (in `App.tsx`), Accounts, Budget, Recurring, Goals, Cash Flow, Reports, Investments, Household, Settings)
 - Modify: `README.md` (the Help comment says keep it in sync)
-- Modify E2E: `feature96_accumulation_help` (`.tour-list`). Create `e2e/feature177_help_sections.mjs`.
+- Modify E2E: `feature96_accumulation_help` (`.tour-list`). Create `e2e/feature277_help_sections.mjs`.
 
 **Interfaces:**
 - Produces:
@@ -889,7 +889,7 @@ This task is last so Help describes the finished UI.
 - [ ] **Step 4: Add** a `HelpLink` beside each view's `<h1 className="view-title">` (inside the same flex row), wired through props `onOpenHelp` from `App.tsx`. Help itself gets none.
 - [ ] **Step 5: README.md.** Update the sections describing the top bar, the theme toggle, adding a transaction, the Budget rows, the Transactions row actions and the Dashboard layout to match.
 - [ ] **Step 6:** Run `npm test`, lint and tsc. Expected: PASS.
-- [ ] **Step 7: E2E.** Update `feature96` (the tour is now `details.help-tab`). New `feature177_help_sections.mjs`: on Budget, clicking `[aria-label="Help for Budget"]` opens Help with `#help-budget[open]` in the viewport, and typing "split" in the search box opens the Transactions section. Rebuild, run `96,177,smoke`. Expected: PASS.
+- [ ] **Step 7: E2E.** Update `feature96` (the tour is now `details.help-tab`). New `feature277_help_sections.mjs`: on Budget, clicking `[aria-label="Help for Budget"]` opens Help with `#help-budget[open]` in the viewport, and typing "split" in the search box opens the Transactions section. Rebuild, run `96,177,smoke`. Expected: PASS.
 - [ ] **Step 8: Commit**: `"Help: one short section per tab with How do I steps, ? links from every page, updated for the new screens"`.
 
 ---
