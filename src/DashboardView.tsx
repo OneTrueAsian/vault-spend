@@ -659,7 +659,7 @@ export function DashboardView({
     runway: monthsOfRunway !== null && (
       <div className="card runway-card">
         <div className="runway-ring">
-          <ProgressRing pct={runwayPct} size={64} stroke={7} ariaLabel={`${monthsOfRunway.toFixed(1)} of a 6-month goal`} />
+          <ProgressRing pct={runwayPct} size={64} stroke={7} ariaLabel={`${monthsOfRunway.toFixed(1)} months of a 6-month goal`} />
           <span className="runway-goal">Goal: 6 months</span>
         </div>
         <div>
@@ -1310,9 +1310,15 @@ export function DashboardView({
           </button>
         )}
         {customizeMode && (
-          <button type="button" className="modal-secondary btn-sm" onClick={onOpenAddWidget}>
-            + Add widget…
-          </button>
+          <>
+            <button type="button" className="modal-secondary btn-sm" onClick={onOpenAddWidget}>
+              + Add widget…
+            </button>
+            {/* Only while customizing: a visible way out (the Layout menu's "Done customizing" too). */}
+            <button type="button" className="btn-sm" data-customize-done onClick={() => setCustomizeMode(false)}>
+              Done
+            </button>
+          </>
         )}
       </div>
 

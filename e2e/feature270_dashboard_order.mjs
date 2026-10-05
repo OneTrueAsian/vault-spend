@@ -6,10 +6,11 @@
 // - The page's actions (+ Add transaction, + Add account, Set budget, Update goals) are in the
 //   title row.
 // - The four money tiles together fill at least 95% of their row.
-// - The To do card (when there is something to do) comes before Safe to spend and before Runway.
+// - The To do card comes before Safe to spend and before Runway (this data has all three).
 // - The Runway card says "Goal: 6 months" under its ring, and the ring names itself for screen
 //   readers.
-// - The Layout menu reads "Layout: …", and Customize… in it turns on customizing.
+// - The Layout menu reads "Layout: …", and Customize… in it turns on customizing. While customizing,
+//   a visible Done button beside "+ Add widget…" turns it off again (so does "Done customizing").
 // - At 800px wide nothing scrolls sideways.
 // - Screenshots in Default, Futuristic and Retro, Light and Dark, for a look by eye.
 //
@@ -90,8 +91,8 @@ try {
 
   const d = await settled(
     readDashboard,
-    (v) => v.qaIsAskTheVault && v.qaInputShown && v.hasRunway && v.layoutText?.startsWith("Layout:"),
-    "expected Ask the Vault under the title, the Runway card and the Layout menu",
+    (v) => v.qaIsAskTheVault && v.qaInputShown && v.hasTodo && v.hasSafe && v.hasRunway && v.layoutText?.startsWith("Layout:"),
+    "expected Ask the Vault under the title, the To do, Safe to spend and Runway cards, and the Layout menu",
   );
   console.log("dashboard:", JSON.stringify(d));
 
@@ -107,13 +108,14 @@ try {
   assert.equal(d.tileTops, 1, "at 1280 wide the four tiles sit on one line");
 
   // To do first, then Safe to spend and Runway.
+  // All three must be on screen, or the order checks below would pass without comparing anything.
+  assert.ok(d.hasTodo && d.hasSafe && d.hasRunway, `the household data should show To do, Safe to spend and Runway: ${JSON.stringify({ todo: d.hasTodo, safe: d.hasSafe, runway: d.hasRunway })}`);
   assert.ok(d.todoBeforeSafe, "the To do card should come before Safe to spend");
   assert.ok(d.todoBeforeRunway, "the To do card should come before Runway");
-  console.log(`To do shown: ${d.hasTodo}, Safe to spend shown: ${d.hasSafe}`);
 
   // The ring says what it measures against.
   assert.ok(d.runwayText.includes("Goal: 6 months"), `the Runway card should say "Goal: 6 months": ${d.runwayText}`);
-  assert.match(d.ringLabel ?? "", /^\d+\.\d of a 6-month goal$/, "the ring names itself for screen readers");
+  assert.match(d.ringLabel ?? "", /^\d+\.\d months of a 6-month goal$/, "the ring names itself for screen readers");
 
   await browser.saveScreenshot(path.join(shotsDir, "dashboard-1280.png"));
 
@@ -123,6 +125,15 @@ try {
   await settled(() => browser.execute(() => document.querySelectorAll(".dashboard-widget-controls").length), (n) => n > 4, "Customize… should show the widget controls");
   await chooseMenuOption(trigger, { label: "Done customizing" });
   await settled(() => browser.execute(() => document.querySelectorAll(".dashboard-widget-controls").length), (n) => n === 0, "Done customizing should hide them again");
+  // While customizing, a visible Done button sits beside "+ Add widget…"; it isn't there otherwise.
+  const toolbarButtons = () => browser.execute(() => [...document.querySelectorAll(".dashboard-toolbar > button")].map((b) => b.textContent.trim()));
+  await settled(toolbarButtons, (labels) => !labels.includes("Done") && !labels.includes("Customize"), "no Done or Customize button outside Customize mode");
+  await chooseMenuOption(trigger, { label: "Customize…" });
+  const inCustomize = await settled(toolbarButtons, (labels) => labels.includes("Done"), "Customize mode should show a Done button");
+  assert.deepEqual(inCustomize.slice(-2), ["+ Add widget…", "Done"], `Done should sit right after + Add widget…: ${JSON.stringify(inCustomize)}`);
+  await (await browser.$(".dashboard-toolbar > button[data-customize-done]")).click();
+  await settled(() => browser.execute(() => document.querySelectorAll(".dashboard-widget-controls").length), (n) => n === 0, "the Done button should end customizing");
+  await settled(toolbarButtons, (labels) => !labels.includes("Done"), "the Done button goes away once customizing ends");
 
   // Every style, light and dark, for a look by eye; nothing scrolls sideways in any of them.
   for (const [label, palette] of [

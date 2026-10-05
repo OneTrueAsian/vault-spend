@@ -161,6 +161,24 @@ describe("Layout menu", () => {
     expect(menuLabels()).toEqual(["Default", "Bills Focus", "Investor Focus", "Customize…"]);
   });
 
+  it("shows a Done button beside + Add widget… only while customizing, and it ends customizing", async () => {
+    const p = props();
+    await render(p);
+    const toolbarButtons = () => [...container.querySelectorAll(".dashboard-toolbar > button")].map((b) => b.textContent?.trim());
+    expect(toolbarButtons()).not.toContain("Done");
+
+    chooseLayoutOption("Customize…");
+    expect(toolbarButtons().slice(-2)).toEqual(["+ Add widget…", "Done"]);
+
+    act(() => container.querySelector<HTMLButtonElement>(".dashboard-toolbar > button[data-customize-done]")!.click());
+    expect(container.querySelectorAll(".dashboard-widget-controls")).toHaveLength(0);
+    expect(toolbarButtons()).not.toContain("Done");
+    expect(p.onSetLayoutWidgets).not.toHaveBeenCalled();
+    // The menu offers Customize… again.
+    act(() => layoutTrigger().click());
+    expect(menuLabels().at(-1)).toBe("Customize…");
+  });
+
   it("has no separate Customize button", async () => {
     await render(props());
 
@@ -235,6 +253,6 @@ describe("Runway ring", () => {
     expect(card.querySelector(".runway-goal")?.textContent).toBe("Goal: 6 months");
     const ring = card.querySelector("svg")!;
     expect(ring.getAttribute("role")).toBe("img");
-    expect(ring.getAttribute("aria-label")).toBe("2.0 of a 6-month goal");
+    expect(ring.getAttribute("aria-label")).toBe("2.0 months of a 6-month goal");
   });
 });
