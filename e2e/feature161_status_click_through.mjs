@@ -5,17 +5,26 @@
 // Run with: node e2e/feature161_status_click_through.mjs
 
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
-import { freshTestDbDir } from "./lib/seed.mjs";
-import { seedPopulatedProfile } from "./lib/protection.mjs";
+import { launchApp, dismissStatusMessages } from "./harness.mjs";
+import { seedFixture } from "./lib/seed.mjs";
 
-const dbDir = freshTestDbDir();
-await seedPopulatedProfile(dbDir); // opening it rolls the balance forward, which shows a success message
+const dbDir = await seedFixture(`
+cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Brokerage', 'investment', '0')")
+account = cur.lastrowid
+cur.execute("INSERT INTO holdings (account_id,symbol,name,shares,price,cost_basis,asset_class) VALUES (?, 'VTI','Fixture fund',1,10,8,'US Stocks')", (account,))
+`);
 const app = await launchApp({ dbDir });
 try {
   const { browser } = app;
+  // A launch retry can consume the opening maintenance notice, and a slow launch can
+  // outlive its toast. Produce a new success through the real UI once it is driveable.
+  await dismissStatusMessages(browser);
+  await (await browser.$("button*=Investments")).click();
+  const allocation=await browser.$("//div[contains(@class,'card-head')][span[text()='Allocation']]");
+  await allocation.waitForExist({timeout:10000});
+  await (await allocation.$("button=Pin to Dashboard")).click();
   const message = await browser.$(".toast-stack .status");
-  await message.waitForExist({ timeout: 10000, timeoutMsg: "expected the opening message" });
+  await message.waitForExist({ timeout: 10000, timeoutMsg: "expected the pinning success message" });
 
   const hits = await browser.execute(() => {
     const status = document.querySelector(".toast-stack .status");

@@ -392,7 +392,11 @@ pub fn delete_profile(
     paths: tauri::State<crate::config::AppPaths>,
     runtime: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
+    mobile: tauri::State<crate::mobile_api::MobileAccess>,
 ) -> Result<(), String> {
+    // Revoke before removing the registry entry: an I/O failure must never leave old grants
+    // able to match a later profile with a reused internal ID.
+    mobile.devices.remove_profile(&id)?;
     let currently_open = runtime.status() == crate::runtime::RuntimeStatus::Open;
     let mut result = Ok(());
     device.update(|settings| {

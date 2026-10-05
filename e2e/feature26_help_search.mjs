@@ -92,6 +92,20 @@ try {
   await app.browser.keys(["Control", "a"]);
   await app.browser.keys("Backspace");
 
+  await searchInput.setValue("mobile snapshots");
+  await app.browser.waitUntil(async () => {
+    const text = await helpPage.getText();
+    return text.includes("How do I set up mobile snapshots on my phone?") &&
+      text.includes("Can I use mobile snapshots away from my computer?") &&
+      text.includes("How do I stop phone access or remove mobile snapshots?") &&
+      text.includes("Ready offline") && text.includes("No desktop control can remotely erase") &&
+      !text.includes("Getting started");
+  }, { timeout: 10000, timeoutMsg: "mobile setup, offline and removal guidance should be searchable together" });
+  await reclaimWindowFocus(app.browser);
+  await searchInput.click();
+  await app.browser.keys(["Control", "a"]);
+  await app.browser.keys("Backspace");
+
   await searchInput.setValue("zzzznonexistentquery");
   await app.browser.waitUntil(
     async () => {

@@ -30,6 +30,24 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 budget_core = { path = "../core" }
 zeroize = "1"
+rcgen = { version = "=0.14.10", features = ["x509-parser", "zeroize"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+if-addrs = "=0.15.0"
+mdns-sd = "=0.21.5"
+base64 = "0.22"
+sha2 = "0.10"
+getrandom = "0.3"
+time = "0.3"
+x509-parser = { version = "0.18", features = ["verify"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = "=4.2.0"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_RemoteDesktop", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Memory", "Win32_System_RemoteDesktop", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

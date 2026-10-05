@@ -75,6 +75,24 @@ describe("MenuSelect", () => {
     expect(onChange).toHaveBeenCalledWith("custom:Weekly");
     expect(container.querySelector("[role='menu']")).toBeNull();
   });
+  it("keeps an option selectable when pointer activation would move focus out of the menu", () => {
+    show("default");
+    openMenu();
+    const option=item("Bills Focus"),outside=document.createElement("button");
+    document.body.append(outside);
+    try{
+      act(()=>{
+        const down=new MouseEvent("mousedown",{bubbles:true,cancelable:true});
+        option.dispatchEvent(down);
+        // Safari does not give mouse-clicked buttons focus; its default press can
+        // blur the focused menu before click. Model that focus change here.
+        if(!down.defaultPrevented)outside.focus();
+      });
+      act(()=>option.click());
+      expect(onChange).toHaveBeenCalledWith("bills");
+      expect(document.activeElement).toBe(trigger());
+    }finally{outside.remove();}
+  });
 
   it("shows a disabled option that cannot be chosen", () => {
     show("custom");

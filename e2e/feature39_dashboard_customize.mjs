@@ -32,6 +32,7 @@ async function waitForPersistedLayout(browser, predicate, timeoutMsg) {
 const app = await launchApp();
 try {
   // Default layout, default preset.
+  await (await app.browser.$(".layout-select-toggle")).waitForExist({ timeout: 10000 });
   let presetValue = await app.browser.execute(() => document.querySelector(".layout-select-toggle").dataset.value);
   if (presetValue !== "default") throw new Error(`expected the Layout dropdown to start on "default", got "${presetValue}"`);
 

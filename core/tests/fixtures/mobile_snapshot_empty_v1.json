@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "minimumViewerVersion": 1,
+  "installationId": "installation-test",
+  "profile": {
+    "id": "empty-profile",
+    "name": "Fixture only",
+    "icon": null
+  },
+  "epoch": "epoch-test",
+  "sequence": "1",
+  "generatedAt": "2026-10-04T15:00:00Z",
+  "asOfDate": "2026-10-04",
+  "currency": "USD",
+  "sections": {
+    "overview": {
+      "state": "available",
+      "reason": null
+    },
+    "accounts": {
+      "state": "available",
+      "reason": null
+    },
+    "investments": {
+      "state": "unavailable",
+      "reason": "no_holdings"
+    },
+    "budgets": {
+      "state": "available",
+      "reason": null
+    },
+    "reports": {
+      "state": "available",
+      "reason": null
+    },
+    "comparisons": {
+      "state": "unavailable",
+      "reason": "setup_required"
+    },
+    "calculators": {
+      "state": "available",
+      "reason": null
+    }
+  },
+  "members": [],
+  "overview": {
+    "netWorth": "0.00",
+    "cash": "0.00",
+    "debtContribution": "0.00",
+    "investments": "0.00",
+    "otherAccounts": "0.00",
+    "propertyValue": "0.00",
+    "averageMonthlySpend": "0.00",
+    "runwayMonths": null,
+    "propertyValuedFrom": null,
+    "propertyValuedThrough": null
+  },
+  "accounts": [],
+  "investments": {
+    "value": "0.00",
+    "costBasis": null,
+    "unrealizedGain": null,
+    "dayChange": null,
+    "coverage": {
+      "state": "unavailable",
+      "valuedPositions": 0,
+      "totalPositions": 0,
+      "quoteTimestamp": null,
+      "previousCloseDate": null
+    },
+    "accounts": []
+  },
+  "budgets": [],
+  "history": {
+    "fromMonth": null,
+    "throughMonth": null,
+    "actualThrough": "2026-10-04",
+    "months": [],
+    "categories": [],
+    "daily": [],
+    "accounts": [],
+    "members": [],
+    "tags": [],
+    "netWorth": [],
+    "portfolio": [],
+    "memberNetWorth": [],
+    "merchants": [],
+    "budgetCategoryNet": []
+  },
+  "comparisons": {
+    "configured": false,
+    "packageVersion": null,
+    "setupRevision": "0",
+    "problem": "setup_required",
+    "cards": []
+  },
+  "calculators": {
+    "inflationPct": "2.50",
+    "accumulation": [],
+    "debts": [],
+    "forecast": {
+      "throughDate": "2027-01-02",
+      "startBalance": "0.00",
+      "trendDailyNet": "0.00",
+      "everydayDailyNet": "0.00",
+      "usesRecurring": false,
+      "schedule": []
+    },
+    "goals": [],
+    "recurring": {
+      "monthlyIncome": "0.00",
+      "monthlyExpense": "0.00",
+      "annualIncome": "0.00",
+      "annualExpense": "0.00"
+    }
+  }
+}

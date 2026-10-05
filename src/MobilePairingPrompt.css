@@ -1,0 +1,13 @@
+.mobile-pairing-content { overflow-wrap: anywhere; }
+.mobile-pairing-profiles {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 14px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.mobile-pairing-profiles legend { color: var(--text); font-weight: 600; padding: 0 4px; }
+.mobile-pairing-profiles .checkbox-label span { min-width: 0; }
+.mobile-pairing-profiles input { flex: 0 0 auto; }

@@ -1,0 +1,600 @@
+{
+  "schemaVersion": 1,
+  "minimumViewerVersion": 1,
+  "installationId": "installation-test",
+  "profile": {
+    "id": "profile-test",
+    "name": "Fixture only",
+    "icon": null
+  },
+  "epoch": "epoch-test",
+  "sequence": "1",
+  "generatedAt": "2026-10-04T15:00:00Z",
+  "asOfDate": "2026-10-04",
+  "currency": "USD",
+  "sections": {
+    "overview": {
+      "state": "available",
+      "reason": null
+    },
+    "accounts": {
+      "state": "available",
+      "reason": null
+    },
+    "investments": {
+      "state": "partial",
+      "reason": "quote_timestamp_unavailable"
+    },
+    "budgets": {
+      "state": "available",
+      "reason": null
+    },
+    "reports": {
+      "state": "available",
+      "reason": null
+    },
+    "comparisons": {
+      "state": "partial",
+      "reason": "incomplete_coverage"
+    },
+    "calculators": {
+      "state": "available",
+      "reason": null
+    }
+  },
+  "members": [],
+  "overview": {
+    "netWorth": "27800.00",
+    "cash": "6200.00",
+    "debtContribution": "-6400.00",
+    "investments": "15000.00",
+    "otherAccounts": "3000.00",
+    "propertyValue": "10000.00",
+    "averageMonthlySpend": "900.00",
+    "runwayMonths": "6.888888888889",
+    "propertyValuedFrom": "2026-09-01",
+    "propertyValuedThrough": "2026-09-01"
+  },
+  "accounts": [
+    {
+      "id": "checking",
+      "name": "Checking",
+      "accountType": "checking",
+      "balance": "1200.00",
+      "startingBalance": "1000.00",
+      "netWorthContribution": "1200.00",
+      "owed": null,
+      "balanceBasis": "ledger",
+      "checkpointDate": null,
+      "memberId": null,
+      "icon": null
+    },
+    {
+      "id": "savings",
+      "name": "Savings",
+      "accountType": "savings",
+      "balance": "5000.00",
+      "startingBalance": "5000.00",
+      "netWorthContribution": "5000.00",
+      "owed": null,
+      "balanceBasis": "ledger",
+      "checkpointDate": null,
+      "memberId": null,
+      "icon": null
+    },
+    {
+      "id": "credit",
+      "name": "Credit",
+      "accountType": "credit",
+      "balance": "4600.00",
+      "startingBalance": "5000.00",
+      "netWorthContribution": "-400.00",
+      "owed": "400.00",
+      "balanceBasis": "ledger",
+      "checkpointDate": null,
+      "memberId": null,
+      "icon": null
+    },
+    {
+      "id": "loan",
+      "name": "Loan",
+      "accountType": "loan",
+      "balance": "6000.00",
+      "startingBalance": "6500.00",
+      "netWorthContribution": "-6000.00",
+      "owed": "6000.00",
+      "balanceBasis": "ledger",
+      "checkpointDate": null,
+      "memberId": null,
+      "icon": null
+    },
+    {
+      "id": "investment",
+      "name": "Investment",
+      "accountType": "investment",
+      "balance": "15000.00",
+      "startingBalance": "0.00",
+      "netWorthContribution": "15000.00",
+      "owed": null,
+      "balanceBasis": "holdings",
+      "checkpointDate": null,
+      "memberId": null,
+      "icon": null
+    },
+    {
+      "id": "other",
+      "name": "Other",
+      "accountType": "other",
+      "balance": "3000.00",
+      "startingBalance": "3000.00",
+      "netWorthContribution": "3000.00",
+      "owed": null,
+      "balanceBasis": "ledger",
+      "checkpointDate": null,
+      "memberId": null,
+      "icon": null
+    }
+  ],
+  "investments": {
+    "value": "15000.00",
+    "costBasis": "14000.00",
+    "unrealizedGain": "1000.00",
+    "dayChange": null,
+    "coverage": {
+      "state": "partial",
+      "valuedPositions": 1,
+      "totalPositions": 2,
+      "quoteTimestamp": null,
+      "previousCloseDate": null
+    },
+    "accounts": [
+      {
+        "accountId": "investment",
+        "value": "15000.00",
+        "costBasis": "14000.00",
+        "unrealizedGain": "1000.00",
+        "dayChange": null,
+        "coverage": {
+          "state": "partial",
+          "valuedPositions": 1,
+          "totalPositions": 2,
+          "quoteTimestamp": null,
+          "previousCloseDate": null
+        }
+      }
+    ]
+  },
+  "budgets": [
+    {
+      "month": "2026-08",
+      "actualThrough": "2026-08-31",
+      "sourceMonth": "2026-08",
+      "capFeatureEnabled": true,
+      "rolloverFeatureEnabled": true,
+      "lines": [
+        {
+          "category": "Salary",
+          "group": "income",
+          "order": 0,
+          "planned": "5000.00",
+          "actual": "0.00",
+          "rollover": "0.00",
+          "effectiveBudget": "5000.00",
+          "remaining": "-5000.00",
+          "capEnabled": false,
+          "rolloverEnabled": false,
+          "alert": "none"
+        },
+        {
+          "category": "Groceries",
+          "group": "flexible",
+          "order": 1,
+          "planned": "300.00",
+          "actual": "250.00",
+          "rollover": "0.00",
+          "effectiveBudget": "300.00",
+          "remaining": "50.00",
+          "capEnabled": false,
+          "rolloverEnabled": true,
+          "alert": "warning"
+        },
+        {
+          "category": "Housing",
+          "group": "fixed",
+          "order": 2,
+          "planned": "600.00",
+          "actual": "0.00",
+          "rollover": "0.00",
+          "effectiveBudget": "600.00",
+          "remaining": "600.00",
+          "capEnabled": false,
+          "rolloverEnabled": false,
+          "alert": "none"
+        }
+      ],
+      "unbudgetedSpending": "0.00",
+      "actualIncome": "0.00",
+      "actualSpending": "250.00"
+    },
+    {
+      "month": "2026-09",
+      "actualThrough": "2026-09-30",
+      "sourceMonth": "2026-09",
+      "capFeatureEnabled": true,
+      "rolloverFeatureEnabled": true,
+      "lines": [
+        {
+          "category": "Salary",
+          "group": "income",
+          "order": 0,
+          "planned": "5000.00",
+          "actual": "5000.00",
+          "rollover": "0.00",
+          "effectiveBudget": "5000.00",
+          "remaining": "0.00",
+          "capEnabled": false,
+          "rolloverEnabled": false,
+          "alert": "none"
+        },
+        {
+          "category": "Groceries",
+          "group": "flexible",
+          "order": 1,
+          "planned": "300.00",
+          "actual": "250.00",
+          "rollover": "50.00",
+          "effectiveBudget": "350.00",
+          "remaining": "100.00",
+          "capEnabled": false,
+          "rolloverEnabled": true,
+          "alert": "none"
+        },
+        {
+          "category": "Housing",
+          "group": "fixed",
+          "order": 2,
+          "planned": "600.00",
+          "actual": "500.00",
+          "rollover": "0.00",
+          "effectiveBudget": "600.00",
+          "remaining": "100.00",
+          "capEnabled": false,
+          "rolloverEnabled": false,
+          "alert": "warning"
+        }
+      ],
+      "unbudgetedSpending": "50.00",
+      "actualIncome": "5100.00",
+      "actualSpending": "900.00"
+    },
+    {
+      "month": "2026-10",
+      "actualThrough": "2026-10-04",
+      "sourceMonth": "2026-09",
+      "capFeatureEnabled": true,
+      "rolloverFeatureEnabled": true,
+      "lines": [
+        {
+          "category": "Salary",
+          "group": "income",
+          "order": 0,
+          "planned": "5000.00",
+          "actual": "0.00",
+          "rollover": "0.00",
+          "effectiveBudget": "5000.00",
+          "remaining": "-5000.00",
+          "capEnabled": false,
+          "rolloverEnabled": false,
+          "alert": "none"
+        },
+        {
+          "category": "Groceries",
+          "group": "flexible",
+          "order": 1,
+          "planned": "300.00",
+          "actual": "0.00",
+          "rollover": "100.00",
+          "effectiveBudget": "400.00",
+          "remaining": "400.00",
+          "capEnabled": false,
+          "rolloverEnabled": true,
+          "alert": "none"
+        },
+        {
+          "category": "Housing",
+          "group": "fixed",
+          "order": 2,
+          "planned": "600.00",
+          "actual": "0.00",
+          "rollover": "0.00",
+          "effectiveBudget": "600.00",
+          "remaining": "600.00",
+          "capEnabled": false,
+          "rolloverEnabled": false,
+          "alert": "none"
+        }
+      ],
+      "unbudgetedSpending": "0.00",
+      "actualIncome": "0.00",
+      "actualSpending": "0.00"
+    }
+  ],
+  "history": {
+    "fromMonth": "2026-08",
+    "throughMonth": "2026-10",
+    "actualThrough": "2026-10-04",
+    "months": [
+      {
+        "month": "2026-08",
+        "income": "0.00",
+        "spending": "250.00",
+        "savingsRatePct": null
+      },
+      {
+        "month": "2026-09",
+        "income": "5100.00",
+        "spending": "900.00",
+        "savingsRatePct": "82.352941176471"
+      },
+      {
+        "month": "2026-10",
+        "income": "0.00",
+        "spending": "0.00",
+        "savingsRatePct": null
+      }
+    ],
+    "categories": [
+      {
+        "month": "2026-08",
+        "category": "Groceries",
+        "group": "flexible",
+        "spending": "250.00"
+      },
+      {
+        "month": "2026-09",
+        "category": "Groceries",
+        "group": "flexible",
+        "spending": "350.00"
+      },
+      {
+        "month": "2026-09",
+        "category": "Housing",
+        "group": "fixed",
+        "spending": "500.00"
+      },
+      {
+        "month": "2026-09",
+        "category": "Misc",
+        "group": null,
+        "spending": "50.00"
+      }
+    ],
+    "daily": [
+      {
+        "date": "2026-08-02",
+        "spending": "250.00"
+      },
+      {
+        "date": "2026-09-02",
+        "spending": "900.00"
+      }
+    ],
+    "accounts": [
+      {
+        "month": "2026-08",
+        "id": "checking",
+        "label": "Checking",
+        "income": "0.00",
+        "spending": "250.00"
+      },
+      {
+        "month": "2026-09",
+        "id": "checking",
+        "label": "Checking",
+        "income": "5100.00",
+        "spending": "900.00"
+      }
+    ],
+    "members": [],
+    "tags": [],
+    "netWorth": [
+      {
+        "date": "2026-10-04",
+        "netWorth": "27800.00",
+        "cash": "6200.00",
+        "debtContribution": "-6400.00",
+        "investments": "15000.00",
+        "propertyValue": "10000.00",
+        "valuationBasis": "current_saved_values"
+      }
+    ],
+    "portfolio": [
+      {
+        "date": "2026-10-04",
+        "value": "15000.00"
+      }
+    ],
+    "memberNetWorth": [
+      {
+        "memberId": null,
+        "label": "Unassigned",
+        "value": "27800.00"
+      }
+    ],
+    "merchants": [],
+    "budgetCategoryNet": [
+      {
+        "month": "2026-08",
+        "category": "Groceries",
+        "signedAmount": "-250.00"
+      },
+      {
+        "month": "2026-09",
+        "category": "Salary",
+        "signedAmount": "5000.00"
+      },
+      {
+        "month": "2026-09",
+        "category": "Groceries",
+        "signedAmount": "-250.00"
+      },
+      {
+        "month": "2026-09",
+        "category": "Housing",
+        "signedAmount": "-500.00"
+      },
+      {
+        "month": "2026-09",
+        "category": "Misc",
+        "signedAmount": "-50.00"
+      }
+    ]
+  },
+  "comparisons": {
+    "configured": true,
+    "packageVersion": "fixture-with-bundled-reference",
+    "setupRevision": "1",
+    "problem": null,
+    "cards": [
+      {
+        "result": {
+          "metric": "spending",
+          "status": "incomplete",
+          "localValue": "900.00",
+          "reference": {
+            "id": "bls_ce_total_expenditures_mean:15-24",
+            "mode": "household",
+            "definitionId": "bls_ce_total_expenditures_mean",
+            "value": "47283",
+            "unit": "usd_per_year",
+            "statistic": "mean",
+            "population": "Households (BLS consumer units), total yearly spending",
+            "universe": "all",
+            "geography": "US",
+            "ageMin": 15,
+            "ageMax": 24,
+            "dollarBasis": {
+              "kind": "annual_average",
+              "period": "2024"
+            },
+            "sourceId": "bls_ce_2024",
+            "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/",
+            "sourceLocator": "bls_ce_total_expenditures_2024.json#CXUTOTALEXPLB0402M/2024 (Under Age 25)",
+            "annotation": "Average (mean), not median: the Consumer Expenditure Surveys publish averages, which high spenders pull up. 2024, in 2024 dollars (priced at the 2024 average CPI). A consumer unit is close to, not the same as, a household. Total expenditures include insurance and pension contributions. The BLS API publishes no standard errors for these series, so the 30% reliability check could not be applied.",
+            "reliability": "ok",
+            "adjustedValue": "47283",
+            "uncertainty": null,
+            "uncertaintyKind": null,
+            "periodKind": "flow",
+            "periodFrom": "2024-01-01",
+            "periodTo": "2024-12-31",
+            "adjustedBasisMonth": "2024-12",
+            "cpiFactor": "1"
+          },
+          "dollarDifference": null,
+          "percentDifference": null,
+          "completeness": "partial",
+          "reasons": [
+            {
+              "code": "incomplete_coverage",
+              "detail": "Synthetic short history",
+              "options": []
+            }
+          ]
+        },
+        "visible": true,
+        "definitionId": "bls_ce_total_expenditures_mean",
+        "stale": false,
+        "personalIncomeHint": false,
+        "metricUnit": "usd_per_year",
+        "periodKind": "flow",
+        "periodFrom": "2026-09-01",
+        "periodTo": "2026-10-04",
+        "origin": "derived",
+        "measuredOn": null,
+        "explanation": null,
+        "unallocated": "0.00",
+        "trackedValue": "900.00",
+        "contributors": [
+          {
+            "label": "Checking",
+            "gross": "900.00",
+            "shareBasisPoints": 10000,
+            "counted": "900.00"
+          }
+        ],
+        "excluded": [],
+        "classTotals": [],
+        "notes": [],
+        "secondary": []
+      }
+    ]
+  },
+  "calculators": {
+    "inflationPct": "2.50",
+    "accumulation": [
+      {
+        "accountId": "investment",
+        "months": [
+          {
+            "month": "2026-09",
+            "moneyIn": "200.00",
+            "moneyOut": "0.00"
+          }
+        ],
+        "totalIn": "200.00",
+        "totalOut": "0.00",
+        "net": "200.00",
+        "firstDeposit": "2026-09-01",
+        "depositCount": 1,
+        "plan": {
+          "monthlyContribution": null,
+          "annualReturnPct": "5.00",
+          "withdrawMonth": "2036-10",
+          "withdrawYears": 10
+        },
+        "valueHistory": [
+          {
+            "date": "2026-10-04",
+            "value": "15000.00"
+          }
+        ]
+      }
+    ],
+    "debts": [
+      {
+        "accountId": "credit",
+        "owed": "400.00",
+        "annualRatePct": null,
+        "excluded": false
+      },
+      {
+        "accountId": "loan",
+        "owed": "6000.00",
+        "annualRatePct": "6.50",
+        "excluded": false
+      }
+    ],
+    "forecast": {
+      "throughDate": "2027-01-02",
+      "startBalance": "6200.00",
+      "trendDailyNet": "0.00",
+      "everydayDailyNet": "0.00",
+      "usesRecurring": true,
+      "schedule": [
+        {
+          "date": "2026-10-15",
+          "moneyIn": "5000.00",
+          "moneyOut": "550.00"
+        }
+      ]
+    },
+    "goals": [],
+    "recurring": {
+      "monthlyIncome": "5000.00",
+      "monthlyExpense": "550.00",
+      "annualIncome": "60000.00",
+      "annualExpense": "6600.00"
+    }
+  }
+}

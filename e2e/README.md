@@ -1,5 +1,9 @@
 # E2E testing (WebDriver, real compiled app)
 
+Mobile specs 171–172 add Settings management and the production viewer’s pairing/refresh flow. Spec 172 runs native Edge against a loopback test proxy that validates the compiled service’s HTTPS certificate and holds its cookie only in that isolated client. It exercises real projection/storage and browser UI; it does not establish browser TLS trust, Secure-cookie compatibility or physical phone acceptance. No global CA is installed.
+
+Mobile specs 167–170 exercise approved-device reads and deterministic authorization races through the compiled HTTPS service. Their shared helpers trust only a disposable fixture CA in the Node client; no global CA or firewall modification is made. Debug race actors require `VAULTSPEND_DB_DIR` to match the managed test directory and are excluded from release. The confirmation spec also checks six compiled theme variants with Axe and captures screenshots under `VAULTSPEND_MOBILE_TASK6_OUTPUT` (default: an OS temporary folder).
+
 Real UI automation for Vault Spend, driven through Tauri's official WebDriver
 support (`tauri-driver` + Microsoft Edge WebDriver, since the app uses
 WebView2 on Windows). No headless-browser stand-in — this drives the actual
@@ -174,3 +178,15 @@ node e2e/stress.mjs e2e/feature121_auto_lock_settings.mjs 8 6 12   # 8 rounds, 6
 It reports the pass rate and each distinct failure, and saves the full output
 of failing runs (`STRESS_OUT`, default the temp folder). A fix should turn a
 measured failure rate into zero, not just pass once.
+
+
+### Mobile HTTPS public-asset foundation
+
+`feature166_mobile_https_assets.mjs` exercises the compiled Tauri listener, Windows protected identity, static-asset boundaries, restart and actual desktop Quit. The debug-only fixture binds loopback in the harness's disposable data directory; it never enables a LAN listener or installs a certificate. Its Node HTTPS client uses an explicit per-client test CA, with certificate and hostname checks enabled. Production financial APIs/pairing are separate later specs. Tauri builds now embed `dist-mobile` as well as the desktop frontend: `npm run build` generates both, and the CLI before-build hook invokes it. On a fresh checkout, build frontend assets before direct `cargo test`/`cargo clippy`.
+
+
+### Mobile browser acceptance
+
+After the fresh debug Tauri CLI build, run `npm run mobile:acceptance:e2e` for native Chromium/Firefox/WebKit synthetic HTTP UI/storage checks and `npm run mobile:tls:e2e` for the production HTTPS viewer directly in Firefox. Install the pinned binaries with `npx playwright install chromium firefox webkit`. The trusted Firefox helper modifies only a checked disposable NSS profile with a public root; Windows trust is never changed, and certificate-error bypass remains off. This requires Python, Windows NSS/browser binaries and the existing `target/debug/init_db.exe`/compiled app/WebDriver prerequisites. Browser scripts are separate from full native `npm run e2e`; do not combine their counts or infer physical phone results. The external phone worksheet includes iPhone/Android normal/home-screen, cold restart/days-offline, trust removal/renewal and network changes.
+
+Guided local setup spec 173 checks the compiled desktop guide in six palette/mode combinations with Axe, and a certificate-only HTTP bootstrap bound strictly to loopback through a debug fixture guarded by VAULTSPEND_DB_DIR. Three installed browser engines check the real instruction page, certificate verification acknowledgement and 360px containment. Public PEM/profile downloads, route/method/Origin isolation and cancellation are asserted. No LAN opt-in, CA installation, browser TLS-error bypass or actual-phone acceptance. The fixture command is absent from release.

@@ -14,6 +14,7 @@ import { getCurrentGeneration } from "./profileUiState";
 import { ModalShell } from "./Modal";
 import { PasswordForm } from "./PasswordForm";
 import { MenuSelect } from "./MenuSelect";
+import { MobileSettings } from "./MobileSettings";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs, type NeonAccent } from "./themeBootstrap";
 
 const LIVE_PRICE_PROVIDERS: Record<
@@ -1240,6 +1241,7 @@ export function SettingsView({
       />
       <ProfileProtectionSection profiles={profiles} onProtected={onProtected} />
       <ProtectionLeftovers profiles={profiles} />
+      <MobileSettings />
       <DataSection
         dataFileLocation={dataFileLocation}
         onRelocateDataFile={onRelocateDataFile}

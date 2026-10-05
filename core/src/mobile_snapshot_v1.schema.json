@@ -1,0 +1,1960 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/MobileSnapshotV1",
+  "$defs": {
+    "Label": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "OpaqueId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "format": "opaque-id"
+    },
+    "Decimal": {
+      "type": "string",
+      "format": "exact-decimal",
+      "maxLength": 29
+    },
+    "Sequence": {
+      "type": "string",
+      "format": "sequence",
+      "maxLength": 20
+    },
+    "Date": {
+      "type": "string",
+      "format": "date"
+    },
+    "Month": {
+      "type": "string",
+      "format": "month"
+    },
+    "UtcTimestamp": {
+      "type": "string",
+      "format": "utc-timestamp"
+    },
+    "Availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "reason"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "available",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overview",
+        "accounts",
+        "investments",
+        "budgets",
+        "reports",
+        "comparisons",
+        "calculators"
+      ],
+      "properties": {
+        "overview": {
+          "$ref": "#/$defs/Availability"
+        },
+        "accounts": {
+          "$ref": "#/$defs/Availability"
+        },
+        "investments": {
+          "$ref": "#/$defs/Availability"
+        },
+        "budgets": {
+          "$ref": "#/$defs/Availability"
+        },
+        "reports": {
+          "$ref": "#/$defs/Availability"
+        },
+        "comparisons": {
+          "$ref": "#/$defs/Availability"
+        },
+        "calculators": {
+          "$ref": "#/$defs/Availability"
+        }
+      }
+    },
+    "Profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "icon"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "name": {
+          "$ref": "#/$defs/Label"
+        },
+        "icon": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Overview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "netWorth",
+        "cash",
+        "debtContribution",
+        "investments",
+        "otherAccounts",
+        "propertyValue",
+        "propertyValuedFrom",
+        "propertyValuedThrough",
+        "averageMonthlySpend",
+        "runwayMonths"
+      ],
+      "properties": {
+        "netWorth": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "cash": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "debtContribution": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "investments": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "otherAccounts": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "propertyValue": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "propertyValuedFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "propertyValuedThrough": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "averageMonthlySpend": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runwayMonths": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Account": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "accountType",
+        "balance",
+        "startingBalance",
+        "netWorthContribution",
+        "owed",
+        "balanceBasis",
+        "checkpointDate",
+        "memberId",
+        "icon"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "name": {
+          "$ref": "#/$defs/Label"
+        },
+        "accountType": {
+          "type": "string",
+          "enum": [
+            "checking",
+            "savings",
+            "credit",
+            "loan",
+            "investment",
+            "other"
+          ]
+        },
+        "balance": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "startingBalance": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "netWorthContribution": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "owed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "balanceBasis": {
+          "type": "string",
+          "enum": [
+            "ledger",
+            "holdings"
+          ]
+        },
+        "checkpointDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "memberId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "icon": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "name": {
+          "$ref": "#/$defs/Label"
+        }
+      }
+    },
+    "QuoteCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "valuedPositions",
+        "totalPositions",
+        "quoteTimestamp",
+        "previousCloseDate"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "valuedPositions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "totalPositions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "quoteTimestamp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previousCloseDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "InvestmentSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accountId",
+        "value",
+        "costBasis",
+        "unrealizedGain",
+        "dayChange",
+        "coverage"
+      ],
+      "properties": {
+        "accountId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "value": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "costBasis": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unrealizedGain": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dayChange": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coverage": {
+          "$ref": "#/$defs/QuoteCoverage"
+        }
+      }
+    },
+    "Investments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "costBasis",
+        "unrealizedGain",
+        "dayChange",
+        "coverage",
+        "accounts"
+      ],
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "costBasis": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unrealizedGain": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dayChange": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coverage": {
+          "$ref": "#/$defs/QuoteCoverage"
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InvestmentSummary"
+          }
+        }
+      }
+    },
+    "BudgetLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "group",
+        "order",
+        "planned",
+        "actual",
+        "rollover",
+        "effectiveBudget",
+        "remaining",
+        "capEnabled",
+        "rolloverEnabled",
+        "alert"
+      ],
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/Label"
+        },
+        "group": {
+          "type": "string",
+          "enum": [
+            "income",
+            "fixed",
+            "flexible",
+            "nonmonthly"
+          ]
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "planned": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "actual": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "rollover": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "effectiveBudget": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "remaining": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "capEnabled": {
+          "type": "boolean"
+        },
+        "rolloverEnabled": {
+          "type": "boolean"
+        },
+        "alert": {
+          "type": "string",
+          "enum": [
+            "none",
+            "warning",
+            "over"
+          ]
+        }
+      }
+    },
+    "BudgetMonth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "month",
+        "actualThrough",
+        "sourceMonth",
+        "capFeatureEnabled",
+        "rolloverFeatureEnabled",
+        "lines",
+        "unbudgetedSpending",
+        "actualIncome",
+        "actualSpending"
+      ],
+      "properties": {
+        "month": {
+          "$ref": "#/$defs/Month"
+        },
+        "actualThrough": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceMonth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Month"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capFeatureEnabled": {
+          "type": "boolean"
+        },
+        "rolloverFeatureEnabled": {
+          "type": "boolean"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BudgetLine"
+          }
+        },
+        "unbudgetedSpending": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "actualIncome": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "actualSpending": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "MonthTotals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "month",
+        "income",
+        "spending",
+        "savingsRatePct"
+      ],
+      "properties": {
+        "month": {
+          "$ref": "#/$defs/Month"
+        },
+        "income": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "spending": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "savingsRatePct": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "CategoryMonth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "month",
+        "category",
+        "group",
+        "spending"
+      ],
+      "properties": {
+        "month": {
+          "$ref": "#/$defs/Month"
+        },
+        "category": {
+          "$ref": "#/$defs/Label"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "income",
+                "fixed",
+                "flexible",
+                "nonmonthly"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "spending": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "BudgetCategoryMonth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "month",
+        "category",
+        "signedAmount"
+      ],
+      "properties": {
+        "month": {
+          "$ref": "#/$defs/Month"
+        },
+        "category": {
+          "$ref": "#/$defs/Label"
+        },
+        "signedAmount": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "DailySpend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date",
+        "spending"
+      ],
+      "properties": {
+        "date": {
+          "$ref": "#/$defs/Date"
+        },
+        "spending": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "MonthBreakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "month",
+        "id",
+        "label",
+        "income",
+        "spending"
+      ],
+      "properties": {
+        "month": {
+          "$ref": "#/$defs/Month"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "income": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "spending": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "NetWorthPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date",
+        "netWorth",
+        "cash",
+        "debtContribution",
+        "investments",
+        "propertyValue",
+        "valuationBasis"
+      ],
+      "properties": {
+        "date": {
+          "$ref": "#/$defs/Date"
+        },
+        "netWorth": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "cash": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "debtContribution": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "investments": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "propertyValue": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "valuationBasis": {
+          "type": "string",
+          "enum": [
+            "current_saved_values",
+            "recorded"
+          ]
+        }
+      }
+    },
+    "ValuePoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date",
+        "value"
+      ],
+      "properties": {
+        "date": {
+          "$ref": "#/$defs/Date"
+        },
+        "value": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "MemberWorth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memberId",
+        "label",
+        "value"
+      ],
+      "properties": {
+        "memberId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "value": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "History": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fromMonth",
+        "throughMonth",
+        "actualThrough",
+        "months",
+        "categories",
+        "budgetCategoryNet",
+        "daily",
+        "accounts",
+        "members",
+        "tags",
+        "merchants",
+        "netWorth",
+        "portfolio",
+        "memberNetWorth"
+      ],
+      "properties": {
+        "fromMonth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Month"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "throughMonth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Month"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actualThrough": {
+          "$ref": "#/$defs/Date"
+        },
+        "months": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MonthTotals"
+          }
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CategoryMonth"
+          }
+        },
+        "budgetCategoryNet": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BudgetCategoryMonth"
+          }
+        },
+        "daily": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DailySpend"
+          }
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MonthBreakdown"
+          }
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MonthBreakdown"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MonthBreakdown"
+          }
+        },
+        "merchants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MonthBreakdown"
+          }
+        },
+        "netWorth": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NetWorthPoint"
+          }
+        },
+        "portfolio": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValuePoint"
+          }
+        },
+        "memberNetWorth": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MemberWorth"
+          }
+        }
+      }
+    },
+    "DollarBasis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "period"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "month",
+            "annual_average"
+          ]
+        },
+        "period": {
+          "$ref": "#/$defs/Label"
+        }
+      }
+    },
+    "ComparisonReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "mode",
+        "definitionId",
+        "value",
+        "adjustedValue",
+        "uncertainty",
+        "uncertaintyKind",
+        "unit",
+        "statistic",
+        "population",
+        "universe",
+        "geography",
+        "ageMin",
+        "ageMax",
+        "periodKind",
+        "periodFrom",
+        "periodTo",
+        "dollarBasis",
+        "adjustedBasisMonth",
+        "cpiFactor",
+        "sourceId",
+        "sourceUrl",
+        "sourceLocator",
+        "annotation",
+        "reliability"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Label"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "household",
+            "individual"
+          ]
+        },
+        "definitionId": {
+          "$ref": "#/$defs/Label"
+        },
+        "value": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "adjustedValue": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "uncertainty": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "uncertaintyKind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "moe90",
+                "se"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "usd_per_year",
+            "usd_per_month",
+            "usd_balance"
+          ]
+        },
+        "statistic": {
+          "type": "string",
+          "enum": [
+            "mean",
+            "median"
+          ]
+        },
+        "population": {
+          "$ref": "#/$defs/Label"
+        },
+        "universe": {
+          "type": "string",
+          "enum": [
+            "all",
+            "holders"
+          ]
+        },
+        "geography": {
+          "$ref": "#/$defs/Label"
+        },
+        "ageMin": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "ageMax": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "periodKind": {
+          "type": "string",
+          "enum": [
+            "flow",
+            "stock"
+          ]
+        },
+        "periodFrom": {
+          "$ref": "#/$defs/Date"
+        },
+        "periodTo": {
+          "$ref": "#/$defs/Date"
+        },
+        "dollarBasis": {
+          "$ref": "#/$defs/DollarBasis"
+        },
+        "adjustedBasisMonth": {
+          "$ref": "#/$defs/Month"
+        },
+        "cpiFactor": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "sourceId": {
+          "$ref": "#/$defs/Label"
+        },
+        "sourceUrl": {
+          "$ref": "#/$defs/Label"
+        },
+        "sourceLocator": {
+          "$ref": "#/$defs/Label"
+        },
+        "annotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reliability": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "unreliable"
+          ]
+        }
+      }
+    },
+    "ComparisonReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "detail",
+        "options"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/Label"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Label"
+          }
+        }
+      }
+    },
+    "ComparisonResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric",
+        "status",
+        "localValue",
+        "reference",
+        "dollarDifference",
+        "percentDifference",
+        "completeness",
+        "reasons"
+      ],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "enum": [
+            "spending",
+            "investments",
+            "income",
+            "savings",
+            "debt"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "comparable",
+            "approximate",
+            "missing_input",
+            "incomplete",
+            "unavailable",
+            "unreliable",
+            "cohort_choice_required",
+            "not_comparable"
+          ]
+        },
+        "localValue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComparisonReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dollarDifference": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "percentDifference": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completeness": {
+          "type": "string",
+          "enum": [
+            "confirmed",
+            "partial",
+            "unknown"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComparisonReason"
+          }
+        }
+      }
+    },
+    "ComparisonContributor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "gross",
+        "shareBasisPoints",
+        "counted"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "gross": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "shareBasisPoints": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "counted": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "ComparisonClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "value"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "value": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "ComparisonSecondary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "result"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "result": {
+          "$ref": "#/$defs/ComparisonResult"
+        }
+      }
+    },
+    "ComparisonCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "visible",
+        "definitionId",
+        "stale",
+        "personalIncomeHint",
+        "metricUnit",
+        "periodKind",
+        "periodFrom",
+        "periodTo",
+        "origin",
+        "measuredOn",
+        "explanation",
+        "unallocated",
+        "trackedValue",
+        "contributors",
+        "excluded",
+        "classTotals",
+        "notes",
+        "secondary"
+      ],
+      "properties": {
+        "result": {
+          "$ref": "#/$defs/ComparisonResult"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "definitionId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "personalIncomeHint": {
+          "type": "boolean"
+        },
+        "metricUnit": {
+          "type": "string",
+          "enum": [
+            "usd_per_year",
+            "usd_per_month",
+            "usd_balance"
+          ]
+        },
+        "periodKind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "flow",
+                "stock"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "periodFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "periodTo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "derived",
+            "entered"
+          ]
+        },
+        "measuredOn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unallocated": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "trackedValue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contributors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComparisonContributor"
+          }
+        },
+        "excluded": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComparisonReason"
+          }
+        },
+        "classTotals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComparisonClass"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComparisonReason"
+          }
+        },
+        "secondary": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComparisonSecondary"
+          }
+        }
+      }
+    },
+    "Comparisons": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configured",
+        "packageVersion",
+        "setupRevision",
+        "problem",
+        "cards"
+      ],
+      "properties": {
+        "configured": {
+          "type": "boolean"
+        },
+        "packageVersion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "setupRevision": {
+          "$ref": "#/$defs/Sequence"
+        },
+        "problem": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Label"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComparisonCard"
+          }
+        }
+      }
+    },
+    "ContributionMonth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "month",
+        "moneyIn",
+        "moneyOut"
+      ],
+      "properties": {
+        "month": {
+          "$ref": "#/$defs/Month"
+        },
+        "moneyIn": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "moneyOut": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "AccumulationPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "monthlyContribution",
+        "annualReturnPct",
+        "withdrawMonth",
+        "withdrawYears"
+      ],
+      "properties": {
+        "monthlyContribution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "annualReturnPct": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "withdrawMonth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Month"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "withdrawYears": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Accumulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accountId",
+        "months",
+        "totalIn",
+        "totalOut",
+        "net",
+        "firstDeposit",
+        "depositCount",
+        "plan",
+        "valueHistory"
+      ],
+      "properties": {
+        "accountId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "months": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContributionMonth"
+          }
+        },
+        "totalIn": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "totalOut": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "net": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "firstDeposit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "depositCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "plan": {
+          "$ref": "#/$defs/AccumulationPlan"
+        },
+        "valueHistory": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValuePoint"
+          }
+        }
+      }
+    },
+    "DebtInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accountId",
+        "owed",
+        "annualRatePct",
+        "excluded"
+      ],
+      "properties": {
+        "accountId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "owed": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "annualRatePct": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "excluded": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ScheduledFlow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date",
+        "moneyIn",
+        "moneyOut"
+      ],
+      "properties": {
+        "date": {
+          "$ref": "#/$defs/Date"
+        },
+        "moneyIn": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "moneyOut": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "Forecast": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "throughDate",
+        "startBalance",
+        "trendDailyNet",
+        "everydayDailyNet",
+        "usesRecurring",
+        "schedule"
+      ],
+      "properties": {
+        "throughDate": {
+          "$ref": "#/$defs/Date"
+        },
+        "startBalance": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "trendDailyNet": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "everydayDailyNet": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "usesRecurring": {
+          "type": "boolean"
+        },
+        "schedule": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScheduledFlow"
+          }
+        }
+      }
+    },
+    "GoalSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "target",
+        "saved",
+        "targetDate",
+        "monthlyContribution",
+        "monthlyPace",
+        "tracksAccount",
+        "linkedAccountId",
+        "memberId"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "name": {
+          "$ref": "#/$defs/Label"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "saved": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "targetDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "monthlyContribution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "monthlyPace": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "tracksAccount": {
+          "type": "boolean"
+        },
+        "linkedAccountId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "memberId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "RecurringSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "monthlyIncome",
+        "monthlyExpense",
+        "annualIncome",
+        "annualExpense"
+      ],
+      "properties": {
+        "monthlyIncome": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "monthlyExpense": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "annualIncome": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "annualExpense": {
+          "$ref": "#/$defs/Decimal"
+        }
+      }
+    },
+    "Calculators": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inflationPct",
+        "accumulation",
+        "debts",
+        "forecast",
+        "goals",
+        "recurring"
+      ],
+      "properties": {
+        "inflationPct": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "accumulation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Accumulation"
+          }
+        },
+        "debts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DebtInput"
+          }
+        },
+        "forecast": {
+          "$ref": "#/$defs/Forecast"
+        },
+        "goals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GoalSummary"
+          }
+        },
+        "recurring": {
+          "$ref": "#/$defs/RecurringSummary"
+        }
+      }
+    },
+    "MobileSnapshotV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "minimumViewerVersion",
+        "installationId",
+        "profile",
+        "epoch",
+        "sequence",
+        "generatedAt",
+        "asOfDate",
+        "currency",
+        "sections",
+        "members",
+        "overview",
+        "accounts",
+        "investments",
+        "budgets",
+        "history",
+        "comparisons",
+        "calculators"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "type": "integer",
+          "const": 1
+        },
+        "minimumViewerVersion": {
+          "type": "integer",
+          "const": 1
+        },
+        "installationId": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "profile": {
+          "$ref": "#/$defs/Profile"
+        },
+        "epoch": {
+          "$ref": "#/$defs/OpaqueId"
+        },
+        "sequence": {
+          "$ref": "#/$defs/Sequence"
+        },
+        "generatedAt": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "asOfDate": {
+          "$ref": "#/$defs/Date"
+        },
+        "currency": {
+          "type": "string",
+          "const": "USD"
+        },
+        "sections": {
+          "$ref": "#/$defs/Sections"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Member"
+          }
+        },
+        "overview": {
+          "$ref": "#/$defs/Overview"
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Account"
+          }
+        },
+        "investments": {
+          "$ref": "#/$defs/Investments"
+        },
+        "budgets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BudgetMonth"
+          }
+        },
+        "history": {
+          "$ref": "#/$defs/History"
+        },
+        "comparisons": {
+          "$ref": "#/$defs/Comparisons"
+        },
+        "calculators": {
+          "$ref": "#/$defs/Calculators"
+        }
+      }
+    }
+  }
+}

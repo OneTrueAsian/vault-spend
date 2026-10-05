@@ -24,6 +24,16 @@ describe("HelpView", () => {
     container.remove();
   });
 
+  it("finds the complete mobile setup, offline and removal guidance together", () => {
+    const input=container.querySelector<HTMLInputElement>("input[type=search]")!;
+    act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,"mobile snapshots");input.dispatchEvent(new Event("input",{bubbles:true}));});
+    const text=container.textContent??"";
+    expect(text).toContain("How do I set up mobile snapshots on my phone?");
+    expect(text).toContain("Can I use mobile snapshots away from my computer?");
+    expect(text).toContain("How do I stop phone access or remove mobile snapshots?");
+    expect(text).not.toContain("Getting started");
+  });
+
   // The Settings card that holds the password controls is titled "Password protection"
   // (ProfileProtectionSection). Help must send people to a heading that exists.
   it("points to the Settings heading that exists for password protection and automatic locking", () => {

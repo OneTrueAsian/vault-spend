@@ -115,6 +115,7 @@ pub fn start_with_new_data_file(app: AppHandle) -> Result<StartupState, String> 
 #[tauri::command]
 pub fn start_with_new_profile_list(app: AppHandle) -> Result<StartupState, String> {
     refuse_if_open(&app)?;
+    app.state::<crate::mobile_api::MobileAccess>().devices.reset_grants()?;
     startup::start_new_profile_list_at(&app.state::<AppPaths>().config_path)?;
     Ok(retry(&app))
 }

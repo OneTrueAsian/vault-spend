@@ -1,0 +1,10 @@
+/* Scoped mobile form controls, reused by browser and desktop setup. */
+:is(.mobile-viewer,.mobile-pairing-content,.mobile-setup-wizard) input[type=checkbox] {
+  appearance: none; -webkit-appearance: none; display: inline-grid; place-content: center;
+  width: 22px; height: 22px; min-height: 22px; flex: 0 0 22px; padding: 0; margin: 0;
+  border: 2px solid var(--border-strong); border-radius: 4px; background: var(--status-base); cursor: pointer;
+}
+:is(.mobile-viewer,.mobile-pairing-content,.mobile-setup-wizard) input[type=checkbox]:checked { background: var(--accent); border-color: var(--accent); }
+:is(.mobile-viewer,.mobile-pairing-content,.mobile-setup-wizard) input[type=checkbox]:checked::before { content: ""; width: 13px; height: 12px; background: var(--on-accent); clip-path: polygon(0 45%,20% 25%,42% 48%,82% 0,100% 20%,42% 100%); }
+
+:is(.mobile-viewer,.mobile-pairing-content,.mobile-setup-wizard) input[type=checkbox]:disabled { opacity: .55; cursor: default; }

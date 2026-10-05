@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-mobile
+dist-mobile-preview
+dist-mobile-test
 *.local
 
 # Rust build output (workspace-level — core + src-tauri share this one dir)
