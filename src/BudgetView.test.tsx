@@ -147,6 +147,9 @@ describe("BudgetView summary", () => {
     const note = strip.querySelector<HTMLElement>("[data-budget-summary-note]")!;
     expect(note.textContent).toContain("$5,200.00 budgeted income − $1,720.00 budgeted spending");
     expect(note.textContent).toContain("$5,000.00 recorded income − $1,690.00 recorded spending");
+    // Still said on the page, not only on hover.
+    expect(note.textContent).toContain("Not an account balance");
+    expect(netCell.title).toContain("not an account balance");
   });
 
   it("puts the income allocation note inside the summary as its last line", async () => {
@@ -293,6 +296,52 @@ describe("BudgetRow budget field", () => {
     expect(input.value).toBe("1600.00");
   });
 
+  it("settles a save that rejects or throws: no unhandled rejection, and the saved amount comes back", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      for (const onSetBudget of [vi.fn(() => Promise.reject(new Error("refused"))), vi.fn(() => { throw new Error("refused"); })]) {
+        await render(props({ onSetBudget }));
+        const input = container.querySelector<HTMLInputElement>('input[aria-label="Budget for Mortgage"]')!;
+        act(() => {
+          input.focus();
+          setInputValue(input, "1650");
+        });
+        await act(async () => input.blur());
+        await act(async () => new Promise((r) => setTimeout(r, 0)));
+        expect(onSetBudget).toHaveBeenCalledWith("Mortgage", "1650", "fixed");
+        expect(input.value).toBe("1600.00");
+        // A move to another group goes through the same guard.
+        choose(rowFor("Mortgage"), "Move to Flexible");
+        await act(async () => new Promise((r) => setTimeout(r, 0)));
+        expect(onSetBudget).toHaveBeenLastCalledWith("Mortgage", "1600.00", "flexible");
+      }
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+
+  it("only drags the row from its handle, so selecting text in the budget field can't start a drag", async () => {
+    await render(props());
+    const row = rowFor("Mortgage");
+    expect(row.getAttribute("draggable")).toBe("false");
+    // A drag that starts anywhere else (say, a mouse selection in the field) is refused.
+    const input = row.querySelector<HTMLInputElement>("input")!;
+    act(() => input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    expect(row.getAttribute("draggable")).toBe("false");
+    const stray = new Event("dragstart", { bubbles: true, cancelable: true });
+    act(() => {
+      input.dispatchEvent(stray);
+    });
+    expect(stray.defaultPrevented).toBe(true);
+    // Pressing the ⠿ handle makes the row draggable until the mouse is let go.
+    act(() => row.querySelector(".drag-handle")!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    expect(row.getAttribute("draggable")).toBe("true");
+    act(() => window.dispatchEvent(new MouseEvent("mouseup")));
+    expect(row.getAttribute("draggable")).toBe("false");
+  });
+
   it("with amounts hidden, shows a maskable button instead of a field until clicked", async () => {
     const p = props({ amountsHidden: true });
     await render(p);
@@ -343,12 +392,18 @@ describe("BudgetRow settings menu", () => {
 
   it("leaves the spending settings off an income row and off when the features are switched off", async () => {
     await render(props());
-    expect(menuLabels(openMenu(rowFor("Paycheck")))).toEqual(["Move to Fixed", "Move to Flexible", "Move to Non-Monthly", "Move up", "Move down", "Delete…"]);
+    const incomePanel = openMenu(rowFor("Paycheck"));
+    expect(menuLabels(incomePanel)).toEqual(["Move to Fixed", "Move to Flexible", "Move to Non-Monthly", "Move up", "Move down", "Delete…"]);
+    // No stray divider at the top where the (absent) settings would be.
+    expect(incomePanel.firstElementChild?.getAttribute("role")).not.toBe("separator");
     act(() => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     await render(props({ rolloverEnabled: false, envelopeCapsEnabled: false }));
-    const labels = menuLabels(openMenu(rowFor("Mortgage")));
+    const panel = openMenu(rowFor("Mortgage"));
+    const labels = menuLabels(panel);
     expect(labels).not.toContain("Roll over unspent");
     expect(labels).not.toContain("Warn at 90%");
+    expect(panel.firstElementChild?.getAttribute("role")).not.toBe("separator");
+    expect(panel.lastElementChild?.getAttribute("role")).not.toBe("separator");
   });
 
   it("toggles roll over and the 90% warning, and moves a row to another group", async () => {

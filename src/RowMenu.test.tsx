@@ -35,6 +35,15 @@ describe("RowMenu", () => {
     expect(item("Delete…").className).toContain("row-menu-item-danger");
   });
 
+  it("drops dividers with nothing on one side, and runs of dividers down to one", () => {
+    const a = { label: "A", onSelect: () => {} };
+    const b = { label: "B", onSelect: () => {} };
+    render([{ kind: "divider" }, false, { kind: "divider" }, a, { kind: "divider" }, null, { kind: "divider" }, b, { kind: "divider" }]);
+    act(() => trigger().click());
+    const kinds = Array.from(panel()!.children).map((c) => c.getAttribute("role"));
+    expect(kinds).toEqual(["menuitem", "separator", "menuitem"]);
+  });
+
   it("runs an action once, closes, and gives focus back to the trigger", () => {
     const onSelect = vi.fn();
     render([{ label: "Split…", onSelect }]);

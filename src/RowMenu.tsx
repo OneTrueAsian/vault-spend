@@ -9,6 +9,20 @@ export type RowMenuItem =
   | { kind: "check"; label: string; checked: boolean; onToggle: (next: boolean) => void; disabled?: boolean }
   | { kind: "divider" };
 
+/** The items to show: the truthy ones, minus any divider with nothing before or after it and any
+ * divider straight after another. Items switched off for a row leave their dividers behind, and a
+ * menu must never start, end or double a line. */
+function tidyItems(items: (RowMenuItem | false | null | undefined)[]): RowMenuItem[] {
+  const out: RowMenuItem[] = [];
+  for (const item of items) {
+    if (!item) continue;
+    if (item.kind === "divider" && (out.length === 0 || out[out.length - 1].kind === "divider")) continue;
+    out.push(item);
+  }
+  if (out.length > 0 && out[out.length - 1].kind === "divider") out.pop();
+  return out;
+}
+
 /** A row's `⋯` actions menu. Portaled to `document.body` and positioned `fixed` (see
  * `useFixedPanel`) so it isn't clipped by the ledger's scroll container. The panel belongs to
  * this component, so if the row unmounts while the menu is open the menu goes with it and
@@ -18,7 +32,7 @@ export function RowMenu({ label, items, className }: { label: string; items: (Ro
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
-  const visible = items.filter((item): item is RowMenuItem => Boolean(item));
+  const visible = tidyItems(items);
 
   useDismiss(open, [triggerRef, panelRef], (reason) => {
     setOpen(false);

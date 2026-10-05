@@ -13,16 +13,23 @@ export const budgetRowMenu = (browser, category) => async () => (await browser.$
 
 /** Opens `category`'s ⋯ menu, reads its items as `{ label, checked, disabled }` (`checked` is
  * null for a plain action), and closes it again with Escape. Through `withFocusRetry`, since the
- * menu closes if another window takes focus while it's open. */
-export async function budgetRowMenuItems(browser, category) {
+ * menu closes if another window takes focus while it's open. With `withDividers`, each divider is
+ * in the list too, in its place, as `{ divider: true }`. */
+export async function budgetRowMenuItems(browser, category, { withDividers = false } = {}) {
   const read = () =>
-    browser.execute(() =>
-      [...document.querySelectorAll(".row-menu-panel [role^='menuitem']")].map((b) => ({
-        label: b.textContent.trim(),
-        checked: b.hasAttribute("aria-checked") ? b.getAttribute("aria-checked") === "true" : null,
-        disabled: b.getAttribute("aria-disabled") === "true",
-      })),
-    );
+    browser.execute(() => {
+      const panel = document.querySelector(".row-menu-panel");
+      if (!panel) return [];
+      return [...panel.children].map((b) =>
+        b.getAttribute("role") === "separator"
+          ? { divider: true }
+          : {
+              label: b.textContent.trim(),
+              checked: b.hasAttribute("aria-checked") ? b.getAttribute("aria-checked") === "true" : null,
+              disabled: b.getAttribute("aria-disabled") === "true",
+            },
+      );
+    });
   let items = [];
   await withFocusRetry(browser, async () => {
     if ((await read()).length === 0) await (await budgetRowMenu(browser, category)()).click();
@@ -33,7 +40,16 @@ export async function budgetRowMenuItems(browser, category) {
   });
   await browser.keys("Escape");
   await browser.waitUntil(async () => (await read()).length === 0, { timeout: 3000, timeoutMsg: `${category}'s ⋯ menu never closed` });
-  return items;
+  return withDividers ? items : items.filter((item) => !item.divider);
+}
+
+/** Why a menu read with `withDividers` has a misplaced divider (first, last, or two in a row), or
+ * null when it has none. */
+export function strayDivider(items) {
+  if (items[0]?.divider) return "starts with a divider";
+  if (items.at(-1)?.divider) return "ends with a divider";
+  if (items.some((item, i) => item.divider && items[i + 1]?.divider)) return "has two dividers in a row";
+  return null;
 }
 
 /** `{ budget, hasInput, spent, left, text }` for `category`'s row, or null while it isn't on the

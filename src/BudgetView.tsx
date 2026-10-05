@@ -261,8 +261,29 @@ function BudgetRow({
     setEditingAmount(null);
     const amount = value.trim();
     if (!amount || Number(amount) === Number(line.budgeted)) return null;
-    return Promise.resolve(onSetBudget(line.category, amount, line.budget_group));
+    return saveBudget(amount, line.budget_group);
   }
+
+  /** Sends a save and settles whatever happens. App's handler reports its own errors (it shows
+   * them in the status line and never rejects), so a throw or rejection here would only be an
+   * unhandled rejection; it is swallowed, and the field then shows the saved amount again. */
+  function saveBudget(amount: string, group: string): Promise<void> {
+    try {
+      return Promise.resolve(onSetBudget(line.category, amount, group)).catch(() => {});
+    } catch {
+      return Promise.resolve();
+    }
+  }
+
+  // The row is draggable only while the ⠿ handle is held, so selecting text in the budget field
+  // with the mouse can't start a row drag instead.
+  const [dragArmed, setDragArmed] = useState(false);
+  useEffect(() => {
+    if (!dragArmed) return;
+    const disarm = () => setDragArmed(false);
+    window.addEventListener("mouseup", disarm);
+    return () => window.removeEventListener("mouseup", disarm);
+  }, [dragArmed]);
 
   // The always-visible budget field (amounts shown): a local draft that follows the saved amount
   // and saves on blur (Enter blurs). An empty or unchanged field shows the saved amount again; so
@@ -318,7 +339,7 @@ function BudgetRow({
       },
     { kind: "divider" },
     ...GROUP_ORDER.filter((g) => g !== line.budget_group).map(
-      (g): RowMenuItem => ({ label: `Move to ${GROUP_SHORT_LABELS[g]}`, onSelect: () => void onSetBudget(line.category, line.budgeted, g) }),
+      (g): RowMenuItem => ({ label: `Move to ${GROUP_SHORT_LABELS[g]}`, onSelect: () => void saveBudget(line.budgeted, g) }),
     ),
     { kind: "divider" },
     { label: "Move up", onSelect: onMoveUp, disabled: !canMoveUp },
@@ -348,15 +369,24 @@ function BudgetRow({
   return (
     <div
       ref={rowRef}
-      draggable
-      onDragStart={onDragStart}
+      draggable={dragArmed}
+      onDragStart={(e) => {
+        if (!dragArmed) {
+          e.preventDefault();
+          return;
+        }
+        onDragStart(e);
+      }}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      onDragEnd={onDragEnd}
+      onDragEnd={() => {
+        setDragArmed(false);
+        onDragEnd();
+      }}
       className={isDragging ? "cat-row budget-row-dragging" : "cat-row"}
     >
       <div className="cat-row-name">
-        <span className="drag-handle" title="Drag to reorder (or use Move up / Move down in the ⋯ menu)" aria-hidden="true">
+        <span className="drag-handle" onMouseDown={() => setDragArmed(true)} title="Drag to reorder (or use Move up / Move down in the ⋯ menu)" aria-hidden="true">
           ⠿
         </span>
         <span className="cat-row-name-stack">
@@ -729,7 +759,7 @@ export function BudgetView({
         </div>
         {netBreakdown && (
           <p className="budget-summary-note" data-budget-summary-note>
-            Planned: {netBreakdown.planned} · {actualLabel}: {netBreakdown.actual}
+            Planned: {netBreakdown.planned} · {actualLabel}: {netBreakdown.actual} · Not an account balance
           </p>
         )}
         {allocation && (
