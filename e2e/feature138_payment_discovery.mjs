@@ -118,6 +118,9 @@ try {
   // Readable at wide and narrow widths in real light/dark modes. The row
   // density selector is hidden; its saved preference is covered by feature65.
   for (const mode of ["Light", "Dark"]) {
+    // Light / Dark / System shows in the full sidebar; below 1000px the sidebar is icons only and has
+    // a one-button switch instead, so pick the mode in a wide window.
+    await browser.setWindowSize(1440, 1000);
     await (await browser.$(`button=${mode}`)).click();
     for (const width of [1440, 800]) {
       await browser.setWindowSize(width, 1000);

@@ -387,16 +387,28 @@
   border-radius: 22px;
   border-right: none;
   border: 1px solid var(--sidebar-border);
-  backdrop-filter: blur(24px) saturate(1.7);
-  -webkit-backdrop-filter: blur(24px) saturate(1.7);
 }
 
-/* The pinned sidebar foot sits over navigation that scrolls under it, and
-   the sidebar's own colour is a light see-through tint, so the foot lays
-   that tint over the opaque page background: it matches the rail and
-   nothing shows through it. */
-[data-palette="transparent"] .sidebar-foot {
-  background: linear-gradient(var(--sidebar-bg), var(--sidebar-bg)), var(--bg);
+/* The sidebar's glass: the colour wash behind it, blurred. It is a layer of
+   its own, fixed over the sidebar's place (14px in from the window's
+   edges, like the sidebar), rather than a backdrop-filter on the sidebar
+   itself: an element with a backdrop-filter traps `position: fixed`
+   children inside its own box, where the sidebar clips them, and the
+   names beside the icons of the narrow sidebar and its profile menu
+   (AppResponsive.css) need to reach past it. The narrow sidebar sets the
+   layer's width to match its own. */
+[data-palette="transparent"] .sidebar::before {
+  content: "";
+  position: fixed;
+  top: 14px;
+  bottom: 14px;
+  left: 14px;
+  width: 224px;
+  z-index: -1;
+  border-radius: 22px;
+  backdrop-filter: blur(24px) saturate(1.7);
+  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  pointer-events: none;
 }
 
 /* `.main` is only ever the scroll container — no background/radius of its

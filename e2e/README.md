@@ -54,6 +54,14 @@ config/runner) — `import { launchApp } from "./harness.mjs"`, do things with
 `app.browser.$(selector)` / `$$(selector)` are plain CSS selectors against
 the real rendered DOM.
 
+`launchApp()` sets the window to 1280x800 (`DEFAULT_WINDOW_SIZE` in
+`harness.mjs`) before the spec starts. The window opens at 800x600, and below
+1000px wide the sidebar shows icons only (its names stay in the page, as each
+tab's `aria-label` and visually hidden text, so `button*=Settings` still
+finds a tab). A spec that needs the narrow layout calls
+`browser.setWindowSize(800, 600)` itself; `launchApp({ windowSize: null })`
+keeps the size the window opened at.
+
 ## Running the full suite
 
 ```
@@ -133,7 +141,9 @@ reproduced on demand and fixed at its cause, not retried away.
   it, back to the app's 800x600 default. Every spec that had set a larger
   window and then reclaimed focus silently switched to the narrow layout
   (missing columns, moved controls), which failed whichever check came next.
-  It now sets the size again until it holds (`e2e/harness.test.mjs`).
+  It now sets the size again until it holds (`e2e/harness.test.mjs`), and it
+  restores the size the spec last asked for (the harness records every
+  `setWindowSize`), not whatever size the window reports.
 - **Counting IPC as loads.** Tauri sends every command as a fetch to
   `ipc.localhost`, so `performance.getEntriesByType("resource")` grows
   whenever a background command runs; leave those out when checking that

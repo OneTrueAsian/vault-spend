@@ -126,7 +126,8 @@ const DashboardView = lazy(() => import("./DashboardView").then((m) => ({ defaul
 const HelpView = lazy(() => import("./HelpView").then((m) => ({ default: m.HelpView })));
 
 import { UpdateBanner } from "./UpdateBanner";
-import { NavIcon } from "./icons";
+import { SidebarNav } from "./SidebarNav";
+import { useDismiss } from "./useDismiss";
 import { formatAmount, toLocalIsoDate } from "./format";
 import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
@@ -193,8 +194,6 @@ import {
   type LedgerDensity,
 } from "./appStorage";
 import {
-  NAV_GROUP_LABELS,
-  NAV_GROUP_ORDER,
   NAV_ITEMS,
   PINNED_NAV_ITEMS,
   UNCATEGORIZED_FILTER,
@@ -242,6 +241,20 @@ function App({
   const [appearance, setAppearance] = useState<AppearancePrefs>(readStoredAppearancePrefs);
   const [navOrder, setNavOrder] = useState<Tab[]>(loadNavOrder);
   const [dragNavTab, setDragNavTab] = useState<Tab | null>(null);
+  // Below 1000px the sidebar shows icons only; "Show names" lays the full sidebar over the page
+  // until a tab is chosen, Escape is pressed or the person clicks outside it.
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  useDismiss(sidebarExpanded, [sidebarRef], () => setSidebarExpanded(false));
+  useEffect(() => {
+    // Widening the window past the icon-only layout ends "Show names", so narrowing it again
+    // starts from icons rather than an overlay nobody asked for this time.
+    const query = window.matchMedia?.("(max-width: 1000px)");
+    if (!query) return;
+    const collapse = () => setSidebarExpanded(false);
+    query.addEventListener("change", collapse);
+    return () => query.removeEventListener("change", collapse);
+  }, []);
   const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(DEFAULT_LAYOUT);
   // Set once the person changes the layout, so a slow first read of the saved one (it arrives
   // asynchronously after mount) can't land afterwards and undo what they just did.
@@ -3489,95 +3502,54 @@ function App({
   }
 
   return (
-    <div className="app-shell">
+    <div className={sidebarExpanded ? "app-shell sidebar-expanded" : "app-shell"}>
       {showWelcome && (
         <WelcomeDialog onExploreHelp={handleExploreHelpFromWelcome} onGetStarted={dismissWelcome} />
       )}
       {!showWelcome && whatsNewVersion && (
         <WhatsNewDialog version={whatsNewVersion} notes={CHANGELOG[whatsNewVersion]} onClose={dismissWhatsNew} />
       )}
-      <aside className="sidebar">
-        <div className="brand">
-          <img className="brand-mark" src={vaultSpendIcon} alt="" />
-          <span className="brand-word">Vault Spend</span>
-        </div>
-        <ProfileSwitcher
-          profiles={profiles}
-          onSwitchProfile={handleSwitchProfile}
-          onManageProfiles={() => setActiveTab("settings")}
-          onLock={profiles.find((p) => p.is_active)?.is_password_protected ? handleLockProfile : undefined}
-        />
-        {NAV_GROUP_ORDER.map((group) => (
-          <div className="nav-group" key={group}>
-            <div className="nav-group-label" aria-hidden="true">{NAV_GROUP_LABELS[group]}</div>
-            <nav className="nav-list" aria-label={NAV_GROUP_LABELS[group]}>
-              {orderedNavItems
-                .filter((item) => item.group === group)
-                .map((item) => (
-                  <button
-                    key={item.id}
-                    draggable
-                    className={
-                      activeTab === item.id
-                        ? "nav-item nav-item-active"
-                        : dragNavTab === item.id
-                          ? "nav-item nav-item-dragging"
-                          : "nav-item"
-                    }
-                    onClick={() => setActiveTab(item.id)}
-                    onKeyDown={(e) => {
-                      // Alt+Up/Down: keyboard equivalent of dragging this
-                      // item — see `moveNavItem`'s doc comment.
-                      if (e.altKey && e.key === "ArrowUp") {
-                        e.preventDefault();
-                        moveNavItem(item.id, -1);
-                      } else if (e.altKey && e.key === "ArrowDown") {
-                        e.preventDefault();
-                        moveNavItem(item.id, 1);
-                      }
-                    }}
-                    aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                    title="Drag to reorder, or focus and press Alt+↑/↓"
-                    onDragStart={(e) => {
-                      // Native drag-and-drop requires a payload via setData or
-                      // the browser treats the drag as invalid and shows
-                      // "not-allowed" over every drop target, regardless of
-                      // what dragover/drop do.
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/plain", item.id);
-                      setDragNavTab(item.id);
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      handleNavDrop(item.id);
-                    }}
-                    onDragEnd={() => setDragNavTab(null)}
-                  >
-                    <NavIcon name={item.icon} />
-                    <span className="nav-text">{item.label}</span>
-                  </button>
-                ))}
-            </nav>
+      <aside className="sidebar" ref={sidebarRef}>
+        {/* Only this part scrolls, so the controls below never cover a tab. */}
+        <div className="sidebar-scroll">
+          <button
+            type="button"
+            className="sidebar-expand"
+            data-sidebar-expand
+            aria-expanded={sidebarExpanded}
+            aria-label={sidebarExpanded ? "Hide names" : "Show names"}
+            title={sidebarExpanded ? "Hide names" : "Show names"}
+            onClick={() => setSidebarExpanded((v) => !v)}
+          >
+            <span aria-hidden="true">☰</span>
+          </button>
+          <div className="brand">
+            <img className="brand-mark" src={vaultSpendIcon} alt="" />
+            <span className="brand-word">Vault Spend</span>
           </div>
-        ))}
-        <div className="sidebar-spacer"></div>
-        <div className="sidebar-divider"></div>
-        <nav className="nav-list" aria-label="Settings and help">
-          {PINNED_NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              className={activeTab === item.id ? "nav-item nav-item-active" : "nav-item"}
-              onClick={() => setActiveTab(item.id)}
-            >
-              <NavIcon name={item.icon} />
-              <span className="nav-text">{item.label}</span>
-            </button>
-          ))}
-        </nav>
+          <ProfileSwitcher
+            profiles={profiles}
+            onSwitchProfile={handleSwitchProfile}
+            onManageProfiles={() => {
+              setActiveTab("settings");
+              setSidebarExpanded(false);
+            }}
+            onLock={profiles.find((p) => p.is_active)?.is_password_protected ? handleLockProfile : undefined}
+          />
+          <SidebarNav
+            items={orderedNavItems}
+            activeTab={activeTab}
+            dragNavTab={dragNavTab}
+            onSelect={(tab) => {
+              setActiveTab(tab);
+              setSidebarExpanded(false);
+            }}
+            onDragStartItem={setDragNavTab}
+            onDragEndItem={() => setDragNavTab(null)}
+            onDropItem={handleNavDrop}
+            onMoveItem={moveNavItem}
+          />
+        </div>
         <div className="sidebar-foot">
           <SidebarControls
             privacyHidden={privacyPrefs.hidden}

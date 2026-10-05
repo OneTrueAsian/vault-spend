@@ -14,10 +14,56 @@
   color: var(--sidebar-text);
   display: flex;
   flex-direction: column;
-  padding: 18px 12px;
+  --sidebar-pad-x: 12px;
   border-right: 1px solid var(--sidebar-border);
   height: 100%;
+  overflow: hidden;
+}
+
+/* Everything above the controls at the foot. Only this part scrolls in a
+   short window, so the foot never covers a tab (or a focused one) and
+   nothing scrolls underneath it. */
+.sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px var(--sidebar-pad-x) 8px;
+  overflow-x: hidden;
   overflow-y: auto;
+  /* A thin scrollbar leaves the contents (and the narrow icon-only rail)
+     room. */
+  scrollbar-width: thin;
+}
+
+/* "Show names" / "Hide names", for the icon-only sidebar of a narrow
+   window; shown only there (AppResponsive.css). */
+.sidebar-expand {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 44px;
+  height: 34px;
+  margin-bottom: 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: none;
+  color: var(--sidebar-text);
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sidebar-expand:hover {
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text-active);
+}
+
+.app-shell.sidebar-expanded .sidebar-expand {
+  align-self: flex-start;
 }
 
 .brand {
@@ -151,18 +197,13 @@
   flex: 1;
 }
 
-/* Pinned to the bottom of the sidebar, so Hide amounts and Light / Dark /
-   System stay on screen in a short window while the navigation above
-   scrolls under it. It spans the sidebar's side and bottom padding (the
-   negative margins) and is painted, so nothing shows through or beside it. */
+/* The foot of the sidebar: Hide amounts and Light / Dark / System stay on
+   screen in a short window, below the part that scrolls (.sidebar-scroll),
+   on the sidebar's own background. */
 .sidebar-foot {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
+  flex: none;
   border-top: 1px solid var(--sidebar-border);
-  margin: 6px -12px -18px;
-  padding: 10px 12px 10px;
-  background: var(--sidebar-bg);
+  padding: 10px var(--sidebar-pad-x);
 }
 
 .sidebar-version {

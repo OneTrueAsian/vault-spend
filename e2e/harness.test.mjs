@@ -1,5 +1,16 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { chooseMenuOption, dismissFirstLaunchDialogs, menuOptionLabels, pickFromMenu, reclaimWindowFocus, withFocusRetry } from "./harness.mjs";
+import {
+  DEFAULT_WINDOW_SIZE,
+  applyWindowSize,
+  chooseMenuOption,
+  dismissFirstLaunchDialogs,
+  menuOptionLabels,
+  pickFromMenu,
+  reclaimWindowFocus,
+  requestedWindowSize,
+  trackWindowSize,
+  withFocusRetry,
+} from "./harness.mjs";
 
 // Unit tests for the harness's own logic, against a stand-in for WebdriverIO: no app, no driver. The
 // stand-in models one MenuSelect (a trigger, its popover menu, the items) and lets a test make the menu
@@ -348,6 +359,55 @@ describe("reclaimWindowFocus", () => {
     state.focused = true;
     await reclaimWindowFocus(browser);
     expect(state.size).toEqual({ width: 1440, height: 1000 });
+  });
+
+  it("puts back the size last asked for, even if the window has slipped to another size", async () => {
+    const { browser, state } = fakeWindow({ size: { width: 800, height: 600 } });
+    trackWindowSize(browser);
+    await browser.setWindowSize(1280, 800);
+    state.size = { width: 800, height: 600 }; // an earlier un-maximize that did not hold
+    await reclaimWindowFocus(browser);
+    expect(state.size).toEqual({ width: 1280, height: 800 });
+  });
+});
+
+describe("window size", () => {
+  it("defaults to 1280x800, wide enough for the sidebar to show its names", () => {
+    expect(DEFAULT_WINDOW_SIZE).toEqual({ width: 1280, height: 800 });
+  });
+
+  it("applyWindowSize asks again until the size holds, and remembers it", async () => {
+    const asked = [];
+    const state = { size: { width: 800, height: 600 }, misses: 1 };
+    const browser = {
+      async getWindowSize() {
+        return { ...state.size };
+      },
+      async setWindowSize(width, height) {
+        asked.push([width, height]);
+        if (state.misses-- > 0) return; // the first request is ignored, as after an un-maximize
+        state.size = { width, height };
+      },
+    };
+    trackWindowSize(browser);
+    await applyWindowSize(browser, DEFAULT_WINDOW_SIZE);
+    expect(state.size).toEqual({ width: 1280, height: 800 });
+    expect(asked).toEqual([
+      [1280, 800],
+      [1280, 800],
+    ]);
+  });
+
+  it("trackWindowSize records sizes a spec sets itself", async () => {
+    const browser = {
+      async setWindowSize() {},
+      async getWindowSize() {
+        return { width: 1, height: 1 };
+      },
+    };
+    trackWindowSize(browser);
+    await browser.setWindowSize(800, 600);
+    expect(requestedWindowSize(browser)).toEqual({ width: 800, height: 600 });
   });
 });
 

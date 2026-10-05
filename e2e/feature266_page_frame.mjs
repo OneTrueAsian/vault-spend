@@ -7,12 +7,13 @@
 // - On Transactions, the title row's actions hold "Import transactions…" and "Add transaction…".
 // - On a scrolled Dashboard nothing tall is pinned over the top of the page (the old cover-up).
 // - In all three styles, at the default window size, 1280x800 and 1440x1000, Hide amounts and
-//   Light / Dark / System are fully inside the window without scrolling the sidebar (the foot is
-//   pinned; the top bar used to keep them on screen). In Light and Dark they fit the sidebar, no
-//   text is cut off, and the current theme reads.
+//   Light / Dark / System are fully inside the window without scrolling the sidebar (the foot stays
+//   put below the part that scrolls, so no tab passes under it; the top bar used to keep them on
+//   screen). In Light and Dark they fit the sidebar, no text is cut off, and the current theme reads.
 // - Transactions doesn't scroll sideways at 800, 1280 or 1440px.
-// - In the narrowest window the one-button theme switch stands in for the three-way group and
-//   Hide amounts shows an eye, struck through while amounts are hidden; both fit and work.
+// - In a narrow window (icon-only sidebar, below 1000px) the one-button theme switch stands in for
+//   the three-way group and Hide amounts shows an eye, struck through while amounts are hidden; both
+//   fit and work.
 //
 // Styles and modes are switched through the app's own controls (Settings > Appearance and the
 // sidebar's Light / Dark buttons), so the page and the app's state never disagree.
@@ -44,9 +45,19 @@ async function nav(label) {
 /** Picks a style on Settings > Appearance, the way a person does. */
 async function chooseStyle(label, palette) {
   await nav("Settings");
-  await waitUntilOrDiagnose(browser, () => browser.execute(() => !!document.querySelector('[role="radiogroup"][aria-label="Theme"]')), {
-    timeoutMsg: "Settings > Appearance should show its style choices",
-  });
+  // Wait for the row itself, not just the group: the click below needs it to exist.
+  await waitUntilOrDiagnose(
+    browser,
+    () =>
+      browser.execute(
+        (text) =>
+          [...document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')].some(
+            (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+          ),
+        label,
+      ),
+    { timeoutMsg: `Settings > Appearance should offer ${label}` },
+  );
   await browser.execute((text) => {
     const row = [...document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')].find(
       (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
@@ -78,14 +89,14 @@ const pinnedOnScreen = () =>
         inSidebar: r.top >= box.top && r.bottom <= box.bottom && r.left >= box.left && r.right <= box.right,
       };
     }
-    // Navigation scrolls under the pinned foot, so the foot must be painted solid: an opaque colour,
-    // or (Default, whose sidebar colour is see-through) the sidebar tint layered over the page colour.
-    const foot = getComputedStyle(document.querySelector(".sidebar-foot"));
-    const solidColor = /^rgb\(/.test(foot.backgroundColor) || /^rgba\([^)]*,\s*1\)$/.test(foot.backgroundColor);
-    const painted = solidColor || (foot.backgroundImage.includes("gradient") && foot.backgroundColor !== "rgba(0, 0, 0, 0)");
-    return { scrollTop: sidebar.scrollTop, overflows: sidebar.scrollHeight > sidebar.clientHeight, window: [innerWidth, innerHeight], painted, footBg: [foot.backgroundColor, foot.backgroundImage], parts };
+    // Only the part above the foot scrolls (.sidebar-scroll), so no navigation ever passes under the
+    // foot and it needs no cover of its own: the scrolling part ends where the foot begins.
+    const scroller = document.querySelector(".sidebar-scroll");
+    const footTop = document.querySelector(".sidebar-foot").getBoundingClientRect().top;
+    const clear = !!scroller && scroller.getBoundingClientRect().bottom <= footTop + 0.5 && !document.querySelector(".sidebar-scroll .sidebar-foot");
+    return { scrollTop: sidebar.scrollTop, window: [innerWidth, innerHeight], clear, parts };
   });
-const isPinned = (m) => m.scrollTop === 0 && m.painted && Object.values(m.parts).every((p) => p.inWindow && p.inSidebar);
+const isPinned = (m) => m.scrollTop === 0 && m.clear && Object.values(m.parts).every((p) => p.inWindow && p.inSidebar);
 
 /** The controls fit the sidebar, nothing is cut off, and the current theme's text differs from its background. */
 const sidebarFit = () =>
@@ -247,13 +258,14 @@ try {
     }
   }
 
-  // The narrowest window, from a known state (Default, Light): the one-button switch and the eye.
+  // A narrow window (icon-only sidebar), from a known state (Default, Light): the one-button switch
+  // and the eye.
   await chooseStyle("Default", "transparent");
   await chooseMode("Light");
   await waitUntilOrDiagnose(browser, () => browser.execute(() => document.documentElement.dataset.theme === "light"), {
     timeoutMsg: "Light should apply before the narrow-window checks",
   });
-  await browser.setWindowSize(740, 700);
+  await browser.setWindowSize(900, 700);
   const narrow = () =>
     browser.execute(() => {
       const sidebar = document.querySelector(".sidebar").getBoundingClientRect();
@@ -274,7 +286,7 @@ try {
       const n = await narrow();
       return n.cycle && !n.group && n.privacy && n.misfits.length === 0;
     },
-    { timeoutMsg: "in the narrowest window Hide amounts and the one-button theme switch should show and fit on screen", extra: narrow },
+    { timeoutMsg: "in a narrow window Hide amounts and the one-button theme switch should show and fit on screen", extra: narrow },
   );
 
   const eye = () =>

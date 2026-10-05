@@ -1,18 +1,80 @@
 /* --------------------------- Responsive --------------------------- */
 
-@media (max-width: 760px) {
-  .sidebar {
-    width: 68px;
+/* Icon-only sidebar. Below 1000px the sidebar keeps only its icons; each
+   tab's name stays in the page for screen readers and appears beside the
+   icon on hover and keyboard focus. "Show names" (the ☰ button at the top)
+   lays the full sidebar over the page until a tab is chosen, Escape is
+   pressed or the person clicks outside it, so every rule that narrows the
+   sidebar is scoped to `:not(.sidebar-expanded)`. */
+@media (max-width: 1000px) {
+  .app-shell {
+    position: relative;
   }
 
-  .brand-word,
-  .nav-item span.nav-text,
-  .nav-group-label {
+  /* Above `.main` (Default makes `.main` a layer of its own), so the names
+     beside the icons are drawn over the page. Two classes, to outrank
+     Default's own `.sidebar` layer rule. */
+  .app-shell .sidebar {
+    position: relative;
+    z-index: 2;
+  }
+
+  .sidebar-expand {
+    display: flex;
+    width: 100%;
+    max-width: 44px;
+  }
+
+  /* Narrow side padding, so a short window's scrollbar still leaves the
+     icons room in the 68px rail. */
+  .app-shell:not(.sidebar-expanded) .sidebar {
+    width: 68px;
+    --sidebar-pad-x: 6px;
+  }
+
+  .app-shell:not(.sidebar-expanded) .brand-word,
+  .app-shell:not(.sidebar-expanded) .nav-group-label {
     display: none;
   }
 
-  .nav-item {
+  .app-shell:not(.sidebar-expanded) .brand {
     justify-content: center;
+    padding: 6px 0 16px;
+  }
+
+  .app-shell:not(.sidebar-expanded) .nav-item {
+    justify-content: center;
+    padding: 9px 0;
+  }
+
+  /* Visually hidden, not removed: the name is still the button's text. */
+  .app-shell:not(.sidebar-expanded) .nav-item span.nav-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The tab's name beside the icon. `position: fixed` with only `left`
+     set keeps it at the tab's own height while escaping the sidebar's
+     scrolling box, which would otherwise clip it. */
+  .app-shell:not(.sidebar-expanded) .nav-item:is(:hover, :focus-visible)::after {
+    content: attr(aria-label);
+    position: fixed;
+    left: 76px;
+    z-index: 40;
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: var(--status-base);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    box-shadow: var(--shadow-md);
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
   }
 
   /* Room for one narrow column only: the version line and the three-way
@@ -20,49 +82,103 @@
      amounts shows an eye. Its words stay in the button (font-size 0, not
      removed), so it keeps its name for screen readers; the eye has an
      empty alternative so it isn't read out on top of them. */
-  .sidebar-version,
-  .sidebar-controls .theme-toggle {
+  .app-shell:not(.sidebar-expanded) .sidebar-version,
+  .app-shell:not(.sidebar-expanded) .sidebar-controls .theme-toggle {
     display: none;
   }
 
-  .sidebar-controls .theme-cycle {
+  .app-shell:not(.sidebar-expanded) .sidebar-controls .theme-cycle {
     display: block;
     padding: 7px 2px;
   }
 
-  .sidebar-controls .privacy-toggle {
+  .app-shell:not(.sidebar-expanded) .sidebar-controls .privacy-toggle {
     padding: 7px 2px;
     font-size: 0;
     line-height: 1;
   }
 
-  .sidebar-controls .privacy-toggle::before {
+  .app-shell:not(.sidebar-expanded) .sidebar-controls .privacy-toggle::before {
     content: "\1F441\FE0E" / "";
     font-size: 15px;
   }
 
   /* Amounts hidden: the eye is struck through, not just filled. */
-  .sidebar-controls .privacy-toggle.privacy-toggle-on::before {
+  .app-shell:not(.sidebar-expanded) .sidebar-controls .privacy-toggle.privacy-toggle-on::before {
     text-decoration: line-through;
     text-decoration-thickness: 2px;
   }
 
-  .profile-switcher-name,
-  .profile-switcher .account-filter-caret {
+  .app-shell:not(.sidebar-expanded) .profile-switcher-name,
+  .app-shell:not(.sidebar-expanded) .profile-switcher .account-filter-caret {
     display: none;
   }
 
-  .profile-switcher-toggle {
+  .app-shell:not(.sidebar-expanded) .profile-switcher-toggle {
     justify-content: center;
     padding: 8px;
   }
 
-  .profile-switcher-panel {
-    left: 0;
+  /* The profile menu opens beside the rail, level with the switcher
+     (usePopover places a fixed panel), instead of inside the 68px rail,
+     which would cut it off. */
+  .app-shell:not(.sidebar-expanded) .profile-switcher-panel {
+    position: fixed;
+    left: 76px;
     right: auto;
-    min-width: 180px;
+    width: max-content;
+    max-width: 280px;
+    z-index: 40;
   }
 
+  /* Names shown: the full sidebar over the page, and the page held where
+     it was, so nothing under it jumps sideways. */
+  .app-shell.sidebar-expanded .sidebar {
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    height: auto;
+    width: 232px;
+    z-index: 30;
+    box-shadow: var(--shadow-lg, 0 8px 24px rgb(0 0 0 / 0.25));
+  }
+
+  .app-shell.sidebar-expanded .main {
+    margin-left: 68px;
+  }
+
+  /* Default (see-through) style: its glass layer (App.css) takes the
+     sidebar's width. The current tab's own small blur goes, because a
+     backdrop-filter would trap the tab's name inside the tab. */
+  [data-palette="transparent"] .app-shell:not(.sidebar-expanded) .sidebar::before {
+    width: 68px;
+  }
+
+  [data-palette="transparent"] .app-shell.sidebar-expanded .sidebar::before {
+    width: 232px;
+  }
+
+  [data-palette="transparent"] .nav-item.nav-item-active {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  /* Default floats the sidebar 14px in from the window's edges. */
+  [data-palette="transparent"] .app-shell:not(.sidebar-expanded) .nav-item:is(:hover, :focus-visible)::after,
+  [data-palette="transparent"] .app-shell:not(.sidebar-expanded) .profile-switcher-panel {
+    left: 90px;
+  }
+
+  [data-palette="transparent"] .app-shell.sidebar-expanded .sidebar {
+    inset: 14px auto 14px 14px;
+  }
+
+  [data-palette="transparent"] .app-shell.sidebar-expanded .main {
+    margin-left: 82px;
+  }
+}
+
+@media (max-width: 760px) {
   .page {
     padding: 18px 14px 48px;
   }

@@ -31,13 +31,22 @@ export function usePopover() {
       // existing container, including Transparent's backdrop-filter containers.
       for (const property of ["left", "right", "top", "bottom", "max-height"]) panel.style.removeProperty(property);
       const topEdge = 8;
-      const below = Math.max(0, window.innerHeight - trigger.bottom - 12);
-      const above = Math.max(0, trigger.top - topEdge - 12);
+      // A `position: fixed` panel (the profile menu beside the icon-only sidebar) opens level with
+      // its trigger, in window coordinates: its top at the trigger's top or, short of room below,
+      // its bottom at the trigger's bottom.
+      const fixed = getComputedStyle(panel).position === "fixed";
+      const below = Math.max(0, window.innerHeight - (fixed ? trigger.top : trigger.bottom) - 12);
+      const above = Math.max(0, (fixed ? trigger.bottom : trigger.top) - topEdge - 12);
       const wanted = Math.min(panel.scrollHeight + 2, parseFloat(getComputedStyle(panel).maxHeight) || 340);
       const useAbove = (below < wanted && above > below) ||
         (panel.classList.contains("bucket-contribute-panel") && above >= wanted);
-      panel.style.top = useAbove ? "auto" : "calc(100% + 6px)";
-      panel.style.bottom = useAbove ? "calc(100% + 6px)" : "auto";
+      if (fixed) {
+        panel.style.top = useAbove ? "auto" : `${trigger.top}px`;
+        panel.style.bottom = useAbove ? `${window.innerHeight - trigger.bottom}px` : "auto";
+      } else {
+        panel.style.top = useAbove ? "auto" : "calc(100% + 6px)";
+        panel.style.bottom = useAbove ? "calc(100% + 6px)" : "auto";
+      }
       panel.style.maxHeight = `${Math.min(wanted, useAbove ? above : below)}px`;
       const rect = panel.getBoundingClientRect();
       const shift = rect.left < 8 ? 8 - rect.left : Math.min(0, window.innerWidth - 8 - rect.right);

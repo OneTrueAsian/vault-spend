@@ -157,6 +157,43 @@ export async function dismissFirstLaunchDialogs(browser) {
   }
 }
 
+// Every spec starts at this window size (launchApp's `windowSize`), wide enough for the sidebar to show
+// its names: below 1000px it shows icons only. A spec that needs the narrow layout sets it itself.
+export const DEFAULT_WINDOW_SIZE = Object.freeze({ width: 1280, height: 800 });
+
+const requestedSizes = new WeakMap();
+
+/** The window size last asked for through `browser.setWindowSize` (see trackWindowSize), if any. */
+export function requestedWindowSize(browser) {
+  return requestedSizes.get(browser);
+}
+
+/** Makes `browser.setWindowSize` remember each size asked for, so reclaimWindowFocus can put it back. */
+export function trackWindowSize(browser) {
+  const record = (width, height) => requestedSizes.set(browser, { width, height });
+  if (typeof browser.overwriteCommand === "function") {
+    browser.overwriteCommand("setWindowSize", async (original, width, height) => {
+      record(width, height);
+      return original(width, height);
+    });
+  } else {
+    const original = browser.setWindowSize.bind(browser);
+    browser.setWindowSize = async (width, height) => {
+      record(width, height);
+      return original(width, height);
+    };
+  }
+}
+
+/** Sets the window size, asking again (up to 3 times in all) until it holds. */
+export async function applyWindowSize(browser, { width, height }) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await browser.setWindowSize(width, height);
+    const now = await browser.getWindowSize();
+    if (now.width === width && now.height === height) return;
+  }
+}
+
 // Under the parallel runner, every other spec's app window that launches takes OS foreground from
 // this one: `document.hasFocus()` flips to false while `document.activeElement` is untouched, so
 // `:focus`/`:focus-visible` stop matching and any focus-dismissed UI (a dropdown menu) closes. That
@@ -168,16 +205,14 @@ export async function dismissFirstLaunchDialogs(browser) {
 // that is focused but still not `:focus-visible` after this is a real failure.
 export async function reclaimWindowFocus(browser) {
   if (await browser.execute(() => document.hasFocus())) return;
-  const { width, height } = await browser.getWindowSize();
+  // The size last asked for (see trackWindowSize), not the size the window reports: a window that an
+  // earlier attempt could not put back would otherwise keep the wrong size from then on.
+  const size = requestedWindowSize(browser) ?? (await browser.getWindowSize());
   await browser.maximizeWindow();
   // Resizing a maximized window only un-maximizes it, back to the size it was created at (800x600), and
   // ignores the size asked for — so a spec that had set 1440x1000 silently dropped to the narrow layout
   // after every reclaim. Ask again until the size really is back.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await browser.setWindowSize(width, height);
-    const now = await browser.getWindowSize();
-    if (now.width === width && now.height === height) break;
-  }
+  await applyWindowSize(browser, size);
   await browser.waitUntil(() => browser.execute(() => document.hasFocus()), {
     timeout: 5000,
     timeoutMsg: "the app window never regained focus (another window is holding OS foreground)",
@@ -295,7 +330,7 @@ function killTree(pid) {
 }
 
 // One launch attempt. See launchApp below for the retry around it.
-async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLegalNotice = false, waitForData = true } = {}) {
+async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLegalNotice = false, waitForData = true, windowSize = DEFAULT_WINDOW_SIZE } = {}) {
   const ownDbDir = dbDir === undefined;
   const testDbDir = dbDir ?? freshTestDbDir();
   const PORT = await getFreePort();
@@ -393,6 +428,13 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
     // so it's on the app's own origin — but as early as possible relative to the app's own mount
     // effects, for a test that needs to be present before the app's very first read of it.
     if (beforeReady) await beforeReady(session);
+    // The window opens at 800x600, where the sidebar shows icons only. Start every spec at a size where it
+    // shows its names (DEFAULT_WINDOW_SIZE); `windowSize: null` keeps the size the window opened at.
+    trackWindowSize(session);
+    if (windowSize) {
+      await applyWindowSize(session, windowSize);
+      mark(`window set to ${windowSize.width}x${windowSize.height}`);
+    }
     try {
       await session.$(ready).waitForExist({ timeout: 15000 });
       mark(`${ready} rendered`);
