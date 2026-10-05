@@ -97,7 +97,7 @@ try {
 
   // The note typed into the creation dialog should have been saved
   // atomically with the rest of the transaction, and shows as a preview
-  // button on the row (not the raw "+ Add note" prompt for a note-less row).
+  // button on the row (adding a note is otherwise in the row's ⋯ menu).
   const coffeeNoteButton = await coffeeRow.$("button*=Split with Jordan");
   if (!(await coffeeNoteButton.isExisting())) {
     throw new Error('expected the note typed while creating the transaction ("Split with Jordan") to appear as a preview on its row');
@@ -123,14 +123,14 @@ try {
   );
 
   // Same precise per-row check: the row's own category editor reading
-  // "Uncategorized" means nothing matched during categorize_uncategorized,
+  // "Needs a category" means nothing matched during categorize_uncategorized,
   // as expected for this made-up description — not just the word
   // "Uncategorized" appearing anywhere on the page (the toolbar's category
   // filter always lists it as an option regardless of any row's value).
   const zzyzxRow = await app.browser.$("//tr[td[contains(.,'Zzyzx Test Merchant')]]");
   const zzyzxRowCategoryTrigger = await zzyzxRow.$("[aria-label*='Category for']");
   const zzyzxCategoryText = await zzyzxRowCategoryTrigger.getText();
-  if (!zzyzxCategoryText.includes("Uncategorized")) {
+  if (!zzyzxCategoryText.includes("Needs a category")) {
     throw new Error(`expected the auto-categorize path to leave an unmatched transaction Uncategorized, got category "${zzyzxCategoryText}"`);
   }
   console.log("second transaction correctly left Uncategorized via the auto-categorize path");

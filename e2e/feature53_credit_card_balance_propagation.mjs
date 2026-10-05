@@ -9,7 +9,7 @@
 //
 // Run with: node e2e/feature53_credit_card_balance_propagation.mjs
 
-import { launchApp, chooseMenuOption } from "./harness.mjs";
+import { launchApp, chooseMenuOption, chooseRowAction } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -66,8 +66,8 @@ async function addTransaction(app, { accountName, description, amount }) {
 
 async function deleteTransaction(app, description) {
   const row = await app.browser.$(`//tr[td[contains(.,'${description}')]]`);
-  const deleteBtn = await row.$("button=Delete");
-  await deleteBtn.click();
+  // "Delete…" in the row's ⋯ menu shows the inline Cancel/Delete confirm in its place.
+  await chooseRowAction(app.browser, async () => row.$("[data-row-menu]"), "Delete…");
   const confirmBtn = await row.$(".btn-danger");
   await confirmBtn.waitForExist({ timeout: 5000 });
   await confirmBtn.click();

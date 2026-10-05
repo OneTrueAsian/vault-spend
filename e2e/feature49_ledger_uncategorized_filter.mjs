@@ -1,4 +1,4 @@
-// E2E test for the Ledger's "Needs a category" stat and its category
+// E2E test for the Ledger's "needs a category" line (once a stat tile) and its category
 // filter dropdown: previously the dropdown only listed real, named
 // categories plus "All categories" — there was no way to isolate the
 // transactions the "Needs a category" stat counts, and the stat itself
@@ -16,7 +16,7 @@
 //
 // Run with: node e2e/feature49_ledger_uncategorized_filter.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -43,12 +43,14 @@ try {
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
-  const uncategorizedStat = await app.browser.$("//button[contains(@class,'stat')][.//span[text()='Needs a category']]");
-  await uncategorizedStat.waitForExist({ timeout: 10000 });
-  const statValue = await (await uncategorizedStat.$(".stat-value")).getText();
-  if (statValue !== "1") {
-    throw new Error(`expected the "Needs a category" stat to read 1 (Mortgage Import has a real category and must not inflate it), got "${statValue}"`);
-  }
+  // The one line above the table that replaced the four count tiles.
+  const needsLine = await app.browser.$("[data-needs-category]");
+  await needsLine.waitForExist({ timeout: 10000 });
+  await waitUntilOrDiagnose(app.browser, async () => (await needsLine.getText()).includes("1 transaction needs a category"), {
+    timeoutMsg: "expected the needs-a-category line to count 1 (Mortgage Import has a real category and must not inflate it)",
+    extra: async () => ({ line: await needsLine.getText() }),
+  });
+  const needsButton = await needsLine.$("button");
   console.log('"Needs a category" correctly ignores a category-present/source-null row');
 
   const categoryTrigger = await app.browser.$(".ledger-filters .category-filter-toggle");
@@ -85,26 +87,29 @@ try {
     { timeout: 5000, timeoutMsg: "expected clearing the category filter to show all three transactions again" },
   );
 
-  // Clicking the stat itself should apply the same filter as a shortcut.
-  await uncategorizedStat.click();
+  // Its Review button applies the same filter as a shortcut.
+  await needsButton.click();
   await app.browser.waitUntil(async () => (await categoryTrigger.getText()).includes("Uncategorized"), {
     timeout: 5000,
-    timeoutMsg: 'expected clicking the "Needs a category" stat to set the category filter to Uncategorized',
+    timeoutMsg: 'expected clicking Review on the needs-a-category line to set the category filter to Uncategorized',
   });
   await app.browser.waitUntil(
     async () => {
       const text = await ledgerPage.getText();
       return text.includes("Speedway 47096") && !text.includes("Pizza Night");
     },
-    { timeout: 5000, timeoutMsg: "expected the stat-driven filter to show only the uncategorized transaction" },
+    { timeout: 5000, timeoutMsg: "expected the Review-driven filter to show only the uncategorized transaction" },
   );
-  console.log('clicking the "Needs a category" stat correctly filters the ledger');
+  console.log('Review on the needs-a-category line correctly filters the ledger');
 
-  // Clicking it again toggles back to "all".
-  await uncategorizedStat.click();
+  // Show all (the same button) toggles back to "all".
+  await waitUntilOrDiagnose(app.browser, async () => (await needsButton.getText()) === "Show all", {
+    timeoutMsg: "expected the line's button to read Show all while the filter is on",
+  });
+  await needsButton.click();
   await app.browser.waitUntil(async () => (await categoryTrigger.getText()).includes("All categories"), {
     timeout: 5000,
-    timeoutMsg: "expected clicking the stat a second time to clear the filter back to all categories",
+    timeoutMsg: "expected Show all to clear the filter back to all categories",
   });
 
   console.log("FEATURE 49 E2E TEST PASSED");

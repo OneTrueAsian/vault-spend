@@ -35,10 +35,9 @@ add(checking, days_ago(0), "Grocery Run", "-60.00", "Groceries", 1)
 add(checking, days_ago(1), "Coffee Shop", "-4.50", "Dining Out", 2)
 add(savings, days_ago(2), "Interest", "5.00", "Income", 3)
 
-# A debt payment already applied — the Debt column's "→ Home Loan (…) Undo"
-# badge is wider than its "Apply to a debt →" trigger sibling, and found (by
-# a UAT screenshot, not any assertion) to overlap the Actions column's
-# Delete button at a normal desktop width.
+# A debt payment already applied — its "→ Home Loan (…) Undo" badge once
+# overlapped the Actions column (found by a UAT screenshot) at a normal
+# desktop width.
 debt_source = add(checking, days_ago(3), "Mortgage Payment", "-1800.00", "Housing", 4)
 debt_generated = add(loan, days_ago(3), "Mortgage payment applied", "-1800.00", "Transfer", 5)
 cur.execute(
@@ -145,12 +144,11 @@ try {
   await browser.keys("Escape");
   console.log("row menu escapes the ledger's own scroll container:", JSON.stringify(clipGeometry));
 
-  // ---- 2d. An already-applied debt badge doesn't overlap the Delete button
+  // ---- 2d. An already-applied debt badge doesn't overlap the row's actions
   // Found by a UAT screenshot, not any assertion: .debt-applied-badge's
-  // "Undo" button is wider than the plain "Apply to a debt →" trigger and
-  // didn't wrap, so it visually overlapped the Actions column's Delete
-  // button — reproduced at 1440px (an ordinary desktop width), not at the
-  // 1920px this check block otherwise runs at.
+  // "Undo" button once overlapped the Actions column's Delete button at
+  // 1440px. The badge now sits under the description and the actions are
+  // one ⋯ menu; the two still must not overlap.
   await browser.setWindowSize(1440, 1000);
   await browser.pause(300);
   const mortgageRow = await rowFor("Mortgage Payment");
@@ -159,14 +157,14 @@ try {
     const rows = [...document.querySelectorAll("tr")];
     const row = rows.find((r) => r.textContent.includes("Mortgage Payment"));
     const undoBtn = [...row.querySelectorAll("button")].find((b) => b.textContent.trim() === "Undo");
-    const deleteBtn = [...row.querySelectorAll("button")].find((b) => b.textContent.trim() === "Delete");
+    const deleteBtn = row.querySelector("[data-row-menu]");
     const a = undoBtn.getBoundingClientRect();
     const b = deleteBtn.getBoundingClientRect();
     const overlaps = a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-    return { overlaps, undoRect: { left: a.left, right: a.right }, deleteRect: { left: b.left, right: b.right } };
+    return { overlaps, undoRect: { left: a.left, right: a.right }, menuRect: { left: b.left, right: b.right } };
   });
-  assert.ok(!overlapGeometry.overlaps, `expected the debt-applied Undo button not to overlap Delete, got: ${JSON.stringify(overlapGeometry)}`);
-  console.log("debt-applied badge doesn't overlap the row's Delete button:", JSON.stringify(overlapGeometry));
+  assert.ok(!overlapGeometry.overlaps, `expected the debt-applied Undo button not to overlap the row's ⋯ menu, got: ${JSON.stringify(overlapGeometry)}`);
+  console.log("debt-applied badge doesn't overlap the row's ⋯ menu:", JSON.stringify(overlapGeometry));
 
   // ---- 3. Narrow layout: Details panel appears, fields still editable --
   await browser.setWindowSize(800, 900);

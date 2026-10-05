@@ -282,10 +282,25 @@ export async function pickFromMenu(browser, trigger, option) {
 export async function chooseRowAction(browser, trigger, label) {
   try {
     await pickFromMenu(browser, trigger, async () => {
-      const items = await browser.$$(".row-menu-panel [role^='menuitem']");
-      for (const item of items) if ((await item.getText()).trim() === label) return item;
+      // The panel renders after the click lands; on a busy machine that can be after this first
+      // look, so keep looking briefly rather than judging the menu on one read.
+      let found = null;
+      await browser
+        .waitUntil(
+          async () => {
+            for (const item of await browser.$$(".row-menu-panel [role^='menuitem']")) {
+              if ((await item.getText()).trim() === label) {
+                found = item;
+                return true;
+              }
+            }
+            return false;
+          },
+          { timeout: 3000, interval: 100 },
+        )
+        .catch(() => undefined);
       // Not found: hand back a fixed, never-matching selector so the wait fails.
-      return browser.$(".row-menu-panel [data-row-action-missing]");
+      return found ?? browser.$(".row-menu-panel [data-row-action-missing]");
     });
   } catch (e) {
     e.message += ` [chooseRowAction: looking for the menu item "${label}"]`;

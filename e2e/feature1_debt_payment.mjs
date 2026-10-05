@@ -6,7 +6,7 @@
 //
 // Run with: node e2e/feature1_debt_payment.mjs
 
-import { launchApp } from "./harness.mjs";
+import { chooseRowAction, launchApp } from "./harness.mjs";
 import { seedDebtPaymentFixture } from "./lib/seed.mjs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -29,16 +29,14 @@ print(json.dumps(cur.fetchall()))
 const dbDir = await seedDebtPaymentFixture();
 const app = await launchApp({ dbDir });
 try {
-  // The app's own default launch size (800px) sits below the ledger's
-  // narrow-layout breakpoint, where the Debt cell moves behind a per-row
-  // Details toggle instead of its own column.
   await app.browser.setWindowSize(1280, 900);
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
-  const applyButton = await app.browser.$(".debt-apply-trigger");
-  await applyButton.waitForExist({ timeout: 10000 });
-  await applyButton.click();
+  // "Apply to a debt…" lives in the row's ⋯ menu; the form opens under the description.
+  const rowMenu = await app.browser.$("tr[data-payment-row] [data-row-menu]");
+  await rowMenu.waitForExist({ timeout: 10000 });
+  await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Apply to a debt…");
 
   // The amount field should already be pre-filled with the transaction's
   // own amount (500.00) — leave it as-is and just confirm.
@@ -46,8 +44,8 @@ try {
   await applyConfirm.waitForExist({ timeout: 5000 });
   await applyConfirm.click();
 
-  // Wait for the optimistic refresh to land: the "Apply to a debt" button
-  // for this row should disappear, replaced by the "→ Car Loan" badge.
+  // Wait for the optimistic refresh to land: the open form is replaced by
+  // the "→ Car Loan" badge under the description.
   const badge = await app.browser.$(".debt-applied-badge");
   await badge.waitForExist({ timeout: 10000 });
   const badgeText = await badge.getText();

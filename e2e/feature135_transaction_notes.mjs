@@ -1,7 +1,7 @@
 // E2E test for Task 4 of the Transactions usability plan — freeform notes on
 // individual transactions.
 //
-//   - An ordinary row offers "+ Add note"; saving shows a preview on the
+//   - An ordinary row's ⋯ menu offers "Add note…"; saving shows a preview on the
 //     row, editing the preview reopens it prefilled, Cancel discards an
 //     in-progress edit, and clearing the text back to empty removes the
 //     note entirely.
@@ -9,7 +9,7 @@
 //   - A transaction that arrived via CSV import supports notes exactly like
 //     a manually-created one.
 //   - A linked transfer's two legs are still two separate transactions:
-//     each gets its own note action, and a note on one never appears on
+//     each gets its own note action in the row's ⋯ menu, and a note on one never appears on
 //     the other.
 //
 // Run with: node e2e/feature135_transaction_notes.mjs
@@ -17,7 +17,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp, reclaimWindowFocus } from "./harness.mjs";
+import { chooseRowAction, launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { commitReviewedImport } from "./lib/importReview.mjs";
@@ -96,6 +96,7 @@ async function ok(browser, command, args) {
 }
 
 const rowFor = (browser, description) => browser.$(`//tr[td[contains(.,'${description}')]]`);
+const rowMenu = (browser, description) => async () => (await rowFor(browser, description)).$("[data-row-menu]");
 
 async function noteDialogPanel(browser) {
   // WebdriverIO's `tag*=text` reverse-text shorthand only works on a bare
@@ -110,11 +111,9 @@ async function withApp1(browser) {
   await nav(browser, "Transactions");
   await (await browser.$("table.ledger")).waitForExist({ timeout: 10000 });
 
-  // ---- 1. Add a note through the real "+ Add note" button ----------------
-  const coffeeRow = await rowFor(browser, "Coffee Shop");
-  const addBtn = await coffeeRow.$("button[aria-label*='Add note for']");
-  await addBtn.waitForExist({ timeout: 10000, timeoutMsg: 'expected "+ Add note" on a note-less row' });
-  await addBtn.click();
+  // ---- 1. Add a note through the row's ⋯ menu ----------------------------
+  await (await (await rowFor(browser, "Coffee Shop")).$("[data-row-menu]")).waitForExist({ timeout: 10000 });
+  await chooseRowAction(browser, rowMenu(browser, "Coffee Shop"), "Add note…");
   let panel = await noteDialogPanel(browser);
   let textarea = await panel.$("textarea");
   await textarea.setValue("Split with Jordan");
@@ -176,14 +175,13 @@ async function withApp1(browser) {
   await (await panel.$("button=Save")).click();
   await panel.waitForExist({ timeout: 5000, reverse: true });
   await browser.waitUntil(
-    async () => (await (await rowFor(browser, "Coffee Shop")).$("button[aria-label*='Add note for']")).isExisting(),
-    { timeout: 10000, timeoutMsg: 'expected the row to fall back to "+ Add note" once the note is cleared' },
+    async () => !(await (await rowFor(browser, "Coffee Shop")).$("button[aria-label*='Edit note for']").isExisting()),
+    { timeout: 10000, timeoutMsg: "expected the row's note preview to go once the note is cleared" },
   );
-  console.log("clear: note removed, row back to + Add note");
+  console.log("clear: note removed, no preview left on the row");
 
-  // Leave Coffee Shop with a note again, to check it survives a restart.
-  const addBtnAgain = await (await rowFor(browser, "Coffee Shop")).$("button[aria-label*='Add note for']");
-  await addBtnAgain.click();
+  // Leave Coffee Shop with a note again, to check it survives a restart (the menu says Add again).
+  await chooseRowAction(browser, rowMenu(browser, "Coffee Shop"), "Add note…");
   panel = await noteDialogPanel(browser);
   await (await panel.$("textarea")).setValue("Survives a restart");
   await (await panel.$("button=Save")).click();
@@ -206,9 +204,8 @@ async function withApp1(browser) {
     timeout: 10000,
     timeoutMsg: "expected the imported transaction to appear in the Ledger",
   });
-  const importedAddBtn = await (await rowFor(browser, "Imported Widget Purchase")).$("button[aria-label*='Add note for']");
-  await importedAddBtn.waitForExist({ timeout: 10000, timeoutMsg: "an imported transaction should offer Add note like any other row" });
-  await importedAddBtn.click();
+  // An imported transaction offers Add note… in its menu like any other row.
+  await chooseRowAction(browser, rowMenu(browser, "Imported Widget Purchase"), "Add note…");
   panel = await noteDialogPanel(browser);
   await (await panel.$("textarea")).setValue("Reimbursable");
   await (await panel.$("button=Save")).click();
@@ -231,17 +228,14 @@ async function withApp1(browser) {
   const transferRow = await browser.$("tr.ledger-row-transfer");
   await transferRow.waitForExist({ timeout: 10000, timeoutMsg: "expected the pair to merge into one transfer row" });
 
-  const outAdd = await transferRow.$("button[aria-label*='(outgoing leg)']");
-  await outAdd.waitForExist({ timeout: 10000, timeoutMsg: "expected a note action for the outgoing leg" });
-  await outAdd.click();
+  const transferMenu = async () => (await browser.$("tr.ledger-row-transfer")).$("[data-row-menu]");
+  await chooseRowAction(browser, transferMenu, "Add note to Checking…");
   panel = await noteDialogPanel(browser);
   await (await panel.$("textarea")).setValue("Outgoing leg note");
   await (await panel.$("button=Save")).click();
   await panel.waitForExist({ timeout: 5000, reverse: true });
 
-  const inAdd = await (await browser.$("tr.ledger-row-transfer")).$("button[aria-label*='(incoming leg)']");
-  await inAdd.waitForExist({ timeout: 10000, timeoutMsg: "expected a note action for the incoming leg" });
-  await inAdd.click();
+  await chooseRowAction(browser, transferMenu, "Add note to Savings…");
   panel = await noteDialogPanel(browser);
   await (await panel.$("textarea")).setValue("Incoming leg note");
   await (await panel.$("button=Save")).click();
