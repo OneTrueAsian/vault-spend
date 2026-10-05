@@ -1,0 +1,153 @@
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useFixedPanel } from "./useFixedPanel";
+import "./RowMenu.css";
+
+export type RowMenuItem =
+  | { kind?: "action"; label: string; onSelect: () => void; danger?: boolean; disabled?: boolean }
+  | { kind: "check"; label: string; checked: boolean; onToggle: (next: boolean) => void; disabled?: boolean }
+  | { kind: "divider" };
+
+/** A row's `⋯` actions menu. Portaled to `document.body` and positioned `fixed` (see
+ * `useFixedPanel`) so it isn't clipped by the ledger's scroll container. The panel belongs to
+ * this component, so if the row unmounts while the menu is open the menu goes with it and
+ * nothing runs against the stale row. */
+export function RowMenu({ label, items, className }: { label: string; items: (RowMenuItem | false | null | undefined)[]; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const visible = items.filter((item): item is RowMenuItem => Boolean(item));
+
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: MouseEvent) {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useFixedPanel(open, triggerRef, panelRef, { minWidth: 200, align: "end" });
+
+  useLayoutEffect(() => {
+    if (open) panelRef.current?.querySelector<HTMLButtonElement>("[role^='menuitem']:not([aria-disabled='true'])")?.focus();
+  }, [open]);
+
+  function close() {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={triggerRef}
+        className={`row-menu-toggle${className ? ` ${className}` : ""}`}
+        data-row-menu=""
+        aria-label={label}
+        title={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
+        ⋯
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            id={menuId}
+            className="row-menu-panel row-field-panel-fixed"
+            role="menu"
+            aria-label={label}
+            onKeyDown={(e) => {
+              if (e.key === "Tab") {
+                close();
+                return;
+              }
+              const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("[role^='menuitem']:not([aria-disabled='true'])"));
+              if (buttons.length === 0) return;
+              const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+              const next =
+                e.key === "Home"
+                  ? 0
+                  : e.key === "End"
+                    ? buttons.length - 1
+                    : e.key === "ArrowDown"
+                      ? (index + 1) % buttons.length
+                      : e.key === "ArrowUp"
+                        ? (index - 1 + buttons.length) % buttons.length
+                        : -1;
+              if (next >= 0) {
+                e.preventDefault();
+                buttons[next]?.focus();
+              }
+            }}
+          >
+            {visible.map((item, i) => {
+              if (item.kind === "divider") return <div key={i} role="separator" className="row-menu-divider" />;
+              if (item.kind === "check") {
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={item.checked}
+                    aria-disabled={item.disabled ? "true" : undefined}
+                    className="row-menu-item"
+                    onClick={() => {
+                      if (item.disabled) return;
+                      close();
+                      item.onToggle(!item.checked);
+                    }}
+                  >
+                    {/* The tick is drawn by CSS (.row-menu-check::before) so the item's text stays just its label. */}
+                    <span className={`row-menu-check${item.checked ? " row-menu-check-on" : ""}`} aria-hidden="true" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              }
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  role="menuitem"
+                  aria-disabled={item.disabled ? "true" : undefined}
+                  className={`row-menu-item${item.danger ? " row-menu-item-danger" : ""}`}
+                  onClick={() => {
+                    if (item.disabled) return;
+                    close();
+                    item.onSelect();
+                  }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}

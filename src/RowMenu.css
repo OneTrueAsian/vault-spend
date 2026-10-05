@@ -1,0 +1,81 @@
+/* RowMenu: the shared "⋯" actions menu on a row. The panel is portaled and positioned inline by
+   useFixedPanel; `.row-field-panel-fixed` (Ledger.css) supplies position: fixed. */
+.row-menu-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 1.1em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.row-menu-toggle:hover,
+.row-menu-toggle:focus-visible,
+.row-menu-toggle[aria-expanded="true"] {
+  border-color: var(--border);
+}
+
+.row-menu-panel {
+  z-index: 40;
+  min-width: 200px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.row-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-menu-item:hover,
+.row-menu-item:focus-visible {
+  background: var(--surface-2);
+}
+
+.row-menu-item[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.row-menu-item-danger {
+  color: var(--negative);
+}
+
+.row-menu-check {
+  display: inline-block;
+  width: 1.2em;
+  flex: none;
+}
+
+.row-menu-check-on::before {
+  content: "¹3";
+}
+
+.row-menu-divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}

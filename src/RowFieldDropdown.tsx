@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFixedPanel } from "./useFixedPanel";
 
 /** A row-level single-select — the account/member/category editor for one
  * ledger row — replacing a native `<select>`. A native select's closed-state
@@ -62,36 +63,13 @@ export function RowFieldDropdown({
     };
   }, [open]);
 
+  useFixedPanel(open, triggerRef, panelRef);
+
   useLayoutEffect(() => {
-    if (!open || !panelRef.current || !triggerRef.current) return;
+    if (!open || !panelRef.current) return;
     const panel = panelRef.current;
-    const trigger = triggerRef.current;
-    function place() {
-      const rect = trigger.getBoundingClientRect();
-      const below = window.innerHeight - rect.bottom - 12;
-      const above = rect.top - 12;
-      const wanted = Math.min(panel.scrollHeight + 2, 340);
-      const useAbove = below < wanted && above > below;
-      panel.style.maxHeight = `${Math.max(0, Math.min(wanted, useAbove ? above : below))}px`;
-      panel.style.top = useAbove ? "auto" : `${rect.bottom + 6}px`;
-      panel.style.bottom = useAbove ? `${window.innerHeight - rect.top + 6}px` : "auto";
-      const width = Math.max(rect.width, 220);
-      panel.style.minWidth = `${width}px`;
-      let left = rect.left;
-      const maxLeft = window.innerWidth - 8 - panel.offsetWidth;
-      if (left > maxLeft) left = maxLeft;
-      if (left < 8) left = 8;
-      panel.style.left = `${left}px`;
-    }
-    place();
     (panel.querySelector<HTMLButtonElement>('[aria-checked="true"]:not([aria-disabled="true"])') ??
       panel.querySelector<HTMLButtonElement>('[role="menuitemradio"]:not([aria-disabled="true"])'))?.focus();
-    window.addEventListener("resize", place);
-    document.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      document.removeEventListener("scroll", place, true);
-    };
   }, [open]);
 
   function choose(next: string) {
