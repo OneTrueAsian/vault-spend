@@ -90,34 +90,36 @@ const TAB_TOUR_ENTRIES: HelpEntry[] = [
     ],
     node: (
       <li>
-        <strong>Dashboard</strong> — a row of <strong>Quick
-        actions</strong> (add a transaction or account, jump to Budget or
-        Goals) sits above net worth, cash, debt, and investments at a
-        glance (click any of the four for a breakdown of{" "}
+        <strong>Dashboard</strong> — buttons next to the page title add a
+        transaction or account, or jump to Budget or Goals. Net worth,
+        cash, debt, and investments come first, at a glance (click any of
+        the four for a breakdown of{" "}
         <strong>what changed</strong> and which accounts drove it), this
         month's spending by category, recent transactions, and an{" "}
         <strong>Insights</strong> feed that surfaces things worth a look on
         its own: a category on pace to go over budget, a month-over-month
         jump, an unusually large charge — and good news too, like a
-        category you meaningfully cut back on. The layout is yours:
+        category you meaningfully cut back on. The layout is yours: choose{" "}
+        <strong>Customize…</strong> from the <strong>Layout</strong> menu to
         pin/unpin widgets, drag to reorder, or use{" "}
         <strong>"+ Add widget…"</strong> to pin one specific account, goal,
         or investment account, not just the fixed catalog. Pick a built-in
         preset — Default, Bills Focus, Investor Focus — from the{" "}
-        <strong>Layout</strong> dropdown, or, once you've customized the
+        same <strong>Layout</strong> menu, or, once you've customized the
         layout yourself, <strong>"+ Save as…"</strong> to name and keep
         your own arrangement right alongside them — switch back to it any
-        time from the same dropdown, or delete it when you no longer need
+        time from the same menu, or delete it when you no longer need
         it. <strong>Safe to spend</strong> shows what's left of your
         cash after the Recurring bills due before your next paycheck (with an
         optional buffer you choose to keep), and the <strong>To do</strong>{" "}
-        card lists what needs you — uncategorized transactions,
+        card, right under the four money tiles, lists what needs you — uncategorized transactions,
         bills due in the next 3 days, everyday accounts with no activity for
         30+ days, Recurring bills that look missed or changed price, and a
         finished month waiting for its <strong>month-end review</strong> —
-        each row jumping to where it's fixed. New here also see a{" "}
-        <strong>Get started</strong> checklist and the{" "}
-        <strong>Ask the Vault</strong> question box (see FAQ below). The{" "}
+        each row jumping to where it's fixed. The{" "}
+        <strong>Ask the Vault</strong> question box sits right under the
+        page title (see FAQ below), and people who are new here also see a{" "}
+        <strong>Get started</strong> checklist. The{" "}
         <strong>Hide amounts</strong> button at the bottom of the sidebar covers every dollar
         figure with •••• for when someone's looking over your shoulder, and{" "}
         <strong>Ctrl+K</strong> opens a command palette that jumps to any tab,
@@ -1296,12 +1298,13 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["dashboard", "layout", "save layout", "custom layout", "named layout", "preset", "customize", "delete layout"],
     answer: (
       <p>
-        Yes — customize the layout (pin/unpin widgets, drag to reorder,
-        or "+ Add widget…" to pin a specific account/goal/investment
-        account) until the Layout dropdown shows "Custom (unsaved)," then
+        Yes — choose <strong>Customize…</strong> from the Layout menu
+        and change the layout (pin/unpin widgets, drag to reorder, or
+        "+ Add widget…" to pin a specific account/goal/investment
+        account) until the Layout menu shows "Custom (unsaved)," then
         click <strong>"+ Save as…"</strong> and give it a name. It's saved
         right alongside the built-in Default/Bills Focus/Investor Focus
-        presets — pick it from the same dropdown any time to switch back,
+        presets — pick it from the same menu any time to switch back,
         or select it and click <strong>"Delete"</strong> to remove it.
         Saving under a name you've already used replaces that layout
         rather than creating a second copy.

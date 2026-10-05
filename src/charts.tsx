@@ -25,11 +25,14 @@ export function ProgressRing({
   size = 64,
   stroke = 7,
   color = "var(--accent)",
+  ariaLabel,
 }: {
   pct: number;
   size?: number;
   stroke?: number;
   color?: string;
+  /** What the ring shows, for screen readers (the ring is an image: `role="img"`). */
+  ariaLabel?: string;
 }) {
   const r = (size - stroke) / 2;
   const cx = size / 2;
@@ -38,7 +41,12 @@ export function ProgressRing({
   const dash = Math.min(1, Math.max(0, pct / 100)) * circ;
   return (
     <div className="goal-ring-wrap" style={{ width: size, height: size }}>
-      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        width={size}
+        height={size}
+        {...(ariaLabel ? { role: "img", "aria-label": ariaLabel } : {})}
+      >
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--surface-2)" strokeWidth={stroke} />
         <circle
           cx={cx}

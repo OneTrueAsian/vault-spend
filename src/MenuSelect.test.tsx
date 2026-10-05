@@ -57,6 +57,21 @@ describe("MenuSelect", () => {
     expect(trigger().getAttribute("aria-haspopup")).toBe("menu");
   });
 
+  it("can show its name on the trigger, so it reads \"Layout: Default\"", () => {
+    act(() => {
+      root.render(<MenuSelect ariaLabel="Layout" showName options={OPTIONS} value="default" onChange={onChange} triggerClassName="layout-select-toggle" />);
+    });
+
+    expect(trigger().textContent).toBe("Layout: Default▾");
+    expect(trigger().getAttribute("aria-label")).toBe("Layout: Default");
+  });
+
+  it("shows only the selected label when its name isn't asked for", () => {
+    show("default");
+
+    expect(trigger().textContent).toBe("Default▾");
+  });
+
   it("opens a menu of every option with the current one checked", () => {
     show("bills");
     openMenu();

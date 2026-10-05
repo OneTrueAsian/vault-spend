@@ -1,5 +1,5 @@
-// E2E test for the Dashboard's "Quick actions" panel: each of its 4
-// buttons reuses an existing, already-tested trigger (the same dialogs/
+// E2E test for the Dashboard's page actions (the old "Quick actions" row, in
+// the title row since 1.3.0): each of its 4 buttons reuses an existing, already-tested trigger (the same dialogs/
 // navigation the Ledger and Accounts tabs' own buttons already drive) —
 // this only proves the new entry points are wired to the right one.
 //
@@ -10,7 +10,7 @@ import { launchApp } from "./harness.mjs";
 const app = await launchApp();
 try {
   // Dashboard is the default tab on launch.
-  const quickActions = await app.browser.$(".quick-actions");
+  const quickActions = await app.browser.$(".page-top .page-actions");
   await quickActions.waitForExist({ timeout: 10000 });
 
   // `.modal-overlay` fades in over 160ms (see App.css's `overlay-in`
@@ -51,7 +51,7 @@ try {
 
   const dashboardNav = await app.browser.$("button*=Dashboard");
   await dashboardNav.click();
-  const updateGoalsBtn = await (await app.browser.$(".quick-actions")).$("button*=Update goals");
+  const updateGoalsBtn = await (await app.browser.$(".page-top .page-actions")).$("button*=Update goals");
   await updateGoalsBtn.click();
   title = await app.browser.$(".view-title");
   await title.waitForExist({ timeout: 5000 });

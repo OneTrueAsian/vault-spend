@@ -81,6 +81,21 @@
   gap: 16px;
 }
 
+/* The ring with its goal written under it, so "33%" reads as a share of 6 months. */
+.runway-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.runway-goal {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .runway-headline {
   margin: 0 0 3px;
   font-size: 13.5px;

@@ -51,6 +51,9 @@ import { sumMoney } from "./money";
 
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
+/** The Layout menu's last entry: turns Customize on or off. Not a layout, so never saved as one. */
+const CUSTOMIZE_OPTION = "__customize__";
+
 /** A single template-matched natural-language question, answered entirely
  * from data already on hand (see ledgerQa.ts) — never a hosted LLM call.
  * Always visible above the widget layout, not itself a customizable
@@ -283,7 +286,7 @@ export function DashboardView({
    * `null` until it loads. */
   safeToSpendForecast: BillAwareForecast | null;
   safeToSpendEnabled: boolean;
-  /** Quick actions panel — same triggers the Transactions toolbar's "Add
+  /** The title row's page actions — same triggers the Transactions toolbar's "Add
    * transaction…" button and Accounts' "Add account…" button already use. */
   onAddTransaction: () => void;
   onAddAccount: () => void;
@@ -655,7 +658,10 @@ export function DashboardView({
 
     runway: monthsOfRunway !== null && (
       <div className="card runway-card">
-        <ProgressRing pct={runwayPct} size={64} stroke={7} />
+        <div className="runway-ring">
+          <ProgressRing pct={runwayPct} size={64} stroke={7} ariaLabel={`${monthsOfRunway.toFixed(1)} of a 6-month goal`} />
+          <span className="runway-goal">Goal: 6 months</span>
+        </div>
         <div>
           <p className="runway-headline">
             <span className="stat-value">{monthsOfRunway.toFixed(1)}</span> months of expenses covered
@@ -1204,21 +1210,23 @@ export function DashboardView({
           <h1 className="view-title">Dashboard</h1>
           <p className="view-sub">Your accounts, budget, and goals at a glance.</p>
         </div>
+        <div className="page-actions">
+          <button type="button" onClick={onAddTransaction}>
+            + Add transaction
+          </button>
+          <button type="button" className="modal-secondary" onClick={onAddAccount}>
+            + Add account
+          </button>
+          <button type="button" className="modal-secondary" onClick={onOpenBudget}>
+            Set budget
+          </button>
+          <button type="button" className="modal-secondary" onClick={onOpenBuckets}>
+            Update goals
+          </button>
+        </div>
       </div>
-      <div className="quick-actions">
-        <button type="button" onClick={onAddTransaction}>
-          + Add transaction
-        </button>
-        <button type="button" className="modal-secondary" onClick={onAddAccount}>
-          + Add account
-        </button>
-        <button type="button" className="modal-secondary" onClick={onOpenBudget}>
-          Set budget
-        </button>
-        <button type="button" className="modal-secondary" onClick={onOpenBuckets}>
-          Update goals
-        </button>
-      </div>
+      {/* Owner decision (1.3.0): Ask the Vault stays this big card, directly under the title row.
+          Don't shrink it into the title row. DashboardView.test.tsx and feature270 pin this. */}
       <LedgerQaBox
         onAsk={(question) =>
           answerLedgerQuestion(question, {
@@ -1235,16 +1243,21 @@ export function DashboardView({
 
       <div className="dashboard-toolbar">
         <MenuSelect
-          ariaLabel="Dashboard layout"
+          ariaLabel="Layout"
+          showName
           triggerClassName="layout-select-toggle"
           value={presetKey}
           options={[
             ...(Object.keys(LAYOUT_PRESETS) as LayoutPresetKey[]).map((key) => ({ value: key, label: LAYOUT_PRESET_LABELS[key] })),
             ...customPresets.map((p) => ({ value: `custom:${p.name}`, label: p.name })),
             ...(presetKey === "custom" ? [{ value: "custom", label: "Custom (unsaved)", disabled: true }] : []),
+            { value: CUSTOMIZE_OPTION, label: customizeMode ? "Done customizing" : "Customize…" },
           ]}
           onChange={(value) => {
-            if (value.startsWith("custom:")) {
+            // Customize is an action, not a layout: it never changes the arrangement.
+            if (value === CUSTOMIZE_OPTION) {
+              setCustomizeMode((v) => !v);
+            } else if (value.startsWith("custom:")) {
               const found = customPresets.find((p) => p.name === value.slice("custom:".length));
               if (found) onSetLayoutWidgets([...found.widgets]);
             } else {
@@ -1290,7 +1303,7 @@ export function DashboardView({
           <button
             type="button"
             className="modal-secondary btn-sm"
-            title="Delete this saved report"
+            title="Delete this saved layout"
             onClick={() => deleteCustomLayout(presetKey.slice("custom:".length))}
           >
             Delete
@@ -1301,9 +1314,6 @@ export function DashboardView({
             + Add widget…
           </button>
         )}
-        <button type="button" className="modal-secondary" onClick={() => setCustomizeMode((v) => !v)}>
-          {customizeMode ? "Done" : "Customize"}
-        </button>
       </div>
 
       {showChecklist && (
@@ -1333,12 +1343,13 @@ export function DashboardView({
       {layoutRows.map((row) =>
         row.isCompactRow ? (
           <div key={row.key} className={customizeMode ? "dashboard-widget-customizing" : undefined}>
-            <div className="stats">
+            <div className="stats dashboard-stat-row">
               {row.ids.map((id, offset) => {
                 const index = row.startIndex + offset;
                 return (
                   <div
                     key={id}
+                    data-widget-id={id}
                     className={customizeMode ? "dashboard-stat-wrap" : undefined}
                     draggable={customizeMode}
                     onDragStart={() => setDragWidgetId(id)}
@@ -1390,6 +1401,7 @@ export function DashboardView({
         ) : (
           <div
             key={row.key}
+            data-widget-id={row.ids[0]}
             className={customizeMode ? "dashboard-widget-customizing" : undefined}
             draggable={customizeMode}
             onDragStart={() => setDragWidgetId(row.ids[0])}

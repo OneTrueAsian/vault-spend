@@ -11,6 +11,20 @@
   }
 }
 
+/* The Dashboard's row of money tiles (and any pinned account, goal or investment tiles next to
+   them): the tiles share the whole row, however many there are, and wrap below 200px each.
+   Each tile is a <button> inside a wrapper, and a button only grows to fit its text unless told
+   to fill its cell. */
+.stats.dashboard-stat-row {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--gap, 14px);
+}
+
+.dashboard-stat-row > * > .stat {
+  width: 100%;
+  height: 100%;
+}
+
 .stat {
   display: flex;
   flex-direction: column;

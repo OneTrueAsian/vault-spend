@@ -7,7 +7,7 @@
 // Run with: node e2e/run-all.mjs --spec=132
 
 import assert from "node:assert/strict";
-import { dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
+import { chooseMenuOption, dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
 import { seedProfiles } from "./lib/protection.mjs";
 
 async function invoke(browser, command, args = {}) {
@@ -65,13 +65,13 @@ let editedLayout;
     }, READ_DELAY_MS);
 
     await openFirstProfile(browser);
-    const customize = await (await browser.$(".dashboard-toolbar")).$("button*=Customize");
-    await customize.waitForExist({ timeout: 10000 });
-    await customize.click();
-    const removeButtons = await browser.$$(".dashboard-widget-controls button:last-child");
-    widgetCountBefore = removeButtons.length;
-    assert.ok(widgetCountBefore > 4, "expected the default layout's widgets in Customize mode");
-    await removeButtons[4].click(); // "runway", as in feature39
+    await chooseMenuOption(await browser.$(".layout-select-toggle"), { label: "Customize…" });
+    await browser.waitUntil(async () => (await browser.$$(".dashboard-widget-controls")).length > 4, {
+      timeout: 5000,
+      timeoutMsg: "expected the default layout's widgets in Customize mode",
+    });
+    widgetCountBefore = (await browser.$$(".dashboard-widget-controls")).length;
+    await (await browser.$('[data-widget-id="runway"] button[aria-label="Remove widget"]')).click(); // as in feature39
 
     const reads = await browser.execute(() => ({ asked: window.__layoutReadsAsked, delivered: window.__layoutReadsDelivered }));
     assert.ok(reads.asked >= 1 && reads.delivered === 0, `the slow layout read should be in flight (else this proves nothing): ${JSON.stringify(reads)}`);
@@ -100,10 +100,12 @@ let editedLayout;
     });
     assert.deepEqual(await persistedLayout(browser), editedLayout, "and nothing should have rewritten it");
     await dismissFirstLaunchDialogs(browser);
-    await (await (await browser.$(".dashboard-toolbar")).$("button*=Customize")).click();
-    await browser.pause(1500);
-    const shown = (await browser.$$(".dashboard-widget-controls")).length;
-    assert.equal(shown, widgetCountBefore - 1, "the saved layout has one widget fewer than the default");
+    await chooseMenuOption(await browser.$(".layout-select-toggle"), { label: "Customize…" });
+    let shown;
+    await browser.waitUntil(async () => (shown = (await browser.$$(".dashboard-widget-controls")).length) === widgetCountBefore - 1, {
+      timeout: 5000,
+      timeoutMsg: () => `the saved layout has one widget fewer than the default (${widgetCountBefore - 1}), showed ${shown}`,
+    });
   } finally {
     await app.close();
   }

@@ -1,4 +1,5 @@
-// E2E test for the Dashboard's customization system: Customize mode's
+// E2E test for the Dashboard's customization system: Customize mode (chosen
+// from the Layout menu since 1.3.0) and its
 // remove (✕) control actually drops a widget and flips the Layout dropdown
 // to "Custom (unsaved)", and the "+ Add widget" modal can add a
 // pinned-report widget back (the same action a report page's own "Pin to
@@ -6,7 +7,7 @@
 //
 // Run with: node e2e/feature39_dashboard_customize.mjs
 
-import { launchApp } from "./harness.mjs";
+import { chooseMenuOption, launchApp } from "./harness.mjs";
 
 async function invoke(browser, command, args = {}) {
   return browser.executeAsync((command, args, done) => {
@@ -32,17 +33,22 @@ async function waitForPersistedLayout(browser, predicate, timeoutMsg) {
 const app = await launchApp();
 try {
   // Default layout, default preset.
-  let presetValue = await app.browser.execute(() => document.querySelector(".layout-select-toggle").dataset.value);
-  if (presetValue !== "default") throw new Error(`expected the Layout dropdown to start on "default", got "${presetValue}"`);
+  let presetValue;
+  await app.browser.waitUntil(
+    async () => (presetValue = await app.browser.execute(() => document.querySelector(".layout-select-toggle")?.dataset.value)) === "default",
+    { timeout: 10000, timeoutMsg: () => `expected the Layout menu to start on "default", got "${presetValue}"` },
+  );
 
-  const customizeButton = await (await app.browser.$(".dashboard-toolbar")).$("button*=Customize");
-  await customizeButton.waitForExist({ timeout: 10000 });
-  await customizeButton.click();
+  const layoutMenu = await app.browser.$(".layout-select-toggle");
+  await chooseMenuOption(layoutMenu, { label: "Customize…" });
 
+  await app.browser.waitUntil(async () => (await app.browser.$$(".dashboard-widget-controls")).length > 0, {
+    timeout: 5000,
+    timeoutMsg: "expected the widget controls once Customize… is chosen from the Layout menu",
+  });
   const removeButtons = await app.browser.$$(".dashboard-widget-controls button:last-child");
-  if (removeButtons.length === 0) throw new Error("expected at least one widget remove (✕) control in Customize mode");
   const widgetCountBefore = removeButtons.length;
-  await removeButtons[4].click(); // remove "runway" — 5th control in the default layout, after the 4 stat cards
+  await (await app.browser.$('[data-widget-id="runway"] button[aria-label="Remove widget"]')).click();
 
   const layoutAfterRemove = await waitForPersistedLayout(
     app.browser,
@@ -55,12 +61,13 @@ try {
   if (presetValue !== "custom") throw new Error(`expected the Layout dropdown to flip to "custom", got "${presetValue}"`);
   console.log("Layout dropdown correctly shows Custom (unsaved)");
 
-  const remainingWidgets = await app.browser.$$(".dashboard-widget-controls");
-  if (remainingWidgets.length !== widgetCountBefore - 1) {
-    throw new Error(`expected ${widgetCountBefore - 1} widgets left, found ${remainingWidgets.length}`);
-  }
+  let remaining;
+  await app.browser.waitUntil(async () => (remaining = (await app.browser.$$(".dashboard-widget-controls")).length) === widgetCountBefore - 1, {
+    timeout: 5000,
+    timeoutMsg: () => `expected ${widgetCountBefore - 1} widgets left, found ${remaining}`,
+  });
 
-  // "+ Add widget…" (in the toolbar, next to Done) — add back a
+  // "+ Add widget…" (in the toolbar, next to the Layout menu) — add back a
   // pinned-report widget not in the default layout. The toolbar sits
   // above every widget, so it's always on-screen with the content
   // scrolled to the top — but the prior remove-button click scrolled the

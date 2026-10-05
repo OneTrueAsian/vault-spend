@@ -96,7 +96,24 @@ function isValidWidgetId(id: unknown): id is WidgetId {
   return false;
 }
 
+/** Money first, then what needs doing: the stat tiles, To do, Safe to spend, Runway, then the
+ * reports (1.3.0 UI review, s6). */
 export const DEFAULT_LAYOUT: WidgetId[] = [
+  "stat_net_worth",
+  "stat_cash",
+  "stat_debt",
+  "stat_investments",
+  "needs_a_look",
+  "safe_to_spend",
+  "runway",
+  "trend_spending",
+  "budget_bills",
+  "recent_transactions",
+];
+
+/** The default order before 1.3.0. A saved layout that is exactly this list belongs to someone who
+ * never rearranged their Dashboard, so `loadDashboardLayout` gives them the new default instead. */
+export const OLD_DEFAULT_LAYOUT_V1: readonly WidgetId[] = [
   "stat_net_worth",
   "stat_cash",
   "stat_debt",
@@ -108,6 +125,10 @@ export const DEFAULT_LAYOUT: WidgetId[] = [
   "budget_bills",
   "recent_transactions",
 ];
+
+function sameOrder(a: readonly WidgetId[], b: readonly WidgetId[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
 
 export const LAYOUT_PRESETS = {
   default: DEFAULT_LAYOUT,
@@ -150,7 +171,8 @@ export const LAYOUT_PRESET_LABELS: Record<LayoutPresetKey, string> = {
  * guard. Drops any id from a future/older version of the catalog this build doesn't recognize,
  * rather than erroring. A saved layout from before the stat cards were split back out carries the
  * single legacy "stats" id — expanded in place into the 4 new ids so an upgrading user's arrangement
- * doesn't just lose its stat row. */
+ * doesn't just lose its stat row. A saved list that is exactly the pre-1.3.0 default
+ * (`OLD_DEFAULT_LAYOUT_V1`) comes back as the new `DEFAULT_LAYOUT`. */
 export async function loadDashboardLayout(): Promise<WidgetId[]> {
   try {
     const raw = await getProfileUiState("dashboard_layout");
@@ -159,7 +181,16 @@ export async function loadDashboardLayout(): Promise<WidgetId[]> {
     if (!Array.isArray(parsed)) return DEFAULT_LAYOUT;
     const expanded = parsed.flatMap((id) => (id === "stats" ? STAT_WIDGET_IDS : [id]));
     const filtered = expanded.filter(isValidWidgetId);
-    return filtered.length > 0 ? filtered : DEFAULT_LAYOUT;
+    if (filtered.length === 0) return DEFAULT_LAYOUT;
+    // Someone who never rearranged their Dashboard has the old default saved (the first save after
+    // any change writes the whole list). They get the new order; it is saved the next time the
+    // layout changes, not here. If they named that exact order as one of their own layouts, they
+    // chose it, so it stays.
+    if (sameOrder(filtered, OLD_DEFAULT_LAYOUT_V1)) {
+      const named = await loadCustomLayoutPresets();
+      if (!named.some((p) => sameOrder(p.widgets, OLD_DEFAULT_LAYOUT_V1))) return DEFAULT_LAYOUT;
+    }
+    return filtered;
   } catch {
     return DEFAULT_LAYOUT;
   }
