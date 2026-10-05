@@ -141,7 +141,7 @@ try {
   // The old sticky top bar sat over scrolled content and needed a near-opaque
   // glass to stay readable in Transparent. 1.3.0 dropped it: scrolling the
   // Dashboard and switching tabs without resetting scroll leaves nothing
-  // pinned over the page (feature166 checks the full frame).
+  // pinned over the page (feature266 checks the full frame).
   await app.browser.execute(() => document.querySelector(".stat-hero")?.scrollIntoView({ block: "center" }));
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();

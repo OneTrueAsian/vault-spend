@@ -151,10 +151,18 @@
   flex: 1;
 }
 
+/* Pinned to the bottom of the sidebar, so Hide amounts and Light / Dark /
+   System stay on screen in a short window while the navigation above
+   scrolls under it. It spans the sidebar's side and bottom padding (the
+   negative margins) and is painted, so nothing shows through or beside it. */
 .sidebar-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   border-top: 1px solid var(--sidebar-border);
-  padding-top: 10px;
-  margin-top: 6px;
+  margin: 6px -12px -18px;
+  padding: 10px 12px 10px;
+  background: var(--sidebar-bg);
 }
 
 .sidebar-version {
@@ -512,6 +520,7 @@ svg.profile-switcher-icon {
 .page-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
   flex: 0 1 auto;

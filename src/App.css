@@ -391,6 +391,14 @@
   -webkit-backdrop-filter: blur(24px) saturate(1.7);
 }
 
+/* The pinned sidebar foot sits over navigation that scrolls under it, and
+   the sidebar's own colour is a light see-through tint, so the foot lays
+   that tint over the opaque page background: it matches the rail and
+   nothing shows through it. */
+[data-palette="transparent"] .sidebar-foot {
+  background: linear-gradient(var(--sidebar-bg), var(--sidebar-bg)), var(--bg);
+}
+
 /* `.main` is only ever the scroll container — no background/radius of its
    own — so `.page` inside it reads as a floating panel with the wash
    showing around it. */

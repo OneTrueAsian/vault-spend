@@ -41,6 +41,12 @@
     font-size: 15px;
   }
 
+  /* Amounts hidden: the eye is struck through, not just filled. */
+  .sidebar-controls .privacy-toggle.privacy-toggle-on::before {
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+  }
+
   .profile-switcher-name,
   .profile-switcher .account-filter-caret {
     display: none;

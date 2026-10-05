@@ -58,7 +58,9 @@ try {
   assert.equal(seen.timedOut, undefined, "the ledger never showed its rows");
   assert.deepEqual(seen.emptyClaims, [], "no empty-state message while the data was loading");
   assert.equal(seen.placeholder, true, "the loading placeholder showed while the data loaded");
-  assert.equal(seen.importUsableWhileLoading, false, "Import transactions… can't be used until the accounts are there");
+  // Only meaningful because the placeholder was seen (asserted just above): Import was looked for
+  // on every frame it showed.
+  assert.ok(seen.placeholder && seen.importUsableWhileLoading === false, "Import transactions… can't be used until the accounts are there");
   assert.equal(seen.sidebarControlsWhileLoading, true, "Hide amounts and Light / Dark / System are in the sidebar while the data loads");
   assert.equal(await (await browser.$("button*=Import transactions")).isEnabled(), true, "and enabled once they are");
   console.log("FEATURE 157 E2E TEST PASSED");
