@@ -1,5 +1,6 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useDismiss } from "./useDismiss";
 import { useFixedPanel } from "./useFixedPanel";
 import "./RowMenu.css";
 
@@ -19,26 +20,10 @@ export function RowMenu({ label, items, className }: { label: string; items: (Ro
   const menuId = useId();
   const visible = items.filter((item): item is RowMenuItem => Boolean(item));
 
-  useEffect(() => {
-    if (!open) return;
-    function handlePointerDown(e: MouseEvent) {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
-      setOpen(false);
-    }
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    }
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
+  useDismiss(open, [triggerRef, panelRef], (reason) => {
+    setOpen(false);
+    if (reason === "escape") triggerRef.current?.focus();
+  });
 
   useFixedPanel(open, triggerRef, panelRef, { minWidth: 200, align: "end" });
 
@@ -89,6 +74,7 @@ export function RowMenu({ label, items, className }: { label: string; items: (Ro
               const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("[role^='menuitem']:not([aria-disabled='true'])"));
               if (buttons.length === 0) return;
               const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+              // With nothing focused (index -1), ArrowDown lands on the first item and ArrowUp on the last.
               const next =
                 e.key === "Home"
                   ? 0
@@ -97,7 +83,9 @@ export function RowMenu({ label, items, className }: { label: string; items: (Ro
                     : e.key === "ArrowDown"
                       ? (index + 1) % buttons.length
                       : e.key === "ArrowUp"
-                        ? (index - 1 + buttons.length) % buttons.length
+                        ? index < 0
+                          ? buttons.length - 1
+                          : (index - 1 + buttons.length) % buttons.length
                         : -1;
               if (next >= 0) {
                 e.preventDefault();

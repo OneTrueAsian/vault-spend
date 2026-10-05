@@ -86,6 +86,17 @@ describe("RowMenu", () => {
     expect(document.activeElement).toBe(item("A"));
   });
 
+  it("with nothing focused, ArrowUp goes to the last item and ArrowDown to the first", () => {
+    render([{ label: "A", onSelect: () => {} }, { label: "B", onSelect: () => {} }, { label: "C", onSelect: () => {} }]);
+    act(() => trigger().click());
+    act(() => trigger().focus());
+    act(() => panel()!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true })));
+    expect(document.activeElement).toBe(item("C"));
+    act(() => trigger().focus());
+    act(() => panel()!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+    expect(document.activeElement).toBe(item("A"));
+  });
+
   it("closes without running anything when its row unmounts while open (Review Focus 5)", () => {
     const onSelect = vi.fn();
     render([{ label: "Delete…", onSelect }]);

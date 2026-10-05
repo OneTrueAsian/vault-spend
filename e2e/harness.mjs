@@ -230,11 +230,17 @@ export async function pickFromMenu(browser, trigger, option) {
 /** Opens a row's ⋯ menu (RowMenu) and clicks the item with this exact label, through withFocusRetry
  * (another window taking focus closes the menu between the two clicks). */
 export async function chooseRowAction(browser, trigger, label) {
-  await pickFromMenu(browser, trigger, async () => {
-    const items = await browser.$$(".row-menu-panel [role^='menuitem']");
-    for (const item of items) if ((await item.getText()).trim() === label) return item;
-    return browser.$(`.row-menu-panel [data-no-such-item="${label}"]`);
-  });
+  try {
+    await pickFromMenu(browser, trigger, async () => {
+      const items = await browser.$$(".row-menu-panel [role^='menuitem']");
+      for (const item of items) if ((await item.getText()).trim() === label) return item;
+      // Not found: hand back a fixed, never-matching selector so the wait fails.
+      return browser.$(".row-menu-panel [data-row-action-missing]");
+    });
+  } catch (e) {
+    e.message += ` [chooseRowAction: looking for the menu item "${label}"]`;
+    throw e;
+  }
 }
 
 // A snapshot of what the app window looks like right now, for failure messages: whether it has OS
