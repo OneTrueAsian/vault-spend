@@ -15,8 +15,30 @@
     justify-content: center;
   }
 
-  .sidebar-foot {
+  /* Room for one narrow column only: the version line and the three-way
+     theme group step aside for the one-button theme switch, and Hide
+     amounts shows an eye. Its words stay in the button (font-size 0, not
+     removed), so it keeps its name for screen readers; the eye has an
+     empty alternative so it isn't read out on top of them. */
+  .sidebar-version,
+  .sidebar-controls .theme-toggle {
     display: none;
+  }
+
+  .sidebar-controls .theme-cycle {
+    display: block;
+    padding: 7px 2px;
+  }
+
+  .sidebar-controls .privacy-toggle {
+    padding: 7px 2px;
+    font-size: 0;
+    line-height: 1;
+  }
+
+  .sidebar-controls .privacy-toggle::before {
+    content: "\1F441\FE0E" / "";
+    font-size: 15px;
   }
 
   .profile-switcher-name,
@@ -37,9 +59,5 @@
 
   .page {
     padding: 18px 14px 48px;
-  }
-
-  .topbar {
-    padding: 14px 16px;
   }
 }

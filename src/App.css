@@ -232,13 +232,6 @@
   --wash-b: rgba(175, 82, 222, 0.18);
   --wash-c: rgba(90, 200, 250, 0.2);
 
-  /* Near-opaque on purpose, unlike --surface/--surface-2: the sticky
-     topbar sits over previously-scrolled content *within the same scroll
-     container* (`.main`), not against the wash behind the panel, so it
-     needs to actually mask whatever's behind it rather than stay lightly
-     translucent — see the `.topbar` rule's comment below. */
-  --topbar-glass-bg: rgba(255, 255, 255, 0.88);
-
   /* Fully opaque: the colour a toast is painted on. --surface is a 72% wash
      in this style, and a toast floats over table rows and buttons. */
   --status-base: #ffffff;
@@ -293,8 +286,6 @@
     --wash-b: rgba(191, 90, 242, 0.28);
     --wash-c: rgba(100, 210, 255, 0.26);
 
-    --topbar-glass-bg: rgba(30, 30, 34, 0.88);
-
     --status-base: #1c1c1e;
     --menu-bg: rgba(28, 28, 30, 0.80);
 
@@ -345,8 +336,6 @@
   --wash-a: rgba(10, 132, 255, 0.32);
   --wash-b: rgba(191, 90, 242, 0.28);
   --wash-c: rgba(100, 210, 255, 0.26);
-
-  --topbar-glass-bg: rgba(30, 30, 34, 0.88);
 
   --status-base: #1c1c1e;
   --menu-bg: rgba(28, 28, 30, 0.80);
@@ -402,47 +391,19 @@
   -webkit-backdrop-filter: blur(24px) saturate(1.7);
 }
 
-/* `.main` is only ever the scroll container now — no background/radius of
-   its own — so the sticky topbar and the scrolling `.page` beneath it can
-   be two genuinely separate floating panels (matching the demo) with the
-   wash showing through the gap between them, rather than one shape with
-   the topbar fused to its top edge. */
+/* `.main` is only ever the scroll container — no background/radius of its
+   own — so `.page` inside it reads as a floating panel with the wash
+   showing around it. */
 [data-palette="transparent"] .main {
   position: relative;
   z-index: 1;
   background: transparent;
 }
 
-/* The topbar is its own floating glass panel: inset from the top/sides
-   with a real margin (not flush, not fused to `.page` below it) and fully
-   rounded on all four corners, the same way the demo's toolbar is a
-   distinct panel from its content area rather than a bar glued to the top
-   of one shared shape. `position: sticky` plus `margin-top` sticks it 14px
-   from `.main`'s scrolled-to top, not flush at 0 — the gap persists while
-   scrolling, not just at rest.
-   `background` still needs to be near-opaque (--topbar-glass-bg, not a
-   lightly-translucent --surface-*) — Apple's own "Clear" glass variant
-   needs its own dimming layer for legibility, and this matters even more
-   now that `.page` scrolls directly underneath it: `.main` never resets
-   scroll position on tab switches (true for every theme, just invisible
-   elsewhere because their topbar is fully opaque), so whatever `.page`
-   content the sticky header is currently sitting over needs to actually
-   be masked, not just dimmed, or it shows through half-legible and
-   overlapping the topbar's own title. */
-[data-palette="transparent"] .topbar {
-  margin: 14px 14px 0;
-  border-radius: 22px;
-  background: var(--topbar-glass-bg);
-  border-bottom: none;
-  backdrop-filter: blur(20px) saturate(1.6);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-}
-
 /* `.page` is every view's own top-level wrapper (Dashboard/Accounts/
    Ledger/etc. each render one) — giving it the floating-panel treatment
-   here, rather than `.main`, is what makes it a second panel distinct
-   from the topbar above, with the wash visible in the 14px gap between
-   them. Its existing `max-width: 1180px; margin: 0 auto` (unchanged,
+   here, rather than `.main`, keeps the wash visible in the 14px gap
+   around it. Its existing `max-width: 1180px; margin: 0 auto` (unchanged,
    defined once further down) still centers it — the 3-value margin below
    only adds top/bottom spacing on top of that auto-centering, it doesn't
    replace it. */

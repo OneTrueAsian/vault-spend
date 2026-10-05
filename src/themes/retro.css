@@ -17,13 +17,6 @@
   box-shadow: inset -1px 0 var(--retro-shadow), inset 1px 0 var(--retro-hl);
 }
 
-[data-palette="retro"] .topbar {
-  background: var(--retro-face);
-  border-bottom: 1px solid var(--retro-dark);
-  box-shadow: inset 0 -1px var(--retro-shadow), inset 0 1px var(--retro-hl);
-}
-
-[data-palette="retro"] .topbar h1,
 [data-palette="retro"] .brand-word {
   font-weight: 700;
 }

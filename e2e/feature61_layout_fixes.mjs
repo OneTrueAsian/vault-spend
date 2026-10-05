@@ -68,7 +68,10 @@ try {
   await date.waitForExist({ timeout: 10000 });
   const lineCount = await browser.execute((el) => el.getClientRects().length, date);
   if (lineCount !== 1) throw new Error(`the date wrapped onto ${lineCount} lines`);
-  const label = await (await browser.$(".import-controls-label")).getText();
+  // The Add to control sits beside the page title (1.3.0 dropped the top bar).
+  const labelEl = await browser.$(".page-top .page-actions .import-controls-label");
+  await labelEl.waitForExist({ timeout: 10000 });
+  const label = await labelEl.getText();
   if (label.trim() !== "Add to") throw new Error(`expected the account control's label to be "Add to", got "${label}"`);
 
   // 5. Household: the empty state offers the action itself.

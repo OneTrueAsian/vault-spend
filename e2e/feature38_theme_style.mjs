@@ -2,10 +2,10 @@
 // Retro; Slate is retired): every style sets the `data-palette` attribute
 // the CSS keys off of, and Default is the frosted-glass look stored as
 // "transparent", applied on a fresh launch with nothing saved. All
-// styles follow the header's Light/Dark/System toggle now — none of
-// them hides it — so this also confirms the toggle lives in the header
-// (`.topbar`), not the sidebar, following its relocation out of
-// `.sidebar-foot`. Also covers a regression where `.nav-item:hover` (a
+// styles follow the Light/Dark/System toggle — none of them hides it —
+// so this also confirms the toggle lives at the foot of the sidebar
+// (`.sidebar-controls`, since 1.3.0 dropped the top bar). Also covers a
+// regression where `.nav-item:hover` (a
 // class + pseudo-class, specificity 0,2,0) outranked a plain
 // `.nav-item-active` (one class, 0,1,0), so hovering the already-active
 // nav item fell back to the hover background/text color on all three
@@ -96,21 +96,19 @@ try {
   assert.deepEqual(labels, ["Default", "Futuristic", "Retro"]);
 
   // A fresh launch with nothing saved shows Default (internal id "transparent"),
-  // with the header toggle inside .topbar (not the sidebar).
+  // with the Light/Dark/System toggle at the foot of the sidebar.
   let palette = await app.browser.execute(() => document.documentElement.getAttribute("data-palette"));
   if (palette !== "transparent") throw new Error(`expected Default (data-palette="transparent") on a fresh launch, got "${palette}"`);
-  let toggleInHeader = await app.browser.execute(() => !!document.querySelector(".topbar .theme-toggle"));
-  if (!toggleInHeader) throw new Error("expected the Light/Dark/System toggle inside .topbar on Default");
-  const toggleInSidebar = await app.browser.execute(() => !!document.querySelector(".sidebar-foot .theme-toggle"));
-  if (toggleInSidebar) throw new Error("expected the toggle to no longer live in .sidebar-foot");
-  console.log("Default: data-palette transparent, toggle lives in the header — OK");
+  let toggleInSidebar = await app.browser.execute(() => !!document.querySelector(".sidebar-foot .sidebar-controls .theme-toggle"));
+  if (!toggleInSidebar) throw new Error("expected the Light/Dark/System toggle inside .sidebar-controls on Default");
+  console.log("Default: data-palette transparent, toggle lives in the sidebar — OK");
   await assertActiveNavIgnoresHover(app, "Default");
 
   await selectTheme(app, "Futuristic");
   palette = await app.browser.execute(() => document.documentElement.getAttribute("data-palette"));
   if (palette !== "futuristic") throw new Error(`expected data-palette="futuristic", got "${palette}"`);
-  toggleInHeader = await app.browser.execute(() => !!document.querySelector(".topbar .theme-toggle"));
-  if (!toggleInHeader) throw new Error("expected the Light/Dark/System toggle to still exist on Futuristic");
+  toggleInSidebar = await app.browser.execute(() => !!document.querySelector(".sidebar-controls .theme-toggle"));
+  if (!toggleInSidebar) throw new Error("expected the Light/Dark/System toggle to still exist on Futuristic");
   const note = await app.browser.$(".sidebar-theme-note");
   if (await note.isExisting()) throw new Error("expected no always-dark note to exist at all anymore");
   console.log("Futuristic: data-palette set, toggle still present — OK");
@@ -120,8 +118,8 @@ try {
   palette = await app.browser.execute(() => document.documentElement.getAttribute("data-palette"));
   if (palette !== "transparent") throw new Error(`expected data-palette back to "transparent" for Default, got "${palette}"`);
   assert.equal(await app.browser.execute(() => localStorage.getItem("meadow-theme-style")), "transparent", "Default is saved under its existing id");
-  toggleInHeader = await app.browser.execute(() => !!document.querySelector(".topbar .theme-toggle"));
-  if (!toggleInHeader) throw new Error("expected the Light/Dark/System toggle to still exist on Default");
+  toggleInSidebar = await app.browser.execute(() => !!document.querySelector(".sidebar-controls .theme-toggle"));
+  if (!toggleInSidebar) throw new Error("expected the Light/Dark/System toggle to still exist on Default");
   console.log("Default: data-palette transparent and saved, toggle present — OK");
 
   // Regression: Transparent's pill-button rule used a bare `button` type
@@ -140,28 +138,16 @@ try {
   }
   console.log(`Transparent: .stat-hero keeps its own radius (${statHeroRadius}), not the pill rule — OK`);
 
-  // Regression: the sticky `.topbar` sits over previously-scrolled content
-  // *within the same scroll container* (`.main` never resets scroll
-  // position on tab switches — true for every theme, just invisible
-  // elsewhere because their topbar is fully opaque). A first attempt at
-  // Transparent's glass topbar used `background: transparent` (Apple's
-  // "Clear" variant needs its own dimming layer), then a lightly
-  // translucent `--surface-2` (two stacked translucent layers still don't
-  // add up to opaque) — both let scrolled-under content show through
-  // half-legible and overlapping the topbar's own title. Scrolling the
-  // Dashboard, then switching tabs without resetting scroll, reproduces
-  // the exact scenario.
+  // The old sticky top bar sat over scrolled content and needed a near-opaque
+  // glass to stay readable in Transparent. 1.3.0 dropped it: scrolling the
+  // Dashboard and switching tabs without resetting scroll leaves nothing
+  // pinned over the page (feature166 checks the full frame).
   await app.browser.execute(() => document.querySelector(".stat-hero")?.scrollIntoView({ block: "center" }));
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
-  await app.browser.pause(200);
-  const topbarBg = await app.browser.execute(() => getComputedStyle(document.querySelector(".topbar")).backgroundColor);
-  const alphaMatch = topbarBg.match(/rgba?\([^)]*,\s*([\d.]+)\)/);
-  const topbarAlpha = alphaMatch ? Number(alphaMatch[1]) : 1; // rgb(...) with no 4th value means fully opaque
-  if (topbarAlpha < 0.75) {
-    throw new Error(`Transparent: .topbar background (${topbarBg}) is too translucent to mask scrolled-under content`);
-  }
-  console.log(`Transparent: .topbar background (${topbarBg}) opaque enough to mask scrolled content — OK`);
+  await app.browser.$(".page-top .page-actions .import-controls").waitForExist({ timeout: 10000 });
+  assert.equal(await app.browser.execute(() => document.querySelectorAll(".topbar").length), 0, "Transparent: no top bar is pinned over the page");
+  console.log("Transparent: no top bar pinned over scrolled content — OK");
 
   await settingsNav.click();
   await appearanceHeading.waitForExist({ timeout: 10000 });

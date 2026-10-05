@@ -164,39 +164,83 @@
   margin: 0 0 8px 0;
 }
 
-/* Lives in the header (.topbar) now, not the sidebar — styled from the
-   main-content tokens (--surface, --border, --text) rather than the
-   sidebar's own palette, since it's no longer inside the permanently
-   dark-in-Futuristic sidebar rail. */
-.theme-toggle {
+/* Hide amounts and Light / Dark / System, stacked at the foot of the
+   sidebar (they used to fill a bar across the top of every page). They are
+   coloured from the sidebar's own tokens, not the page's, because the rail
+   has its own palette (always dark in Futuristic, even in Light). */
+.sidebar-controls {
   display: flex;
-  gap: 4px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 2px 10px;
+}
+
+.sidebar-controls .privacy-toggle,
+.sidebar-controls .theme-cycle {
+  width: 100%;
+  background: transparent;
+  color: var(--sidebar-text);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 9px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sidebar-controls .privacy-toggle:hover,
+.sidebar-controls .theme-cycle:hover {
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text-active);
+}
+
+.sidebar-controls .privacy-toggle.privacy-toggle-on {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+/* The one-button theme switch, for the narrow icon-only sidebar. */
+.sidebar-controls .theme-cycle {
+  display: none;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.sidebar-controls .theme-toggle {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 2px;
+  background: var(--sidebar-bg-hover);
+  border: 1px solid var(--sidebar-border);
   border-radius: 9px;
   padding: 3px;
 }
 
-.theme-toggle button {
+.sidebar-controls .theme-toggle button {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
-  color: var(--text-muted);
-  padding: 6px 11px;
+  color: var(--sidebar-text);
+  padding: 6px 4px;
   border-radius: 7px;
+  font-family: inherit;
   font-size: 12px;
   cursor: pointer;
   font-weight: 600;
 }
 
-.theme-toggle button:hover {
+.sidebar-controls .theme-toggle button:hover {
   background: transparent;
-  color: var(--text);
+  color: var(--sidebar-text-active);
 }
 
-.theme-toggle button.theme-toggle-active {
-  background: var(--surface);
-  color: var(--text);
+.sidebar-controls .theme-toggle button.theme-toggle-active {
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text-active);
   box-shadow: var(--shadow-sm);
 }
 
@@ -323,46 +367,19 @@ svg.profile-switcher-icon {
   background: var(--bg);
 }
 
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 28px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-}
-
-.topbar h1 {
-  font-family: var(--font-display);
-  font-size: 21px;
-  font-weight: 600;
-  margin: 0 0 2px 0;
-}
-
-.subtitle {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 12.5px;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
 .import-controls {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+/* Beside a page title the Transactions controls join the title row's own
+   wrapping row, so a narrow window wraps them as one list instead of
+   stacking a row inside a row. */
+.page-actions > .import-controls {
+  display: contents;
 }
 
 .import-controls-label {
@@ -428,6 +445,8 @@ svg.profile-switcher-icon {
 .more-menu-item {
   display: flex;
   width: 100%;
+  /* The shared button rule centres its content; a menu reads down a left edge. */
+  justify-content: flex-start;
   text-align: left;
   background: none;
   border: none;

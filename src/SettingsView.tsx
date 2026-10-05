@@ -1109,6 +1109,7 @@ function AboutSection() {
       <div className="card-head">
         <span className="reports-section-title">About</span>
       </div>
+      <p className="modal-message-secondary">Own your Data, Own your Money!</p>
       <p className="modal-message-secondary">
         Vault Spend is an independent open-source project and is not affiliated with, endorsed by, or partnered with
         any external financial services or wallet providers.

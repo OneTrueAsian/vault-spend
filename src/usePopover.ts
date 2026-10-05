@@ -30,8 +30,7 @@ export function usePopover() {
       // Measure the normal CSS size first; all offsets remain relative to the
       // existing container, including Transparent's backdrop-filter containers.
       for (const property of ["left", "right", "top", "bottom", "max-height"]) panel.style.removeProperty(property);
-      const header = rootRef.current?.closest(".main")?.querySelector(".topbar")?.getBoundingClientRect();
-      const topEdge = Math.max(8, header?.bottom ?? 8);
+      const topEdge = 8;
       const below = Math.max(0, window.innerHeight - trigger.bottom - 12);
       const above = Math.max(0, trigger.top - topEdge - 12);
       const wanted = Math.min(panel.scrollHeight + 2, parseFloat(getComputedStyle(panel).maxHeight) || 340);

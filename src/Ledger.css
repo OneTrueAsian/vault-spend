@@ -1283,22 +1283,6 @@
   color: var(--positive);
 }
 
-.privacy-toggle {
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.privacy-toggle-on {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-color: var(--accent);
-}
-
 .density-toggle {
   display: inline-flex;
   margin-left: auto;
@@ -1699,7 +1683,6 @@
 
 @media print {
   .sidebar,
-  .topbar,
   .no-print {
     display: none !important;
   }

@@ -25,7 +25,8 @@ import "./themes/futuristic.css";
 import { LedgerSavedFilters } from "./LedgerSavedFilters";
 import { useLedgerFilters } from "./useLedgerFilters";
 import { LedgerTable } from "./LedgerTable";
-import { AppTopBar } from "./AppTopBar";
+import { SidebarControls } from "./SidebarControls";
+import { LedgerPageActions } from "./LedgerPageActions";
 import { LedgerBulkActions } from "./LedgerBulkActions";
 import { LedgerFilterBar } from "./LedgerFilterBar";
 import { SetupImportReviewDialog } from "./SetupImportReviewDialog";
@@ -3577,35 +3578,18 @@ function App({
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">{appVersion && <p className="sidebar-version">v{appVersion}</p>}</div>
+        <div className="sidebar-foot">
+          <SidebarControls
+            privacyHidden={privacyPrefs.hidden}
+            onTogglePrivacy={() => setPrivacyPrefs((p) => ({ ...p, hidden: !p.hidden }))}
+            theme={theme}
+            onSetTheme={setTheme}
+          />
+          {appVersion && <p className="sidebar-version">v{appVersion}</p>}
+        </div>
       </aside>
 
       <div className="main" ref={mainScrollRef}>
-        <AppTopBar
-              privacyPrefs={privacyPrefs}
-              setPrivacyPrefs={setPrivacyPrefs}
-              theme={theme}
-              setTheme={setTheme}
-              activeTab={activeTab}
-              accounts={accounts}
-              selectedAccountId={selectedAccountId}
-              handleAccountSelectChange={handleAccountSelectChange}
-              busy={busy}
-              importReview={importReview}
-              dataLoaded={dataLoaded}
-              handleImport={handleImport}
-              setNewTransactionOpen={setNewTransactionOpen}
-              moreMenuRef={moreMenuRef}
-              setMoreMenuOpen={setMoreMenuOpen}
-              moreMenuOpen={moreMenuOpen}
-              moreMenuShouldRender={moreMenuShouldRender}
-              moreMenuClosing={moreMenuClosing}
-              openManageCategories={openManageCategories}
-              openManageFamilyMembers={openManageFamilyMembers}
-              handleRecategorize={handleRecategorize}
-              handleExportLedgerCsv={handleExportLedgerCsv}
-            />
-
         <div className={activeTab === "ledger" ? "page page-ledger" : "page"} role="main">
 
           <UpdateBanner />
@@ -3702,11 +3686,32 @@ function App({
                   {accounts.length === 1 ? "" : "s"}.
                 </p>
               </div>
-              {inboxCount > 0 && (
-                <button type="button" className="modal-secondary" onClick={openInbox} data-inbox-open>
-                  Review inbox ({inboxCount})
-                </button>
-              )}
+              <div className="page-actions">
+                {inboxCount > 0 && (
+                  <button type="button" className="modal-secondary" onClick={openInbox} data-inbox-open>
+                    Review inbox ({inboxCount})
+                  </button>
+                )}
+                <LedgerPageActions
+                  accounts={accounts}
+                  selectedAccountId={selectedAccountId}
+                  handleAccountSelectChange={handleAccountSelectChange}
+                  busy={busy}
+                  importReview={importReview}
+                  dataLoaded={dataLoaded}
+                  handleImport={handleImport}
+                  setNewTransactionOpen={setNewTransactionOpen}
+                  moreMenuRef={moreMenuRef}
+                  setMoreMenuOpen={setMoreMenuOpen}
+                  moreMenuOpen={moreMenuOpen}
+                  moreMenuShouldRender={moreMenuShouldRender}
+                  moreMenuClosing={moreMenuClosing}
+                  openManageCategories={openManageCategories}
+                  openManageFamilyMembers={openManageFamilyMembers}
+                  handleRecategorize={handleRecategorize}
+                  handleExportLedgerCsv={handleExportLedgerCsv}
+                />
+              </div>
             </div>
           )}
 

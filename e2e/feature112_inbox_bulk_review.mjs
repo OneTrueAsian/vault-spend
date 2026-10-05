@@ -23,7 +23,8 @@ async function transactions(b) {
   for (const button of await b.$$("nav button")) {
     if ((await button.getText()).trim() === "Transactions") { await button.click(); break; }
   }
-  await b.$("#ledger-account-select").waitForExist({ timeout: 10000 });
+  // The Add to control sits beside the page title (1.3.0 dropped the top bar).
+  await b.$(".page-top .page-actions .import-controls #ledger-account-select").waitForExist({ timeout: 10000 });
 }
 let app = await launchApp({ dbDir });
 try {

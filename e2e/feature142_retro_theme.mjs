@@ -60,7 +60,7 @@ try {
   await selectTheme(app, "Retro");
   assert.equal(await app.browser.execute(() => document.documentElement.getAttribute("data-palette")), "retro");
   assert.equal(await app.browser.execute(() => document.documentElement.getAttribute("data-theme")), "light", "choosing a style must not change Light/Dark/System");
-  assert.ok(await app.browser.execute(() => !!document.querySelector(".topbar .theme-toggle")), "the Light/Dark/System toggle must stay in the header");
+  assert.ok(await app.browser.execute(() => !!document.querySelector(".sidebar-controls .theme-toggle")), "the Light/Dark/System toggle must stay in the sidebar");
   console.log("Retro: data-palette set, mode untouched, toggle present — OK");
 
   // It is saved: a reload brings the style back (and Default stays the default for everyone else).
