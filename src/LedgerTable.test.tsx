@@ -227,6 +227,78 @@ describe("LedgerTable", () => {
     expect(rows()[1].querySelector("[data-row-menu]")).not.toBeNull();
   });
 
+  const trigger = (i: number) => rows()[i].querySelector<HTMLButtonElement>("[data-row-menu]");
+
+  it("puts focus on Cancel when the confirm opens, and back on the row's ⋯ after Cancel", () => {
+    show(baseProps(twoRows, [{ id: 1, name: "Alex" }]));
+    act(() => trigger(0)!.click());
+    act(() => menuItem("Delete…")!.click());
+    const cancel = [...rows()[0].querySelectorAll<HTMLButtonElement>(".row-delete-confirm button")].find((b) => b.textContent === "Cancel")!;
+    expect(document.activeElement).toBe(cancel);
+    act(() => cancel.click());
+    expect(rows()[0].querySelector(".row-delete-confirm")).toBeNull();
+    expect(document.activeElement).toBe(trigger(0));
+  });
+
+  it("gives focus back to the row's ⋯ when the tag field closes on Enter or Escape", () => {
+    const props = baseProps(twoRows, [{ id: 1, name: "Alex" }]);
+    props.newTagText = { 1: "trip" };
+    show(props);
+    for (const key of ["Enter", "Escape"]) {
+      act(() => trigger(0)!.click());
+      act(() => menuItem("Add tag…")!.click());
+      const input = rows()[0].querySelector<HTMLInputElement>(".tag-input")!;
+      expect(document.activeElement).toBe(input);
+      act(() => {
+        input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      });
+      expect(rows()[0].querySelector(".tag-input")).toBeNull();
+      expect(document.activeElement, `after ${key}`).toBe(trigger(0));
+    }
+  });
+
+  it("with exactly one family member, the ⋯ menu says and changes whether the row belongs to them", () => {
+    const rowsWithMember = [txn({ id: 1, description: "Coffee Shop" }), txn({ id: 2, description: "Green Leaf Grocers", member_id: 1, member_name: "Alex" })];
+    const props = baseProps(rowsWithMember, [{ id: 1, name: "Alex" }]);
+    show(props);
+    const belongs = () => document.body.querySelector<HTMLButtonElement>(".row-menu-panel [role='menuitemcheckbox']");
+    act(() => trigger(0)!.click());
+    expect([...document.body.querySelectorAll(".row-menu-panel [role^='menuitem']")].map((b) => b.textContent)).toEqual([
+      "Split…",
+      "Add note…",
+      "Add tag…",
+      "Belongs to Alex",
+      "Delete…",
+    ]);
+    expect(belongs()!.getAttribute("aria-checked")).toBe("false");
+    act(() => belongs()!.click());
+    expect(props.handleMemberChangeForTransaction).toHaveBeenCalledWith(1, "1");
+    act(() => trigger(1)!.click());
+    expect(belongs()!.getAttribute("aria-checked")).toBe("true");
+    act(() => belongs()!.click());
+    expect(props.handleMemberChangeForTransaction).toHaveBeenLastCalledWith(2, "");
+  });
+
+  it("offers no Belongs to item when the Member column shows (two or more people) or there is no one", () => {
+    show(baseProps(twoRows, [{ id: 1, name: "Alex" }, { id: 2, name: "Sam" }]));
+    act(() => trigger(0)!.click());
+    expect(document.body.querySelector(".row-menu-panel [role='menuitemcheckbox']")).toBeNull();
+    act(() => root.render(<></>));
+    show(baseProps(twoRows, []));
+    act(() => trigger(0)!.click());
+    expect(document.body.querySelector(".row-menu-panel [role='menuitemcheckbox']")).toBeNull();
+  });
+
+  it("says No one in the narrow Details panel for a row with no member, not an empty control", () => {
+    const props = baseProps(twoRows, [{ id: 1, name: "Alex" }]);
+    props.ledgerNarrow = true;
+    props.ledgerColumnCount = ledgerColumnCount(true, false);
+    props.detailsOpenId = 1;
+    show(props);
+    const member = container.querySelector<HTMLButtonElement>(".ledger-details-row [aria-label='Family member for \"Coffee Shop\"']")!;
+    expect(member.textContent).toContain("No one");
+  });
+
   it("runs the matching handler for split, note and apply to a debt", () => {
     const props = baseProps(twoRows, [{ id: 1, name: "Alex" }]);
     props.debtAccounts = [{ ...checking, id: 9, name: "Car Loan", account_type: "loan" }];

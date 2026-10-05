@@ -1,5 +1,6 @@
 // E2E test: a calmer Transactions table (UI review s1), on the tidy two-person household data.
 //
+// - With one family member (no Member column), each row's ⋯ menu offers "Belongs to Jordan".
 // - At 1440x1000 at least 12 rows fit in one window height of the table (the review measured 7).
 // - Every amount's right edge lines up within 1px.
 // - The ⋯ menu on the last visible row opens upward and stays inside the window, in Default,
@@ -162,6 +163,8 @@ try {
       assert.ok(id, `${label} ${mode}: expected a visible row with a ⋯ menu`);
       const g = await openMenuAndMeasure(id);
       assertOpensUpwardInside(g, `${label} ${mode}`);
+      // One family member, so no Member column: the menu says whether the row belongs to Jordan.
+      assert.ok(g.items.includes("Belongs to Jordan"), `${label} ${mode}: expected a "Belongs to Jordan" item, got ${JSON.stringify(g.items)}`);
       // Plain cells: no box around the account/category triggers in any style.
       const plain = await browser.execute((rowId) => {
         const t = document.querySelector(`tr[data-payment-row="${rowId}"] [aria-label^="Category for"]`);
@@ -235,7 +238,14 @@ try {
     if (!(await line.isExisting())) return 0;
     return Number((await line.getText()).match(/^(\d+)/)?.[1] ?? NaN);
   };
-  // The household is tidy: nothing needs a category yet, so there is no line.
+  // The household is tidy: nothing needs a category yet, so there is no line. The counts arrive
+  // with the subtitle's "sorted automatically" part; wait for that first, or a read made before
+  // they load would find no line and pass without proving anything.
+  const subtitle = await browser.$("[data-ledger-subtitle]");
+  await waitUntilOrDiagnose(browser, async () => (await subtitle.getText()).includes("sorted automatically"), {
+    timeoutMsg: "expected the Transactions subtitle to show the sorted counts",
+    extra: async () => ({ subtitle: await subtitle.getText() }),
+  });
   assert.equal(await lineCount(), 0, "the tidy household should start with nothing that needs a category");
   // Take one grocery run's category away (with the app closed, as a person's import might leave it),
   // then open the app again. Adding a new transaction can't do this here: with this much history the

@@ -558,7 +558,6 @@
   font-size: 12px;
 }
 
-
 .safe-amount {
   margin: 4px 0 2px;
   font-family: var(--font-mono);
@@ -1611,8 +1610,6 @@
   flex: none;
 }
 
-
-
 /* The ledger's warning badges are InfoTips (keyboard focusable, the reason read by screen readers),
    drawn as a bare symbol instead of InfoTip's round "i". Two classes to outrank .info-tip-button. */
 .info-tip .anomaly-badge,
@@ -1642,7 +1639,6 @@
 .split-summary {
   font-weight: 600;
 }
-
 
 .split-editor-row td {
   background: var(--surface-muted, var(--surface));

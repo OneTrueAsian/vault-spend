@@ -88,7 +88,7 @@ button.row-menu-toggle[aria-expanded="true"] {
   backdrop-filter: none;
   border: 1px solid rgba(var(--accent-rgb), 0.38);
   border-radius: var(--radius-menu);
-  box-shadow: 0 18px 36px rgb(0 0 0 / 0.35), 0 0 calc(16px * var(--glow)) rgba(var(--neon-rgb), 0.12);
+  box-shadow: var(--menu-panel-shadow);
 }
 
 [data-palette="futuristic"] .row-menu-panel .row-menu-item:hover,

@@ -1,13 +1,13 @@
 import "./Ledger.css";
 import type * as React from "react";
 
-import { Fragment } from "react";
+import { Fragment, useLayoutEffect, useRef } from "react";
 
 import { TransferRow } from "./TransferRow";
 import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
 
 import { RowFieldDropdown } from "./RowFieldDropdown";
-import { RowMenu } from "./RowMenu";
+import { RowMenu, type RowMenuItem } from "./RowMenu";
 import { ledgerRowActions, type LedgerRowActionId } from "./ledgerRowActions";
 
 import { SortableTh } from "./SortableTh";
@@ -181,6 +181,29 @@ export function LedgerTable({
   filteredTransactions,
   transactions,
 }: LedgerTableProps) {
+  // Keyboard focus never falls to the page: when a row's delete confirm or tag field closes while
+  // it held focus (Cancel, Enter, Escape, or the confirm timing out), focus goes back to that row's
+  // ⋯. A blur to somewhere else is left alone, and a row that is gone (deleted) has nothing to take it.
+  const lastConfirmingId = useRef(confirmingDeleteId);
+  const lastTaggingId = useRef(taggingId);
+  useLayoutEffect(() => {
+    const giveBackFocus = (id: number | null) => {
+      const active = document.activeElement;
+      if (id === null || (active && active !== document.body)) return;
+      document.querySelector<HTMLElement>(`.ledger-table-scroll tr[data-payment-row="${id}"] [data-row-menu]`)?.focus();
+    };
+    if (lastConfirmingId.current !== confirmingDeleteId) {
+      if (confirmingDeleteId === null) giveBackFocus(lastConfirmingId.current);
+      lastConfirmingId.current = confirmingDeleteId;
+    }
+    if (lastTaggingId.current !== taggingId) {
+      if (taggingId === null) giveBackFocus(lastTaggingId.current);
+      lastTaggingId.current = taggingId;
+    }
+  });
+  // With exactly one family member the Member column stays hidden; the row's ⋯ menu then says (and
+  // changes) whether the row belongs to that person, so the information isn't lost.
+  const onlyMember = !showMemberCol && familyMembers.length === 1 ? familyMembers[0] : null;
   return (
     <div className="ledger-table-scroll" ref={setLedgerScrollEl}>
       <table className={ledgerDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
@@ -270,13 +293,14 @@ export function LedgerTable({
                 onChange={(value) => handleAccountChangeForTransaction(t.id, value)}
               />
             );
-            const memberField = (
+            const memberField = (blankWhenNoOne: boolean) => (
               <RowFieldDropdown
                 variant="plain"
                 ariaLabel={`Family member for "${t.description}"`}
                 value={t.member_id !== null ? String(t.member_id) : ""}
-                // No one chosen reads as a blank cell; the menu still offers "No one" first.
-                displayLabel={t.member_id === null ? "" : undefined}
+                // In the table, no one chosen reads as a blank cell (the menu still offers "No one"
+                // first). In Details it says "No one", or the control would show nothing at all.
+                displayLabel={blankWhenNoOne && t.member_id === null ? "" : undefined}
                 options={[
                   { value: "", label: "No one" },
                   ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
@@ -386,7 +410,7 @@ export function LedgerTable({
               tag: () => setTaggingId(t.id),
               delete: () => setConfirmingDeleteId(t.id),
             };
-            const menuItems = ledgerRowActions(t, {
+            const actionItems: RowMenuItem[] = ledgerRowActions(t, {
               splitEnabled: appSettings.split_purchases_enabled,
               debtEnabled: appSettings.apply_to_debt_enabled,
               isLoanAccount,
@@ -395,6 +419,18 @@ export function LedgerTable({
               hasPrincipalOverride: t.principal_amount !== null,
               hasAppliedDebt: t.applied_to_debt !== null,
             }).map((action) => ({ label: action.label, onSelect: runAction[action.id], danger: action.id === "delete" }));
+            const menuItems: RowMenuItem[] = onlyMember
+              ? [
+                  ...actionItems.slice(0, -1),
+                  {
+                    kind: "check",
+                    label: `Belongs to ${onlyMember.name}`,
+                    checked: t.member_id === onlyMember.id,
+                    onToggle: (next) => void handleMemberChangeForTransaction(t.id, next ? String(onlyMember.id) : ""),
+                  },
+                  ...actionItems.slice(-1),
+                ]
+              : actionItems;
             const closeTagging = () => {
               setTaggingId(null);
               setNewTagText((prev) => ({ ...prev, [t.id]: "" }));
@@ -556,7 +592,7 @@ export function LedgerTable({
                     )}
                   </td>
                   {!ledgerNarrow && <td className="account-col">{accountField}</td>}
-                  {!ledgerNarrow && showMemberCol && <td className="member-col">{memberField}</td>}
+                  {!ledgerNarrow && showMemberCol && <td className="member-col">{memberField(true)}</td>}
                   {!ledgerNarrow && <td className="category-col">{categoryField}</td>}
                   {!ledgerNarrow && <td className="source-col">{sourceField}</td>}
                   <td className="actions-col">
@@ -577,7 +613,8 @@ export function LedgerTable({
                           return impact ? <span className="delete-impact-note">{impact}</span> : null;
                         })()}
                         <span className="row-delete-confirm-actions">
-                          <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(null)}>
+                          {/* Focus lands here (the ⋯ that opened the confirm is gone), so Enter or Space cancels. */}
+                          <button type="button" className="modal-secondary" autoFocus onClick={() => setConfirmingDeleteId(null)}>
                             Cancel
                           </button>
                           <button type="button" className="btn-danger" onClick={() => handleDeleteTransaction(t.id)}>
@@ -602,7 +639,7 @@ export function LedgerTable({
                         {familyMembers.length >= 1 && (
                           <label className="ledger-details-field">
                             <span>Member</span>
-                            {memberField}
+                            {memberField(false)}
                           </label>
                         )}
                         <label className="ledger-details-field">
