@@ -121,7 +121,7 @@ that's worth fixing properly, not a race to paper over — re-run it alone (or
 at `--concurrency=1`) first to confirm it's not simply a flaky assertion,
 then look for accidental shared state (a hardcoded port, a fixed temp path,
 anything read from the real AppData folder instead of `VAULTSPEND_DB_DIR`).
-Shared state has not been the cause so far; four other causes have been.
+Shared state has not been the cause so far; the causes below have been.
 
 ## Failures that only happen in parallel runs
 
@@ -171,6 +171,14 @@ reproduced on demand and fixed at its cause, not retried away.
   widget for an investment account that did not exist, and the app is meant
   to drop such pins once its data loads, so the layout it read back depended
   on timing. A fixture must describe a state the app keeps.
+- **A dropped IPC request switches Tauri to postMessage.** Tauri sends each command as a fetch to
+  ipc.localhost, and the first one that fails switches the page to `window.ipc.postMessage` for
+  good (tauri's `scripts/ipc-protocol.js`). Specs answer the native file picker by wrapping
+  `window.fetch` (`invoke`, `__TAURI_INTERNALS__` and `window.ipc` are all read-only), so after the
+  switch the real picker opened, nobody answered it, and `feature162` hung silently until the
+  runner killed it at 60 s. Use `stubFilePicker(browser, files)` from `harness.mjs`: it retries a
+  failed IPC fetch before Tauri sees the failure, and fails at once if the page had already
+  switched. `feature119`'s save-dialog stub retries the same way.
 - **Launch failures before any page loads.** In roughly 1 launch in 100 under
   load the driver layer either creates a session whose first navigation never
   returns, or reports "invalid session id" as soon as it starts. Nothing of the

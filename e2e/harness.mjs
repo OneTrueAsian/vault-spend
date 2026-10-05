@@ -277,6 +277,51 @@ export async function pickFromMenu(browser, trigger, option) {
   });
 }
 
+/** Answers the native file picker (`plugin:dialog|open`) with `files`, one path per pick, in order (null
+ * once they run out, which is "cancelled"), by wrapping `window.fetch`: Tauri sends each command as a
+ * fetch to ipc.localhost, and `__TAURI_INTERNALS__.invoke`, `window.__TAURI_INTERNALS__` and `window.ipc`
+ * are all read-only, so fetch is the one place a command can be answered.
+ *
+ * The catch (tauri's scripts/ipc-protocol.js): the first IPC fetch that fails, a request dropped while
+ * the machine is busy, switches the page to `window.ipc.postMessage` for good. From then on no command
+ * passes through fetch, so the pick goes to the real, modal file picker, which nobody answers: the spec
+ * hangs with no error until the runner kills it (feature162, once in a full run). So the wrapper also
+ * retries a failed IPC fetch before Tauri sees the failure (Tauri itself would resend the same message
+ * over postMessage, so this repeats nothing Tauri wouldn't), and the stub checks that commands still go
+ * through fetch, failing at once with the reason if the page had already switched. */
+export async function stubFilePicker(browser, files) {
+  const result = await browser.executeAsync((paths, done) => {
+    window.__pickedFiles = paths;
+    if (!window.__filePickerStubbed) {
+      window.__filePickerStubbed = true;
+      window.__ipcFetches = 0;
+      const answer = () => (window.__pickedFiles.length ? window.__pickedFiles.shift() : null);
+      const originalFetch = window.fetch;
+      const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      window.fetch = function (input) {
+        const url = decodeURIComponent(String(typeof input === "string" ? input : input.url));
+        if (!url.includes("ipc.localhost")) return originalFetch.apply(window, arguments);
+        window.__ipcFetches++;
+        if (url.endsWith("plugin:dialog|open")) {
+          return Promise.resolve(new Response(JSON.stringify(answer()), { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }));
+        }
+        const args = arguments;
+        const attempt = (left) => originalFetch.apply(window, args).catch((e) => (left > 0 ? pause(150).then(() => attempt(left - 1)) : Promise.reject(e)));
+        return attempt(5);
+      };
+    }
+    const before = window.__ipcFetches;
+    window.__TAURI_INTERNALS__.invoke("list_accounts").then(
+      () => done({ throughFetch: window.__ipcFetches > before }),
+      (e) => done({ error: String(e) }),
+    );
+  }, files);
+  if (result.error) throw new Error(`stubFilePicker: a test command failed: ${result.error}`);
+  if (!result.throughFetch) {
+    throw new Error("stubFilePicker: this window already sends Tauri commands over postMessage (an IPC fetch failed before the stub was installed), so the file picker can't be answered and would open for real");
+  }
+}
+
 /** Opens a row's ⋯ menu (RowMenu) and clicks the item with this exact label, through withFocusRetry
  * (another window taking focus closes the menu between the two clicks). */
 export async function chooseRowAction(browser, trigger, label) {

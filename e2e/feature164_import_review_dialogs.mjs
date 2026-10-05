@@ -7,7 +7,7 @@
 //   2. Settings → Import setup data…: the review opens over Settings. It used to render only on the
 //      Reports tab, so from Settings the button seemed to do nothing.
 //
-// The native file picker is answered by wrapping window.fetch, as feature162 does.
+// The native file picker is answered by stubFilePicker (harness.mjs), which wraps window.fetch, as feature162 does.
 //
 // Run with: node e2e/run-all.mjs --spec=164
 
@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -68,18 +68,7 @@ try {
   await browser.setWindowSize(1440, 900);
   await nav("Transactions");
   await (await browser.$("table.ledger")).waitForExist({ timeout: 15000 });
-  await browser.execute((files) => {
-    const original = window.fetch;
-    window.__pickedFiles = files;
-    window.fetch = function (input) {
-      const url = typeof input === "string" ? input : input.url;
-      if (decodeURIComponent(String(url)).endsWith("plugin:dialog|open")) {
-        const picked = window.__pickedFiles.shift();
-        return Promise.resolve(new Response(JSON.stringify(picked), { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }));
-      }
-      return original.apply(window, arguments);
-    };
-  }, [bank, setup]);
+  await stubFilePicker(browser, [bank, setup]);
 
   // ---- 1. The transactions review, started from the bottom of a long page ----------------------
   await browser.execute(() => {

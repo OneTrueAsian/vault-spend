@@ -11,7 +11,7 @@
 //      keeps every choice that still applies; switching a
 //      remembered file category to "Let the app guess" and importing forgets it.
 //
-// The native file picker is answered by wrapping window.fetch, as feature150 does: a
+// The native file picker is answered by stubFilePicker (harness.mjs), which wraps window.fetch, as feature150 does: a
 // `plugin:dialog|open` request gets the path of a CSV this spec wrote. Everything else is the
 // real app. Set VAULTSPEND_E2E_SHOTS to a folder to save screenshots of the review screen.
 //
@@ -21,7 +21,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { chooseMenuOption, launchApp, menuOptionLabels, menuSelectValue, waitUntilOrDiagnose } from "./harness.mjs";
+import { chooseMenuOption, launchApp, menuOptionLabels, menuSelectValue, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -104,18 +104,7 @@ async function shoot(name) {
 try {
   await browser.setWindowSize(1440, 1000);
   await (await browser.$("button*=Transactions")).click();
-  await browser.execute((files) => {
-    const original = window.fetch;
-    window.__pickedFiles = files;
-    window.fetch = function (input, init) {
-      const url = typeof input === "string" ? input : input.url;
-      if (decodeURIComponent(String(url)).endsWith("plugin:dialog|open")) {
-        const picked = window.__pickedFiles.shift();
-        return Promise.resolve(new Response(JSON.stringify(picked), { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }));
-      }
-      return original.apply(window, arguments);
-    };
-  }, [first, second, third, third]);
+  await stubFilePicker(browser, [first, second, third, third]);
 
   // ---- 1. Unfamiliar category + unplaceable row ------------------------------------------------
   await startImport();

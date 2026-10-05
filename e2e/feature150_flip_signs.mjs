@@ -6,7 +6,7 @@
 //   2. Importing a mostly-positive file into a credit card suggests "Flip the signs" and says why; the
 //      answer is remembered, so the next import into that account preselects it and says so.
 //
-// The native file picker is answered by wrapping window.fetch (Tauri IPC goes out as fetch, and
+// The native file picker is answered by stubFilePicker (harness.mjs), which wraps window.fetch (Tauri IPC goes out as fetch, and
 // __TAURI_INTERNALS__.invoke itself is not writable): a `plugin:dialog|open` request gets the path of a
 // CSV this spec wrote. Everything else is the real app.
 //
@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -78,18 +78,7 @@ try {
   assert.equal((await amex()).current_balance, "1030.01", "the card's balance should follow: 1000 - 19.99 + 50");
 
   // ---- 2. The import suggests flipping, then remembers it ---------------------------------------------
-  await browser.execute((files) => {
-    const original = window.fetch;
-    window.__pickedFiles = files;
-    window.fetch = function (input, init) {
-      const url = typeof input === "string" ? input : input.url;
-      if (decodeURIComponent(String(url)).endsWith("plugin:dialog|open")) {
-        const picked = window.__pickedFiles.shift();
-        return Promise.resolve(new Response(JSON.stringify(picked), { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }));
-      }
-      return original.apply(window, arguments);
-    };
-  }, [firstStatement, secondStatement]);
+  await stubFilePicker(browser, [firstStatement, secondStatement]);
   assert.equal((await amex()).import_flip_signs, null, "nothing has been imported into Amex Blue yet");
 
   const askSigns = async () => {

@@ -61,7 +61,14 @@ async function installSaveInterceptor() {
           new Response("null", { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }),
         );
       }
-      return original.apply(window, arguments);
+      // A failed IPC fetch would switch Tauri to postMessage for good, past this wrapper, and the next
+      // Export would open the real save dialog and hang the spec: retry it first (see stubFilePicker
+      // in harness.mjs).
+      if (command === null) return original.apply(window, arguments);
+      const args = arguments;
+      const attempt = (left) =>
+        original.apply(window, args).catch((e) => (left > 0 ? new Promise((r) => setTimeout(r, 150)).then(() => attempt(left - 1)) : Promise.reject(e)));
+      return attempt(5);
     };
     window.__saveIntercept = state;
   });
