@@ -48,8 +48,21 @@ try {
     "showing the warning must not steal keyboard focus",
   );
   // A window covered by another spec's newly launched one has its timers throttled, so the local countdown
-  // can stall then; withFocusRetry brings it back to the front and waits again (only if it really lost focus).
+  // can stall then; withFocusRetry brings it back to the front and tries again (only if it really lost focus).
+  // The warning only lasts 10 real seconds, so a retry first cancels it with Stay unlocked and raises a fresh
+  // one: three plain retries of 3 s each once outlasted it, and then read an empty, finished warning.
+  let countdownAttempt = 0;
   await withFocusRetry(browser, async () => {
+    if (++countdownAttempt > 1) {
+      const stay = await browser.$("[data-stay-unlocked]");
+      if (await stay.isExisting()) {
+        await stay.click();
+        await countdown.waitForExist({ reverse: true, timeout: 5000 });
+      }
+      const again = await invoke(browser, "debug_advance_auto_lock", { seconds: 50 });
+      assert.deepEqual(again, { ok: null }, `debug clock advance failed on retry: ${JSON.stringify(again)}`);
+      await countdown.waitForExist({ timeout: 5000 });
+    }
     let seen = "";
     await browser.waitUntil(async () => /lock in [1-9] seconds/i.test((seen = await countdown.getText())), { timeout: 3000 }).catch(() => {
       throw new Error(`the visible warning should count down locally between backend ticks (got "${seen}")`);
