@@ -3,7 +3,8 @@ import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";
 import { LineChart } from "./charts";
-import { formatAmount, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
+import { DateField } from "./DateField";
 import { errorMessage } from "./errorMessage";
 // Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
 const AccountAccumulationSection = lazy(() => import("./AccumulationSection").then((m) => ({ default: m.AccountAccumulationSection })));
@@ -95,7 +96,7 @@ export function AccountDetailView({
       setReconciling(false);
       setStatementBalance("");
       await loadOverview();
-      onMessage(`Reconciled ${account.name} through ${statementDate}.`, "success");
+      onMessage(`Reconciled ${account.name} through ${formatDisplayDate(statementDate)}.`, "success");
     } catch (e) {
       onMessage(errorMessage(e), "error");
     }
@@ -128,7 +129,7 @@ export function AccountDetailView({
           <span className="stat-label">Balance</span>
         </div>
         <div className="stat tint-blue" data-last-reconciled={lastRec ? lastRec.statement_date : ""}>
-          <span className={lastRec ? "stat-value" : "stat-value stat-value-muted"}>{lastRec ? lastRec.statement_date : "Never"}</span>
+          <span className={lastRec ? "stat-value" : "stat-value stat-value-muted"}>{lastRec ? formatDisplayDate(lastRec.statement_date) : "Never"}</span>
           <span className="stat-label">Last reconciled</span>
         </div>
       </div>
@@ -176,7 +177,7 @@ export function AccountDetailView({
             >
               <label className="labeled-field">
                 <span className="labeled-field-label">Statement ending date</span>
-                <input type="date" value={statementDate} onChange={(e) => setStatementDate(e.target.value)} data-statement-date />
+                <DateField value={statementDate} onChange={setStatementDate} ariaLabel="Statement ending date" data-statement-date />
               </label>
               <label className="labeled-field">
                 <span className="labeled-field-label">Statement ending balance</span>
@@ -231,7 +232,7 @@ export function AccountDetailView({
                     <td className="dup-review-check">
                       <input type="checkbox" checked={t.cleared} onChange={() => void toggleCleared(t)} aria-label={`Cleared: ${t.description}`} />
                     </td>
-                    <td>{t.date}</td>
+                    <td className="date-cell">{formatDisplayDate(t.date)}</td>
                     <td>{t.description}</td>
                     <td className="amount-col">{formatAmount(t.amount)}</td>
                   </tr>
@@ -239,7 +240,7 @@ export function AccountDetailView({
                 {candidates.length === 0 && (
                   <tr>
                     <td colSpan={4} className="empty-state">
-                      Nothing left to reconcile up to {statementDate}.
+                      Nothing left to reconcile up to {formatDisplayDate(statementDate)}.
                     </td>
                   </tr>
                 )}
@@ -274,12 +275,12 @@ export function AccountDetailView({
           <tbody>
             {transactions.map((t) => (
               <tr key={t.id}>
-                <td>{t.date}</td>
+                <td className="date-cell">{formatDisplayDate(t.date)}</td>
                 <td>
                   {t.description}
                   {t.payment_source_id != null && (
                     <button type="button" className="modal-secondary btn-sm view-payment"
-                      aria-label={`View payment from ${t.payment_source_account_name} on ${t.payment_source_date}`}
+                      aria-label={`View payment from ${t.payment_source_account_name} on ${formatDisplayDate(t.payment_source_date ?? "")}`}
                       onClick={() => onOpenPayment(t.payment_source_id!)}>
                       View payment
                     </button>

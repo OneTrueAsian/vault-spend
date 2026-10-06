@@ -217,7 +217,9 @@ try {
   const firstId = await browser.execute(() => {
     window.scrollTo(0, 0);
     document.querySelector(".ledger-table-scroll").scrollIntoView({ block: "start" });
-    return document.querySelector("table.ledger tbody tr[data-payment-row] [data-row-menu]").closest("tr").dataset.paymentRow;
+    // Not a linked transfer's row: its menu has no "Add tag…", and on some days the household data puts
+    // a transfer first (the household's transfers fall on fixed days of the month).
+    return document.querySelector("table.ledger tbody tr[data-payment-row]:not(.ledger-row-transfer) [data-row-menu]").closest("tr").dataset.paymentRow;
   });
   const tripPill = `//tr[@data-payment-row='${firstId}']//span[contains(@class,'tag-pill')][starts-with(normalize-space(.),'trip')]`;
   await withFocusRetry(browser, async () => {

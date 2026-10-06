@@ -1,5 +1,5 @@
 import { MenuSelect } from "./MenuSelect";
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
 import type { ImportRow, RowChoices } from "./importResolution";
 
 /** The menu value for "Leave uncategorized". Category values carry a `cat:` prefix, so no category
@@ -65,7 +65,7 @@ export function ImportNeedsChoice({
             <li key={r.index} className="import-category-row import-needs-choice-row" data-import-choice-row={r.index} data-choice-state={state}>
               <span className="import-category-name">
                 <span className="import-needs-choice-desc">
-                  <span className="import-needs-choice-date">{r.date}</span> {r.description}{" "}
+                  <span className="import-needs-choice-date">{formatDisplayDate(r.date)}</span> {r.description}{" "}
                   <span className="import-needs-choice-amount">{formatAmount(r.amount)}</span>
                 </span>
                 <span className="account-col">{hint(r, categories)}</span>

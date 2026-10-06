@@ -9,6 +9,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { ImportNeedsChoice, LEAVE_UNCATEGORIZED } from "./ImportNeedsChoice";
 import type { ImportRow, RowChoices } from "./importResolution";
 import { menuOptions, menuValue, pickMenuOption } from "./menuSelectTestUtils";
+import { formatDisplayDate } from "./format";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -68,7 +69,8 @@ describe("ImportNeedsChoice", () => {
     show([row(3), row(7)]);
     expect(lines().map((l) => l.getAttribute("data-import-choice-row"))).toEqual(["3", "7"]);
     const text = lines()[0].textContent ?? "";
-    expect(text).toContain("2026-01-05");
+    expect(text).toContain(formatDisplayDate("2026-01-05"));
+    expect(text).not.toContain("2026-01-05");
     expect(text).toContain("SHOP 3");
     expect(text).toContain("12.50");
   });

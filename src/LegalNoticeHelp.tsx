@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { bundledLegalNotice } from "./legalNotice";
 import { getLegalNoticeAcknowledgement, type LegalNoticeAcknowledgement } from "./legalNoticeApi";
 import { LegalNoticeText } from "./LegalNoticeText";
+import { formatDisplayDate, toLocalIsoDate } from "./format";
 
 function describe(ack: LegalNoticeAcknowledgement): string | null {
   if (ack.version === null) return null;
   if (ack.version !== bundledLegalNotice.version) return `Last acknowledged here: version ${ack.version}. You'll be shown this version the next time Vault Spend starts.`;
   const when = ack.acknowledged_at ? new Date(ack.acknowledged_at) : null;
-  return when && !Number.isNaN(when.getTime()) ? `Acknowledged on ${when.toLocaleDateString(undefined, { dateStyle: "long" })}.` : "Acknowledged on this computer.";
+  return when && !Number.isNaN(when.getTime()) ? `Acknowledged on ${formatDisplayDate(toLocalIsoDate(when))}.` : "Acknowledged on this computer.";
 }
 
 // Help's entry for the legal notice: the version, when this computer acknowledged it, and the full text.

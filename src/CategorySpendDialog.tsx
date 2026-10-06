@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { CategoryTransaction } from "./types";
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
 import { ModalShell } from "./Modal";
 
 export function CategorySpendDialog({ category, year, month, onClose }: {
@@ -36,7 +36,7 @@ export function CategorySpendDialog({ category, year, month, onClose }: {
                   <thead><tr><th>Date</th><th>Description</th><th>Account</th><th className="amount-col">Spent</th></tr></thead>
                   <tbody>{items.map((item, index) => (
                     <tr key={`${item.transaction_id}-${index}`}>
-                      <td>{item.date}</td>
+                      <td className="date-cell">{formatDisplayDate(item.date)}</td>
                       <td>{item.description}{item.is_split && <span className="account-col"> · split{item.split_note ? `: ${item.split_note}` : ""}</span>}</td>
                       <td>{item.account_name}</td>
                       <td className="amount-col">{formatAmount((-Number(item.amount)).toFixed(2))}</td>

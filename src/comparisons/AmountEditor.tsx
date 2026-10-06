@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { toLocalIsoDate } from "../format";
 import { InfoTip } from "../InfoTip";
+import { DateField } from "../DateField";
 import { FIELD_TIPS } from "./fieldTips";
 import { parseMoneyText } from "./setupDraft";
 import type { ManualAmount } from "./types";
@@ -73,13 +74,13 @@ export function AmountEditor({
         <span className="cmp-tip-field">
           <label>
             <span className="cmp-sr-label">{label}: date measured</span>
-            <input
-              type="date"
+            <DateField
               className="cmp-date-input"
+              ariaLabel={`${label}: date measured`}
               value={date}
               disabled={value === null}
-              aria-describedby={dateTipId}
-              onChange={(e) => commit(text, e.target.value, note)}
+              ariaDescribedBy={dateTipId}
+              onChange={(iso) => commit(text, iso, note)}
             />
           </label>
           <InfoTip label={`${label}: date measured`} text={FIELD_TIPS.measuredOn} id={dateTipId} />

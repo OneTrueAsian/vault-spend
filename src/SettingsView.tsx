@@ -14,6 +14,7 @@ import { getCurrentGeneration } from "./profileUiState";
 import { ModalShell } from "./Modal";
 import { PasswordForm } from "./PasswordForm";
 import { MenuSelect } from "./MenuSelect";
+import { formatDisplayDateTime } from "./format";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs, type NeonAccent } from "./themeBootstrap";
 
 const LIVE_PRICE_PROVIDERS: Record<
@@ -265,7 +266,7 @@ export function BackupsBlock({
         <tbody>
           {backups.map((b) => (
             <tr key={b.filename}>
-              <td>{b.created_at}</td>
+              <td className="date-cell">{formatDisplayDateTime(b.created_at)}</td>
               <td className="amount-col">{(b.size_bytes / 1024).toFixed(0)} KB</td>
               <td className="actions-col">
                 {confirmingRestoreFilename === b.filename ? (

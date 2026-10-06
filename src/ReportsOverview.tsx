@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, CashFlow, DebtPayoffPlan, FamilyMember, MonthTotal, Transaction, Asset } from "./types";
 import { LineChart } from "./charts";
-import { formatAmount, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import { groupOf, isIncomeTransaction, owedAmount } from "./accountGroups";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
@@ -216,7 +216,7 @@ export function DebtPayoffPlannerSection({
               {plan.per_account.map((l) => (
                 <tr key={l.account_id}>
                   <td>{l.account_name}</td>
-                  <td>{l.payoff_date ?? "Never at this payment level"}</td>
+                  <td>{l.payoff_date ? formatDisplayDate(l.payoff_date) : "Never at this payment level"}</td>
                   <td className="amount-col">{formatAmount(l.total_interest_paid)}</td>
                 </tr>
               ))}
@@ -495,7 +495,7 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
                 <div key={wi} className="heatmap-week-col">
                   {week.map((day) => {
                     const bucket = day.inRange ? heatmapBucket(day.amount, max) : -1;
-                    const label = new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                    const label = formatDisplayDate(day.date);
                     return (
                       <button
                         type="button"
@@ -518,7 +518,7 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
           </div>
           <p className="heatmap-status" aria-live="polite" data-heatmap-status>
             {focused
-              ? `${new Date(`${focused.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}: ${formatAmount(focused.amount.toFixed(2))}`
+              ? `${formatDisplayDate(focused.date)}: ${formatAmount(focused.amount.toFixed(2))}`
               : "Hover or focus a day to see its total."}
           </p>
           <div className="heatmap-legend" aria-hidden="true">
@@ -539,7 +539,7 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
             <tbody>
               {inRangeDays.map((d) => (
                 <tr key={d.date}>
-                  <td>{d.date}</td>
+                  <td>{formatDisplayDate(d.date)}</td>
                   <td>{formatAmount(d.amount.toFixed(2))}</td>
                 </tr>
               ))}

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPlan, YoyCashFlow } from "./types";
 import { lowestPoint } from "./safeToSpend";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "./charts";
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
 import { DebtPayoffPlannerSection } from "./ReportsOverview";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
@@ -381,7 +381,7 @@ export function CashFlowView({
               const low = lowestPoint(forecastData.points);
               return low ? (
                 <p className="forecast-lowest" data-forecast-lowest>
-                  Lowest balance: <strong>{formatAmount(low.balance.toFixed(2))}</strong> on {low.date}
+                  Lowest balance: <strong>{formatAmount(low.balance.toFixed(2))}</strong> on {formatDisplayDate(low.date)}
                 </p>
               ) : null;
             })()}
@@ -391,7 +391,7 @@ export function CashFlowView({
                 <ul>
                   {forecastData.events.slice(0, 10).map((ev, i) => (
                     <li key={`${ev.date}-${ev.label}-${i}`}>
-                      <span className="forecast-event-date">{ev.date}</span>
+                      <span className="forecast-event-date">{formatDisplayDate(ev.date)}</span>
                       <span className="forecast-event-label">{ev.label}</span>
                       <span className={parseFloat(ev.amount) < 0 ? "forecast-event-amount neg" : "forecast-event-amount"}>
                         {formatAmount(ev.amount)}

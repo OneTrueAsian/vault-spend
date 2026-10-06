@@ -2,7 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import type { Account, AllocationTarget, Holding, PortfolioPoint } from "./types";
 import { allocationRows, driftStatus, targetsTotal } from "./allocation";
 import { DonutChart, LineChart, fmtMoneyShort } from "./charts";
-import { formatAmount, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
 import { projectGoal } from "./projections";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { PinToDashboardButton } from "./PinToDashboardButton";
@@ -640,7 +640,7 @@ export function InvestmentsView({
         ) : (
           <p className="modal-message-secondary">
             Vault Spend records your portfolio's value each day you open it or refresh prices, so this chart fills in as time passes
-            {portfolioHistory.length === 1 ? ` (first point: ${formatAmount(portfolioHistory[0].value)} on ${portfolioHistory[0].date}).` : "."}
+            {portfolioHistory.length === 1 ? ` (first point: ${formatAmount(portfolioHistory[0].value)} on ${formatDisplayDate(portfolioHistory[0].date)}).` : "."}
           </p>
         )}
       </div>

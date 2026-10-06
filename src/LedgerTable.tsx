@@ -15,7 +15,8 @@ import { SortableTh } from "./SortableTh";
 import { isBatchSelected, type SelectAllBatch } from "./ledgerSelection";
 
 import { CategoryIcon } from "./icons";
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
+import { DateField } from "./DateField";
 
 import { InfoTip } from "./InfoTip";
 
@@ -448,12 +449,12 @@ export function LedgerTable({
                   </td>
                   <td className="date-col">
                     {editingDate?.id === t.id ? (
-                      <input
+                      <DateField
                         autoFocus
-                        type="date"
                         className="row-edit-input"
+                        ariaLabel="Date"
                         value={editingDate.value}
-                        onChange={(e) => setEditingDate({ id: t.id, value: e.target.value })}
+                        onChange={(value) => setEditingDate({ id: t.id, value })}
                         onBlur={() => commitDateEdit(t.id, editingDate.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") commitDateEdit(t.id, editingDate.value);
@@ -466,7 +467,7 @@ export function LedgerTable({
                         title="Click to fix the date"
                         onClick={() => setEditingDate({ id: t.id, value: t.date })}
                       >
-                        {t.date}
+                        {formatDisplayDate(t.date)}
                       </span>
                     )}
                   </td>

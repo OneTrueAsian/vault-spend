@@ -44,3 +44,50 @@ export function shortMonthDay(iso: string): string {
   if (!match) return iso;
   return `${MONTH_ABBR[Number(match[2]) - 1]} ${Number(match[3])}`;
 }
+
+const STORED_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function parseStoredDate(iso: string): { year: number; month: number; day: number } | null {
+  const match = STORED_DATE.exec(iso);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return { year, month, day };
+}
+
+/** The one way a date is shown on screen: "Oct 4" for a date in `today`'s year, "Oct 4, 2025" for any
+ * other year. Anything that isn't a stored "YYYY-MM-DD" date comes back unchanged. Files the app writes
+ * (exports, backups) keep the stored form; this is only for what people read. */
+export function formatDisplayDate(iso: string, today: Date = new Date()): string {
+  const d = parseStoredDate(iso);
+  if (!d) return iso;
+  const monthDay = `${MONTH_ABBR[d.month - 1]} ${d.day}`;
+  return d.year === today.getFullYear() ? monthDay : `${monthDay}, ${d.year}`;
+}
+
+/** "Oct 4, 2026": the date with its year always named, for a date field's resting text (a field is
+ * read on its own, without the list around it that tells you which year you're in). */
+export function formatFullDate(iso: string): string {
+  const d = parseStoredDate(iso);
+  if (!d) return iso;
+  return `${MONTH_ABBR[d.month - 1]} ${d.day}, ${d.year}`;
+}
+
+/** "Jun 2027" from a stored "YYYY-MM-DD" (or "YYYY-MM"). Anything else comes back unchanged. */
+export function formatMonthYear(iso: string): string {
+  const match = /^(\d{4})-(\d{2})(-\d{2})?$/.exec(iso);
+  if (!match || Number(match[2]) < 1 || Number(match[2]) > 12) return iso;
+  return `${MONTH_ABBR[Number(match[2]) - 1]} ${match[1]}`;
+}
+
+/** A stored "YYYY-MM-DD HH:MM" moment as "Oct 4, 2:05 PM" (the date as `formatDisplayDate` shows it,
+ * then the time on a 12-hour clock). Anything else comes back unchanged. */
+export function formatDisplayDateTime(stamp: string, today: Date = new Date()): string {
+  const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(stamp);
+  if (!match || !parseStoredDate(match[1])) return stamp;
+  const hour24 = Number(match[2]);
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${formatDisplayDate(match[1], today)}, ${hour12}:${match[3]} ${hour24 < 12 ? "AM" : "PM"}`;
+}

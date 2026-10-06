@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import type { Asset, FamilyMember } from "./types";
-import { formatAmount, isValidDecimalString, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, isValidDecimalString, toLocalIsoDate } from "./format";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { MenuSelect } from "./MenuSelect";
 import { sumMoney } from "./money";
@@ -197,7 +197,7 @@ export function PropertyAssetsSection({
                   ]}
                 />
               </td>
-              <td>{a.valued_on}</td>
+              <td className="date-cell">{formatDisplayDate(a.valued_on)}</td>
               <td className="actions-col">
                 {confirmingDeleteId === a.id ? (
                   <span className="row-delete-confirm">

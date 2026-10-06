@@ -1,6 +1,6 @@
 import "./Ledger.css";
 
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
 import { ModalShell } from "./Modal";
 
 import type { SetupImportPreview } from "./types";
@@ -204,7 +204,7 @@ export function SetupImportReviewDialog({
                     </td>
                     <td>{row.name}</td>
                     <td className="amount-col">{row.target_amount ? formatAmount(row.target_amount) : ""}</td>
-                    <td>{row.target_date ?? ""}</td>
+                    <td className="date-cell">{row.target_date ? formatDisplayDate(row.target_date) : ""}</td>
                     <td>{row.linked_account_name ?? ""}</td>
                     <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
                   </tr>

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
-import { dateInMonth } from "./lib/dates.mjs";
+import { dateInMonth, displayDate } from "./lib/dates.mjs";
 
 // Last month: the payment on the 1st, applied to the card on the 2nd, the purchases on the 20th.
 const PAYMENT_DATE = dateInMonth(-1, 1);
@@ -81,7 +81,9 @@ try {
   let row = await waitForPayment();
   assert.equal((await browser.$$("[data-payment-row]")).length, 1);
   assert.match(await row.getText(), /Fixture Checking.*Fixture Card/s);
-  assert.match(await row.getText(), new RegExp(`Applied.*55\\.35.*${APPLIED_DATE}`, "s"));
+  // The applied date reads the way every date on screen does ("Sep 2"), not as the stored YYYY-MM-DD.
+  const rowText = await row.getText();
+  assert.ok(rowText.includes(`Applied $55.35 on ${displayDate(APPLIED_DATE)}\n`), `the row should say when the payment was applied: ${rowText}`);
   assert.match(await row.getText(), /-\$100\.00/);
   await accountFilter(["Fixture Checking", "Fixture Card"]);
   assert.equal((await browser.$$("[data-payment-row]")).length, 1);

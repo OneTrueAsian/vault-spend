@@ -1,7 +1,7 @@
 import "./Ledger.css";
 import type * as React from "react";
 
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
 
 import type { Transaction } from "./types";
 import { MenuSelect } from "./MenuSelect";
@@ -41,7 +41,7 @@ export function RecategorizedReviewPanel({
             .filter((t) => reviewIds.has(t.id))
             .map((t) => (
               <tr key={t.id}>
-                <td>{t.date}</td>
+                <td className="date-cell">{formatDisplayDate(t.date)}</td>
                 <td>{t.description}</td>
                 <td className="amount-col">{formatAmount(t.amount)}</td>
                 <td>

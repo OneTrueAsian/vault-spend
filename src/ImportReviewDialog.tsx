@@ -3,7 +3,7 @@ import { ImportCategoryReconcile, type CategoryChoice } from "./ImportCategoryRe
 import { ImportNeedsChoice } from "./ImportNeedsChoice";
 import { MenuSelect } from "./MenuSelect";
 import { ModalShell } from "./Modal";
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
 import { rowNeedsChoice, unresolvedRows } from "./importResolution";
 import type { ImportReview } from "./useImportReview";
 import type { Account } from "./types";
@@ -131,7 +131,7 @@ export function ImportReviewDialog({
                   <td className="dup-review-check">
                     <input type="checkbox" checked={includedIndices.has(row.index)} onChange={() => toggleIncluded(row.index)} disabled={busy} />
                   </td>
-                  <td>{row.date}</td>
+                  <td className="date-cell">{formatDisplayDate(row.date)}</td>
                   <td>{row.description}</td>
                   <td className="amount-col">{formatAmount(row.amount)}</td>
                   <td>

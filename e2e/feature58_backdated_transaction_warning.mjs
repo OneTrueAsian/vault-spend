@@ -11,6 +11,7 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { displayDate } from "./lib/dates.mjs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
@@ -90,8 +91,9 @@ try {
   });
   const warningText = await warning.getText();
   console.log("warning text (backdated):", warningText);
-  if (!warningText.includes("Checking") || !warningText.includes(yesterday)) {
-    throw new Error(`expected the warning to name the account and checkpoint date (${yesterday}): "${warningText}"`);
+  // The checkpoint date reads the way every date on screen does ("Oct 5"), not as the stored 2026-10-05.
+  if (!warningText.includes("Checking") || !warningText.includes(`as of ${displayDate(yesterday)} `)) {
+    throw new Error(`expected the warning to name the account and checkpoint date (${displayDate(yesterday)}): "${warningText}"`);
   }
 
   // Today's default date is always after any checkpoint (a checkpoint is

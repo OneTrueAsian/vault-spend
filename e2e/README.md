@@ -68,6 +68,13 @@ To switch visual style the way a person does, use `chooseStyle(browser,
 "Retro", "retro")` from `harness.mjs`: it opens Settings, waits for that
 style's row, chooses it and waits until it applies.
 
+Dates on screen are written out ("Oct 4", or "Oct 4, 2025" for another year), the way
+`formatDisplayDate` in `src/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
+expect. Every date field is `DateField`: a real `<input type="date">` that keeps the stored
+`YYYY-MM-DD` value (so `setValue`, typing and `getValue` work as before), with the date written out
+over it while it isn't being edited. Read that text with `lib/dateFields.mjs`. Exported files keep
+`YYYY-MM-DD`.
+
 ## Running the full suite
 
 ```

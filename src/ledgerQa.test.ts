@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { answerLedgerQuestion, LEDGER_QA_EXAMPLES, type QaContext } from "./ledgerQa";
+import { formatDisplayDate } from "./format";
 import type { Account, Bucket, Recurring, Transaction } from "./types";
 
 const TODAY = new Date(2026, 8, 6); // Sat 2026-09-06
@@ -435,7 +436,7 @@ describe("subscriptions and bills", () => {
     });
     const r = ask("when is my next bill due", c);
     expect(r.answer).toContain("Rent");
-    expect(r.answer).toContain("2026-09-10");
+    expect(r.answer).toContain(`on ${formatDisplayDate("2026-09-10")}.`);
   });
 });
 

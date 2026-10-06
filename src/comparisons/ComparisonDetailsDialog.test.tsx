@@ -103,8 +103,8 @@ describe("ComparisonDetailsDialog", () => {
       metric: metric("income", { value: "50000", origin: { kind: "entered", measuredOn: "2024-01-01", explanation: "  ", stale: false } }),
     });
     show(view);
-    expect(text()).toContain("Entered on 2024-01-01.");
-    expect(text()).not.toContain("2024-01-01:");
+    expect(text()).toContain("Entered on Jan 1, 2024.");
+    expect(text()).not.toContain("2024:");
   });
 
   it("breaks totals down by type and compares each class with its own published figure", () => {

@@ -7,8 +7,10 @@
 //
 // Run with: node e2e/feature80_reconciliation.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { displayDate, fieldDate, isoDaysFromNow } from "./lib/dates.mjs";
+import { waitForDateFieldText } from "./lib/dateFields.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -21,10 +23,8 @@ for days, desc, amt in ((40, "Deposit", "200.00"), (30, "Coffee", "-50.00"), (10
                 (acct, d, desc, amt, None, None, f"{acct}|{d}|{desc.lower()}|{amt}"))
 `);
 
-const todayIso = (() => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-})();
+const todayIso = isoDaysFromNow(0);
+const lastReconciledText = async () => (await (await browser.$("[data-last-reconciled] .stat-value")).getText()).trim();
 
 const app = await launchApp({ dbDir });
 const { browser } = app;
@@ -56,7 +56,14 @@ try {
   await page.waitForExist({ timeout: 10000, timeoutMsg: "Details should open the account's page" });
   await browser.waitUntil(async () => (await page.getText()).includes("Everyday Checking"), { timeout: 5000 });
   if (!(await page.$("svg").isExisting())) throw new Error("the balance history should draw a chart");
-  if ((await (await browser.$("[data-last-reconciled]")).getText()).includes(todayIso)) throw new Error("nothing has been reconciled yet");
+  let lastSeen = "";
+  await waitUntilOrDiagnose(browser, async () => (lastSeen = await lastReconciledText()) === "Never", {
+    timeoutMsg: "nothing has been reconciled yet, so Last reconciled should say Never",
+    extra: () => lastSeen,
+  });
+  // The statement date field starts on today, written out over the real date input (which keeps the stored date).
+  await waitForDateFieldText(browser, "[data-statement-date]", fieldDate(todayIso), "the statement date field");
+  if ((await (await browser.$("[data-statement-date]")).getValue()) !== todayIso) throw new Error(`the statement date input should hold ${todayIso}`);
 
   // --- start ---------------------------------------------------------------------
   const balance = await browser.$("[data-statement-balance]");
@@ -86,10 +93,11 @@ try {
 
   // --- finish ---------------------------------------------------------------------------
   await (await browser.$("[data-reconcile-finish]")).click();
-  await browser.waitUntil(async () => (await (await browser.$("[data-last-reconciled]")).getText()).includes(todayIso), {
-    timeout: 10000,
-    timeoutMsg: "the page should show today as the last reconciled date",
+  await waitUntilOrDiagnose(browser, async () => (lastSeen = await lastReconciledText()) === displayDate(todayIso), {
+    timeoutMsg: `the page should show today (${displayDate(todayIso)}) as the last reconciled date`,
+    extra: () => lastSeen,
   });
+  if ((await (await browser.$("[data-last-reconciled]")).getAttribute("data-last-reconciled")) !== todayIso) throw new Error("the stored reconciliation date should still be today's date");
   await browser.$("[data-reconcile-start]").waitForExist({ timeout: 10000 });
 
   // Cleared rows are marked in the transaction list (3 of the 4).

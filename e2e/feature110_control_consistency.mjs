@@ -23,10 +23,23 @@ async function check(selector, theme, palette) {
     ref.className = "text-input";
     document.body.append(ref);
     const expected = getComputedStyle(ref);
+    // Placeholders use --text-muted (SharedControls.css).
+    const mutedProbe = document.createElement("span");
+    mutedProbe.style.color = "var(--text-muted)";
+    document.body.append(mutedProbe);
+    const muted = getComputedStyle(mutedProbe).color;
+    mutedProbe.remove();
     const results = fields.map((el) => {
       const s = getComputedStyle(el);
-      return { name: el.getAttribute("aria-label") || el.type, radius: s.borderRadius, color: s.color,
-        background: s.backgroundColor, scheme: s.colorScheme, expectedColor: expected.color, expectedBackground: expected.backgroundColor };
+      // A date field (DateField) at rest hides its input's own text under the date written out over it, so
+      // the colour people read is that text's.
+      const resting = el.closest(".date-field:not(.date-field-editing)");
+      // An empty one shows a hint ("Any date") in the colour of any field's placeholder.
+      const color = resting ? getComputedStyle(resting.querySelector(".date-field-text")).color : s.color;
+      const expectedColor = resting?.classList.contains("date-field-empty") ? muted : expected.color;
+      return { name: el.getAttribute("aria-label") || el.type, radius: s.borderRadius, color,
+        hiddenInputText: resting ? s.color : null,
+        background: s.backgroundColor, scheme: s.colorScheme, expectedColor, expectedBackground: expected.backgroundColor };
     });
     ref.remove();
     return results;
@@ -35,6 +48,7 @@ async function check(selector, theme, palette) {
   for (const field of result) {
     assert.equal(field.radius, CONTROL_RADIUS[palette], `${palette}/${theme}: ${field.name} border radius`);
     assert.equal(field.color, field.expectedColor, `${field.name} text color`);
+    if (field.hiddenInputText !== null) assert.equal(field.hiddenInputText, "rgba(0, 0, 0, 0)", `${field.name}: the input's own text is hidden under the written-out date`);
     assert.equal(field.background, field.expectedBackground, `${field.name} background`);
     assert.equal(field.scheme, theme, `${field.name} native picker theme`);
   }

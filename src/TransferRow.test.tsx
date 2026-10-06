@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { TransferRow } from "./TransferRow";
+import { formatDisplayDate } from "./format";
 import type { Transaction } from "./types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -89,7 +90,7 @@ describe("TransferRow", () => {
       const details = container.querySelector(".applied-payment-details");
       expect(details?.textContent).toContain("Checking → Card");
       expect(details?.textContent).toContain("55.35");
-      expect(details?.textContent).toContain("2026-08-11");
+      expect(details?.textContent).toContain(`on ${formatDisplayDate("2026-08-11")}`);
       expect(container.querySelector('[data-payment-row="1"]')).not.toBeNull();
     }
   });

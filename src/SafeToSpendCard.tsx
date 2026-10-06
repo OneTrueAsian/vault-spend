@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { BillAwareForecast } from "./types";
-import { formatAmount, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import { safeToSpend } from "./safeToSpend";
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 
@@ -90,7 +90,7 @@ export function SafeToSpendCard({
       </p>
       <p className="modal-message-secondary">
         {result.nextIncome
-          ? `until ${result.nextIncome.label} on ${result.nextIncome.date} (${result.daysUntilPayday} day${result.daysUntilPayday === 1 ? "" : "s"})`
+          ? `until ${result.nextIncome.label} on ${formatDisplayDate(result.nextIncome.date)} (${result.daysUntilPayday} day${result.daysUntilPayday === 1 ? "" : "s"})`
           : "after every bill in the next 45 days — no paycheck is on your Recurring list"}
         {result.perDay !== null && ` · about ${formatAmount(result.perDay.toFixed(2))} a day`}
       </p>

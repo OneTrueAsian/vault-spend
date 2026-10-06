@@ -1,7 +1,8 @@
 import "./BudgetAndGoals.css";
 import { FormEvent, useState } from "react";
 import type { Account, Bucket, FamilyMember } from "./types";
-import { formatAmount, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, formatMonthYear, toLocalIsoDate } from "./format";
+import { DateField } from "./DateField";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { BUCKET_ICON_OPTIONS, BucketIcon, isBucketIconKey, type BucketIconKey } from "./icons";
 import { goalPlan, type GoalPlan } from "./goalPlan";
@@ -138,7 +139,7 @@ function NewBucketForm({
     <form className="bucket-new-form" onSubmit={handleSubmit}>
       <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. "Emergency Fund"' />
       <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Target amount (optional)" />
-      <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} title="Target date" />
+      <DateField value={targetDate} onChange={setTargetDate} ariaLabel="Target date (optional)" placeholder="Target date (optional)" title="Target date" />
       <MenuSelect
         ariaLabel="Linked account"
         value={accountId}
@@ -237,7 +238,7 @@ function EditBucketForm({
         onChange={(e) => setTarget(e.target.value)}
         placeholder="Target amount (optional)"
       />
-      <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} title="Target date" />
+      <DateField value={targetDate} onChange={setTargetDate} ariaLabel="Target date (optional)" placeholder="Target date (optional)" title="Target date" />
       <MenuSelect
         ariaLabel="Linked account"
         value={accountId}
@@ -333,12 +334,9 @@ function ContributePopover({
   );
 }
 
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "Jun 2027" / "Dec 18, 2026" from a stored "YYYY-MM-DD". */
+/** "Jun 2027" / "Dec 18" (or "Dec 18, 2027" for another year) from a stored "YYYY-MM-DD". */
 function shortDate(iso: string, withDay: boolean): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return withDay ? `${MONTH_NAMES[m - 1]} ${d}, ${y}` : `${MONTH_NAMES[m - 1]} ${y}`;
+  return withDay ? formatDisplayDate(iso) : formatMonthYear(iso);
 }
 
 /** The projection lines under a goal's progress bar: where the recent pace

@@ -103,8 +103,12 @@ try {
       });
       assert.ok((await tipState("Household income per year")).inside, `the open tip should sit inside the window in ${palette} ${mode}`);
       await browser.saveScreenshot(path.join(SHOTS_DIR, `info-tip-${palette}-${mode}.png`));
-      await income.click();
-      await browser.waitUntil(async () => !(await tipState("Household income per year")).open, { timeout: 3000 });
+      // Another window taking focus can close the tip on its own, so click only while it is still open
+      // (a click on a closed tip would open it again), and retry if focus went away mid-step.
+      await withFocusRetry(browser, async () => {
+        if ((await tipState("Household income per year")).open) await income.click();
+        await browser.waitUntil(async () => !(await tipState("Household income per year")).open, { timeout: 3000, timeoutMsg: `clicking the open tip should close it in ${palette} ${mode}` });
+      });
     }
   }
   console.log(`[feature151] screenshots saved under ${SHOTS_DIR}`);

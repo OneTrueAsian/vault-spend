@@ -1,7 +1,8 @@
 import "./Modal.css";
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatAmount, isValidDecimalString, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, isValidDecimalString, toLocalIsoDate } from "./format";
+import { DateField } from "./DateField";
 import type { Account, Bucket, CategoryTransaction, FamilyMember, Holding, MonthExpenseDetail, ReportBudgetLine, Transaction } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { isBeforeAccountCheckpoint } from "./accountGroups";
@@ -518,10 +519,10 @@ export function NewTransactionDialog({
         </label>
         <label className="modal-field">
           <span>Date</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateField value={date} onChange={setDate} ariaLabel="Date" />
           {backdated && selectedAccount && (
             <span className="field-hint field-warning">
-              {selectedAccount.name}'s balance was last locked in as of {selectedAccount.checkpoint_date} — this
+              {selectedAccount.name}'s balance was last locked in as of {formatDisplayDate(selectedAccount.checkpoint_date ?? "")} — this
               transaction won't change today's balance shown on the Accounts page (it still counts in past balance
               history).
             </span>
@@ -1067,7 +1068,7 @@ export function CategoryTransactionsDialog({
                         />
                       )}
                     </td>
-                    <td>{t.date}</td>
+                    <td className="date-cell">{formatDisplayDate(t.date)}</td>
                     <td>
                       {t.description}
                       {t.is_split && (
@@ -1791,7 +1792,7 @@ export function TransferReviewDialog({
             <li key={p.out.id}>
               <label className="transfer-review-row">
                 <input type="checkbox" checked={checked.has(pairKey(p))} onChange={() => toggle(pairKey(p))} />
-                <span className="transfer-review-when">{p.out.date}</span>
+                <span className="transfer-review-when">{formatDisplayDate(p.out.date)}</span>
                 <span className="transfer-review-what">
                   {p.out.account_name} → {p.in.account_name}
                 </span>
@@ -1804,7 +1805,7 @@ export function TransferReviewDialog({
                   {[{ transaction: p.out, direction: "Money out" }, { transaction: p.in, direction: "Money in" }].map(({ transaction, direction }) => (
                     <div className="transfer-review-transaction" key={transaction.id}>
                       <strong>{direction} · {transaction.account_name}</strong>
-                      <span>{transaction.date} · {formatAmount(transaction.amount)}</span>
+                      <span>{formatDisplayDate(transaction.date)} · {formatAmount(transaction.amount)}</span>
                       <span>{transaction.description}</span>
                       <span className="transfer-review-note">Category: {transaction.category || "Uncategorized"}</span>
                     </div>
@@ -1874,7 +1875,7 @@ export function AutoLinkedReviewDialog({
           {pairs.map((p) => (
             <li key={p.out.id}>
               <div className="autolink-review-row" data-autolink-row={p.out.id}>
-                <span className="transfer-review-when">{p.out.date}</span>
+                <span className="transfer-review-when">{formatDisplayDate(p.out.date)}</span>
                 <span className="transfer-review-what">
                   {p.out.account_name} → {p.in.account_name}
                 </span>

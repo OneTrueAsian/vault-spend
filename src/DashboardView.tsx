@@ -24,7 +24,7 @@ import type {
 } from "./types";
 import { DonutChart, LineChart, ProgressRing, Sparkline, fmtMoneyShort } from "./charts";
 import { StatDetailPanel } from "./StatDetailPanel";
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
 import { groupOf, isOverdrawn, netWorthContribution, owedAmount } from "./accountGroups";
 import { netWorthByMember } from "./memberBreakdowns";
 import { daysLeft } from "./BucketsView";
@@ -860,7 +860,7 @@ export function DashboardView({
                 </span>
                 <div className="suggested-info">
                   <div className="account-name-cell">{r.merchant}</div>
-                  <span className="account-col">{r.next_date}</span>
+                  <span className="account-col">{formatDisplayDate(r.next_date)}</span>
                 </div>
                 <span className="suggested-amt">{formatAmount(r.amount)}</span>
               </div>
@@ -889,7 +889,7 @@ export function DashboardView({
           <tbody>
             {recent.map((t) => (
               <tr key={t.id} className="clickable-row" onClick={onOpenLedger} title="Go to the Transactions tab">
-                <td>{t.date}</td>
+                <td className="date-cell">{formatDisplayDate(t.date)}</td>
                 <td>
                   <span className="cell-with-icon">
                     <span className="row-icon-badge">

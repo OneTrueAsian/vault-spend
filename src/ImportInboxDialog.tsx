@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { InboxCategoryDropdown } from "./InboxCategoryDropdown";
 import { ModalShell } from "./Modal";
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
 import type { InboxItem } from "./importInbox";
 import { errorMessage } from "./errorMessage";
 
@@ -196,9 +196,9 @@ export function ImportInboxDialog({
             >
               <div className="inbox-main">
                 {!done && <input type="checkbox" checked={selected.has(t.id)}
-                  aria-label={`Select ${t.description} on ${t.date}`} data-inbox-select
+                  aria-label={`Select ${t.description} on ${formatDisplayDate(t.date)}`} data-inbox-select
                   onChange={() => toggle(t.id)} />}
-                <span className="inbox-date">{t.date}</span>
+                <span className="inbox-date">{formatDisplayDate(t.date)}</span>
                 <span className="inbox-desc">{t.description}</span>
                 <span className="inbox-account">{t.account_name}</span>
                 <span className="inbox-amount">{formatAmount(t.amount)}</span>

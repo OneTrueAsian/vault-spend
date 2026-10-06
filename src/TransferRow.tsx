@@ -1,7 +1,7 @@
 import { ArrowLeftRight } from "lucide-react";
 import type { Transaction } from "./types";
 import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
 import { RowMenu, type RowMenuItem } from "./RowMenu";
 
 /** One linked transfer shown as a single Transactions row instead of two —
@@ -83,7 +83,7 @@ export function TransferRow({
           />
         </td>
         <td>
-          <span className="date-cell">{out.date}</span>
+          <span className="date-cell">{formatDisplayDate(out.date)}</span>
         </td>
         <td>
           <span className="cell-with-icon" title={`${out.description} → ${incoming.description}`}>

@@ -15,7 +15,17 @@ const app = await launchApp({ dbDir });
 try {
   const { browser } = app;
   const message = await browser.$(".toast-stack .status");
-  await message.waitForExist({ timeout: 10000, timeoutMsg: "expected the opening message" });
+  // A success message closes itself after 10 s, and under a full parallel run the launch alone can take
+  // that long, so the opening message may already be gone: then make one the way a person would.
+  const opening = await message.waitForExist({ timeout: 5000 }).then(() => true, () => false);
+  if (!opening) {
+    await (await browser.$(".nav-item[data-tab=settings]")).click();
+    const backUp = await browser.$("button=Back up now");
+    await backUp.waitForExist({ timeout: 10000, timeoutMsg: "Settings should offer Back up now" });
+    await backUp.scrollIntoView({ block: "center" });
+    await backUp.click();
+    await message.waitForExist({ timeout: 10000, timeoutMsg: "expected the opening message, or Back up now's message" });
+  }
 
   const hits = await browser.execute(() => {
     const status = document.querySelector(".toast-stack .status");

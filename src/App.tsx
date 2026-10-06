@@ -129,7 +129,7 @@ const HelpView = lazy(() => import("./HelpView").then((m) => ({ default: m.HelpV
 import { UpdateBanner } from "./UpdateBanner";
 import { SidebarNav } from "./SidebarNav";
 import { useSidebarOverlay } from "./useSidebarOverlay";
-import { formatAmount, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
@@ -1803,7 +1803,7 @@ function App({
       const isPasswordProtected = profiles.find((p) => p.is_active)?.is_password_protected ?? false;
       const showNames = !isPasswordProtected || showBillNamesInReminders;
       for (const r of toNotify) {
-        const body = showNames ? `${r.merchant} — ${formatAmount(r.amount)} due ${r.next_date}` : "A bill is due soon.";
+        const body = showNames ? `${r.merchant} — ${formatAmount(r.amount)} due ${formatDisplayDate(r.next_date)}` : "A bill is due soon.";
         sendNotification({ title: "Upcoming bill", body });
         notified[String(r.id)] = todayIso;
       }
@@ -2146,7 +2146,7 @@ function App({
         id: `txn:${t.id}`,
         kind: "transaction",
         label: t.description,
-        hint: `${t.date} · ${formatAmount(t.amount)}`,
+        hint: `${formatDisplayDate(t.date)} · ${formatAmount(t.amount)}`,
         keywords: t.category ?? undefined,
       });
     }

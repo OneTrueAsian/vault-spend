@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import type { Account, FamilyMember, Recurring, RecurringCandidate, RecurringMatch, RecurringTotals } from "./types";
-import { formatAmount, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
+import { DateField } from "./DateField";
 import { fmtMoneyShort } from "./charts";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { CategoryIcon } from "./icons";
@@ -25,25 +26,17 @@ function addOneYearClamped(d: Date): Date {
   return new Date(targetYear, d.getMonth(), Math.min(d.getDate(), daysInTargetMonth));
 }
 
-const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "Sep 3" from a stored "YYYY-MM-DD". */
-function monthDay(iso: string): string {
-  const [, m, d] = iso.split("-").map(Number);
-  return `${MONTH_ABBR[m - 1]} ${d}`;
-}
-
 /** The one-line "did the last one actually happen?" note under a due date. */
 function matchNote(item: Recurring, match: RecurringMatch | undefined): { text: string; state: string } | null {
   if (!match || match.state === "unmatched" || match.state === "upcoming" || !match.last_due) return null;
   const isIncome = parseFloat(item.amount) >= 0;
   if (match.state === "paid") {
-    return { state: "paid", text: `${isIncome ? "Received" : "Paid"} ${monthDay(match.last_paid_date ?? match.last_due)}` };
+    return { state: "paid", text: `${isIncome ? "Received" : "Paid"} ${formatDisplayDate(match.last_paid_date ?? match.last_due)}` };
   }
   if (match.state === "pending") {
-    return { state: "pending", text: `Due ${monthDay(match.last_due)} — not posted yet` };
+    return { state: "pending", text: `Due ${formatDisplayDate(match.last_due)} — not posted yet` };
   }
-  return { state: "missed", text: `No charge for ${monthDay(match.last_due)}` };
+  return { state: "missed", text: `No charge for ${formatDisplayDate(match.last_due)}` };
 }
 
 function stepDate(d: Date, cadence: string): Date {
@@ -223,7 +216,7 @@ function NewRecurringForm({
         options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
         fill
       />
-      <input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} title="Next/anchor date" />
+      <DateField value={anchorDate} onChange={setAnchorDate} ariaLabel="Next due date" placeholder="Next due date" title="Next due date" />
       <MenuSelect
         ariaLabel="Linked account"
         value={accountId}
@@ -338,12 +331,12 @@ function EditRecurringRow({
         />
       </td>
       <td>
-        <input
-          type="date"
+        <DateField
           className="row-edit-input"
           value={anchorDate}
-          onChange={(e) => setAnchorDate(e.target.value)}
-          title="Next/anchor date"
+          onChange={setAnchorDate}
+          ariaLabel="Next due date"
+          title="Next due date"
         />
       </td>
       <td className="amount-col">
@@ -712,7 +705,7 @@ export function RecurringView({
                   <span className="confidence-badge">{r.cadence}</span>
                 </td>
                 <td data-label="Next due">
-                  {r.next_date}
+                  {formatDisplayDate(r.next_date)}
                   {isDueSoon(r.next_date) && <span className="budget-alert-badge budget-alert-warning">Due soon</span>}
                   {(() => {
                     const note = matchNote(r, matchById.get(r.id));
