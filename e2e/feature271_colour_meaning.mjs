@@ -9,10 +9,15 @@
 // - Recurring: the four total tiles use the neutral tint.
 // - Accounts: a loan's "Owed" amount is the same plain colour as a checking balance, and the
 //   "What you owe" tile uses the neutral tint.
-// - A pinned debt account widget uses the neutral tint and badge.
-// - In Default, Futuristic and Retro, each in Light and Dark, axe finds no contrast problem in the
-//   parts this changed, the neutral (income still arriving) progress fill stands out from its track
-//   at 3:1 or more (WCAG 1.4.11), and the pinned debt widget's icon stands out from its badge at 3:1. A screenshot of each page in each look is saved for a look by eye.
+// - A pinned debt account widget (the Car Loan) has the neutral tint and badge classes.
+// - In Default, Futuristic and Retro, each in Light and Dark:
+//   - axe finds no contrast problem in the parts this changed, the pinned debt widget included;
+//   - the neutral (income still arriving) progress fill stands out from its track at 3:1 or more
+//     (WCAG 1.4.11);
+//   - the pinned debt widget's icon is held to 3:1 against its badge only when it is a single-colour
+//     glyph (an svg or a monochrome icon-img). Every account icon today is full colour, so the spec
+//     logs it as not measured.
+//   A screenshot of each page in each look is saved for a look by eye.
 //
 // Run with: node e2e/run-all.mjs --spec=271
 
