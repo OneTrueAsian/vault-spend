@@ -37,7 +37,10 @@ try {
     await backUp.click();
   }
   let hits = null;
-  await waitUntilOrDiagnose(browser, async () => (hits = await measure()) !== null, { timeout: 5000 }).catch(() => undefined);
+  // Only "no message within 5 s" means falling back to Back up now; any other error is a real failure.
+  await waitUntilOrDiagnose(browser, async () => (hits = await measure()) !== null, { timeout: 5000 }).catch((e) => {
+    if (!/waitUntil condition timed out/.test(e.message)) throw e;
+  });
   if (hits === null) {
     await backUpNow();
     await waitUntilOrDiagnose(browser, async () => (hits = await measure()) !== null, {

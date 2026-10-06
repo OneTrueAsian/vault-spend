@@ -35,7 +35,9 @@ const BRANCH = new RegExp(String.raw`(\?|\s:)\s*${FIELD}(\?\?|\s:|\})`);
 /** React keys, id-building and data-* attributes (for tests and code, never shown). */
 const KEYED = new RegExp(String.raw`key=\{|\$\{[^}]*\}-|data-[\w-]+=\{[^}]*\.(${DATE_FIELDS})\b`);
 
-/** Every line matching `re`, as "file:line: text". */
+/** Every line matching `re`, as "file:line: text". The checks read one line at a time, so a ternary or
+ * `??` split across lines (`{x\n ? x.date\n : "—"}`) is not caught; keep such displays on one line or
+ * pass the date through formatDisplayDate. */
 function hits(re: RegExp, skip: (rel: string) => boolean = () => false): string[] {
   return sources
     .filter((s) => !skip(s.rel))
