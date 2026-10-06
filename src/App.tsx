@@ -28,6 +28,7 @@ import { LedgerTable } from "./LedgerTable";
 import { LedgerNeedsCategory } from "./LedgerNeedsCategory";
 import { SidebarControls } from "./SidebarControls";
 import { useResolvedTheme } from "./useResolvedTheme";
+import { HelpLink } from "./HelpLink";
 import { LedgerPageActions } from "./LedgerPageActions";
 import { LedgerBulkActions } from "./LedgerBulkActions";
 import { LedgerFilterBar } from "./LedgerFilterBar";
@@ -222,6 +223,16 @@ function App({
   onDataFileChanged: (message: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  // The page whose ? button opened Help: Help opens that page's section. Cleared once Help is left,
+  // so opening Help from the sidebar later starts with every section closed.
+  const [helpFocus, setHelpFocus] = useState<Tab | null>(null);
+  function openHelpFor(tab: Tab) {
+    setHelpFocus(tab);
+    setActiveTab("help");
+  }
+  useEffect(() => {
+    if (activeTab !== "help") setHelpFocus(null);
+  }, [activeTab]);
   const mainScrollRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -3607,6 +3618,7 @@ function App({
           {activeTab === "dashboard" && (
             <Suspense fallback={null}>
               <DashboardView
+                onOpenHelp={openHelpFor}
                 accounts={accounts}
                 netWorthHistory={netWorthHistory}
                 accountContributionDeltas={accountContributionDeltas}
@@ -3654,7 +3666,10 @@ function App({
           {activeTab === "ledger" && (
             <div className="page-top">
               <div>
-                <h1 className="view-title">Transactions</h1>
+                <div className="view-title-row">
+                  <h1 className="view-title">Transactions</h1>
+                  <HelpLink tab="ledger" onOpen={openHelpFor} />
+                </div>
                 <p className="view-sub" data-ledger-subtitle>
                   {transactions.length} transaction{transactions.length === 1 ? "" : "s"} across {accounts.length} account
                   {accounts.length === 1 ? "" : "s"}.
@@ -3928,6 +3943,7 @@ function App({
           {activeTab === "buckets" && (
             <Suspense fallback={null}>
               <BucketsView
+                onOpenHelp={openHelpFor}
                 buckets={buckets}
                 accounts={accounts}
                 familyMembers={familyMembers}
@@ -3942,6 +3958,7 @@ function App({
           {activeTab === "budget" && (
             <Suspense fallback={null}>
               <BudgetView
+                onOpenHelp={openHelpFor}
                 categories={usedCategories}
                 budgetActuals={budgetMonthActuals}
                 monthFlow={budgetMonthFlow}
@@ -3970,6 +3987,7 @@ function App({
           {activeTab === "household" && (
             <Suspense fallback={null}>
               <HouseholdView
+                onOpenHelp={openHelpFor}
                 transactions={transactions}
                 accounts={accounts}
                 assets={assets}
@@ -4000,6 +4018,7 @@ function App({
           {activeTab === "recurring" && (
             <Suspense fallback={null}>
               <RecurringView
+                onOpenHelp={openHelpFor}
                 recurring={recurring}
                 matches={recurringMatches}
                 totals={recurringTotals}
@@ -4021,6 +4040,7 @@ function App({
           {activeTab === "investments" && (
             <Suspense fallback={null}>
               <InvestmentsView
+                onOpenHelp={openHelpFor}
                 holdings={holdings}
                 accounts={accounts}
                 onCreate={handleCreateHolding}
@@ -4045,13 +4065,14 @@ function App({
 
           {activeTab === "help" && (
             <Suspense fallback={null}>
-              <HelpView />
+              <HelpView focusTab={helpFocus} />
             </Suspense>
           )}
 
           {activeTab === "cashflow" && (
             <Suspense fallback={null}>
               <CashFlowView
+                onOpenHelp={openHelpFor}
                 cashFlow={cashFlow}
                 range={cashFlowRange}
                 onSetRange={setCashFlowRange}
@@ -4099,6 +4120,7 @@ function App({
           {activeTab === "accounts" && !accountDetail && (
             <Suspense fallback={null}>
               <AccountsView
+                onOpenHelp={openHelpFor}
                 accounts={accounts}
                 manualAssetsTotal={sumMoney(assets.map((a) => a.value))}
                 netWorthHistory={netWorthHistory}
@@ -4125,6 +4147,7 @@ function App({
           {activeTab === "reports" && !pendingSetupImport && (
             <Suspense fallback={null}>
               <ReportsView
+                onOpenHelp={openHelpFor}
                 accounts={accounts}
                 transactions={transactions}
                 assets={assets}
@@ -4141,6 +4164,7 @@ function App({
           {activeTab === "settings" && (
             <Suspense fallback={null}>
               <SettingsView
+                onOpenHelp={openHelpFor}
                 appVersion={appVersion}
                 dataFileLocation={dataFileLocation}
                 onRelocateDataFile={handleRelocateDataFile}

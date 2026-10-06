@@ -11,6 +11,8 @@ import type { WidgetId } from "./dashboardLayout";
 import { MenuSelect } from "./MenuSelect";
 import { CategorySpendDialog } from "./CategorySpendDialog";
 import { CATEGORY_COLORS } from "./categoryPalette";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 const FORECAST_DAY_OPTIONS = [30, 60, 90];
 
@@ -35,6 +37,7 @@ export function CashFlowView({
   onSetAccountExcludedFromDebtPayoff,
   layoutWidgets,
   onPinWidget,
+  onOpenHelp,
 }: {
   cashFlow: CashFlow | null;
   range: number;
@@ -74,6 +77,8 @@ export function CashFlowView({
    * the Debt Payoff Planner. */
   layoutWidgets: WidgetId[];
   onPinWidget: (id: WidgetId) => void;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   // Local to this view (like `expandedStat`/`showBudgetAlerts` on the
   // Dashboard) rather than lifted to App.tsx — a per-view UI concern, not
@@ -169,7 +174,10 @@ export function CashFlowView({
     <div className="reports-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Cash Flow</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Cash Flow</h1>
+            {onOpenHelp && <HelpLink tab="cashflow" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">Income vs. expenses, forecast, and payoff planning.</p>
         </div>
       </div>

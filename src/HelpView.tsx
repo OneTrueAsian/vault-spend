@@ -1,4 +1,5 @@
-import { Fragment, ReactNode, useState } from "react";
+import { Fragment, ReactNode, useEffect, useState } from "react";
+import type { Tab } from "./appTypes";
 import thirdPartyNotices from "../docs/THIRD-PARTY-NOTICES.txt?raw";
 import { LegalNoticeHelp } from "./LegalNoticeHelp";
 
@@ -52,457 +53,576 @@ const GETTING_STARTED: HelpEntry = {
   ),
 };
 
-const TAB_TOUR_ENTRIES: HelpEntry[] = [
+/** One page's help: a one-sentence summary, short "How do I…" answers of 2-5 numbered steps, and
+ * the other facts about the page as a short list. `tags` drive search, along with the title and
+ * the questions; they keep every word the old tour entries were found by. Order follows the
+ * sidebar. Each page's ? button (HelpLink) opens its section here. */
+type TabHelp = {
+  tab: Tab;
+  title: string;
+  summary: string;
+  howTo: { question: string; steps: ReactNode[] }[];
+  more?: ReactNode[];
+  tags: string[];
+};
+
+export const TAB_HELP: TabHelp[] = [
   {
-    tags: [
-      "dashboard",
-      "net worth",
-      "insights",
-      "budget alerts",
-      "spending",
-      "what changed",
-      "customize",
-      "pin widget",
-      "add widget",
-      "pin account",
-      "pin goal",
-      "pin investment",
-      "layout",
-      "save layout",
-      "custom layout",
-      "named layout",
-      "bills focus",
-      "investor focus",
-      "quick actions",
-      "get started",
-      "checklist",
-      "ask the vault",
-      "safe to spend",
-      "payday",
-      "to do",
-      "needs a look",
-      "month-end review",
-      "hide amounts",
-      "privacy",
-      "command palette",
-      "keyboard shortcuts",
-      "ctrl+k",
+    tab: "dashboard",
+    title: "Dashboard",
+    summary: "Your money at a glance: net worth, cash, debt and investments first, then what needs you, your spending and recent transactions.",
+    howTo: [
+      {
+        question: "How do I add a transaction, an account, a budget or a goal from here?",
+        steps: [
+          <>Use the buttons beside the page title: <strong>+ Add transaction</strong>, <strong>+ Add account</strong>, <strong>Set budget</strong> or <strong>Update goals</strong>.</>,
+          <>Each opens the same form or page as on its own tab.</>,
+        ],
+      },
+      {
+        question: "How do I see what changed in my net worth?",
+        steps: [
+          <>Click <strong>Net worth</strong>, <strong>Cash</strong>, <strong>Debt</strong> or <strong>Investments</strong>.</>,
+          <>A breakdown shows <strong>what changed</strong> and which accounts drove it.</>,
+        ],
+      },
+      {
+        question: "How do I change which cards the Dashboard shows?",
+        steps: [
+          <>Open the <strong>Layout</strong> menu (it reads "Layout: Default") and choose <strong>Customize…</strong> from it.</>,
+          <>Pin or unpin cards, drag them to reorder, or use <strong>+ Add widget…</strong> to pin one specific account, goal or investment account.</>,
+          <>Choose <strong>Done customizing</strong> from the same menu when you're finished.</>,
+        ],
+      },
+      {
+        question: "How do I save my own layout?",
+        steps: [
+          <>After customizing, the Layout menu shows "Custom (unsaved)".</>,
+          <>Click <strong>+ Save as…</strong> and give it a name.</>,
+          <>Pick it from the Layout menu any time, next to the built-in Default, Bills Focus and Investor Focus, or select it and click <strong>Delete</strong> to remove it.</>,
+        ],
+      },
+      {
+        question: "How do I hide my amounts when someone is looking?",
+        steps: [
+          <>Click <strong>Hide amounts</strong> at the bottom of the sidebar.</>,
+          <>Every dollar figure shows as ••••. Click <strong>Show amounts</strong> to bring them back.</>,
+        ],
+      },
+      {
+        question: "How do I see the tab names when the sidebar shows only icons?",
+        steps: [
+          <>In a window under 1000 pixels wide the sidebar shows icons only. Point at an icon, or move to it with Tab, to see its name.</>,
+          <>Click <strong>☰ Show names</strong> at the top of the sidebar to open the full sidebar over the page.</>,
+          <>Choosing a tab, pressing Escape or clicking elsewhere closes it again.</>,
+        ],
+      },
+      {
+        question: "How do I jump anywhere quickly?",
+        steps: [
+          <>Press <strong>Ctrl+K</strong> to open the command palette.</>,
+          <>Type the name of a tab, account, goal or transaction and press Enter. Press <strong>?</strong> outside a text box for the list of shortcuts.</>,
+        ],
+      },
     ],
-    node: (
-      <li>
-        <strong>Dashboard</strong> — buttons next to the page title add a
-        transaction or account, or jump to Budget or Goals. Net worth,
-        cash, debt, and investments come first, at a glance (click any of
-        the four for a breakdown of{" "}
-        <strong>what changed</strong> and which accounts drove it), this
-        month's spending by category, recent transactions, and an{" "}
-        <strong>Insights</strong> feed that surfaces things worth a look on
-        its own: a category on pace to go over budget, a month-over-month
-        jump, an unusually large charge — and good news too, like a
-        category you meaningfully cut back on. The layout is yours: choose{" "}
-        <strong>Customize…</strong> from the <strong>Layout</strong> menu to
-        pin/unpin widgets, drag to reorder, or use{" "}
-        <strong>"+ Add widget…"</strong> to pin one specific account, goal,
-        or investment account, not just the fixed catalog. Pick a built-in
-        preset — Default, Bills Focus, Investor Focus — from the{" "}
-        same <strong>Layout</strong> menu, or, once you've customized the
-        layout yourself, <strong>"+ Save as…"</strong> to name and keep
-        your own arrangement right alongside them — switch back to it any
-        time from the same menu, or delete it when you no longer need
-        it. <strong>Safe to spend</strong> shows what's left of your
-        cash after the Recurring bills due before your next paycheck (with an
-        optional buffer you choose to keep), and the <strong>To do</strong>{" "}
-        card, right under the four money tiles, lists what needs you — uncategorized transactions,
-        bills due in the next 3 days, everyday accounts with no activity for
-        30+ days, Recurring bills that look missed or changed price, and a
-        finished month waiting for its <strong>month-end review</strong> —
-        each row jumping to where it's fixed. The{" "}
-        <strong>Ask the Vault</strong> question box sits right under the
-        page title (see FAQ below), and people who are new here also see a{" "}
-        <strong>Get started</strong> checklist. The{" "}
-        <strong>Hide amounts</strong> button at the bottom of the sidebar covers every dollar
-        figure with •••• for when someone's looking over your shoulder, and{" "}
-        <strong>Ctrl+K</strong> opens a command palette that jumps to any tab,
-        account, goal, or transaction (press <strong>?</strong> for the
-        shortcut list).
-      </li>
-    ),
-  },
-  {
-    tags: [
-      "accounts",
-      "net worth",
-      "assets",
-      "liabilities",
-      "what changed",
-      "account type",
-      "credit",
-      "loan",
-      "investment",
-      "institution",
-      "details",
-      "reconcile",
-      "reconciliation",
-      "statement",
-      "cleared",
-      "balance history",
-      "property",
-      "valuables",
+    more: [
+      <>The <strong>To do</strong> card, right under the four money cards, lists what needs you: uncategorized transactions, bills due in the next 3 days, everyday accounts with no activity for 30+ days, Recurring bills that look missed or changed price, and a finished month waiting for its <strong>month-end review</strong>. Each row jumps to where it's fixed.</>,
+      <><strong>Safe to spend</strong> shows what's left of your cash after the Recurring bills due before your next paycheck, with an optional buffer you choose to keep (see FAQ).</>,
+      <>The ring shows how many months of expenses your cash and savings cover, at your average spending over the last 90 days, against a goal of 6 months.</>,
+      <>This month's spending by category, your recent transactions, and an <strong>Insights</strong> feed that surfaces things worth a look on its own: a category on pace to go over budget, a month-over-month jump, an unusually large charge, and good news too, like a category you meaningfully cut back on.</>,
+      <>The <strong>Ask the Vault</strong> question box sits right under the page title (see FAQ), and people who are new here also see a <strong>Get started</strong> checklist.</>,
     ],
-    node: (
-      <li>
-        <strong>Accounts</strong> — every account grouped by type (cash,
-        credit, loan, investment, other), with running totals for What you
-        own, What you owe, and Net worth — click any of those for a
-        breakdown of <strong>what changed</strong> and which accounts drove
-        it. Add an account here, or click <strong>Edit</strong> on any card to
-        change its type, institution, last-4 digits, and which family member
-        it belongs to — or delete it. Click a balance to correct it. Click{" "}
-        <strong>Details</strong> on a card for that account's own page: a
-        balance-history chart, its transactions, and — for checking and
-        savings accounts — <strong>Reconcile</strong>, which checks your
-        records against a statement's ending balance (see FAQ).{" "}
-        <strong>Property &amp; Valuables</strong> — a home or a vehicle,
-        counted in your net worth — are managed at the bottom of this tab.
-      </li>
-    ),
-  },
-  {
     tags: [
-      "ledger",
-      "transactions",
-      "filter",
-      "split",
-      "tag",
-      "bulk tag",
-      "debt payment",
-      "family member",
-      "manage family members",
-      "density",
-      "compact",
-      "comfortable",
-      "transfer",
-      "link",
-      "unlink",
-      "possible transfers",
-      "dismiss",
-      "auto-link",
-      "auto-linked",
-      "review inbox",
-      "inbox",
-      "note",
-      "notes",
-      "annotate",
+      "dashboard", "net worth", "insights", "budget alerts", "spending", "what changed", "customize", "pin widget", "add widget",
+      "pin account", "pin goal", "pin investment", "layout", "save layout", "custom layout", "named layout", "bills focus",
+      "investor focus", "quick actions", "get started", "checklist", "ask the vault", "safe to spend", "payday", "to do",
+      "needs a look", "month-end review", "hide amounts", "privacy", "command palette", "keyboard shortcuts", "ctrl+k",
+      "runway", "sidebar", "show names", "icons", "narrow window",
     ],
-    node: (
-      <li>
-        <strong>Transactions</strong> — every transaction, filterable by
-        account/category/tag/family member, with inline category
-        correction and tagging — either one at a time or, after selecting
-        several rows, in bulk — splitting a transaction across multiple
-        categories, applying a payment toward a debt account, and — for
-        households tracking more than one person — assigning any account,
-        transaction, goal, asset, or recurring item to a family member
-        via <strong>"Manage family members…"</strong>. Rows are{" "}
-        <strong>compact</strong> by default (switch to Comfortable with the
-        toggle above the table). Money moving between your own accounts can
-        be <strong>linked as a transfer</strong>: Vault Spend suggests likely
-        pairs ("N possible transfers — review"), or tick two rows and choose
-        "Link as transfer". A linked pair shows as one row and never counts
-        as income or spending. Don't want a particular pair suggested again?
-        Choose <strong>Dismiss</strong> on it (or Dismiss selected/Dismiss
-        all) — it stops that pair being suggested for good, without changing
-        either transaction; Link and manual linking still work on it any
-        time. Prefer not to review each one? Turn on{" "}
-        <strong>Link matching transfers automatically</strong> in Settings;
-        the pairs it links are listed under "N auto-linked — review". After an
-        import (and any time from{" "}
-        <strong>Review inbox</strong>), a review dialog lists transactions
-        worth a second look — uncategorized, a low-confidence guess, a
-        possible duplicate, or an unusually large charge — with a suggested
-        category you can accept, change, or skip. Any transaction can also
-        carry a freeform <strong>note</strong> — click "+ Add note" (or the
-        note preview, once one exists) on its row; a linked transfer shows
-        one note action per leg, since each side is still its own
-        transaction.
-      </li>
-    ),
   },
   {
+    tab: "accounts",
+    title: "Accounts",
+    summary: "Every account grouped by type, with running totals for what you own, what you owe and your net worth.",
+    howTo: [
+      {
+        question: "How do I add or change an account?",
+        steps: [
+          <>Click <strong>Add account…</strong> beside the page title. Checking, savings, credit card, loan, investment and other are all supported.</>,
+          <>To change one, open the <strong>⋯</strong> menu on its row and choose <strong>Edit…</strong>: its type, institution, last-4 digits and which family member it belongs to, or delete it.</>,
+        ],
+      },
+      {
+        question: "How do I correct a balance?",
+        steps: [
+          <>Click the account's balance (or, on a credit card, its limit).</>,
+          <>Type the right amount and press Enter. Escape leaves it as it was.</>,
+        ],
+      },
+      {
+        question: "How do I open an account's own page?",
+        steps: [
+          <>Click anywhere on the account's row, or choose <strong>Details</strong> in its <strong>⋯</strong> menu.</>,
+          <>Its page shows a balance-history chart and its transactions.</>,
+        ],
+      },
+      {
+        question: "How do I reconcile an account against a statement?",
+        steps: [
+          <>Open a checking or savings account's page.</>,
+          <>Under <strong>Reconcile with a statement</strong>, enter the statement's ending balance and tick each transaction that appears on it.</>,
+          <>Finish once the difference reaches $0.00 (see FAQ).</>,
+        ],
+      },
+      {
+        question: "How do I see what changed in my net worth?",
+        steps: [
+          <>Click <strong>What you own</strong>, <strong>What you owe</strong> or <strong>Net worth</strong>.</>,
+          <>A breakdown shows <strong>what changed</strong> and which accounts drove it.</>,
+        ],
+      },
+      {
+        question: "How do I add a home or a vehicle?",
+        steps: [
+          <>Scroll to <strong>Property &amp; Valuables</strong> at the bottom of this tab.</>,
+          <>Add it with its value. It counts in your net worth.</>,
+        ],
+      },
+    ],
+    more: [<>Accounts are grouped as cash, credit, loan, investment and other.</>],
     tags: [
-      "budget",
-      "budgeted",
-      "actual",
-      "drag",
-      "reorder",
-      "category",
-      "unallocated",
-      "pace",
-      "warn at 90%",
-      "suggest",
-      "3-month average",
-      "rollover",
-      "roll over unspent",
-      "month-end review",
+      "accounts", "net worth", "assets", "liabilities", "what changed", "account type", "credit", "loan", "investment",
+      "institution", "details", "reconcile", "reconciliation", "statement", "cleared", "balance history", "property",
+      "valuables", "edit account", "credit limit", "correct balance",
     ],
-    node: (
-      <li>
-        <strong>Budget</strong> — this month's budget, spending and what's
-        left per category, with prev/next month navigation. Type a new amount
-        straight into a category's Budget field. Each row's ⋯ menu holds its
-        settings, moving it to another group, and reordering (or drag the
-        row by its ⠿ handle). Click any category name to
-        see every transaction behind that number and fix any that are
-        miscategorized, right from that screen. A line under the summary shows
-        how much of your budgeted income no expense line has claimed yet, and
-        on the current month each expense bar carries a tick marking how far
-        through the month you are — a bar filled past the tick is running
-        ahead of an even pace. <strong>"Suggest from 3-month average"</strong>{" "}
-        proposes an amount per category from your recent spending, which you
-        accept line by line. Turn on <strong>"Roll over unspent"</strong> in a
-        category's ⋯ menu to carry what's left into next month's budget (see FAQ), and
-        use <strong>"Month-end review"</strong> on a finished month for a
-        short walk through how it went — what ran over, what's still
-        uncategorized, and how your goals moved.
-      </li>
-    ),
   },
   {
+    tab: "ledger",
+    title: "Transactions",
+    summary: "Every transaction, with filters, categories, tags, splits, notes, family members and transfers between your own accounts.",
+    howTo: [
+      {
+        question: "How do I add a transaction by hand?",
+        steps: [
+          <>Click <strong>Add transaction…</strong> beside the page title. The <strong>Add to</strong> menu next to it picks the account it starts on.</>,
+          <>Fill in the date, the description and the amount, without a minus sign.</>,
+          <>Choose <strong>Money out</strong> or <strong>Money in</strong>. On a credit card or loan the choice reads <strong>Charge</strong> or <strong>Payment</strong>.</>,
+          <>Leave Category on Auto-categorize, or pick one, and click <strong>Add transaction</strong>.</>,
+        ],
+      },
+      {
+        question: "How do I fix a transaction's category?",
+        steps: [
+          <>Click the category on its row. A red <strong>Needs a category</strong> means it has none yet.</>,
+          <>Pick the right one.</>,
+          <>To see only the ones without a category, click <strong>Review</strong> on the line above the table that counts them.</>,
+        ],
+      },
+      {
+        question: "How do I split, tag, note or delete a transaction?",
+        steps: [
+          <>Open the <strong>⋯</strong> menu at the end of its row.</>,
+          <>Choose <strong>Split…</strong> (or Edit splits…), <strong>Add tag…</strong>, <strong>Add note…</strong> (or Edit note…), <strong>Apply to a debt…</strong> or <strong>Delete…</strong> from the list.</>,
+          <>A split divides it into as many category and amount lines as you need, each with an optional note.</>,
+        ],
+      },
+      {
+        question: "How do I change many transactions at once?",
+        steps: [
+          <>Tick the rows, or the box at the top of the table for every matching row.</>,
+          <>Use the bar above the table to set the category or tags for all of them at once (see FAQ for the limit of 250).</>,
+        ],
+      },
+      {
+        question: "How do I link a transfer between my own accounts?",
+        steps: [
+          <>Use the "N possible transfers — review" suggestion, or tick two rows and choose <strong>Link as transfer</strong>.</>,
+          <>A linked pair shows as one row and never counts as income or spending.</>,
+          <>Don't want a pair suggested again? Choose <strong>Dismiss</strong> on it (or Dismiss selected / Dismiss all). It stops that pair being suggested for good without changing either transaction, and Link still works on it any time.</>,
+        ],
+      },
+      {
+        question: "How do I review new or unusual transactions?",
+        steps: [
+          <>After an import, or any time from <strong>Review inbox</strong>, a dialog lists transactions worth a second look: uncategorized, a low-confidence guess, a possible duplicate, or an unusually large charge.</>,
+          <>Accept, change or skip the suggested category for each.</>,
+        ],
+      },
+      {
+        question: "How do I record who a transaction belongs to?",
+        steps: [
+          <>Open the <strong>⋯</strong> More actions menu beside the page title and choose <strong>Manage family members…</strong> to add people.</>,
+          <>Pick the person on any account, transaction, goal, asset or recurring item. The member column appears once there are two people.</>,
+        ],
+      },
+    ],
+    more: [
+      <>Filter by account, category, tag or family member. The table shows rows a few at a time; use <strong>Show 50 more</strong> under it.</>,
+      <>Prefer not to review transfers one by one? Turn on <strong>Link matching transfers automatically</strong> in Settings; the pairs it links are listed under "N auto-linked — review". A linked transfer's ⋯ menu has <strong>Unlink transfer…</strong> and one note action per leg, since each side is still its own transaction.</>,
+      <>On a loan account, <strong>Split principal…</strong> takes the place of Apply to a debt…, and a payment applied to a debt shows under its description, with Undo.</>,
+      <>Rows are <strong>compact</strong> by default; switch to Comfortable with the toggle above the table.</>,
+      <>The line under the title counts your transactions and how many were sorted automatically or by you.</>,
+    ],
     tags: [
-      "goals",
-      "savings goal",
-      "target amount",
-      "contribution",
-      "icon",
-      "color",
-      "auto-contribute",
-      "sinking fund",
-      "family member",
-      "pace",
-      "on track",
-      "behind",
-      "projection",
-      "track account balance",
-      "add contribution",
+      "ledger", "transactions", "filter", "split", "tag", "bulk tag", "debt payment", "family member", "manage family members",
+      "density", "compact", "comfortable", "transfer", "link", "unlink", "possible transfers", "dismiss", "auto-link",
+      "auto-linked", "review inbox", "inbox", "note", "notes", "annotate", "add transaction", "money out", "money in",
+      "charge", "payment", "needs a category", "uncategorized", "apply to a debt", "split principal", "delete transaction",
+      "row menu",
     ],
-    node: (
-      <li>
-        <strong>Goals</strong> — savings goals with a target amount/date,
-        optionally linked to an account and, for households, a family
-        member, with a running total and contribution history. Pick a
-        custom <strong>icon</strong> and <strong>color</strong> for each
-        one, and set an optional <strong>"Auto-contribute
-        monthly"</strong> amount for something like insurance or gifts
-        that only comes due once a year (see FAQ). A goal with a target date
-        shows its <strong>monthly pace</strong> — what you've actually been
-        adding over the last three months — and whether that gets it there
-        on time (on track or behind). A goal linked to an
-        account can <strong>follow that account's balance</strong> so its
-        progress updates by itself, and <strong>"+ Add"</strong> on a card
-        logs a contribution without leaving the page.
-      </li>
-    ),
   },
   {
-    tags: ["cash flow", "income", "expenses", "forecast", "debt payoff planner", "top categories", "top merchants", "year over year"],
-    node: (
-      <li>
-        <strong>Cash Flow</strong> — income vs. expenses over a 3 or 6
-        month window (with an optional year-over-year comparison); click a
-        bar to see that month's spending by category and any unusually
-        large charges. "Top categories"/"Top merchants" below are scoped to
-        a single month (defaulting to the current one, with a picker to
-        look back further) and show a month-over-month trend per category.
-        Further down, a <strong>Forecast</strong> projects your
-        checking/savings balance 30, 60, or 90 days out — with each Recurring
-        bill and paycheck landing on its due date, the lowest balance called
-        out, and a "Coming up" list — and the{" "}
-        <strong>Debt Payoff Planner</strong> shows how fast your credit
-        cards and loans clear under a snowball or avalanche strategy.
-      </li>
-    ),
-  },
-  {
-    tags: ["recurring", "bills", "subscriptions", "suggested", "matched", "paid", "missed", "price change", "price increase"],
-    node: (
-      <li>
-        <strong>Recurring</strong> — a maintained list of recurring
-        bills/income, each showing its next expected date and editable in
-        place. A <strong>Suggested</strong> section above it auto-detects
-        merchant/amount pairs in your transactions that look recurring but aren't
-        on your list yet, so you can add them with one click instead of typing
-        them in by hand. Each bill is also checked against your transactions:
-        it shows when a matching charge has posted, flags a bill that looks{" "}
-        <strong>missed</strong>, and calls out a <strong>price change</strong>{" "}
-        when a charge comes in different after a steady run (see FAQ).
-      </li>
-    ),
-  },
-  {
+    tab: "recurring",
+    title: "Recurring",
+    summary: "Your regular bills and income, when each is next due, and whether it was paid.",
+    howTo: [
+      {
+        question: "How do I add a recurring bill or income?",
+        steps: [
+          <>Click <strong>Add recurring…</strong> under the list.</>,
+          <>Name it the way it appears on your statement, then give its amount, how often it comes (Weekly, Every 2 weeks, Monthly or Yearly) and its next date.</>,
+        ],
+      },
+      {
+        question: "How do I add one Vault Spend found for me?",
+        steps: [
+          <>The <strong>Suggested</strong> section above the list shows merchant and amount pairs in your transactions that look recurring but aren't on your list yet.</>,
+          <>Click <strong>Add</strong> to put one on your list without typing it in, or <strong>Dismiss</strong> to hide it.</>,
+        ],
+      },
+      {
+        question: "How do I change or stop a recurring item?",
+        steps: [
+          <>Click <strong>Edit</strong> on its row to change it in place.</>,
+          <>Mark it <strong>Keep</strong>, <strong>Reviewing</strong> or <strong>Canceled</strong>.</>,
+        ],
+      },
+      {
+        question: "How do I see my bills by date or by cost?",
+        steps: [
+          <>Switch from <strong>List</strong> to <strong>Calendar</strong> to see what's due on each day of a month.</>,
+          <>Choose <strong>Audit</strong> to see what each item costs a month, to decide what to keep.</>,
+        ],
+      },
+    ],
+    more: [
+      <>The two totals at the top, <strong>Bills</strong> and <strong>Income</strong>, show a month in large text and a year underneath; income is an estimate.</>,
+      <>Each bill is checked against your transactions: it shows when a matching charge has posted, flags a bill that looks <strong>missed</strong>, and calls out a <strong>price change</strong> when a charge comes in different after a steady run (see FAQ). A bill due within 3 days says <strong>Due soon</strong>.</>,
+    ],
     tags: [
-      "investments",
-      "holdings",
-      "shares",
-      "cost basis",
-      "gain loss",
-      "what changed",
-      "goal projection",
-      "live prices",
-      "stocks",
-      "alpha vantage",
-      "finnhub",
-      "twelve data",
-      "portfolio history",
-      "allocation",
-      "target allocation",
-      "drift",
-      "rebalance",
-      "save as goal",
-      "accumulation",
-      "projection",
-      "roth",
-      "529",
-      "contributions",
-      "withdraw",
+      "recurring", "bills", "subscriptions", "suggested", "matched", "paid", "missed", "price change", "price increase",
+      "add recurring", "yearly", "every 2 weeks", "weekly", "monthly", "calendar", "audit", "keep", "canceled", "due soon",
     ],
-    node: (
-      <li>
-        <strong>Investments</strong> — holdings per account (shares, price,
-        cost basis) with computed value and gain/loss. Click{" "}
-        <strong>"Total gain/loss"</strong> or <strong>"Today's
-        gain/loss"</strong> to see which holdings are driving it. Also
-        includes a <strong>goal projection</strong> calculator that
-        projects a future balance from a starting amount, a monthly
-        contribution, and an assumed annual return. Prices are manual by
-        default; optionally turn on live pricing (Settings tab) to
-        auto-fill a new holding's price by symbol and keep existing ones
-        current automatically. Vault Spend records your portfolio's value
-        each day you open it or refresh prices, so a{" "}
-        <strong>history chart</strong> builds up over time; set a{" "}
-        <strong>Target allocation</strong> by asset class to see how far each
-        has drifted from where you want it; and <strong>"Save as goal…"</strong>{" "}
-        turns a goal projection into a real goal. Each investment account
-        also gets an <strong>Accumulation &amp; projection</strong> card: the
-        cash put in, what it's worth now, and where it's headed by its
-        withdraw date. Open an account's Details page to set its plan (see
-        FAQ).
-      </li>
-    ),
   },
   {
-    tags: [
-      "household",
-      "family",
-      "spending by person",
-      "income by person",
-      "net worth by person",
-      "budget by person",
-      "unassigned",
+    tab: "budget",
+    title: "Budget",
+    summary: "This month's plan per category: what you budgeted, what you've spent and what's left, with other months a click away.",
+    howTo: [
+      {
+        question: "How do I set a category's budget?",
+        steps: [
+          <>Type the amount into the category's <strong>Budget</strong> field.</>,
+          <>Press Enter or Tab to save. Escape puts back the old amount. With Hide amounts on, click the hidden amount to change it.</>,
+        ],
+      },
+      {
+        question: "How do I change a category's settings?",
+        steps: [
+          <>Open the <strong>⋯</strong> menu at the end of its row.</>,
+          <>Tick <strong>Roll over unspent</strong> (see FAQ) or <strong>Warn at 90%</strong>, choose <strong>Move to</strong> another group, <strong>Move up</strong> or <strong>Move down</strong>, or <strong>Delete…</strong> to remove it.</>,
+          <>The row then says "Rolls over" or "Warns at 90%" so you can see it at a glance. You can also drag a row by its ⠿ handle.</>,
+        ],
+      },
+      {
+        question: "How do I see the transactions behind a number?",
+        steps: [
+          <>Click the category's name.</>,
+          <>Every transaction behind it is listed; fix any that are miscategorized right there.</>,
+        ],
+      },
+      {
+        question: "How do I get suggested amounts?",
+        steps: [
+          <>Click <strong>Suggest from 3-month average</strong>.</>,
+          <>Accept the proposed amount for each category, line by line.</>,
+        ],
+      },
+      {
+        question: "How do I look back at a finished month?",
+        steps: [
+          <>Move to it with the month arrows.</>,
+          <>Choose <strong>Month-end review</strong> for a short walk through how it went: what ran over, what's still uncategorized, and how your goals moved.</>,
+        ],
+      },
     ],
-    node: (
-      <li>
-        <strong>Household</strong> — spending and income broken down by
-        family member for whichever month you're viewing, net worth by
-        person (always as of today — it isn't a monthly figure the way the
-        cards above it are), and a budget grid split by category and
-        person. Anything not assigned to a specific person lands under
-        "Unassigned" — see the Transactions tab's <strong>"Manage family
-        members…"</strong> to start attributing accounts and transactions.
-      </li>
-    ),
+    more: [
+      <>The summary at the top shows <strong>Planned spending</strong>, <strong>Spent so far</strong>, <strong>Left to spend</strong> and <strong>Money left after income</strong>.</>,
+      <>Categories are grouped as Income, Fixed, Flexible and Non-Monthly. Each group's heading shows its progress, such as "$2,300.00 of $3,607.00 · 64% used", or how much income has been received.</>,
+      <>A line shows how much of your budgeted income no expense line has claimed yet. On the current month each expense bar carries a tick for how far through the month you are; a bar filled past the tick is running ahead of an even pace.</>,
+      <>Red means over budget. A category spent exactly to its budget says "Used in full".</>,
+    ],
+    tags: [
+      "budget", "budgeted", "actual", "drag", "reorder", "category", "unallocated", "pace", "warn at 90%", "suggest",
+      "3-month average", "rollover", "roll over unspent", "month-end review", "planned spending", "spent so far",
+      "left to spend", "used in full", "rolls over", "move to", "group",
+    ],
   },
   {
-    tags: [
-      "reports",
-      "net worth",
-      "csv",
-      "pdf",
-      "savings rate",
-      "date range",
-      "year to date",
-      "last 12 months",
-      "last month",
-      "category by month",
-      "spending by member",
-      "spending by tag",
-      "year by year",
-      "sankey",
-      "income flow",
-      "heatmap",
-      "daily spending",
-      "calendar",
+    tab: "buckets",
+    title: "Goals",
+    summary: "Savings goals with a target amount and date, showing how much you've put aside and whether you're on track.",
+    howTo: [
+      {
+        question: "How do I create a goal?",
+        steps: [
+          <>On an empty Goals page click <strong>Create a goal</strong>, or one of the examples (Emergency fund, Holiday, New car) to start with that name. Once you have goals, use the <strong>+ New goal…</strong> tile.</>,
+          <>Add an optional target amount and date, link an account or a family member, and pick an <strong>icon</strong> and <strong>color</strong>.</>,
+          <>Click <strong>Create</strong>.</>,
+        ],
+      },
+      {
+        question: "How do I add money to a goal?",
+        steps: [
+          <>Click <strong>+ Add</strong> on the goal's card.</>,
+          <>Enter the amount (a negative amount takes money out) and an optional note, then click <strong>Add</strong>.</>,
+        ],
+      },
+      {
+        question: "How do I make a goal follow an account's balance?",
+        steps: [
+          <>Click <strong>Edit</strong> on the goal and link it to an account.</>,
+          <>Tick <strong>Progress follows this account's balance</strong>. Its progress then updates by itself.</>,
+        ],
+      },
+      {
+        question: "How do I save a little every month for a yearly cost?",
+        steps: [
+          <>Set <strong>Auto-contribute monthly</strong> on the goal, for something like insurance or gifts that only comes due once a year.</>,
+          <>Vault Spend adds that amount once each month (see FAQ).</>,
+        ],
+      },
     ],
-    node: (
-      <li>
-        <strong>Reports</strong> — pick a range (Year to date, Last 12
-        months, Last 6 months, or Last month) and see income, spending, net,
-        and savings rate for it, a Sankey diagram of income flowing to your
-        biggest spending categories (with a "Left over" or "Shortfall" flow
-        depending on which side won), a table of where the money went by
-        category and month, a daily-spending heatmap (darker days are bigger
-        spending days — hover or Tab to a day for its total; one big bill
-        like rent doesn't wash the rest out), spending by family member and
-        by tag, a year-by-year comparison, a savings-rate trend, and net
-        worth by family member — with the CSV and PDF export described
-        below. Property &amp; Valuables is now on the Accounts tab, and the
-        setup-data import/export is in Settings.
-      </li>
-    ),
+    more: [
+      <>Each goal keeps a running total and its contribution history.</>,
+      <>A goal with a target date shows its <strong>monthly pace</strong>, what you've actually been adding over the last three months, and whether that gets it there on time (on track or behind).</>,
+    ],
+    tags: [
+      "goals", "savings goal", "target amount", "contribution", "icon", "color", "auto-contribute", "sinking fund",
+      "family member", "pace", "on track", "behind", "projection", "track account balance", "add contribution",
+      "create a goal", "new goal", "emergency fund",
+    ],
   },
   {
-    tags: [
-      "settings",
-      "profiles",
-      "data file",
-      "backups",
-      "live stock prices",
-      "move data file",
-      "appearance",
-      "theme",
-      "dark mode",
-      "light mode",
-      "default",
-      "futuristic",
-      "transparent",
-      "retro",
-      "rules",
-      "categorization rules",
-      "privacy",
-      "hide amounts",
-      "second backup",
-      "backup copy",
-      "background reminders",
-      "tray",
-      "start with windows",
-      "setup data",
-      "data",
-      "feature toggles",
-      "rollover unspent",
+    tab: "cashflow",
+    title: "Cash Flow",
+    summary: "Money in and out over recent months, a forecast of your balance, and a plan for paying off your debts.",
+    howTo: [
+      {
+        question: "How do I see one month's spending?",
+        steps: [
+          <>Choose a 3 or 6 month window, and tick <strong>Compare to last year</strong> to set each month against the year before.</>,
+          <>Click a month's bar to see its spending by category and any unusually large charges.</>,
+        ],
+      },
+      {
+        question: "How do I see where my balance is heading?",
+        steps: [
+          <>Scroll to <strong>Forecast</strong> and pick 30, 60 or 90 days.</>,
+          <>Your checking and savings balance is projected with each Recurring bill and paycheck landing on its due date, the lowest balance called out, and a "Coming up" list (see FAQ).</>,
+        ],
+      },
+      {
+        question: "How do I plan paying off my debts?",
+        steps: [
+          <>Scroll to the <strong>Debt Payoff Planner</strong>.</>,
+          <>Choose snowball or avalanche to see how fast your credit cards and loans clear. Untick Include to leave one out (see FAQ).</>,
+        ],
+      },
     ],
-    node: (
-      <li>
-        <strong>Settings</strong> — separate profiles (completely
-        independent data files you can create, switch, rename, and delete
-        — see FAQ), your <strong>categorization rules</strong> (see FAQ), an
-        optional live stock-price integration for the Investments tab, and{" "}
-        <strong>appearance</strong>: Light/Dark/System plus three visual
-        styles — Default, Futuristic, and Retro (see FAQ).{" "}
-        <strong>Privacy</strong> can also hide your amounts whenever the
-        window loses focus, and <strong>Background reminders</strong> keeps
-        Vault Spend in the system tray (optionally starting when you sign in)
-        so bill reminders arrive with the window closed. One{" "}
-        <strong>Data</strong> section holds everything about your data: where
-        your data file lives (and a button to move it), your backup history
-        with a manual "Back up now", per-backup restore and an optional{" "}
-        <strong>second copy</strong> of every backup in another folder, and
-        the bulk <strong>setup data</strong> template download and import.
-        <strong> Feature toggles</strong> can hide Apply to Debt, Split,
-        Envelope Caps and <strong>Rollover unspent</strong> (see FAQ)
-        everywhere they appear.
-      </li>
-    ),
+    more: [
+      <>"Top categories" and "Top merchants" cover a single month (this one, with a picker to look back further) and show a month-over-month trend per category.</>,
+    ],
+    tags: ["cash flow", "income", "expenses", "forecast", "debt payoff planner", "top categories", "top merchants", "year over year", "compare to last year", "snowball", "avalanche"],
+  },
+  {
+    tab: "investments",
+    title: "Investments",
+    summary: "Your holdings in each account, what they're worth and how they've done, and where they're headed.",
+    howTo: [
+      {
+        question: "How do I add a holding?",
+        steps: [
+          <>Click <strong>Add holding…</strong> and enter its shares, price and cost basis.</>,
+          <>Prices are yours to keep up to date, unless you turn on live prices in Settings: then a new holding fills in its price by symbol and existing ones stay current by themselves (see FAQ).</>,
+        ],
+      },
+      {
+        question: "How do I see what's driving my gains or losses?",
+        steps: [
+          <>Click <strong>Total gain/loss</strong> or <strong>Today's gain/loss</strong>.</>,
+          <>See which holdings are driving it.</>,
+        ],
+      },
+      {
+        question: "How do I check my mix of investments?",
+        steps: [
+          <>Set a <strong>Target allocation</strong> by asset class.</>,
+          <>See how far each has drifted from where you want it.</>,
+        ],
+      },
+      {
+        question: "How do I project a future balance?",
+        steps: [
+          <>In the <strong>goal projection</strong> calculator, enter a starting amount, a monthly contribution and an assumed yearly return.</>,
+          <>Click <strong>Save as goal…</strong> to turn the projection into a real goal.</>,
+        ],
+      },
+      {
+        question: "How do I plan an account's contributions and withdraw date?",
+        steps: [
+          <>Open the investment account's page (click its row on Accounts).</>,
+          <>Set its plan. Its <strong>Accumulation &amp; projection</strong> card shows the cash put in, what it's worth now, and where it's headed by its withdraw date (see FAQ).</>,
+        ],
+      },
+    ],
+    more: [
+      <>Each holding shows its computed value and gain or loss.</>,
+      <>Vault Spend records your portfolio's value each day you open it or refresh prices, so a <strong>history chart</strong> builds up over time.</>,
+    ],
+    tags: [
+      "investments", "holdings", "shares", "cost basis", "gain loss", "what changed", "goal projection", "live prices",
+      "stocks", "alpha vantage", "finnhub", "twelve data", "portfolio history", "allocation", "target allocation", "drift",
+      "rebalance", "save as goal", "accumulation", "projection", "roth", "529", "contributions", "withdraw", "add holding",
+    ],
+  },
+  {
+    tab: "household",
+    title: "Household",
+    summary: "Spending, income, net worth and the budget, broken down by family member.",
+    howTo: [
+      {
+        question: "How do I start splitting things by person?",
+        steps: [
+          <>On Transactions, open the <strong>⋯</strong> More actions menu and choose <strong>Manage family members…</strong> to add people.</>,
+          <>Assign accounts, transactions and more to them. Anything not assigned to anyone shows under "Unassigned".</>,
+        ],
+      },
+      {
+        question: "How do I look at another month?",
+        steps: [
+          <>Use the month arrows at the top.</>,
+          <>Spending and income follow the month you're viewing. Net worth by person is always as of today; it isn't a monthly figure the way the cards above it are.</>,
+        ],
+      },
+    ],
+    more: [<>A budget grid splits each category's budget by person.</>],
+    tags: ["household", "family", "spending by person", "income by person", "net worth by person", "budget by person", "unassigned"],
+  },
+  {
+    tab: "reports",
+    title: "Reports",
+    summary: "Income, spending, savings rate and where your money went over a period you choose, with charts and exports.",
+    howTo: [
+      {
+        question: "How do I pick the period?",
+        steps: [
+          <>Choose <strong>Year to date</strong>, <strong>Last 12 months</strong>, <strong>Last 6 months</strong> or <strong>Last month</strong>.</>,
+          <>Income, spending, net and savings rate update for it.</>,
+        ],
+      },
+      {
+        question: "How do I see where the money went?",
+        steps: [
+          <>Follow the Sankey diagram from your income to your biggest spending categories, with a "Left over" or "Shortfall" flow depending on which side won.</>,
+          <>Use the table of spending by category and month below it.</>,
+          <>In the daily-spending heatmap, darker days are bigger spending days. Point at a day, or move to it with Tab, for its total. One big bill like rent doesn't wash the rest out.</>,
+        ],
+      },
+      {
+        question: "How do I save a report as a file?",
+        steps: [
+          <>Use the CSV or PDF export on this page.</>,
+          <>See Exporting your data below for what each holds.</>,
+        ],
+      },
+      {
+        question: "How do I compare my household with others my age?",
+        steps: [
+          <>Open <strong>Reports → Comparisons</strong>.</>,
+          <>Fill in <strong>Your details</strong>. Nothing you enter leaves your computer (see FAQ).</>,
+        ],
+      },
+    ],
+    more: [
+      <>Also here: spending by family member and by tag, a year-by-year comparison, a savings-rate trend, and net worth by family member.</>,
+      <>Property &amp; Valuables is on the Accounts tab, and the setup-data import and export is in Settings.</>,
+    ],
+    tags: [
+      "reports", "net worth", "csv", "pdf", "savings rate", "date range", "year to date", "last 12 months", "last month",
+      "category by month", "spending by member", "spending by tag", "year by year", "sankey", "income flow", "heatmap",
+      "daily spending", "calendar", "comparisons", "age",
+    ],
+  },
+  {
+    tab: "settings",
+    title: "Settings",
+    summary: "How Vault Spend looks, your profiles and passwords, rules, privacy, reminders, and everything about your data.",
+    howTo: [
+      {
+        question: "How do I switch between light and dark?",
+        steps: [
+          <>Choose <strong>Light, Dark or System</strong> in <strong>Settings → Appearance</strong>, or at the bottom of the sidebar. Both do the same thing.</>,
+          <>System follows your computer's own setting.</>,
+        ],
+      },
+      {
+        question: "How do I change the style?",
+        steps: [
+          <>In <strong>Settings → Appearance</strong>, click the picture of <strong>Default</strong>, <strong>Futuristic</strong> or <strong>Retro</strong>.</>,
+          <>With Futuristic you can also pick its glow color and how strongly it glows. <strong>Reduce motion</strong> turns off sliding and fading in every style (see FAQ).</>,
+        ],
+      },
+      {
+        question: "How do I keep separate data for separate people?",
+        steps: [
+          <>Under <strong>Profiles</strong>, create a profile: a completely independent data file.</>,
+          <>Switch, rename or delete profiles there, or switch from the indicator in the sidebar (see FAQ).</>,
+        ],
+      },
+      {
+        question: "How do I back up, restore or move my data?",
+        steps: [
+          <>In the <strong>Data</strong> section, see your backup history, click <strong>Back up now</strong>, or restore any backup.</>,
+          <>Choose a <strong>second copy</strong> folder to keep every backup in another place too.</>,
+          <>Use <strong>Move data file…</strong> to keep your data file in another folder, and the <strong>setup data</strong> template to fill in a lot at once (see FAQ).</>,
+        ],
+      },
+      {
+        question: "How do I get bill reminders with the window closed?",
+        steps: [
+          <>Turn on <strong>Background reminders</strong> to keep Vault Spend in the system tray.</>,
+          <>Optionally start it when you sign in, so reminders arrive with the window closed.</>,
+        ],
+      },
+    ],
+    more: [
+      <>Your <strong>categorization rules</strong> live here (see FAQ), with an optional live stock-price integration for the Investments tab.</>,
+      <><strong>Privacy</strong> can also hide your amounts whenever the window isn't in front.</>,
+      <><strong>Feature toggles</strong> can hide Apply to Debt, Split, Envelope Caps and <strong>Rollover unspent</strong> (see FAQ) everywhere they appear, and turn on linking transfers automatically.</>,
+    ],
+    tags: [
+      "settings", "profiles", "data file", "backups", "live stock prices", "move data file", "appearance", "theme",
+      "dark mode", "light mode", "default", "futuristic", "transparent", "retro", "rules", "categorization rules",
+      "privacy", "hide amounts", "second backup", "backup copy", "background reminders", "tray", "start with windows",
+      "setup data", "data", "feature toggles", "rollover unspent", "style", "light", "dark", "system",
+    ],
   },
 ];
+
+function tabHelpMatches(help: TabHelp, query: string): boolean {
+  return matchesQuery([help.title, ...help.tags, ...help.howTo.map((h) => h.question)], query);
+}
 
 const IMPORTING_ENTRY: HelpEntry = {
   tags: ["import", "csv", "ofx", "qfx", "qif", "bank", "duplicate", "auto-categorized"],
@@ -1029,9 +1149,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
     answer: (
       <>
         <p>
-          Open an investment account's Details page (Accounts tab, or click the
-          account's name in the "Accumulation & projection" card on the
-          Investments tab). <strong>Cash invested</strong> is the deposits
+          Open an investment account's own page (click its row on the Accounts
+          tab, or the account's name in the "Accumulation & projection" card on
+          the Investments tab). <strong>Cash invested</strong> is the deposits
           you've logged on that account — every money-in counts, and money out
           is shown separately and lowers the net. <strong>Worth now</strong> is
           the same figure the Accounts tab shows, and <strong>Growth</strong>{" "}
@@ -1186,8 +1306,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["reconcile", "reconciliation", "statement", "cleared", "balance", "checking", "savings", "account details", "ending balance"],
     answer: (
       <p>
-        On Accounts, click <strong>Details</strong> on a checking or savings
-        account, enter the statement's ending balance, and start. Tick each
+        On Accounts, click a checking or savings account's row (or choose
+        Details in its ⋯ menu), enter the statement's ending balance under
+        Reconcile with a statement, and start. Tick each
         transaction that appears on the statement; the page shows the
         difference between your cleared balance and the statement, and once
         it reaches $0.00 you can finish and Vault Spend records the
@@ -1231,9 +1352,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["split", "transaction", "categories"],
     answer: (
       <p>
-        Yes — the Transactions tab's "Split →" control on any transaction lets you
-        divide it into as many category/amount lines as you need, each with
-        an optional note.
+        Yes — on the Transactions tab, choose <strong>Split…</strong> in a transaction's ⋯ menu
+        to divide it into as many category/amount lines as you need, each with an optional
+        note. <strong>Edit splits…</strong> in the same menu changes them later.
       </p>
     ),
   },
@@ -1246,9 +1367,11 @@ const FAQ_ENTRIES: FaqEntry[] = [
         actually works: a credit card's balance is available credit, a
         loan's is what's still owed, and a checking/savings/investment/other
         account's is a literal balance. For both credit and loan accounts,
-        a payment is entered as a <em>positive</em> amount and reduces what's
-        owed; a charge or new borrowing is negative and increases it — the
-        same convention for both account types.
+        a payment is a <em>positive</em> amount and reduces what's owed; a
+        charge or new borrowing is negative and increases it — the same
+        convention for both account types. When you add one by hand you don't
+        type a sign: choose <strong>Payment</strong> or <strong>Charge</strong> in
+        the Add transaction dialog.
       </p>
     ),
   },
@@ -1335,8 +1458,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["appearance", "theme", "dark mode", "light mode", "default", "futuristic", "transparent", "glass", "retro", "style", "color", "accent", "glow", "neon", "motion", "animation"],
     answer: (
       <p>
-        Yes — the Settings tab has an Appearance section with a Light/Dark/
-        System switch (also at the bottom of the sidebar) plus three visual styles:{" "}
+        Yes — the Settings tab has an Appearance section with a Light, Dark or
+        System switch (also at the bottom of the sidebar) plus three visual styles, each shown
+        as a picture you click:{" "}
         <strong>Default</strong> (a frosted-glass look with a translucent,
         blurred sidebar and cards), <strong>Futuristic</strong> (a neon
         style on deep navy with its own type and sidebar icons; pick its
@@ -1374,8 +1498,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
             goal, asset, or recurring item with who it belongs to, then
             filter down to just one person wherever a member filter appears.
             Everyone still shares the same file and sees the same data;
-            it's attribution, not separation. Manage them from the Transactions
-            tab's "Manage family members…" button.
+            it's attribution, not separation. Manage them with "Manage family
+            members…" in the ⋯ More actions menu on the Transactions tab.
           </li>
           <li>
             <strong>Profiles</strong> — completely separate, independent
@@ -1450,24 +1574,44 @@ const FAQ_ENTRIES: FaqEntry[] = [
  * see `HelpEntry`/`matchesQuery` above — rather than being scoped to just
  * the FAQ, since this page keeps growing a section at a time as new
  * features ship. */
-export function HelpView() {
+export function HelpView({ focusTab = null }: { focusTab?: Tab | null }) {
   const [query, setQuery] = useState("");
+  // Sections the person opened by hand (or the one a page's ? button asked for). While searching,
+  // every matching section is open instead.
+  const [openTabs, setOpenTabs] = useState<Set<Tab>>(() => new Set(focusTab ? [focusTab] : []));
 
+  useEffect(() => {
+    if (!focusTab) return;
+    setOpenTabs((open) => (open.has(focusTab) ? open : new Set(open).add(focusTab)));
+    document.getElementById(`help-${focusTab}`)?.scrollIntoView({ block: "start" });
+  }, [focusTab]);
+
+  const searching = query.trim() !== "";
   const gettingStartedVisible = matchesQuery(GETTING_STARTED.tags, query);
-  const tabTourVisible = TAB_TOUR_ENTRIES.filter((e) => matchesQuery(e.tags, query));
+  const tabHelpVisible = TAB_HELP.filter((h) => tabHelpMatches(h, query));
   const importingVisible = matchesQuery(IMPORTING_ENTRY.tags, query);
   const bulkSetupVisible = matchesQuery(BULK_SETUP_ENTRY.tags, query);
   const exportVisible = EXPORT_ENTRIES.filter((e) => matchesQuery(e.tags, query));
   const faqVisible = FAQ_ENTRIES.filter((e) => matchesQuery(e.tags, query) || e.question.toLowerCase().includes(query.trim().toLowerCase()));
 
   const nothingMatched =
-    query.trim() !== "" &&
+    searching &&
     !gettingStartedVisible &&
-    tabTourVisible.length === 0 &&
+    tabHelpVisible.length === 0 &&
     !importingVisible &&
     !bulkSetupVisible &&
     exportVisible.length === 0 &&
     faqVisible.length === 0;
+
+  function setTabOpen(tab: Tab, open: boolean) {
+    setOpenTabs((current) => {
+      if (current.has(tab) === open) return current;
+      const next = new Set(current);
+      if (open) next.add(tab);
+      else next.delete(tab);
+      return next;
+    });
+  }
 
   return (
     <div className="reports-view help-view">
@@ -1498,14 +1642,48 @@ export function HelpView() {
         </div>
       )}
 
-      {tabTourVisible.length > 0 && (
+      {tabHelpVisible.length > 0 && (
         <div className="card">
-          <h2 className="reports-section-title">A tour of the tabs</h2>
-          <ul className="tour-list">
-            {tabTourVisible.map((e, i) => (
-              <Fragment key={i}>{e.node}</Fragment>
+          <h2 className="reports-section-title">Help for each page</h2>
+          <p className="modal-message-secondary">Open a page's section here, or press the ? beside any page's title.</p>
+          <div className="help-tab-list">
+            {tabHelpVisible.map((help) => (
+              <details
+                key={help.tab}
+                id={`help-${help.tab}`}
+                className="help-tab"
+                open={searching || openTabs.has(help.tab)}
+                onToggle={(e) => {
+                  if (!searching) setTabOpen(help.tab, e.currentTarget.open);
+                }}
+              >
+                <summary>{help.title}</summary>
+                <div className="help-tab-body">
+                  <p className="help-tab-summary">{help.summary}</p>
+                  {help.howTo.map((h) => (
+                    <div key={h.question} className="help-howto">
+                      <h3>{h.question}</h3>
+                      <ol>
+                        {h.steps.map((step, i) => (
+                          <li key={i}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  ))}
+                  {help.more && help.more.length > 0 && (
+                    <div className="help-tab-more">
+                      <h3>Also on this page</h3>
+                      <ul>
+                        {help.more.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </details>
             ))}
-          </ul>
+          </div>
         </div>
       )}
 

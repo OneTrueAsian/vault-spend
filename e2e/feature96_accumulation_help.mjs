@@ -1,8 +1,8 @@
 // E2E test for Phase 4 item 19 (investment accumulation + projection), part 5:
 // the Help tab describes the new section (19.16).
 //
-//   - searching for the feature by name finds its tour bullet (under "Investments")
-//     and its FAQ entry, and nothing unrelated;
+//   - searching for the feature by name opens Help's Investments section (which mentions it)
+//     and finds its FAQ entry, and nothing unrelated;
 //   - the words a person would actually type ("roth", "529", "inflation", "withdraw")
 //     reach the same FAQ entry;
 //   - the FAQ answer covers what the section shows and lets you set: cash invested,
@@ -36,7 +36,8 @@ try {
     await browser.keys(term);
   }
   const faqEntries = () => browser.execute(() => [...document.querySelectorAll(".help-faq-entry")].map((e) => e.innerText));
-  const tourText = () => browser.execute(() => document.querySelector(".tour-list")?.innerText ?? "");
+  // The Investments page's own Help section, open while a search matches it.
+  const tourText = () => browser.execute(() => document.querySelector("details#help-investments[open]")?.innerText ?? "");
   const accumulationEntry = async () => (await faqEntries()).find((t) => /accumulation/i.test(t.split("\n")[0]));
 
   // ---- the feature's own name -------------------------------------------------------------
@@ -49,9 +50,9 @@ try {
   if (page.includes("Getting started") || page.includes("Is my data private?")) fail(`"accumulation" should narrow the page to the matching items, got:\n${page}`);
   const tour = await tourText();
   if (!/Investments/.test(tour) || !/Accumulation & projection/.test(tour)) {
-    fail(`the tour of the tabs should describe the Investments tab's "Accumulation & projection" card, got:\n${tour}`);
+    fail(`Help's Investments section should be open and describe the "Accumulation & projection" card, got:\n${tour}`);
   }
-  console.log("searching by the feature's name finds its tour bullet and FAQ entry");
+  console.log("searching by the feature's name opens its Investments section and finds its FAQ entry");
 
   // ---- the answer says what the section does ---------------------------------------------------
   const answer = (await accumulationEntry()).toLowerCase();

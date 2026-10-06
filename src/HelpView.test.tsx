@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { HelpView } from "./HelpView";
+import { HelpView, TAB_HELP } from "./HelpView";
+import { NAV_ITEMS, PINNED_NAV_ITEMS } from "./appTypes";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -102,3 +103,129 @@ describe("HelpView", () => {
     expect(text).toContain("nothing you enter is");
   });
 });
+
+describe("HelpView sections per tab (s12)", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function show(focusTab?: Parameters<typeof HelpView>[0]["focusTab"]) {
+    act(() => root.render(<HelpView focusTab={focusTab} />));
+  }
+
+  function search(text: string) {
+    const input = container.querySelector<HTMLInputElement>("input[type=search]")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
+  const sections = () => Array.from(container.querySelectorAll<HTMLDetailsElement>("details.help-tab"));
+
+  it("has one section for every tab except Help, in sidebar order", () => {
+    const tabs = [...NAV_ITEMS, ...PINNED_NAV_ITEMS].map((n) => n.id).filter((t) => t !== "help");
+    expect(TAB_HELP.map((h) => h.tab)).toEqual(tabs);
+    show();
+    expect(sections().map((d) => d.id)).toEqual(tabs.map((t) => `help-${t}`));
+  });
+
+  it("gives each section its title, a one-sentence summary and How do I steps", () => {
+    show();
+    expect(sections()).toHaveLength(11);
+    for (const [i, details] of sections().entries()) {
+      const help = TAB_HELP[i];
+      expect(details.querySelector("summary")?.textContent).toContain(help.title);
+      const first = details.querySelector(":scope > p, :scope > .help-tab-body > p");
+      expect(first?.textContent, help.title).toBe(help.summary);
+      expect(help.summary.length, help.summary).toBeLessThanOrEqual(160);
+      expect(help.summary, help.title).toMatch(/\.$/);
+      const questions = Array.from(details.querySelectorAll(".help-howto"));
+      expect(questions.length, help.title).toBeGreaterThan(0);
+      for (const q of questions) {
+        expect(q.querySelector("h3")?.textContent, help.title).toMatch(/^How do I /);
+        const steps = q.querySelectorAll("ol > li").length;
+        expect(steps, q.textContent ?? "").toBeGreaterThanOrEqual(2);
+        expect(steps, q.textContent ?? "").toBeLessThanOrEqual(5);
+      }
+    }
+  });
+
+  it("starts with every section closed", () => {
+    show();
+    expect(sections()).toHaveLength(11);
+    expect(sections().every((d) => !d.open)).toBe(true);
+  });
+
+  it("opens the matching section when searching and hides the unrelated ones", () => {
+    show();
+    search("budget");
+    expect(container.querySelector<HTMLDetailsElement>("#help-budget")?.open).toBe(true);
+    expect(container.querySelector("#help-investments")).toBeNull();
+    expect(container.querySelector("#help-settings")).toBeNull();
+  });
+
+  it("still finds each tab by the words its old entry was tagged with", () => {
+    show();
+    for (const [word, tab] of [
+      ["sankey", "reports"],
+      ["reconcile", "accounts"],
+      ["ctrl+k", "dashboard"],
+      ["auto-contribute", "buckets"],
+      ["price change", "recurring"],
+      ["target allocation", "investments"],
+      ["unassigned", "household"],
+      ["year over year", "cashflow"],
+      ["categorization rules", "settings"],
+      ["auto-link", "ledger"],
+    ]) {
+      search(word);
+      expect(container.querySelector<HTMLDetailsElement>(`#help-${tab}`)?.open, word).toBe(true);
+    }
+  });
+
+  it("opens and scrolls to the section a page's ? link asked for", () => {
+    show("budget");
+    const budget = container.querySelector<HTMLDetailsElement>("#help-budget")!;
+    expect(budget.open).toBe(true);
+    expect(budget.scrollIntoView).toHaveBeenCalled();
+    expect(container.querySelector<HTMLDetailsElement>("#help-accounts")!.open).toBe(false);
+  });
+
+  it("describes where things are now", () => {
+    show();
+    const text = container.textContent ?? "";
+    for (const words of [
+      ["Hide amounts", "bottom of the sidebar"],
+      ["Light, Dark or System", "Settings → Appearance"],
+      ["⋯", "Split"],
+      ["Money out", "Money in"],
+      ["Layout", "Customize"],
+      ["Show names"],
+    ]) {
+      for (const w of words) expect(text, w).toContain(w);
+    }
+  });
+
+  it("no longer mentions the top bar, the header or typing a minus sign", () => {
+    show();
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/top bar/i);
+    expect(text).not.toMatch(/header's/i);
+    expect(text).not.toContain("Negative = money out");
+    expect(text).not.toContain("+ Add note");
+    expect(text).not.toContain("Split →");
+  });
+});
+

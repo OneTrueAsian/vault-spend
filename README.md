@@ -37,22 +37,25 @@ nothing is protected unless you turn it on.
 
 ## Features
 
-- **Dashboard** — net worth, cash, debt, and investments at a glance, with
-  an insights feed, a customizable widget layout, and a natural-language
-  "Ask the Vault" query box.
+- **Dashboard** — net worth, cash, debt, and investments at a glance, then a
+  To do list of what needs you, an insights feed, a layout you can customize
+  from its Layout menu, and a natural-language "Ask the Vault" query box.
 - **Accounts** — checking, savings, credit card, loan, investment, and
   other account types, plus property & valuables, each with balance
   history and statement reconciliation.
-- **Ledger** — every transaction, with categorization, tagging,
-  splitting, bulk editing, and family-member attribution.
-- **Budget** — monthly budgets per category, with rollover, a month-end
-  review, and suggested amounts from your recent spending.
+- **Transactions** — every transaction, with categorization, tagging,
+  splitting, notes and transfers from each row's ⋯ menu, bulk editing, and
+  family-member attribution. Adding one by hand uses a Money out / Money in
+  switch (Charge / Payment on cards and loans) instead of a minus sign.
+- **Budget** — monthly budgets per category, typed straight into each row,
+  with rollover, a month-end review, and suggested amounts from your recent
+  spending.
 - **Goals** — savings goals with target dates, optional auto-contributions,
   and progress tracking.
 - **Cash Flow** — income/expense trends, a 30/60/90-day balance forecast,
   and a debt payoff planner.
-- **Recurring** — tracked bills and income with automatic missed/price-change
-  detection and auto-suggested new items.
+- **Recurring** — your regular bills and income, with automatic
+  missed/price-change detection and auto-suggested new items.
 - **Investments** — holdings with gain/loss, optional live pricing, and
   accumulation/withdrawal projections.
 - **Household** — spending and net worth broken down by family member.
@@ -65,8 +68,13 @@ nothing is protected unless you turn it on.
   second backup location) and multiple independent, switchable profiles.
 - **Import & export** — CSV/OFX/QIF import with duplicate detection, plus
   bulk setup-data import/export for getting started quickly.
+- **Appearance** — Light, Dark or System (at the bottom of the sidebar or in
+  Settings → Appearance) and three styles, Default, Futuristic and Retro,
+  each shown as a picture. Below 1000 pixels wide the sidebar shows icons,
+  with a Show names button.
 
 ## Learn more
 
 Open the **Help** tab inside the app for full guidance on every feature
-above, a searchable FAQ, and troubleshooting.
+above, a searchable FAQ, and troubleshooting. The **?** beside any page's
+title opens Help at that page's own section.

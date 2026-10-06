@@ -12,6 +12,8 @@ import { AccumulationSummaryCard } from "./AccumulationSection";
 import { MenuSelect } from "./MenuSelect";
 import { categoryColor } from "./categoryPalette";
 import { sumMoney } from "./money";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 
 const PROJECTION_YEAR_OPTIONS = [5, 10, 15, 20, 25, 30, 40];
@@ -450,6 +452,7 @@ export function InvestmentsView({
   onSetAllocationTargets,
   onSaveProjectionAsGoal,
   onOpenAccountDetail,
+  onOpenHelp,
 }: {
   portfolioHistory: PortfolioPoint[];
   allocationTargets: AllocationTarget[];
@@ -474,6 +477,8 @@ export function InvestmentsView({
   onFetchQuote: (symbol: string) => Promise<string | null>;
   layoutWidgets: WidgetId[];
   onPinWidget: (id: WidgetId) => void;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
@@ -542,7 +547,10 @@ export function InvestmentsView({
     <div className="buckets-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Investments</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Investments</h1>
+            {onOpenHelp && <HelpLink tab="investments" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">
             {byAccount.size} account{byAccount.size === 1 ? "" : "s"}, {holdings.length} holding
             {holdings.length === 1 ? "" : "s"}.

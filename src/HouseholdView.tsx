@@ -1,6 +1,8 @@
 import type { Account, Asset, FamilyMember, MemberBudgetActual, Transaction } from "./types";
 import { formatAmount } from "./format";
 import { incomeByMember, netWorthByMember, spendingByMember } from "./memberBreakdowns";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 /** A per-family-member cut of Budget and Cash Flow — built entirely on the
  * member tagging that's already threaded through accounts, transactions,
@@ -23,6 +25,7 @@ export function HouseholdView({
   onPrevMonth,
   onNextMonth,
   onManageMembers,
+  onOpenHelp,
 }: {
   transactions: Transaction[];
   accounts: Account[];
@@ -42,13 +45,18 @@ export function HouseholdView({
    * "⋯" menu does, so the empty state below is one click from fixed
    * instead of a scavenger hunt through another tab. */
   onManageMembers: () => void;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   if (familyMembers.length === 0) {
     return (
       <div className="reports-view">
         <div className="page-top">
           <div>
-            <h1 className="view-title">Household</h1>
+            <div className="view-title-row">
+              <h1 className="view-title">Household</h1>
+              {onOpenHelp && <HelpLink tab="household" onOpen={onOpenHelp} />}
+            </div>
             <p className="view-sub">Net worth, income, and spending by family member.</p>
           </div>
         </div>
@@ -87,7 +95,10 @@ export function HouseholdView({
     <div className="reports-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Household</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Household</h1>
+            {onOpenHelp && <HelpLink tab="household" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">{monthLabel}, by family member.</p>
         </div>
       </div>

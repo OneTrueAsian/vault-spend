@@ -49,6 +49,8 @@ import { CategorySpendDialog } from "./CategorySpendDialog";
 import { CATEGORY_COLORS } from "./categoryPalette";
 import { sumMoney } from "./money";
 import { describeBudgetAlerts, isUsedInFull } from "./budgetAlertText";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
@@ -211,6 +213,7 @@ export function DashboardView({
   safeToSpendEnabled,
   onAddTransaction,
   onAddAccount,
+  onOpenHelp,
 }: {
   accounts: Account[];
   netWorthHistory: NetWorthPoint[];
@@ -291,6 +294,8 @@ export function DashboardView({
    * transaction…" button and Accounts' "Add account…" button already use. */
   onAddTransaction: () => void;
   onAddAccount: () => void;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   const [expandedStat, setExpandedStat] = useState<StatKey | null>(null);
   const [selectedSpendCategory, setSelectedSpendCategory] = useState<string | null>(null);
@@ -1209,7 +1214,10 @@ export function DashboardView({
     <div className="reports-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Dashboard</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Dashboard</h1>
+            {onOpenHelp && <HelpLink tab="dashboard" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">Your accounts, budget, and goals at a glance.</p>
         </div>
         <div className="page-actions">

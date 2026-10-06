@@ -24,6 +24,8 @@ import futuristicLightPreview from "./assets/style-previews/futuristic-light.web
 import futuristicDarkPreview from "./assets/style-previews/futuristic-dark.webp";
 import retroLightPreview from "./assets/style-previews/retro-light.webp";
 import retroDarkPreview from "./assets/style-previews/retro-dark.webp";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -1195,6 +1197,7 @@ export function SettingsView({
   categories,
   onRulesApplied,
   onMessage,
+  onOpenHelp,
 }: {
   onDownloadSetupTemplate: () => void;
   onImportSetupData: () => void;
@@ -1247,12 +1250,17 @@ export function SettingsView({
   theme: Theme;
   onSetTheme: (t: Theme) => void;
   resolvedTheme: "light" | "dark";
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   return (
     <div className="reports-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Settings</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Settings</h1>
+            {onOpenHelp && <HelpLink tab="settings" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">Appearance, profile, and local data.</p>
         </div>
       </div>

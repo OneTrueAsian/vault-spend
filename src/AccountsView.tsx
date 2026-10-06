@@ -8,6 +8,8 @@ import { formatAmount } from "./format";
 import { accountTypeLabel, GROUP_LABELS, GROUP_ORDER, groupOf, isOverdrawn, netWorthContribution } from "./accountGroups";
 import { AccountEditDialog } from "./Modal";
 import { AccountTypeIcon, ACCOUNT_ICON_OPTIONS, isAccountIconKey, IconPicker, type AccountIconKey } from "./icons";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 /** Lets a user override the type-guessed icon (`icons/accountIcons.tsx`)
  * with an explicit choice — floats below the type badge that opens it
@@ -236,6 +238,7 @@ export function AccountsView({
   onUpdateAssetValue,
   onSetAssetMember,
   onDeleteAsset,
+  onOpenHelp,
 }: {
   onOpenAccountDetail: (accountId: number) => void;
   /** Property & Valuables — manually tracked things that aren't accounts. */
@@ -271,6 +274,8 @@ export function AccountsView({
   onSetAccountMember: (accountId: number, memberId: number | null) => void;
   onSetAccountIcon: (accountId: number, iconKey: string | null) => void;
   onAddAccount: () => void;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   const [editing, setEditing] = useState<EditingBalance | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
@@ -341,7 +346,10 @@ export function AccountsView({
     <div className="reports-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Accounts</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Accounts</h1>
+            {onOpenHelp && <HelpLink tab="accounts" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">Every account, grouped by cash, credit, loans, and investments.</p>
         </div>
         <div className="page-actions">

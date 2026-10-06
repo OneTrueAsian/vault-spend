@@ -13,6 +13,8 @@ import { sumMoney } from "./money";
 import { RowMenu, type RowMenuItem } from "./RowMenu";
 import { groupProgressLabel } from "./budgetSummary";
 import { incomeProgressTone, netTone, toneFillClass, usedInFull as isUsedInFull, viewedMonth, type ViewedMonth } from "./colourStatus";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 type MonthElapsed = NonNullable<ReturnType<typeof monthElapsed>>;
 
@@ -564,6 +566,7 @@ export function BudgetView({
   onApplySuggestions,
   onOpenMonthReview,
   amountsHidden,
+  onOpenHelp,
 }: {
   categories: string[];
   budgetActuals: ReportBudgetLine[];
@@ -592,6 +595,8 @@ export function BudgetView({
   onOpenMonthReview: () => void;
   /** "Hide amounts" is on — see `BudgetRow`'s budget field. */
   amountsHidden: boolean;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   const [suggestions, setSuggestions] = useState<BudgetSuggestions | null>(null);
   async function openSuggestions() {
@@ -706,7 +711,10 @@ export function BudgetView({
     <div className="budget-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Budget</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Budget</h1>
+            {onOpenHelp && <HelpLink tab="budget" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">
             {monthLabel}, by group.
             {!rolloverEnabled && " Rollover of unspent budget is off in Settings."}

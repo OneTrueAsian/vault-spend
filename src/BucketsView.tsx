@@ -8,6 +8,8 @@ import { BUCKET_ICON_OPTIONS, BucketIcon, isBucketIconKey, type BucketIconKey } 
 import { goalPlan, type GoalPlan } from "./goalPlan";
 import { usePopover } from "./usePopover";
 import { MenuSelect } from "./MenuSelect";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 const BUCKET_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9", "#B0526A", "#5FA85E"];
 
@@ -400,6 +402,7 @@ export function BucketsView({
   onUpdateBucketDetails,
   onAddContribution,
   onDeleteBucket,
+  onOpenHelp,
 }: {
   buckets: Bucket[];
   accounts: Account[];
@@ -427,6 +430,8 @@ export function BucketsView({
   ) => void;
   onAddContribution: (bucketId: number, date: string, amount: string, note: string | null) => void;
   onDeleteBucket: (id: number) => void;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
@@ -461,7 +466,10 @@ export function BucketsView({
       <div className="buckets-view">
         <div className="page-top">
           <div>
-            <h1 className="view-title">Goals</h1>
+            <div className="view-title-row">
+              <h1 className="view-title">Goals</h1>
+              {onOpenHelp && <HelpLink tab="buckets" onOpen={onOpenHelp} />}
+            </div>
             <p className="view-sub">Money you're setting aside for something, like a holiday or a yearly bill.</p>
           </div>
         </div>
@@ -493,7 +501,10 @@ export function BucketsView({
     <div className="buckets-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Goals</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Goals</h1>
+            {onOpenHelp && <HelpLink tab="buckets" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">Money you're setting aside for something, like a holiday or a yearly bill.</p>
         </div>
       </div>

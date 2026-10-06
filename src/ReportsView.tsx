@@ -1,6 +1,8 @@
 import { useRef, useState, type ComponentProps, type KeyboardEvent } from "react";
 import { ReportsOverview } from "./ReportsOverview";
 import { ComparisonsView } from "./comparisons/ComparisonsView";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 type ReportsTab = "overview" | "comparisons";
 
@@ -15,7 +17,15 @@ type OverviewProps = ComponentProps<typeof ReportsOverview>;
  * "Comparisons". Each panel mounts the first time it is opened and then stays mounted (hidden), so
  * Overview keeps its date range and loaded data while someone looks at Comparisons. The selected
  * tab lives only in this component, so a profile switch (which remounts the app) starts fresh. */
-export function ReportsView({ initialTab = "overview", ...overviewProps }: OverviewProps & { initialTab?: ReportsTab }) {
+export function ReportsView({
+  initialTab = "overview",
+  onOpenHelp,
+  ...overviewProps
+}: OverviewProps & {
+  initialTab?: ReportsTab;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
+}) {
   const [tab, setTab] = useState<ReportsTab>(initialTab);
   // A panel is rendered once it has been shown; opening Comparisons directly never loads Overview.
   const [shown, setShown] = useState<Set<ReportsTab>>(() => new Set([initialTab]));
@@ -43,7 +53,10 @@ export function ReportsView({ initialTab = "overview", ...overviewProps }: Overv
   return (
     <div className="reports-view reports-shell">
       <div className="page-top no-print">
-        <h1 className="view-title">Reports</h1>
+        <div className="view-title-row">
+          <h1 className="view-title">Reports</h1>
+          {onOpenHelp && <HelpLink tab="reports" onOpen={onOpenHelp} />}
+        </div>
       </div>
 
       <div className="view-toggle reports-tabs no-print" role="tablist" aria-label="Report sections">

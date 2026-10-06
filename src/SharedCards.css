@@ -271,46 +271,56 @@
   margin-top: 8px;
 }
 
-.tour-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* Help: one collapsible section per page (HelpView's TAB_HELP). The title row is the
+   <summary>; inside, a one-sentence summary, the "How do I…" answers as numbered steps, and the
+   page's other facts as a short list. */
+.help-tab-list {
+  display: flex;
+  flex-direction: column;
 }
 
-.tour-list > li {
-  position: relative;
-  padding: 11px 0 11px 16px;
+.help-tab {
   border-bottom: 1px solid var(--border);
+}
+
+.help-tab:last-child {
+  border-bottom: none;
+}
+
+.help-tab > summary {
+  cursor: pointer;
+  padding: 11px 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.help-tab-body {
+  padding: 0 0 14px 16px;
   font-size: 13px;
   line-height: 1.6;
 }
 
-/* Plain document flow, not `display: flex` — a bullet's text is free to
-   contain more than one inline element (e.g. several `<strong>` phrases),
-   and flex would lay each of those out as its own side-by-side column
-   instead of running text, wrapping normally, the way multiple `<strong>`
-   tags inside one flex child otherwise do. */
-.tour-list > li:first-child {
-  padding-top: 0;
+.help-tab-summary {
+  margin: 0 0 10px;
+  color: var(--text-muted);
 }
 
-.tour-list > li:first-child::before {
-  top: 7px;
+.help-howto h3,
+.help-tab-more h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin: 12px 0 4px;
 }
 
-.tour-list > li:last-child {
-  border-bottom: none;
+.help-howto ol,
+.help-tab-more ul {
+  margin: 0;
+  padding-left: 22px;
 }
 
-.tour-list > li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 18px;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--accent);
+.help-howto li,
+.help-tab-more li {
+  margin-bottom: 4px;
 }
 
 .path-box {

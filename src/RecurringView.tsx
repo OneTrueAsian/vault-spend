@@ -7,6 +7,8 @@ import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { CategoryIcon } from "./icons";
 import { CADENCE_OPTIONS, cadenceLabel } from "./cadence";
 import { MenuSelect } from "./MenuSelect";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 /** One calendar month forward, clamping the day-of-month into range (Jan
  * 31 + 1 month -> Feb 28/29, not Mar 3) — same reasoning as the backend's
@@ -402,6 +404,7 @@ export function RecurringView({
   onAddCandidate,
   onDismissCandidate,
   onIgnorePriceChange,
+  onOpenHelp,
 }: {
   recurring: Recurring[];
   /** Each item lined up against the charges actually posted. */
@@ -437,6 +440,8 @@ export function RecurringView({
   onAddCandidate: (candidate: RecurringCandidate) => void;
   onDismissCandidate: (candidate: RecurringCandidate) => void;
   onIgnorePriceChange: (id: number, from: string, to: string) => Promise<void>;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
@@ -527,7 +532,10 @@ export function RecurringView({
     <div className="buckets-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Recurring</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Recurring</h1>
+            {onOpenHelp && <HelpLink tab="recurring" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">
             {recurring.length} known bill{recurring.length === 1 ? "" : "s"} and income
             {candidates.length > 0
