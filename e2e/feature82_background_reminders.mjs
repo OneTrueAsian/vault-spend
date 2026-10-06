@@ -44,13 +44,17 @@ try {
   // On.
   await tray.click();
   await browser.waitUntil(async () => (await backendSettings()).tray_enabled === true, { timeout: 10000, timeoutMsg: "switching the tray on should reach the backend" });
-  if (!(await tray.isSelected())) throw new Error("the box should show it's on");
-  if (autostartShown && !(await autostart.isEnabled())) throw new Error("start-at-sign-in should open up once the tray is on");
+  // The app saves the switch, then reads the settings back before it redraws the box, so the backend can
+  // already say "on" while the box has not caught up (a busy machine widens the gap): wait for the box.
+  await browser.waitUntil(async () => (await tray.isSelected()) && (!autostartShown || (await autostart.isEnabled())), {
+    timeout: 10000,
+    timeoutMsg: "the box should show it's on, and start-at-sign-in should open up",
+  });
 
   // Off again (leaves no tray icon behind).
   await tray.click();
   await browser.waitUntil(async () => (await backendSettings()).tray_enabled === false, { timeout: 10000, timeoutMsg: "switching the tray off should reach the backend" });
-  if (await tray.isSelected()) throw new Error("the box should show it's off");
+  await browser.waitUntil(async () => !(await tray.isSelected()), { timeout: 10000, timeoutMsg: "the box should show it's off" });
 
   console.log("FEATURE 82 E2E TEST PASSED");
 } finally {
