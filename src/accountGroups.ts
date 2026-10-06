@@ -113,3 +113,9 @@ export function pickDefaultAccountId(accounts: { id: number; account_type: strin
   }
   return accounts.length > 0 ? accounts[0].id : null;
 }
+
+/** Plain display names; stored account types stay unchanged. */
+export function accountTypeLabel(type: string): string {
+  if (type === "credit") return "Credit card";
+  return type.replace(/[_-]+/g, " ").replace(/\b\w+/g, word => word[0].toUpperCase() + word.slice(1).toLowerCase());
+}

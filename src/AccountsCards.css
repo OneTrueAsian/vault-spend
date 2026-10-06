@@ -1,23 +1,26 @@
 .account-cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
 @media (max-width: 900px) {
   .account-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 .account-card {
+  min-width: 0;
+  position: relative;
+  isolation: isolate;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 15px 17px;
   box-shadow: var(--shadow-sm);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
 }
 
@@ -145,3 +148,52 @@
   font-weight: 600;
 }
 
+
+/* The name's stretched button opens the row; independent controls sit above it. */
+.account-card .account-card-open,
+.account-card button.amount-editable {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  font-family: inherit;
+}
+.account-card button.amount-editable { min-height: 28px; min-width: 28px; }
+.account-card .account-card-open {
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  max-width: 100%;
+}
+.account-card .account-card-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.account-card:has(.account-card-open:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+.account-card .icon-toggle-anchor,
+.account-card .account-card-end,
+.account-card > .row-menu-toggle {
+  position: relative;
+  z-index: 1;
+}
+.account-card .bal { font-variant-numeric: tabular-nums; }
+.account-card .bal.neg { color: var(--negative); }
+.account-card .account-name-detail-static { display: block; overflow-wrap: anywhere; }
+.account-card button.amount-editable:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.account-card .amount-edit-input { width: 150px; max-width: 100%; }
+
+.account-card button.sub.amount-editable { color: var(--text-muted); }
+.account-card button.bal { font-family: var(--font-mono); font-size: 15px; font-weight: 700; }
+.account-card:has(.account-card-open:hover) { border-color: var(--accent); }

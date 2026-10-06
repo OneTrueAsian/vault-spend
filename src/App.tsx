@@ -34,7 +34,7 @@ import { SetupImportReviewDialog } from "./SetupImportReviewDialog";
 import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { pickDefaultAccountId } from "./accountGroups";
+import { accountTypeLabel, pickDefaultAccountId } from "./accountGroups";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "./nativeDialog";
@@ -2139,7 +2139,7 @@ function App({
     if (inboxCount > 0) {
       entries.push({ id: "action:inbox", kind: "action", label: `Review inbox (${inboxCount})`, keywords: "triage uncategorized duplicates large" });
     }
-    for (const a of accounts) entries.push({ id: `account:${a.id}`, kind: "account", label: a.name, hint: a.account_type });
+    for (const a of accounts) entries.push({ id: `account:${a.id}`, kind: "account", label: a.name, hint: accountTypeLabel(a.account_type) });
     for (const b of buckets) entries.push({ id: `goal:${b.id}`, kind: "goal", label: b.name, hint: "Goal" });
     for (const t of transactions.slice(0, 3000)) {
       entries.push({

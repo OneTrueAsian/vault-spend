@@ -15,8 +15,8 @@
 //   - the neutral (income still arriving) progress fill stands out from its track at 3:1 or more
 //     (WCAG 1.4.11);
 //   - the pinned debt widget's icon is held to 3:1 against its badge only when it is a single-colour
-//     glyph (an svg or a monochrome icon-img). Every account icon today is full colour, so the spec
-//     logs it as not measured.
+//     glyph (an svg or a monochrome icon-img). Some account icons are full colour, so the spec
+//     logs those as not measured.
 //   A screenshot of each page in each look is saved for a look by eye.
 //
 // Run with: node e2e/run-all.mjs --spec=271

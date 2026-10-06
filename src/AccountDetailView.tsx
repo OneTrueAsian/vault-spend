@@ -1,3 +1,4 @@
+import { accountTypeLabel } from "./accountGroups";
 import "./AccountsCards.css";
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -116,7 +117,7 @@ export function AccountDetailView({
             {account.name}
           </h1>
           <p className="view-sub">
-            {account.account_type}
+            {accountTypeLabel(account.account_type)}
             {account.institution ? ` · ${account.institution}` : ""}
             {account.mask ? ` ···${account.mask}` : ""}
           </p>

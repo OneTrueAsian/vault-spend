@@ -239,9 +239,10 @@
   background: linear-gradient(135deg, var(--accent-strong), var(--info));
 }
 
-/* A debt account's badge (s4): neutral, like the Debt tile. Every account icon is a full-colour
-   one (icons/accountIcons.tsx), which keeps its own colours via `.icon-img-color` above. */
+/* A debt account badge stays neutral. Full-colour icons retain their colours;
+   the house and rising-line glyphs inherit the theme foreground. */
 .stat-hero .mini-ico.neutral {
+  color: var(--text);
   background: var(--surface-2);
 }
 

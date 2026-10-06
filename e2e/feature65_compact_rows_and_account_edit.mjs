@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature65_compact_rows_and_account_edit.mjs
 
-import { launchApp, chooseMenuOption } from "./harness.mjs";
+import { chooseRowAction, launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -37,7 +37,7 @@ async function firstRowHeight() {
 }
 function accountCard(name) {
   return browser.$(
-    `//div[contains(concat(' ', normalize-space(@class), ' '), ' account-card ')][.//div[contains(@class,'account-name-cell')][text()='${name}']]`,
+    `//div[contains(concat(' ', normalize-space(@class), ' '), ' account-card ')][.//div[contains(@class,'account-name-cell')][normalize-space()='${name}']]`,
   );
 }
 try {
@@ -91,7 +91,7 @@ try {
     throw new Error(`expected the card's detail line to show institution, last four and type, got:\n${cardText}`);
   }
 
-  await (await card.$("button=Edit")).click();
+  await chooseRowAction(browser, async () => card.$("[data-row-menu]"), "Edit…");
   const dialog = await browser.$("[role='dialog']");
   await dialog.waitForExist({ timeout: 10000 });
   await browser.waitUntil(async () => /Edit Test Checking/.test(await dialog.getText()), { timeout: 10000 });
@@ -108,13 +108,13 @@ try {
 
   // ---- Delete needs an explicit second step inside the dialog
   const disposable = await accountCard("Disposable Savings");
-  await (await disposable.$("button=Edit")).click();
+  await chooseRowAction(browser, async () => disposable.$("[data-row-menu]"), "Edit…");
   const dialog2 = await browser.$("[role='dialog']");
   await browser.waitUntil(async () => /Edit Disposable Savings/.test(await dialog2.getText()), { timeout: 10000 });
   await (await dialog2.$("button=Delete account…")).click();
   await (await dialog2.$("button=Delete account")).click();
   await browser.waitUntil(
-    async () => (await browser.$$("//div[@class='account-name-cell'][text()='Disposable Savings']")).length === 0,
+    async () => (await browser.$$("//div[@class='account-name-cell'][normalize-space()='Disposable Savings']")).length === 0,
     { timeout: 10000, timeoutMsg: "the deleted account should be gone" },
   );
 

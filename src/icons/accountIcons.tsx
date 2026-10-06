@@ -1,24 +1,14 @@
+import { House, TrendingUp } from "lucide-react";
 import { flatIconEntry, IconEntryGlyph, type IconEntry } from "./iconEntry";
 
-/** Keyed by the raw `account_type` string (`ACCOUNT_TYPE_OPTIONS` in
- * Modal.tsx: checking/savings/credit/loan/investment/other) rather than
- * `groupOf()`'s coarser cash/credit/loan/investment/other grouping, so
- * checking and savings — both "cash" to `groupOf` — still get visually
- * distinct icons. Checking/savings/credit/investment each have a direct,
- * user-picked full-color icon (see `flatIcons.ts`); loan and other don't
- * (no "-acct" file was provided for either), so they borrow the closest
- * neutral icon from the same set — debt-dash's bar chart for loan (a loan
- * *is* debt) and net-worth-dash's balance scale for other (a generic
- * "your finances" glyph) — rather than mixing in an unrelated monochrome
- * icon. Only used when the account has no explicit `icon_key` (see
- * `ACCOUNT_ICON_OPTIONS` below) — the picker lets a user override this
- * guess, but leaves it as the default for anyone who doesn't bother. */
+/** Type-based defaults; a saved explicit picker choice still takes precedence.
+ * House and rising-line glyphs identify loans and investments directly. */
 const ACCOUNT_TYPE_ICONS: Record<string, IconEntry> = {
   checking: flatIconEntry("money-checkings-acct"),
   savings: flatIconEntry("savings-money-acct"),
   credit: flatIconEntry("credit-card-acct"),
-  loan: flatIconEntry("debt-dash"),
-  investment: flatIconEntry("investment-acct"),
+  loan: { kind: "lucide", Icon: House },
+  investment: { kind: "lucide", Icon: TrendingUp },
   other: flatIconEntry("net-worth-dash"),
 };
 
@@ -26,15 +16,8 @@ const FALLBACK_ICON: IconEntry = ACCOUNT_TYPE_ICONS.other;
 
 export type AccountIconKey = "checking" | "savings" | "credit" | "loan" | "investment" | "other" | "car" | "mortgage";
 
-/** Every icon the picker offers, in display order — one swatch per
- * `account_type`, all pointing at the same full-color icons the automatic
- * guess above uses, plus "car" and "mortgage" as extra explicit picks for a
- * loan account more specific than the generic debt-dash bar chart
- * (reusing the same bundled images `categoryIcons.tsx`/`bucketIcons.tsx`
- * use, not new assets). The automatic type-based guess still only ever
- * lands on the 6 base icons above — nothing about an account's type or
- * name distinguishes "auto loan" from "mortgage" — so these two only ever
- * apply when a user picks one explicitly. */
+/** Choices reuse the bundled images and theme-colored line glyphs. Keys stay
+ * stable, so existing saved choices continue to override the type default. */
 export const ACCOUNT_ICON_OPTIONS: { key: AccountIconKey; entry: IconEntry }[] = [
   { key: "checking", entry: ACCOUNT_TYPE_ICONS.checking },
   { key: "savings", entry: ACCOUNT_TYPE_ICONS.savings },

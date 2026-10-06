@@ -31,7 +31,7 @@ async function statValue(app, label) {
 // 'account-card') also matches the outer .account-cards *group* wrapper
 // (same trap statValue above works around for "stat"/".stats").
 function accountCardXPath(accountName) {
-  return `//div[contains(concat(' ', normalize-space(@class), ' '), ' account-card ')][.//div[contains(@class,'account-name-cell')][text()='${accountName}']]`;
+  return `//div[contains(concat(' ', normalize-space(@class), ' '), ' account-card ')][.//div[contains(@class,'account-name-cell')][normalize-space()='${accountName}']]`;
 }
 
 async function visaOwedAndAvailable(app) {

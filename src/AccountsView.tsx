@@ -1,10 +1,11 @@
+import { RowMenu } from "./RowMenu";
 import "./AccountsCards.css";
 import { useState } from "react";
 import type { Account, AccountContributionDelta, Asset, FamilyMember, NetWorthPoint } from "./types";
 import { PropertyAssetsSection } from "./PropertyAssets";
 import { StatDetailPanel } from "./StatDetailPanel";
 import { formatAmount } from "./format";
-import { GROUP_LABELS, GROUP_ORDER, groupOf, isOverdrawn, netWorthContribution } from "./accountGroups";
+import { accountTypeLabel, GROUP_LABELS, GROUP_ORDER, groupOf, isOverdrawn, netWorthContribution } from "./accountGroups";
 import { AccountEditDialog } from "./Modal";
 import { AccountTypeIcon, ACCOUNT_ICON_OPTIONS, isAccountIconKey, IconPicker, type AccountIconKey } from "./icons";
 
@@ -118,18 +119,19 @@ function AccountCard({
 
   const detailLine = [
     a.institution ? `${a.institution}${a.mask ? " \u2022\u2022\u2022\u2022 " + a.mask : ""}` : null,
-    a.account_type[0].toUpperCase() + a.account_type.slice(1),
+    accountTypeLabel(a.account_type),
     a.member_name,
   ]
     .filter(Boolean)
     .join(" \u00b7 ");
 
   return (
-    <div className="account-card">
+    <div className="account-card" data-account-id={a.id}>
       <span className="icon-toggle-anchor">
         <button
           type="button"
           className="type-badge"
+          aria-label={`Change icon for ${a.name}`}
           title="Click to change this account's icon"
           onClick={() => setEditingIcon(editingIcon === a.id ? null : a.id)}
         >
@@ -147,7 +149,9 @@ function AccountCard({
         )}
       </span>
       <div className="info">
-        <div className="account-name-cell">{a.name}</div>
+        <div className="account-name-cell">
+          <button type="button" className="account-card-open" data-account-details={a.id} onClick={() => onOpenDetail(a.id)}>{a.name}</button>
+        </div>
         <span className="sub account-name-detail-static">{detailLine}</span>
       </div>
       <div className="account-card-end">
@@ -171,13 +175,14 @@ function AccountCard({
             </span>
           </>
         ) : (
-          <span
+          <button
+            type="button"
             className={isOverdrawn(a) ? "bal neg amount-editable" : "bal amount-editable"}
             title={isLiability ? "Click to correct the amount currently owed" : "Click to correct today's balance"}
             onClick={() => setEditing({ id: a.id, value: isLiability ? owed : a.current_balance, mode: "balance" })}
           >
             {isLiability ? `Owed ${formatAmount(owed)}` : formatAmount(a.current_balance)}
-          </span>
+          </button>
         )}
         {isCredit &&
           (editing?.id === a.id && editing.mode === "limit" ? (
@@ -193,21 +198,20 @@ function AccountCard({
               }}
             />
           ) : (
-            <span
+            <button
+              type="button"
               className="sub amount-editable"
               title="Click to set the credit limit"
               onClick={() => setEditing({ id: a.id, value: a.starting_balance, mode: "limit" })}
             >
               {parseFloat(a.starting_balance) > 0 ? `Available ${formatAmount(a.current_balance)}` : "Set credit limit…"}
-            </span>
+            </button>
           ))}
-        <button type="button" className="modal-secondary btn-sm" onClick={() => onOpenDetail(a.id)} data-account-details={a.id}>
-          Details
-        </button>
-        <button type="button" className="modal-secondary btn-sm" onClick={() => onEdit(a.id)}>
-          Edit
-        </button>
       </div>
+      <RowMenu label={`Actions for ${a.name}`} items={[
+        { label: "Details", onSelect: () => onOpenDetail(a.id) },
+        { label: "Edit…", onSelect: () => onEdit(a.id) },
+      ]} />
     </div>
   );
 }

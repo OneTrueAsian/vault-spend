@@ -1,3 +1,4 @@
+import { accountTypeLabel } from "./accountGroups";
 import "./Ledger.css";
 
 import { formatAmount, formatDisplayDate } from "./format";
@@ -98,7 +99,7 @@ export function SetupImportReviewDialog({
                       />
                     </td>
                     <td>{row.name}</td>
-                    <td>{row.account_type}</td>
+                    <td>{accountTypeLabel(row.account_type)}</td>
                     <td className="amount-col">{row.starting_balance ? formatAmount(row.starting_balance) : ""}</td>
                     <td>{row.institution ?? ""}</td>
                     <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
