@@ -1491,7 +1491,7 @@
   opacity: 0.4;
 }
 
-/* A YYYY-MM-DD date must never wrap at its hyphens ("2026-" / "09-18"). */
+/* A written-out date ("Sep 18, 2025") stays on one line rather than wrapping after the day. */
 .date-cell {
   white-space: nowrap;
 }

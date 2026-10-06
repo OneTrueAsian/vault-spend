@@ -44,8 +44,9 @@
   inset: 0;
   display: flex;
   align-items: center;
-  /* Lines up with the input's text: its 1px border plus the usual field padding. */
-  padding: 0 calc(var(--date-field-pad-x, 10px) + 1px);
+  /* Starts where the input's own text does (its 1px border plus the usual field padding) and stops
+     short of the calendar button on the right, so a long hint in a narrow field ends in "…" before it. */
+  padding: 0 calc(var(--date-field-pad-x, 10px) + 1px + var(--date-field-button, 22px)) 0 calc(var(--date-field-pad-x, 10px) + 1px);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;

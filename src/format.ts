@@ -53,7 +53,8 @@ function parseStoredDate(iso: string): { year: number; month: number; day: numbe
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  // A day the month doesn't have (2026-02-30) isn't a stored date.
+  if (month < 1 || month > 12 || day < 1 || day > new Date(year, month, 0).getDate()) return null;
   return { year, month, day };
 }
 

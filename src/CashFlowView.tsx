@@ -4,6 +4,7 @@ import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPl
 import { lowestPoint } from "./safeToSpend";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "./charts";
 import { formatAmount, formatDisplayDate } from "./format";
+import { forecastChartPoints } from "./forecastChart";
 import { DebtPayoffPlannerSection } from "./ReportsOverview";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
@@ -366,15 +367,8 @@ export function CashFlowView({
           {forecastData ? (
             <>
             <LineChart
-              // LineChart renders one axis label per point with no built-in
-              // thinning — fine for the ~6-month net-worth trend elsewhere,
-              // but 30-90 daily points would overlap into an unreadable mess.
-              // Only label roughly every 8th point; every point still
-              // contributes to the line/tooltip itself.
-              points={forecastData.points.map((p, i) => ({
-                label: i % Math.max(1, Math.ceil(forecastData.points.length / 8)) === 0 ? p.date.slice(5) : "",
-                value: parseFloat(p.balance),
-              }))}
+              // Only about every 8th of the 30-90 daily points is labelled (see forecastChartPoints).
+              points={forecastChartPoints(forecastData.points)}
               height={200}
             />
             {forecastData.uses_recurring && (() => {

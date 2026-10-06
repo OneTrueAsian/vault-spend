@@ -30,6 +30,14 @@ describe("formatDisplayDate", () => {
     expect(formatDisplayDate("not a date", today)).toBe("not a date");
     expect(formatDisplayDate("", today)).toBe("");
     expect(formatDisplayDate("2026-13-01", today)).toBe("2026-13-01");
+    expect(formatDisplayDate("2026-02-30", today)).toBe("2026-02-30");
+    expect(formatDisplayDate("2026-04-31", today)).toBe("2026-04-31");
+    expect(formatDisplayDate("2026-02-29", today)).toBe("2026-02-29");
+    expect(formatFullDate("2026-02-30")).toBe("2026-02-30");
+  });
+
+  it("knows leap days", () => {
+    expect(formatDisplayDate("2028-02-29", today)).toBe("Feb 29, 2028");
   });
 
   it("defaults to the real today", () => {

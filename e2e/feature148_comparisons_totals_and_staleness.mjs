@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { displayDate } from "./lib/dates.mjs";
 import { baseSetup, cardText, openReportsTab, person, setupSnippet, waitForCards } from "./lib/comparisons.mjs";
 
 const today = new Date();
@@ -51,8 +52,9 @@ ${setupSnippet(setup2)}
   await (await savings.$(".cmp-explore")).click();
   const typedDetails = await detailsText(browser, "savings");
   assert.ok(typedDetails.includes("Your accounts in Vault Spend add up to $100"), "the tracked total stays visible beside the typed one");
-  // The measuredOn above, written out the way every date reads on screen.
-  assert.ok(typedDetails.includes("Entered on Jan 1, 2024: Statement from the credit union"), `the typed total names its date and source: ${typedDetails}`);
+  // The measuredOn above, written out the way every date reads on screen ("Jan 1, 2024").
+  const entered = `Entered on ${displayDate("2024-01-01")}: Statement from the credit union`; // fixed date: the measuredOn above
+  assert.ok(typedDetails.includes(entered), `the typed total names its date and source: ${typedDetails}`);
 
   console.log("FEATURE 148 E2E TEST PASSED");
 } finally {

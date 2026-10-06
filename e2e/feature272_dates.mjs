@@ -5,6 +5,9 @@
 // - A date field (Add transaction) shows its date written out with the year ("Oct 4, 2026") while it
 //   isn't being edited, and typing a date into the real date input underneath still saves it.
 // - Fixing a row's date in the table goes through the same field and saves.
+// - At rest, the written-out date starts where the input's own text would and stops before the calendar
+//   button: in a labelled field (More filters), a compact row editor (Recurring) and a narrow goal form
+//   at 800px, whose long hint may end in "…" but never runs under the button.
 // - The date field's box matches the text fields beside it, and its written-out date sits where the
 //   input's own text would, in Default, Futuristic and Retro, Light and Dark (screenshots saved).
 // - Export CSV still writes the stored YYYY-MM-DD dates.
@@ -16,7 +19,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { launchApp, waitForDataLoaded, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitForDataLoaded, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { DISPLAY_DATE, displayDate, fieldDate, isoDaysFromNow } from "./lib/dates.mjs";
 import { readDateField, waitForDateFieldText } from "./lib/dateFields.mjs";
@@ -33,6 +36,7 @@ acct = cur.lastrowid
 for d, desc, amt in (("${TODAY}", "Corner Bakery", "-12.40"), ("${LAST_WEEK}", "Fuel Stop", "-41.00"), ("${OLD}", "Old Hardware Store", "-88.10")):
     cur.execute("INSERT INTO transactions (account_id, date, description, amount, category, category_source, fingerprint) VALUES (?,?,?,?,?,?,?)",
                 (acct, d, desc, amt, "Groceries", "user", f"{acct}|{d}|{desc.lower()}|{amt}"))
+cur.execute("INSERT INTO recurring (merchant, category, amount, cadence, anchor_date, account_id) VALUES ('Streaming Plan', NULL, '-15.49', 'monthly', ?, ?)", ("${isoDaysFromNow(9)}", acct))
 `);
 const dbPath = path.join(dbDir, "vaultspend.db");
 const shotsDir = process.env.VS_SCREENS_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-feature272-"));
@@ -130,12 +134,51 @@ const measureDialogFields = () =>
     };
   });
 
+/** Where a resting date field's written-out text sits against its input: where the input's own text
+ * would start, and where its calendar button begins (the button is drawn inside the input's right
+ * padding edge and is about 14px wide at these sizes, so text must end before that). */
+const restingGeometry = (inputSelector) =>
+  browser.execute((sel) => {
+    const input = document.querySelector(sel);
+    const wrapper = input?.closest(".date-field");
+    if (!input || !wrapper) return null;
+    const text = wrapper.querySelector(".date-field-text");
+    const cs = getComputedStyle(input);
+    const ts = getComputedStyle(text);
+    const box = input.getBoundingClientRect();
+    const t = text.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    const glyphs = range.getBoundingClientRect();
+    const contentRight = box.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+    return {
+      text: text.textContent,
+      editing: wrapper.classList.contains("date-field-editing"),
+      nativeLeft: box.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft),
+      textLeft: glyphs.left,
+      // The text box ends where its right padding starts; anything longer is cut off with "…" there.
+      textRight: t.right - parseFloat(ts.paddingRight),
+      buttonLeft: contentRight - 14,
+      truncated: text.scrollWidth > text.clientWidth,
+      width: box.width,
+    };
+  }, inputSelector);
+
+function checkResting(g, where, { mayTruncate = false } = {}) {
+  assert.ok(g, `${where}: no date field found`);
+  assert.equal(g.editing, false, `${where}: the field should be at rest`);
+  assert.ok(Math.abs(g.textLeft - g.nativeLeft) <= 1.5, `${where}: the written-out date should start where the input's text does: ${JSON.stringify(g)}`);
+  assert.ok(g.textRight <= g.buttonLeft + 0.5, `${where}: the written-out date must stop before the calendar button: ${JSON.stringify(g)}`);
+  if (!mayTruncate) assert.equal(g.truncated, false, `${where}: "${g.text}" should fit: ${JSON.stringify(g)}`);
+  console.log(`${where}: "${g.text}" starts at ${g.textLeft.toFixed(1)} (input text ${g.nativeLeft.toFixed(1)}), ends by ${g.textRight.toFixed(1)} (button ~${g.buttonLeft.toFixed(1)})${g.truncated ? ", cut short with …" : ""}`);
+}
+
 try {
   await openTransactions();
 
   // ---- 1. Lists write dates out --------------------------------------------------------------
   const firstRowDate = await browser.execute(() => document.querySelector("table.ledger tbody tr[data-payment-row] td.date-col .date-cell")?.textContent.trim() ?? null);
-  assert.ok(firstRowDate !== null && DISPLAY_DATE.test(firstRowDate), `the first row's date should read like "Oct 4" or "Oct 4, 2025", got "${firstRowDate}"`);
+  assert.ok(firstRowDate !== null && DISPLAY_DATE.test(firstRowDate), `the first row's date should read like "Oct 4", or "Oct 4" and a year, got "${firstRowDate}"`);
   await waitForRowDate("Corner Bakery", displayDate(TODAY));
   await waitForRowDate("Fuel Stop", displayDate(LAST_WEEK));
   await waitForRowDate("Old Hardware Store", displayDate(OLD));
@@ -193,6 +236,37 @@ try {
     timeoutMsg: `fixing the row's date should save ${FIXED}`,
     extra: () => fixedStored,
   });
+
+  // ---- 3b. The resting text sits where the input's text would, clear of the calendar button ---------
+  // A labelled field (Transactions > More filters, empty: "Any date").
+  await withFocusRetry(browser, async () => {
+    if (!(await browser.$('input[aria-label="From date"]').isExisting())) await (await browser.$("button*=More filters")).click();
+    await waitForDateFieldText(browser, 'input[aria-label="From date"]', "Any date", "More filters' From date");
+  });
+  checkResting(await restingGeometry('input[aria-label="From date"]'), "More filters From date (.labeled-field)");
+  await browser.keys("Escape");
+
+  // A compact row editor at rest (Recurring > Edit on a bill: the row-edit-input date field).
+  await (await browser.$(".nav-item[data-tab=recurring]")).click();
+  await waitUntilOrDiagnose(browser, () => browser.execute(() => [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Edit")), {
+    timeoutMsg: "the Recurring list should show the seeded bill with an Edit button",
+  });
+  await (await browser.$("button=Edit")).click();
+  const rowEditDate = 'input.row-edit-input[aria-label="Next due date"]';
+  await waitForDateFieldText(browser, rowEditDate, fieldDate(isoDaysFromNow(9)), "the bill's Next due date while editing the row");
+  checkResting(await restingGeometry(rowEditDate), "Recurring row editor (.row-edit-input)");
+  await (await browser.$("button=Cancel")).click();
+
+  // A narrow field with a long hint: a new goal's target date at 800px may cut the hint short, but
+  // never under the calendar button.
+  await browser.setWindowSize(800, 600);
+  await (await browser.$(".nav-item[data-tab=buckets]")).click();
+  await (await browser.$("button*=New goal")).click();
+  const goalDate = 'input[aria-label="Target date (optional)"]';
+  await waitForDateFieldText(browser, goalDate, "Target date (optional)", "a new goal's target date at 800px");
+  checkResting(await restingGeometry(goalDate), "New goal at 800px (.bucket-new-form)", { mayTruncate: true });
+  await (await browser.$("button=Cancel")).click();
+  await browser.setWindowSize(1440, 1000);
 
   // ---- 4. The field's box matches the text fields, in every style ---------------------------------
   const failures = [];
