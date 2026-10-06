@@ -1877,19 +1877,47 @@
 
 /* The Recurring list reuses `.ledger`'s look but not the Transactions table's fixed column plan
    (that table sets its widths in a <colgroup>; this one has none, so a fixed layout forced its
-   seven columns equal and the status buttons ran under Edit). Its columns size to their content;
-   the merchant column gets room for a two-word name. */
+   seven columns equal and the status buttons ran under Edit). Its columns size to their content.
+   A name longer than its column wraps, and a single very long word breaks rather than widening
+   the table. */
 table.ledger.recurring-table {
   table-layout: auto;
 }
 
 table.ledger.recurring-table td[data-label="Merchant"] {
-  min-width: 11em;
+  min-width: 9em;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
-table.ledger.recurring-table td[data-label="Status"],
-table.ledger.recurring-table td[data-label="Next due"] {
+table.ledger.recurring-table td[data-label="Status"] {
   white-space: nowrap;
+}
+
+/* A cadence pill ("Every 2 weeks") or "Due soon" badge never breaks across two lines; where the
+   next-due column is narrow, the whole badge drops under the date instead. */
+table.ledger.recurring-table .confidence-badge,
+table.ledger.recurring-table .budget-alert-badge {
+  white-space: nowrap;
+}
+
+/* A wide window has room for a three-word name ("Iron Works Gym") and a two-word account name
+   ("Joint Checking") on one line each, and for the due date beside its "Due soon" badge. Below
+   this (the page beside the sidebar is under about 1120px), those widths would push the table
+   past its box in Futuristic's wider letters, so the names may wrap and the badge may drop under
+   the date. The window width stands in for the page's: the sidebar is a fixed width here. */
+@media (min-width: 1400px) {
+  table.ledger.recurring-table td[data-label="Merchant"] {
+    min-width: 14rem;
+  }
+
+  table.ledger.recurring-table td[data-label="Account"] {
+    min-width: 9rem;
+  }
+
+  table.ledger.recurring-table td[data-label="Next due"] {
+    white-space: nowrap;
+  }
 }
 
 table.ledger.recurring-table .actions-col {
@@ -1897,10 +1925,11 @@ table.ledger.recurring-table .actions-col {
   white-space: nowrap;
 }
 
-/* Too narrow for seven columns side by side (a half-width window): each item becomes a small
-   card. Name and amount, then account and cadence, then the next due date, then the status
-   buttons and Edit / Delete. */
-@media (max-width: 1100px) {
+/* Too narrow for seven columns side by side: each item becomes a small card. Name and amount,
+   then account and cadence, then the next due date, then the status buttons and Edit / Delete.
+   Up to 1240px of window the page beside the sidebar is under about 960px, narrower than the
+   table needs in Futuristic (it scrolled inside its box there). */
+@media (max-width: 1240px) {
   table.ledger.recurring-table thead {
     display: none;
   }

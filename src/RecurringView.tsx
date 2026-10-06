@@ -5,7 +5,7 @@ import { DateField } from "./DateField";
 import { fmtMoneyShort } from "./charts";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { CategoryIcon } from "./icons";
-import { CADENCE_OPTIONS } from "./cadence";
+import { CADENCE_OPTIONS, cadenceLabel } from "./cadence";
 import { MenuSelect } from "./MenuSelect";
 
 /** One calendar month forward, clamping the day-of-month into range (Jan
@@ -128,7 +128,7 @@ function SuggestedRecurringSection({
           <div className="suggested-info">
             <div className="suggested-name">{c.merchant}</div>
             <div className="suggested-meta">
-              {c.cadence[0].toUpperCase() + c.cadence.slice(1)} · seen {c.occurrence_count} times
+              {cadenceLabel(c.cadence)} · seen {c.occurrence_count} times
               {c.category && ` · ${c.category}`}
             </div>
           </div>
@@ -213,7 +213,7 @@ function NewRecurringForm({
         ariaLabel="Cadence"
         value={cadence}
         onChange={setCadence}
-        options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
+        options={CADENCE_OPTIONS.map((c) => ({ value: c, label: cadenceLabel(c) }))}
         fill
       />
       <DateField value={anchorDate} onChange={setAnchorDate} ariaLabel="Next due date" placeholder="Next due date" title="Next due date" />
@@ -326,7 +326,7 @@ function EditRecurringRow({
           ariaLabel="Cadence"
           value={cadence}
           onChange={setCadence}
-          options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
+          options={CADENCE_OPTIONS.map((c) => ({ value: c, label: cadenceLabel(c) }))}
           triggerClassName="row-edit-input"
         />
       </td>
@@ -536,22 +536,24 @@ export function RecurringView({
           </p>
         </div>
       </div>
+      {/* Two totals, each a month in large text with its year as small text underneath: the
+          yearly figures stay on the page, just not as tiles of their own. */}
       <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
         <div className="stat tint-neutral">
-          <span className="stat-value">{formatAmount(totals.monthly_expense)}</span>
-          <span className="stat-label">Monthly recurring expenses</span>
+          <span className="stat-label">Bills</span>
+          <span className="stat-value">
+            {formatAmount(totals.monthly_expense)}
+            <span className="stat-value-unit"> a month</span>
+          </span>
+          <span className="stat-sub">{formatAmount(totals.annual_expense)} a year</span>
         </div>
         <div className="stat tint-neutral">
-          <span className="stat-value">{formatAmount(totals.monthly_income)}</span>
-          <span className="stat-label">Monthly recurring income (est.)</span>
-        </div>
-        <div className="stat tint-neutral">
-          <span className="stat-value">{formatAmount(totals.annual_expense)}</span>
-          <span className="stat-label">Annual recurring expenses</span>
-        </div>
-        <div className="stat tint-neutral">
-          <span className="stat-value">{formatAmount(totals.annual_income)}</span>
-          <span className="stat-label">Annual recurring income (est.)</span>
+          <span className="stat-label">Income</span>
+          <span className="stat-value">
+            {formatAmount(totals.monthly_income)}
+            <span className="stat-value-unit"> a month</span>
+          </span>
+          <span className="stat-sub">{formatAmount(totals.annual_income)} a year · estimate</span>
         </div>
       </div>
 
@@ -702,7 +704,7 @@ export function RecurringView({
                 </td>
                 <td data-label="Account">{r.account_name ?? <span className="account-col">—</span>}</td>
                 <td data-label="Cadence">
-                  <span className="confidence-badge">{r.cadence}</span>
+                  <span className="confidence-badge">{cadenceLabel(r.cadence)}</span>
                 </td>
                 <td data-label="Next due">
                   {formatDisplayDate(r.next_date)}
@@ -781,7 +783,7 @@ export function RecurringView({
                     </div>
                   </td>
                   <td>
-                    <span className="confidence-badge">{r.cadence}</span>
+                    <span className="confidence-badge">{cadenceLabel(r.cadence)}</span>
                   </td>
                   <td className="amount-col">{formatAmount(normalizedMonthlyCost(r).toFixed(2))}</td>
                   <td>

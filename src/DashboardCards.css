@@ -85,6 +85,20 @@
   color: var(--text-muted);
 }
 
+/* " a month" after a tile's value (Recurring): read as part of the figure, smaller than it. */
+.stat-value-unit {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* A tile's second figure in small text, such as the yearly total under a monthly one. */
+.stat-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .stat-label {
   font-size: 12px;
   text-transform: uppercase;

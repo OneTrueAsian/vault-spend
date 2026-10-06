@@ -6,7 +6,7 @@
 // - Dashboard: the budget alert banner names a category instead of counting them.
 // - Budget: the income heading's progress fill is not the red (`--negative`) colour, and the
 //   Mortgage line (paid exactly its budget on the 1st) reads "Used in full" in a neutral badge.
-// - Recurring: the four total tiles use the neutral tint.
+// - Recurring: the two total tiles use the neutral tint.
 // - Accounts: a loan's "Owed" amount is the same plain colour as a checking balance, and the
 //   "What you owe" tile uses the neutral tint.
 // - A pinned debt account widget (the Car Loan) has the neutral tint and badge classes.
@@ -220,9 +220,9 @@ try {
   console.log(`${budget.month}: income fill ${budget.fillClass} (${budget.fillColour}, red is ${negative}); Mortgage "${budget.badgeText}"`);
 
   // ---- 4. Recurring: the totals use the neutral tint -------------------------------------------
-  await openTab("recurring", () => document.querySelectorAll(".stats .stat").length === 4, "the Recurring page's four total tiles");
+  await openTab("recurring", () => document.querySelectorAll(".stats .stat").length === 2, "the Recurring page's two total tiles");
   const recurringTints = await browser.execute(() => [...document.querySelectorAll(".stats .stat")].map((s) => s.getAttribute("class")));
-  assert.deepEqual(recurringTints, Array(4).fill("stat tint-neutral"), "the Recurring totals should use the neutral tint");
+  assert.deepEqual(recurringTints, Array(2).fill("stat tint-neutral"), "the Recurring totals should use the neutral tint");
 
   // ---- 5. Accounts: what's owed is plain; the "What you owe" tile is neutral -----------------------
   await openTab("accounts", () => document.querySelectorAll(".account-card .bal").length >= 8, "the Accounts page's account cards");
@@ -251,7 +251,7 @@ try {
   const CHECKS = [
     { tab: "dashboard", ready: () => Boolean(document.querySelector('[data-stat="debt"] .stat-delta') && document.querySelector(".budget-alert-banner")), include: ['[data-stat="debt"]', ".budget-alert-banner", ".todo-list", '[data-widget-id^="account:"]'], hover: ".todo-row", icon: true },
     { tab: "budget", ready: () => Boolean(document.querySelector(".budget-alert-done") && document.querySelector("[data-budget-summary]")), include: [".budget-alert-done", "[data-budget-summary]", "[data-budget-group='income']"], fills: true },
-    { tab: "recurring", ready: () => document.querySelectorAll(".stats .stat").length === 4, include: [".stats"] },
+    { tab: "recurring", ready: () => document.querySelectorAll(".stats .stat").length === 2, include: [".stats"] },
     { tab: "accounts", ready: () => document.querySelectorAll(".account-card .bal").length >= 8, include: [".stats", ".account-card"] },
   ];
   const failures = [];

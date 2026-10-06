@@ -97,6 +97,14 @@ try {
         palette,
         mode,
       );
+      // Switching style moves the layout under the still pointer, and the browser can then report a
+      // hover on the button, opening the tip without pinning it. A click on that tip pins it rather
+      // than closing it, so start every appearance from a closed tip with the pointer elsewhere.
+      await browser.action("pointer").move({ x: 2, y: 2 }).perform();
+      await browser.waitUntil(async () => !(await tipState("Household income per year")).open, {
+        timeout: 3000,
+        timeoutMsg: `the tip should be closed before opening it in ${palette} ${mode}`,
+      });
       await withFocusRetry(browser, async () => {
         if (!(await tipState("Household income per year")).open) await income.click();
         await browser.waitUntil(async () => (await tipState("Household income per year")).shown, { timeout: 3000, timeoutMsg: `the tip should open in ${palette} ${mode}` });

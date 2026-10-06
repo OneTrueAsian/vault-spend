@@ -56,7 +56,7 @@ try {
   const rowText = await recurringRow.getText();
   console.log("new recurring row:", rowText);
   if (!rowText.includes("Checking")) throw new Error(`expected the linked account "Checking", got:\n${rowText}`);
-  if (!/annual/i.test(rowText)) throw new Error(`expected cadence "annual", got:\n${rowText}`);
+  if (!rowText.includes("Yearly")) throw new Error(`expected cadence "Yearly", got:\n${rowText}`);
   if (!rowText.includes("15.99")) throw new Error(`expected amount 15.99, got:\n${rowText}`);
 
   console.log("FEATURE 21 E2E TEST PASSED");

@@ -46,11 +46,12 @@ try {
   await browser.setWindowSize(1440, 1000);
   await browser.pause(800);
 
-  // 1. Recurring: exactly the four money cards, no orphaned fifth.
+  // 1. Recurring: exactly the two money cards (bills and income, each with its yearly figure as
+  //    small text since 1.3.0), side by side.
   await nav("Recurring");
   await (await browser.$(".stats")).waitForExist({ timeout: 10000 });
   const statCount = await browser.execute(() => document.querySelectorAll(".stats .stat").length);
-  if (statCount !== 4) throw new Error(`expected 4 Recurring stat cards, found ${statCount}`);
+  if (statCount !== 2) throw new Error(`expected 2 Recurring stat cards, found ${statCount}`);
   const tops = await browser.execute(() => [...document.querySelectorAll(".stats .stat")].map((el) => Math.round(el.getBoundingClientRect().top)));
   if (new Set(tops).size !== 1) throw new Error(`Recurring stat cards wrapped onto multiple rows: ${JSON.stringify(tops)}`);
 
