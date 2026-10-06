@@ -16,6 +16,14 @@ import { PasswordForm } from "./PasswordForm";
 import { MenuSelect } from "./MenuSelect";
 import { formatDisplayDateTime } from "./format";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs, type NeonAccent } from "./themeBootstrap";
+import type { Theme } from "./appTypes";
+import { ThemeSwitch } from "./SidebarControls";
+import transparentLightPreview from "./assets/style-previews/transparent-light.webp";
+import transparentDarkPreview from "./assets/style-previews/transparent-dark.webp";
+import futuristicLightPreview from "./assets/style-previews/futuristic-light.webp";
+import futuristicDarkPreview from "./assets/style-previews/futuristic-dark.webp";
+import retroLightPreview from "./assets/style-previews/retro-light.webp";
+import retroDarkPreview from "./assets/style-previews/retro-dark.webp";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -441,24 +449,26 @@ function LivePricesSection({
   );
 }
 
-const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string }[] = [
+/** Each style shown as a picture (its Dashboard, captured by tools/capture-style-previews.mjs) in the
+ * light or dark the app is showing, with a one-line description. */
+const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string; previews: { light: string; dark: string } }[] = [
   {
     id: "transparent",
     label: "Default",
-    description:
-      "Vault Spend's standard look — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Follows the Light/Dark/System switch at the bottom of the sidebar.",
+    description: "Clean and soft, with see-through panels.",
+    previews: { light: transparentLightPreview, dark: transparentDarkPreview },
   },
   {
     id: "futuristic",
     label: "Futuristic",
-    description:
-      "A neon look on deep navy — a glowing accent color you choose, tall narrow headings, rounded panels, and its own angular sidebar icons. When it's selected, you can pick the accent color and how strongly it glows. Also follows the Light/Dark/System switch at the bottom of the sidebar.",
+    description: "Neon colors on dark blue. Pick the glow color below.",
+    previews: { light: futuristicLightPreview, dark: futuristicDarkPreview },
   },
   {
     id: "retro",
     label: "Retro",
-    description:
-      "A classic desktop reskin — gray raised and sunken controls, square corners, white document areas, and navy selection, in a plain system sans. Light is the classic gray; Dark is a modern adaptation of the same shapes. Also follows the Light/Dark/System switch at the bottom of the sidebar.",
+    description: "Classic gray desktop look with square corners.",
+    previews: { light: retroLightPreview, dark: retroDarkPreview },
   },
 ];
 
@@ -473,11 +483,18 @@ export function AppearanceSection({
   onSetThemeStyle,
   appearance,
   onSetAppearance,
+  theme,
+  onSetTheme,
+  resolvedTheme,
 }: {
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
   appearance: AppearancePrefs;
   onSetAppearance: (next: AppearancePrefs) => void;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+  /** The light or dark actually showing, so the pictures match it. */
+  resolvedTheme: "light" | "dark";
 }) {
   return (
     <div className="card">
@@ -488,19 +505,29 @@ export function AppearanceSection({
         Choose Vault Spend's visual theme. This only changes colors, fonts, and shapes — nothing about how the app
         works.
       </p>
-      <div className="feature-toggle-list" role="radiogroup" aria-label="Theme">
+      <div className="appearance-theme">
+        <span className="feature-toggle-label">Light or dark</span>
+        <ThemeSwitch theme={theme} onSetTheme={onSetTheme} className="view-toggle" />
+      </div>
+      <div className="style-preview-grid" role="radiogroup" aria-label="Style">
         {THEME_STYLE_OPTIONS.map((opt) => (
-          <label key={opt.id} className="feature-toggle-row">
+          <label key={opt.id} className={themeStyle === opt.id ? "style-preview-tile style-preview-tile-checked" : "style-preview-tile"}>
             <input
               type="radio"
               name="theme-style"
+              className="style-preview-radio"
               checked={themeStyle === opt.id}
               onChange={() => onSetThemeStyle(opt.id)}
             />
-            <span className="feature-toggle-text">
-              <span className="feature-toggle-label">{opt.label}</span>
-              <span className="modal-message-secondary">{opt.description}</span>
-            </span>
+            <img
+              className="style-preview-image"
+              src={opt.previews[resolvedTheme]}
+              alt={`${opt.label} style preview`}
+              width={480}
+              height={300}
+            />
+            <span className="style-preview-name">{opt.label}</span>
+            <span className="style-preview-description">{opt.description}</span>
           </label>
         ))}
       </div>
@@ -1152,6 +1179,9 @@ export function SettingsView({
   onSetThemeStyle,
   appearance,
   onSetAppearance,
+  theme,
+  onSetTheme,
+  resolvedTheme,
   privacyAutoHide,
   onSetPrivacyAutoHide,
   onDownloadSetupTemplate,
@@ -1214,6 +1244,9 @@ export function SettingsView({
   onSetThemeStyle: (style: ThemeStyle) => void;
   appearance: AppearancePrefs;
   onSetAppearance: (next: AppearancePrefs) => void;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+  resolvedTheme: "light" | "dark";
 }) {
   return (
     <div className="reports-view">
@@ -1228,6 +1261,9 @@ export function SettingsView({
         onSetThemeStyle={onSetThemeStyle}
         appearance={appearance}
         onSetAppearance={onSetAppearance}
+        theme={theme}
+        onSetTheme={onSetTheme}
+        resolvedTheme={resolvedTheme}
       />
       <PrivacySection autoHide={privacyAutoHide} onSetAutoHide={onSetPrivacyAutoHide} />
       <ProfilesSection

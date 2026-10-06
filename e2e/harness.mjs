@@ -400,15 +400,15 @@ export async function waitUntilOrDiagnose(browser, condition, { timeout = 10000,
 export async function chooseStyle(browser, label, palette) {
   await (await browser.$(".nav-item[data-tab=settings]")).click();
   const styleRows = (text) =>
-    [...document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')].filter(
-      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    [...document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')].filter(
+      (r) => r.querySelector(".style-preview-name")?.textContent === text,
     ).length;
   await waitUntilOrDiagnose(browser, async () => (await browser.execute(styleRows, label)) > 0, {
     timeoutMsg: `Settings > Appearance should offer ${label}`,
   });
   await browser.execute((text) => {
-    const row = [...document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')].find(
-      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    const row = [...document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')].find(
+      (r) => r.querySelector(".style-preview-name")?.textContent === text,
     );
     row.querySelector("input").click();
   }, label);

@@ -30,8 +30,8 @@ const { browser } = app;
 
 async function selectTheme(label) {
   await browser.execute((text) => {
-    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')).find(
-      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')).find(
+      (r) => r.querySelector(".style-preview-name")?.textContent === text,
     );
     if (!row) throw new Error(`no theme option labelled "${text}"`);
     row.querySelector("input").click();

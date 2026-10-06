@@ -13,6 +13,7 @@ vi.mock("./ProtectionSetupDialog", () => ({
 
 import { AppearanceSection, BackupsBlock, ProfilesSection } from "./SettingsView";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs } from "./themeBootstrap";
+import type { Theme } from "./appTypes";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -148,6 +149,7 @@ describe("Settings AppearanceSection", () => {
     themeStyle: Parameters<typeof AppearanceSection>[0]["themeStyle"] = "transparent",
     appearance: AppearancePrefs = DEFAULT_APPEARANCE_PREFS,
     onSetAppearance = vi.fn(),
+    { theme = "system", onSetTheme = vi.fn(), resolvedTheme = "light" }: { theme?: Theme; onSetTheme?: (t: Theme) => void; resolvedTheme?: "light" | "dark" } = {},
   ) {
     act(() => {
       root.render(
@@ -156,6 +158,9 @@ describe("Settings AppearanceSection", () => {
           onSetThemeStyle={onSetThemeStyle}
           appearance={appearance}
           onSetAppearance={onSetAppearance}
+          theme={theme}
+          onSetTheme={onSetTheme}
+          resolvedTheme={resolvedTheme}
         />,
       );
     });
@@ -238,7 +243,7 @@ describe("Settings AppearanceSection", () => {
   });
 
   function optionLabels() {
-    return Array.from(container.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-label')).map((el) => el.textContent);
+    return Array.from(container.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-name')).map((el) => el.textContent);
   }
 
   it("offers Default, Futuristic and Retro, and no longer Slate", () => {
@@ -248,7 +253,7 @@ describe("Settings AppearanceSection", () => {
 
   it("calls the frosted-glass look Default and stores it under its existing id", () => {
     const onSet = show(vi.fn(), "retro");
-    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.startsWith("Default"))!;
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.startsWith("Default"))!;
     act(() => {
       (row.querySelector("input") as HTMLInputElement).click();
     });
@@ -258,32 +263,32 @@ describe("Settings AppearanceSection", () => {
   it("checks Default when the saved style is the frosted-glass one", () => {
     show(vi.fn(), "transparent");
     const checked = Array.from(container.querySelectorAll<HTMLInputElement>("input[type=radio]")).filter((i) => i.checked);
-    expect(checked[0].closest(".feature-toggle-row")?.textContent).toContain("Default");
+    expect(checked[0].closest(".style-preview-tile")?.textContent).toContain("Default");
   });
 
   it("describes Futuristic by its look and its options, not by font names", () => {
     show();
-    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.startsWith("Futuristic"))!;
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.startsWith("Futuristic"))!;
     expect(row.textContent).not.toMatch(/orbitron|rajdhani|share tech/i);
-    expect(row.textContent).toMatch(/accent/i);
+    expect(row.textContent).toMatch(/glow/i);
   });
 
   it("describes Retro without naming Microsoft or Windows", () => {
     show();
-    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.includes("Retro"))!;
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.includes("Retro"))!;
     expect(row.textContent).not.toMatch(/microsoft|windows/i);
   });
 
-  it("describes Retro as a classic light look with a modern dark adaptation", () => {
+  it("describes Retro as a classic gray look with square corners", () => {
     show();
-    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.includes("Retro"))!;
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.includes("Retro"))!;
     expect(row.textContent).toMatch(/gray/i);
-    expect(row.textContent).toMatch(/dark/i);
+    expect(row.textContent).toMatch(/square corners/i);
   });
 
   it("selects the retro style id when the option is chosen", () => {
     const onSet = show();
-    const row = Array.from(container.querySelectorAll(".feature-toggle-row")).find((r) => r.textContent?.includes("Retro"))!;
+    const row = Array.from(container.querySelectorAll(".style-preview-tile")).find((r) => r.textContent?.includes("Retro"))!;
     act(() => {
       (row.querySelector("input") as HTMLInputElement).click();
     });
@@ -294,6 +299,63 @@ describe("Settings AppearanceSection", () => {
     show(vi.fn(), "retro");
     const checked = Array.from(container.querySelectorAll<HTMLInputElement>("input[type=radio]")).filter((i) => i.checked);
     expect(checked).toHaveLength(1);
-    expect(checked[0].closest(".feature-toggle-row")?.textContent).toContain("Retro");
+    expect(checked[0].closest(".style-preview-tile")?.textContent).toContain("Retro");
+  });
+
+  describe("style previews (s14)", () => {
+    const tiles = () => Array.from(container.querySelectorAll<HTMLLabelElement>("label.style-preview-tile"));
+
+    it("shows each style as a picture with its radio, its name and a one-line description", () => {
+      show();
+      expect(tiles()).toHaveLength(3);
+      const alts = tiles().map((t) => t.querySelector("img")?.getAttribute("alt"));
+      expect(alts).toEqual(["Default style preview", "Futuristic style preview", "Retro style preview"]);
+      for (const tile of tiles()) {
+        const radio = tile.querySelector<HTMLInputElement>("input[type=radio][name=theme-style]");
+        expect(radio, tile.textContent ?? "").not.toBeNull();
+        const description = tile.querySelector(".style-preview-description")?.textContent ?? "";
+        expect(description.length, description).toBeGreaterThan(0);
+        expect(description.length, description).toBeLessThanOrEqual(90);
+        expect(description).not.toMatch(/header/i);
+      }
+      expect(container.textContent).not.toMatch(/header/i);
+    });
+
+    it("marks the chosen style's tile", () => {
+      show(vi.fn(), "futuristic");
+      const chosen = tiles().filter((t) => t.querySelector<HTMLInputElement>("input[name=theme-style]")!.checked);
+      expect(chosen).toHaveLength(1);
+      expect(chosen[0].textContent).toContain("Futuristic");
+    });
+
+    it("shows light pictures in light mode and dark pictures in dark mode", () => {
+      show(vi.fn(), "transparent", DEFAULT_APPEARANCE_PREFS, vi.fn(), { resolvedTheme: "light" });
+      expect(tiles()).toHaveLength(3);
+      for (const img of tiles().map((t) => t.querySelector("img")!)) expect(img.getAttribute("src")).toMatch(/-light\.webp$/);
+      show(vi.fn(), "transparent", DEFAULT_APPEARANCE_PREFS, vi.fn(), { resolvedTheme: "dark" });
+      for (const img of tiles().map((t) => t.querySelector("img")!)) expect(img.getAttribute("src")).toMatch(/-dark\.webp$/);
+    });
+  });
+
+  describe("Light or dark in Settings", () => {
+    const group = () => container.querySelector<HTMLElement>('[role="group"][aria-label="Theme"]');
+    const button = (label: string) => Array.from(group()?.querySelectorAll("button") ?? []).find((b) => b.textContent === label);
+
+    it("offers Light, Dark and System under a Light or dark heading, with the current one marked", () => {
+      show(vi.fn(), "transparent", DEFAULT_APPEARANCE_PREFS, vi.fn(), { theme: "dark" });
+      expect(group()).not.toBeNull();
+      expect(Array.from(group()!.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Light", "Dark", "System"]);
+      expect(button("Dark")!.getAttribute("aria-pressed")).toBe("true");
+      expect(button("Light")!.getAttribute("aria-pressed")).toBe("false");
+      expect(container.textContent).toContain("Light or dark");
+    });
+
+    it("chooses Dark", () => {
+      const onSetTheme = vi.fn();
+      show(vi.fn(), "transparent", DEFAULT_APPEARANCE_PREFS, vi.fn(), { theme: "light", onSetTheme });
+      act(() => button("Dark")!.click());
+      expect(onSetTheme).toHaveBeenCalledWith("dark");
+    });
   });
 });
+

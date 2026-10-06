@@ -11,6 +11,26 @@ interface SidebarControlsProps {
   onSetTheme: (t: Theme) => void;
 }
 
+/** Light / Dark / System, at the foot of the sidebar and in Settings > Appearance. `className` adds the
+ * place's own look to the shared `theme-toggle` group. */
+export function ThemeSwitch({ theme, onSetTheme, className }: { theme: Theme; onSetTheme: (t: Theme) => void; className?: string }) {
+  return (
+    <div className={className ? `theme-toggle ${className}` : "theme-toggle"} role="group" aria-label="Theme">
+      {THEMES.map((t) => (
+        <button
+          key={t}
+          type="button"
+          className={theme === t ? "theme-toggle-active" : ""}
+          aria-pressed={theme === t}
+          onClick={() => onSetTheme(t)}
+        >
+          {themeName(t)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Hide amounts and Light / Dark / System, at the foot of the sidebar (they used to fill a top bar). */
 export function SidebarControls({ privacyHidden, onTogglePrivacy, theme, onSetTheme }: SidebarControlsProps) {
   const next = nextTheme(theme);
@@ -26,13 +46,7 @@ export function SidebarControls({ privacyHidden, onTogglePrivacy, theme, onSetTh
       >
         {privacyHidden ? "Show amounts" : "Hide amounts"}
       </button>
-      <div className="theme-toggle" role="group" aria-label="Theme">
-        {THEMES.map((t) => (
-          <button key={t} type="button" className={theme === t ? "theme-toggle-active" : ""} onClick={() => onSetTheme(t)}>
-            {themeName(t)}
-          </button>
-        ))}
-      </div>
+      <ThemeSwitch theme={theme} onSetTheme={onSetTheme} />
       <button
         type="button"
         className="theme-cycle"

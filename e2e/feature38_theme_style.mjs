@@ -26,8 +26,8 @@ import path from "node:path";
 // itself sidesteps that entirely.
 async function selectTheme(app, label) {
   await app.browser.execute((text) => {
-    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')).find(
-      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')).find(
+      (r) => r.querySelector(".style-preview-name")?.textContent === text,
     );
     if (!row) throw new Error(`no theme option labelled "${text}"`);
     row.querySelector("input").click();
@@ -91,7 +91,7 @@ try {
   // retired Slate row (or Aurora/Midnight Emerald) surviving, or a
   // missing/duplicated row.
   const labels = await app.browser.execute(() =>
-    Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-label')).map((el) => el.textContent),
+    Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-name')).map((el) => el.textContent),
   );
   assert.deepEqual(labels, ["Default", "Futuristic", "Retro"]);
 
@@ -121,6 +121,35 @@ try {
   toggleInSidebar = await app.browser.execute(() => !!document.querySelector(".sidebar-controls .theme-toggle"));
   if (!toggleInSidebar) throw new Error("expected the Light/Dark/System toggle to still exist on Default");
   console.log("Default: data-palette transparent and saved, toggle present — OK");
+
+  // Settings > Appearance has the same Light / Dark / System choice as the sidebar: choosing Dark there
+  // switches the app to dark, the sidebar's group shows Dark, and the style pictures switch to dark ones
+  // (built files are named like transparent-dark-<hash>.webp).
+  const chooseInSettings = (label) =>
+    app.browser.execute((text) => {
+      [...document.querySelectorAll('.page [role="group"][aria-label="Theme"] button')].find((b) => b.textContent === text).click();
+    }, label);
+  await chooseInSettings("Dark");
+  await app.browser.waitUntil(
+    () =>
+      app.browser.execute(() => {
+        const sidebarActive = document.querySelector(".sidebar-controls .theme-toggle .theme-toggle-active")?.textContent;
+        const pictures = [...document.querySelectorAll(".style-preview-tile img")].map((img) => img.getAttribute("src"));
+        return (
+          document.documentElement.dataset.theme === "dark" &&
+          sidebarActive === "Dark" &&
+          pictures.length === 3 &&
+          pictures.every((src) => /-dark(-[\w-]+)?\.webp$/.test(src))
+        );
+      }),
+    { timeout: 5000, timeoutMsg: "choosing Dark in Settings should switch to dark, mark Dark in the sidebar and show the dark pictures" },
+  );
+  await chooseInSettings("System");
+  await app.browser.waitUntil(() => app.browser.execute(() => !document.documentElement.hasAttribute("data-theme")), {
+    timeout: 5000,
+    timeoutMsg: "choosing System in Settings should follow the system again",
+  });
+  console.log("Settings: Light / Dark / System switch drives the theme and the sidebar — OK");
 
   // Regression: Transparent's pill-button rule used a bare `button` type
   // selector, whose specificity (0,1,1) outranked the plain classes

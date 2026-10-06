@@ -69,7 +69,9 @@
   color: var(--text);
 }
 
-.view-toggle button.view-toggle-active {
+/* `.theme-toggle-active`: Settings > Appearance shows the sidebar's Light / Dark / System switch
+   (ThemeSwitch) in this look. */
+.view-toggle button:is(.view-toggle-active, .theme-toggle-active) {
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow-sm);
@@ -335,4 +337,91 @@
 
 .account-group-title:first-of-type {
   margin-top: 0;
+}
+
+/* Settings > Appearance: Light / Dark / System, then each style as a picture of its Dashboard
+   (SettingsView's THEME_STYLE_OPTIONS). The radio stays in each tile, visually hidden, so the
+   keyboard and screen readers use it as a normal radio group; the tile shows the choice and focus. */
+.appearance-theme {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 12px 0 4px;
+}
+
+.appearance-theme .view-toggle {
+  margin-bottom: 0;
+}
+
+.style-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+
+@media (max-width: 700px) {
+  .style-preview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.style-preview-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.style-preview-tile:hover {
+  border-color: var(--border-strong);
+}
+
+.style-preview-tile-checked,
+.style-preview-tile-checked:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.style-preview-tile:has(.style-preview-radio:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.style-preview-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.style-preview-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.style-preview-name {
+  font-weight: 600;
+}
+
+.style-preview-description {
+  font-size: 12.5px;
+  color: var(--text-muted);
 }

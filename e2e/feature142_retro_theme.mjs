@@ -15,8 +15,8 @@ import path from "node:path";
 
 async function selectTheme(app, label) {
   await app.browser.execute((text) => {
-    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')).find(
-      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')).find(
+      (r) => r.querySelector(".style-preview-name")?.textContent === text,
     );
     if (!row) throw new Error(`no theme option labelled "${text}"`);
     row.querySelector("input").click();
@@ -51,7 +51,7 @@ try {
   await appearanceHeading.waitForExist({ timeout: 10000 });
 
   const labels = await app.browser.execute(() =>
-    Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-label')).map((el) => el.textContent),
+    Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-name')).map((el) => el.textContent),
   );
   assert.deepEqual(labels, ["Default", "Futuristic", "Retro"]);
 

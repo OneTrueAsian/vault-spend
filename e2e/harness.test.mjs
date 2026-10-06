@@ -439,12 +439,12 @@ describe("window size", () => {
 });
 
 describe("chooseStyle", () => {
-  /** Settings > Appearance, whose style rows render only after `rowsAfter` reads (a lazy page). */
+  /** Settings > Appearance, whose style tiles render only after `rowsAfter` reads (a lazy page). */
   function fakeAppearance({ rowsAfter = 1, labels = ["Default", "Futuristic", "Retro"] } = {}) {
     const state = { reads: 0, palette: "transparent", settingsClicks: 0, radioClicks: 0 };
     const rows = labels.map((label) => ({
       querySelector(selector) {
-        if (selector === ".feature-toggle-label") return { textContent: label };
+        if (selector === ".style-preview-name") return { textContent: label };
         if (selector === "input") return { click: () => (state.radioClicks++, (state.palette = label.toLowerCase())) };
         return null;
       },
@@ -457,7 +457,10 @@ describe("chooseStyle", () => {
       async execute(fn, ...args) {
         globalThis.document = {
           documentElement: { dataset: { palette: state.palette } },
-          querySelectorAll: () => (state.reads++ >= rowsAfter ? rows : []),
+          querySelectorAll: (selector) => {
+            expect(selector).toBe('[role="radiogroup"][aria-label="Style"] .style-preview-tile');
+            return state.reads++ >= rowsAfter ? rows : [];
+          },
         };
         return fn(...args);
       },

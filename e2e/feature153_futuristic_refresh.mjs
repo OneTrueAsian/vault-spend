@@ -26,8 +26,8 @@ async function openSettings(browser) {
 
 async function selectStyle(browser, label) {
   await browser.execute((text) => {
-    const row = [...document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')].find(
-      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    const row = [...document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')].find(
+      (r) => r.querySelector(".style-preview-name")?.textContent === text,
     );
     row.querySelector("input").click();
   }, label);

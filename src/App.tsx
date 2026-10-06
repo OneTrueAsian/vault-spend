@@ -27,6 +27,7 @@ import { useLedgerFilters } from "./useLedgerFilters";
 import { LedgerTable } from "./LedgerTable";
 import { LedgerNeedsCategory } from "./LedgerNeedsCategory";
 import { SidebarControls } from "./SidebarControls";
+import { useResolvedTheme } from "./useResolvedTheme";
 import { LedgerPageActions } from "./LedgerPageActions";
 import { LedgerBulkActions } from "./LedgerBulkActions";
 import { LedgerFilterBar } from "./LedgerFilterBar";
@@ -1248,6 +1249,8 @@ function App({
       // per-viewer preference only — fine to skip if storage is unavailable
     }
   }, [theme]);
+
+  const resolvedTheme = useResolvedTheme(theme);
 
   function setTheme(next: Theme) {
     setThemeState(next);
@@ -4170,6 +4173,9 @@ function App({
                 onSetThemeStyle={setThemeStyle}
                 appearance={appearance}
                 onSetAppearance={setAppearance}
+                theme={theme}
+                onSetTheme={setTheme}
+                resolvedTheme={resolvedTheme}
                 privacyAutoHide={privacyPrefs.autoHide}
                 onSetPrivacyAutoHide={(autoHide) => setPrivacyPrefs((p) => ({ ...p, autoHide }))}
                 onDownloadSetupTemplate={handleDownloadSetupTemplate}
