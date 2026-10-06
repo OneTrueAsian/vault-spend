@@ -12,6 +12,7 @@ import { MenuSelect } from "./MenuSelect";
 import { ModalShell } from "./Modal";
 
 import { errorMessage } from "./errorMessage";
+import { formatEpochDateTime } from "./format";
 
 import "./MobileSettings.css";
 
@@ -25,7 +26,7 @@ interface Device{id:string;label:string;profiles:string[];lastSeen:number|null;e
 
 interface Profile{id:string;name:string}
 
-function date(seconds:number|null){return seconds?new Date(seconds*1000).toLocaleString():"Not yet connected";}
+function date(seconds:number|null){return seconds?formatEpochDateTime(seconds):"Not yet connected";}
 
 export function MobileSettings(){
 
@@ -65,7 +66,7 @@ export function MobileSettings(){
 
   <div className="card-head"><h2 id="mobile-settings-title" className="reports-section-title">Mobile snapshots</h2></div>
 
-  <p>Take a saved, read-only snapshot with you. Refresh on your local Wi-Fi while Vault Spend is open and the requested profile is active and unlocked. No cloud storage.</p>
+  <p className="modal-message-secondary">Take a saved, read-only snapshot with you. Refresh on your local Wi-Fi while Vault Spend is open and the requested profile is active and unlocked. No cloud storage.</p>
 
   <p role="status">{status?.running?"Local HTTPS is running":"Mobile access is stopped"}{status?.error?`. ${status.error}`:""}</p>
 
@@ -75,7 +76,7 @@ export function MobileSettings(){
 
   <div className="mobile-desktop-fields"><div><MenuSelect ariaLabel="Local network" value={network} onChange={setNetwork} options={interfaces.map(item=>({value:JSON.stringify(item),label:`${item[0]} · ${item[1]}`}))} placeholder="Choose a local network" disabled={busy} fill/></div><label>Fixed port<input aria-label="Mobile HTTPS port" type="number" min="1024" max="65535" value={port} disabled={busy} onChange={event=>setPort(event.target.value)}/></label></div>
 
-  <p>Guided setup uses a stable local name. The advanced IP address method requires a stable address; changing its address or port creates a different saved-data location.</p>
+  <p className="modal-message-secondary">Guided setup uses a stable local name. The advanced IP address method requires a stable address; changing its address or port creates a different saved-data location.</p>
 
   <div className="modal-actions"><button disabled={busy||!network} onClick={()=>void run(async()=>{setPair(null);await invoke("mobile_configure",{config:config()});})}>Enable local HTTPS</button><button className="modal-secondary" disabled={busy||!status?.running} onClick={()=>void run(async()=>{setPair(null);await invoke("mobile_disable");})}>Disable mobile access</button></div></details>
 

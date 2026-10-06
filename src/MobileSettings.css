@@ -1,4 +1,6 @@
 .mobile-desktop-settings { overflow-wrap: anywhere; }
+/* A real heading for screen readers, at the same weight as the other Settings cards' titles. */
+.mobile-desktop-settings h2.reports-section-title { font-weight: inherit; }
 .mobile-desktop-settings p,.mobile-desktop-settings li { line-height: 1.55; }
 .mobile-desktop-settings details { margin: 16px 0; }
 .mobile-desktop-settings summary { cursor: pointer; font-weight: 600; }

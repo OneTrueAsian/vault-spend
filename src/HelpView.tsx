@@ -567,7 +567,7 @@ export const TAB_HELP: TabHelp[] = [
   {
     tab: "settings",
     title: "Settings",
-    summary: "How Vault Spend looks, your profiles and passwords, rules, privacy, reminders, and everything about your data.",
+    summary: "How Vault Spend looks, your profiles and passwords, rules, privacy, reminders, seeing your money on your phone, and everything about your data.",
     howTo: [
       {
         question: "How do I switch between light and dark?",
@@ -605,6 +605,13 @@ export const TAB_HELP: TabHelp[] = [
           <>Optionally start it when you sign in, so reminders arrive with the window closed.</>,
         ],
       },
+      {
+        question: "How do I see my money on my phone?",
+        steps: [
+          <>Open <strong>Settings → Mobile snapshots</strong> and click <strong>Set up a phone</strong>. The guide walks you through it for iPhone or Android.</>,
+          <>Your phone keeps a saved copy you can look at anywhere. It updates when your phone and computer are on the same home Wi-Fi with Vault Spend open (see FAQ).</>,
+        ],
+      },
     ],
     more: [
       <>Your <strong>categorization rules</strong> live here (see FAQ), with an optional live stock-price integration for the Investments tab.</>,
@@ -616,6 +623,7 @@ export const TAB_HELP: TabHelp[] = [
       "dark mode", "light mode", "default", "futuristic", "transparent", "retro", "rules", "categorization rules",
       "privacy", "hide amounts", "second backup", "backup copy", "background reminders", "tray", "start with windows",
       "setup data", "data", "feature toggles", "rollover unspent", "style", "light", "dark", "system",
+      "mobile snapshots", "phone", "pairing",
     ],
   },
 ];

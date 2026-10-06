@@ -92,3 +92,11 @@ export function formatDisplayDateTime(stamp: string, today: Date = new Date()): 
   const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
   return `${formatDisplayDate(match[1], today)}, ${hour12}:${match[3]} ${hour24 < 12 ? "AM" : "PM"}`;
 }
+
+/** A moment given as seconds since 1970 (as the Rust side reports them), shown in local time the same
+ * way as `formatDisplayDateTime`: "Oct 6, 5:21 PM". */
+export function formatEpochDateTime(seconds: number, today: Date = new Date()): string {
+  const d = new Date(seconds * 1000);
+  const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return formatDisplayDateTime(`${toLocalIsoDate(d)} ${time}`, today);
+}

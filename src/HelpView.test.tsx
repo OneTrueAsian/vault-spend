@@ -205,6 +205,17 @@ describe("HelpView sections per tab (s12)", () => {
     }
   });
 
+  it("covers the Mobile snapshots card in the Settings section", () => {
+    const settings = TAB_HELP.find((h) => h.tab === "settings")!;
+    expect(settings.summary).toMatch(/phone/i);
+    expect(settings.howTo.map((h) => h.question)).toContain("How do I see my money on my phone?");
+    show();
+    for (const word of ["phone", "mobile snapshots", "pairing"]) {
+      search(word);
+      expect(container.querySelector<HTMLDetailsElement>("#help-settings")?.open, word).toBe(true);
+    }
+  });
+
   it("opens and scrolls to the section a page's ? link asked for", () => {
     show("budget");
     const budget = container.querySelector<HTMLDetailsElement>("#help-budget")!;

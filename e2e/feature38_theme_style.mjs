@@ -127,7 +127,7 @@ try {
   // (built files are named like transparent-dark-<hash>.webp).
   const chooseInSettings = (label) =>
     app.browser.execute((text) => {
-      [...document.querySelectorAll('.page [role="group"][aria-label="Theme"] button')].find((b) => b.textContent === text).click();
+      [...document.querySelectorAll('.page .appearance-theme [role="group"] button')].find((b) => b.textContent === text).click();
     }, label);
   await chooseInSettings("Dark");
   await app.browser.waitUntil(

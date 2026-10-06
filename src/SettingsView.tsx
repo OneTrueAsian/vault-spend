@@ -509,8 +509,8 @@ export function AppearanceSection({
         works.
       </p>
       <div className="appearance-theme">
-        <span className="feature-toggle-label">Light or dark</span>
-        <ThemeSwitch theme={theme} onSetTheme={onSetTheme} className="view-toggle" />
+        <span className="feature-toggle-label" id="appearance-light-dark">Light or dark</span>
+        <ThemeSwitch theme={theme} onSetTheme={onSetTheme} className="view-toggle" labelledBy="appearance-light-dark" />
       </div>
       <div className="style-preview-grid" role="radiogroup" aria-label="Style">
         {THEME_STYLE_OPTIONS.map((opt) => (
@@ -520,6 +520,8 @@ export function AppearanceSection({
               name="theme-style"
               className="style-preview-radio"
               checked={themeStyle === opt.id}
+              aria-label={opt.label}
+              aria-describedby={`style-description-${opt.id}`}
               onChange={() => onSetThemeStyle(opt.id)}
             />
             <img
@@ -530,7 +532,7 @@ export function AppearanceSection({
               height={300}
             />
             <span className="style-preview-name">{opt.label}</span>
-            <span className="style-preview-description">{opt.description}</span>
+            <span className="style-preview-description" id={`style-description-${opt.id}`}>{opt.description}</span>
           </label>
         ))}
       </div>

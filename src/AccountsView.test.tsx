@@ -23,6 +23,7 @@ describe("account rows", () => {
   it("has one named open button instead of separate Details/Edit buttons", () => {
     const button = card().querySelector<HTMLButtonElement>(".account-card-open")!;
     expect(button?.textContent).toBe(account.name);
+    expect(button.getAttribute("title")).toBe(`Open details for ${account.name}`);
     expect(card().querySelectorAll(".account-card-open")).toHaveLength(1);
     expect([...card().querySelectorAll("button")].some(b => b.textContent === "Details" || b.textContent === "Edit")).toBe(false);
     act(() => button.click()); expect(open).toHaveBeenCalledWith(7);

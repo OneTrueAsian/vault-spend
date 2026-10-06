@@ -12,10 +12,25 @@ interface SidebarControlsProps {
 }
 
 /** Light / Dark / System, at the foot of the sidebar and in Settings > Appearance. `className` adds the
- * place's own look to the shared `theme-toggle` group. */
-export function ThemeSwitch({ theme, onSetTheme, className }: { theme: Theme; onSetTheme: (t: Theme) => void; className?: string }) {
+ * place's own look to the shared `theme-toggle` group. The group is named "Theme", or by a visible label
+ * when `labelledBy` gives its id (Settings, so the page doesn't have two groups called "Theme"). */
+export function ThemeSwitch({
+  theme,
+  onSetTheme,
+  className,
+  labelledBy,
+}: {
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+  className?: string;
+  labelledBy?: string;
+}) {
   return (
-    <div className={className ? `theme-toggle ${className}` : "theme-toggle"} role="group" aria-label="Theme">
+    <div
+      className={className ? `theme-toggle ${className}` : "theme-toggle"}
+      role="group"
+      {...(labelledBy ? { "aria-labelledby": labelledBy } : { "aria-label": "Theme" })}
+    >
       {THEMES.map((t) => (
         <button
           key={t}

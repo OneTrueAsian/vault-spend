@@ -152,7 +152,7 @@ function AccountCard({
       </span>
       <div className="info">
         <div className="account-name-cell">
-          <button type="button" className="account-card-open" data-account-details={a.id} onClick={() => onOpenDetail(a.id)}>{a.name}</button>
+          <button type="button" className="account-card-open" data-account-details={a.id} title={`Open details for ${a.name}`} onClick={() => onOpenDetail(a.id)}>{a.name}</button>
         </div>
         <span className="sub account-name-detail-static">{detailLine}</span>
       </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDisplayDate, formatDisplayDateTime, formatFullDate, formatMonthYear, shortMonthDay } from "./format";
+import { formatDisplayDate, formatDisplayDateTime, formatEpochDateTime, formatFullDate, formatMonthYear, shortMonthDay } from "./format";
 
 describe("shortMonthDay", () => {
   it("turns a stored date into a compact axis label", () => {
@@ -58,6 +58,16 @@ describe("formatDisplayDateTime", () => {
 
   it("gives back anything else unchanged", () => {
     expect(formatDisplayDateTime("vaultspend-backup.db", today)).toBe("vaultspend-backup.db");
+  });
+});
+
+describe("formatEpochDateTime", () => {
+  const today = new Date(2026, 9, 4);
+
+  it("shows a moment given in seconds the same way, in local time", () => {
+    const seconds = new Date(2026, 9, 6, 17, 21, 38).getTime() / 1000;
+    expect(formatEpochDateTime(seconds, today)).toBe("Oct 6, 5:21 PM");
+    expect(formatEpochDateTime(new Date(2027, 0, 2, 9, 5).getTime() / 1000, today)).toBe("Jan 2, 2027, 9:05 AM");
   });
 });
 

@@ -586,6 +586,7 @@ svg.profile-switcher-icon {
 
 .help-link:hover {
   color: var(--text);
+  background: var(--surface-hover);
   border-color: var(--accent);
 }
 

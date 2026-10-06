@@ -188,6 +188,9 @@
   position: relative;
   z-index: 1;
 }
+/* Each card is its own stacking layer (isolation above), so an open icon picker could only rise
+   within its card and was drawn under the cards below it. Lift the whole card while it is open. */
+.account-card:has(.icon-picker-popover) { z-index: 2; }
 .account-card .bal { font-variant-numeric: tabular-nums; }
 .account-card .bal.neg { color: var(--negative); }
 .account-card .account-name-detail-static { display: block; overflow-wrap: anywhere; }

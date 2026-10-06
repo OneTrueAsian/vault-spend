@@ -8,12 +8,16 @@ import { describe, expect, it } from "vitest";
 
 const SRC = join(__dirname);
 
+/** Mobile files that render inside the desktop app (Settings > Mobile snapshots, the pairing prompt). */
+const DESKTOP_MOBILE = new Set(["MobileSettings.tsx", "MobileSetupWizard.tsx", "MobilePairingPrompt.tsx"]);
+
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return files(path);
     if (!/\.tsx?$/.test(name) || /\.test\.tsx?$/.test(name)) return [];
-    if (/^(Mobile|mobile)/.test(name)) return [];
+    // The phone viewer is its own app; the mobile screens that run inside the desktop app are checked.
+    if (/^(Mobile|mobile)/.test(name) && !DESKTOP_MOBILE.has(name)) return [];
     return [path];
   });
 }
@@ -81,5 +85,14 @@ describe("one date format", () => {
 
   it("doesn't build its own written-out dates", () => {
     expect(hits(/toLocaleDateString\([^)]*day:\s*"numeric"/)).toEqual([]);
+  });
+
+  it("doesn't show a date in the computer's own short format (10/6/2026, 5:21:38 PM)", () => {
+    expect(hits(/\)\.toLocale(String|DateString|TimeString)\(\)/)).toEqual([]);
+  });
+
+  it("checks the mobile screens that run inside the desktop app", () => {
+    expect(sources.some((s) => s.rel === "MobileSettings.tsx")).toBe(true);
+    expect(sources.some((s) => s.rel === "MobileViewer.tsx")).toBe(false);
   });
 });

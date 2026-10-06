@@ -313,6 +313,9 @@ describe("Settings AppearanceSection", () => {
       for (const tile of tiles()) {
         const radio = tile.querySelector<HTMLInputElement>("input[type=radio][name=theme-style]");
         expect(radio, tile.textContent ?? "").not.toBeNull();
+        // Spoken as just the style name, with the one-line description read as its description.
+        expect(radio!.getAttribute("aria-label")).toBe(tile.querySelector(".style-preview-name")?.textContent);
+        expect(document.getElementById(radio!.getAttribute("aria-describedby") ?? "")).toBe(tile.querySelector(".style-preview-description"));
         const description = tile.querySelector(".style-preview-description")?.textContent ?? "";
         expect(description.length, description).toBeGreaterThan(0);
         expect(description.length, description).toBeLessThanOrEqual(90);
@@ -338,7 +341,12 @@ describe("Settings AppearanceSection", () => {
   });
 
   describe("Light or dark in Settings", () => {
-    const group = () => container.querySelector<HTMLElement>('[role="group"][aria-label="Theme"]');
+    // Named by its visible "Light or dark" label, so it is not a second group called "Theme" (the sidebar's).
+    const group = () => {
+      const g = container.querySelector<HTMLElement>(".appearance-theme [role=group]");
+      const label = g && document.getElementById(g.getAttribute("aria-labelledby") ?? "");
+      return label?.textContent === "Light or dark" && !g!.hasAttribute("aria-label") ? g : null;
+    };
     const button = (label: string) => Array.from(group()?.querySelectorAll("button") ?? []).find((b) => b.textContent === label);
 
     it("offers Light, Dark and System under a Light or dark heading, with the current one marked", () => {
