@@ -77,11 +77,6 @@
   z-index: 59;
 }
 
-.account-card .type-badge-neg {
-  background: var(--negative-soft);
-  color: var(--negative);
-}
-
 .account-card .type-badge svg,
 .account-card .type-badge img {
   width: 22px;
@@ -150,7 +145,3 @@
   font-weight: 600;
 }
 
-.report-good {
-  color: var(--positive);
-  font-weight: 600;
-}

@@ -256,3 +256,93 @@ describe("Runway ring", () => {
     expect(ring.getAttribute("aria-label")).toBe("2.0 months of a 6-month goal");
   });
 });
+
+// s4: red only for what needs you. Owing money is not by itself a problem, so the Debt amount
+// and its tile stay neutral; only its change line is coloured. The budget banner names categories.
+describe("Dashboard colours", () => {
+  const point = (debt: string, i: number) => ({
+    month_label: `M${i}`,
+    value: "0",
+    cash: "4000.00",
+    debt,
+    investments: "0",
+    as_of: `2026-0${i + 1}-28`,
+  });
+  const loan = account({ id: 2, name: "Car loan", account_type: "loan", starting_balance: "8000.00", current_balance: "8000.00" });
+  const debtTile = () => container.querySelector<HTMLElement>('[data-stat="debt"]')!;
+
+  it("keeps a growing debt's amount and tile neutral, and colours only its change line", async () => {
+    await render(props({ accounts: [account({}), loan], netWorthHistory: [point("-5000.00", 0), point("-8000.00", 1)] }));
+    const tile = debtTile();
+    expect(tile.classList.contains("tint-neutral")).toBe(true);
+    expect(tile.classList.contains("tint-red")).toBe(false);
+    expect(tile.querySelector(".stat-value")!.className).toBe("stat-value");
+    expect(tile.querySelector(".stat-delta")!.className).toBe("stat-delta down");
+    expect(tile.querySelector(".stat-delta")!.textContent).toContain("▲");
+    // Growing debt is the one case that keeps the warning icon.
+    expect(tile.querySelector<HTMLElement>(".mini-ico")!.dataset.debtIcon).toBe("warning");
+  });
+
+  it("keeps a shrinking debt's amount neutral too, with a green change line and the plain icon", async () => {
+    await render(props({ accounts: [account({}), loan], netWorthHistory: [point("-9000.00", 0), point("-8000.00", 1)] }));
+    const tile = debtTile();
+    expect(tile.querySelector(".stat-value")!.className).toBe("stat-value");
+    expect(tile.querySelector(".stat-delta")!.className).toBe("stat-delta up");
+    expect(tile.querySelector<HTMLElement>(".mini-ico")!.dataset.debtIcon).toBe("debt");
+  });
+
+  it("doesn't show the warning icon for debt with no history to compare", async () => {
+    await render(props({ accounts: [account({}), loan] }));
+    expect(debtTile().querySelector<HTMLElement>(".mini-ico")!.dataset.debtIcon).toBe("debt");
+  });
+
+  it("keeps a pinned debt account's tile and badge neutral", async () => {
+    await render(props({ accounts: [account({}), loan], layoutWidgets: [...DEFAULT_LAYOUT, "account:2" as WidgetId] }));
+    const widget = container.querySelector<HTMLElement>('[data-widget-id="account:2"] .stat')!;
+    expect(widget.classList.contains("tint-neutral")).toBe(true);
+    expect(widget.querySelector(".mini-ico")!.className).toBe("mini-ico neutral");
+  });
+
+  it("names the categories in the budget banner and still opens the details", async () => {
+    await render(
+      props({
+        budgetAlerts: [
+          { category: "Dining", budget_group: "flexible", budgeted: "100.00", actual: "150.00", pct: "150", level: "over", cap_enabled: false },
+          { category: "Groceries", budget_group: "flexible", budgeted: "400.00", actual: "350.00", pct: "88", level: "warning", cap_enabled: false },
+        ],
+      }),
+    );
+    const banner = container.querySelector<HTMLButtonElement>(".budget-alert-banner")!;
+    expect(banner.textContent).toBe("Dining is over its budget; Groceries is close to its budget");
+    act(() => banner.click());
+    expect(container.querySelector(".stat-detail-panel")?.textContent).toContain("Dining");
+  });
+
+  it("keeps the banner quiet when every alert is a budget used exactly in full", async () => {
+    await render(
+      props({
+        budgetAlerts: [
+          { category: "Mortgage", budget_group: "fixed", budgeted: "2140.00", actual: "2140.00", pct: "100", level: "warning", cap_enabled: false },
+        ],
+      }),
+    );
+    const banner = container.querySelector<HTMLButtonElement>(".budget-alert-banner")!;
+    expect(banner.textContent).toBe("Mortgage has used its whole budget");
+    expect(banner.className).toBe("budget-alert-banner budget-alert-banner-done");
+    expect(banner.querySelector(".budget-alert-icon")).toBeNull();
+  });
+
+  it("keeps the warning look when any alert is over or close", async () => {
+    await render(
+      props({
+        budgetAlerts: [
+          { category: "Mortgage", budget_group: "fixed", budgeted: "2140.00", actual: "2140.00", pct: "100", level: "warning", cap_enabled: false },
+          { category: "Groceries", budget_group: "flexible", budgeted: "800.00", actual: "700.00", pct: "88", level: "warning", cap_enabled: false },
+        ],
+      }),
+    );
+    const banner = container.querySelector<HTMLButtonElement>(".budget-alert-banner")!;
+    expect(banner.className).toBe("budget-alert-banner");
+    expect(banner.querySelector(".budget-alert-icon")).not.toBeNull();
+  });
+});

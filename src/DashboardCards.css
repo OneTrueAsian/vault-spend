@@ -160,6 +160,12 @@
   background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--negative) 8%, var(--surface)) 100%);
 }
 
+/* For figures that are neither good nor bad news (s4: red only for what needs you), such as what
+   you owe. A plain wash toward the second surface colour instead of a hue. */
+.stat.tint-neutral {
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface-2) 60%, var(--surface)) 100%);
+}
+
 .stat.tint-purple {
   background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, #8a5fb0 8%, var(--surface)) 100%);
 }
@@ -233,8 +239,24 @@
   background: linear-gradient(135deg, var(--accent-strong), var(--info));
 }
 
-.stat-hero .mini-ico.red {
-  background: linear-gradient(135deg, #ff8a83, var(--negative));
+/* A debt account's badge (s4): neutral, like the Debt tile, with the icon in the text colour. */
+.stat-hero .mini-ico.neutral {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.stat-hero .mini-ico.neutral img.icon-img {
+  filter: brightness(0);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .stat-hero .mini-ico.neutral img.icon-img {
+    filter: brightness(0) invert(1);
+  }
+}
+
+:root[data-theme="dark"] .stat-hero .mini-ico.neutral img.icon-img {
+  filter: brightness(0) invert(1);
 }
 
 .stat-hero .mini-ico.purple {

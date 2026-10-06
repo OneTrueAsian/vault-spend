@@ -25,7 +25,7 @@ import type {
 import { DonutChart, LineChart, ProgressRing, Sparkline, fmtMoneyShort } from "./charts";
 import { StatDetailPanel } from "./StatDetailPanel";
 import { formatAmount } from "./format";
-import { groupOf, netWorthContribution, owedAmount } from "./accountGroups";
+import { groupOf, isOverdrawn, netWorthContribution, owedAmount } from "./accountGroups";
 import { netWorthByMember } from "./memberBreakdowns";
 import { daysLeft } from "./BucketsView";
 import {
@@ -48,6 +48,7 @@ import { SafeToSpendCard } from "./SafeToSpendCard";
 import { CategorySpendDialog } from "./CategorySpendDialog";
 import { CATEGORY_COLORS } from "./categoryPalette";
 import { sumMoney } from "./money";
+import { describeBudgetAlerts, isUsedInFull } from "./budgetAlertText";
 
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
@@ -355,8 +356,6 @@ export function DashboardView({
     { done: (report?.budget_actuals.length ?? 0) > 0, label: "Set up your budget", detail: "Give at least one category a monthly amount.", onClick: onOpenBudget },
   ];
   const showChecklist = !checklistDismissed && checklistSteps.some((s) => !s.done);
-  const overCount = budgetAlerts.filter((a) => a.level === "over").length;
-  const warningCount = budgetAlerts.filter((a) => a.level === "warning").length;
 
   const netWorth = netWorthHistory.length ? parseFloat(netWorthHistory[netWorthHistory.length - 1].value) : 0;
   // The trend delta stays purely history-based (comparing two points on the
@@ -414,21 +413,22 @@ export function DashboardView({
   // and should read as good news (green, ▼), not the alarm color/arrow a
   // merely nonzero balance would otherwise get below.
   const debtTrendingDown = netWorthHistory.length > 1 && debtDelta < 0;
+  // Owing money is not by itself something to fix (s4), so only debt that grew gets the warning
+  // icon and the red trend line. The amount itself always stays neutral.
+  const debtGrowing = netWorthHistory.length > 1 && debtDelta > 0;
   const investmentsDelta = investmentsSpark.length ? investmentsSpark[investmentsSpark.length - 1] - investmentsSpark[0] : 0;
   const monthsSpan = netWorthHistory.length;
 
-  const breakdowns: Record<StatKey, { name: string; amount: number }[]> = useMemo(
-    () => ({
-      networth: [
-        ...accounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })),
-        ...(assetsTotal !== 0 ? [{ name: "Property & Valuables", amount: assetsTotal }] : []),
-      ],
-      cash: cashAccounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })),
-      debt: debtAccounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })),
-      investments: investmentAccounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })),
-    }),
-    [accounts, assetsTotal, cashAccounts, debtAccounts, investmentAccounts],
-  );
+  // Red only for a balance below zero (s4), not for what's owed on a card or loan.
+  const breakdowns: Record<StatKey, { name: string; amount: number; flag?: boolean }[]> = useMemo(() => {
+    const row = (a: Account) => ({ name: a.name, amount: netWorthContribution(a), flag: isOverdrawn(a) });
+    return {
+      networth: [...accounts.map(row), ...(assetsTotal !== 0 ? [{ name: "Property & Valuables", amount: assetsTotal }] : [])],
+      cash: cashAccounts.map(row),
+      debt: debtAccounts.map(row),
+      investments: investmentAccounts.map(row),
+    };
+  }, [accounts, assetsTotal, cashAccounts, debtAccounts, investmentAccounts]);
 
   // "What changed" rows for each stat card's own detail panel — which
   // account(s) actually drove the trend shown above, not just the total.
@@ -602,30 +602,29 @@ export function DashboardView({
       <button
         type="button"
         className={
-          expandedStat === "debt" ? "stat stat-hero tint-red stat-clickable stat-expanded" : "stat stat-hero tint-red stat-clickable"
+          expandedStat === "debt" ? "stat stat-hero tint-neutral stat-clickable stat-expanded" : "stat stat-hero tint-neutral stat-clickable"
         }
         onClick={() => toggleStat("debt")}
         data-stat="debt"
       >
         <div className="stat-top">
-          <span className="mini-ico mini-ico-plain">
-            <IconEntryGlyph entry={flatIconEntry(debt !== 0 && !debtTrendingDown ? "warning-icon" : "debt-dash")} />
+          <span className="mini-ico mini-ico-plain" data-debt-icon={debtGrowing ? "warning" : "debt"}>
+            <IconEntryGlyph entry={flatIconEntry(debtGrowing ? "warning-icon" : "debt-dash")} />
           </span>
           <span className="stat-label">Debt</span>
         </div>
-        <span
-          className={
-            debt === 0 ? "stat-value" : debtTrendingDown ? "stat-value report-good" : "stat-value report-over-budget"
-          }
-        >
-          {formatAmount(debt)}
-        </span>
+        <span className="stat-value">{formatAmount(debt)}</span>
         {monthsSpan > 1 && (
           <span className={debtDelta <= 0 ? "stat-delta up" : "stat-delta down"}>
             {debtDelta <= 0 ? "▼" : "▲"} {fmtMoneyShort(Math.abs(debtDelta))} over {monthsSpan}mo
           </span>
         )}
-        <Sparkline points={debtSpark} color={debtTrendingDown ? "var(--positive)" : "var(--negative)"} width={160} fluid />
+        <Sparkline
+          points={debtSpark}
+          color={debtGrowing ? "var(--negative)" : debtTrendingDown ? "var(--positive)" : "var(--text-muted)"}
+          width={160}
+          fluid
+        />
       </button>
     ),
 
@@ -702,13 +701,14 @@ export function DashboardView({
           </div>
         )}
         {budgetAlerts.length > 0 && (
-          <button type="button" className="budget-alert-banner" onClick={() => setShowBudgetAlerts((v) => !v)}>
-            <IconEntryGlyph entry={flatIconEntry("warning-icon")} className="budget-alert-icon" />
-            <span>
-              {overCount > 0 && `${overCount} categor${overCount === 1 ? "y" : "ies"} over budget`}
-              {overCount > 0 && warningCount > 0 && ", "}
-              {warningCount > 0 && `${warningCount} approaching ${warningCount === 1 ? "its" : "their"} limit`}
-            </span>
+          <button
+            type="button"
+            // Budgets used exactly in full are done, not a warning (s4), so on their own they get a quiet banner.
+            className={budgetAlerts.every(isUsedInFull) ? "budget-alert-banner budget-alert-banner-done" : "budget-alert-banner"}
+            onClick={() => setShowBudgetAlerts((v) => !v)}
+          >
+            {!budgetAlerts.every(isUsedInFull) && <IconEntryGlyph entry={flatIconEntry("warning-icon")} className="budget-alert-icon" />}
+            <span>{describeBudgetAlerts(budgetAlerts)}</span>
           </button>
         )}
         <StatDetailPanel
@@ -1057,8 +1057,9 @@ export function DashboardView({
     const group = groupOf(account.account_type);
     const isDebt = group === "credit" || group === "loan";
     const amount = isDebt ? owedAmount(account) : netWorthContribution(account);
-    const tint = isDebt ? "tint-red" : group === "investment" ? "tint-purple" : "tint-blue";
-    const badgeColor = isDebt ? "red" : group === "investment" ? "purple" : "blue";
+    // A debt account is not by itself a problem (s4), so its tile and badge stay neutral.
+    const tint = isDebt ? "tint-neutral" : group === "investment" ? "tint-purple" : "tint-blue";
+    const badgeColor = isDebt ? "neutral" : group === "investment" ? "purple" : "blue";
     return (
       <div className={`stat stat-hero ${tint}`}>
         <div className="stat-top">

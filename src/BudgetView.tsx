@@ -12,6 +12,7 @@ import { MenuSelect } from "./MenuSelect";
 import { sumMoney } from "./money";
 import { RowMenu, type RowMenuItem } from "./RowMenu";
 import { groupProgressLabel } from "./budgetSummary";
+import { incomeProgressTone, netTone, toneFillClass, viewedMonth, type ViewedMonth } from "./colourStatus";
 
 type MonthElapsed = NonNullable<ReturnType<typeof monthElapsed>>;
 
@@ -175,6 +176,7 @@ function BudgetRow({
   line,
   alertLevel,
   elapsed,
+  viewed,
   amountsHidden,
   editingAmount,
   setEditingAmount,
@@ -202,6 +204,8 @@ function BudgetRow({
   alertLevel: "warning" | "over" | undefined;
   /** See `PaceMarker` — null outside the current month. */
   elapsed: MonthElapsed | null;
+  /** Whether the month shown has ended, is this month, or is still to come (sets income's colour). */
+  viewed: ViewedMonth;
   /** "Hide amounts" is on. The privacy mask skips `<input>` values, so the budget figure then
    * shows as maskable text and only becomes a field once clicked. */
   amountsHidden: boolean;
@@ -252,8 +256,16 @@ function BudgetRow({
   // badge, so a row flagged "Over"/"80%+" also reads red/amber at a
   // glance, not just via the badge text.
   const pct = budgeted > 0 ? Math.min(100, (actual / budgeted) * 100) : actual > 0 ? 100 : 0;
-  const fillClass =
-    alertLevel === "over" ? "progress-fill over" : alertLevel === "warning" ? "progress-fill warn" : "progress-fill";
+  // Exactly at the budget is "used in full", not a warning (s4: red and amber only for what needs you).
+  const usedInFull = !isIncome && alertLevel === "warning" && Math.abs(remaining) < 0.005;
+  // Income uses the month-aware tone: money not in yet early in the month is normal, not a warning.
+  const fillClass = isIncome
+    ? toneFillClass(incomeProgressTone(actual, budgeted, elapsed?.fraction ?? 0, viewed))
+    : alertLevel === "over"
+      ? "progress-fill over"
+      : alertLevel === "warning" && !usedInFull
+        ? "progress-fill warn"
+        : "progress-fill";
   const columns = isIncome ? INCOME_COLUMNS : EXPENSE_COLUMNS;
 
   /** Saves a typed budget. An empty or unchanged amount saves nothing (null). */
@@ -412,16 +424,22 @@ function BudgetRow({
               )}
               {alertLevel && (
                 <span
-                  className={alertLevel === "over" ? "budget-alert-badge budget-alert-over" : "budget-alert-badge budget-alert-warning"}
+                  className={
+                    alertLevel === "over"
+                      ? "budget-alert-badge budget-alert-over"
+                      : usedInFull
+                        ? "budget-alert-badge budget-alert-done"
+                        : "budget-alert-badge budget-alert-warning"
+                  }
                   title={
                     alertLevel === "over"
                       ? "Spent past its monthly budget"
-                      : Math.abs(remaining) < 0.005
-                        ? "Right at its monthly budget"
+                      : usedInFull
+                        ? "Its whole monthly budget is used, and no more"
                         : `Approaching its monthly budget (${effectiveCap ? "90%+" : "80%+"})`
                   }
                 >
-                  {alertLevel === "over" ? "Over" : Math.abs(remaining) < 0.005 ? "100%" : effectiveCap ? "90%+" : "80%+"}
+                  {alertLevel === "over" ? "Over" : usedInFull ? "Used in full" : effectiveCap ? "90%+" : "80%+"}
                 </span>
               )}
               {showsRolledIn && (
@@ -500,7 +518,8 @@ function BudgetRow({
       <span className="cat-amt" data-label={columns[1]}>
         {formatAmount(line.actual)}
       </span>
-      <span className={remaining < 0 ? "cat-amt neg" : "cat-amt"} data-label={columns[2]}>
+      {/* Red only for spending past its budget. Income still to come shows its shortfall plainly. */}
+      <span className={!isIncome && remaining < 0 ? "cat-amt neg" : "cat-amt"} data-label={columns[2]}>
         {formatAmount(remaining.toFixed(2))}
       </span>
       <span className="cat-row-actions">
@@ -582,10 +601,8 @@ export function BudgetView({
   const elapsed = monthElapsed(year, month, new Date());
   const allocation = budgetAllocation(budgetActuals);
   const netSummary = monthFlow ? budgetNetSummary(budgetActuals, monthFlow.total_income, monthFlow.total_expense) : null;
-  const viewedMonth = year * 12 + month;
-  const today = new Date();
-  const currentMonth = today.getFullYear() * 12 + today.getMonth() + 1;
-  const actualLabel = viewedMonth < currentMonth ? "Money left (final)" : viewedMonth > currentMonth ? "Money left (future month)" : "Money left so far";
+  const viewed = viewedMonth(year, month, new Date());
+  const actualLabel = viewed === "past" ? "Money left (final)" : viewed === "future" ? "Money left (future month)" : "Money left so far";
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   useAutoCancelDelete(confirmingDelete, () => setConfirmingDelete(null));
   const [editingAmount, setEditingAmount] = useState<{ category: string; value: string } | null>(null);
@@ -742,12 +759,15 @@ export function BudgetView({
             <span className="stat-label">Money left after income</span>
             {netSummary ? (
               <>
-                <span className={netSummary.plannedNet.startsWith("-") ? "stat-value report-over-budget" : "stat-value"} data-planned-net>
+                <span
+                  className={netTone(parseFloat(netSummary.plannedNet), viewed) === "bad" ? "stat-value report-over-budget" : "stat-value"}
+                  data-planned-net
+                >
                   {formatAmount(netSummary.plannedNet)}
                 </span>
                 <span className="budget-summary-sub">
                   {actualLabel}:{" "}
-                  <span className={netSummary.actualNet.startsWith("-") ? "report-over-budget" : undefined} data-actual-net>
+                  <span className={netTone(parseFloat(netSummary.actualNet), viewed) === "bad" ? "report-over-budget" : undefined} data-actual-net>
                     {formatAmount(netSummary.actualNet)}
                   </span>
                 </span>
@@ -777,20 +797,15 @@ export function BudgetView({
         const isIncome = group === "income";
         const columns = isIncome ? INCOME_COLUMNS : EXPENSE_COLUMNS;
         const pct = groupBudgeted > 0 ? (groupActual / groupBudgeted) * 100 : 0;
-        // Expense groups: at/under budget is good, over is bad. Income is the mirror image —
-        // meeting or beating the target is good, falling short is what gets the warning colour.
-        const status = isIncome
-          ? pct >= 100
-            ? "ok"
+        // Expense groups: red only past 100%, amber from 80%. Income never goes red: it is neutral
+        // while it is still arriving, and warns only once the month is (nearly) over and short.
+        const fillClass = isIncome
+          ? toneFillClass(incomeProgressTone(groupActual, groupBudgeted, elapsed?.fraction ?? 0, viewed))
+          : groupBudgeted > 0 && Math.round(groupActual * 100) > Math.round(groupBudgeted * 100)
+            ? "progress-fill over"
             : pct >= 80
-              ? "warn"
-              : "over"
-          : pct > 100
-            ? "over"
-            : pct >= 80
-              ? "warn"
-              : "ok";
-        const fillClass = status === "over" ? "progress-fill over" : status === "warn" ? "progress-fill warn" : "progress-fill";
+              ? "progress-fill warn"
+              : "progress-fill";
         return (
           <section key={group} className="budget-group" data-budget-group={group}>
             <div className="budget-group-head">
@@ -820,6 +835,7 @@ export function BudgetView({
                   line={line}
                   alertLevel={alertByCategory.get(line.category)}
                   elapsed={elapsed}
+                  viewed={viewed}
                   amountsHidden={amountsHidden}
                   editingAmount={editingAmount}
                   setEditingAmount={setEditingAmount}

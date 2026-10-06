@@ -210,6 +210,10 @@
   background: var(--negative);
 }
 
+[data-palette="retro"] .progress-fill.neutral {
+  background: var(--text-muted);
+}
+
 /* Toasts keep their opaque status tint over --status-base */
 [data-palette="retro"] .status {
   box-shadow: var(--retro-raised);

@@ -1787,6 +1787,13 @@
   color: var(--negative);
 }
 
+/* A budget used exactly in full: done, not a warning (s4), so plain text on a quiet chip. */
+.budget-alert-done {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
 .feature-toggle-list {
   display: flex;
   flex-direction: column;
@@ -2014,6 +2021,13 @@ table.ledger.recurring-table .actions-col {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Only budgets used exactly in full: nothing needs doing (s4), so plain text on a quiet strip. */
+.budget-alert-banner.budget-alert-banner-done {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .budget-alert-icon {

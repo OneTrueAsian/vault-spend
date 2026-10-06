@@ -11,7 +11,7 @@
 //
 // Run with: node e2e/feature2_budget_alerts.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const today = new Date();
@@ -32,11 +32,18 @@ cur.execute(
 const app = await launchApp({ dbDir });
 try {
   // Dashboard is the default tab — the alert banner should already show.
-  const banner = await app.browser.$(".budget-alert-banner");
-  await banner.waitForExist({ timeout: 10000 });
-  const bannerText = await banner.getText();
+  // The banner names the category (UI review s4) rather than counting categories.
+  let bannerText = null;
+  await waitUntilOrDiagnose(
+    app.browser,
+    async () => {
+      bannerText = await app.browser.execute(() => document.querySelector(".budget-alert-banner")?.textContent ?? null);
+      return bannerText === "Groceries is over its budget";
+    },
+    { timeout: 10000, timeoutMsg: 'expected the banner to read "Groceries is over its budget"', extra: () => bannerText },
+  );
   console.log("dashboard banner:", bannerText);
-  if (!bannerText.includes("over budget")) throw new Error(`expected banner to mention "over budget", got "${bannerText}"`);
+  const banner = await app.browser.$(".budget-alert-banner");
 
   await banner.click();
   const groceriesRow = await app.browser.$(

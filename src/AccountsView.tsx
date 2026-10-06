@@ -4,7 +4,7 @@ import type { Account, AccountContributionDelta, Asset, FamilyMember, NetWorthPo
 import { PropertyAssetsSection } from "./PropertyAssets";
 import { StatDetailPanel } from "./StatDetailPanel";
 import { formatAmount } from "./format";
-import { GROUP_LABELS, GROUP_ORDER, groupOf, netWorthContribution } from "./accountGroups";
+import { GROUP_LABELS, GROUP_ORDER, groupOf, isOverdrawn, netWorthContribution } from "./accountGroups";
 import { AccountEditDialog } from "./Modal";
 import { AccountTypeIcon, ACCOUNT_ICON_OPTIONS, isAccountIconKey, IconPicker, type AccountIconKey } from "./icons";
 
@@ -129,7 +129,7 @@ function AccountCard({
       <span className="icon-toggle-anchor">
         <button
           type="button"
-          className={isLiability ? "type-badge type-badge-neg" : "type-badge"}
+          className="type-badge"
           title="Click to change this account's icon"
           onClick={() => setEditingIcon(editingIcon === a.id ? null : a.id)}
         >
@@ -172,7 +172,7 @@ function AccountCard({
           </>
         ) : (
           <span
-            className={isLiability ? "bal neg amount-editable" : "bal amount-editable"}
+            className={isOverdrawn(a) ? "bal neg amount-editable" : "bal amount-editable"}
             title={isLiability ? "Click to correct the amount currently owed" : "Click to correct today's balance"}
             onClick={() => setEditing({ id: a.id, value: isLiability ? owed : a.current_balance, mode: "balance" })}
           >
@@ -284,10 +284,12 @@ export function AccountsView({
   const netWorth = assetsTotal + liabilities;
 
   const manualAssetsRow = manualAssetsTotal !== 0 ? [{ name: "Property & Valuables", amount: manualAssetsTotal }] : [];
-  const accountBreakdowns: Record<AccountStatKey, { name: string; amount: number }[]> = {
-    assets: [...assetAccounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })), ...manualAssetsRow],
-    liabilities: liabilityAccounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })),
-    networth: [...accounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })), ...manualAssetsRow],
+  // Red only for a balance below zero (s4), not for what's owed on a card or loan.
+  const breakdownRow = (a: Account) => ({ name: a.name, amount: netWorthContribution(a), flag: isOverdrawn(a) });
+  const accountBreakdowns: Record<AccountStatKey, { name: string; amount: number; flag?: boolean }[]> = {
+    assets: [...assetAccounts.map(breakdownRow), ...manualAssetsRow],
+    liabilities: liabilityAccounts.map(breakdownRow),
+    networth: [...accounts.map(breakdownRow), ...manualAssetsRow],
   };
 
   // "What changed" rows for each stat's own detail panel — same
@@ -359,7 +361,7 @@ export function AccountsView({
         <button
           type="button"
           className={
-            expandedStat === "liabilities" ? "stat tint-red stat-clickable stat-expanded" : "stat tint-red stat-clickable"
+            expandedStat === "liabilities" ? "stat tint-neutral stat-clickable stat-expanded" : "stat tint-neutral stat-clickable"
           }
           onClick={() => toggleStat("liabilities")}
         >

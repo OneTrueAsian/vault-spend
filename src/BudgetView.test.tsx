@@ -469,3 +469,144 @@ describe("BudgetRow settings menu", () => {
     expect(p.onDeleteBudget).toHaveBeenCalledWith("Mortgage");
   });
 });
+
+// s4: red only for what needs you. Income that hasn't arrived yet early in the month, and a
+// negative "money left" before the month is over, are normal and stay neutral.
+describe("BudgetView colours", () => {
+  const incomeHeadFill = () =>
+    container.querySelector<HTMLElement>("[data-budget-group='income'] .budget-group-track .progress-fill")!;
+  const rowFill = (category: string) => rowFor(category).querySelector<HTMLElement>(".cat-row-bar .progress-fill")!;
+  const lowIncome = [
+    line({ category: "Mortgage" }),
+    line({ category: "Paycheck", budget_group: "income", budgeted: "5000.00", actual: "1500.00" }),
+  ];
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function today(y: number, m: number, d: number) {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(y, m - 1, d, 12));
+  }
+
+  it("keeps early-month income neutral in the current month (4 October, 30% in)", async () => {
+    today(2026, 10, 4);
+    await render(props({ budgetActuals: lowIncome, year: 2026, month: 10, monthLabel: "October 2026" }));
+    expect(incomeHeadFill().className).toBe("progress-fill neutral");
+    expect(rowFill("Paycheck").className).toBe("progress-fill neutral");
+    // The shortfall is shown as it is, but not in red.
+    const diff = [...rowFor("Paycheck").querySelectorAll(".cat-amt")][2];
+    expect(diff.textContent).toBe("-$3,500.00");
+    expect(diff.classList.contains("neg")).toBe(false);
+  });
+
+  it("warns late in the current month when under 80% of income is in", async () => {
+    today(2026, 10, 28);
+    await render(props({ budgetActuals: lowIncome, year: 2026, month: 10, monthLabel: "October 2026" }));
+    expect(incomeHeadFill().className).toBe("progress-fill warn");
+    expect(rowFill("Paycheck").className).toBe("progress-fill warn");
+  });
+
+  it("warns about a past month whose income fell short, never in red", async () => {
+    today(2026, 10, 4);
+    await render(props()); // March 2026: $5,000 of $5,200 received
+    expect(incomeHeadFill().className).toBe("progress-fill warn");
+    expect(rowFill("Paycheck").className).toBe("progress-fill warn");
+    expect(container.querySelector("[data-budget-group='income'] .progress-fill.over")).toBeNull();
+  });
+
+  it("uses the normal fill once the income is in", async () => {
+    today(2026, 10, 4);
+    await render(
+      props({
+        budgetActuals: [line({ category: "Paycheck", budget_group: "income", budgeted: "5000.00", actual: "5000.00" })],
+        year: 2026,
+        month: 10,
+      }),
+    );
+    expect(incomeHeadFill().className).toBe("progress-fill");
+    expect(rowFill("Paycheck").className).toBe("progress-fill");
+  });
+
+  it("keeps expense groups red only past 100%", async () => {
+    today(2026, 10, 4);
+    await render(
+      props({
+        budgetActuals: [
+          line({ category: "Mortgage", budgeted: "1000.00", actual: "900.00" }),
+          line({ category: "Groceries", budget_group: "flexible", budgeted: "100.00", actual: "120.00" }),
+        ],
+        year: 2026,
+        month: 10,
+      }),
+    );
+    const fill = (g: string) => container.querySelector<HTMLElement>(`[data-budget-group='${g}'] .budget-group-track .progress-fill`)!;
+    expect(fill("fixed").className).toBe("progress-fill warn");
+    expect(fill("flexible").className).toBe("progress-fill over");
+  });
+
+  it("doesn't colour a negative money-left figure before the month is over", async () => {
+    today(2026, 10, 4);
+    await render(
+      props({
+        budgetActuals: lowIncome.map((l) => (l.budget_group === "income" ? { ...l, budgeted: "1000.00" } : l)),
+        monthFlow: { ...monthFlow, total_income: "1500.00", total_expense: "1601.56" },
+        year: 2026,
+        month: 10,
+      }),
+    );
+    const planned = container.querySelector<HTMLElement>("[data-planned-net]")!;
+    const actual = container.querySelector<HTMLElement>("[data-actual-net]")!;
+    expect(planned.textContent).toBe("-$600.00");
+    expect(actual.textContent).toBe("-$101.56");
+    expect(planned.classList.contains("report-over-budget")).toBe(false);
+    expect(actual.classList.contains("report-over-budget")).toBe(false);
+  });
+
+  it("colours a negative money-left figure once the month is over", async () => {
+    today(2026, 10, 4);
+    await render(
+      props({
+        budgetActuals: lowIncome.map((l) => (l.budget_group === "income" ? { ...l, budgeted: "1000.00" } : l)),
+        monthFlow: { ...monthFlow, total_income: "1500.00", total_expense: "1601.56" },
+      }),
+    );
+    expect(container.querySelector("[data-planned-net]")!.classList.contains("report-over-budget")).toBe(true);
+    expect(container.querySelector("[data-actual-net]")!.classList.contains("report-over-budget")).toBe(true);
+  });
+
+  it("calls a budget used exactly in full 'Used in full', in a neutral badge", async () => {
+    await render(
+      props({
+        budgetActuals: [line({ category: "Groceries", budget_group: "flexible", budgeted: "400.00", actual: "400.00" })],
+        budgetAlerts: [
+          { category: "Groceries", budget_group: "flexible", budgeted: "400.00", actual: "400.00", pct: "100", level: "warning", cap_enabled: false },
+        ],
+      }),
+    );
+    const badge = rowFor("Groceries").querySelector<HTMLElement>(".budget-alert-badge")!;
+    expect(badge.textContent).toBe("Used in full");
+    expect(badge.className).toBe("budget-alert-badge budget-alert-done");
+    expect(rowFill("Groceries").className).toBe("progress-fill");
+  });
+
+  it("still marks a budget close to its limit, and one over it", async () => {
+    await render(
+      props({
+        budgetActuals: [
+          line({ category: "Groceries", budget_group: "flexible", budgeted: "400.00", actual: "360.00" }),
+          line({ category: "Dining", budget_group: "flexible", budgeted: "100.00", actual: "150.00" }),
+        ],
+        budgetAlerts: [
+          { category: "Groceries", budget_group: "flexible", budgeted: "400.00", actual: "360.00", pct: "90", level: "warning", cap_enabled: false },
+          { category: "Dining", budget_group: "flexible", budgeted: "100.00", actual: "150.00", pct: "150", level: "over", cap_enabled: false },
+        ],
+      }),
+    );
+    expect(rowFor("Groceries").querySelector(".budget-alert-badge")!.className).toBe("budget-alert-badge budget-alert-warning");
+    expect(rowFill("Groceries").className).toBe("progress-fill warn");
+    expect(rowFor("Dining").querySelector(".budget-alert-badge")!.className).toBe("budget-alert-badge budget-alert-over");
+    expect(rowFill("Dining").className).toBe("progress-fill over");
+  });
+});

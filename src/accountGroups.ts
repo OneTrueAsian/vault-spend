@@ -41,6 +41,14 @@ export function netWorthContribution(a: Account): number {
   return parseFloat(a.current_balance);
 }
 
+/** A balance below zero on an account that should never go below zero (cash, investments, other
+ * assets). This needs you (s4), unlike what's owed on a card or loan, which is normal. */
+export function isOverdrawn(a: Account): boolean {
+  const group = groupOf(a.account_type);
+  if (group === "credit" || group === "loan") return false;
+  return netWorthContribution(a) < 0;
+}
+
 /** How much is actually owed on a debt account, as a positive number —
  * the inverse framing of `netWorthContribution` (which is negative-signed
  * for debt), used anywhere a debt is listed as a plain balance rather than

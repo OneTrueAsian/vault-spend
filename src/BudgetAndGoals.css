@@ -592,6 +592,12 @@
   border-bottom: none;
 }
 
+/* Beats the generic `button:hover` accent fill, which put dark text on blue (about 2:1). */
+.todo-row:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
 .todo-row:hover .todo-text {
   text-decoration: underline;
 }
@@ -653,6 +659,12 @@
 
 .progress-fill.over {
   background: var(--negative);
+}
+
+/* Income still arriving (s4): neither good nor bad yet, so a quiet grey, never red. */
+.progress-fill.neutral {
+  background: var(--text-muted);
+  opacity: 0.6;
 }
 
 /* A budget group's heading: its name, then how it's going ("$X of $Y · 64% used"), with the

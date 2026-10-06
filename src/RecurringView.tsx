@@ -544,19 +544,19 @@ export function RecurringView({
         </div>
       </div>
       <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-        <div className="stat tint-red">
+        <div className="stat tint-neutral">
           <span className="stat-value">{formatAmount(totals.monthly_expense)}</span>
           <span className="stat-label">Monthly recurring expenses</span>
         </div>
-        <div className="stat tint-blue">
+        <div className="stat tint-neutral">
           <span className="stat-value">{formatAmount(totals.monthly_income)}</span>
           <span className="stat-label">Monthly recurring income (est.)</span>
         </div>
-        <div className="stat tint-red">
+        <div className="stat tint-neutral">
           <span className="stat-value">{formatAmount(totals.annual_expense)}</span>
           <span className="stat-label">Annual recurring expenses</span>
         </div>
-        <div className="stat tint-blue">
+        <div className="stat tint-neutral">
           <span className="stat-value">{formatAmount(totals.annual_income)}</span>
           <span className="stat-label">Annual recurring income (est.)</span>
         </div>
