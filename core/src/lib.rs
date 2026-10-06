@@ -9,6 +9,8 @@ pub mod fsutil;
 pub mod import_resolution;
 pub mod importer;
 pub mod learner;
+pub mod mobile_snapshot;
+pub use mobile_snapshot::MobileSnapshotV1;
 pub mod models;
 pub mod ofx_loader;
 pub mod protection;

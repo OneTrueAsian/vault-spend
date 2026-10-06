@@ -210,6 +210,9 @@ export function MenuSelect({
                   data-value={option.value}
                   disabled={option.disabled}
                   className="account-destination-option"
+                  // Keep focus inside the menu until click selects the option. Safari
+                  // can blur mouse-clicked buttons before click, closing the popover.
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => choose(option.value)}
                 >
                   <span>{option.label}</span>

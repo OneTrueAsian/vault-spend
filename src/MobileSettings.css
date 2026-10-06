@@ -1,0 +1,36 @@
+.mobile-desktop-settings { overflow-wrap: anywhere; }
+.mobile-desktop-settings p,.mobile-desktop-settings li { line-height: 1.55; }
+.mobile-desktop-settings details { margin: 16px 0; }
+.mobile-desktop-settings summary { cursor: pointer; font-weight: 600; }
+.mobile-desktop-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(100px,160px); gap: 16px; }
+.mobile-desktop-fields label { display: grid; gap: 8px; }
+.mobile-desktop-fields input { width: 100%; }
+.mobile-desktop-code { display: block; overflow-wrap: anywhere; font-family: var(--font-mono,monospace); }
+.mobile-desktop-pair { margin: 16px 0; }
+.mobile-desktop-pair svg { max-width: 100%; height: auto; }
+.mobile-desktop-device { border-top: 1px solid var(--border); padding: 16px 0; }
+.mobile-desktop-grant { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 8px 0; }
+@media(max-width:600px) { .mobile-desktop-fields { grid-template-columns: minmax(0,1fr); } }
+
+.mobile-setup-wizard { display: grid; gap: 12px; }
+.mobile-setup-wizard p { margin: 0; line-height: 1.6; }
+.mobile-setup-device { color: var(--accent); font-weight: 700; }
+.mobile-setup-check { display: flex; gap: 10px; align-items: flex-start; line-height: 1.6; }
+.mobile-setup-check input { margin-top: 5px; flex-shrink: 0; }
+.mobile-setup-warning { border-left: 3px solid var(--accent); padding: 10px 14px; background: var(--status-base); }
+
+/* Setup instructions need an opaque reading surface over every palette. */
+:root .modal-panel:has(.mobile-setup-wizard) { background: var(--status-base); }
+
+/* The guide keeps previous/next actions together and aligned at every width. */
+.mobile-setup-actions { display: grid; grid-template-columns: minmax(80px,.45fr) minmax(0,1fr); width: 100%; gap: 10px; }
+.mobile-setup-actions button { width: 100%; min-height: 44px; white-space: normal; margin: 0; }
+.mobile-desktop-grant { display: grid; grid-template-columns: minmax(0,1fr) auto; }
+.mobile-desktop-device > .modal-secondary { margin-top: 8px; }
+.mobile-desktop-settings summary,.mobile-setup-wizard summary { list-style: none; padding: 10px 0; min-height: 44px; }
+.mobile-desktop-settings summary::-webkit-details-marker,.mobile-setup-wizard summary::-webkit-details-marker { display: none; }
+.mobile-desktop-settings summary::marker,.mobile-setup-wizard summary::marker { content: ""; }
+.mobile-desktop-settings summary::before,.mobile-setup-wizard summary::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 10px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); }
+.mobile-desktop-settings details[open] > summary::before,.mobile-setup-wizard details[open] > summary::before { transform: rotate(45deg); }
+.mobile-setup-check { min-height: 44px; padding: 8px 0; cursor: pointer; }
+@media(max-width:600px) { .mobile-desktop-grant { grid-template-columns: minmax(0,1fr); } .mobile-desktop-grant button { width: 100%; } }

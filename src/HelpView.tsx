@@ -767,6 +767,38 @@ type FaqEntry = {
 
 const FAQ_ENTRIES: FaqEntry[] = [
   {
+    question: "How do I set up mobile snapshots on my phone?",
+    tags: ["mobile snapshots", "phone", "pairing", "qr", "wifi", "wi-fi", "certificate", "trust", "local address"],
+    answer: <>
+      <p>Start on your computer: open <strong>Settings → Mobile snapshots → Set up a phone</strong>. Choose iPhone or Android and follow the guide. Keep Vault Spend open and your phone on the same private home network; the computer can use Ethernet.</p>
+      <p>Scan the setup QR with your phone Camera to open the certificate instructions. Download the public certificate, then verify the actual file against the full fingerprint shown on your computer before installing it. A matching name or text on the download page is not proof. If your phone cannot show the fingerprint, use <strong>Export certificate for direct transfer</strong> in the guide and a transfer method you control instead.</p>
+      <p>Install the verified certificate in phone Settings. iPhone also needs its trust switch enabled under General → About → Certificate Trust Settings. The guide gives the phone-specific steps. Trusting this certificate lets your browser trust certificates signed by this Vault Spend installation; remove it from phone Settings when you stop using it.</p>
+      <p>Open the secure viewer without a certificate warning. If using a home-screen shortcut, add and open it before pairing; it may have separate saved data. On the computer, create the pairing QR. Request access from your phone, then approve that phone and choose its profiles on the computer. Wait for the first saved snapshot and <strong>Ready offline</strong>.</p>
+      <p>The guided address ends in .local and can keep the same browser location when the computer's address changes on its selected network. Some networks block local discovery. Changing the viewer name or port, or moving from an old IP address, creates a separate saved-data location: pair and download again. Do not bypass a certificate warning or turn off router security to force a connection.</p>
+    </>,
+  },
+  {
+    question: "Can I use mobile snapshots away from my computer?",
+    tags: ["mobile snapshots", "phone", "offline", "saved snapshot", "ready offline", "timestamp", "refresh", "remember access"],
+    answer: <>
+      <p>Yes, after a snapshot is saved and the phone says <strong>Ready offline</strong>. Open the same browser or home-screen shortcut to see that saved copy. Check its saved date and time; it is not a live balance when you are away from the desktop.</p>
+      <p>To refresh, connect both devices to the same private home network and keep Vault Spend open with the requested profile active and unlocked. The phone cannot unlock or switch desktop profiles. To refresh another profile, open it on the desktop first. A failed refresh keeps the previous saved copy and its timestamp.</p>
+      <p>The lightweight viewer has Overview, Accounts, Budget, Reports and Calculators. It shows account balances, investment totals and gains or losses, your full saved budget and report summaries. It does not include the full transaction list or individual holdings. Calculator inputs stay on the phone and do not change desktop finances.</p>
+      <p>Access is remembered in the browser you paired. Someone using your unlocked phone may be able to read its saved data. The saved snapshots are encrypted, but this does not add a separate phone password prompt. Private browsing, clearing website data, removing a shortcut or browser storage cleanup can remove saved copies. If data is lost, reconnect, pair if needed and save again. Check offline reopening before relying on it.</p>
+    </>,
+  },
+  {
+    question: "How do I stop phone access or remove mobile snapshots?",
+    tags: ["mobile snapshots", "phone", "revoke", "forget this phone", "remove profile", "disable mobile access", "remove certificate"],
+    answer: <>
+      <p>On the desktop, <strong>Disable mobile access</strong> stops connections. <strong>Revoke phone</strong> blocks that phone from future downloads; <strong>Remove profile access</strong> blocks future downloads of just that profile. None of these can erase a copy already saved on a phone.</p>
+      <p>On the phone, <strong>Forget this phone</strong> removes its saved snapshots, encryption keys and remembered access. If the desktop is reachable, it also revokes the browser connection. If you forget while offline, revoke the phone on the desktop too. Removing one saved profile only removes that profile's local copy; it does not revoke its desktop permission.</p>
+      <p>Locking the desktop profile prevents refresh until it is unlocked. Changing its password does not revoke an approved phone; use Revoke phone to stop future downloads. Neither action erases an approved offline phone copy. No desktop control can remotely erase that copy. If a phone is lost, revoke its future access and use your phone's own lost-device controls.</p>
+      <p>When you stop using the viewer, remove this installation's certificate from phone Settings too. On iPhone, remove its profile under General → VPN &amp; Device Management. Android names vary; remove only the Vault Spend certificate from user credentials. Forgetting website data does not remove the certificate. <strong>Reset mobile trust</strong> on the computer revokes all phones and creates a new installation identity; every phone must trust the replacement and pair again.</p>
+    </>,
+  },
+
+  {
     question: "How does password protection work?",
     tags: [
       "password",
@@ -977,8 +1009,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
           difference shown is how far you are from that figure, not where you rank. Some official figures only describe
           people who hold the item (a retirement account, a mortgage), and those are labelled; if you hold none, the
           card says it is not comparable instead of comparing you with zero. When the reference data has no figure for a
-          comparison, its card says so and nothing is substituted. Everything is calculated on your computer; nothing you enter is sent
-          anywhere, and Hide amounts covers these figures too.
+          comparison, its card says so and nothing is substituted. Everything is calculated on your computer; nothing you enter is uploaded to an online service, and Hide amounts covers these figures too.
         </p>
         <p>
           <strong>Spending</strong> is compared with the U.S. Bureau of Labor Statistics&apos;
@@ -995,9 +1026,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
     answer: (
       <p>
         Yes. Each profile&apos;s data is stored in files on your own computer, created fresh the first time you
-        launch the app, and nothing you enter is ever uploaded, so a fresh install on someone else&apos;s computer
-        starts completely empty. There&apos;s no account and no server. Vault Spend makes three kinds of network
-        request, and none of them carries your transactions, balances or account names: it loads its typefaces from
+        launch the app. No financial data is uploaded to an online service, so a fresh install on someone else&apos;s computer
+        starts completely empty. There is no online service account. If you enable mobile snapshots, approved phones receive read-only copies directly over your private local network. The phone viewer uses local files and makes no cloud or CDN requests. Separately, desktop internet requests do not carry your transactions, balances or account names: it loads its typefaces from
         Google Fonts when it opens, it checks GitHub for a newer version when it opens, and it fetches live
         investment prices only if you set up a price provider. The legal notice lists them in full. You can also
         password-protect any profile (see above).

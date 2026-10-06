@@ -15,6 +15,7 @@ import { ModalShell } from "./Modal";
 import { PasswordForm } from "./PasswordForm";
 import { MenuSelect } from "./MenuSelect";
 import { formatDisplayDateTime } from "./format";
+import { MobileSettings } from "./MobileSettings";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs, type NeonAccent } from "./themeBootstrap";
 import type { Theme } from "./appTypes";
 import { ThemeSwitch } from "./SidebarControls";
@@ -1286,6 +1287,7 @@ export function SettingsView({
       />
       <ProfileProtectionSection profiles={profiles} onProtected={onProtected} />
       <ProtectionLeftovers profiles={profiles} />
+      <MobileSettings />
       <DataSection
         dataFileLocation={dataFileLocation}
         onRelocateDataFile={onRelocateDataFile}

@@ -83,6 +83,7 @@ import {
   type WidgetId,
 } from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
+import { MobilePairingPrompt } from "./MobilePairingPrompt";
 import { lockCurrentProfile, unlockProfile } from "./protection";
 import { hasObservableUnsavedInput } from "./unsavedInput";
 
@@ -4422,14 +4423,14 @@ function VaultSpendApp() {
   const [initialStatus, setInitialStatus] = useState("");
 
   return (
-    <App
+    <><MobilePairingPrompt /><App
       key={reloadKey}
       initialStatus={initialStatus}
       onDataFileChanged={(message) => {
         setInitialStatus(message);
         setReloadKey((k) => k + 1);
       }}
-    />
+    /></>
   );
 }
 
