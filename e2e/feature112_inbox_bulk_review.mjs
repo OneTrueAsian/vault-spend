@@ -72,8 +72,21 @@ try {
       assert.ok(!geometry.missing, `the Add-to menu closed before it could be measured (${palette}/${theme}: ${JSON.stringify(geometry)})`);
       assert.equal(geometry.radius, "10px");
       assert.ok(geometry.left >= 0 && geometry.right <= geometry.width && geometry.bottom <= geometry.height);
-      await b.keys("Escape");
-      assert.ok(await b.execute(() => document.activeElement.id === 'ledger-account-select'));
+      // Another spec's window taking focus here closes the menu on blur without handing focus back to
+      // its button, so Escape has nothing to close and focus is left on the page (feature153's case).
+      // Escape and the focus check retry together when (and only when) the window really lost focus,
+      // reopening the menu first; the focus check waits instead of reading once.
+      await withFocusRetry(b, async () => {
+        if (!(await b.execute(() => !!document.querySelector(".account-destination-panel")))) {
+          await (await b.$("#ledger-account-select")).click();
+          await (await b.$(".account-destination-panel")).waitForExist({ timeout: 5000 });
+        }
+        await b.keys("Escape");
+        await b.waitUntil(async () => b.execute(() => document.activeElement?.id === "ledger-account-select" && !document.querySelector(".account-destination-panel")), {
+          timeout: 3000,
+          timeoutMsg: `Escape should close the Add-to menu and return focus to its button (${palette}/${theme})`,
+        });
+      });
     }
   }
   await (await b.$("#ledger-account-select")).click();

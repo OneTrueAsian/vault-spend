@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_WINDOW_SIZE,
+  DRIVER_REQUEST_OPTIONS,
+  isCommandTimeout,
   applyLaunchWindowSize,
   applyWindowSize,
   chooseMenuOption,
@@ -623,5 +625,22 @@ describe("dismissFirstLaunchDialogs", () => {
       },
     });
     await expect(dismissFirstLaunchDialogs(browser)).rejects.toThrow(/intercepted/);
+  });
+});
+
+// A WebDriver command that never gets an answer used to wait WebdriverIO's default 120 s (and then retry
+// three times), so a spec sat silent until run-all.mjs killed it at 60 s with no clue which command hung
+// (feature163, Task 16). Each command now gives up well inside that cap and says which one it was.
+describe("driver request limits", () => {
+  it("gives every command 25 s and never repeats one silently", () => {
+    expect(DRIVER_REQUEST_OPTIONS).toEqual({ connectionRetryTimeout: 25_000, connectionRetryCount: 0 });
+  });
+
+  it("recognises a command that timed out, and nothing else", () => {
+    const timedOut = Object.assign(new Error('WebDriverError: Request timed out! Consider increasing the "connectionRetryTimeout" option. when running "http://127.0.0.1:4444/session/s1/elements" with method "POST"'), { name: "WebDriverRequestError", code: "ETIMEDOUT" });
+    expect(isCommandTimeout(timedOut)).toBe(true);
+    expect(isCommandTimeout(new Error("element not interactable"))).toBe(false);
+    expect(isCommandTimeout(new Error("waitUntil condition timed out after 3000ms"))).toBe(false);
+    expect(isCommandTimeout(undefined)).toBe(false);
   });
 });

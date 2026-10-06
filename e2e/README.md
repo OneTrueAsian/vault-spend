@@ -199,6 +199,17 @@ reproduced on demand and fixed at its cause, not retried away.
   prints `[harness] launch retry` and `run-all.mjs` totals them, so a run that
   needed one says so.
 
+- **A command the driver never answers.** Twice in Task 16's full runs a
+  WebDriver command got no answer at all: once while `launchApp` was
+  dismissing the first-launch dialogs (feature106), once in the middle of
+  feature163. Neither recurred in 48 stressed runs each. With WebdriverIO's
+  defaults (120 s, then three more tries) such a spec sat silent until the
+  runner killed it at 60 s. The harness now gives every command 25 s and no
+  silent repeat (`DRIVER_REQUEST_OPTIONS`), so a hang fails with "Request
+  timed out ... when running <command>" and the spec's stack. A hang inside
+  `launchApp`, before any step of the spec, is retried like the launch
+  failures below and counted the same way.
+
 To reproduce a load-dependent failure and to show a fix works, use
 `e2e/stress.mjs`:
 

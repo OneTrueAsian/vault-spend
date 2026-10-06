@@ -55,6 +55,19 @@ const PAGE_REACHED_DEADLINE_MS = 15_000;
 // A launch that stalls before the page loads is tried once more, with a fresh driver and app.
 const LAUNCH_ATTEMPTS = 2;
 
+/** Every WebDriver command gets 25 s to be answered and is never sent twice. WebdriverIO's defaults (120 s,
+ * then three more tries) meant a command the driver never answered left the spec silent until run-all.mjs
+ * killed it at 60 s, with nothing saying which command it was (feature163 and feature106 in Task 16's
+ * full runs). Now it fails with "Request timed out ... when running <command>" and the spec's own stack.
+ * No healthy command takes anywhere near 25 s; a spec's longer waits poll with short commands. */
+export const DRIVER_REQUEST_OPTIONS = Object.freeze({ connectionRetryTimeout: 25_000, connectionRetryCount: 0 });
+
+/** Whether an error is a WebDriver command that got no answer in time (see DRIVER_REQUEST_OPTIONS), as
+ * opposed to a command that failed or a waitUntil that ran out. */
+export function isCommandTimeout(error) {
+  return Boolean(error) && /Request timed out/.test(String(error.message ?? ""));
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -493,6 +506,7 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
         "tauri:options": { application: APP_EXE },
       },
       logLevel: "silent",
+      ...DRIVER_REQUEST_OPTIONS,
       // WebdriverIO times each BiDi command out after 180 s by default, with a timer that keeps this process
       // alive until it fires. A launch abandoned by the retry in launchApp leaves its stuck navigation command
       // pending against a driver that has been killed, so that timer outlived a spec that had already
@@ -545,11 +559,19 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
     // — call dismissFirstLaunchDialogs once the app itself is actually showing, e.g. after a
     // selector/lock-screen detour reaches it, if it needs to interact with anything past them.
     if (ready === ".brand-word") {
-      await dismissFirstLaunchDialogs(session);
-      mark("first-launch dialogs dismissed");
-      if (waitForData) {
-        await waitForDataLoaded(session);
-        mark("profile data loaded");
+      try {
+        await dismissFirstLaunchDialogs(session);
+        mark("first-launch dialogs dismissed");
+        if (waitForData) {
+          await waitForDataLoaded(session);
+          mark("profile data loaded");
+        }
+      } catch (e) {
+        // A command the driver never answered, before any step of the spec has run, is the same driver
+        // failure as a launch that never reaches its page (feature106 once hung here for 38 s in a full
+        // run): launchApp retries it, and run-all.mjs counts the retry.
+        if (isCommandTimeout(e)) throw Object.assign(e, { launchStalled: true });
+        throw e;
       }
     }
     return session;
