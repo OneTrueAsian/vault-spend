@@ -947,6 +947,51 @@
   gap: 8px;
 }
 
+/* An empty Goals page (BucketsView.tsx): one centred card that says what a goal is, with
+   "Create a goal" and three example names. The new-goal form opens inside the same card, so it
+   drops its own card chrome there rather than nesting a card in a card. */
+.goals-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 520px);
+  margin: 40px auto 0;
+  padding: 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.goals-empty h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.goals-empty p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.goals-empty-examples {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.goals-empty .bucket-new-form {
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
 .bucket-color-picker {
   display: flex;
   flex-wrap: wrap;

@@ -12,9 +12,10 @@ try {
   const bucketsNav = await app.browser.$("button*=Goals");
   await bucketsNav.click();
 
-  const addTile = await app.browser.$(".add-tile");
-  await addTile.waitForExist({ timeout: 10000 });
-  await addTile.click();
+  // A fresh profile has no goals, so the form opens from the empty page's "Create a goal".
+  const createGoal = await app.browser.$("button=Create a goal");
+  await createGoal.waitForExist({ timeout: 10000 });
+  await createGoal.click();
 
   const nameInput = await app.browser.$(".bucket-new-form input");
   await nameInput.waitForExist({ timeout: 5000 });

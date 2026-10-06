@@ -261,7 +261,7 @@ try {
   // never under the calendar button.
   await browser.setWindowSize(800, 600);
   await (await browser.$(".nav-item[data-tab=buckets]")).click();
-  await (await browser.$("button*=New goal")).click();
+  await (await browser.$("button=Create a goal")).click();
   const goalDate = 'input[aria-label="Target date (optional)"]';
   await waitForDateFieldText(browser, goalDate, "Target date (optional)", "a new goal's target date at 800px");
   checkResting(await restingGeometry(goalDate), "New goal at 800px (.bucket-new-form)", { mayTruncate: true });
