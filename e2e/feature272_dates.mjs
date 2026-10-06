@@ -22,6 +22,7 @@ import { execFileSync } from "node:child_process";
 import { launchApp, waitForDataLoaded, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { DISPLAY_DATE, displayDate, fieldDate, isoDaysFromNow } from "./lib/dates.mjs";
+import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
 import { readDateField, waitForDateFieldText } from "./lib/dateFields.mjs";
 
 const TODAY = isoDaysFromNow(0);
@@ -204,7 +205,7 @@ try {
     extra: () => ({ typedValue, field: null }),
   });
   await (await browser.$('.modal-panel input[placeholder=\'e.g. "Coffee shop"\']')).setValue("Date Field Check");
-  await (await browser.$(".modal-panel input[placeholder='Negative = money out']")).setValue("-9.99");
+  await enterTransactionAmount(browser, await browser.$(".modal-panel"), "-9.99");
   // Out of the date field, it reads the new date written out.
   await waitForDateFieldText(browser, dateInput, fieldDate(TYPED), "the Date field after typing a date");
   await (await (await browser.$(".modal-panel")).$("button=Add transaction")).click();

@@ -14,6 +14,7 @@ import { seedFixture } from "./lib/seed.mjs";
 import { displayDate } from "./lib/dates.mjs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
 
 function query(dbDir, sql) {
   const dbPath = path.join(dbDir, "vaultspend.db");
@@ -109,8 +110,7 @@ try {
   await setDateField(app.browser, yesterday);
   const descriptionInput = await app.browser.$('input[placeholder=\'e.g. "Coffee shop"\']');
   await descriptionInput.setValue("Old grocery run");
-  const amountInput = await app.browser.$("input[placeholder='Negative = money out']");
-  await amountInput.setValue("-50.00");
+  await enterTransactionAmount(app.browser, await app.browser.$(".modal-panel"), "-50.00");
   const submit = await app.browser.$("button=Add transaction");
   await submit.click();
 

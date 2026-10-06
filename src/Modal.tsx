@@ -1,7 +1,7 @@
 import "./Modal.css";
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatAmount, formatDisplayDate, isValidDecimalString, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import { DateField } from "./DateField";
 import type { Account, Bucket, CategoryTransaction, FamilyMember, Holding, MonthExpenseDetail, ReportBudgetLine, Transaction } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
@@ -22,6 +22,7 @@ import {
   IconPicker,
 } from "./icons";
 import { errorMessage } from "./errorMessage";
+import { amountProblem, directionLabels, signedAmount, type Direction } from "./transactionDirection";
 
 /** Shared shell: a dimmed overlay behind a centered panel. Clicking the
  * overlay (not the panel) cancels, matching how a native dialog behaves —
@@ -472,29 +473,40 @@ export function NewTransactionDialog({
   const [date, setDate] = useState(() => toLocalIsoDate());
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  // The switch, not a typed minus sign, decides whether the amount is money out or in.
+  const [direction, setDirection] = useState<Direction>("out");
   const [category, setCategory] = useState("");
   const [memberId, setMemberId] = useState("");
   const [notes, setNotes] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const amountTrimmed = amount.trim();
-  const amountIsNumeric = amountTrimmed !== "" && isValidDecimalString(amountTrimmed);
-  const amountError = amountTrimmed === "" ? "Enter an amount." : !amountIsNumeric ? "That doesn't look like a number." : null;
-  const valid = accountId !== "" && description.trim() !== "" && amountIsNumeric && date !== "";
+  const signed = signedAmount(amount, direction);
+  const problem = amountProblem(amount);
+  const amountError =
+    problem === "empty"
+      ? "Enter an amount."
+      : problem === "zero"
+        ? "Enter an amount other than zero."
+        : problem === "not_a_number"
+          ? "That doesn't look like a number."
+          : null;
+  const valid = accountId !== "" && description.trim() !== "" && signed !== null && date !== "";
 
   const budgetImpact = budgetActuals.find((b) => b.category === category);
   const selectedAccount = accounts.find((a) => String(a.id) === accountId);
   const backdated = selectedAccount ? isBeforeAccountCheckpoint(selectedAccount, date) : false;
+  const [outLabel, inLabel] = directionLabels(selectedAccount?.account_type);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitAttempted(true);
     if (!valid) return;
+    if (signed === null) return;
     onSubmit(
       Number(accountId),
       date,
       description.trim(),
-      amountTrimmed,
+      signed,
       category || null,
       memberId ? Number(memberId) : null,
       notes.trim() === "" ? null : notes,
@@ -539,12 +551,41 @@ export function NewTransactionDialog({
           />
           {submitAttempted && description.trim() === "" && <span className="field-error">Enter a description.</span>}
         </label>
+        <div
+          className="view-toggle direction-toggle"
+          role="radiogroup"
+          aria-label="Direction"
+          onKeyDown={(e) => {
+            if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+            e.preventDefault();
+            const next: Direction = direction === "out" ? "in" : "out";
+            setDirection(next);
+            e.currentTarget.querySelector<HTMLButtonElement>(`[data-direction="${next}"]`)?.focus();
+          }}
+        >
+          {(["out", "in"] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              role="radio"
+              aria-checked={direction === d}
+              tabIndex={direction === d ? 0 : -1}
+              data-direction={d}
+              className={direction === d ? "view-toggle-active" : ""}
+              onClick={() => setDirection(d)}
+            >
+              {d === "out" ? outLabel : inLabel}
+            </button>
+          ))}
+        </div>
         <label className="modal-field">
           <span>Amount</span>
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder="Negative = money out"
+            placeholder="0.00"
+            inputMode="decimal"
+            data-amount-input
             aria-invalid={submitAttempted && amountError !== null}
           />
           {submitAttempted && amountError && <span className="field-error">{amountError}</span>}

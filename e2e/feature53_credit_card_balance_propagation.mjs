@@ -11,6 +11,7 @@
 
 import { launchApp, chooseMenuOption, chooseRowAction } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '5000.00')")
@@ -57,7 +58,7 @@ async function addTransaction(app, { accountName, description, amount }) {
   const accountSelect = (await panel.$$(".menu-select-toggle"))[0];
   await chooseMenuOption(accountSelect, { label: accountName });
   await (await panel.$("input[placeholder='e.g. \"Coffee shop\"']")).setValue(description);
-  await (await panel.$("input[placeholder='Negative = money out']")).setValue(amount);
+  await enterTransactionAmount(app.browser, panel, amount);
 
   const submit = await panel.$("button=Add transaction");
   await submit.click();

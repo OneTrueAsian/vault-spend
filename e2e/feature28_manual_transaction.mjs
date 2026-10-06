@@ -10,6 +10,7 @@
 
 import { launchApp, chooseMenuOption, menuSelectValue, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
@@ -36,8 +37,7 @@ try {
   // First transaction: explicit category, skipping auto-categorize entirely.
   const descriptionInput = await dialogPanel.$("input[placeholder='e.g. \"Coffee shop\"']");
   await descriptionInput.setValue("Local Coffee Shop");
-  const amountInput = await dialogPanel.$("input[placeholder='Negative = money out']");
-  await amountInput.setValue("-4.50");
+  await enterTransactionAmount(app.browser, dialogPanel, "-4.50");
   // The Category <select>'s first option is "Auto-categorize" — find the
   // select containing that option and pick "Dining Out" (a seeded default
   // category) explicitly instead. Confirmed via `.getValue()` before
@@ -111,8 +111,7 @@ try {
   await dialog.waitForExist({ timeout: 10000 });
   const descriptionInput2 = await dialogPanel.$("input[placeholder='e.g. \"Coffee shop\"']");
   await descriptionInput2.setValue("Zzyzx Test Merchant Nine Four Two");
-  const amountInput2 = await dialogPanel.$("input[placeholder='Negative = money out']");
-  await amountInput2.setValue("-12.00");
+  await enterTransactionAmount(app.browser, dialogPanel, "-12.00");
   const submitBtn2 = await dialogPanel.$("button=Add transaction");
   await submitBtn2.click();
   await dialog.waitForExist({ timeout: 5000, reverse: true });
