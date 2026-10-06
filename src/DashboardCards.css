@@ -239,24 +239,10 @@
   background: linear-gradient(135deg, var(--accent-strong), var(--info));
 }
 
-/* A debt account's badge (s4): neutral, like the Debt tile, with the icon in the text colour. */
+/* A debt account's badge (s4): neutral, like the Debt tile. Every account icon is a full-colour
+   one (icons/accountIcons.tsx), which keeps its own colours via `.icon-img-color` above. */
 .stat-hero .mini-ico.neutral {
   background: var(--surface-2);
-  color: var(--text);
-}
-
-.stat-hero .mini-ico.neutral img.icon-img {
-  filter: brightness(0);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .stat-hero .mini-ico.neutral img.icon-img {
-    filter: brightness(0) invert(1);
-  }
-}
-
-:root[data-theme="dark"] .stat-hero .mini-ico.neutral img.icon-img {
-  filter: brightness(0) invert(1);
 }
 
 .stat-hero .mini-ico.purple {

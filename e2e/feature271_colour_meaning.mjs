@@ -9,13 +9,16 @@
 // - Recurring: the four total tiles use the neutral tint.
 // - Accounts: a loan's "Owed" amount is the same plain colour as a checking balance, and the
 //   "What you owe" tile uses the neutral tint.
+// - A pinned debt account widget uses the neutral tint and badge.
 // - In Default, Futuristic and Retro, each in Light and Dark, axe finds no contrast problem in the
-//   parts this changed. A screenshot of each page in each look is saved for a look by eye.
+//   parts this changed, the neutral (income still arriving) progress fill stands out from its track
+//   at 3:1 or more (WCAG 1.4.11), and the pinned debt widget's icon stands out from its badge at 3:1. A screenshot of each page in each look is saved for a look by eye.
 //
 // Run with: node e2e/run-all.mjs --spec=271
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -33,6 +36,20 @@ const shotsDir = process.env.VS_SCREENS_DIR ?? fs.mkdtempSync(path.join(os.tmpdi
 fs.mkdirSync(shotsDir, { recursive: true });
 const dbDir = freshTestDbDir();
 await seedHouseholdDatabase(dbDir);
+// Pin the Car Loan to the Dashboard, so its widget (neutral tint and badge) is on the page.
+execFileSync("python", [
+  "-c",
+  `
+import json, sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+car = con.execute("SELECT id FROM accounts WHERE name = 'Car Loan'").fetchone()[0]
+layout = ["stat_net_worth", "stat_cash", "stat_debt", "stat_investments", "needs_a_look", "safe_to_spend", "runway",
+          "trend_spending", "budget_bills", "recent_transactions", f"account:{car}"]
+con.execute("INSERT OR REPLACE INTO profile_ui_state (key, value) VALUES ('dashboard_layout', ?)", (json.dumps(layout),))
+con.commit()
+`,
+  path.join(dbDir, "vaultspend.db"),
+]);
 const app = await launchApp({ dbDir });
 const { browser } = app;
 
@@ -60,6 +77,57 @@ const tokenColour = (token) =>
     probe.remove();
     return c;
   }, token);
+
+/** Non-text contrast (WCAG 1.4.11) in the window: each neutral progress fill against its track, and
+ * the pinned debt widget's icon against its badge. Colours are composited over their ancestors'
+ * background colours down to the page's opaque background (background images are not counted). */
+const measureNonText = () =>
+  browser.execute(() => {
+    const parse = (c) => {
+      const m = c.match(/rgba?\(([^)]+)\)/);
+      if (!m) return null;
+      const [r, g, b, a = 1] = m[1].split(/[ ,/]+/).filter(Boolean).map(Number);
+      return [r, g, b, a];
+    };
+    const over = (top, base) => [0, 1, 2].map((i) => top[i] * top[3] + base[i] * (1 - top[3])).concat(1);
+    const behind = (el) => {
+      const layers = [];
+      for (let e = el; e; e = e.parentElement) {
+        const c = parse(getComputedStyle(e).backgroundColor);
+        if (c && c[3] > 0) layers.push(c);
+        if (c && c[3] >= 1) break;
+      }
+      let colour = [255, 255, 255, 1];
+      for (const layer of layers.reverse()) colour = over(layer, colour);
+      return colour;
+    };
+    const lum = ([r, g, b]) => {
+      const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const ratio = (a, b) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100;
+    };
+    const fills = [...document.querySelectorAll(".progress-fill.neutral")].map((fill) => {
+      const track = behind(fill.parentElement);
+      const own = parse(getComputedStyle(fill).backgroundColor);
+      const opacity = Number(getComputedStyle(fill).opacity);
+      const shown = over([own[0], own[1], own[2], own[3] * opacity], track);
+      return { where: fill.closest("[data-budget-group]")?.dataset.budgetGroup ?? "?", ratio: ratio(shown, track) };
+    });
+    const badge = document.querySelector('[data-widget-id^="account:"] .mini-ico');
+    let icon = null;
+    if (badge) {
+      const bg = behind(badge);
+      const glyph = badge.querySelector("img, svg");
+      let fg = null;
+      if (glyph?.tagName === "svg") fg = parse(getComputedStyle(glyph).color);
+      else if (glyph?.classList.contains("icon-img")) fg = getComputedStyle(glyph).filter.includes("invert(1)") ? [255, 255, 255, 1] : [0, 0, 0, 1];
+      icon = { badgeClass: badge.getAttribute("class"), kind: glyph?.getAttribute("class") ?? glyph?.tagName ?? null, ratio: fg ? ratio(fg, bg) : null };
+    }
+    return { fills, icon };
+  });
 
 try {
   // ---- 1. Dashboard: the Debt amount is plain, only its change line is coloured -----------------
@@ -89,6 +157,21 @@ try {
   assert.ok(dash.deltaClass.split(" ").includes("up"), `a shrinking debt's change line should be the good colour: ${dash.deltaClass}`);
   assert.notEqual(dash.deltaColour, dash.debtValueColour, "the change line should be coloured, unlike the amount");
   console.log(`Debt amount ${dash.debtValueColour} = Net worth ${dash.netValueColour}; change line ${dash.deltaColour}`);
+
+  // The pinned Car Loan widget: neutral tint and neutral badge, not red.
+  const pinned = await settled(
+    () =>
+      browser.execute(() => {
+        const tile = document.querySelector('[data-widget-id^="account:"] .stat');
+        return tile
+          ? { label: tile.querySelector(".stat-label")?.textContent ?? null, tile: tile.getAttribute("class"), badge: tile.querySelector(".mini-ico")?.getAttribute("class") ?? null }
+          : null;
+      }),
+    (w) => w && w.label === "Car Loan",
+    "expected the pinned Car Loan widget on the Dashboard",
+  );
+  assert.equal(pinned.tile, "stat stat-hero tint-neutral", `the pinned debt widget should use the neutral tint: ${JSON.stringify(pinned)}`);
+  assert.equal(pinned.badge, "mini-ico neutral", `the pinned debt widget's badge should be neutral: ${JSON.stringify(pinned)}`);
 
   // ---- 2. Dashboard: the banner names a category ------------------------------------------------
   const banner = await settled(
@@ -161,8 +244,8 @@ try {
 
   // ---- 6. Contrast of what changed, in every style, light and dark -----------------------------
   const CHECKS = [
-    { tab: "dashboard", ready: () => Boolean(document.querySelector('[data-stat="debt"] .stat-delta') && document.querySelector(".budget-alert-banner")), include: ['[data-stat="debt"]', ".budget-alert-banner", ".todo-list"], hover: ".todo-row" },
-    { tab: "budget", ready: () => Boolean(document.querySelector(".budget-alert-done") && document.querySelector("[data-budget-summary]")), include: [".budget-alert-done", "[data-budget-summary]", "[data-budget-group='income']"] },
+    { tab: "dashboard", ready: () => Boolean(document.querySelector('[data-stat="debt"] .stat-delta') && document.querySelector(".budget-alert-banner")), include: ['[data-stat="debt"]', ".budget-alert-banner", ".todo-list", '[data-widget-id^="account:"]'], hover: ".todo-row", icon: true },
+    { tab: "budget", ready: () => Boolean(document.querySelector(".budget-alert-done") && document.querySelector("[data-budget-summary]")), include: [".budget-alert-done", "[data-budget-summary]", "[data-budget-group='income']"], fills: true },
     { tab: "recurring", ready: () => document.querySelectorAll(".stats .stat").length === 4, include: [".stats"] },
     { tab: "accounts", ready: () => document.querySelectorAll(".account-card .bal").length >= 8, include: [".stats", ".account-card"] },
   ];
@@ -206,6 +289,19 @@ try {
           check.include,
         );
         for (const n of nodes) failures.push(`${style}/${theme} ${check.tab}: ${n}`);
+        if (check.fills || check.icon) {
+          const m = await measureNonText();
+          if (check.fills) {
+            if (m.fills.length === 0) failures.push(`${style}/${theme} budget: no neutral progress fill to measure`);
+            for (const f of m.fills) if (f.ratio < 3) failures.push(`${style}/${theme} budget: neutral fill (${f.where}) is ${f.ratio}:1 against its track`);
+            console.log(`${style}/${theme} neutral fills: ${m.fills.map((f) => `${f.where} ${f.ratio}:1`).join(", ")}`);
+          }
+          if (check.icon) {
+            if (!m.icon) failures.push(`${style}/${theme} dashboard: no pinned debt widget badge`);
+            else if (m.icon.ratio !== null && m.icon.ratio < 3) failures.push(`${style}/${theme} dashboard: debt widget icon is ${m.icon.ratio}:1 on its badge`);
+            console.log(`${style}/${theme} debt widget icon (${m.icon?.kind}): ${m.icon?.ratio != null ? `${m.icon.ratio}:1` : "a full-colour icon, not measured"}`);
+          }
+        }
         await browser.saveScreenshot(path.join(shotsDir, `271-${check.tab}-${style}-${theme}.png`));
       }
       console.log(`${style}/${theme}: contrast checked`);

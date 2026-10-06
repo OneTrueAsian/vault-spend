@@ -37,6 +37,14 @@ export function netTone(amount: number, viewed: ViewedMonth): NetTone {
   return amount < 0 && viewed === "past" ? "bad" : "neutral";
 }
 
+/** A budget used exactly in full: what was spent equals what the month had to spend (the budget plus
+ * any rollover), compared in whole cents so float noise can't matter. The Budget row's "Used in full"
+ * badge and the Dashboard banner both use this, so they always agree. */
+export function usedInFull(available: number | string, actual: number | string): boolean {
+  const cents = (v: number | string) => Math.round((typeof v === "number" ? v : parseFloat(v)) * 100);
+  return cents(available) === cents(actual);
+}
+
 /** The progress-bar fill class for an income tone. `good` uses the normal fill. */
 export function toneFillClass(tone: IncomeTone): string {
   return tone === "good" ? "progress-fill" : `progress-fill ${tone}`;

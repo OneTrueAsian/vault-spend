@@ -12,7 +12,7 @@ import { MenuSelect } from "./MenuSelect";
 import { sumMoney } from "./money";
 import { RowMenu, type RowMenuItem } from "./RowMenu";
 import { groupProgressLabel } from "./budgetSummary";
-import { incomeProgressTone, netTone, toneFillClass, viewedMonth, type ViewedMonth } from "./colourStatus";
+import { incomeProgressTone, netTone, toneFillClass, usedInFull as isUsedInFull, viewedMonth, type ViewedMonth } from "./colourStatus";
 
 type MonthElapsed = NonNullable<ReturnType<typeof monthElapsed>>;
 
@@ -257,7 +257,8 @@ function BudgetRow({
   // glance, not just via the badge text.
   const pct = budgeted > 0 ? Math.min(100, (actual / budgeted) * 100) : actual > 0 ? 100 : 0;
   // Exactly at the budget is "used in full", not a warning (s4: red and amber only for what needs you).
-  const usedInFull = !isIncome && alertLevel === "warning" && Math.abs(remaining) < 0.005;
+  // `budgeted` includes rollover, as the backend's alert does, so this agrees with the Dashboard banner.
+  const usedInFull = !isIncome && alertLevel === "warning" && isUsedInFull(budgeted, actual);
   // Income uses the month-aware tone: money not in yet early in the month is normal, not a warning.
   const fillClass = isIncome
     ? toneFillClass(incomeProgressTone(actual, budgeted, elapsed?.fraction ?? 0, viewed))

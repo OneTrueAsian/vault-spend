@@ -416,6 +416,8 @@ export function DashboardView({
   // Owing money is not by itself something to fix (s4), so only debt that grew gets the warning
   // icon and the red trend line. The amount itself always stays neutral.
   const debtGrowing = netWorthHistory.length > 1 && debtDelta > 0;
+  // Budgets used exactly in full are done, not a warning (s4), so on their own they get a quiet banner.
+  const allAlertsUsedInFull = budgetAlerts.every(isUsedInFull);
   const investmentsDelta = investmentsSpark.length ? investmentsSpark[investmentsSpark.length - 1] - investmentsSpark[0] : 0;
   const monthsSpan = netWorthHistory.length;
 
@@ -703,11 +705,10 @@ export function DashboardView({
         {budgetAlerts.length > 0 && (
           <button
             type="button"
-            // Budgets used exactly in full are done, not a warning (s4), so on their own they get a quiet banner.
-            className={budgetAlerts.every(isUsedInFull) ? "budget-alert-banner budget-alert-banner-done" : "budget-alert-banner"}
+            className={allAlertsUsedInFull ? "budget-alert-banner budget-alert-banner-done" : "budget-alert-banner"}
             onClick={() => setShowBudgetAlerts((v) => !v)}
           >
-            {!budgetAlerts.every(isUsedInFull) && <IconEntryGlyph entry={flatIconEntry("warning-icon")} className="budget-alert-icon" />}
+            {!allAlertsUsedInFull && <IconEntryGlyph entry={flatIconEntry("warning-icon")} className="budget-alert-icon" />}
             <span>{describeBudgetAlerts(budgetAlerts)}</span>
           </button>
         )}

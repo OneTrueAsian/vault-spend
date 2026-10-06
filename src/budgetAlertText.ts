@@ -1,4 +1,5 @@
 import type { BudgetAlert } from "./types";
+import { usedInFull } from "./colourStatus";
 
 type AlertForText = Pick<BudgetAlert, "category" | "level"> & Partial<Pick<BudgetAlert, "budgeted" | "actual">>;
 
@@ -10,10 +11,11 @@ function nameList(names: string[]): string {
 }
 
 /** A warning sitting exactly at its budget: it's used in full, not "close" (the Budget row's badge
- * says "Used in full" for the same case). Compared in cents so float noise can't matter. */
+ * says "Used in full" for the same case). The backend's `budgeted` already includes any rollover
+ * (Store::budget_alerts_for_month), the same figure the row compares against. */
 export function isUsedInFull(a: AlertForText): boolean {
   if (a.level !== "warning" || a.budgeted === undefined || a.actual === undefined) return false;
-  return Math.round(parseFloat(a.budgeted) * 100) === Math.round(parseFloat(a.actual) * 100);
+  return usedInFull(a.budgeted, a.actual);
 }
 
 /** The Dashboard's budget alert banner, naming the categories instead of counting them:

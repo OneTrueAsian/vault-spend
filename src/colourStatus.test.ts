@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { incomeProgressTone, incomeTone, netTone, toneFillClass, viewedMonth } from "./colourStatus";
+import { incomeProgressTone, incomeTone, netTone, toneFillClass, usedInFull, viewedMonth } from "./colourStatus";
 
 describe("incomeTone", () => {
   it("stays neutral early in the current month, even with little income in (the 4 October case)", () => {
@@ -98,5 +98,21 @@ describe("viewedMonth", () => {
   it("knows a later month, including one in a later year", () => {
     expect(viewedMonth(2026, 11, today)).toBe("future");
     expect(viewedMonth(2027, 1, today)).toBe("future");
+  });
+});
+
+describe("usedInFull", () => {
+  it("is true when what was spent equals what the month had, to the cent", () => {
+    expect(usedInFull(400, 400)).toBe(true);
+    expect(usedInFull("2140.00", "2140")).toBe(true);
+  });
+
+  it("ignores float noise from adding a budget and its rollover", () => {
+    expect(usedInFull(300.1 + 99.9, "400.00")).toBe(true);
+  });
+
+  it("is false a cent either side", () => {
+    expect(usedInFull(400, 399.99)).toBe(false);
+    expect(usedInFull(400, 400.01)).toBe(false);
   });
 });

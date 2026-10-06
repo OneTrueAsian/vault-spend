@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { describeBudgetAlerts } from "./budgetAlertText";
+import { describeBudgetAlerts, isUsedInFull } from "./budgetAlertText";
+import { effectiveBudget } from "./budgetPlan";
+import { usedInFull } from "./colourStatus";
 
 const over = (category: string) => ({ category, level: "over" as const });
 const close = (category: string) => ({ category, level: "warning" as const });
@@ -67,4 +69,37 @@ describe("describeBudgetAlerts", () => {
       "Dining is over its budget; Mortgage, Phone and 1 more have used all of theirs",
     );
   });
+
+  it("counts rollover in what the month had, as the backend's alert does", () => {
+    // Store::budget_alerts_for_month sends budgeted = budget + rollover.
+    expect(describeBudgetAlerts([{ category: "Gifts", level: "warning", budgeted: "400.00", actual: "400.00" }])).toBe(
+      "Gifts has used its whole budget",
+    );
+    expect(describeBudgetAlerts([{ category: "Gifts", level: "warning", budgeted: "500.00", actual: "400.00" }])).toBe(
+      "Gifts is close to its budget",
+    );
+  });
+});
+
+// The Dashboard banner reads the alert; the Budget row reads its own line. Both must agree.
+describe("used in full: banner and Budget row agree", () => {
+  const cases = [
+    { budgeted: "400.00", rollover: "0", actual: "400.00" },
+    { budgeted: "300.00", rollover: "100.00", actual: "400.00" },
+    { budgeted: "300.10", rollover: "99.90", actual: "400.00" },
+    { budgeted: "400.00", rollover: "100.00", actual: "400.00" },
+    { budgeted: "400.00", rollover: "0", actual: "399.99" },
+  ];
+  for (const line of cases) {
+    it(`agrees for budget ${line.budgeted} + rollover ${line.rollover}, spent ${line.actual}`, () => {
+      // How the backend builds the alert: budgeted is the budget plus rollover (see budgets.rs).
+      const alert = {
+        category: "Gifts",
+        level: "warning" as const,
+        budgeted: (parseFloat(line.budgeted) + parseFloat(line.rollover)).toFixed(2),
+        actual: line.actual,
+      };
+      expect(isUsedInFull(alert)).toBe(usedInFull(effectiveBudget(line), line.actual));
+    });
+  }
 });

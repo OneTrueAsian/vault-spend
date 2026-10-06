@@ -609,4 +609,23 @@ describe("BudgetView colours", () => {
     expect(rowFor("Dining").querySelector(".budget-alert-badge")!.className).toBe("budget-alert-badge budget-alert-over");
     expect(rowFill("Dining").className).toBe("progress-fill over");
   });
+
+  it("counts rollover when deciding a budget is used in full, as the Dashboard banner does", async () => {
+    await render(
+      props({
+        budgetActuals: [
+          line({ category: "Gifts", budget_group: "flexible", budgeted: "300.10", rollover: "99.90", actual: "400.00", rollover_enabled: true }),
+          line({ category: "Pets", budget_group: "flexible", budgeted: "400.00", rollover: "100.00", actual: "400.00", rollover_enabled: true }),
+        ],
+        budgetAlerts: [
+          { category: "Gifts", budget_group: "flexible", budgeted: "400.00", actual: "400.00", pct: "100", level: "warning", cap_enabled: false },
+          { category: "Pets", budget_group: "flexible", budgeted: "500.00", actual: "400.00", pct: "80", level: "warning", cap_enabled: false },
+        ],
+      }),
+    );
+    expect(rowFor("Gifts").querySelector(".budget-alert-badge")!.textContent).toBe("Used in full");
+    expect(rowFor("Gifts").querySelector(".budget-alert-badge")!.className).toBe("budget-alert-badge budget-alert-done");
+    expect(rowFor("Pets").querySelector(".budget-alert-badge")!.textContent).toBe("80%+");
+    expect(rowFor("Pets").querySelector(".budget-alert-badge")!.className).toBe("budget-alert-badge budget-alert-warning");
+  });
 });
