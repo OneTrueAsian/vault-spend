@@ -43,7 +43,8 @@ import {
 import { answerLedgerQuestion, LEDGER_QA_EXAMPLES, type QaResult } from "./ledgerQa";
 import { ensureUiStateMigrated } from "./profileUiState";
 import { attentionItems, type AttentionKind } from "./needsAttention";
-import { effectiveBudget } from "./budgetPlan";
+import { effectiveBudget, monthElapsed } from "./budgetPlan";
+import { budgetGroupFillClass } from "./colourStatus";
 import { SafeToSpendCard } from "./SafeToSpendCard";
 import { CategorySpendDialog } from "./CategorySpendDialog";
 import { CATEGORY_COLORS } from "./categoryPalette";
@@ -819,10 +820,15 @@ export function DashboardView({
             const budgeted = lines.reduce((s, b) => s + effectiveBudget(b), 0);
             const actual = sumMoney(lines.map((b) => b.actual));
             const pct = budgeted ? Math.min(100, (actual / budgeted) * 100) : 0;
-            const over = group === "income" ? actual < budgeted : actual > budgeted;
+            // The same colour rule as the Budget page: income still arriving is neutral, not red. This
+            // card always shows the current month.
+            const today = new Date();
+            const elapsed = monthElapsed(today.getFullYear(), today.getMonth() + 1, today);
+            const fillClass = budgetGroupFillClass(group, actual, budgeted, elapsed?.fraction ?? 0, "current");
             return (
               <div
                 key={group}
+                data-dashboard-budget-group={group}
                 className="clickable-row"
                 style={{ marginBottom: 14, padding: 4, borderRadius: 6 }}
                 onClick={onOpenBudget}
@@ -838,10 +844,7 @@ export function DashboardView({
                   </span>
                 </div>
                 <div className="progress-track">
-                  <div
-                    className="progress-fill"
-                    style={{ width: `${pct}%`, background: over ? "var(--negative)" : undefined }}
-                  />
+                  <div className={fillClass} style={{ width: `${pct}%` }} />
                 </div>
               </div>
             );

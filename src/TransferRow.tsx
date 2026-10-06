@@ -82,7 +82,7 @@ export function TransferRow({
             aria-label={`Select transfer from ${out.account_name} to ${incoming.account_name}`}
           />
         </td>
-        <td>
+        <td className="date-col">
           <span className="date-cell">{formatDisplayDate(out.date)}</span>
         </td>
         <td>

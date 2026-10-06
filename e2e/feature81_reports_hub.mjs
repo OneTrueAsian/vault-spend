@@ -110,6 +110,32 @@ try {
   await browser.waitUntil(async () => (await browser.$("[data-reports-hub]").getAttribute("data-report-range")).includes(".."), { timeout: 5000 });
   await browser.pause(400);
 
+  // --- half a screen wide, twelve months still read as separate figures -----------------
+  // The table keeps every column and scrolls sideways inside its card; no figure may spill into the
+  // next one (they ran together as "$1,200.00$1,200.00" at 800px).
+  await (await browser.$("[data-range-preset='last_12']")).click();
+  await browser.setWindowSize(800, 900);
+  let spill = null;
+  await browser.waitUntil(
+    async () => {
+      spill = await browser.execute(() => {
+        const rows = [...document.querySelectorAll("[data-report-table] tr")];
+        if (rows.length < 2 || rows[0].cells.length < 14) return "the table should show 12 months";
+        for (const row of rows) {
+          const cells = [...row.cells];
+          for (let i = 0; i < cells.length; i++) {
+            if (cells[i].scrollWidth > cells[i].clientWidth + 1) return `${row.cells[0].textContent} cell ${i} spills out`;
+            if (i > 0 && cells[i - 1].getBoundingClientRect().right > cells[i].getBoundingClientRect().left + 1) return `${row.cells[0].textContent} cell ${i} overlaps`;
+          }
+        }
+        return document.documentElement.scrollWidth > innerWidth + 1 ? "the page scrolls sideways" : null;
+      });
+      return spill === null;
+    },
+    { timeout: 10000, timeoutMsg: () => `the report table should keep each figure in its own cell at 800px: ${spill}` },
+  );
+  await browser.setWindowSize(1440, 1400);
+
   // --- the sections that moved ---------------------------------------------------------
   await nav("Accounts");
   await browser.$("button*=Add property or valuable").waitForExist({ timeout: 10000, timeoutMsg: "Property & Valuables should be on Accounts now" });

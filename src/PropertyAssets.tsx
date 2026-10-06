@@ -12,6 +12,14 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+/** A type's label; a type this list doesn't know (from older data or a setup file) is shown capitalised. */
+function assetTypeLabel(type: string): string {
+  const known = ASSET_TYPE_LABELS[type];
+  if (known) return known;
+  const words = type.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function NewAssetForm({
   familyMembers,
   onCreate,
@@ -144,7 +152,7 @@ export function PropertyAssetsSection({
         Property &amp; Valuables <span className="account-col">{formatAmount(total)}</span>
       </h2>
       <div className="table-scroll">
-      <table className="ledger">
+      <table className="ledger property-assets-table">
         <thead>
           <tr>
             <th>Name</th>
@@ -162,7 +170,7 @@ export function PropertyAssetsSection({
                 <div className="account-name-cell">{a.name}</div>
                 {a.notes && <span className="account-col">{a.notes}</span>}
               </td>
-              <td>{ASSET_TYPE_LABELS[a.asset_type] ?? a.asset_type}</td>
+              <td>{assetTypeLabel(a.asset_type)}</td>
               <td className="amount-col">
                 {editing?.id === a.id ? (
                   <input

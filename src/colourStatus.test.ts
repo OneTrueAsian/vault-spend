@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { incomeProgressTone, incomeTone, netTone, toneFillClass, usedInFull, viewedMonth } from "./colourStatus";
+import { budgetGroupFillClass, incomeProgressTone, incomeTone, netTone, toneFillClass, usedInFull, viewedMonth } from "./colourStatus";
 
 describe("incomeTone", () => {
   it("stays neutral early in the current month, even with little income in (the 4 October case)", () => {
@@ -114,5 +114,23 @@ describe("usedInFull", () => {
   it("is false a cent either side", () => {
     expect(usedInFull(400, 399.99)).toBe(false);
     expect(usedInFull(400, 400.01)).toBe(false);
+  });
+});
+
+// One rule for a budget group's bar, shared by the Budget page and the Dashboard's budget card.
+describe("budgetGroupFillClass", () => {
+  it("keeps income neutral while it is still arriving early in the month", () => {
+    expect(budgetGroupFillClass("income", 4100, 8200, 6 / 31, "current")).toBe("progress-fill neutral");
+  });
+  it("shows income in full as good and warns only about a month that ended short", () => {
+    expect(budgetGroupFillClass("income", 8200, 8200, 0.5, "current")).toBe("progress-fill");
+    expect(budgetGroupFillClass("income", 4100, 8200, 1, "past")).toBe("progress-fill warn");
+  });
+  it("turns an expense group red only past 100%, amber from 80%", () => {
+    expect(budgetGroupFillClass("fixed", 2300, 3607, 0.2, "current")).toBe("progress-fill");
+    expect(budgetGroupFillClass("fixed", 3000, 3607, 0.2, "current")).toBe("progress-fill warn");
+    expect(budgetGroupFillClass("fixed", 3607, 3607, 0.2, "current")).toBe("progress-fill warn");
+    expect(budgetGroupFillClass("fixed", 3607.01, 3607, 0.2, "current")).toBe("progress-fill over");
+    expect(budgetGroupFillClass("flexible", 10, 0, 0.2, "current")).toBe("progress-fill");
   });
 });

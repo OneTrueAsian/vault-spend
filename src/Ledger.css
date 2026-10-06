@@ -1020,6 +1020,12 @@
   white-space: nowrap;
 }
 
+/* Columns size to their figures (not .ledger's fixed shares), so in a narrow window the table grows
+   wider than its card and scrolls inside .report-table-scroll instead of running the figures together. */
+table.ledger.report-table {
+  table-layout: auto;
+}
+
 .report-table-total {
   font-weight: 600;
 }

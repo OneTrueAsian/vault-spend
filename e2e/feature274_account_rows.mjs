@@ -10,6 +10,8 @@ const dbDir = await seedFixture(`
 for i, kind in enumerate(['checking', 'savings', 'checking', 'credit', 'credit', 'loan', 'loan', 'investment', 'investment', 'other']):
     name = 'Long family account name that remains readable at narrow widths' if i == 2 else f'Family account {i+1}'
     cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES (?,?,?)", (name, kind, str(1200 + i * 120)))
+# Property rows: an unknown stored type ("property") shows capitalised, and the member menu fits its cell at 800px.
+cur.execute("INSERT INTO assets (name, asset_type, value, valued_on) VALUES ('2022 Family car', 'vehicle', '24500.00', date('now')), ('Our House', 'property', '415000.00', date('now'))")
 `);
 const app = await launchApp({ dbDir }); const browser = app.browser;
 async function accounts() {
@@ -20,6 +22,8 @@ async function accounts() {
   await waitUntilOrDiagnose(browser, () => browser.execute(() => document.querySelectorAll('.account-card').length === 10), { timeoutMsg: 'All account rows should load' });
 }
 try {
+  await accounts();
+  await waitUntilOrDiagnose(browser, () => browser.execute(() => [...document.querySelectorAll("[data-property-assets] tbody tr")].some((r) => r.cells[1]?.textContent === "Property")), { timeoutMsg: "an unknown stored property type shows capitalised" });
   for (const [name, palette] of [['Default','transparent'],['Futuristic','futuristic'],['Retro','retro']]) {
     await browser.setWindowSize(1440, 1000); await chooseStyle(browser, name, palette);
     for (const theme of ['light','dark']) {
@@ -46,6 +50,11 @@ try {
             });
           }) && document.documentElement.scrollWidth <= innerWidth + 1;
         }), { timeoutMsg: `${palette}/${theme}/${width}: rows and balances align without overflow` });
+        // Property & Valuables: each member menu holds its own text and arrow (it overflowed its box at 800px).
+        await waitUntilOrDiagnose(browser, () => browser.execute(() => {
+          const toggles = [...document.querySelectorAll("[data-property-assets] .member-col .menu-select-toggle")];
+          return toggles.length === 2 && toggles.every((t) => t.scrollWidth <= t.clientWidth + 1 && [...t.children].every((c) => c.getBoundingClientRect().right <= t.getBoundingClientRect().right + 1));
+        }), { timeoutMsg: `${palette}/${theme}/${width}: property member menus fit their text and arrow` });
       }
       await browser.saveScreenshot(path.join(shots, `${palette}-${theme}-800.png`));
       const row = '.account-card[data-account-id="1"]';

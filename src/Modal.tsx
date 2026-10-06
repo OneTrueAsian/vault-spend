@@ -1300,9 +1300,9 @@ export function ConfirmInvertDialog({
         statement (with payments shown as negative)?
       </p>
       <p className="modal-message modal-message-secondary">
-        Choose "Flip the signs" to match the rest of your transactions (negative =
-        money out). Choose "Keep as-is" if it already uses that convention —
-        most bank/checking exports do.
+        Choose "Flip the signs" to match the rest of your transactions, where money
+        out is a minus amount. Choose "Keep as-is" if the file already shows money
+        out as minus — most bank and checking files do.
       </p>
       {hint && (
         <p className="modal-message" data-import-sign-hint>

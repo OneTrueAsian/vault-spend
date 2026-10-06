@@ -1012,7 +1012,7 @@ export function ProfilesSection({
           ))}
         </tbody>
       </table>
-      <form className="category-create-form" onSubmit={handleCreateSubmit}>
+      <form className="category-create-form profile-create-form" onSubmit={handleCreateSubmit}>
         <input
           value={newProfileName}
           onChange={(e) => setNewProfileName(e.target.value)}

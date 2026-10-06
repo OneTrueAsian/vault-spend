@@ -49,3 +49,12 @@ export function usedInFull(available: number | string, actual: number | string):
 export function toneFillClass(tone: IncomeTone): string {
   return tone === "good" ? "progress-fill" : `progress-fill ${tone}`;
 }
+
+/** The bar class for a budget group, the same on the Budget page and the Dashboard's budget card.
+ * Expense groups: red only past 100%, amber from 80%. Income never goes red: it is neutral while it is
+ * still arriving, and warns only once the month is (nearly) over and short. */
+export function budgetGroupFillClass(group: string, actual: number, budgeted: number, monthElapsed: number, viewed: ViewedMonth): string {
+  if (group === "income") return toneFillClass(incomeProgressTone(actual, budgeted, monthElapsed, viewed));
+  if (budgeted > 0 && Math.round(actual * 100) > Math.round(budgeted * 100)) return "progress-fill over";
+  return budgeted > 0 && (actual / budgeted) * 100 >= 80 ? "progress-fill warn" : "progress-fill";
+}

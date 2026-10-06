@@ -191,7 +191,7 @@ for acc, sym, name, sh, price, basis, cls in [
     cur.execute("INSERT INTO holdings (account_id, symbol, name, shares, price, cost_basis, asset_class) VALUES (?,?,?,?,?,?,?)",
                 (acc, sym, name, sh, price, basis, cls))
 
-cur.execute("INSERT INTO assets (name, asset_type, value, valued_on) VALUES ('Our House', 'property', '415000.00', ?)", (today.isoformat(),))
+cur.execute("INSERT INTO assets (name, asset_type, value, valued_on) VALUES ('Our House', 'real_estate', '415000.00', ?)", (today.isoformat(),))
 cur.execute("INSERT INTO assets (name, asset_type, value, valued_on) VALUES ('2022 Toyota RAV4', 'vehicle', '24500.00', ?)", (today.isoformat(),))
 
 for name in ("Mortgage", "Car Payment", "Student Loan", "Phone", "Household", "Health", "Home Maintenance", "Travel", "Charity"):

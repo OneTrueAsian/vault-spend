@@ -159,6 +159,13 @@ describe("TransferRow", () => {
     expect(onUnlink).toHaveBeenCalledTimes(1);
   });
 
+  it("puts its date in the same date column as an ordinary row, so the dates line up", () => {
+    show(txn({ id: 1, account_name: "Checking" }), txn({ id: 2, account_name: "Savings" }));
+    const cells = container.querySelectorAll("tr[data-payment-row] td");
+    expect(cells[1].className).toBe("date-col");
+    expect(cells[1].querySelector(".date-cell")).not.toBeNull();
+  });
+
   it("spans the accounts line over the member column only when that column shows", () => {
     const out = txn({ id: 1, account_name: "Checking" });
     const incoming = txn({ id: 2, account_name: "Savings" });

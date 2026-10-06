@@ -259,6 +259,31 @@ describe("Runway ring", () => {
 
 // s4: red only for what needs you. Owing money is not by itself a problem, so the Debt amount
 // and its tile stay neutral; only its change line is coloured. The budget banner names categories.
+describe("Dashboard budget card colours", () => {
+  const line = (category: string, budget_group: string, budgeted: string, actual: string) => ({
+    category, budget_group, budgeted, actual, cap_enabled: false, rollover: "0", rollover_enabled: false,
+  });
+  const fill = (group: string) => container.querySelector<HTMLElement>(`[data-dashboard-budget-group="${group}"] .progress-fill`)!;
+
+  afterEach(() => vi.useRealTimers());
+
+  it("uses the Budget page's rule: income still arriving early in the month is neutral, not red", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 6));
+    const report = {
+      total_saved: "0",
+      income_total: "4100.00",
+      month_label: "October 2026",
+      budget_actuals: [line("Income", "income", "8200.00", "4100.00"), line("Mortgage", "fixed", "300.00", "400.00"), line("Dining", "flexible", "300.00", "48.40")],
+    };
+    await render(props({ report }));
+    expect(fill("income").className).toBe("progress-fill neutral");
+    expect(fill("income").style.background).toBe("");
+    expect(fill("fixed").className).toBe("progress-fill over");
+    expect(fill("flexible").className).toBe("progress-fill");
+  });
+});
+
 describe("Dashboard colours", () => {
   const point = (debt: string, i: number) => ({
     month_label: `M${i}`,

@@ -35,6 +35,18 @@ describe("plain-language copy", () => {
     expect(hits).toEqual([]);
   });
 
+  // "Convention" is a word for people who already know the rules; say what the rule is instead
+  // (Task 16 sweep: Help and the import sign question both said "Vault Spend's convention").
+  it("never says convention on screen", () => {
+    const hits: string[] = [];
+    for (const file of sourceFiles(SRC).filter((f) => !f.endsWith("changelog.ts"))) {
+      withoutComments(readFileSync(file, "utf8")).forEach((line, i) => {
+        if (/\bconvention\b/i.test(line)) hits.push(`${relative(SRC, file)}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    expect(hits).toEqual([]);
+  });
+
   // Help and page subtitles name things the way the screens do (UI review, 2026-10-04): Accounts
   // says "What you own" / "What you owe", the Dashboard card is "To do", and "sinking fund" is a
   // term most people don't know. Help's search keywords may still list it (a lone quoted string

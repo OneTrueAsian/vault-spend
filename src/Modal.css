@@ -455,6 +455,18 @@
   margin-bottom: 14px;
 }
 
+/* Settings > Profiles: the row wraps in a narrow window, so the name box keeps room to type in instead
+   of shrinking to a sliver beside the two buttons and the password checkbox. */
+.profile-create-form {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.category-create-form.profile-create-form input:not([type="checkbox"]):not([type="radio"]) {
+  flex: 1 1 220px;
+  min-width: 220px;
+}
+
 .category-create-form input:not([type="checkbox"]):not([type="radio"]) {
   flex: 1;
   font-family: inherit;

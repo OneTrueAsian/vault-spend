@@ -200,3 +200,9 @@
 .account-card button.sub.amount-editable { color: var(--text-muted); }
 .account-card button.bal { font-family: var(--font-mono); font-size: 15px; font-weight: 700; }
 .account-card:has(.account-card-open:hover) { border-color: var(--accent); }
+
+/* Property & Valuables: a member menu keeps its name and arrow on one line inside its box. MenuSelect's
+   max-width: 100% let the table squeeze the cell below the menu's own width at 800px, so the text ran
+   into the border and the arrow sat outside it. */
+.property-assets-table .member-col .menu-select { max-width: none; }
+.property-assets-table .member-col .menu-select-toggle { white-space: nowrap; }

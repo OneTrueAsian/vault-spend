@@ -12,7 +12,7 @@ import { MenuSelect } from "./MenuSelect";
 import { sumMoney } from "./money";
 import { RowMenu, type RowMenuItem } from "./RowMenu";
 import { groupProgressLabel } from "./budgetSummary";
-import { incomeProgressTone, netTone, toneFillClass, usedInFull as isUsedInFull, viewedMonth, type ViewedMonth } from "./colourStatus";
+import { budgetGroupFillClass, incomeProgressTone, netTone, toneFillClass, usedInFull as isUsedInFull, viewedMonth, type ViewedMonth } from "./colourStatus";
 import { HelpLink } from "./HelpLink";
 import type { Tab } from "./appTypes";
 
@@ -806,15 +806,7 @@ export function BudgetView({
         const isIncome = group === "income";
         const columns = isIncome ? INCOME_COLUMNS : EXPENSE_COLUMNS;
         const pct = groupBudgeted > 0 ? (groupActual / groupBudgeted) * 100 : 0;
-        // Expense groups: red only past 100%, amber from 80%. Income never goes red: it is neutral
-        // while it is still arriving, and warns only once the month is (nearly) over and short.
-        const fillClass = isIncome
-          ? toneFillClass(incomeProgressTone(groupActual, groupBudgeted, elapsed?.fraction ?? 0, viewed))
-          : groupBudgeted > 0 && Math.round(groupActual * 100) > Math.round(groupBudgeted * 100)
-            ? "progress-fill over"
-            : pct >= 80
-              ? "progress-fill warn"
-              : "progress-fill";
+        const fillClass = budgetGroupFillClass(group, groupActual, groupBudgeted, elapsed?.fraction ?? 0, viewed);
         return (
           <section key={group} className="budget-group" data-budget-group={group}>
             <div className="budget-group-head">

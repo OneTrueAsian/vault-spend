@@ -91,6 +91,12 @@ try {
   assert.ok(protectionCheckbox.height <= 20, `Settings protection checkbox should keep native checkbox sizing: ${JSON.stringify(protectionCheckbox)}`);
   assert.ok(protectionCheckbox.centerDelta <= 2, `Settings protection checkbox should align with its label: ${JSON.stringify(protectionCheckbox)}`);
   await b.setWindowSize(800, 700);
+  // Half a screen wide, the new-profile name box keeps room to type in (its row wraps instead of
+  // squeezing it to a sliver beside the buttons).
+  await b.waitUntil(async () => (await b.execute(() => document.querySelector(".profile-create-form input:not([type=checkbox])")?.getBoundingClientRect().width ?? 0)) >= 200, {
+    timeout: 5000,
+    timeoutMsg: "the new-profile name box should stay at least 200px wide at 800px",
+  });
   await nav("Transactions");
   await (await b.$("button*=More filters")).click();
   const rect = await b.execute(() => {
