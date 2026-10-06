@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { launchApp, pickFromMenu } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth, displayDate } from "./lib/dates.mjs";
 
@@ -43,9 +43,12 @@ async function accountFilter(names) {
   for (const name of names) await (await (await browser.$(".payment-account-filter")).$(`label=${name}`)).click();
   await (await browser.$(".payment-account-filter .account-filter-toggle")).click();
 }
+// The category filter is a menu that closes when the window loses focus (another spec's window
+// launching in a parallel run), so open it and pick through pickFromMenu, which retries in that case.
 async function categoryFilter(name) {
-  await (await browser.$(".category-filter-toggle")).click();
-  await (await (await browser.$(".category-filter-panel")).$(`button=${name}`)).click();
+  await pickFromMenu(browser, ".ledger-filters .category-filter-toggle", async () =>
+    (await browser.$(".ledger-filters .category-filter-panel")).$(`button=${name}`),
+  );
 }
 async function openCard() {
   await nav("Accounts");
