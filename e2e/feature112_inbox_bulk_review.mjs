@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { launchApp, pickFromMenu, reclaimWindowFocus } from "./harness.mjs";
+import { launchApp, pickFromMenu, reclaimWindowFocus, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -102,26 +102,37 @@ try {
   assert.equal((await b.$$("[data-inbox-row]")).length, 5);
   for (const palette of ['transparent', 'futuristic']) for (const theme of ['light', 'dark']) {
     await b.execute((palette, theme) => { document.documentElement.dataset.palette = palette; document.documentElement.dataset.theme = theme; }, palette, theme);
-    await (await b.$('[data-inbox-row] .inbox-category-trigger')).click();
-    const style = await b.execute(() => {
-      const menu = document.querySelector('.inbox-category-menu');
-      const r = menu.getBoundingClientRect();
-      return { topLayer: menu.matches(':popover-open'), radius: getComputedStyle(menu).borderRadius,
-        visible: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
-        nativeSelects: document.querySelectorAll('[data-inbox-list] select, [data-inbox-bulk] select').length };
+    // Another spec's window taking focus closes the menu on blur (without handing focus back), so
+    // the open, measure, Escape steps retry together when, and only when, the window lost focus.
+    let style;
+    await withFocusRetry(b, async () => {
+      await (await b.$('[data-inbox-row] .inbox-category-trigger')).click();
+      await b.waitUntil(async () => b.execute(() => !!document.querySelector('.inbox-category-menu:popover-open')), {
+        timeout: 3000,
+        timeoutMsg: `the inbox category menu should open in ${palette} ${theme}`,
+      });
+      style = await b.execute(() => {
+        const menu = document.querySelector('.inbox-category-menu');
+        const r = menu.getBoundingClientRect();
+        return { topLayer: menu.matches(':popover-open'), radius: getComputedStyle(menu).borderRadius,
+          visible: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
+          nativeSelects: document.querySelectorAll('[data-inbox-list] select, [data-inbox-bulk] select').length };
+      });
+      await b.keys('Escape');
+      await b.waitUntil(async () => !(await b.$('.inbox-category-menu').isExisting()), { timeout: 3000, timeoutMsg: 'Escape should close the inbox category menu' });
+      await b.waitUntil(async () => b.execute(() => document.activeElement.classList.contains('inbox-category-trigger')), {
+        timeout: 3000,
+        timeoutMsg: 'focus should return to the category trigger after Escape',
+      });
     });
     assert.deepEqual(style, { topLayer: true, radius: '10px', visible: true, nativeSelects: 0 });
-    await b.keys('Escape');
-    assert.equal(await b.$('.inbox-category-menu').isExisting(), false);
     assert.ok(await b.$('[data-inbox-list]').isExisting(), 'Escape must leave the inbox open');
-    assert.ok(await b.execute(() => document.activeElement.classList.contains('inbox-category-trigger')));
   }
 
   await (await b.$('[aria-label^="Select Unknown One on"]')).click();
   await (await b.$('[aria-label^="Select Unknown Two on"]')).click();
   assert.equal(await b.$('[data-inbox-review-selected]').isEnabled(), false);
-  await (await b.$('button[aria-label="Category for selected transactions"]')).click();
-  await (await (await b.$('.inbox-category-menu')).$('button*=Groceries')).click();
+  await pickFromMenu(b, 'button[aria-label="Category for selected transactions"]', async () => (await b.$('.inbox-category-menu')).$('button*=Groceries'));
   await (await b.$('[data-inbox-review-selected]')).click();
   await b.waitUntil(async () => (await b.$$('[data-inbox-state="done"]')).length === 2, { timeout: 10000 });
   assert.equal((await b.$$('[data-inbox-state="open"]')).length, 3);

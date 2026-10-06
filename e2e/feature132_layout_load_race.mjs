@@ -1,8 +1,10 @@
 // The Dashboard layout is loaded from the profile's own storage after the app mounts (Phase E,
 // Task 8). If that read is slow and the person edits the layout first, the late answer must not
 // overwrite what they just did: their edit has to stay on screen and stay saved. The slow read is
-// made deterministic by delaying only the RESPONSE of the layout read (the backend still answers
-// from what was stored when it was asked), installed on the profile selector before the app mounts.
+// made deterministic by holding only the RESPONSE of the app's layout read (the backend still
+// answers from what was stored when it was asked) until the edit is saved, installed on the profile
+// selector before the app mounts. (A fixed 2.5 s hold once let the answer arrive first when opening
+// the profile and making the edit took longer than that on a loaded machine.)
 //
 // Run with: node e2e/run-all.mjs --spec=132
 
@@ -10,22 +12,34 @@ import assert from "node:assert/strict";
 import { chooseMenuOption, dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
 import { seedProfiles } from "./lib/protection.mjs";
 
+/** A command called straight from the page. It gives up after 10 s with a message naming the command,
+ * rather than waiting out the driver's script limit: once, under a full parallel run, this spec sat
+ * silent until the runner killed it at 60 s, after its second launch. */
 async function invoke(browser, command, args = {}) {
-  return browser.executeAsync((command, args, done) => {
-    window.__TAURI_INTERNALS__.invoke(command, args).then(done, (e) => done({ error: String(e) }));
+  const result = await browser.executeAsync((command, args, done) => {
+    const timer = setTimeout(() => done({ timedOut: true }), 10000);
+    window.__TAURI_INTERNALS__.invoke(command, args).then(
+      (value) => (clearTimeout(timer), done({ value })),
+      (e) => (clearTimeout(timer), done({ error: String(e) })),
+    );
   }, command, args);
+  if (result.timedOut) throw new Error(`${command} got no answer within 10 s`);
+  if (result.error !== undefined) throw new Error(`${command} failed: ${result.error}`);
+  return result.value;
 }
 
 const dbDir = await seedProfiles([{ name: "Alex" }, { name: "Blair" }]);
-const READ_DELAY_MS = 2500;
 
 async function openFirstProfile(browser) {
   await (await browser.$("[data-profile-option]")).click();
   await browser.$(".brand-word").waitForExist({ timeout: 15000 });
 }
 
-// Nothing is stored until the first edit is saved, so an unset layout reads as an empty list.
-const persistedLayout = async (browser) => JSON.parse((await invoke(browser, "get_profile_ui_state", { key: "dashboard_layout" })) ?? "[]");
+// Nothing is stored until the first edit is saved, so an unset layout reads as an empty list. The
+// extra `e2eProbe` argument (the command ignores it) lets the held-read wrapper below tell this
+// spec's own reads from the app's.
+const persistedLayout = async (browser) =>
+  JSON.parse((await invoke(browser, "get_profile_ui_state", { key: "dashboard_layout", e2eProbe: true })) ?? "[]");
 
 let widgetCountBefore;
 let editedLayout;
@@ -43,26 +57,34 @@ let editedLayout;
         done();
       });
     });
-    await browser.execute((delayMs) => {
+    await browser.execute(() => {
       const realFetch = window.fetch.bind(window);
       // Counted when asked and when handed to the app: "in flight" is asked but not yet delivered. (Counting
       // only once the backend had answered missed a read whose answer was itself slow under a loaded machine.)
       window.__layoutReadsAsked = 0;
       window.__layoutReadsDelivered = 0;
+      // The app's layout answers wait here until the spec releases them, after the edit is saved.
+      const held = [];
+      window.__layoutReadsReleased = false;
+      window.__releaseLayoutReads = () => {
+        window.__layoutReadsReleased = true;
+        held.splice(0).forEach((release) => release());
+      };
       window.fetch = async (input, init) => {
         const url = typeof input === "string" ? input : input.url;
         let body = init?.body;
         if (body && typeof body !== "string") body = new TextDecoder().decode(body);
-        const isLayoutRead = String(url).includes("get_profile_ui_state") && typeof body === "string" && body.includes('"dashboard_layout"');
+        const isLayoutRead =
+          String(url).includes("get_profile_ui_state") && typeof body === "string" && body.includes('"dashboard_layout"') && !body.includes('"e2eProbe"');
         if (isLayoutRead) window.__layoutReadsAsked += 1;
         const response = await realFetch(input, init);
         if (isLayoutRead) {
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          if (!window.__layoutReadsReleased) await new Promise((release) => held.push(release));
           window.__layoutReadsDelivered += 1;
         }
         return response;
       };
-    }, READ_DELAY_MS);
+    });
 
     await openFirstProfile(browser);
     await chooseMenuOption(await browser.$(".layout-select-toggle"), { label: "Customize…" });
@@ -79,7 +101,12 @@ let editedLayout;
     editedLayout = await persistedLayout(browser);
 
     // Now let the slow (and stale) answer arrive, and give the page time to react to it.
-    await browser.pause(READ_DELAY_MS + 1500);
+    await browser.execute(() => window.__releaseLayoutReads());
+    await browser.waitUntil(async () => browser.execute(() => window.__layoutReadsDelivered === window.__layoutReadsAsked), {
+      timeout: 5000,
+      timeoutMsg: "the held layout read should reach the app once released",
+    });
+    await browser.pause(1500);
     assert.equal(await browser.execute(() => document.querySelector(".layout-select-toggle").dataset.value), "custom", "the late load must not flip the layout back to Default");
     assert.equal((await browser.$$(".dashboard-widget-controls")).length, widgetCountBefore - 1, "the edited widget must stay removed on screen");
     assert.deepEqual(await persistedLayout(browser), editedLayout, "and the saved layout must be the edited one");
@@ -88,17 +115,21 @@ let editedLayout;
   }
 }
 
+console.log("[feature132] the late layout read left the edit in place");
+
 // The normal path still works: a fresh start reads the saved layout back.
 {
   const app = await launchApp({ dbDir, ready: "[data-profile-selector]" });
   try {
     const { browser } = app;
     await openFirstProfile(browser);
+    console.log("[feature132] second start: profile open");
     await browser.waitUntil(async () => (await browser.execute(() => document.querySelector(".layout-select-toggle")?.dataset.value)) === "custom", {
       timeout: 10000,
       timeoutMsg: "a normal start should read the saved layout back (the Layout dropdown shows Custom)",
     });
     assert.deepEqual(await persistedLayout(browser), editedLayout, "and nothing should have rewritten it");
+    console.log("[feature132] second start: saved layout read back");
     await dismissFirstLaunchDialogs(browser);
     await chooseMenuOption(await browser.$(".layout-select-toggle"), { label: "Customize…" });
     let shown;

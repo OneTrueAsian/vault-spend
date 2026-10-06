@@ -16,7 +16,7 @@
 //
 // Run with: node e2e/feature49_ledger_uncategorized_filter.mjs
 
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, pickFromMenu, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -56,12 +56,12 @@ try {
   const categoryTrigger = await app.browser.$(".ledger-filters .category-filter-toggle");
   const ledgerPage = await app.browser.$(".page");
 
+  // The filter panel closes when the window loses focus, so open it and click the option through
+  // pickFromMenu, which retries when another spec's window took focus in between.
   async function chooseCategoryFilter(label) {
-    await categoryTrigger.click();
-    const menu = await app.browser.$(".ledger-filters .category-filter-panel");
-    await menu.waitForExist({ timeout: 5000 });
-    const option = await menu.$(`.//button[.//span[normalize-space()='${label}']]`);
-    await option.click();
+    await pickFromMenu(app.browser, ".ledger-filters .category-filter-toggle", async () =>
+      (await app.browser.$(".ledger-filters .category-filter-panel")).$(`.//button[.//span[normalize-space()='${label}']]`),
+    );
   }
 
   // Selecting "Uncategorized" from the menu should show only Speedway

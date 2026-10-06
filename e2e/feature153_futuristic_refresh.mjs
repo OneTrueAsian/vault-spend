@@ -14,7 +14,7 @@
 //
 // Run with: node e2e/feature153_futuristic_refresh.mjs
 
-import { launchApp, reclaimWindowFocus, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
@@ -175,39 +175,43 @@ try {
   await browser.execute(() => [...document.querySelectorAll(".nav-item")].find((b) => b.textContent.trim() === "Transactions").click());
   const trigger = await browser.$(".menu-select-toggle");
   await trigger.waitForExist({ timeout: 10000 });
-  await reclaimWindowFocus(browser);
-  await trigger.click();
-  await waitUntilOrDiagnose(browser, async () => browser.execute(() => !!document.querySelector(".menu-select-panel")), {
-    timeoutMsg: "the category menu did not open",
+  // Another spec's window taking focus while the menu is open closes it on blur, without handing
+  // focus back to the trigger, so Escape then has nothing to close. Retry the whole step when (and
+  // only when) the window really lost focus during it.
+  let menu;
+  await withFocusRetry(browser, async () => {
+    await trigger.click();
+    await waitUntilOrDiagnose(browser, async () => browser.execute(() => !!document.querySelector(".menu-select-panel")), {
+      timeoutMsg: "the category menu did not open",
+    });
+    menu = await browser.execute(() => {
+      const panel = document.querySelector(".menu-select-panel");
+      const option = panel.querySelector(".account-destination-option");
+      const css = getComputedStyle(panel);
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = css.backgroundColor;
+      ctx.fillRect(0, 0, 1, 1);
+      return {
+        panelRadius: css.borderTopLeftRadius,
+        panelAlpha: ctx.getImageData(0, 0, 1, 1).data[3],
+        optionRadius: getComputedStyle(option).borderTopLeftRadius,
+        triggerRadius: getComputedStyle(document.querySelector(".menu-select-toggle")).borderTopLeftRadius,
+      };
+    });
+    await shot(browser, "menu-open");
+    await browser.keys("Escape");
+    await browser.waitUntil(async () => browser.execute(() => !document.querySelector(".menu-select-panel:popover-open")), {
+      timeout: 3000,
+      timeoutMsg: "Escape did not close the menu",
+    });
+    await browser.waitUntil(async () => browser.execute(() => document.activeElement === document.querySelector(".menu-select-toggle")), {
+      timeout: 3000,
+      timeoutMsg: "focus returns to the menu's trigger",
+    });
   });
-  const menu = await browser.execute(() => {
-    const panel = document.querySelector(".menu-select-panel");
-    const option = panel.querySelector(".account-destination-option");
-    const css = getComputedStyle(panel);
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 1;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = css.backgroundColor;
-    ctx.fillRect(0, 0, 1, 1);
-    return {
-      panelRadius: css.borderTopLeftRadius,
-      panelAlpha: ctx.getImageData(0, 0, 1, 1).data[3],
-      optionRadius: getComputedStyle(option).borderTopLeftRadius,
-      triggerRadius: getComputedStyle(document.querySelector(".menu-select-toggle")).borderTopLeftRadius,
-    };
-  });
-  await shot(browser, "menu-open");
   assert.deepEqual(menu, { panelRadius: "10px", panelAlpha: 255, optionRadius: "7px", triggerRadius: "7px" }, "menu geometry");
-  await browser.keys("Escape");
-  await browser.waitUntil(async () => browser.execute(() => !document.querySelector(".menu-select-panel:popover-open")), {
-    timeout: 3000,
-    timeoutMsg: "Escape did not close the menu",
-  });
-  assert.equal(
-    await browser.execute(() => document.activeElement === document.querySelector(".menu-select-toggle")),
-    true,
-    "focus returns to the menu's trigger",
-  );
 
   // Reduce motion, in Futuristic and in the other styles.
   await openSettings(browser);
