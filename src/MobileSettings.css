@@ -8,7 +8,7 @@
 .mobile-desktop-settings p[role="status"] { font-size: 13px; font-weight: 600; color: var(--text); }
 .mobile-desktop-settings h3 { margin: 16px 0 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
 .mobile-desktop-settings summary { font-size: 13px; }
-.mobile-desktop-settings p.mobile-desktop-code { font-size: 14px; color: var(--text); }
+.mobile-desktop-settings .mobile-desktop-code { font-size: 14px; color: var(--text); }
 .mobile-desktop-settings details { margin: 16px 0; }
 .mobile-desktop-settings summary { cursor: pointer; font-weight: 600; }
 .mobile-desktop-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(100px,160px); gap: 16px; }

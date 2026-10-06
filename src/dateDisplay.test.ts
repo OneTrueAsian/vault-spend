@@ -87,8 +87,20 @@ describe("one date format", () => {
     expect(hits(/toLocaleDateString\([^)]*day:\s*"numeric"/)).toEqual([]);
   });
 
-  it("doesn't show a date in the computer's own short format (10/6/2026, 5:21:38 PM)", () => {
-    expect(hits(/\)\.toLocale(String|DateString|TimeString)\(\)/)).toEqual([]);
+  // A date through the computer's own settings reads "10/6/2026, 5:21:38 PM" (or another country's
+  // order). Dates go through format.ts; the only locale formatting left is month names ("October")
+  // and digit grouping, both with the locale named so every computer shows the same thing.
+  it("never formats with the computer's own locale settings", () => {
+    expect(hits(/\.toLocale(Date|Time)?String\(\s*(\)|undefined)/)).toEqual([]);
+  });
+
+  it("names the locale for month names and never asks for a time", () => {
+    expect(hits(/\.toLocaleDateString\((?!"en-US")/)).toEqual([]);
+    expect(hits(/\.toLocaleTimeString\(/)).toEqual([]);
+  });
+
+  it("never turns a date into text with toLocaleString", () => {
+    expect(hits(/(new Date\([^)]*\)|\b\w*(date|Date|time|Time|stamp|Stamp|when|When))\.toLocaleString\(/)).toEqual([]);
   });
 
   it("checks the mobile screens that run inside the desktop app", () => {

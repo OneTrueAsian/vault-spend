@@ -1725,6 +1725,20 @@ table.ledger.report-table {
   .no-print {
     display: none !important;
   }
+  /* Paper can't scroll: the Reports category-by-month table goes back to sharing the page width,
+     and its cells wrap, so twelve months and the Total all print. */
+  .report-table-scroll {
+    overflow: visible;
+  }
+  table.ledger.report-table {
+    table-layout: fixed;
+  }
+  .report-table th,
+  .report-table td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 12px;
+  }
   .main,
   .page {
     margin: 0 !important;

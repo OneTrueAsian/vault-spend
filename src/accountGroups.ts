@@ -115,7 +115,13 @@ export function pickDefaultAccountId(accounts: { id: number; account_type: strin
 }
 
 /** Plain display names; stored account types stay unchanged. */
+/** A stored type name ("real_estate", "health savings") as words with capitals: "Real Estate". Accounts
+ * and Property & Valuables both name types this way. */
+export function storedTypeLabel(type: string): string {
+  return type.replace(/[_-]+/g, " ").replace(/\b\w+/g, word => word[0].toUpperCase() + word.slice(1).toLowerCase());
+}
+
 export function accountTypeLabel(type: string): string {
   if (type === "credit") return "Credit card";
-  return type.replace(/[_-]+/g, " ").replace(/\b\w+/g, word => word[0].toUpperCase() + word.slice(1).toLowerCase());
+  return storedTypeLabel(type);
 }

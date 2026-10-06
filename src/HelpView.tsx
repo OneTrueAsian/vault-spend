@@ -650,14 +650,14 @@ const IMPORTING_ENTRY: HelpEntry = {
           OFX/QFX, or QIF are all supported.
         </li>
         <li>
-          Confirm which way the amounts go. In a checking, savings or
-          investment account, Vault Spend shows <em>money out as a minus
-          amount</em>. If your file shows charges as plus amounts (common
-          for credit card files), choose "Flip the signs"; otherwise
-          "Keep as-is." A credit card or loan account works the other way
-          around: a payment is a <em>plus</em> amount (it lowers what you
-          owe) and a charge or new debt is a minus amount, so check a
-          payment row's sign in the preview before confirming. Each account remembers your answer and offers
+          Confirm which way the amounts go. Vault Spend shows <em>money
+          out as a minus amount</em>. A credit card or loan account follows
+          the same rule from its own side: a charge or new debt is a minus
+          amount, and a payment you make to it is a plus amount (it lowers
+          what you owe). If your file shows charges as plus amounts (common
+          in credit card files), choose "Flip the signs"; otherwise "Keep
+          as-is." Check a payment row's sign in the preview before
+          confirming. Each account remembers your answer and offers
           it again on its next import, and for a credit card whose file is
           mostly positive amounts, "Flip the signs" is suggested. Imported
           them the wrong way already? Select those rows on the Transactions
@@ -1404,9 +1404,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
         actually works: a credit card's balance is available credit, a
         loan's is what's still owed, and a checking/savings/investment/other
         account's is a literal balance. For both credit and loan accounts,
-        a payment is a <em>positive</em> amount and reduces what's owed; a
-        charge or new borrowing is negative and increases it. Both account
-        types work this way. When you add one by hand you don't
+        a payment is a <em>plus</em> amount and lowers what you owe; a
+        charge or new borrowing is a minus amount and raises it. Both
+        account types work this way. When you add one by hand you don't
         type a sign: choose <strong>Payment</strong> or <strong>Charge</strong> in
         the Add transaction dialog.
       </p>

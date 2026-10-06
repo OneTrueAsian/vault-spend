@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountTypeLabel, isBeforeAccountCheckpoint, isIncomeTransaction, isOverdrawn, pickDefaultAccountId } from "./accountGroups";
+import { accountTypeLabel, storedTypeLabel, isBeforeAccountCheckpoint, isIncomeTransaction, isOverdrawn, pickDefaultAccountId } from "./accountGroups";
 import type { Account, Transaction } from "./types";
 
 function account(overrides: Partial<Account> = {}): Account {
@@ -175,6 +175,12 @@ describe("isOverdrawn", () => {
 
   it("flags an investment or other account below zero", () => {
     expect(isOverdrawn(account({ account_type: "investment", current_balance: "-1.00" }))).toBe(true);
+  });
+});
+
+describe("storedTypeLabel", () => {
+  it.each([["real_estate", "Real Estate"], ["property", "Property"], ["boat-trailer", "Boat Trailer"], ["HSA", "Hsa"]])("names %s as %s", (type, label) => {
+    expect(storedTypeLabel(type)).toBe(label);
   });
 });
 

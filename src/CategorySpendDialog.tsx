@@ -22,7 +22,7 @@ export function CategorySpendDialog({ category, year, month, onClose }: {
     return () => { cancelled = true; };
   }, [category, year, month]);
 
-  const label = new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const label = new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const total = (items ?? []).reduce((sum, item) => sum - Number(item.amount), 0);
   return (
     <ModalShell title={`${category} — ${label}`} onCancel={onClose} wide>

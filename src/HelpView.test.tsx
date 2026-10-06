@@ -205,6 +205,14 @@ describe("HelpView sections per tab (s12)", () => {
     }
   });
 
+  it("explains signs the same way everywhere, without calling a card or loan the other way around", () => {
+    show();
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).not.toMatch(/other way around/);
+    expect(text).not.toMatch(/payment is a positive amount/);
+    expect(text).toContain("follows the same rule from its own side");
+  });
+
   it("covers the Mobile snapshots card in the Settings section", () => {
     const settings = TAB_HELP.find((h) => h.tab === "settings")!;
     expect(settings.summary).toMatch(/phone/i);

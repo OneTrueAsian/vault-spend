@@ -4,6 +4,7 @@ import { formatAmount, formatDisplayDate, isValidDecimalString, toLocalIsoDate }
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { MenuSelect } from "./MenuSelect";
 import { sumMoney } from "./money";
+import { storedTypeLabel } from "./accountGroups";
 
 const ASSET_TYPE_OPTIONS = ["real_estate", "vehicle", "other"];
 const ASSET_TYPE_LABELS: Record<string, string> = {
@@ -12,12 +13,10 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-/** A type's label; a type this list doesn't know (from older data or a setup file) is shown capitalised. */
-function assetTypeLabel(type: string): string {
-  const known = ASSET_TYPE_LABELS[type];
-  if (known) return known;
-  const words = type.replace(/_/g, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
+/** A type's label; a type this list doesn't know (from older data or a setup file) is named the way an
+ * account type is. */
+export function assetTypeLabel(type: string): string {
+  return ASSET_TYPE_LABELS[type] ?? storedTypeLabel(type);
 }
 
 function NewAssetForm({

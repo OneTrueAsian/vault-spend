@@ -52,7 +52,17 @@ try {
   await waitUntilOrDiagnose(browser, async () => !(await (await first.$(".icon-picker-popover")).isExisting()), {
     timeoutMsg: "picking a swatch should close the picker",
   });
-  assert.equal(await (await browser.$("[data-account-detail]")).isExisting(), false, "picking an icon must not open an account's Details");
+  // Details opening is a click landing on the next row; give it a moment to show, and require the
+  // accounts list to stay put throughout.
+  const settleUntil = Date.now() + 1500;
+  while (Date.now() < settleUntil) {
+    const state = await browser.execute(() => ({
+      detail: !!document.querySelector("[data-account-detail]"),
+      list: !!document.querySelector('.account-card[data-account-id="301"]'),
+    }));
+    assert.deepEqual(state, { detail: false, list: true }, "picking an icon must not open an account's Details");
+    await browser.pause(150);
+  }
 
   // Reopen until the saved choice shows as the active swatch.
   await waitUntilOrDiagnose(
