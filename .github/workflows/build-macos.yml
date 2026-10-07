@@ -9,15 +9,10 @@ name: Build macOS
 # via `xattr -d com.apple.quarantine`), similar in spirit to the Windows
 # SmartScreen note already included with the Windows installers.
 #
-# Runs automatically on every `vX.Y.Z` tag push (matching how releases are
-# already tagged for Windows). Can also be run manually against an
-# already-published tag (e.g. to add a macOS build to an existing release)
-# via the "Run workflow" button, entering that tag in the `tag` input.
+# Started manually by the release tool or the Actions Run workflow button.
+# Tag pushes do not start a second publishing build.
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -26,6 +21,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-macos-${{ inputs.tag }}
+  cancel-in-progress: false
 
 jobs:
   build-macos:

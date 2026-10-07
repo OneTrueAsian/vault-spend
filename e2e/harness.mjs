@@ -18,11 +18,15 @@
 
 import { execFileSync, spawn } from "node:child_process";
 import net, { Socket } from "node:net";
+import { homedir } from "node:os";
 import { remote } from "webdriverio";
 import path from "node:path";
 import { isolatedTempEnv, makeTempDir, releaseTempDir } from "./lib/tempDir.mjs";
 
-const CARGO_BIN = "C:\\Users\\joeyf\\.cargo\\bin";
+export function cargoBin(env = process.env, home = homedir()) {
+  return path.join(env.CARGO_HOME || path.join(home, ".cargo"), "bin");
+}
+const CARGO_BIN = cargoBin();
 const TAURI_DRIVER = path.join(CARGO_BIN, "tauri-driver.exe");
 const MSEDGEDRIVER = path.join(CARGO_BIN, "msedgedriver.exe");
 // VAULTSPEND_EXE points the suite at a build in another target directory (a running copy locks the default one).

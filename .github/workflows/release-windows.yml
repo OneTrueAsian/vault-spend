@@ -70,7 +70,8 @@ jobs:
           if (-not $runtime) { throw 'WebView2 runtime not found' }
           $zip = Join-Path $env:RUNNER_TEMP 'edgedriver.zip'
           Invoke-WebRequest "https://msedgedriver.microsoft.com/$($runtime.Name)/edgedriver_win64.zip" -OutFile $zip
-          Expand-Archive $zip -DestinationPath "$env:USERPROFILE\.cargo\bin" -Force
+          $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
+          Expand-Archive $zip -DestinationPath (Join-Path $cargoHome 'bin') -Force
       - name: Build current desktop test app
         run: npx tauri build --debug --no-bundle
       - name: Full desktop E2E release gate

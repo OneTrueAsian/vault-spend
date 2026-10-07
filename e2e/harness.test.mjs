@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  cargoBin,
   DEFAULT_WINDOW_SIZE,
   DRIVER_REQUEST_OPTIONS,
   isCommandTimeout,
@@ -642,5 +643,14 @@ describe("driver request limits", () => {
     expect(isCommandTimeout(new Error("element not interactable"))).toBe(false);
     expect(isCommandTimeout(new Error("waitUntil condition timed out after 3000ms"))).toBe(false);
     expect(isCommandTimeout(undefined)).toBe(false);
+  });
+});
+
+describe("driver installation directory", () => {
+  it("uses the runner home rather than the developer home", () => {
+    expect(cargoBin({}, "C:/Users/runneradmin").replaceAll("\\", "/")).toBe("C:/Users/runneradmin/.cargo/bin");
+  });
+  it("honours a custom Cargo home", () => {
+    expect(cargoBin({ CARGO_HOME: "D:/cargo" }, "C:/Users/runneradmin").replaceAll("\\", "/")).toBe("D:/cargo/bin");
   });
 });
