@@ -7,7 +7,7 @@
 // Run with: node e2e/feature278_account_icon_picker_on_top.mjs
 
 import assert from "node:assert/strict";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, chooseStyle, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -22,6 +22,15 @@ try {
   await first.waitForExist({ timeout: 10000, timeoutMsg: "the first account row should show" });
   await (await first.$(".type-badge")).click();
   await (await first.$(".icon-picker-popover")).waitForDisplayed({ timeout: 5000, timeoutMsg: "the icon picker should open" });
+
+  // The picker is solid: the next row's name and details must not show through it (they did in the
+  // Default style, whose panels are see-through).
+  const alpha = await browser.execute(() => {
+    const bg = getComputedStyle(document.querySelector('.account-card[data-account-id="301"] .icon-picker-popover')).backgroundColor;
+    const parts = bg.match(/[\d.]+/g).map(Number);
+    return parts.length === 4 ? parts[3] : 1;
+  });
+  assert.equal(alpha, 1, "the icon picker's background should be opaque");
 
   // Every swatch must be the element a click at its centre reaches (not the next row's overlay).
   let covered = null;
@@ -76,6 +85,34 @@ try {
     },
     { timeoutMsg: `expected "${target}" to be saved as the first account's icon` },
   );
+  // All theme variants must cover the rows beneath the open picker.
+  await (await first.$(".type-badge")).click();
+  for (const [style, palette] of [["Default", "transparent"], ["Futuristic", "futuristic"], ["Retro", "retro"]]) {
+    await chooseStyle(browser, style, palette);
+    for (const theme of ["light", "dark"]) {
+      await browser.execute(t => [...document.querySelectorAll(".theme-toggle button")].find(b => b.textContent === t).click(), theme === "light" ? "Light" : "Dark");
+      await (await browser.$('button.nav-item[data-tab="accounts"]')).click();
+      const row = await browser.$('.account-card[data-account-id="301"]');
+      await row.waitForDisplayed({ timeout: 5000 });
+      await (await row.$(".type-badge")).click();
+      await waitUntilOrDiagnose(browser, () => browser.execute(() => {
+        const picker = document.querySelector('.account-card[data-account-id="301"] .icon-picker-popover');
+        if (!picker) return false;
+        const parts = getComputedStyle(picker).backgroundColor.match(/[\d.]+/g)?.map(Number);
+        if (!parts || parts.length < 3) throw new Error("Cannot parse picker background");
+        const opaque = parts.length === 3 || parts.length === 4 && parts[3] === 1;
+        const swatches = [...picker.querySelectorAll(".icon-picker-swatch")];
+        return opaque && swatches.length > 0 && swatches.every(s => {
+          const r = s.getBoundingClientRect();
+          return s.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+        });
+      }), { timeoutMsg: `${palette}/${theme}: picker must be opaque and every swatch reachable` });
+      if (process.env.VS_PICKER_SHOTS) {
+        await browser.saveScreenshot(`${process.env.VS_PICKER_SHOTS}/${palette}-${theme}.png`);
+      }
+      await (await row.$(".type-badge")).click();
+    }
+  }
   console.log("FEATURE 278 E2E TEST PASSED");
 } finally {
   await app.close();
