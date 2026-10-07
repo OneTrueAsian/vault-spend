@@ -8,6 +8,7 @@ const DISMISSED_VERSION_KEY = "vaultspend-dismissed-update-version";
 const REPO = "OneTrueAsian/vault-spend";
 
 type ReleaseAsset = { name: string; browser_download_url: string };
+type LatestRelease = { tag_name: string; html_url: string; assets: ReleaseAsset[] };
 
 function parseVersion(v: string): number[] {
   return v
@@ -55,8 +56,8 @@ function pickAsset(assets: ReleaseAsset[], platform: "windows" | "macos" | null)
   return null;
 }
 
-/** A small, dismissible banner that checks GitHub's latest release once on
- * launch and nudges the user if the installed app is behind. "Update now"
+/** A small, dismissible banner that checks GitHub's latest release (via the
+ * backend) once on launch and nudges the user if the installed app is behind. "Update now"
  * downloads the right installer for this OS and hands it to `openPath`,
  * which launches the OS's normal installer UI — this app has no silent
  * auto-updater (that needs a signing keypair and CI changes this project
@@ -93,12 +94,10 @@ export function UpdateBanner() {
   useEffect(() => {
     (async () => {
       try {
-        const [current, res] = await Promise.all([
-          getVersion(),
-          fetch(`https://api.github.com/repos/${REPO}/releases/latest`),
-        ]);
-        if (!res.ok) return;
-        const data = await res.json();
+        // Asked through the backend (`fetch_latest_release`, `updater.rs`): the window's content
+        // rules refuse every remote request from the page, so a page-side `fetch` here is silently
+        // blocked — exactly how 1.2.9 never heard about 1.3.0.
+        const [current, data] = await Promise.all([getVersion(), invoke<LatestRelease>("fetch_latest_release")]);
         const tag: string = data.tag_name ?? "";
         if (!tag || !isNewer(tag, current)) return;
 
@@ -111,7 +110,7 @@ export function UpdateBanner() {
         if (dismissedVersion === tag) return;
 
         const asset = pickAsset(data.assets ?? [], detectPlatform());
-        setLatest({ tag, version: tag.replace(/^v/, ""), url: data.html_url ?? `https://github.com/${REPO}/releases`, asset });
+        setLatest({ tag, version: tag.replace(/^v/, ""), url: data.html_url || `https://github.com/${REPO}/releases`, asset });
       } catch {
         // offline, rate-limited, or GitHub unreachable — silently skip
       }

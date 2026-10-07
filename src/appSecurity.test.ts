@@ -2,7 +2,7 @@
 // and talks only to its own backend, so the window says exactly that: no remote scripts, styles,
 // fonts or requests, and no plugins or frames. With `"csp": null`, anything that ever got into the
 // page could have loaded remote code with every app command in reach.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
@@ -27,6 +27,19 @@ describe("Content Security Policy", () => {
 
   it("names no remote origin anywhere", () => {
     expect(csp).not.toMatch(/https?:\/\/(?!ipc\.localhost)/);
+  });
+});
+
+describe("The page's own code", () => {
+  // The rules above refuse any page request to another site, and they do it silently: 1.2.9's update
+  // check asked GitHub straight from the page, got blocked, and no one heard about 1.3.0. Anything
+  // that needs the internet goes through a backend command instead (e.g. `fetch_latest_release`).
+  it("never requests anything itself (remote calls go through the backend)", () => {
+    const srcDir = new URL("./", import.meta.url);
+    const offenders = readdirSync(srcDir, { recursive: true, encoding: "utf8" })
+      .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f))
+      .filter((f) => /\bfetch\s*\(|new\s+XMLHttpRequest|new\s+WebSocket|new\s+EventSource/.test(readFileSync(new URL(f.split("\\").join("/"), srcDir), "utf8")));
+    expect(offenders).toEqual([]);
   });
 });
 

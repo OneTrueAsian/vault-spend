@@ -215,6 +215,7 @@ pub fn run() {
             launch_commands::start_with_new_data_file,
             launch_commands::start_with_new_profile_list,
             commands::write_text_file,
+            commands::fetch_latest_release,
             commands::download_update_asset,
             commands::get_data_file_location,
             commands::relocate_data_file,

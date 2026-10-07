@@ -92,6 +92,12 @@ pub fn get_current_generation(paths: tauri::State<crate::config::AppPaths>) -> u
     paths.current_generation()
 }
 
+/// The newest published release, for `UpdateBanner.tsx`'s launch check.
+#[tauri::command]
+pub async fn fetch_latest_release() -> Result<crate::updater::LatestRelease, String> {
+    crate::updater::fetch_latest_release(&reqwest::Client::new()).await
+}
+
 /// Downloads a GitHub release asset (`UpdateBanner.tsx`'s "Update now") to
 /// the OS temp directory and returns its local path — the frontend then
 /// hands that path to `openPath` (tauri-plugin-opener) to launch the OS's
