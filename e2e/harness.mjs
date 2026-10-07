@@ -292,7 +292,14 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
       stdio: ["ignore", "pipe", "pipe"],
       // The legal notice would stop every spec at its screen. The app honours the skip only alongside
       // VAULTSPEND_DB_DIR, so a real install cannot be affected. feature139 passes showLegalNotice.
-      env: { ...process.env, VAULTSPEND_DB_DIR: testDbDir, VAULTSPEND_SKIP_LEGAL_NOTICE: showLegalNotice ? "0" : "1" },
+      // The update check is skipped the same way: otherwise every launch asks GitHub, and the suite
+      // depends on the network and uses up GitHub's 60-an-hour limit for this machine.
+      env: {
+        ...process.env,
+        VAULTSPEND_DB_DIR: testDbDir,
+        VAULTSPEND_SKIP_LEGAL_NOTICE: showLegalNotice ? "0" : "1",
+        VAULTSPEND_SKIP_UPDATE_CHECK: "1",
+      },
     },
   );
   let driverLog = "";

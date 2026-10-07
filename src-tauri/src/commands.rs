@@ -964,6 +964,12 @@ pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, bytes).map_err(|e| e.to_string())
 }
 
+/// The newest published release, for `UpdateBanner.tsx`'s launch check.
+#[tauri::command]
+pub async fn fetch_latest_release() -> Result<crate::updater::LatestRelease, String> {
+    crate::updater::fetch_latest_release(&reqwest::Client::new()).await
+}
+
 /// Downloads a GitHub release asset (`UpdateBanner.tsx`'s "Update now") to
 /// the OS temp directory and returns its local path — the frontend then
 /// hands that path to `openPath` (tauri-plugin-opener) to launch the OS's
