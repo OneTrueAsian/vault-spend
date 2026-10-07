@@ -1,5 +1,5 @@
 name: Release Windows
-run-name: Release Windows ${{ inputs.tag }}
+run-name: ${{ inputs.recovery && 'Recover Windows' || 'Release Windows' }} ${{ inputs.tag }}
 
 on:
   workflow_dispatch:
@@ -7,6 +7,13 @@ on:
       tag:
         description: 'Existing stable release tag (e.g. v1.2.9)'
         required: true
+        type: string
+      recovery:
+        description: 'Build an existing tag using this branch workflow and repair legacy test driver paths'
+        type: boolean
+        default: false
+      source_sha:
+        description: 'Expected existing tag commit (required for recovery)'
         type: string
 
 permissions:
@@ -30,15 +37,35 @@ jobs:
       - name: Validate release tag and version
         env:
           RELEASE_TAG: ${{ inputs.tag }}
+          RECOVERY: ${{ inputs.recovery }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid stable release tag' }
-          if ($env:GITHUB_REF -ne "refs/tags/$env:RELEASE_TAG") { throw 'Dispatch must use the release tag as its ref' }
+          if ($env:RECOVERY -eq 'true') {
+            if ($env:GITHUB_REF -notlike 'refs/heads/*') { throw 'Recovery must use a workflow branch' }
+            if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'Recovery requires the expected tag commit' }
+            if ((git rev-parse HEAD) -ne $env:SOURCE_SHA) { throw 'Release tag changed after the request; refusing to publish' }
+          } elseif ($env:GITHUB_REF -ne "refs/tags/$env:RELEASE_TAG") { throw 'Dispatch must use the release tag as its ref' }
           $version = $env:RELEASE_TAG.Substring(1)
           foreach ($path in @('package.json', 'src-tauri/tauri.conf.json')) {
             if ((Get-Content $path -Raw | ConvertFrom-Json).version -ne $version) { throw "Version mismatch in $path" }
           }
           $cargo = Get-Content src-tauri/Cargo.toml -Raw
           if ($cargo -notmatch ('(?m)^version\s*=\s*"' + [regex]::Escape($version) + '"\s*$')) { throw 'Rust package version mismatch' }
+      - name: Repair legacy test driver paths for recovery
+        if: ${{ inputs.recovery }}
+        run: |
+          $file = 'e2e/harness.mjs'
+          $source = [IO.File]::ReadAllText($file)
+          $pattern = '(?m)^const CARGO_BIN = "[^"\r\n]+";\r?$'
+          $matches = [regex]::Matches($source, $pattern)
+          if ($matches.Count -eq 1) {
+            $replacement = 'const CARGO_BIN = path.join(process.env.CARGO_HOME || path.join(process.env.USERPROFILE, ".cargo"), "bin");'
+            [IO.File]::WriteAllText($file, [regex]::Replace($source, $pattern, $replacement), [Text.UTF8Encoding]::new($false))
+            Write-Host 'Repaired only the legacy E2E driver directory; application sources are unchanged.'
+          } elseif ($source -notmatch 'const CARGO_BIN = cargoBin\(\);') {
+            throw 'Unrecognized harness driver setup; refusing an unverified repair'
+          }
       - uses: actions/setup-node@v4
         with:
           node-version: 22
