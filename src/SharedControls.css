@@ -14,8 +14,8 @@
 }
 
 /* Full-size fields and filter triggers share the same spacing and typography. */
-:is(.text-input, .bucket-new-form input, .bucket-new-form select,
-    .bucket-contribution-form input, .bucket-contribution-form select,
+:is(.text-input, .bucket-new-form input:not([type="checkbox"]), .bucket-new-form select,
+    .bucket-contribution-form input:not([type="checkbox"]), .bucket-contribution-form select,
     .labeled-field input, .labeled-field select, .ledger-filters input,
     .ledger-filters select, .rules-controls select, .account-filter-toggle,
     .account-select, .month-select, .saved-filter-form input, .help-search,

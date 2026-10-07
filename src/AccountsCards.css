@@ -202,6 +202,99 @@
 .account-card button.bal { font-family: var(--font-mono); font-size: 15px; font-weight: 700; }
 .account-card:has(.account-card-open:hover) { border-color: var(--accent); }
 
+/* Accounts page groups (UI mockup, UAT s7.1): one card per group (Cash, Credit cards, Loans,
+   Investments, Property and valuables) with its name and total on a header row, then one row per
+   account divided by rules, instead of a separate card per account. */
+.account-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.account-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.account-group-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.account-group-total {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.account-group .account-cards {
+  gap: 0;
+}
+
+/* Rows inside a group card: no card of their own, a rule between them, a tint on hover. */
+.account-group .account-card {
+  padding: 12px 18px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.account-group .account-card:last-child {
+  border-bottom: 0;
+  border-radius: 0 0 15px 15px;
+}
+
+.account-group .account-card:has(.account-card-open:hover) {
+  background: var(--surface-2);
+}
+
+.account-group .account-card .type-badge {
+  width: 36px;
+  height: 36px;
+}
+
+/* Icon tints by kind of account. Debts stay neutral (what's owed isn't a warning, s4); investments
+   take the gentle positive tint. */
+.account-card .type-badge.type-badge-debt {
+  /* A grey tile mixed from the text colour, so it shows on every style's surface (glass included). */
+  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  color: var(--text-muted);
+}
+
+.account-card .type-badge.type-badge-investment {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+/* "Owed" before a card's or loan's amount: a small neutral label, not a colour. */
+.account-card .owed-tag {
+  font-family: var(--font-body, inherit);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.account-group-empty {
+  margin: 0;
+  padding: 14px 18px;
+  color: var(--text-muted);
+}
+
+.account-group-add {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
 /* Property & Valuables: a member menu keeps its name and arrow on one line inside its box. MenuSelect's
    max-width: 100% let the table squeeze the cell below the menu's own width at 800px, so the text ran
    into the border and the arrow sat outside it. */

@@ -255,10 +255,32 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* Each FAQ question folds: the question is the <summary>, kept inline beside its marker. */
+.help-faq-entry > summary {
+  cursor: pointer;
+}
+
 .help-faq-entry h3 {
+  display: inline;
   font-size: 13.5px;
   font-weight: 700;
-  margin: 0 0 5px;
+  margin: 0;
+}
+
+.help-faq-entry[open] > summary {
+  margin-bottom: 6px;
+}
+
+/* The other topics (Getting started, Importing, Bulk setup, Exporting) fold as whole cards: the
+   card's title is the <summary>. */
+.help-topic > summary {
+  cursor: pointer;
+  /* Bold like the cards' <h2> titles (a summary isn't a heading, so it would otherwise be regular). */
+  font-weight: 700;
+}
+
+.help-topic[open] > summary {
+  margin-bottom: 10px;
 }
 
 .help-faq-entry p {

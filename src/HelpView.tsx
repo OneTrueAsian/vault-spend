@@ -1,4 +1,4 @@
-import { Fragment, ReactNode, useEffect, useState } from "react";
+import { Fragment, ReactNode, useEffect, useState, type SyntheticEvent } from "react";
 import type { Tab } from "./appTypes";
 import thirdPartyNotices from "../docs/THIRD-PARTY-NOTICES.txt?raw";
 import { LegalNoticeHelp } from "./LegalNoticeHelp";
@@ -31,7 +31,7 @@ const GETTING_STARTED: HelpEntry = {
     <ol>
       <li>
         <strong>Add an account</strong> — from the Accounts tab
-        ("Add account…"), or you'll be prompted automatically the first
+        ("+ Add account"), or you'll be prompted automatically the first
         time you import a file. Checking, savings, credit card, loan,
         investment, and "other" are all supported.
       </li>
@@ -148,8 +148,8 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add or change an account?",
         steps: [
-          <>Click <strong>Add account…</strong> beside the page title. Checking, savings, credit card, loan, investment and other are all supported.</>,
-          <>To change one, open the <strong>⋯</strong> menu on its row and choose <strong>Edit…</strong>: its type, institution, last-4 digits and which family member it belongs to, or delete it.</>,
+          <>Click <strong>+ Add account</strong> beside the page title. Checking, savings, credit card, loan, investment and other are all supported.</>,
+          <>To change one, open the <strong>⋯</strong> menu on its row and choose <strong>Edit…</strong>: its type, institution, last-4 digits and which family member it belongs to. <strong>Delete…</strong> in the same menu removes it, after asking.</>,
         ],
       },
       {
@@ -169,8 +169,8 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I reconcile an account against a statement?",
         steps: [
-          <>Open a checking or savings account's page.</>,
-          <>Under <strong>Reconcile with a statement</strong>, enter the statement's ending balance and tick each transaction that appears on it.</>,
+          <>Open the <strong>⋯</strong> menu on a checking or savings account's row and choose <strong>Reconcile with a statement…</strong>.</>,
+          <>Enter the statement's ending balance and tick each transaction that appears on it.</>,
           <>Finish once the difference reaches $0.00 (see FAQ).</>,
         ],
       },
@@ -184,12 +184,12 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add a home or a vehicle?",
         steps: [
-          <>Scroll to <strong>Property &amp; Valuables</strong> at the bottom of this tab.</>,
-          <>Add it with its value. It counts in your net worth.</>,
+          <>Scroll to <strong>Property and valuables</strong>, the last group on this tab, and click <strong>Add property or valuable…</strong>.</>,
+          <>Add it with its value. It counts in your net worth. Click its value to update it; its <strong>⋯</strong> menu says who it belongs to or deletes it.</>,
         ],
       },
     ],
-    more: [<>Accounts are grouped as cash, credit, loan, investment and other.</>],
+    more: [<>Accounts are grouped as cash, credit cards, loans, investments and other, each group in one box with its total; the biggest balance comes first.</>],
     tags: [
       "accounts", "net worth", "assets", "liabilities", "what changed", "account type", "credit", "loan", "investment",
       "institution", "details", "reconcile", "reconciliation", "statement", "cleared", "balance history", "property",
@@ -556,7 +556,7 @@ export const TAB_HELP: TabHelp[] = [
     ],
     more: [
       <>Also here: spending by family member and by tag, a year-by-year comparison, a savings-rate trend, and net worth by family member.</>,
-      <>Property &amp; Valuables is on the Accounts tab, and the setup-data import and export is in Settings.</>,
+      <>Property and valuables are on the Accounts tab, and the setup-data import and export is in Settings.</>,
     ],
     tags: [
       "reports", "net worth", "csv", "pdf", "savings rate", "date range", "year to date", "last 12 months", "last month",
@@ -1444,7 +1444,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["net worth", "assets", "property", "valuables", "trend chart"],
     answer: (
       <p>
-        Yes — whatever you've entered under Property & Valuables (Accounts
+        Yes — whatever you've entered under Property and valuables (Accounts
         tab) is included in the current net worth figure everywhere it's
         shown. One caveat on the Dashboard's net worth <em>trend</em>{" "}
         chart specifically: since a manual asset only carries a value as of
@@ -1613,13 +1613,14 @@ const FAQ_ENTRIES: FaqEntry[] = [
  * features ship. */
 export function HelpView({ focusTab = null }: { focusTab?: Tab | null }) {
   const [query, setQuery] = useState("");
-  // Sections the person opened by hand (or the one a page's ? button asked for). While searching,
-  // every matching section is open instead.
-  const [openTabs, setOpenTabs] = useState<Set<Tab>>(() => new Set(focusTab ? [focusTab] : []));
+  // Sections, topics and FAQ questions the person opened by hand (or the page section a ? button
+  // asked for), each by its own key. While searching, everything that matches is open instead.
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set(focusTab ? [`tab:${focusTab}`] : []));
 
   useEffect(() => {
     if (!focusTab) return;
-    setOpenTabs((open) => (open.has(focusTab) ? open : new Set(open).add(focusTab)));
+    const key = `tab:${focusTab}`;
+    setOpenKeys((open) => (open.has(key) ? open : new Set(open).add(key)));
     document.getElementById(`help-${focusTab}`)?.scrollIntoView({ block: "start" });
   }, [focusTab]);
 
@@ -1640,15 +1641,23 @@ export function HelpView({ focusTab = null }: { focusTab?: Tab | null }) {
     exportVisible.length === 0 &&
     faqVisible.length === 0;
 
-  function setTabOpen(tab: Tab, open: boolean) {
-    setOpenTabs((current) => {
-      if (current.has(tab) === open) return current;
+  function setOpen(key: string, open: boolean) {
+    setOpenKeys((current) => {
+      if (current.has(key) === open) return current;
       const next = new Set(current);
-      if (open) next.add(tab);
-      else next.delete(tab);
+      if (open) next.add(key);
+      else next.delete(key);
       return next;
     });
   }
+
+  /** `open` and `onToggle` for one foldable piece: open while searching, otherwise as the person left it. */
+  const fold = (key: string) => ({
+    open: searching || openKeys.has(key),
+    onToggle: (e: SyntheticEvent<HTMLDetailsElement>) => {
+      if (!searching) setOpen(key, e.currentTarget.open);
+    },
+  });
 
   return (
     <div className="reports-view help-view">
@@ -1673,10 +1682,10 @@ export function HelpView({ focusTab = null }: { focusTab?: Tab | null }) {
       )}
 
       {gettingStartedVisible && (
-        <div className="card">
-          <h2 className="reports-section-title">Getting started</h2>
+        <details className="card help-topic" {...fold("getting-started")}>
+          <summary className="reports-section-title">Getting started</summary>
           {GETTING_STARTED.node}
-        </div>
+        </details>
       )}
 
       {tabHelpVisible.length > 0 && (
@@ -1685,15 +1694,7 @@ export function HelpView({ focusTab = null }: { focusTab?: Tab | null }) {
           <p className="modal-message-secondary">Open a page's section here, or press the ? beside any page's title.</p>
           <div className="help-tab-list">
             {tabHelpVisible.map((help) => (
-              <details
-                key={help.tab}
-                id={`help-${help.tab}`}
-                className="help-tab"
-                open={searching || openTabs.has(help.tab)}
-                onToggle={(e) => {
-                  if (!searching) setTabOpen(help.tab, e.currentTarget.open);
-                }}
-              >
+              <details key={help.tab} id={`help-${help.tab}`} className="help-tab" {...fold(`tab:${help.tab}`)}>
                 <summary>{help.title}</summary>
                 <div className="help-tab-body">
                   <p className="help-tab-summary">{help.summary}</p>
@@ -1725,38 +1726,40 @@ export function HelpView({ focusTab = null }: { focusTab?: Tab | null }) {
       )}
 
       {importingVisible && (
-        <div className="card">
-          <h2 className="reports-section-title">Importing transactions</h2>
+        <details className="card help-topic" {...fold("importing")}>
+          <summary className="reports-section-title">Importing transactions</summary>
           {IMPORTING_ENTRY.node}
-        </div>
+        </details>
       )}
 
       {bulkSetupVisible && (
-        <div className="card">
-          <h2 className="reports-section-title">Bulk setup-data import/export</h2>
+        <details className="card help-topic" {...fold("bulk-setup")}>
+          <summary className="reports-section-title">Bulk setup-data import/export</summary>
           {BULK_SETUP_ENTRY.node}
-        </div>
+        </details>
       )}
 
       {exportVisible.length > 0 && (
-        <div className="card">
-          <h2 className="reports-section-title">Exporting your data</h2>
+        <details className="card help-topic" {...fold("exporting")}>
+          <summary className="reports-section-title">Exporting your data</summary>
           <ul>
             {exportVisible.map((e, i) => (
               <Fragment key={i}>{e.node}</Fragment>
             ))}
           </ul>
-        </div>
+        </details>
       )}
 
       {faqVisible.length > 0 && (
         <div className="card">
           <h2 className="reports-section-title">FAQ</h2>
           {faqVisible.map((entry) => (
-            <div key={entry.question} className="help-faq-entry">
-              <h3>{entry.question}</h3>
+            <details key={entry.question} className="help-faq-entry" {...fold(`faq:${entry.question}`)}>
+              <summary>
+                <h3>{entry.question}</h3>
+              </summary>
               {entry.answer}
-            </div>
+            </details>
           ))}
         </div>
       )}

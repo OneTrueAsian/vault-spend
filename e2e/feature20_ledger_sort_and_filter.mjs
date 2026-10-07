@@ -126,7 +126,7 @@ try {
   await filterToggle.waitForExist({ timeout: 5000 });
   await filterToggle.click();
 
-  const creditGroupLabel = await app.browser.$("//label[contains(@class,'account-filter-group-label')][text()='Credit Cards']");
+  const creditGroupLabel = await app.browser.$("//label[contains(@class,'account-filter-group-label')][text()='Credit cards']");
   await creditGroupLabel.waitForExist({ timeout: 5000 });
 
   const creditCheckbox = await app.browser.$(

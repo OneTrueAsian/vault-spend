@@ -947,17 +947,17 @@
   gap: 8px;
 }
 
-/* An empty Goals page (BucketsView.tsx): one centred card that says what a goal is, with
-   "Create a goal" and three example names. The new-goal form opens inside the same card, so it
-   drops its own card chrome there rather than nesting a card in a card. */
+/* An empty Goals page (BucketsView.tsx), as in the UI mockup: one centred card with a target icon,
+   what a goal is for, "Create a goal", and three starting points as small cards. The new-goal form
+   opens inside the same card, so it drops its own card chrome there rather than nesting a card in a card. */
 .goals-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  width: min(100%, 520px);
-  margin: 40px auto 0;
-  padding: 28px 24px;
+  gap: 14px;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 48px 24px;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
@@ -966,9 +966,19 @@
   box-sizing: border-box;
 }
 
+.goals-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-soft-text, var(--accent));
+}
+
 .goals-empty h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 22px;
 }
 
 .goals-empty p {
@@ -976,11 +986,71 @@
   color: var(--text-muted);
 }
 
-.goals-empty-examples {
+.goals-empty .goals-empty-lede {
+  max-width: 52ch;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.goals-empty .goals-empty-create {
+  min-height: 44px;
+  padding: 0 22px;
+  font-size: 15px;
+}
+
+.goals-empty .goals-empty-or {
+  margin-top: 8px;
+}
+
+.goals-empty-starters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+  margin-top: 4px;
+}
+
+@media (max-width: 1000px) {
+  .goals-empty-starters {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 420px;
+  }
+}
+
+/* Two classes (0,2,0) so a starting point never takes a style's plain-button look (centred text,
+   Retro's raised face): it is a small card, its name over a one-line description. */
+.goals-empty .goals-empty-starter {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.goals-empty .goals-empty-starter:hover,
+.goals-empty .goals-empty-starter:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.goals-empty-starter b {
+  font-size: 15px;
+}
+
+.goals-empty-starter span {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .goals-empty .bucket-new-form {
@@ -1071,8 +1141,10 @@
   height: 44px;
 }
 
-.bucket-new-form input,
-.bucket-contribution-form input,
+/* Text fields only: a checkbox in the form (Progress follows this account's balance) keeps its own
+   size instead of stretching into a field-sized box. */
+.bucket-new-form input:not([type="checkbox"]),
+.bucket-contribution-form input:not([type="checkbox"]),
 .bucket-new-form select,
 .bucket-contribution-form select {
   font-family: inherit;

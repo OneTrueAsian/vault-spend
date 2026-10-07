@@ -554,8 +554,8 @@
 
 /* SharedControls.css gives full-size fields and filter triggers their 8px corners in one :is() list, which takes
    the specificity of its most specific entry (0,3,1). The same list here ties it and wins by order. */
-:where([data-palette="futuristic"]) :is(.text-input, .bucket-new-form input, .bucket-new-form select,
-    .bucket-contribution-form input, .bucket-contribution-form select,
+:where([data-palette="futuristic"]) :is(.text-input, .bucket-new-form input:not([type="checkbox"]), .bucket-new-form select,
+    .bucket-contribution-form input:not([type="checkbox"]), .bucket-contribution-form select,
     .labeled-field input, .labeled-field select, .ledger-filters input,
     .ledger-filters select, .rules-controls select, .account-filter-toggle,
     .account-select, .month-select, .saved-filter-form input, .help-search,

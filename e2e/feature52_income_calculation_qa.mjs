@@ -160,11 +160,12 @@ try {
   await (await app.browser.$(".stats")).waitForExist({ timeout: 10000 });
   const assetsText = await statValue(app, "What you own");
   const liabilitiesText = await statValue(app, "What you owe");
-  const netWorthText = await statValue(app, "Net Worth");
+  const netWorthText = await statValue(app, "Net worth");
   if (assetsText !== "$7,990.00") throw new Error(`expected Total Assets $7,990.00, got ${assetsText}`);
   // See the file-level comment: "Total Liabilities" is this app's existing
   // signed net-worth-contribution convention, not an owed-amount magnitude.
-  if (liabilitiesText !== "-$9,800.00") throw new Error(`expected Total Liabilities -$9,800.00, got ${liabilitiesText}`);
+  // "What you owe" shows the amount owed (UAT s7.1 mockup), not its negative net-worth contribution.
+  if (liabilitiesText !== "$9,800.00") throw new Error(`expected What you owe $9,800.00, got ${liabilitiesText}`);
   if (netWorthText !== "-$1,810.00") throw new Error(`expected Net Worth -$1,810.00, got ${netWorthText}`);
   console.log("Accounts assets/liabilities/net worth are correct");
 

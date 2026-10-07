@@ -1,4 +1,6 @@
-// Task 10: account rows, independent controls and themed action menus.
+// Task 10: account rows, independent controls and themed action menus. UAT s7.1: laid out as in the UI
+// mockup, one card per group (its name and total on top) holding a row per account, the biggest first,
+// and Property and valuables as the last such group.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,7 +12,7 @@ const dbDir = await seedFixture(`
 for i, kind in enumerate(['checking', 'savings', 'checking', 'credit', 'credit', 'loan', 'loan', 'investment', 'investment', 'other']):
     name = 'Long family account name that remains readable at narrow widths' if i == 2 else f'Family account {i+1}'
     cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES (?,?,?)", (name, kind, str(1200 + i * 120)))
-# Property rows: an unknown stored type ("property") shows capitalised, and the member menu fits its cell at 800px.
+# Property rows: an unknown stored type ("property") shows capitalised.
 cur.execute("INSERT INTO assets (name, asset_type, value, valued_on) VALUES ('2022 Family car', 'vehicle', '24500.00', date('now')), ('Our House', 'property', '415000.00', date('now'))")
 `);
 const app = await launchApp({ dbDir }); const browser = app.browser;
@@ -19,11 +21,29 @@ async function accounts() {
   await waitUntilOrDiagnose(browser, () => browser.execute(() => !!document.querySelector('.account-card, [data-account-back]')), { timeoutMsg: 'Accounts navigation has rendered' });
   const back = await browser.$('[data-account-back]');
   if (await back.isExisting()) await back.click();
-  await waitUntilOrDiagnose(browser, () => browser.execute(() => document.querySelectorAll('.account-card').length === 10), { timeoutMsg: 'All account rows should load' });
+  await waitUntilOrDiagnose(browser, () => browser.execute(() => document.querySelectorAll('.account-card[data-account-id]').length === 10), { timeoutMsg: 'All account rows should load' });
 }
 try {
   await accounts();
-  await waitUntilOrDiagnose(browser, () => browser.execute(() => [...document.querySelectorAll("[data-property-assets] tbody tr")].some((r) => r.cells[1]?.textContent === "Property")), { timeoutMsg: "an unknown stored property type shows capitalised" });
+  await waitUntilOrDiagnose(browser, () => browser.execute(() => [...document.querySelectorAll("[data-property-assets] .account-name-detail-static")].some((d) => d.textContent.startsWith("Property · updated "))), { timeoutMsg: "an unknown stored property type shows capitalised" });
+  // The mockup's layout: each group is one card headed by its name and total; debts read as an amount owed;
+  // the totals' labels sit above their figures; the biggest balance comes first in a group.
+  let layout = null;
+  await waitUntilOrDiagnose(browser, async () => {
+    layout = await browser.execute(() => ({
+      heads: [...document.querySelectorAll('.account-group > .account-group-head')].map((h) => [h.querySelector('h2').textContent, h.querySelector('.account-group-total').textContent]),
+      tiles: [...document.querySelectorAll('.stats .stat')].map((t) => t.firstElementChild.textContent),
+      sub: document.querySelector('.view-sub')?.textContent,
+      firstLoan: [...document.querySelectorAll('.account-group')].find((g) => g.querySelector('h2').textContent === 'Loans')?.querySelector('.account-card-open')?.textContent,
+    }));
+    return layout.heads.length === 6;
+  }, { timeoutMsg: 'every group should be a card with a header', extra: () => layout });
+  const names = layout.heads.map(([n]) => n).join(' | ');
+  if (names !== 'Cash | Credit cards | Loans | Investments | Other assets | Property and valuables') throw new Error(`group cards in order: ${names}`);
+  if (!layout.heads.filter(([n]) => n === 'Credit cards' || n === 'Loans').every(([, total]) => / owed$/.test(total))) throw new Error(`debt groups total what is owed: ${JSON.stringify(layout.heads)}`);
+  if (layout.tiles.join(' | ') !== 'What you own | What you owe | Net worth') throw new Error(`tile labels come first: ${layout.tiles}`);
+  if (layout.sub !== '10 accounts and 2 things you own') throw new Error(`the page says what it holds: ${layout.sub}`);
+  if (layout.firstLoan !== 'Family account 7') throw new Error(`the bigger loan comes first: ${layout.firstLoan}`);
   for (const [name, palette] of [['Default','transparent'],['Futuristic','futuristic'],['Retro','retro']]) {
     await browser.setWindowSize(1440, 1000); await chooseStyle(browser, name, palette);
     for (const theme of ['light','dark']) {
@@ -50,11 +70,11 @@ try {
             });
           }) && document.documentElement.scrollWidth <= innerWidth + 1;
         }), { timeoutMsg: `${palette}/${theme}/${width}: rows and balances align without overflow` });
-        // Property & Valuables: each member menu holds its own text and arrow (it overflowed its box at 800px).
+        // Property and valuables: its two rows have their own ⋯ menu, like the account rows.
         await waitUntilOrDiagnose(browser, () => browser.execute(() => {
-          const toggles = [...document.querySelectorAll("[data-property-assets] .member-col .menu-select-toggle")];
-          return toggles.length === 2 && toggles.every((t) => t.scrollWidth <= t.clientWidth + 1 && [...t.children].every((c) => c.getBoundingClientRect().right <= t.getBoundingClientRect().right + 1));
-        }), { timeoutMsg: `${palette}/${theme}/${width}: property member menus fit their text and arrow` });
+          const rows = [...document.querySelectorAll("[data-property-assets] .account-card")];
+          return rows.length === 2 && rows.every((r) => !!r.querySelector("[data-row-menu]"));
+        }), { timeoutMsg: `${palette}/${theme}/${width}: property rows each have a ⋯ menu` });
       }
       await browser.saveScreenshot(path.join(shots, `${palette}-${theme}-800.png`));
       const row = '.account-card[data-account-id="1"]';

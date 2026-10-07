@@ -431,7 +431,7 @@ export function DashboardView({
   const breakdowns: Record<StatKey, { name: string; amount: number; flag?: boolean }[]> = useMemo(() => {
     const row = (a: Account) => ({ name: a.name, amount: netWorthContribution(a), flag: isOverdrawn(a) });
     return {
-      networth: [...accounts.map(row), ...(assetsTotal !== 0 ? [{ name: "Property & Valuables", amount: assetsTotal }] : [])],
+      networth: [...accounts.map(row), ...(assetsTotal !== 0 ? [{ name: "Property and valuables", amount: assetsTotal }] : [])],
       cash: cashAccounts.map(row),
       debt: debtAccounts.map(row),
       investments: investmentAccounts.map(row),
@@ -770,7 +770,7 @@ export function DashboardView({
           </p>
           {assetsTotal !== 0 && (
             <p className="modal-message-secondary" style={{ marginTop: 4 }}>
-              Includes Property &amp; Valuables at their current value throughout — since they only carry a value as
+              Includes property and valuables at their current value throughout — since they only carry a value as
               of today, past points assume that same value applied back then too.
             </p>
           )}

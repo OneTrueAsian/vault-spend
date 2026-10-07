@@ -65,6 +65,16 @@ try {
     await tap("Settings");await menu("Theme",theme);await menu("Color mode",mode);await tap("Reports");
     await fit(`${theme} ${mode}`);
     await browser.saveScreenshot(path.join(output,`reports-${theme}-${mode}.png`));
+    // "Where it went" (UAT mobile.2): the donut has an on-screen key and the flow chart names each bar
+    // with its amount, legible (12px or more) and inside the drawing; a phone can't hover for figures.
+    await browser.execute(()=>document.querySelector(".mobile-donut").scrollIntoView({block:"start"}));
+    await browser.saveScreenshot(path.join(output,`where-it-went-donut-${theme}-${mode}.png`));
+    await browser.execute(()=>{const flow=[...document.querySelectorAll(".mobile-viewer details")].find(d=>d.querySelector("summary")?.textContent==="Income to spending flow");flow.open=true;flow.scrollIntoView({block:"start"});});
+    const where=await browser.execute(()=>{const svg=document.querySelector(".mobile-sankey"),box=svg?.getBoundingClientRect();const texts=[...(svg?.querySelectorAll("text")??[])].map(t=>t.getBoundingClientRect());const sizes=[...(svg?.querySelectorAll("text, tspan")??[])].map(t=>parseFloat(getComputedStyle(t).fontSize)*(box.width/svg.viewBox.baseVal.width));return {key:document.querySelectorAll(".mobile-donut-key li").length,labels:texts.length,inside:texts.every(r=>r.left>=box.left-1&&r.right<=box.right+1&&r.top>=box.top-1&&r.bottom<=box.bottom+1),smallest:Math.min(...sizes)};});
+    assert.ok(where.key>0&&where.labels>0&&where.inside&&where.smallest>=11.95,`${theme} ${mode}: Where it went should be labelled on screen ${JSON.stringify(where)}`);checks.push(`${theme} ${mode} Where it went labelled`);
+    await browser.saveScreenshot(path.join(output,`where-it-went-${theme}-${mode}.png`));
+    // Leave the page as the later steps expect it: the flow section closed and the page at the top.
+    await browser.execute(()=>{for(const d of document.querySelectorAll(".mobile-viewer details"))d.open=false;window.scrollTo(0,0);});
     const axeSource=await readFile(path.resolve("node_modules/axe-core/axe.min.js"),"utf8");
     await browser.execute(axeSource);
     const violations=await browser.executeAsync(done=>window.axe.run({runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21aa"]}}).then(result=>done(result.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>n.target)})))));

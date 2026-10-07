@@ -178,6 +178,51 @@ describe("HelpView sections per tab (s12)", () => {
     expect(sections().every((d) => !d.open)).toBe(true);
   });
 
+  const topics = () => Array.from(container.querySelectorAll<HTMLDetailsElement>("details.help-topic"));
+  const faqs = () => Array.from(container.querySelectorAll<HTMLDetailsElement>("details.help-faq-entry"));
+  const toggle = (d: HTMLDetailsElement) =>
+    act(() => {
+      d.open = !d.open;
+      d.dispatchEvent(new Event("toggle"));
+    });
+
+  it("folds every other topic and every FAQ question too, closed to start, titles still showing", () => {
+    show();
+    expect(topics().map((d) => d.querySelector("summary")?.textContent)).toEqual([
+      "Getting started",
+      "Importing transactions",
+      "Bulk setup-data import/export",
+      "Exporting your data",
+    ]);
+    expect(topics().every((d) => !d.open)).toBe(true);
+    expect(faqs().length).toBeGreaterThan(10);
+    expect(faqs().every((d) => !d.open)).toBe(true);
+    expect(faqs()[0].querySelector("summary h3")?.textContent).toBeTruthy();
+  });
+
+  it("opens and closes each topic and question on its own", () => {
+    show();
+    const [gettingStarted, importing] = topics();
+    const [firstFaq, secondFaq] = faqs();
+    toggle(gettingStarted);
+    toggle(firstFaq);
+    expect(gettingStarted.open).toBe(true);
+    expect(firstFaq.open).toBe(true);
+    expect(importing.open).toBe(false);
+    expect(secondFaq.open).toBe(false);
+    toggle(gettingStarted);
+    expect(gettingStarted.open).toBe(false);
+    expect(firstFaq.open).toBe(true);
+  });
+
+  it("opens every matching topic and question while searching", () => {
+    show();
+    search("backup");
+    expect(faqs().length).toBeGreaterThan(0);
+    expect(faqs().every((d) => d.open)).toBe(true);
+    expect(topics().every((d) => d.open)).toBe(true);
+  });
+
   it("opens the matching section when searching and hides the unrelated ones", () => {
     show();
     search("budget");

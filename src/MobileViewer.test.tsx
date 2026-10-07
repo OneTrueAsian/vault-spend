@@ -42,6 +42,21 @@ describe("read-only mobile viewer", () => {
         expect(container.querySelector(".mobile-month-detail")?.textContent).not.toMatch(/\$/);
         expect(container.innerHTML).not.toMatch(/\$[\d,]+\.\d{2}/);
     });
+    it("labels the Where it went charts with each category's name and amount, on screen", () => {
+        render();
+        click("Reports");
+        const key = [...container.querySelectorAll(".mobile-donut-key li")].map(li => li.textContent);
+        expect(key.length).toBeGreaterThan(0);
+        expect(key[0]).toMatch(/^Groceries\$[\d,]+\.\d{2}\d+%$/);
+        expect(container.querySelector(".mobile-donut-key .mobile-swatch")).not.toBeNull();
+        const flowLabels = [...container.querySelectorAll(".mobile-sankey text")].map(t => t.textContent);
+        expect(flowLabels.some(t => /^Income/.test(t ?? ""))).toBe(true);
+        expect(flowLabels.some(t => /^Groceries/.test(t ?? ""))).toBe(true);
+        expect(flowLabels.join(" ")).toMatch(/\$[\d,]+\.\d{2}/);
+        click("Hide amounts");
+        expect(container.querySelector(".mobile-donut-key")).toBeNull();
+        expect(container.querySelector(".mobile-sankey")).toBeNull();
+    });
     it("uses themed menus and persists only appearance choices", () => {
         render();
         click("Settings");

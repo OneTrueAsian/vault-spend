@@ -60,9 +60,16 @@ export function usePopover() {
       placePanel();
     }
     placePanel();
+    // The panel's height is fitted to its contents when it opens; contents that change while it is
+    // open (More filters' Clear all row appears once a filter is set) fit it again, or the new row
+    // would push the last field into a scroll. Only added or removed nodes and text count: the
+    // panel's own style changes, made here, don't.
+    const contents = new MutationObserver(placePanel);
+    contents.observe(panel, { childList: true, subtree: true, characterData: true });
     window.addEventListener("resize", placePanel);
     document.addEventListener("scroll", onScroll, true);
     return () => {
+      contents.disconnect();
       window.removeEventListener("resize", placePanel);
       document.removeEventListener("scroll", onScroll, true);
     };

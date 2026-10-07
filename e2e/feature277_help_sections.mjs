@@ -1,5 +1,6 @@
 // Task 15: Help in short pieces. Every page has a ? beside its title that opens Help at that page's
-// own section, open and in view; searching opens the matching sections. Screenshots of Help and of a
+// own section, open and in view; searching opens the matching sections. The other topics and each
+// FAQ question fold too, closed to start and each on its own. Screenshots of Help and of a
 // title row in every style, for a person to look at.
 //
 // Run with: npm run e2e -- --spec=277
@@ -79,6 +80,40 @@ try {
     () => browser.execute(() => document.querySelectorAll("details.help-tab").length === 11 && ![...document.querySelectorAll("details.help-tab")].some((d) => d.open)),
     { timeoutMsg: "opening Help from the sidebar should show every section closed" },
   );
+
+  // The other topics and each FAQ question fold too (UAT s12.3), closed to start and each on its own.
+  const foldState = () =>
+    browser.execute(() => ({
+      topics: [...document.querySelectorAll("details.help-topic")].map((d) => ({ title: d.querySelector("summary").textContent.trim(), open: d.open })),
+      faqOpen: [...document.querySelectorAll("details.help-faq-entry")].map((d) => d.open),
+    }));
+  let folds = await foldState();
+  if (folds.topics.length !== 4 || folds.topics.some((t) => t.open) || folds.faqOpen.length < 10 || folds.faqOpen.some(Boolean)) {
+    throw new Error(`every topic and FAQ question should start closed: ${JSON.stringify(folds)}`);
+  }
+  const clickSummary = (selector, title) =>
+    browser.execute((sel, t) => [...document.querySelectorAll(sel)].find((s) => t === null || s.textContent.trim() === t).click(), selector, title);
+  await clickSummary("details.help-topic > summary", "Getting started");
+  await clickSummary("details.help-faq-entry > summary", null);
+  await waitUntilOrDiagnose(
+    browser,
+    async () => {
+      folds = await foldState();
+      return folds.topics[0].open && !folds.topics[1].open && folds.faqOpen[0] && !folds.faqOpen[1];
+    },
+    { timeoutMsg: "clicking Getting started and the first question should open just those two", extra: () => folds },
+  );
+  await browser.saveScreenshot(path.join(shots, "help-topics-folding.png"));
+  await clickSummary("details.help-topic > summary", "Getting started");
+  await waitUntilOrDiagnose(
+    browser,
+    async () => {
+      folds = await foldState();
+      return !folds.topics[0].open && folds.faqOpen[0];
+    },
+    { timeoutMsg: "closing Getting started should leave the open question open", extra: () => folds },
+  );
+  console.log("every topic and FAQ question folds on its own");
 
   // Searching opens the matching sections: "split" opens Transactions.
   await reclaimWindowFocus(browser);

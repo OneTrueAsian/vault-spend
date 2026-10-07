@@ -124,9 +124,10 @@ export function RowMenu({ label, items, className }: { label: string; items: (Ro
                       item.onToggle(!item.checked);
                     }}
                   >
-                    {/* The tick is drawn by CSS (.row-menu-check::before) so the item's text stays just its label. */}
-                    <span className={`row-menu-check${item.checked ? " row-menu-check-on" : ""}`} aria-hidden="true" />
+                    {/* The label starts where every other item's does; the tick follows it, drawn by CSS
+                        (.row-menu-check-on::before) so the item's text stays just its label. */}
                     <span>{item.label}</span>
+                    <span className={`row-menu-check${item.checked ? " row-menu-check-on" : ""}`} aria-hidden="true" />
                   </button>
                 );
               }

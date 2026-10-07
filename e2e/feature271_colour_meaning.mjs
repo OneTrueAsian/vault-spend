@@ -237,6 +237,8 @@ try {
           loanText: bal("Car Loan")?.textContent ?? null,
           checkingColour: bal("Joint Checking") ? getComputedStyle(bal("Joint Checking")).color : null,
           loanBadge: card("Car Loan")?.querySelector(".type-badge")?.getAttribute("class") ?? null,
+          loanBadgeColour: card("Car Loan") ? getComputedStyle(card("Car Loan").querySelector(".type-badge")).color : null,
+          mutedColour: card("Car Loan") ? getComputedStyle(card("Car Loan").querySelector(".account-name-detail-static")).color : null,
           oweTile: owe?.getAttribute("class") ?? null,
         };
       }),
@@ -244,7 +246,9 @@ try {
     "expected the Car Loan and Joint Checking cards and the What you owe tile",
   );
   assert.equal(accounts.loanColour, accounts.checkingColour, `a loan's amount owed should be plain: ${JSON.stringify(accounts)}`);
-  assert.equal(accounts.loanBadge, "type-badge", "a loan's icon badge should be the plain one");
+  // UAT s7.1 tints each icon by kind; a debt's tint is the neutral one (muted text), never a warning red.
+  assert.equal(accounts.loanBadge, "type-badge type-badge-debt", "a loan's icon badge takes the debt tint");
+  assert.equal(accounts.loanBadgeColour, accounts.mutedColour, `a loan's icon badge should be neutral: ${JSON.stringify(accounts)}`);
   assert.ok(accounts.oweTile.split(" ").includes("tint-neutral"), `"What you owe" should use the neutral tint: ${accounts.oweTile}`);
 
   // ---- 6. Contrast of what changed, in every style, light and dark -----------------------------

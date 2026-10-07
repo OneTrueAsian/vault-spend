@@ -114,4 +114,27 @@ describe("DateField", () => {
     expect(el.hasAttribute("data-statement-date")).toBe(true);
     expect(container.querySelector(".date-field")!.classList.contains("date-field-disabled")).toBe(true);
   });
+
+  it("keeps dates to the years 1900 to 2100 by default", () => {
+    act(() => root.render(<DateField value="2026-10-04" onChange={() => {}} ariaLabel="Date" />));
+    expect(input().min).toBe("1900-01-01");
+    expect(input().max).toBe("2100-12-31");
+  });
+
+  it("explains a date outside those years and stops a form from saving it", () => {
+    act(() => root.render(<DateField value="9643-12-31" onChange={() => {}} ariaLabel="Date" />));
+    const message = container.querySelector(".date-field-problem");
+    expect(message?.textContent).toBe("Choose a date between 1900 and 2100.");
+    expect(input().getAttribute("aria-invalid")).toBe("true");
+    expect(input().validationMessage).toBe("Choose a date between 1900 and 2100.");
+    expect(input().getAttribute("aria-describedby")).toBe(message!.id);
+  });
+
+  it("clears the problem once the date is corrected", () => {
+    act(() => root.render(<DateField value="9643-12-31" onChange={() => {}} ariaLabel="Date" />));
+    act(() => root.render(<DateField value="2026-12-31" onChange={() => {}} ariaLabel="Date" />));
+    expect(container.querySelector(".date-field-problem")).toBeNull();
+    expect(input().hasAttribute("aria-invalid")).toBe(false);
+    expect(input().validationMessage).toBe("");
+  });
 });

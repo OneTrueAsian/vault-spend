@@ -1,6 +1,7 @@
 // E2E test: a calmer Transactions table (UI review s1), on the tidy two-person household data.
 //
-// - With one family member (no Member column), each row's ⋯ menu offers "Belongs to Jordan".
+// - With one family member (no Member column), each row's ⋯ menu offers "Belongs to Jordan", its label
+//   lined up with the other items' labels (UAT s1.1).
 // - At 1440x1000 at least 12 rows fit in one window height of the table (the review measured 7).
 // - Every amount's right edge lines up within 1px.
 // - The ⋯ menu on the last visible row opens upward and stays inside the window, in Default,
@@ -165,6 +166,19 @@ try {
       assertOpensUpwardInside(g, `${label} ${mode}`);
       // One family member, so no Member column: the menu says whether the row belongs to Jordan.
       assert.ok(g.items.includes("Belongs to Jordan"), `${label} ${mode}: expected a "Belongs to Jordan" item, got ${JSON.stringify(g.items)}`);
+      // UAT s1.1: "Belongs to Jordan" starts where the other items' labels start; its tick (when set)
+      // comes after the label, at the right.
+      const starts = await browser.execute(() =>
+        [...document.querySelectorAll(".row-menu-panel [role^='menuitem']")].map((item) => {
+          const range = document.createRange();
+          range.selectNodeContents(item);
+          const text = [...item.childNodes].find((n) => n.textContent.trim() !== "");
+          range.selectNodeContents(text);
+          return { label: item.textContent.trim(), left: Math.round(range.getBoundingClientRect().left * 10) / 10 };
+        }),
+      );
+      const lefts = new Set(starts.map((x) => x.left));
+      assert.equal(lefts.size, 1, `${label} ${mode}: every menu label should start at the same place: ${JSON.stringify(starts)}`);
       // Plain cells: no box around the account/category triggers in any style.
       const plain = await browser.execute((rowId) => {
         const t = document.querySelector(`tr[data-payment-row="${rowId}"] [aria-label^="Category for"]`);

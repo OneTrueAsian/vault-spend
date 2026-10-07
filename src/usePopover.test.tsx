@@ -4,7 +4,7 @@
 // would cut an absolutely placed one off), so a fixed panel is placed in window coordinates, level
 // with its trigger.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { usePopover } from "./usePopover";
 
@@ -62,5 +62,50 @@ describe("usePopover placement", () => {
     const panel = open("fixed");
     expect(panel.style.top).toBe("100px");
     expect(panel.style.bottom).toBe("auto");
+  });
+
+  it("grows with its contents: a row added while open (More filters' Clear all) is not cut off", async () => {
+    function Growing() {
+      const { open, setOpen, rootRef, triggerRef } = usePopover();
+      const [rows, setRows] = useState(1);
+      return (
+        <div ref={rootRef}>
+          <button ref={triggerRef} type="button" onClick={() => setOpen((v) => !v)}>
+            Open
+          </button>
+          <button type="button" data-add onClick={() => setRows((n) => n + 1)}>
+            Add
+          </button>
+          {open && (
+            <div className="account-filter-panel" style={{ maxHeight: "340px" }}>
+              {Array.from({ length: rows }, (_, i) => (
+                <p key={i}>row</p>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    // Each row is 60px tall.
+    const realScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollHeight");
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.querySelectorAll("p").length * 60;
+      },
+    });
+    try {
+      act(() => root.render(<Growing />));
+      act(() => container.querySelector<HTMLButtonElement>("button")!.click());
+      const panel = container.querySelector<HTMLDivElement>(".account-filter-panel")!;
+      expect(panel.style.maxHeight).toBe("62px");
+      await act(async () => {
+        container.querySelector<HTMLButtonElement>("[data-add]")!.click();
+        await Promise.resolve();
+      });
+      expect(panel.style.maxHeight).toBe("122px");
+    } finally {
+      if (realScroll) Object.defineProperty(HTMLElement.prototype, "scrollHeight", realScroll);
+    }
   });
 });

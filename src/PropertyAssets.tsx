@@ -1,8 +1,10 @@
 import { FormEvent, useState } from "react";
 import type { Asset, FamilyMember } from "./types";
-import { formatAmount, formatDisplayDate, isValidDecimalString, toLocalIsoDate } from "./format";
+import { formatAmount, formatFullDate, isValidDecimalString, toLocalIsoDate } from "./format";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { MenuSelect } from "./MenuSelect";
+import { RowMenu } from "./RowMenu";
+import { AccountTypeIcon } from "./icons";
 import { sumMoney } from "./money";
 import { storedTypeLabel } from "./accountGroups";
 
@@ -111,6 +113,16 @@ function NewAssetForm({
   );
 }
 
+/** A thing you own's icon: a house for property, a car for a vehicle, the plain "other" glyph otherwise. */
+function AssetIcon({ assetType }: { assetType: string }) {
+  if (assetType === "real_estate") return <AccountTypeIcon accountType="loan" />;
+  if (assetType === "vehicle") return <AccountTypeIcon accountType="other" iconKey="car" />;
+  return <AccountTypeIcon accountType="other" />;
+}
+
+/** Property and valuables on the Accounts page: one group card like the account groups above it (UI
+ * mockup, UAT s7.1), a row per thing with its value on the right. Click the value to update it; the
+ * row's ⋯ menu updates the value, says who it belongs to, or deletes it (asking first). */
 export function PropertyAssetsSection({
   assets,
   familyMembers,
@@ -138,6 +150,7 @@ export function PropertyAssetsSection({
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
 
   const total = sumMoney(assets.map((a) => a.value));
+  const sorted = [...assets].sort((a, b) => parseFloat(b.value) - parseFloat(a.value) || a.name.localeCompare(b.name));
 
   function commitEdit(id: number, value: string) {
     setEditing(null);
@@ -146,66 +159,24 @@ export function PropertyAssetsSection({
   }
 
   return (
-    <div data-property-assets>
-      <h2 className="reports-section-title">
-        Property &amp; Valuables <span className="account-col">{formatAmount(total)}</span>
-      </h2>
-      <div className="table-scroll">
-      <table className="ledger property-assets-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th className="amount-col">Value</th>
-            <th>Member</th>
-            <th>Updated</th>
-            <th className="actions-col"><span className="sr-only">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {assets.map((a) => (
-            <tr key={a.id}>
-              <td>
+    <section className="account-group" data-property-assets>
+      <div className="account-group-head">
+        <h2>Property and valuables</h2>
+        <span className="account-group-total">{formatAmount(total)}</span>
+      </div>
+      <div className="account-cards">
+        {sorted.map((a) => {
+          const detail = [assetTypeLabel(a.asset_type), `updated ${formatFullDate(a.valued_on)}`, a.member_name, a.notes].filter(Boolean).join(" \u00b7 ");
+          return (
+            <div key={a.id} className="account-card" data-asset-id={a.id}>
+              <span className="type-badge" aria-hidden="true">
+                <AssetIcon assetType={a.asset_type} />
+              </span>
+              <div className="info">
                 <div className="account-name-cell">{a.name}</div>
-                {a.notes && <span className="account-col">{a.notes}</span>}
-              </td>
-              <td>{assetTypeLabel(a.asset_type)}</td>
-              <td className="amount-col">
-                {editing?.id === a.id ? (
-                  <input
-                    autoFocus
-                    className="amount-edit-input"
-                    value={editing.value}
-                    onChange={(e) => setEditing({ id: a.id, value: e.target.value })}
-                    onBlur={() => commitEdit(a.id, editing.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitEdit(a.id, editing.value);
-                      if (e.key === "Escape") setEditing(null);
-                    }}
-                  />
-                ) : (
-                  <span
-                    className="amount-editable"
-                    title="Click to update the value"
-                    onClick={() => setEditing({ id: a.id, value: a.value })}
-                  >
-                    {formatAmount(a.value)}
-                  </span>
-                )}
-              </td>
-              <td className="member-col">
-                <MenuSelect
-                  ariaLabel={`Family member for ${a.name}`}
-                  value={a.member_id != null ? String(a.member_id) : ""}
-                  onChange={(v) => onSetMember(a.id, v ? Number(v) : null)}
-                  options={[
-                    { value: "", label: "Unassigned" },
-                    ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
-                  ]}
-                />
-              </td>
-              <td className="date-cell">{formatDisplayDate(a.valued_on)}</td>
-              <td className="actions-col">
+                <span className="sub account-name-detail-static">{detail}</span>
+              </div>
+              <div className="account-card-end">
                 {confirmingDeleteId === a.id ? (
                   <span className="row-delete-confirm">
                     <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(null)}>
@@ -215,29 +186,51 @@ export function PropertyAssetsSection({
                       Delete
                     </button>
                   </span>
+                ) : editing?.id === a.id ? (
+                  <input
+                    autoFocus
+                    className="amount-edit-input"
+                    aria-label={`Value of ${a.name}`}
+                    value={editing.value}
+                    onChange={(e) => setEditing({ id: a.id, value: e.target.value })}
+                    onBlur={() => commitEdit(a.id, editing.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitEdit(a.id, editing.value);
+                      if (e.key === "Escape") setEditing(null);
+                    }}
+                  />
                 ) : (
-                  <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(a.id)}>
-                    Delete
+                  <button
+                    type="button"
+                    className="bal amount-editable"
+                    title="Click to update the value"
+                    onClick={() => setEditing({ id: a.id, value: a.value })}
+                  >
+                    {formatAmount(a.value)}
                   </button>
                 )}
-              </td>
-            </tr>
-          ))}
-          {assets.length === 0 && (
-            <tr>
-              <td colSpan={6} className="empty-state">
-                No property or valuables added yet.
-              </td>
-            </tr>
-          )}
-          <tr>
-            <td colSpan={6}>
-              <NewAssetForm familyMembers={familyMembers} onCreate={onCreate} />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              </div>
+              <RowMenu
+                label={`Actions for ${a.name}`}
+                items={[
+                  { label: "Update value…", onSelect: () => setEditing({ id: a.id, value: a.value }) },
+                  ...familyMembers.map((m) => ({
+                    kind: "check" as const,
+                    label: `Belongs to ${m.name}`,
+                    checked: a.member_id === m.id,
+                    onToggle: (next: boolean) => onSetMember(a.id, next ? m.id : null),
+                  })),
+                  { label: "Delete…", onSelect: () => setConfirmingDeleteId(a.id), danger: true },
+                ]}
+              />
+            </div>
+          );
+        })}
+        {assets.length === 0 && <p className="account-group-empty">No property or valuables added yet.</p>}
+        <div className="account-group-add">
+          <NewAssetForm familyMembers={familyMembers} onCreate={onCreate} />
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

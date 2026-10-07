@@ -1647,18 +1647,21 @@ export function AccountEditDialog({
   onSave,
   onDelete,
   onCancel,
+  startWithDeleteConfirm = false,
 }: {
   account: Account;
   familyMembers: FamilyMember[];
   onSave: (changes: { accountType?: string; memberId?: number | null; institution?: string | null; mask?: string | null }) => void;
   onDelete: () => void;
   onCancel: () => void;
+  /** Opened from a row's Delete…: already asking whether to delete. */
+  startWithDeleteConfirm?: boolean;
 }) {
   const [accountType, setAccountType] = useState(account.account_type);
   const [memberId, setMemberId] = useState<number | null>(account.member_id);
   const [institution, setInstitution] = useState(account.institution ?? "");
   const [mask, setMask] = useState(account.mask ?? "");
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(startWithDeleteConfirm);
   useAutoCancelDelete(confirmingDelete ? "delete" : null, () => setConfirmingDelete(false));
 
   function handleSubmit(e: FormEvent) {

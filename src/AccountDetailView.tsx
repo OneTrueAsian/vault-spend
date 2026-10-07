@@ -1,6 +1,6 @@
 import { accountTypeLabel } from "./accountGroups";
 import "./AccountsCards.css";
-import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";
 import { LineChart } from "./charts";
@@ -29,6 +29,7 @@ export function AccountDetailView({
   onOpenTransactions,
   onOpenPayment,
   onMessage,
+  focus = null,
 }: {
   account: Account;
   onBack: () => void;
@@ -37,6 +38,9 @@ export function AccountDetailView({
   onOpenTransactions: () => void;
   onOpenPayment: (sourceId: number) => void;
   onMessage: (text: string, kind: "success" | "error" | "info") => void;
+  /** "reconcile": opened from an account row's "Reconcile with a statement…", so the page starts at
+   * the reconcile card with its first field ready to type in. */
+  focus?: "reconcile" | null;
 }) {
   const [history, setHistory] = useState<BalancePoint[]>([]);
   const [transactions, setTransactions] = useState<AccountTransaction[]>([]);
@@ -49,6 +53,15 @@ export function AccountDetailView({
   const [status, setStatus] = useState<ReconciliationStatus | null>(null);
 
   const canReconcile = RECONCILABLE_TYPES.has(account.account_type);
+  const reconcileCardRef = useRef<HTMLDivElement>(null);
+  const statementBalanceRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focus !== "reconcile") return;
+    reconcileCardRef.current?.scrollIntoView({ block: "start" });
+    statementBalanceRef.current?.focus({ preventScroll: true });
+    // Only when the page opens: later re-renders leave the person where they are.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadOverview = useCallback(async () => {
     setHistory(await invoke<BalancePoint[]>("account_balance_history", { accountId: account.id, months: 12 }));
@@ -157,7 +170,7 @@ export function AccountDetailView({
         )}
       </div>
 
-      <div className="card" data-reconcile-card>
+      <div className="card" data-reconcile-card ref={reconcileCardRef}>
         <div className="card-head">
           <span className="reports-section-title">Reconcile with a statement</span>
         </div>
@@ -183,6 +196,7 @@ export function AccountDetailView({
               <label className="labeled-field">
                 <span className="labeled-field-label">Statement ending balance</span>
                 <input
+                  ref={statementBalanceRef}
                   value={statementBalance}
                   onChange={(e) => setStatementBalance(e.target.value)}
                   placeholder="0.00"

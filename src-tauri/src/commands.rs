@@ -99,8 +99,39 @@ fn parse_amount(amount: &str) -> Result<Decimal, String> {
     amount.parse().map_err(|_| format!("invalid amount: {amount}"))
 }
 
+/// A date typed into the app. Kept to the years 1900-2100, the same range the date fields allow
+/// (`src/dateRange.ts`), so a typo like year 9643 is refused instead of saved.
 fn parse_date(date: &str) -> Result<chrono::NaiveDate, String> {
-    chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| format!("invalid date: {date}"))
+    use chrono::Datelike;
+    let parsed = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| format!("invalid date: {date}"))?;
+    if !(1900..=2100).contains(&parsed.year()) {
+        return Err("Choose a date between 1900 and 2100.".to_string());
+    }
+    Ok(parsed)
+}
+
+#[cfg(test)]
+mod parse_date_tests {
+    use super::parse_date;
+
+    #[test]
+    fn accepts_dates_from_1900_to_2100() {
+        assert!(parse_date("1900-01-01").is_ok());
+        assert!(parse_date("2026-10-06").is_ok());
+        assert!(parse_date("2100-12-31").is_ok());
+    }
+
+    #[test]
+    fn refuses_a_year_outside_that_range_in_plain_words() {
+        assert_eq!(parse_date("9643-12-31").unwrap_err(), "Choose a date between 1900 and 2100.");
+        assert_eq!(parse_date("1899-12-31").unwrap_err(), "Choose a date between 1900 and 2100.");
+        assert_eq!(parse_date("2101-01-01").unwrap_err(), "Choose a date between 1900 and 2100.");
+    }
+
+    #[test]
+    fn still_refuses_text_that_is_not_a_date() {
+        assert_eq!(parse_date("2026-02-30").unwrap_err(), "invalid date: 2026-02-30");
+    }
 }
 
 /// Everything the app needs across command calls. The classifier isn't

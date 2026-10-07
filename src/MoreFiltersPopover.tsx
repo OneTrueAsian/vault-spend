@@ -50,7 +50,7 @@ export function MoreFiltersPopover({
         <span className="account-filter-caret">▾</span>
       </button>
       {open && (
-        <div className="account-filter-panel">
+        <div className="account-filter-panel more-filters-panel">
           {activeCount > 0 && (
             <div className="account-filter-panel-actions">
               <button type="button" className="modal-secondary" onClick={clearAll}>

@@ -45,6 +45,11 @@ function AccountIconPicker({
  * "balance". */
 type EditingBalance = { id: number; value: string; mode: "balance" | "limit" };
 
+/** The account types Account details can reconcile against a statement (AccountDetailView). */
+function canReconcile(accountType: string): boolean {
+  return accountType === "checking" || accountType === "savings";
+}
+
 /** Every stat on this page that can be clicked open to show what makes it
  * up — its own state, independent of ReportsView's `ReportStatKey`, so
  * expanding one doesn't affect the other now that they're separate pages. */
@@ -53,7 +58,7 @@ type AccountStatKey = "assets" | "liabilities" | "networth";
 const ACCOUNT_STAT_LABELS: Record<AccountStatKey, string> = {
   assets: "What you own",
   liabilities: "What you owe",
-  networth: "Net Worth",
+  networth: "Net worth",
 };
 
 
@@ -68,6 +73,7 @@ function AccountCard({
   onSetAccountIcon,
   onEdit,
   onOpenDetail,
+  onDelete,
 }: {
   account: Account;
   editing: EditingBalance | null;
@@ -79,8 +85,11 @@ function AccountCard({
   onSetAccountIcon: (accountId: number, iconKey: string | null) => void;
   /** Opens the account's Edit dialog (type, member, institution, delete). */
   onEdit: (accountId: number) => void;
-  /** Opens the account's own page (balance history, reconcile, transactions). */
-  onOpenDetail: (accountId: number) => void;
+  /** Opens the account's own page (balance history, reconcile, transactions); "reconcile" opens it at
+   * the reconcile card. */
+  onOpenDetail: (accountId: number, focus?: "reconcile") => void;
+  /** Opens the account's Edit dialog already asking whether to delete it. */
+  onDelete: (accountId: number) => void;
 }) {
   const group = groupOf(a.account_type);
   const isCredit = group === "credit";
@@ -119,8 +128,9 @@ function AccountCard({
     onSetBalanceOverride(id, value.trim());
   }
 
+  // "Ally ··1177 · Savings · Jordan", as in the UI mockup.
   const detailLine = [
-    a.institution ? `${a.institution}${a.mask ? " \u2022\u2022\u2022\u2022 " + a.mask : ""}` : null,
+    a.institution ? `${a.institution}${a.mask ? " \u00b7\u00b7" + a.mask : ""}` : null,
     accountTypeLabel(a.account_type),
     a.member_name,
   ]
@@ -132,7 +142,7 @@ function AccountCard({
       <span className="icon-toggle-anchor">
         <button
           type="button"
-          className="type-badge"
+          className={isLiability ? "type-badge type-badge-debt" : group === "investment" ? "type-badge type-badge-investment" : "type-badge"}
           aria-label={`Change icon for ${a.name}`}
           title="Click to change this account's icon"
           onClick={() => setEditingIcon(editingIcon === a.id ? null : a.id)}
@@ -183,7 +193,14 @@ function AccountCard({
             title={isLiability ? "Click to correct the amount currently owed" : "Click to correct today's balance"}
             onClick={() => setEditing({ id: a.id, value: isLiability ? owed : a.current_balance, mode: "balance" })}
           >
-            {isLiability ? `Owed ${formatAmount(owed)}` : formatAmount(a.current_balance)}
+            {isLiability ? (
+              // One inline run, so the button (a flex box in some styles) keeps "Owed $X" on one line.
+              <span>
+                <span className="owed-tag">Owed</span> {formatAmount(owed)}
+              </span>
+            ) : (
+              formatAmount(a.current_balance)
+            )}
           </button>
         )}
         {isCredit &&
@@ -206,13 +223,15 @@ function AccountCard({
               title="Click to set the credit limit"
               onClick={() => setEditing({ id: a.id, value: a.starting_balance, mode: "limit" })}
             >
-              {parseFloat(a.starting_balance) > 0 ? `Available ${formatAmount(a.current_balance)}` : "Set credit limit…"}
+              {parseFloat(a.starting_balance) > 0 ? `${formatAmount(a.current_balance)} available` : "Set credit limit…"}
             </button>
           ))}
       </div>
       <RowMenu label={`Actions for ${a.name}`} items={[
         { label: "Details", onSelect: () => onOpenDetail(a.id) },
         { label: "Edit…", onSelect: () => onEdit(a.id) },
+        canReconcile(a.account_type) && { label: "Reconcile with a statement…", onSelect: () => onOpenDetail(a.id, "reconcile") },
+        { label: "Delete…", onSelect: () => onDelete(a.id), danger: true },
       ]} />
     </div>
   );
@@ -240,7 +259,7 @@ export function AccountsView({
   onDeleteAsset,
   onOpenHelp,
 }: {
-  onOpenAccountDetail: (accountId: number) => void;
+  onOpenAccountDetail: (accountId: number, focus?: "reconcile") => void;
   /** Property & Valuables — manually tracked things that aren't accounts. */
   assets: Asset[];
   onCreateAsset: (
@@ -279,6 +298,8 @@ export function AccountsView({
 }) {
   const [editing, setEditing] = useState<EditingBalance | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
+  // Delete… in a row's menu opens the same Edit dialog, already asking whether to delete.
+  const [deletingFromMenu, setDeletingFromMenu] = useState(false);
   const [editingIcon, setEditingIcon] = useState<number | null>(null);
   const [expandedStat, setExpandedStat] = useState<AccountStatKey | null>(null);
 
@@ -292,7 +313,7 @@ export function AccountsView({
   const liabilities = liabilityAccounts.reduce((s, a) => s + netWorthContribution(a), 0);
   const netWorth = assetsTotal + liabilities;
 
-  const manualAssetsRow = manualAssetsTotal !== 0 ? [{ name: "Property & Valuables", amount: manualAssetsTotal }] : [];
+  const manualAssetsRow = manualAssetsTotal !== 0 ? [{ name: "Property and valuables", amount: manualAssetsTotal }] : [];
   // Red only for a balance below zero (s4), not for what's owed on a card or loan.
   const breakdownRow = (a: Account) => ({ name: a.name, amount: netWorthContribution(a), flag: isOverdrawn(a) });
   const accountBreakdowns: Record<AccountStatKey, { name: string; amount: number; flag?: boolean }[]> = {
@@ -337,9 +358,23 @@ export function AccountsView({
     editingIcon,
     setEditingIcon,
     onSetAccountIcon,
-    onEdit: setEditingAccountId,
+    onEdit: (id: number) => {
+      setDeletingFromMenu(false);
+      setEditingAccountId(id);
+    },
+    onDelete: (id: number) => {
+      setDeletingFromMenu(true);
+      setEditingAccountId(id);
+    },
     onOpenDetail: onOpenAccountDetail,
   };
+  const accountCount = `${accounts.length} account${accounts.length === 1 ? "" : "s"}`;
+  const pageSub =
+    accounts.length === 0 && assets.length === 0
+      ? "Every account, grouped by cash, credit, loans, and investments."
+      : assets.length === 0
+        ? accountCount
+        : `${accountCount} and ${assets.length} thing${assets.length === 1 ? "" : "s"} you own`;
   const accountBeingEdited = accounts.find((a) => a.id === editingAccountId) ?? null;
 
   return (
@@ -350,11 +385,11 @@ export function AccountsView({
             <h1 className="view-title">Accounts</h1>
             {onOpenHelp && <HelpLink tab="accounts" onOpen={onOpenHelp} />}
           </div>
-          <p className="view-sub">Every account, grouped by cash, credit, loans, and investments.</p>
+          <p className="view-sub">{pageSub}</p>
         </div>
         <div className="page-actions">
           <button type="button" onClick={onAddAccount}>
-            Add account…
+            + Add account
           </button>
         </div>
       </div>
@@ -367,8 +402,8 @@ export function AccountsView({
           }
           onClick={() => toggleStat("assets")}
         >
-          <span className="stat-value">{formatAmount(assetsTotal)}</span>
           <span className="stat-label">What you own</span>
+          <span className="stat-value">{formatAmount(assetsTotal)}</span>
         </button>
         <button
           type="button"
@@ -377,8 +412,9 @@ export function AccountsView({
           }
           onClick={() => toggleStat("liabilities")}
         >
-          <span className="stat-value">{formatAmount(liabilities)}</span>
           <span className="stat-label">What you owe</span>
+          {/* The amount owed, as on each row (an overpaid card makes it negative). */}
+          <span className="stat-value">{formatAmount(-liabilities)}</span>
         </button>
         <button
           type="button"
@@ -387,8 +423,8 @@ export function AccountsView({
           }
           onClick={() => toggleStat("networth")}
         >
+          <span className="stat-label">Net worth</span>
           <span className="stat-value">{formatAmount(netWorth)}</span>
-          <span className="stat-label">Net Worth</span>
         </button>
       </div>
 
@@ -403,21 +439,27 @@ export function AccountsView({
         onClose={() => expandedStat && toggleStat(expandedStat)}
       />
 
+      {/* One card per group, as in the UI mockup: its name and total on top, then one row per account,
+          the biggest balance first. A card or loan group's total is the amount owed. */}
       {GROUP_ORDER.map((group) => {
-        const groupAccounts = accounts.filter((a) => groupOf(a.account_type) === group);
+        const groupAccounts = accounts
+          .filter((a) => groupOf(a.account_type) === group)
+          .sort((a, b) => Math.abs(netWorthContribution(b)) - Math.abs(netWorthContribution(a)) || a.name.localeCompare(b.name));
         if (groupAccounts.length === 0) return null;
         const subtotal = groupAccounts.reduce((s, a) => s + netWorthContribution(a), 0);
+        const owedGroup = group === "credit" || group === "loan";
         return (
-          <div key={group}>
-            <h2 className="account-group-title">
-              {GROUP_LABELS[group]} <span className="account-col">{formatAmount(subtotal)}</span>
-            </h2>
+          <section key={group} className="account-group">
+            <div className="account-group-head">
+              <h2>{GROUP_LABELS[group]}</h2>
+              <span className="account-group-total">{owedGroup ? `${formatAmount(-subtotal)} owed` : formatAmount(subtotal)}</span>
+            </div>
             <div className="account-cards">
               {groupAccounts.map((a) => (
                 <AccountCard key={a.id} account={a} {...rowProps} />
               ))}
             </div>
-          </div>
+          </section>
         );
       })}
       {accounts.length === 0 && <p className="empty-state">No accounts yet.</p>}
@@ -435,6 +477,7 @@ export function AccountsView({
         <AccountEditDialog
           account={accountBeingEdited}
           familyMembers={familyMembers}
+          startWithDeleteConfirm={deletingFromMenu}
           onCancel={() => setEditingAccountId(null)}
           onSave={async (changes) => {
             const id = accountBeingEdited.id;

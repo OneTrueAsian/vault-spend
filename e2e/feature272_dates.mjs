@@ -11,6 +11,9 @@
 // - The date field's box matches the text fields beside it, and its written-out date sits where the
 //   input's own text would, in Default, Futuristic and Retro, Light and Dark (screenshots saved).
 // - Export CSV still writes the stored YYYY-MM-DD dates.
+// - UAT s5.3: a date outside 1900-2100 (a slipped year such as 9643) is explained under the field and
+//   Add transaction won't save it; correcting it clears the explanation.
+// - UAT E.4: choosing a date in More filters adds Clear all, and the panel grows to fit instead of scrolling.
 //
 // Run with: node e2e/feature272_dates.mjs
 
@@ -208,6 +211,38 @@ try {
   await enterTransactionAmount(browser, await browser.$(".modal-panel"), "-9.99");
   // Out of the date field, it reads the new date written out.
   await waitForDateFieldText(browser, dateInput, fieldDate(TYPED), "the Date field after typing a date");
+
+  // A date far outside 1900-2100 (a slipped year, like 9643) is explained and can't be saved.
+  const setDialogDate = (iso) =>
+    browser.execute((iso) => {
+      const input = document.querySelector('.modal-panel input[type="date"][aria-label="Date"]');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, iso);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }, iso);
+  await setDialogDate("9643-12-31");
+  let problem = null;
+  await waitUntilOrDiagnose(browser, async () => (problem = await browser.execute(() => document.querySelector(".modal-panel .date-field-problem")?.textContent ?? null)) === "Choose a date between 1900 and 2100.", {
+    timeoutMsg: "a date in 9643 should be explained under the Date field",
+    extra: () => problem,
+  });
+  await browser.saveScreenshot(path.join(shotsDir, "272-add-transaction-year-9643.png"));
+  await (await (await browser.$(".modal-panel")).$("button=Add transaction")).click();
+  await browser.pause(800);
+  assert.equal(await browser.$(".modal-panel").isExisting(), true, "Add transaction stays open while the date is in 9643");
+  assert.equal(storedDate("Date Field Check"), null, "nothing is saved with a date in 9643");
+  assert.equal(
+    await browser.execute(() => document.activeElement?.getAttribute("aria-label")),
+    "Date",
+    "refusing to save puts the cursor in the Date field to fix it",
+  );
+  // Corrected, the explanation goes and the date reads normally again.
+  await setDialogDate(TYPED);
+  await waitUntilOrDiagnose(browser, () => browser.execute(() => !document.querySelector(".modal-panel .date-field-problem")), {
+    timeoutMsg: "correcting the date should clear the explanation",
+  });
+  // Out of the field again, it reads the corrected date written out.
+  await (await browser.$(`.modal-panel input[placeholder='e.g. "Coffee shop"']`)).click();
+  await waitForDateFieldText(browser, dateInput, fieldDate(TYPED), "the Date field after correcting the year");
   await (await (await browser.$(".modal-panel")).$("button=Add transaction")).click();
   await waitUntilOrDiagnose(browser, async () => !(await browser.$(".modal-panel").isExisting()), { timeoutMsg: "Add transaction should close after saving" });
   assert.equal(storedDate("Date Field Check"), TYPED, "the typed date is the one saved");
@@ -245,6 +280,26 @@ try {
     await waitForDateFieldText(browser, 'input[aria-label="From date"]', "Any date", "More filters' From date");
   });
   checkResting(await restingGeometry('input[aria-label="From date"]'), "More filters From date (.labeled-field)");
+  // Choosing a date adds a Clear all row; the panel grows to fit it rather than scrolling inside.
+  await browser.execute((iso) => {
+    const input = document.querySelector('input[aria-label="From date"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, iso);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }, LAST_WEEK);
+  let panelFit = null;
+  await waitUntilOrDiagnose(
+    browser,
+    async () =>
+      (panelFit = await browser.execute(() => {
+        const panel = document.querySelector(".more-filters-panel");
+        const clear = [...(panel?.querySelectorAll("button") ?? [])].some((b) => b.textContent.trim() === "Clear all");
+        return panel ? { clear, scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight } : null;
+      }))?.clear === true,
+    { timeoutMsg: "choosing a From date should add Clear all to More filters", extra: () => panelFit },
+  );
+  await browser.saveScreenshot(path.join(shotsDir, "272-more-filters-with-date.png"));
+  assert.ok(panelFit.scrollHeight <= panelFit.clientHeight + 1, `More filters should show all its fields without scrolling: ${JSON.stringify(panelFit)}`);
+  await browser.execute(() => [...document.querySelectorAll(".more-filters-panel button")].find((b) => b.textContent.trim() === "Clear all").click());
   await browser.keys("Escape");
 
   // A compact row editor at rest (Recurring > Edit on a bill: the row-edit-input date field).

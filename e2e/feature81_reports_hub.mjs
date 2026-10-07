@@ -62,7 +62,7 @@ try {
 
   // Removed from Reports: property, goals overview, setup import/export.
   const pageText = await (await browser.$("[data-reports-hub]")).getText();
-  for (const gone of ["Property & Valuables", "Goals overview", "Download setup template", "Import setup data"]) {
+  for (const gone of ["Property & Valuables", "Property and valuables", "Goals overview", "Download setup template", "Import setup data"]) {
     if (pageText.includes(gone)) throw new Error(`"${gone}" should no longer be on Reports`);
   }
 

@@ -3,7 +3,8 @@ import type { ComparisonResult, MobileSnapshotV1, MonthTotals } from "./mobileSn
 import { MenuSelect } from "./MenuSelect";
 import { Amount, Card, Line, Percent } from "./MobileShared";
 import { addMoney, aggregateBreakdown, monthLabel, selectedMonths, subtract, averageMoney, units, money as moneyLabel } from "./mobileViewModel";
-import { buildSankeyData, layoutSankey, sankeyRibbonPath } from "./sankey";
+import { buildSankeyData, layoutSankey, sankeyRibbonPath, spreadLabelPositions } from "./sankey";
+import { donutSlices } from "./mobileCharts";
 import { buildHeatmapWeeks, heatmapBucket, heatmapScaleMax } from "./heatmap";
 import { monthEndDate, presetRange, type RangePreset } from "./reportRange";
 import { forecast } from "./mobileCalculators";
@@ -66,6 +67,8 @@ export function MobileReports({ snapshot: s, hidden, onBudget }: {
     <Comparisons snapshot={s} hidden={hidden}/>
   </>;
 }
+/** "Where it went": the donut and, under it, a key naming each slice with its amount and share, since
+ * a phone has no hover to reveal a slice's figures. */
 function CategoryDonut({ categories, hidden }: {
     categories: [
         string,
@@ -75,12 +78,20 @@ function CategoryDonut({ categories, hidden }: {
 }) {
     if (hidden)
         return <p>Spending shares hidden</p>;
-    const total = categories.reduce((sum, [, amount]) => sum + Math.max(0, Number(amount)), 0);
-    if (total <= 0)
+    const slices = donutSlices(categories);
+    if (slices.length === 0)
         return null;
     let offset = 0;
-    return <svg className="mobile-donut" viewBox="0 0 120 120" role="img" aria-label="Category share of spending"><title>Category spending shares</title>{categories.map(([label, amount], i) => { const share = Math.max(0, Number(amount)) / total * 100, start = offset; offset += share; return <circle key={label} cx="60" cy="60" r="42" fill="none" stroke={`var(--cat-${i % 6 + 1})`} strokeWidth="16" pathLength="100" strokeDasharray={`${share} ${100 - share}`} strokeDashoffset={-start} transform="rotate(-90 60 60)"><title>{label}: {moneyLabel(amount)}, {share.toFixed(1)}%</title></circle>; })}</svg>;
+    return <><svg className="mobile-donut" viewBox="0 0 120 120" role="img" aria-label="Category share of spending, listed below"><title>Category spending shares</title>{slices.map(slice => { const start = offset; offset += slice.share; return <circle key={slice.label} cx="60" cy="60" r="42" fill="none" stroke={slice.color} strokeWidth="16" pathLength="100" strokeDasharray={`${slice.share} ${100 - slice.share}`} strokeDashoffset={-start} transform="rotate(-90 60 60)"/>; })}</svg><ul className="mobile-donut-key">{slices.map(slice => <li key={slice.label}><span className="mobile-swatch" style={{ background: slice.color }} aria-hidden="true"/><span className="mobile-key-label">{slice.label}</span><Amount value={slice.amount} hidden={hidden}/><small>{Math.round(slice.share)}%</small></li>)}</ul></>;
 }
+// Flow chart geometry, in viewBox units: the side margins hold each bar's name and amount. The drawing
+// is 340 units wide and a 390px phone's card is about 300px, so 14-unit text reads at 12px or more.
+const FLOW = { left: 82, right: 130, inner: 128, top: 12, row: 38, minHeight: 220, nodeWidth: 10, labelGap: 34 };
+function flowLabel(label: string, max = 16): string {
+    return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+}
+/** Income to spending flow: income on the left, the biggest categories (the rest as "Other") and any
+ * money left over on the right, each bar named with its amount beside it. */
 function Sankey({ income, categories, hidden }: {
     income: string;
     categories: [
@@ -94,8 +105,21 @@ function Sankey({ income, categories, hidden }: {
     const data = buildSankeyData(Number(income), categories.map(([label, amount]) => ({ label, amount: Number(amount) })));
     if (!data.nodes.length)
         return null;
-    const layout = layoutSankey(data, 300, 220);
-    return <><svg viewBox="0 0 300 220" className="mobile-sankey" role="img" aria-label="Income flowing to spending and money left over"><title>Income and spending flow</title>{layout.links.map((l, i) => { const source = layout.nodes.find(n => n.id === l.source)!, target = layout.nodes.find(n => n.id === l.target)!; return <path key={i} d={sankeyRibbonPath(source.x + layout.nodeWidth, l.sy0, l.sy1, target.x, l.ty0, l.ty1)} fill="var(--accent-soft)"/>; })}{layout.nodes.map(n => <rect key={n.id} x={n.x} y={n.y0} width={layout.nodeWidth} height={n.y1 - n.y0} fill="var(--accent)"><title>{n.label}: {moneyLabel(n.value)}</title></rect>)}</svg><details><summary>Flow details</summary>{data.nodes.map(n => <Line key={n.id} label={n.label} value={n.value} hidden={hidden}/>)}</details></>;
+    const columns = [...new Set(data.nodes.map(n => n.column))].sort((a, b) => a - b);
+    const tallest = Math.max(1, ...columns.map(c => data.nodes.filter(n => n.column === c).length));
+    const height = Math.max(FLOW.minHeight, tallest * FLOW.row);
+    const layout = layoutSankey(data, FLOW.inner, height, FLOW.nodeWidth);
+    const labelY = new Map<string, number>();
+    for (const col of columns) {
+        const nodes = layout.nodes.filter(n => n.column === col).sort((a, b) => a.y0 - b.y0);
+        const ys = spreadLabelPositions(nodes.map(n => (n.y0 + n.y1) / 2), FLOW.labelGap, FLOW.labelGap / 2, height - FLOW.labelGap / 2);
+        nodes.forEach((n, i) => labelY.set(n.id, ys[i]));
+    }
+    const first = columns[0], last = columns[columns.length - 1];
+    // A shortfall adds a middle bar whose name sits above it, so the drawing starts lower then.
+    const top = columns.length > 2 ? FLOW.top + 34 : FLOW.top;
+    const node = (id: string) => layout.nodes.find(n => n.id === id)!;
+    return <><svg viewBox={`0 0 ${FLOW.left + FLOW.inner + FLOW.right} ${top + FLOW.top + height}`} className="mobile-sankey" role="img" aria-label="Income flowing to spending and money left over, with each amount written beside its bar"><title>Income and spending flow</title><g transform={`translate(${FLOW.left},${top})`}>{layout.links.map((l, i) => { const source = node(l.source), target = node(l.target); return <path key={i} d={sankeyRibbonPath(source.x + FLOW.nodeWidth, l.sy0, l.sy1, target.x, l.ty0, l.ty1)} fill="var(--accent-soft)"/>; })}{layout.nodes.map(n => { const left = n.column === first, middle = !left && n.column !== last; const x = middle ? n.x + FLOW.nodeWidth / 2 : left ? n.x - 6 : n.x + FLOW.nodeWidth + 6; const y = middle ? n.y0 - 18 : labelY.get(n.id) ?? (n.y0 + n.y1) / 2; const anchor = middle ? "middle" : left ? "end" : "start"; return <g key={n.id}><rect x={n.x} y={n.y0} width={FLOW.nodeWidth} height={Math.max(n.y1 - n.y0, 1)} fill="var(--accent)"/><text x={x} y={y - 3} textAnchor={anchor} className="mobile-sankey-label">{flowLabel(n.label, 15)}<tspan x={x} dy="15" className="mobile-sankey-amount">{moneyLabel(n.value)}</tspan></text></g>; })}</g></svg><details><summary>Flow details</summary>{data.nodes.map(n => <Line key={n.id} label={n.label} value={n.value} hidden={hidden}/>)}</details></>;
 }
 function ForecastSummary({ snapshot: s, hidden }: {
     snapshot: MobileSnapshotV1;

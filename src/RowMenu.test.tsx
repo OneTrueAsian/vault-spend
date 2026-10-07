@@ -65,6 +65,18 @@ describe("RowMenu", () => {
     expect(onToggle).toHaveBeenCalledWith(false);
   });
 
+  it("starts a check item's label where the other items' labels start, with the tick after it", () => {
+    render([
+      { label: "Add tag…", onSelect: () => {} },
+      { kind: "check", label: "Belongs to Alex", checked: false, onToggle: () => {} },
+    ]);
+    act(() => trigger().click());
+    const children = Array.from(item("Belongs to Alex").children);
+    expect(children[0].textContent).toBe("Belongs to Alex");
+    // The tick slot comes last and takes no room until it is ticked.
+    expect(children[children.length - 1].className).toBe("row-menu-check");
+  });
+
   it("does nothing for a disabled item", () => {
     const onSelect = vi.fn();
     render([{ label: "Apply to a debt…", onSelect, disabled: true }]);

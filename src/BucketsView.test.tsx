@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // Goals page (s9): an empty Goals page explains what a goal is and offers "Create a goal" plus three
-// example names, instead of one grey line above a lone "+ New goal…" tile.
+// starting points, as in the UI mockup, instead of one grey line above a lone "+ New goal…" tile.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -80,30 +80,46 @@ function hasNewGoalTile(): boolean {
 }
 
 describe("BucketsView empty page", () => {
-  it("shows one centred block with an explanation, Create a goal and three examples", () => {
+  const starter = (name: string) =>
+    [...container.querySelectorAll<HTMLButtonElement>(".goals-empty-starter")].find((b) => b.querySelector("b")?.textContent === name);
+
+  it("matches the mockup: what a goal is for, Create a goal, and three starting points", () => {
     render();
     const blocks = container.querySelectorAll(".goals-empty");
     expect(blocks).toHaveLength(1);
     const block = blocks[0];
-    expect(block.textContent).toContain("No goals yet");
-    expect(block.textContent).toContain("Save toward something: a holiday, a new car, an emergency fund.");
+    expect(container.querySelector(".view-sub")?.textContent).toBe("Money you're setting aside for something");
+    expect(block.querySelector(".goals-empty-icon svg")).not.toBeNull();
+    expect(block.querySelector("h2")?.textContent).toBe("Save toward something");
+    expect(block.textContent).toContain(
+      "A goal is an amount you want to have by a date: a holiday, a new car, a cushion for emergencies, or a bill that comes once a year. Vault Spend shows how much to put aside each month to get there.",
+    );
     const create = button("Create a goal");
     expect(create).toBeDefined();
     expect(block.contains(create!)).toBe(true);
     expect(create!.classList.contains("modal-secondary")).toBe(false);
-    for (const example of ["Emergency fund", "Holiday", "New car"]) {
-      const b = button(example);
-      expect(b, example).toBeDefined();
-      expect(block.contains(b!)).toBe(true);
-      expect(b!.classList.contains("modal-secondary")).toBe(true);
-    }
+    expect(block.textContent).toContain("Or start from one of these:");
+    const starters = [...block.querySelectorAll(".goals-empty-starter")].map((b) => [b.querySelector("b")?.textContent, b.querySelector("span")?.textContent]);
+    expect(starters).toEqual([
+      ["Emergency fund", "3 months of your spending"],
+      ["Holiday", "A trip next summer, you pick the amount"],
+      ["Once-a-year bill", "Car insurance or a subscription, saved monthly"],
+    ]);
     expect(hasNewGoalTile()).toBe(false);
     expect(container.querySelector(".empty-state")).toBeNull();
   });
 
+  it("puts a rough amount on the emergency fund, from average monthly spending, and fills it in", () => {
+    render({ avgMonthlySpend: "5547.14" });
+    expect(starter("Emergency fund")?.querySelector("span")?.textContent).toBe("3 months of spending, about $16,600");
+    click(starter("Emergency fund"));
+    expect(nameInput()!.value).toBe("Emergency fund");
+    expect(container.querySelector<HTMLInputElement>('.bucket-new-form input[placeholder="Target amount (optional)"]')!.value).toBe("16600");
+  });
+
   it("an example opens the form with that name filled in, inside the same block", () => {
     render();
-    click(button("Holiday"));
+    click(starter("Holiday"));
     const input = nameInput();
     expect(input).not.toBeNull();
     expect(input!.value).toBe("Holiday");
@@ -124,7 +140,7 @@ describe("BucketsView empty page", () => {
 
   it("saving an example creates a goal with that name", () => {
     const props = render();
-    click(button("Emergency fund"));
+    click(starter("Emergency fund"));
     const form = container.querySelector(".bucket-new-form") as HTMLFormElement;
     act(() => form.requestSubmit());
     expect(props.onCreateBucket).toHaveBeenCalledTimes(1);

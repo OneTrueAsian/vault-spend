@@ -110,14 +110,16 @@ button.row-menu-toggle[aria-expanded="true"] {
   color: var(--retro-sel-text);
 }
 
+/* The tick sits after the label, pushed to the item's right edge, so a check item's label lines up
+   with the plain items above and below it. */
 .row-menu-check {
-  display: inline-block;
-  width: 1.2em;
   flex: none;
+  margin-left: auto;
 }
 
 .row-menu-check-on::before {
   content: "✓";
+  padding-left: 12px;
 }
 
 .row-menu-divider {

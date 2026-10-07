@@ -9,10 +9,10 @@ export const GROUP_ORDER = ["cash", "credit", "loan", "investment", "other"] as 
 export type AccountGroup = (typeof GROUP_ORDER)[number];
 export const GROUP_LABELS: Record<AccountGroup, string> = {
   cash: "Cash",
-  credit: "Credit Cards",
+  credit: "Credit cards",
   loan: "Loans",
   investment: "Investments",
-  other: "Other Assets",
+  other: "Other assets",
 };
 
 export function groupOf(accountType: string): AccountGroup {

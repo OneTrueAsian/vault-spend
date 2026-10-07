@@ -2086,6 +2086,8 @@ function App({
   const accountDetail = accountDetailId === null ? null : (accounts.find((a) => a.id === accountDetailId) ?? null);
   // Set when a Details page was opened from another tab (the Investments summary), so Back returns there.
   const [detailReturnTab, setDetailReturnTab] = useState<Tab | null>(null);
+  // Set when an account row's "Reconcile with a statement…" opened the page: it opens at that card.
+  const [detailFocus, setDetailFocus] = useState<"reconcile" | null>(null);
   useEffect(() => {
     // The account page belongs to the Accounts tab; leaving it closes the page.
     if (activeTab !== "accounts") {
@@ -3945,6 +3947,7 @@ function App({
             <Suspense fallback={null}>
               <BucketsView
                 onOpenHelp={openHelpFor}
+                avgMonthlySpend={avgMonthlySpend}
                 buckets={buckets}
                 accounts={accounts}
                 familyMembers={familyMembers}
@@ -4115,6 +4118,7 @@ function App({
               onOpenTransactions={() => setActiveTab("ledger")}
               onOpenPayment={openPayment}
               onMessage={(text, kind) => setStatus(text, kind)}
+              focus={detailFocus}
             />
           )}
 
@@ -4135,7 +4139,10 @@ function App({
                 onSetAccountMember={handleSetAccountMember}
                 onSetAccountIcon={handleSetAccountIcon}
                 onAddAccount={handleNewAccount}
-                onOpenAccountDetail={setAccountDetailId}
+                onOpenAccountDetail={(id, focus) => {
+                  setDetailFocus(focus ?? null);
+                  setAccountDetailId(id);
+                }}
                 assets={assets}
                 onCreateAsset={handleCreateAsset}
                 onUpdateAssetValue={handleUpdateAssetValue}
