@@ -76,7 +76,7 @@ body:has(.mobile-viewer) { margin: 0; display: block; min-width: 280px; backgrou
 .mobile-field > span { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
 .mobile-field input { width: 100%; min-height: 44px; border: 1px solid var(--border-strong); border-radius: 8px; padding: 10px; background: var(--surface); color: var(--text); font-size: 16px; }
 .mobile-viewer fieldset { border: 1px solid var(--border); border-radius: 10px; margin: 15px 0; padding: 12px; }
-.mobile-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: min(100%,540px); display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); background: var(--menu-bg); border-top: 1px solid var(--border); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); z-index: 10; }
+.mobile-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: min(100%,540px); display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); background: var(--menu-bg); border-top: 1px solid var(--border); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); z-index: 10; }
 .mobile-viewer .mobile-nav button { background: transparent; border: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 5px 0; font-size: 10px; color: var(--text-muted); }
 .mobile-nav button[aria-current="page"] { color: var(--accent); font-weight: 700; }
 .mobile-viewer main { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
@@ -143,3 +143,7 @@ body:has(.mobile-viewer) { margin: 0; display: block; min-width: 280px; backgrou
 :root[data-palette=retro] .mobile-viewer :is(.mobile-nav button,.mobile-chart button,.account-destination-option,.mobile-link) { box-shadow: none; }
 :root[data-palette=retro] :is(.mobile-viewer,.mobile-storage-dialog) button:disabled { opacity: 1; }
 @media(max-width:350px) { .mobile-storage-dialog { padding: 16px; } .mobile-brand small { font-size: 10px; } }
+
+.mobile-snapshot-status { color: var(--text-muted); font-size: 12px; margin: 0; }
+.mobile-nav span { font-size: clamp(8px,2.4vw,10px); line-height: 1.2; }
+.mobile-viewer .mobile-offline-controls { padding: 0; }

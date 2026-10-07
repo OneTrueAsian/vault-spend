@@ -24,21 +24,25 @@ try{
   try{
    await page.goto(url);await page.waitForFunction(()=>!!window.mobileStorageProbe);
    for(const snapshot of [fixture,second])await page.evaluate(snapshot=>window.mobileStorageProbe.replace(JSON.stringify(snapshot),{installationId:snapshot.installationId,profileId:snapshot.profile.id,epoch:snapshot.epoch}),snapshot);
-   await page.locator(".mobile-sync").waitFor();await page.waitForFunction(()=>document.body.textContent.includes("Ready offline"));pass("Native encrypted snapshots and completed offline shell");
+   await page.locator(".mobile-snapshot-status").waitFor();await page.waitForFunction(()=>document.body.textContent.includes("Ready offline"));pass("Native encrypted snapshots and completed offline shell");
+   assert.equal(await page.getByRole("button",{name:"Pair this phone",exact:true}).count(),0);assert.equal(await page.locator(".mobile-sync").count(),0);pass("Overview omits connection and detailed snapshot controls");
    assert.equal(await page.evaluate(()=>document.querySelectorAll("select").length),0);pass("No native dropdowns");
-   for(const width of [320,360,390,430,768]){await page.setViewportSize({width,height:844});for(const tab of ["Overview","Accounts","Budget","Reports","Calculators"]){await page.getByRole("button",{name:tab,exact:true}).click();await fit();}pass(`All five tabs fit ${width}px`);}
+   for(const width of [320,360,390,430,768]){await page.setViewportSize({width,height:844});for(const tab of ["Overview","Accounts","Budget","Reports","Calculators","Settings"]){await page.getByRole("button",{name:tab,exact:true}).click();await fit();}pass(`All six tabs fit ${width}px`);}
    await page.setViewportSize({width:390,height:844});await page.getByRole("button",{name:"Reports",exact:true}).click();
    for(const range of ["3","6","12","year_to_date","last_month","current_month","custom"]){await menu("Report range",range);await fit();}pass("All seven report periods and custom controls");
    await menu("Report range","12");await page.locator(".mobile-chart button").first().tap();assert.ok(await page.locator(".mobile-month-detail").textContent());pass("Touch selects month detail");
    const chart=page.locator(".mobile-chart button").last();await chart.focus();await page.keyboard.press("Enter");assert.equal(await chart.getAttribute("aria-pressed"),"true");pass("Keyboard selects month detail");
    await page.locator(".mobile-chart button").first().locator(":scope > span").last().tap();assert.equal(await page.locator(".mobile-chart button").first().getAttribute("aria-pressed"),"true");pass("Touch on month label selects the correct detail");
-   await page.getByRole("button",{name:"Appearance",exact:true}).click();
+   await page.getByRole("button",{name:"Settings",exact:true}).click();
    for(const palette of ["transparent","futuristic","retro"])for(const mode of ["light","dark"]){
-    await menu("Theme",palette);await menu("Color mode",mode);await page.waitForFunction(({palette,mode})=>document.documentElement.dataset.palette===palette&&document.documentElement.dataset.theme===mode,{palette,mode});await page.evaluate(()=>document.documentElement.dataset.motion="reduced");
-    await page.getByRole("button",{name:/^Report range:/}).click();
+    await page.getByRole("button",{name:"Settings",exact:true}).click();await menu("Theme",palette);await menu("Color mode",mode);await page.waitForFunction(({palette,mode})=>document.documentElement.dataset.palette===palette&&document.documentElement.dataset.theme===mode,{palette,mode});await page.evaluate(()=>document.documentElement.dataset.motion="reduced");
+    await page.getByRole("button",{name:"Reports",exact:true}).click();await page.getByRole("button",{name:/^Report range:/}).click();
     const clipping=await page.locator('[role="menu"]').filter({visible:true}).evaluate(menu=>{const box=menu.getBoundingClientRect();return box.left>=-1&&box.right<=innerWidth+1&&box.top>=-1&&box.bottom<=innerHeight+1;});assert.equal(clipping,true);
     await page.keyboard.press("Escape");assert.equal(await page.getByRole("button",{name:/^Report range:/}).evaluate(el=>el===document.activeElement),true);
     await page.addScriptTag({path:path.resolve("node_modules/axe-core/axe.min.js")});const violations=await page.evaluate(()=>window.axe.run({runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21aa"]}}).then(r=>r.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))));assert.deepEqual(violations,[]);
+    await page.getByRole("button",{name:"Settings",exact:true}).click();
+    await page.addScriptTag({path:path.resolve("node_modules/axe-core/axe.min.js")});assert.deepEqual(await page.evaluate(()=>window.axe.run({runOnly:{type:"tag",values:["wcag2a","wcag2aa","wcag21aa"]}}).then(r=>r.violations.map(v=>v.id))),[]);
+    await page.screenshot({path:path.join(output,engine.name()+"-"+palette+"-"+mode+"-settings.png")});
     const connection=page.locator(".mobile-connection-options");
     if(!await connection.evaluate(e=>e.open))await connection.locator("summary").click();
     await page.getByRole("button",{name:"Pair this phone",exact:true}).click();
@@ -75,7 +79,7 @@ try{
    await menu("Profile",`${second.installationId}/${second.profile.id}`);await page.getByRole("button",{name:"Accounts",exact:true}).click();pass("Independent saved profile selection");
    await page.waitForFunction(async()=>{const data=await window.mobileStorageProbe.load();return data.active?.endsWith("/second-profile");});
    assert.equal(await page.evaluate(()=>localStorage.getItem("vault-mobile-palette")),"retro");
-   networkDown=true;await page.reload();await page.locator(".mobile-sync").waitFor({timeout:10000});await page.waitForFunction(()=>document.documentElement.dataset.palette==="retro");result.offlineReopen=true;pass("Offline reload preserves encrypted data and theme");
+   networkDown=true;await page.reload();await page.locator(".mobile-snapshot-status").waitFor({timeout:10000});await page.waitForFunction(()=>document.documentElement.dataset.palette==="retro");result.offlineReopen=true;pass("Offline reload preserves encrypted data and theme");
    await page.getByRole("button",{name:"Reports",exact:true}).click();await page.locator(".mobile-chart button").first().click();await page.getByRole("button",{name:"Calculators",exact:true}).click();pass("Offline reports and calculators remain usable");
   }catch(error){console.error(engine.name(),"browser state",await page.evaluate(()=>({url:location.href,theme:document.documentElement.dataset.palette,savedTheme:localStorage.getItem("vault-mobile-palette"),keys:Object.keys(localStorage),body:document.body.textContent.slice(0,600)})).catch(()=>null));result.error=error.message;await page.screenshot({path:path.join(output,`${engine.name()}-failure.png`)}).catch(()=>undefined);throw error;}
   finally{networkDown=false;await context.close();await writeFile(path.join(output,"results.json"),JSON.stringify(results,null,2));}

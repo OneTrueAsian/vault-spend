@@ -50,7 +50,7 @@ try {
   await browser.url(url+"/mobile/preview.html");await browser.$(".mobile-nav").waitForExist();
   for(const width of [320,360,390,430,768]) {
     await cdp("Emulation.setDeviceMetricsOverride",{width,height:844,deviceScaleFactor:1,mobile:true});
-    for(const tab of ["Overview","Accounts","Budget","Reports","Calculators"]) {await tap(tab);await fit(`${width}px ${tab}`);}
+    for(const tab of ["Overview","Accounts","Budget","Reports","Calculators","Settings"]) {await tap(tab);await fit(`${width}px ${tab}`);}
     await tap("Reports");assert.equal((await browser.$$(".mobile-chart button")).length,12);
     await browser.$(".mobile-chart button").click();assert.ok((await browser.$(".mobile-month-detail").getText()).includes("November 2025"));
     if(width===390)await browser.saveScreenshot(path.join(output,"reports-390-default.png"));
@@ -60,9 +60,9 @@ try {
   assert.equal(await browser.execute(()=>document.querySelector(".mobile-viewer").innerHTML.match(/\$[\d,]+\.\d{2}/)),null);checks.push("Chart, detail and accessibility amounts hidden");
   await browser.$("button[aria-label='Show amounts']").click();
   await cdp("Emulation.setDeviceMetricsOverride",{width:390,height:844,deviceScaleFactor:1,mobile:true});
-  await browser.$("button[aria-label='Appearance']").click();
+  await browser.$("button[aria-label='Settings']").click();
   for(const theme of ["Default","Futuristic","Retro"])for(const mode of ["Light","Dark"]) {
-    await menu("Theme",theme);await menu("Color mode",mode);
+    await tap("Settings");await menu("Theme",theme);await menu("Color mode",mode);await tap("Reports");
     await fit(`${theme} ${mode}`);
     await browser.saveScreenshot(path.join(output,`reports-${theme}-${mode}.png`));
     const axeSource=await readFile(path.resolve("node_modules/axe-core/axe.min.js"),"utf8");

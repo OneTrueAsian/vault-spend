@@ -35,7 +35,7 @@ try{
  await app.browser.waitUntil(async()=>app.browser.execute(()=>!!document.querySelector(".modal-overlay input[type=checkbox]")),{timeout:5000});
  await app.browser.execute(()=>{document.querySelector(".modal-overlay input[type=checkbox]").click();[...document.querySelectorAll("button")].find(b=>b.textContent==="Approve phone").click();});
  await page.locator(".mobile-sync").waitFor({timeout:12000});await page.waitForFunction(()=>document.body.textContent.includes("Ready offline"),{timeout:10000});
- assert.ok((await page.locator("body").innerText()).includes("$875.00"));pass("Desktop-approved real projection replaces the encrypted saved copy");
+ await page.getByRole("button",{name:"Overview",exact:true}).click();assert.ok((await page.locator("body").innerText()).includes("$875.00"));await page.getByRole("button",{name:"Settings",exact:true}).click();pass("Desktop-approved real projection replaces the encrypted saved copy");
  const cookies=await context.cookies(server.origin),credential=cookies.find(c=>c.name==="__Host-vaultspend-device");assert.ok(credential);assert.equal(credential.httpOnly,true);assert.equal(credential.secure,true);assert.equal(credential.sameSite,"Strict");assert.equal(credential.path,"/");assert.ok(credential.expires>Date.now()/1000+300*86400);
  assert.equal(await page.evaluate(()=>document.cookie.includes("__Host-vaultspend-device")),false);pass("Actual browser honors Secure, HttpOnly, Strict and remembered expiry");
  const state=await page.evaluate(()=>new Promise((resolve,reject)=>{
@@ -52,8 +52,9 @@ try{
  assert.equal(await ipc(app,"debug_mobile_database_digest"),before);assert.ok(requests.every(request=>request.startsWith(server.origin+"/")));pass("Reads preserve desktop database and request only the packaged origin");
  const savedTime=await page.locator(".mobile-sync").innerText();await page.getByRole("button",{name:"Refresh",exact:true}).click();await page.waitForFunction(()=>document.body.textContent.includes("Wait 30 seconds"));assert.equal(await page.locator(".mobile-sync").innerText(),savedTime);pass("Rate-limited refresh preserves the readable saved snapshot and timestamp");
  await context.close();context=null;await ipc(app,"mobile_disable");
- context=await launch();page=await context.newPage();await page.goto(url,{timeout:15000});await page.locator(".mobile-sync").waitFor({timeout:10000});assert.ok((await page.locator("body").innerText()).includes("$875.00"));pass("Cold Firefox restart opens encrypted snapshot with HTTPS desktop stopped");
+ context=await launch();page=await context.newPage();await page.goto(url,{timeout:15000});await page.locator(".mobile-snapshot-status").waitFor({timeout:10000});assert.ok((await page.locator("body").innerText()).includes("$875.00"));pass("Cold Firefox restart opens encrypted snapshot with HTTPS desktop stopped");
  await page.screenshot({path:path.join(output,"trusted-firefox-offline.png")});
+ await page.getByRole("button",{name:"Settings",exact:true}).click();
  if(!await page.locator(".mobile-connection-options").evaluate(e=>e.open))await page.locator(".mobile-connection-options > summary").click();
  await page.getByRole("button",{name:"Forget this phone",exact:true}).click();await page.getByRole("button",{name:"Remove saved data",exact:true}).click();await page.waitForFunction(()=>document.body.textContent.includes("Automatic reconnection is disabled"));assert.equal(await page.locator(".mobile-sync").count(),0);pass("Offline Forget erases finances and leaves an explicit desktop-revocation instruction");
  const version=context.browser()?.version()??await page.evaluate(()=>navigator.userAgent);

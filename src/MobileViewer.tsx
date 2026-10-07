@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Eye, EyeOff, Wallet, House, ChartNoAxesCombined, Calculator, ListChecks, Settings } from "lucide-react";
 import type { MobileSnapshotV1 } from "./mobileSnapshotTypes";
 import { MenuSelect } from "./MenuSelect";
+import { formatDisplayDate, formatEpochDateTime } from "./format";
 import { readThemeStyle } from "./themeBootstrap";
 import { Amount, Card, Line, Progress } from "./MobileShared";
 import { addMoney, currentBudget, monthLabel } from "./mobileViewModel";
@@ -12,8 +13,8 @@ import "./App.css";
 import "./themes/futuristic.css";
 import "./themes/retro.css";
 import "./MobileViewer.css";
-type Tab = "Overview" | "Accounts" | "Budget" | "Reports" | "Calculators";
-const tabs = [{ label: "Overview", icon: House }, { label: "Accounts", icon: Wallet }, { label: "Budget", icon: ListChecks }, { label: "Reports", icon: ChartNoAxesCombined }, { label: "Calculators", icon: Calculator }] as const;
+type Tab = "Overview" | "Accounts" | "Budget" | "Reports" | "Calculators" | "Settings";
+const tabs = [{ label: "Overview", icon: House }, { label: "Accounts", icon: Wallet }, { label: "Budget", icon: ListChecks }, { label: "Reports", icon: ChartNoAxesCombined }, { label: "Calculators", icon: Calculator }, { label: "Settings", icon: Settings }] as const;
 function stored(key: string): string | null { try {
     return localStorage.getItem(key);
 }
@@ -26,9 +27,11 @@ function save(key: string, value: string) { try {
 catch { /* Appearance remains usable when storage is denied. */ } }
 /** Receives only authorized, ingress-validated snapshots from the repository (Task 4).
  * All scenario state is discarded on profile, epoch, or snapshot replacement. No IPC or fetch. */
-export function MobileViewer({ snapshots, onRefresh, refreshing = false, refreshMessage = null,selectedProfile,onProfileChange,availableProfiles,connectionControls }: {
+export function MobileViewer({ snapshots, onRefresh, refreshing = false, refreshMessage = null,selectedProfile,onProfileChange,availableProfiles,connectionControls,statusSummary,initialSettingsOpen = false }: {
     snapshots: readonly MobileSnapshotV1[];
     connectionControls?: ReactNode;
+    statusSummary?: string;
+    initialSettingsOpen?: boolean;
     onRefresh?: (snapshot: MobileSnapshotV1) => void;
     refreshing?: boolean;
     refreshMessage?: string | null;
@@ -38,29 +41,35 @@ export function MobileViewer({ snapshots, onRefresh, refreshing = false, refresh
 }) {
     const [selected, setSelected] = useState("");
     const snapshot = snapshots.find(s => `${s.installationId}/${s.profile.id}` === (selectedProfile??selected)) ?? (selectedProfile?undefined:snapshots[0]);
-    const [hidden, setHidden] = useState(false), [appearance, setAppearance] = useState(false);
+    const [hidden, setHidden] = useState(false);
+    const [tab, setTab] = useState<Tab>(initialSettingsOpen ? "Settings" : "Overview");
+    const identity = snapshot ? snapshot.installationId + "/" + snapshot.profile.id + "/" + snapshot.epoch + "/" + snapshot.sequence : "";
+    useEffect(() => { setTab(current => current === "Settings" ? current : "Overview"); }, [identity]);
     const [palette, setPalette] = useState(() => readThemeStyle(stored("vault-mobile-palette")));
     const [mode, setMode] = useState(() => { const s = stored("vault-mobile-mode"); return s === "light" || s === "dark" ? s : "system"; });
     useEffect(() => { document.documentElement.dataset.palette = palette; if (mode === "system")
         document.documentElement.removeAttribute("data-theme");
     else
         document.documentElement.dataset.theme = mode; }, [palette, mode]);
+    const appearance = <section className="mobile-appearance" aria-label="Appearance"><MenuSelect ariaLabel="Theme" value={palette} onChange={v => { setPalette(readThemeStyle(v)); save("vault-mobile-palette", v); }} options={[{ value: "transparent", label: "Default" }, { value: "futuristic", label: "Futuristic" }, { value: "retro", label: "Retro" }]}/><MenuSelect ariaLabel="Color mode" value={mode} onChange={v => { setMode(v); save("vault-mobile-mode", v); }} options={[{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}/></section>;
+    const profiles = availableProfiles ?? snapshots.map(s => ({ value: s.installationId + "/" + s.profile.id, label: s.profile.name }));
     return <div className="mobile-viewer">
-    <header className="mobile-header"><div className="mobile-brand"><span className="mobile-logo" aria-hidden="true">V</span><div><strong>Vault Spend</strong><small>Your money, with you.</small></div></div><div className="mobile-actions"><button aria-label={hidden ? "Show amounts" : "Hide amounts"} onClick={() => setHidden(!hidden)}>{hidden ? <EyeOff size={20}/> : <Eye size={20}/>}</button><button aria-label="Appearance" aria-expanded={appearance} onClick={() => setAppearance(!appearance)}><Settings size={20}/></button></div></header>
-    {appearance && <section className="mobile-appearance" aria-label="Appearance"><MenuSelect ariaLabel="Theme" value={palette} onChange={v => { setPalette(readThemeStyle(v)); save("vault-mobile-palette", v); }} options={[{ value: "transparent", label: "Default" }, { value: "futuristic", label: "Futuristic" }, { value: "retro", label: "Retro" }]}/><MenuSelect ariaLabel="Color mode" value={mode} onChange={v => { setMode(v); save("vault-mobile-mode", v); }} options={[{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}/></section>}
-    {connectionControls}
-    {!snapshot&&!!availableProfiles?.length&&<div className="mobile-profile"><MenuSelect ariaLabel="Profile" value={selectedProfile??availableProfiles[0].value} onChange={id=>{setSelected(id);onProfileChange?.(id);}} options={availableProfiles}/><span className="mobile-badge">Read only</span></div>}
-    {snapshot ? <><div className="mobile-profile"><MenuSelect ariaLabel="Profile" value={`${snapshot.installationId}/${snapshot.profile.id}`} onChange={id=>{setSelected(id);onProfileChange?.(id);}} options={availableProfiles??snapshots.map(s => ({ value: `${s.installationId}/${s.profile.id}`, label: s.profile.name }))}/><span className="mobile-badge">Read only</span></div><div className="mobile-sync"><span>Snapshot as of {snapshot.asOfDate}<small>Saved {snapshot.generatedAt.replace("T", " ").replace("Z", " UTC")}</small></span><button onClick={() => onRefresh?.(snapshot)} disabled={!onRefresh || refreshing}>{refreshing ? "Refreshing…" : "Refresh"}</button></div>{refreshMessage && <p role="status">{refreshMessage}</p>}<ProfilePages key={`${snapshot.installationId}/${snapshot.profile.id}/${snapshot.epoch}/${snapshot.sequence}`} snapshot={snapshot} hidden={hidden}/></> : <main className="mobile-empty"><h1>No saved snapshot</h1><p>Connect to your open Vault Spend desktop instance on your local network to receive a read-only snapshot.</p></main>}
+    <header className="mobile-header"><div className="mobile-brand"><span className="mobile-logo" aria-hidden="true">V</span><div><strong>Vault Spend</strong><small>Your money, with you.</small></div></div><div className="mobile-actions"><button aria-label={hidden ? "Show amounts" : "Hide amounts"} onClick={() => setHidden(!hidden)}>{hidden ? <EyeOff size={20}/> : <Eye size={20}/>}</button></div></header>
+    {!!profiles.length && <div className="mobile-profile"><MenuSelect ariaLabel="Profile" value={snapshot ? snapshot.installationId + "/" + snapshot.profile.id : selectedProfile ?? profiles[0].value} onChange={id => { setSelected(id); onProfileChange?.(id); }} options={profiles}/><span className="mobile-badge">Read only</span></div>}
+    {tab === "Settings" ? <main id="mobile-main"><h1>Settings</h1><p className="mobile-muted">Appearance, connection and saved data on this phone.</p><Card title="Appearance">{appearance}</Card>{connectionControls}{snapshot && <Card title="Saved snapshot"><div className="mobile-sync"><span>Snapshot as of {formatDisplayDate(snapshot.asOfDate)}<small>Saved {formatEpochDateTime(Date.parse(snapshot.generatedAt) / 1000)}</small></span><button onClick={() => onRefresh?.(snapshot)} disabled={!onRefresh || refreshing}>{refreshing ? "Refreshing…" : "Refresh"}</button></div>{refreshMessage && <p role="status">{refreshMessage}</p>}<p className="mobile-muted">Refresh while this profile is open and unlocked on your desktop.</p></Card>}</main> : snapshot ? <><p className="mobile-snapshot-status">{formatDisplayDate(snapshot.asOfDate)} · {statusSummary ?? "Saved snapshot"}</p><ProfilePages key={identity} tab={tab} setTab={setTab} snapshot={snapshot} hidden={hidden}/></> : <main id="mobile-main" className="mobile-empty"><h1>No saved snapshot</h1><p>Connect to your open Vault Spend desktop instance on your local network to receive a read-only snapshot.</p><button onClick={() => setTab("Settings")}>Open Settings to pair</button></main>}
+    <nav className="mobile-nav" aria-label="Mobile views">{tabs.map(({ label, icon: Icon }) => <button key={label} aria-label={label} aria-current={tab === label ? "page" : undefined} onClick={() => setTab(label)}><Icon size={20}/><span>{label}</span></button>)}</nav>
   </div>;
 }
-function ProfilePages({ snapshot: s, hidden }: {
+function ProfilePages({ snapshot: s, hidden, tab, setTab }: {
     snapshot: MobileSnapshotV1;
     hidden: boolean;
+    tab: Exclude<Tab, "Settings">;
+    setTab: (tab: Tab) => void;
 }) {
-    const [tab, setTab] = useState<Tab>("Overview");
     const section = tab === "Overview" ? s.sections.overview : tab === "Accounts" ? s.sections.accounts : tab === "Budget" ? s.sections.budgets : tab === "Reports" ? s.sections.reports : s.sections.calculators;
-    return <><main id="mobile-main"><h1>{tab === "Overview" ? "Your money at a glance" : tab === "Accounts" ? "Your accounts" : tab === "Budget" ? "Your budget" : tab === "Reports" ? "The bigger picture" : "Plan your next step"}</h1><p className="mobile-muted">Saved data. Refresh while your desktop instance is open.</p>{section.state !== "available" && <p className="mobile-notice" role="status">{section.state === "partial" ? "Partial snapshot: " : "Unavailable: "}{section.reason}</p>}{section.state !== "unavailable" && (tab === "Overview" ? <Overview snapshot={s} hidden={hidden} go={setTab}/> : tab === "Accounts" ? <Accounts snapshot={s} hidden={hidden}/> : tab === "Budget" ? <Budget snapshot={s} hidden={hidden}/> : tab === "Reports" ? <MobileReports snapshot={s} hidden={hidden} onBudget={() => setTab("Budget")}/> : <MobileTools snapshot={s} hidden={hidden}/>)}<p className="mobile-footer">This snapshot stays unchanged away from your desktop. Calculators use local, unsaved scenarios.</p></main><nav className="mobile-nav" aria-label="Mobile views">{tabs.map(({ label, icon: Icon }) => <button key={label} aria-current={tab === label ? "page" : undefined} onClick={() => setTab(label)}><Icon size={20}/><span>{label}</span></button>)}</nav></>;
+    return <main id="mobile-main"><h1>{tab === "Overview" ? "Your money at a glance" : tab === "Accounts" ? "Your accounts" : tab === "Budget" ? "Your budget" : tab === "Reports" ? "The bigger picture" : "Plan your next step"}</h1>{section.state !== "available" && <p className="mobile-notice" role="status">{section.state === "partial" ? "Partial snapshot: " : "Unavailable: "}{section.reason}</p>}{section.state !== "unavailable" && (tab === "Overview" ? <Overview snapshot={s} hidden={hidden} go={setTab}/> : tab === "Accounts" ? <Accounts snapshot={s} hidden={hidden}/> : tab === "Budget" ? <Budget snapshot={s} hidden={hidden}/> : tab === "Reports" ? <MobileReports snapshot={s} hidden={hidden} onBudget={() => setTab("Budget")}/> : <MobileTools snapshot={s} hidden={hidden}/>)}<p className="mobile-footer">This snapshot stays unchanged away from your desktop. Calculators use local, unsaved scenarios.</p></main>;
 }
+
 function Overview({ snapshot: s, hidden, go }: {
     snapshot: MobileSnapshotV1;
     hidden: boolean;

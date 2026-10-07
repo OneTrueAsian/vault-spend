@@ -44,7 +44,7 @@ describe("read-only mobile viewer", () => {
     });
     it("uses themed menus and persists only appearance choices", () => {
         render();
-        click("Appearance");
+        click("Settings");
         click("Theme: Default");
         click("Retro");
         expect(document.documentElement.dataset.palette).toBe("retro");
@@ -56,6 +56,36 @@ describe("read-only mobile viewer", () => {
         act(() => root.render(<MobileViewer snapshots={[]}/>));
         expect(container.textContent).toContain("No saved snapshot");
         expect(container.textContent).not.toMatch(/\$/);
+    });
+    it("keeps connection and appearance controls in Settings, with refresh still usable", () => {
+        let refreshed = false;
+        act(() => root.render(<MobileViewer snapshots={[snapshot]} onRefresh={() => { refreshed = true; }} connectionControls={<button>Pair this phone</button>}/>));
+        expect(container.textContent).not.toContain("Pair this phone");
+        expect(container.querySelector(".mobile-sync")).toBeNull();
+        expect(container.querySelector(".mobile-nav")?.textContent).toContain("Settings");
+        click("Settings");
+        expect(container.querySelector("h1")?.textContent).toBe("Settings");
+        expect(container.textContent).toContain("Pair this phone");
+        expect(container.textContent).toContain("Snapshot as of");
+        expect(container.querySelector(".mobile-sync small")?.textContent).toContain("Saved Oct 4");
+        click("Refresh");
+        expect(refreshed).toBe(true);
+        click("Overview");
+        expect(container.querySelector("h1")?.textContent).toBe("Your money at a glance");
+        expect(container.textContent).not.toContain("Pair this phone");
+    });
+    it("lets an unpaired phone open Settings to pair", () => {
+        act(() => root.render(<MobileViewer snapshots={[]} connectionControls={<button>Pair this phone</button>}/>));
+        click("Settings");
+        expect(container.textContent).toContain("Pair this phone");
+    });
+    it("opens Settings for pairing links and keeps it open when a snapshot arrives", () => {
+        act(() => root.render(<MobileViewer snapshots={[]} initialSettingsOpen connectionControls={<button>Pair this phone</button>}/>));
+        expect(container.querySelector("h1")?.textContent).toBe("Settings");
+        expect(container.textContent).toContain("Pair this phone");
+        act(() => root.render(<MobileViewer snapshots={[snapshot]} initialSettingsOpen/>));
+        expect(container.querySelector("h1")?.textContent).toBe("Settings");
+        expect(container.querySelector(".mobile-sync")).not.toBeNull();
     });
     it("discards unsaved calculator inputs on profile switch and snapshot replacement", () => {
         render();
