@@ -25,6 +25,7 @@ import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
@@ -33,7 +34,7 @@ cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES 
 cur.execute("INSERT INTO rules (pattern, category) VALUES ('zqx plain', 'Zebra Care')")
 `);
 
-const csvDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-import-cats-"));
+const csvDir = makeTempDir("vaultspend-import-cats-");
 const csvPath = path.join(csvDir, "bank.csv");
 const rows = [
   "date,description,amount,category",

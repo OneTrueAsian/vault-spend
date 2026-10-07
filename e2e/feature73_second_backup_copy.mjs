@@ -15,6 +15,7 @@ import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
@@ -22,7 +23,7 @@ acct = cur.lastrowid
 cur.execute("INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?,?,?,?,?,?)",
             (acct, "${dateInMonth(-2, 1)}", "Original", "-10.00", None, f"{acct}|${dateInMonth(-2, 1)}|original|-10.00"))
 `);
-const copyDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-second-copy-"));
+const copyDir = makeTempDir("vaultspend-second-copy-");
 const backupsDir = path.join(dbDir, "backups");
 const missingDir = path.join(os.tmpdir(), `vaultspend-no-such-folder-${process.pid}`);
 const backupFiles = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^vaultspend-.*\.db$/.test(f)) : []);

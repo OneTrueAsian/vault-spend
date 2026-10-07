@@ -27,6 +27,7 @@ import { seedFixture } from "./lib/seed.mjs";
 import { DISPLAY_DATE, displayDate, fieldDate, isoDaysFromNow } from "./lib/dates.mjs";
 import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
 import { readDateField, waitForDateFieldText } from "./lib/dateFields.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const TODAY = isoDaysFromNow(0);
 const LAST_WEEK = isoDaysFromNow(-7);
@@ -43,7 +44,7 @@ for d, desc, amt in (("${TODAY}", "Corner Bakery", "-12.40"), ("${LAST_WEEK}", "
 cur.execute("INSERT INTO recurring (merchant, category, amount, cadence, anchor_date, account_id) VALUES ('Streaming Plan', NULL, '-15.49', 'monthly', ?, ?)", ("${isoDaysFromNow(9)}", acct))
 `);
 const dbPath = path.join(dbDir, "vaultspend.db");
-const shotsDir = process.env.VS_SCREENS_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-feature272-"));
+const shotsDir = process.env.VS_SCREENS_DIR ?? makeTempDir("vaultspend-feature272-");
 fs.mkdirSync(shotsDir, { recursive: true });
 
 const app = await launchApp({ dbDir, windowSize: { width: 1440, height: 1000 } });
@@ -368,7 +369,7 @@ try {
   assert.deepEqual(failures, [], `the date field should look like the fields beside it:\n${failures.join("\n")}`);
 
   // ---- 5. Export CSV keeps the stored dates ----------------------------------------------------
-  const exportPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-feature272-export-")), "transactions.csv");
+  const exportPath = path.join(makeTempDir("vaultspend-feature272-export-"), "transactions.csv");
   await browser.execute((answer) => {
     const original = window.fetch;
     window.fetch = function (input) {

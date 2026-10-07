@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import os from "node:os";
 import { remote } from "webdriverio";
+import { isolatedTempEnv,makeTempDir } from "../e2e/lib/tempDir.mjs";
 
 const previewRoot=path.resolve("dist-mobile-preview"),productionRoot=path.resolve("dist-mobile");
 const output=process.env.VAULTSPEND_MOBILE_TEST_OUTPUT??path.join(os.tmpdir(),"vault-spend-mobile-browser-check");
@@ -23,7 +24,7 @@ const server=createServer(async(req,res)=>{
 });
 await new Promise(r=>server.listen(0,"127.0.0.1",r));
 const url=`http://127.0.0.1:${server.address().port}`;
-const driver=spawn(process.env.MSEDGEDRIVER??path.join(os.homedir(),".cargo","bin","msedgedriver.exe"),["--port=0"],{windowsHide:true,stdio:["ignore","pipe","pipe"]});
+const driver=spawn(process.env.MSEDGEDRIVER??path.join(os.homedir(),".cargo","bin","msedgedriver.exe"),["--port=0"],{windowsHide:true,env:{...process.env,...isolatedTempEnv(makeTempDir("vaultspend-edgedriver-"))},stdio:["ignore","pipe","pipe"]});
 let port;
 await new Promise((resolve,reject)=>{
   const timer=setTimeout(()=>reject(new Error("Edge driver startup timed out")),15000);

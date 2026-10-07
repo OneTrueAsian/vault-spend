@@ -18,6 +18,7 @@ import path from "node:path";
 import { launchApp, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -33,7 +34,7 @@ for i in range(120):
     )
 `);
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-e2e-review-dialogs-"));
+const dir = makeTempDir("vaultspend-e2e-review-dialogs-");
 const bank = path.join(dir, "bank.csv");
 fs.writeFileSync(bank, ["Date,Description,Amount", `${dateInMonth(-1, 3)},QQXZ NEW ONE,-4.00`, `${dateInMonth(-1, 4)},QQXZ NEW TWO,-5.00`, ""].join("\n"));
 const setup = path.join(dir, "setup.csv");

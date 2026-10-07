@@ -46,6 +46,29 @@ temp directory (via `VAULTSPEND_DB_DIR`, read in `src-tauri/src/lib.rs`'s
 is a one-line env-var escape hatch with zero effect on normal launches
 (unset in every real use of the app).
 
+## Temp files are always deleted
+
+Every throwaway folder a spec or tool makes must come from `makeTempDir(prefix)` in `lib/tempDir.mjs`,
+never a bare `fs.mkdtempSync(path.join(os.tmpdir(), …))`. Those folders are deleted when the process
+exits, whether the spec passed or failed. To keep them for debugging a failure, run with
+`VAULTSPEND_KEEP_E2E_TEMP=1` (`run-all.mjs` then prints where each spec's files are).
+
+This matters because each app launch costs a WebView2 profile: msedgedriver makes a `scoped_dir*` folder
+holding an `EBWebView` profile for every session and rarely gets the clean shutdown it needs to delete it.
+Before October 2026 these, plus the database folders of failed specs, grew the temp folder to hundreds of
+gigabytes. Three layers now stop that:
+
+- `launchApp()` points tauri-driver's `TEMP`/`TMP` at a folder of that launch's own, so msedgedriver's
+  `scoped_dir*` lands there, and `close()` kills the whole driver tree and deletes the folder.
+- `run-all.mjs` (and `stress.mjs`) give every spec its own `TEMP`/`TMP` folder and delete it when the spec
+  ends, including a spec killed on timeout whose own exit cleanup never ran. Folders left by a run that
+  was itself killed are swept from `%TEMP%\vaultspend-e2e-runs` by a later run once 6 hours old.
+- Specs and tools that start msedgedriver themselves (feature172, `tools/test_mobile_*`) give it an
+  isolated temp folder too.
+
+Screenshot folders follow the same rule: set the spec's own output variable (`VS_SCREENS_DIR`,
+`VS_T9_SHOTS`, `COMPARISONS_SHOTS_DIR`, …) to keep screenshots somewhere permanent.
+
 ## Running a spec
 
 ```

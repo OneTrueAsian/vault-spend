@@ -21,10 +21,11 @@ import { execFileSync } from "node:child_process";
 import { chooseRowAction, chooseStyle, launchApp, waitUntilOrDiagnose, withFocusRetry } from "./harness.mjs";
 import { seedHouseholdDatabase } from "./household-demo.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const dbDir = freshTestDbDir();
 await seedHouseholdDatabase(dbDir);
-const shotsDir = process.env.VS_SCREENS_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-feature268-"));
+const shotsDir = process.env.VS_SCREENS_DIR ?? makeTempDir("vaultspend-feature268-");
 fs.mkdirSync(shotsDir, { recursive: true });
 
 let app = await launchApp({ dbDir, windowSize: { width: 1440, height: 1000 } });

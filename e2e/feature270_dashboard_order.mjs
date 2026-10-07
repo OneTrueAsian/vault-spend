@@ -23,10 +23,11 @@ import path from "node:path";
 import { chooseMenuOption, chooseStyle, launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedHouseholdDatabase } from "./household-demo.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const dbDir = freshTestDbDir();
 await seedHouseholdDatabase(dbDir);
-const shotsDir = process.env.VS_SCREENS_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-feature270-"));
+const shotsDir = process.env.VS_SCREENS_DIR ?? makeTempDir("vaultspend-feature270-");
 fs.mkdirSync(shotsDir, { recursive: true });
 
 const app = await launchApp({ dbDir });

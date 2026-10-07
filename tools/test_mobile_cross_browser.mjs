@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import os from "node:os";
 import { chromium,firefox,webkit } from "playwright";
+import { makeTempDir } from "../e2e/lib/tempDir.mjs";
 const root=path.resolve("dist-mobile-test"),output=process.env.VAULTSPEND_MOBILE_TASK8_OUTPUT??path.join(os.tmpdir(),"vault-mobile-task8-browsers");await mkdir(output,{recursive:true});
 const fixture=JSON.parse(await readFile("core/tests/fixtures/mobile_snapshot_v1.json","utf8"));fixture.profile.name="Browser acceptance household";
 const second={...fixture,profile:{...fixture.profile,id:"second-profile",name:"Browser acceptance personal"}};
@@ -15,7 +16,7 @@ const server=createServer(async(req,res)=>{if(networkDown){res.destroy();return;
 await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));const url=`http://127.0.0.1:${server.address().port}/mobile/storage-test.html`,results=[];
 try{
  for(const engine of [chromium,firefox,webkit]){
-  const profile=await mkdtemp(path.join(os.tmpdir(),`vault-mobile-task8-${engine.name()}-`));
+  const profile=makeTempDir(`vault-mobile-task8-${engine.name()}-`);
   const context=await engine.launchPersistentContext(profile,{headless:true,viewport:{width:390,height:844},hasTouch:true,ignoreHTTPSErrors:false}),browser=context.browser(),page=await context.newPage();
   const result={engine:engine.name(),version:browser.version(),checks:[],offlineReopen:null};results.push(result);
   const pass=label=>{result.checks.push(label);console.log(`PASS ${engine.name()} ${label}`);};

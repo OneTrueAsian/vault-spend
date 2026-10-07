@@ -21,10 +21,11 @@ import { chooseRowAction, chooseStyle, launchApp, waitForDataLoaded, waitUntilOr
 import { seedHouseholdDatabase } from "./household-demo.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { budgetRowMenu, budgetRowMenuItems, strayDivider, waitForBudgetRow } from "./lib/budgetRows.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const dbDir = freshTestDbDir();
 await seedHouseholdDatabase(dbDir);
-const shotsDir = process.env.VS_SCREENS_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-feature269-"));
+const shotsDir = process.env.VS_SCREENS_DIR ?? makeTempDir("vaultspend-feature269-");
 fs.mkdirSync(shotsDir, { recursive: true });
 
 const app = await launchApp({ dbDir, windowSize: { width: 1440, height: 1000 } });

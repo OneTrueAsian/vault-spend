@@ -20,8 +20,7 @@ import { execFileSync, spawn } from "node:child_process";
 import net, { Socket } from "node:net";
 import { remote } from "webdriverio";
 import path from "node:path";
-import fs from "node:fs";
-import os from "node:os";
+import { isolatedTempEnv, makeTempDir, releaseTempDir } from "./lib/tempDir.mjs";
 
 const CARGO_BIN = "C:\\Users\\joeyf\\.cargo\\bin";
 const TAURI_DRIVER = path.join(CARGO_BIN, "tauri-driver.exe");
@@ -91,9 +90,9 @@ function waitForPort(port, timeoutMs = 20000) {
 
 // Every E2E run gets its own throwaway SQLite file — never the user's real
 // AppData database. Read by src-tauri/src/lib.rs via VAULTSPEND_DB_DIR.
+// Deleted on exit, passed or failed (lib/tempDir.mjs; VAULTSPEND_KEEP_E2E_TEMP=1 keeps it).
 function freshTestDbDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-e2e-"));
-  return dir;
+  return makeTempDir("vaultspend-e2e-");
 }
 
 // The TCP port opening (waitForPort) doesn't guarantee tauri-driver's
@@ -442,8 +441,13 @@ function killTree(pid) {
 
 // One launch attempt. See launchApp below for the retry around it.
 async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLegalNotice = false, waitForData = true, windowSize = DEFAULT_WINDOW_SIZE } = {}) {
-  const ownDbDir = dbDir === undefined;
+  // A caller's own dbDir (e.g. explore.mjs chaining several launches against one seeded fixture) is
+  // theirs to clean up; one made here is deleted on exit.
   const testDbDir = dbDir ?? freshTestDbDir();
+  // msedgedriver makes a fresh WebView2 profile (scoped_dir*\EBWebView, tens of MB) in the temp folder for
+  // every session, and only deletes it on a clean shutdown it rarely gets here. Point the driver's temp
+  // folder at a folder of this launch's own, and delete that folder in close() and on exit.
+  const launchTempDir = makeTempDir("vaultspend-webview-");
   const PORT = await getFreePort();
   const NATIVE_PORT = await getFreePort();
 
@@ -454,28 +458,17 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
       stdio: ["ignore", "pipe", "pipe"],
       // The legal notice would stop every spec at its screen. The app honours the skip only alongside
       // VAULTSPEND_DB_DIR, so a real install cannot be affected. feature139 passes showLegalNotice.
-      env: { ...process.env, VAULTSPEND_DB_DIR: testDbDir, VAULTSPEND_SKIP_LEGAL_NOTICE: showLegalNotice ? "0" : "1" },
+      env: {
+        ...process.env,
+        ...isolatedTempEnv(launchTempDir),
+        VAULTSPEND_DB_DIR: testDbDir,
+        VAULTSPEND_SKIP_LEGAL_NOTICE: showLegalNotice ? "0" : "1",
+      },
     },
   );
   let driverLog = "";
   driverProcess.stdout.on("data", (d) => (driverLog += d.toString()));
   driverProcess.stderr.on("data", (d) => (driverLog += d.toString()));
-
-  // Only clean up a throwaway dir this call created itself — never one the
-  // caller passed in (e.g. explore.mjs chaining several launches against
-  // one seeded fixture), and only after a genuinely clean process exit, so
-  // a failed spec's database is still there to debug afterward.
-  if (ownDbDir) {
-    process.on("exit", () => {
-      if ((process.exitCode ?? 0) === 0) {
-        try {
-          fs.rmSync(testDbDir, { recursive: true, force: true });
-        } catch {
-          /* best effort — never fail the run over cleanup */
-        }
-      }
-    });
-  }
 
   // Every step below can wait on a process outside this one (tauri-driver, msedgedriver, the app, the
   // webview), and a few have no timeout of their own, so a stuck launch used to sit silently until
@@ -587,6 +580,7 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
     driverProcess.stdout.destroy();
     driverProcess.stderr.destroy();
     driverProcess.unref();
+    releaseTempDir(launchTempDir);
     throw Object.assign(new Error(`Failed to start session (phases: ${phases.join(" | ")}) (tauri-driver log below):\n${driverLog}\n\n${e.stack || e}`), {
       launchStalled: e.launchStalled === true,
     });
@@ -608,18 +602,18 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
         browser.deleteSession().catch(() => {}),
         new Promise((resolve) => setTimeout(resolve, 3000)),
       ]);
-      driverProcess.kill();
-      // Wait for the actual exit rather than firing kill() and moving on —
+      // The whole tree, not just tauri-driver: driverProcess.kill() left msedgedriver (and so the
+      // WebView2 profile it holds open) running on its own.
+      const exited = driverProcess.exitCode !== null ? Promise.resolve() : new Promise((resolve) => driverProcess.once("exit", resolve));
+      killTree(driverProcess.pid);
+      // Wait for the actual exit rather than firing the kill and moving on —
       // bounded so a driver that won't die can't hang the caller, but this
       // still stops a lingering tauri-driver/msedgedriver from outliving
       // the spec that started it.
-      await new Promise((resolve) => {
-        const timer = setTimeout(resolve, 3000);
-        driverProcess.once("exit", () => {
-          clearTimeout(timer);
-          resolve();
-        });
-      });
+      let timer;
+      await Promise.race([exited, new Promise((resolve) => (timer = setTimeout(resolve, 3000)))]);
+      clearTimeout(timer);
+      releaseTempDir(launchTempDir);
     },
   };
 }

@@ -10,12 +10,13 @@ import { launchApp } from "../e2e/harness.mjs";
 import { ipc } from "../e2e/mobileHttpsHarness.mjs";
 import { seedFixture } from "../e2e/lib/seed.mjs";
 import { dateInMonth } from "../e2e/lib/dates.mjs";
+import { makeTempDir } from "../e2e/lib/tempDir.mjs";
 const dbDir=await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Trusted browser checking', 'checking', '1000.00')")
 account=cur.lastrowid
 cur.execute("INSERT INTO transactions (account_id,date,description,amount,category,fingerprint) VALUES (?, '${dateInMonth(-1,4)}','Synthetic private merchant','-125.00','Groceries','trusted-browser-fixture')", (account,))
 `);
-const app=await launchApp({dbDir}),directory=await mkdtemp(path.join(os.tmpdir(),"vault-mobile-trusted-firefox-"));
+const app=await launchApp({dbDir}),directory=makeTempDir("vault-mobile-trusted-firefox-");
 const output=process.env.VAULTSPEND_MOBILE_TASK8_OUTPUT??path.join(os.tmpdir(),"vault-mobile-task8-browsers");await mkdir(output,{recursive:true});
 const checks=[],pass=label=>{checks.push(label);console.log(`PASS ${label}`);};let context,page;
 try{

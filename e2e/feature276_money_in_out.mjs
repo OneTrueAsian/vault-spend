@@ -9,8 +9,9 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp, chooseMenuOption, chooseStyle, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
-const shots = process.env.VS_T13_SHOTS ?? fs.mkdtempSync(path.join(os.tmpdir(), "vault-task13-shots-"));
+const shots = process.env.VS_T13_SHOTS ?? makeTempDir("vault-task13-shots-");
 fs.mkdirSync(shots, { recursive: true });
 
 const dbDir = await seedFixture(`

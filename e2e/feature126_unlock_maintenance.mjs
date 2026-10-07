@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const PASSWORD = "correct horse battery staple";
 const REFRESH_INTERVAL_MS = 2 * 60 * 60 * 1000;
@@ -59,7 +60,7 @@ try {
 
   await newGoal("Fence", "10.00");
   assert.equal(await savedAmountOf("Fence"), 0);
-  await invokeOk("relocate_data_file", { newDir: path.join(os.tmpdir(), `vaultspend-feature126-${process.pid}-${Date.now()}`) });
+  await invokeOk("relocate_data_file", { newDir: path.join(makeTempDir("vaultspend-feature126-"), "moved") });
   assert.equal(await savedAmountOf("Fence"), 10, "moving the data file runs this month's contribution on the moved data");
   assert.deepEqual((await invokeOk("take_maintenance_summary")).contributions.map((c) => c.bucket_name), ["Fence"]);
 

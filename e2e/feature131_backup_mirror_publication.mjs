@@ -16,12 +16,9 @@ import { freshTestDbDir } from "./lib/seed.mjs";
 import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
 import { finals, invoke, keyFiles, killDuringBackupNow, launchWithFailpoint, listedBackups, openApp, PASSWORD, seedRecentBackup, stagingFiles, unlockOnlyProfile } from "./lib/backup_publication.mjs";
 
+import { makeTempDir } from "./lib/tempDir.mjs";
 function freshMirrorDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-e2e-mirror-"));
-  process.on("exit", () => {
-    if ((process.exitCode ?? 0) === 0) fs.rmSync(dir, { recursive: true, force: true });
-  });
-  return dir;
+  return makeTempDir("vaultspend-e2e-mirror-");
 }
 
 /** Backs up once more with no failpoint and checks the second folder gets a byte-identical copy. */

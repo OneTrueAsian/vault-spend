@@ -11,8 +11,9 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp, chooseStyle, chooseMenuOption, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
-const shots = process.env.VS_T11_SHOTS ?? fs.mkdtempSync(path.join(os.tmpdir(), "vault-task11-shots-"));
+const shots = process.env.VS_T11_SHOTS ?? makeTempDir("vault-task11-shots-");
 fs.mkdirSync(shots, { recursive: true });
 
 // One account and no goals, so the new-goal form can link an account (s9.2).

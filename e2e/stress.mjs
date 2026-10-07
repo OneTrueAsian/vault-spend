@@ -13,6 +13,7 @@ import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { isolatedTempEnv, keepTempFiles, makeTempDir, removeDir } from "./lib/tempDir.mjs";
 
 const [spec, roundsArg = "5", copiesArg = "6", spinnersArg = "12"] = process.argv.slice(2);
 if (!spec) {
@@ -36,9 +37,14 @@ function killTree(pid) {
 
 const load = Array.from({ length: spinners }, () => spawn(process.execPath, ["-e", "for(;;){}"], { stdio: "ignore" }));
 
+// Each copy writes its temp files (databases, WebView2 profiles) into a folder of its own, deleted when the
+// copy ends however it ended — see run-all.mjs.
+const stressTempDir = makeTempDir("vaultspend-stress-");
+
 function runOnce() {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [path.resolve(spec)], { stdio: "pipe" });
+    const copyTempDir = fs.mkdtempSync(path.join(stressTempDir, "copy-"));
+    const child = spawn(process.execPath, [path.resolve(spec)], { stdio: "pipe", env: { ...process.env, ...isolatedTempEnv(copyTempDir) } });
     let out = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));
@@ -48,6 +54,7 @@ function runOnce() {
     }, TIMEOUT_MS);
     child.on("close", (code) => {
       clearTimeout(timer);
+      if (!keepTempFiles()) removeDir(copyTempDir);
       resolve({ code, out });
     });
   });

@@ -6,8 +6,9 @@ import { createServer } from "node:http";
 import path from "node:path";
 import os from "node:os";
 import { remote } from "webdriverio";
+import { isolatedTempEnv,makeTempDir } from "../e2e/lib/tempDir.mjs";
 
-const root=path.resolve("dist-mobile-test"),profile=await mkdtemp(path.join(os.tmpdir(),"vault-mobile-offline-edge-"));
+const root=path.resolve("dist-mobile-test"),profile=makeTempDir("vault-mobile-offline-edge-");
 const output=process.env.VAULTSPEND_MOBILE_TEST_OUTPUT??path.join(os.tmpdir(),"vault-spend-mobile-offline-check");await mkdir(output,{recursive:true});
 const fixture=JSON.parse(await readFile("core/tests/fixtures/mobile_snapshot_v1.json","utf8"));
 fixture.profile.name="Encrypted synthetic household 7649";fixture.accounts[0].name="Private synthetic checking 7650";
@@ -30,7 +31,7 @@ await new Promise(r=>server.listen(0,"127.0.0.1",r));const serverPort=server.add
 let browser,driver,port;const checks=[];
 const pass=label=>{checks.push(label);console.log(`PASS ${label}`);};
 try{
-  driver=spawn(process.env.MSEDGEDRIVER??path.join(os.homedir(),".cargo/bin/msedgedriver.exe"),["--port=0"],{windowsHide:true,stdio:["ignore","pipe","pipe"]});
+  driver=spawn(process.env.MSEDGEDRIVER??path.join(os.homedir(),".cargo/bin/msedgedriver.exe"),["--port=0"],{windowsHide:true,env:{...process.env,...isolatedTempEnv(makeTempDir("vaultspend-edgedriver-"))},stdio:["ignore","pipe","pipe"]});
   await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error("Driver startup timeout")),15000);driver.once("error",reject);driver.stdout.on("data",b=>{const match=String(b).match(/port (\d+)/);if(match&&Number(match[1])){port=Number(match[1]);clearTimeout(timer);resolve();}});});
   const cdp=async(cmd,params)=>{const response=await fetch(`http://127.0.0.1:${port}/session/${browser.sessionId}/ms/cdp/execute`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cmd,params})});return(await response.json()).value;};
   const open=async()=>{browser=await remote({hostname:"127.0.0.1",port,path:"/",logLevel:"error",capabilities:{browserName:"MicrosoftEdge","ms:edgeOptions":{args:["--headless=new","--disable-gpu","--no-first-run",`--user-data-dir=${profile}`]}}});await browser.url(url);await cdp("Emulation.setDeviceMetricsOverride",{width:390,height:844,deviceScaleFactor:1,mobile:true});try{await browser.$("button[aria-label='Settings']").waitForExist({timeout:15000});}catch(error){console.log(await browser.$("body").getText());console.log(await browser.execute(async()=>({url:location.href,controller:!!navigator.serviceWorker?.controller,caches:await caches.keys()})));throw error;}};

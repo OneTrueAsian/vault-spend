@@ -6,7 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp, chooseStyle, chooseRowAction, withFocusRetry, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
-const shots = process.env.VS_T10_SHOTS ?? fs.mkdtempSync(path.join(os.tmpdir(), "vault-task10-shots-"));
+import { makeTempDir } from "./lib/tempDir.mjs";
+const shots = process.env.VS_T10_SHOTS ?? makeTempDir("vault-task10-shots-");
 fs.mkdirSync(shots, { recursive: true });
 const dbDir = await seedFixture(`
 for i, kind in enumerate(['checking', 'savings', 'checking', 'credit', 'credit', 'loan', 'loan', 'investment', 'investment', 'other']):

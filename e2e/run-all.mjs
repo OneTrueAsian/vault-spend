@@ -23,8 +23,10 @@
 
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isolatedTempEnv, keepTempFiles, makeTempDir, removeDir, removeStaleDirs } from "./lib/tempDir.mjs";
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -115,10 +117,26 @@ function killTree(pid) {
   }
 }
 
+// Every spec gets a temp folder of its own (TEMP/TMP point at it, so the spec, its databases, tauri-driver,
+// msedgedriver and the app's WebView2 profiles all write there), deleted when the spec ends — passed, failed
+// or killed on timeout, when its own exit cleanup never runs. This is what keeps a full run from leaving
+// gigabytes of scoped_dir* WebView2 profiles behind. VAULTSPEND_KEEP_E2E_TEMP=1 keeps them for debugging.
+const RUNS_ROOT = path.join(os.tmpdir(), "vaultspend-e2e-runs");
+// A run killed before it could clean up leaves its folder behind; delete those once they are clearly not a
+// run still going on alongside this one.
+removeStaleDirs(RUNS_ROOT, 6 * 60 * 60 * 1000);
+fs.mkdirSync(RUNS_ROOT, { recursive: true });
+const runTempDir = makeTempDir("run-", { base: RUNS_ROOT });
+
 function runSpec(name) {
   return new Promise((resolve) => {
     const start = Date.now();
-    const child = spawn(process.execPath, [path.join(e2eDir, name)], { cwd: path.resolve(e2eDir, ".."), stdio: "pipe" });
+    const specTempDir = fs.mkdtempSync(path.join(runTempDir, `${path.basename(name, ".mjs")}-`));
+    const child = spawn(process.execPath, [path.join(e2eDir, name)], {
+      cwd: path.resolve(e2eDir, ".."),
+      stdio: "pipe",
+      env: { ...process.env, ...isolatedTempEnv(specTempDir) },
+    });
     let output = "";
     let timedOut = false;
     child.stdout.on("data", (d) => (output += d.toString()));
@@ -128,13 +146,19 @@ function runSpec(name) {
       output += `\n[run-all] TIMED OUT after ${SPEC_TIMEOUT_MS}ms — killing process tree (pid ${child.pid})\n`;
       killTree(child.pid);
     }, SPEC_TIMEOUT_MS);
+    const removeSpecTemp = () => {
+      if (keepTempFiles()) output += `\n[run-all] temp files kept in ${specTempDir}\n`;
+      else removeDir(specTempDir);
+    };
     child.on("error", (err) => {
       clearTimeout(timer);
       output += `\n[run-all] failed to start "${name}": ${err.stack || err}\n`;
+      removeSpecTemp();
       resolve({ name, code: 1, output, durationMs: Date.now() - start });
     });
     child.on("close", (code) => {
       clearTimeout(timer);
+      removeSpecTemp();
       resolve({ name, code: timedOut ? 1 : code, output, durationMs: Date.now() - start });
     });
   });

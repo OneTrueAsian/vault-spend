@@ -21,6 +21,7 @@ import { chooseRowAction, launchApp, reclaimWindowFocus } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { commitReviewedImport } from "./lib/importReview.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -44,7 +45,7 @@ add(checking, days_ago(12), "Rent Share Out", "-300.00", 2)
 add(savings, days_ago(0), "Rent Share In", "300.00", 3)
 `);
 
-const csvDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-notes-import-"));
+const csvDir = makeTempDir("vaultspend-notes-import-");
 const csvPath = path.join(csvDir, "bank.csv");
 fs.writeFileSync(csvPath, ["date,description,amount", `${dateInMonth(-1, 1)},Imported Widget Purchase,-25.00`, ""].join("\n"));
 

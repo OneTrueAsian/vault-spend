@@ -24,12 +24,13 @@ import path from "node:path";
 import { chooseMenuOption, launchApp, menuOptionLabels, menuSelectValue, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
 `);
 
-const csvDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-e2e-needs-choice-"));
+const csvDir = makeTempDir("vaultspend-e2e-needs-choice-");
 const writeCsv = (name, rows) => {
   const file = path.join(csvDir, name);
   fs.writeFileSync(file, ["Date,Description,Amount,Category", ...rows, ""].join("\n"));

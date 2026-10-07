@@ -13,28 +13,16 @@
 // blind 2000ms, verified via `time ./target/debug/init_db.exe <dir>`.
 
 import { execFileSync } from "node:child_process";
-import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { dateInMonth } from "./dates.mjs";
+import { makeTempDir } from "./tempDir.mjs";
 
 const INIT_DB_EXE = path.resolve("target/debug/init_db.exe");
 
-// Cleaned up automatically on a genuinely clean process exit (see the
-// process.on("exit") below) — a nonzero exit code means the spec is
-// reporting a failure, so the fixture is left in place for debugging.
+// Deleted on exit, passed or failed (see tempDir.mjs). To keep a failed
+// spec's fixture for debugging, run it with VAULTSPEND_KEEP_E2E_TEMP=1.
 export function freshTestDbDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-e2e-"));
-  process.on("exit", () => {
-    if ((process.exitCode ?? 0) === 0) {
-      try {
-        fs.rmSync(dir, { recursive: true, force: true });
-      } catch {
-        /* best effort — never fail the run over cleanup */
-      }
-    }
-  });
-  return dir;
+  return makeTempDir("vaultspend-e2e-");
 }
 
 // Runs init_db against `dbDir` so the real migration path creates

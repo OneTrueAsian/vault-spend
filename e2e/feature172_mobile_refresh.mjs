@@ -10,6 +10,7 @@ import os from "node:os";
 import { remote } from "webdriverio";
 import { launchApp,chooseMenuOption } from "./harness.mjs";
 import { ipc,client } from "./mobileHttpsHarness.mjs";
+import { isolatedTempEnv,makeTempDir } from "./lib/tempDir.mjs";
 const app=await launchApp();let browser,driver,server,cookie="",offline=false,requests=[];
 try{
  const base=(await ipc(app,"list_profiles"))[0];await ipc(app,"create_profile",{name:"Mobile work"});const work=(await ipc(app,"list_profiles")).find(p=>p.is_active);
@@ -29,8 +30,8 @@ try{
    res.writeHead(200,{"Content-Type":mime[path.extname(file)]??"application/octet-stream","Cache-Control":"no-store"});res.end(body);
   }catch{res.writeHead(503);res.end('{}');}
  });await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));const url=`http://127.0.0.1:${server.address().port}/mobile/index.html`;
- const profile=await mkdtemp(path.join(os.tmpdir(),"vault-mobile-refresh-edge-"));let port;
- driver=spawn(process.env.MSEDGEDRIVER??path.join(os.homedir(),".cargo/bin/msedgedriver.exe"),["--port=0"],{windowsHide:true,stdio:["ignore","pipe","pipe"]});
+ const profile=makeTempDir("vault-mobile-refresh-edge-");let port;
+ driver=spawn(process.env.MSEDGEDRIVER??path.join(os.homedir(),".cargo/bin/msedgedriver.exe"),["--port=0"],{windowsHide:true,env:{...process.env,...isolatedTempEnv(makeTempDir("vaultspend-edgedriver-"))},stdio:["ignore","pipe","pipe"]});
  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error("Edge driver startup timeout")),15000);driver.once("error",reject);driver.stdout.on("data",bytes=>{const match=String(bytes).match(/port (\d+)/);if(match&&Number(match[1])){port=Number(match[1]);clearTimeout(timer);resolve();}});});
  browser=await remote({hostname:"127.0.0.1",port,path:"/",logLevel:"error",capabilities:{browserName:"MicrosoftEdge","ms:edgeOptions":{args:["--headless=new","--disable-gpu","--no-first-run",`--user-data-dir=${profile}`]}}});
  const code=await ipc(app,"mobile_begin_pairing");await browser.url(`${url}#pair=${code}`);

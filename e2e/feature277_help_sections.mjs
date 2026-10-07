@@ -8,8 +8,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { launchApp, chooseStyle, reclaimWindowFocus, waitUntilOrDiagnose } from "./harness.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
-const shots = process.env.VS_T15_SHOTS ?? fs.mkdtempSync(path.join(os.tmpdir(), "vault-task15-shots-"));
+const shots = process.env.VS_T15_SHOTS ?? makeTempDir("vault-task15-shots-");
 fs.mkdirSync(shots, { recursive: true });
 
 const PAGES = [

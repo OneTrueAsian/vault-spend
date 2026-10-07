@@ -15,6 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dismissFirstLaunchDialogs, dismissStatusMessages, launchApp, waitForDataLoaded } from "../e2e/harness.mjs";
 import { seedHouseholdDatabase } from "../e2e/household-demo.mjs";
+import { makeTempDir } from "../e2e/lib/tempDir.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = path.join(repoRoot, "src", "assets", "style-previews");
@@ -23,7 +24,7 @@ const STYLES = ["transparent", "futuristic", "retro"];
 const THEMES = ["light", "dark"];
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
-const dbDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-style-previews-"));
+const dbDir = makeTempDir("vaultspend-style-previews-");
 await seedHouseholdDatabase(dbDir);
 
 const app = await launchApp({ dbDir });

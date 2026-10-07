@@ -19,6 +19,7 @@ import path from "node:path";
 import { launchApp, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Amex Blue', 'credit', '1000.00')")
@@ -31,7 +32,7 @@ for date, desc, amount in [("${dateInMonth(-1, 10)}", "HULU", "19.99"), ("${date
 `);
 
 // Statements as the card exports them: charges positive, the payment negative.
-const csvDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-e2e-flip-"));
+const csvDir = makeTempDir("vaultspend-e2e-flip-");
 const writeCsv = (name, rows) => {
   const file = path.join(csvDir, name);
   fs.writeFileSync(file, ["Date,Description,Amount", ...rows, ""].join("\n"));

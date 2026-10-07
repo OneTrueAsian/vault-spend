@@ -13,8 +13,9 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
-const copyDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-device-copy-"));
+const copyDir = makeTempDir("vaultspend-device-copy-");
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO app_settings (id, tray_enabled, backup_copy_dir) VALUES (1, 1, ?) ON CONFLICT(id) DO UPDATE SET tray_enabled = 1, backup_copy_dir = excluded.backup_copy_dir", (${JSON.stringify(copyDir)},))
 `);

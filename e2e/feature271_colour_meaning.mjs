@@ -30,6 +30,7 @@ import path from "node:path";
 import { launchApp, waitForDataLoaded, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedHouseholdDatabase } from "./household-demo.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
+import { makeTempDir } from "./lib/tempDir.mjs";
 
 const AXE = fs.readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
 const CATEGORIES = [
@@ -37,7 +38,7 @@ const CATEGORIES = [
   "Dining Out", "Gas", "Shopping", "Entertainment", "Household", "Health", "Travel",
 ];
 
-const shotsDir = process.env.VS_SCREENS_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), "vaultspend-feature271-"));
+const shotsDir = process.env.VS_SCREENS_DIR ?? makeTempDir("vaultspend-feature271-");
 fs.mkdirSync(shotsDir, { recursive: true });
 const dbDir = freshTestDbDir();
 await seedHouseholdDatabase(dbDir);
