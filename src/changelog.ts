@@ -184,4 +184,11 @@ export const CHANGELOG: Record<string, string[]> = {
     "Easier to read and use: stronger text contrast in the Default style, a minimum text size, plainer wording, a larger starting window, and messages that no longer block the buttons under them.",
     "A legal notice is shown once per version; you can read it again any time from Help.",
   ],
+  "1.3.0": [
+    "View a read-only snapshot of your profile on a paired phone over your local network, with device approval and refresh controls in Settings.",
+    "Guided mobile setup explains certificate trust and connection steps, with themed mobile views and locally stored snapshots for offline viewing.",
+    "Accounts now have one row per account: open Details by selecting the row, or use the menu to Edit. Goals have a clearer empty state with creation examples.",
+    "Settings groups mobile connections and appearance controls, including illustrated theme previews and Light, Dark and System modes.",
+    "Dashboard and Reports charts use their available width, income and spending labels are clearer, and date entry stays between 1900 and 2100.",
+  ],
 };
