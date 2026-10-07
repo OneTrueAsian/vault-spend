@@ -110,30 +110,6 @@ fn parse_date(date: &str) -> Result<chrono::NaiveDate, String> {
     Ok(parsed)
 }
 
-#[cfg(test)]
-mod parse_date_tests {
-    use super::parse_date;
-
-    #[test]
-    fn accepts_dates_from_1900_to_2100() {
-        assert!(parse_date("1900-01-01").is_ok());
-        assert!(parse_date("2026-10-06").is_ok());
-        assert!(parse_date("2100-12-31").is_ok());
-    }
-
-    #[test]
-    fn refuses_a_year_outside_that_range_in_plain_words() {
-        assert_eq!(parse_date("9643-12-31").unwrap_err(), "Choose a date between 1900 and 2100.");
-        assert_eq!(parse_date("1899-12-31").unwrap_err(), "Choose a date between 1900 and 2100.");
-        assert_eq!(parse_date("2101-01-01").unwrap_err(), "Choose a date between 1900 and 2100.");
-    }
-
-    #[test]
-    fn still_refuses_text_that_is_not_a_date() {
-        assert_eq!(parse_date("2026-02-30").unwrap_err(), "invalid date: 2026-02-30");
-    }
-}
-
 /// Everything the app needs across command calls. The classifier isn't
 /// kept here — it's cheap to retrain from `store.labeled_history()` on
 /// demand (see `classifier.rs`), so keeping a stale copy around would just
@@ -242,5 +218,29 @@ fn refresh_open_reminders(store: &Store, paths: &crate::config::AppPaths, device
     .is_err()
     {
         eprintln!("Could not refresh bill reminders after a recurring change.");
+    }
+}
+
+#[cfg(test)]
+mod parse_date_tests {
+    use super::parse_date;
+
+    #[test]
+    fn accepts_dates_from_1900_to_2100() {
+        assert!(parse_date("1900-01-01").is_ok());
+        assert!(parse_date("2026-10-06").is_ok());
+        assert!(parse_date("2100-12-31").is_ok());
+    }
+
+    #[test]
+    fn refuses_a_year_outside_that_range_in_plain_words() {
+        assert_eq!(parse_date("9643-12-31").unwrap_err(), "Choose a date between 1900 and 2100.");
+        assert_eq!(parse_date("1899-12-31").unwrap_err(), "Choose a date between 1900 and 2100.");
+        assert_eq!(parse_date("2101-01-01").unwrap_err(), "Choose a date between 1900 and 2100.");
+    }
+
+    #[test]
+    fn still_refuses_text_that_is_not_a_date() {
+        assert_eq!(parse_date("2026-02-30").unwrap_err(), "invalid date: 2026-02-30");
     }
 }
