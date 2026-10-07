@@ -1,11 +1,14 @@
 import { FormEvent, useState } from "react";
 import type { Account, FamilyMember, Recurring, RecurringCandidate, RecurringMatch, RecurringTotals } from "./types";
-import { formatAmount, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
+import { DateField } from "./DateField";
 import { fmtMoneyShort } from "./charts";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { CategoryIcon } from "./icons";
-import { CADENCE_OPTIONS } from "./cadence";
+import { CADENCE_OPTIONS, cadenceLabel } from "./cadence";
 import { MenuSelect } from "./MenuSelect";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 /** One calendar month forward, clamping the day-of-month into range (Jan
  * 31 + 1 month -> Feb 28/29, not Mar 3) — same reasoning as the backend's
@@ -25,25 +28,17 @@ function addOneYearClamped(d: Date): Date {
   return new Date(targetYear, d.getMonth(), Math.min(d.getDate(), daysInTargetMonth));
 }
 
-const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "Sep 3" from a stored "YYYY-MM-DD". */
-function monthDay(iso: string): string {
-  const [, m, d] = iso.split("-").map(Number);
-  return `${MONTH_ABBR[m - 1]} ${d}`;
-}
-
 /** The one-line "did the last one actually happen?" note under a due date. */
 function matchNote(item: Recurring, match: RecurringMatch | undefined): { text: string; state: string } | null {
   if (!match || match.state === "unmatched" || match.state === "upcoming" || !match.last_due) return null;
   const isIncome = parseFloat(item.amount) >= 0;
   if (match.state === "paid") {
-    return { state: "paid", text: `${isIncome ? "Received" : "Paid"} ${monthDay(match.last_paid_date ?? match.last_due)}` };
+    return { state: "paid", text: `${isIncome ? "Received" : "Paid"} ${formatDisplayDate(match.last_paid_date ?? match.last_due)}` };
   }
   if (match.state === "pending") {
-    return { state: "pending", text: `Due ${monthDay(match.last_due)} — not posted yet` };
+    return { state: "pending", text: `Due ${formatDisplayDate(match.last_due)} — not posted yet` };
   }
-  return { state: "missed", text: `No charge for ${monthDay(match.last_due)}` };
+  return { state: "missed", text: `No charge for ${formatDisplayDate(match.last_due)}` };
 }
 
 function stepDate(d: Date, cadence: string): Date {
@@ -135,7 +130,7 @@ function SuggestedRecurringSection({
           <div className="suggested-info">
             <div className="suggested-name">{c.merchant}</div>
             <div className="suggested-meta">
-              {c.cadence[0].toUpperCase() + c.cadence.slice(1)} · seen {c.occurrence_count} times
+              {cadenceLabel(c.cadence)} · seen {c.occurrence_count} times
               {c.category && ` · ${c.category}`}
             </div>
           </div>
@@ -220,10 +215,10 @@ function NewRecurringForm({
         ariaLabel="Cadence"
         value={cadence}
         onChange={setCadence}
-        options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
+        options={CADENCE_OPTIONS.map((c) => ({ value: c, label: cadenceLabel(c) }))}
         fill
       />
-      <input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} title="Next/anchor date" />
+      <DateField value={anchorDate} onChange={setAnchorDate} ariaLabel="Next due date" placeholder="Next due date" title="Next due date" />
       <MenuSelect
         ariaLabel="Linked account"
         value={accountId}
@@ -333,17 +328,17 @@ function EditRecurringRow({
           ariaLabel="Cadence"
           value={cadence}
           onChange={setCadence}
-          options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
+          options={CADENCE_OPTIONS.map((c) => ({ value: c, label: cadenceLabel(c) }))}
           triggerClassName="row-edit-input"
         />
       </td>
       <td>
-        <input
-          type="date"
+        <DateField
           className="row-edit-input"
           value={anchorDate}
-          onChange={(e) => setAnchorDate(e.target.value)}
-          title="Next/anchor date"
+          onChange={setAnchorDate}
+          ariaLabel="Next due date"
+          title="Next due date"
         />
       </td>
       <td className="amount-col">
@@ -409,6 +404,7 @@ export function RecurringView({
   onAddCandidate,
   onDismissCandidate,
   onIgnorePriceChange,
+  onOpenHelp,
 }: {
   recurring: Recurring[];
   /** Each item lined up against the charges actually posted. */
@@ -444,6 +440,8 @@ export function RecurringView({
   onAddCandidate: (candidate: RecurringCandidate) => void;
   onDismissCandidate: (candidate: RecurringCandidate) => void;
   onIgnorePriceChange: (id: number, from: string, to: string) => Promise<void>;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
@@ -534,7 +532,10 @@ export function RecurringView({
     <div className="buckets-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Recurring</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Recurring</h1>
+            {onOpenHelp && <HelpLink tab="recurring" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">
             {recurring.length} known bill{recurring.length === 1 ? "" : "s"} and income
             {candidates.length > 0
@@ -543,22 +544,24 @@ export function RecurringView({
           </p>
         </div>
       </div>
+      {/* Two totals, each a month in large text with its year as small text underneath: the
+          yearly figures stay on the page, just not as tiles of their own. */}
       <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-        <div className="stat tint-red">
-          <span className="stat-value">{formatAmount(totals.monthly_expense)}</span>
-          <span className="stat-label">Monthly recurring expenses</span>
+        <div className="stat tint-neutral">
+          <span className="stat-label">Bills</span>
+          <span className="stat-value">
+            {formatAmount(totals.monthly_expense)}
+            <span className="stat-value-unit"> a month</span>
+          </span>
+          <span className="stat-sub">{formatAmount(totals.annual_expense)} a year</span>
         </div>
-        <div className="stat tint-blue">
-          <span className="stat-value">{formatAmount(totals.monthly_income)}</span>
-          <span className="stat-label">Monthly recurring income (est.)</span>
-        </div>
-        <div className="stat tint-red">
-          <span className="stat-value">{formatAmount(totals.annual_expense)}</span>
-          <span className="stat-label">Annual recurring expenses</span>
-        </div>
-        <div className="stat tint-blue">
-          <span className="stat-value">{formatAmount(totals.annual_income)}</span>
-          <span className="stat-label">Annual recurring income (est.)</span>
+        <div className="stat tint-neutral">
+          <span className="stat-label">Income</span>
+          <span className="stat-value">
+            {formatAmount(totals.monthly_income)}
+            <span className="stat-value-unit"> a month</span>
+          </span>
+          <span className="stat-sub">{formatAmount(totals.annual_income)} a year · estimate</span>
         </div>
       </div>
 
@@ -668,7 +671,7 @@ export function RecurringView({
 
       {view === "list" && (
       <div className="table-scroll">
-      <table className="ledger">
+      <table className="ledger recurring-table" data-recurring-table>
         <thead>
           <tr>
             <th>Merchant</th>
@@ -696,7 +699,7 @@ export function RecurringView({
               />
             ) : (
               <tr key={r.id} className={r.status === "canceled" ? "recurring-row-canceled" : undefined}>
-                <td>
+                <td data-label="Merchant">
                   <div className="cell-with-icon">
                     <span className="row-icon-badge">
                       <CategoryIcon category={r.category} iconKey={r.category ? categoryIconMap[r.category] : null} />
@@ -707,12 +710,12 @@ export function RecurringView({
                     </div>
                   </div>
                 </td>
-                <td>{r.account_name ?? <span className="account-col">—</span>}</td>
-                <td>
-                  <span className="confidence-badge">{r.cadence}</span>
+                <td data-label="Account">{r.account_name ?? <span className="account-col">—</span>}</td>
+                <td data-label="Cadence">
+                  <span className="confidence-badge">{cadenceLabel(r.cadence)}</span>
                 </td>
-                <td>
-                  {r.next_date}
+                <td data-label="Next due">
+                  {formatDisplayDate(r.next_date)}
                   {isDueSoon(r.next_date) && <span className="budget-alert-badge budget-alert-warning">Due soon</span>}
                   {(() => {
                     const note = matchNote(r, matchById.get(r.id));
@@ -723,11 +726,11 @@ export function RecurringView({
                     ) : null;
                   })()}
                 </td>
-                <td className="amount-col">{formatAmount(r.amount)}</td>
-                <td>
+                <td className="amount-col" data-label="Amount">{formatAmount(r.amount)}</td>
+                <td data-label="Status">
                   <StatusPill status={r.status} onSetStatus={(status) => onSetStatus(r.id, status)} />
                 </td>
-                <td className="actions-col">
+                <td className="actions-col" data-label="Actions">
                   {confirmingDeleteId === r.id ? (
                     <span className="row-delete-confirm">
                       <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(null)}>
@@ -788,7 +791,7 @@ export function RecurringView({
                     </div>
                   </td>
                   <td>
-                    <span className="confidence-badge">{r.cadence}</span>
+                    <span className="confidence-badge">{cadenceLabel(r.cadence)}</span>
                   </td>
                   <td className="amount-col">{formatAmount(normalizedMonthlyCost(r).toFixed(2))}</td>
                   <td>

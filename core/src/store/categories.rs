@@ -4,6 +4,12 @@ use super::{CategorySource, Store};
 use crate::models::Transaction;
 use rusqlite::params;
 
+/// How an import file's category name is remembered: trimmed and lower-cased, so "Merchandise",
+/// " MERCHANDISE " and "merchandise" are one name.
+pub fn import_category_key(name: &str) -> String {
+    name.trim().to_lowercase()
+}
+
 /// A registered category name plus its explicit icon override, if any — see
 /// `Store::list_categories_with_icons`.
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +42,8 @@ pub struct UnmatchedImportCategory {
 pub enum ImportCategoryError {
     /// A choice mapped a file category to a category that doesn't exist.
     UnknownCategory(String),
+    /// A remembered mapping had no file category name to remember it by.
+    EmptyFileCategory,
     Db(rusqlite::Error),
 }
 
@@ -43,6 +51,7 @@ impl std::fmt::Display for ImportCategoryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ImportCategoryError::UnknownCategory(name) => write!(f, "There's no category called \"{name}\" to move those rows into."),
+            ImportCategoryError::EmptyFileCategory => write!(f, "That file category has no name to remember."),
             ImportCategoryError::Db(e) => write!(f, "{e}"),
         }
     }
@@ -187,44 +196,43 @@ impl Store {
         Ok(seen)
     }
 
-    /// Settles every row's file-supplied category before the rows are saved, so an import only
-    /// ever lands in categories the person has. A category that matches one of theirs (any
-    /// casing) takes their spelling; one they don't have follows `choices` (keyed by the file's
-    /// name, any casing): `MapTo` an existing category, `Create` it (the only way an import adds
-    /// a category), or `Skip` — and a name with no choice is skipped too, never adopted. A
-    /// `MapTo` that names a category that doesn't exist is refused before anything is changed.
-    pub fn reconcile_import_categories(
-        &self,
-        txns: &mut [Transaction],
-        choices: &std::collections::HashMap<String, ImportCategoryChoice>,
-    ) -> Result<(), ImportCategoryError> {
-        for choice in choices.values() {
-            if let ImportCategoryChoice::MapTo(target) = choice
-                && self.find_category(target)?.is_none()
-            {
-                return Err(ImportCategoryError::UnknownCategory(target.trim().to_string()));
-            }
+    /// The remembered import file categories, keyed by `import_category_key`, each with the
+    /// person's category in their spelling. A mapping whose category no longer exists is left
+    /// out, never handed to an import.
+    pub fn import_category_mappings(&self) -> rusqlite::Result<std::collections::HashMap<String, String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT m.file_category, c.name FROM import_category_mappings m
+             JOIN categories c ON c.name = m.category",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+        rows.collect()
+    }
+
+    /// Remembers that an import file's `file_category` means the person's `category`, replacing
+    /// any earlier choice for that name. Refused when the name is empty or `category` isn't one
+    /// of theirs; never adds a category.
+    pub fn set_import_category_mapping(&self, file_category: &str, category: &str) -> Result<(), ImportCategoryError> {
+        let key = import_category_key(file_category);
+        if key.is_empty() {
+            return Err(ImportCategoryError::EmptyFileCategory);
         }
-        for tx in txns.iter_mut() {
-            let Some(name) = tx.category.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(str::to_string) else {
-                tx.category = None;
-                continue;
-            };
-            if let Some(existing) = self.find_category(&name)? {
-                tx.category = Some(existing);
-                continue;
-            }
-            let choice = choices.iter().find(|(key, _)| key.trim().eq_ignore_ascii_case(&name));
-            tx.category = match choice {
-                Some((_, ImportCategoryChoice::MapTo(target))) => self.find_category(target)?,
-                Some((key, ImportCategoryChoice::Create)) => {
-                    let spelling = key.trim();
-                    self.create_category(spelling, None)?;
-                    self.find_category(spelling)?
-                }
-                Some((_, ImportCategoryChoice::Skip)) | None => None,
-            };
-        }
+        let Some(target) = self.find_category(category)? else {
+            return Err(ImportCategoryError::UnknownCategory(category.trim().to_string()));
+        };
+        self.conn.execute(
+            "INSERT INTO import_category_mappings (file_category, category) VALUES (?1, ?2)
+             ON CONFLICT(file_category) DO UPDATE SET category = excluded.category",
+            params![key, target],
+        )?;
+        Ok(())
+    }
+
+    /// Forgets the remembered choice for an import file's `file_category`, if there is one.
+    pub fn remove_import_category_mapping(&self, file_category: &str) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "DELETE FROM import_category_mappings WHERE file_category = ?1",
+            params![import_category_key(file_category)],
+        )?;
         Ok(())
     }
 
@@ -307,6 +315,8 @@ impl Store {
             .execute("UPDATE transaction_splits SET category = ?1 WHERE category = ?2", params![new, old])?;
         self.conn
             .execute("UPDATE rules SET category = ?1 WHERE category = ?2", params![new, old])?;
+        self.conn
+            .execute("UPDATE import_category_mappings SET category = ?1 WHERE category = ?2", params![new, old])?;
         self.conn.execute(
             "UPDATE budgets SET category = ?1
              WHERE category = ?2 AND NOT EXISTS (
@@ -340,6 +350,8 @@ impl Store {
         self.conn
             .execute("UPDATE transaction_splits SET category = NULL WHERE category = ?1", params![name])?;
         self.conn.execute("DELETE FROM rules WHERE category = ?1", params![name])?;
+        self.conn
+            .execute("DELETE FROM import_category_mappings WHERE category = ?1", params![name])?;
         self.conn.execute("DELETE FROM budgets WHERE category = ?1", params![name])?;
         self.conn.execute("DELETE FROM categories WHERE name = ?1", params![name])?;
         Ok(affected)

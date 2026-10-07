@@ -16,6 +16,7 @@
 
 import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -100,7 +101,7 @@ async function addTransaction({ account, description, amount, backDays }) {
   const mmddyyyy = `${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}${d.getFullYear()}`;
   await (await panel.$("input[type='date']")).setValue(mmddyyyy);
   await (await panel.$("input[placeholder='e.g. \"Coffee shop\"']")).setValue(description);
-  await (await panel.$("input[placeholder='Negative = money out']")).setValue(amount);
+  await enterTransactionAmount(browser, panel, amount);
   await (await panel.$("button=Add transaction")).click();
   await panel.waitForExist({ timeout: 8000, reverse: true });
 }

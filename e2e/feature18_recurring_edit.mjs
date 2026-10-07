@@ -60,7 +60,7 @@ try {
   console.log("recurring page after edit:", pageText);
   if (!pageText.includes("Netflix (Premium)")) throw new Error(`expected renamed merchant, got:\n${pageText}`);
   if (!pageText.includes("-$22.99")) throw new Error(`expected updated amount, got:\n${pageText}`);
-  if (!/annual/i.test(pageText)) throw new Error(`expected updated cadence "annual", got:\n${pageText}`);
+  if (!pageText.includes("Yearly")) throw new Error(`expected updated cadence "Yearly", got:\n${pageText}`);
   if (pageText.includes("$15.49")) throw new Error(`old amount should no longer appear, got:\n${pageText}`);
 
   console.log("FEATURE 18 E2E TEST PASSED");

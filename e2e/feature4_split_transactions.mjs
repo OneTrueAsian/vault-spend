@@ -5,7 +5,7 @@
 //
 // Run with: node e2e/feature4_split_transactions.mjs
 
-import { launchApp, chooseMenuOption } from "./harness.mjs";
+import { launchApp, chooseMenuOption, chooseRowAction } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -39,16 +39,14 @@ cur.execute(
 
 const app = await launchApp({ dbDir });
 try {
-  // The app's own default launch size (800px) sits below the ledger's
-  // narrow-layout breakpoint, where the Category cell (and its Split →
-  // toggle) moves behind a per-row Details toggle instead of its own column.
+  // Wide, so the split summary shows in the Category column (narrow puts it behind Details).
   await app.browser.setWindowSize(1280, 900);
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
-  const splitToggle = await app.browser.$(".split-toggle");
-  await splitToggle.waitForExist({ timeout: 10000 });
-  await splitToggle.click();
+  const rowMenu = await app.browser.$("tr[data-payment-row] [data-row-menu]");
+  await rowMenu.waitForExist({ timeout: 10000 });
+  await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Split…");
 
   // One line is pre-seeded with the full $100 under "Groceries" — change
   // its amount to 60, then add a second line for Household $40.

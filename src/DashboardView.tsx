@@ -1,3 +1,5 @@
+import "./DashboardCards.css";
+import "./FirstRunChecklist.css";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { MenuSelect } from "./MenuSelect";
 import { Check, Info, Leaf, LineChart as LineChartIcon, MessageCircleQuestion } from "lucide-react";
@@ -22,8 +24,8 @@ import type {
 } from "./types";
 import { DonutChart, LineChart, ProgressRing, Sparkline, fmtMoneyShort } from "./charts";
 import { StatDetailPanel } from "./StatDetailPanel";
-import { formatAmount } from "./format";
-import { groupOf, netWorthContribution, owedAmount } from "./accountGroups";
+import { formatAmount, formatDisplayDate } from "./format";
+import { groupOf, isOverdrawn, netWorthContribution, owedAmount } from "./accountGroups";
 import { netWorthByMember } from "./memberBreakdowns";
 import { daysLeft } from "./BucketsView";
 import {
@@ -41,13 +43,20 @@ import {
 import { answerLedgerQuestion, LEDGER_QA_EXAMPLES, type QaResult } from "./ledgerQa";
 import { ensureUiStateMigrated } from "./profileUiState";
 import { attentionItems, type AttentionKind } from "./needsAttention";
-import { effectiveBudget } from "./budgetPlan";
+import { effectiveBudget, monthElapsed } from "./budgetPlan";
+import { budgetGroupFillClass } from "./colourStatus";
 import { SafeToSpendCard } from "./SafeToSpendCard";
 import { CategorySpendDialog } from "./CategorySpendDialog";
 import { CATEGORY_COLORS } from "./categoryPalette";
 import { sumMoney } from "./money";
+import { describeBudgetAlerts, isUsedInFull } from "./budgetAlertText";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
+
+/** The Layout menu's last entry: turns Customize on or off. Not a layout, so never saved as one. */
+const CUSTOMIZE_OPTION = "__customize__";
 
 /** A single template-matched natural-language question, answered entirely
  * from data already on hand (see ledgerQa.ts) — never a hosted LLM call.
@@ -205,6 +214,7 @@ export function DashboardView({
   safeToSpendEnabled,
   onAddTransaction,
   onAddAccount,
+  onOpenHelp,
 }: {
   accounts: Account[];
   netWorthHistory: NetWorthPoint[];
@@ -281,10 +291,12 @@ export function DashboardView({
    * `null` until it loads. */
   safeToSpendForecast: BillAwareForecast | null;
   safeToSpendEnabled: boolean;
-  /** Quick actions panel — same triggers the Transactions toolbar's "Add
+  /** The title row's page actions — same triggers the Transactions toolbar's "Add
    * transaction…" button and Accounts' "Add account…" button already use. */
   onAddTransaction: () => void;
   onAddAccount: () => void;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   const [expandedStat, setExpandedStat] = useState<StatKey | null>(null);
   const [selectedSpendCategory, setSelectedSpendCategory] = useState<string | null>(null);
@@ -350,8 +362,6 @@ export function DashboardView({
     { done: (report?.budget_actuals.length ?? 0) > 0, label: "Set up your budget", detail: "Give at least one category a monthly amount.", onClick: onOpenBudget },
   ];
   const showChecklist = !checklistDismissed && checklistSteps.some((s) => !s.done);
-  const overCount = budgetAlerts.filter((a) => a.level === "over").length;
-  const warningCount = budgetAlerts.filter((a) => a.level === "warning").length;
 
   const netWorth = netWorthHistory.length ? parseFloat(netWorthHistory[netWorthHistory.length - 1].value) : 0;
   // The trend delta stays purely history-based (comparing two points on the
@@ -409,21 +419,24 @@ export function DashboardView({
   // and should read as good news (green, ▼), not the alarm color/arrow a
   // merely nonzero balance would otherwise get below.
   const debtTrendingDown = netWorthHistory.length > 1 && debtDelta < 0;
+  // Owing money is not by itself something to fix (s4), so only debt that grew gets the warning
+  // icon and the red trend line. The amount itself always stays neutral.
+  const debtGrowing = netWorthHistory.length > 1 && debtDelta > 0;
+  // Budgets used exactly in full are done, not a warning (s4), so on their own they get a quiet banner.
+  const allAlertsUsedInFull = budgetAlerts.every(isUsedInFull);
   const investmentsDelta = investmentsSpark.length ? investmentsSpark[investmentsSpark.length - 1] - investmentsSpark[0] : 0;
   const monthsSpan = netWorthHistory.length;
 
-  const breakdowns: Record<StatKey, { name: string; amount: number }[]> = useMemo(
-    () => ({
-      networth: [
-        ...accounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })),
-        ...(assetsTotal !== 0 ? [{ name: "Property & Valuables", amount: assetsTotal }] : []),
-      ],
-      cash: cashAccounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })),
-      debt: debtAccounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })),
-      investments: investmentAccounts.map((a) => ({ name: a.name, amount: netWorthContribution(a) })),
-    }),
-    [accounts, assetsTotal, cashAccounts, debtAccounts, investmentAccounts],
-  );
+  // Red only for a balance below zero (s4), not for what's owed on a card or loan.
+  const breakdowns: Record<StatKey, { name: string; amount: number; flag?: boolean }[]> = useMemo(() => {
+    const row = (a: Account) => ({ name: a.name, amount: netWorthContribution(a), flag: isOverdrawn(a) });
+    return {
+      networth: [...accounts.map(row), ...(assetsTotal !== 0 ? [{ name: "Property and valuables", amount: assetsTotal }] : [])],
+      cash: cashAccounts.map(row),
+      debt: debtAccounts.map(row),
+      investments: investmentAccounts.map(row),
+    };
+  }, [accounts, assetsTotal, cashAccounts, debtAccounts, investmentAccounts]);
 
   // "What changed" rows for each stat card's own detail panel — which
   // account(s) actually drove the trend shown above, not just the total.
@@ -597,29 +610,29 @@ export function DashboardView({
       <button
         type="button"
         className={
-          expandedStat === "debt" ? "stat stat-hero tint-red stat-clickable stat-expanded" : "stat stat-hero tint-red stat-clickable"
+          expandedStat === "debt" ? "stat stat-hero tint-neutral stat-clickable stat-expanded" : "stat stat-hero tint-neutral stat-clickable"
         }
         onClick={() => toggleStat("debt")}
+        data-stat="debt"
       >
         <div className="stat-top">
-          <span className="mini-ico mini-ico-plain">
-            <IconEntryGlyph entry={flatIconEntry(debt !== 0 && !debtTrendingDown ? "warning-icon" : "debt-dash")} />
+          <span className="mini-ico mini-ico-plain" data-debt-icon={debtGrowing ? "warning" : "debt"}>
+            <IconEntryGlyph entry={flatIconEntry(debtGrowing ? "warning-icon" : "debt-dash")} />
           </span>
           <span className="stat-label">Debt</span>
         </div>
-        <span
-          className={
-            debt === 0 ? "stat-value" : debtTrendingDown ? "stat-value report-good" : "stat-value report-over-budget"
-          }
-        >
-          {formatAmount(debt)}
-        </span>
+        <span className="stat-value">{formatAmount(debt)}</span>
         {monthsSpan > 1 && (
           <span className={debtDelta <= 0 ? "stat-delta up" : "stat-delta down"}>
             {debtDelta <= 0 ? "▼" : "▲"} {fmtMoneyShort(Math.abs(debtDelta))} over {monthsSpan}mo
           </span>
         )}
-        <Sparkline points={debtSpark} color={debtTrendingDown ? "var(--positive)" : "var(--negative)"} width={160} fluid />
+        <Sparkline
+          points={debtSpark}
+          color={debtGrowing ? "var(--negative)" : debtTrendingDown ? "var(--positive)" : "var(--text-muted)"}
+          width={160}
+          fluid
+        />
       </button>
     ),
 
@@ -652,7 +665,10 @@ export function DashboardView({
 
     runway: monthsOfRunway !== null && (
       <div className="card runway-card">
-        <ProgressRing pct={runwayPct} size={64} stroke={7} />
+        <div className="runway-ring">
+          <ProgressRing pct={runwayPct} size={64} stroke={7} ariaLabel={`${monthsOfRunway.toFixed(1)} months of a 6-month goal`} />
+          <span className="runway-goal">Goal: 6 months</span>
+        </div>
         <div>
           <p className="runway-headline">
             <span className="stat-value">{monthsOfRunway.toFixed(1)}</span> months of expenses covered
@@ -693,13 +709,13 @@ export function DashboardView({
           </div>
         )}
         {budgetAlerts.length > 0 && (
-          <button type="button" className="budget-alert-banner" onClick={() => setShowBudgetAlerts((v) => !v)}>
-            <IconEntryGlyph entry={flatIconEntry("warning-icon")} className="budget-alert-icon" />
-            <span>
-              {overCount > 0 && `${overCount} categor${overCount === 1 ? "y" : "ies"} over budget`}
-              {overCount > 0 && warningCount > 0 && ", "}
-              {warningCount > 0 && `${warningCount} approaching ${warningCount === 1 ? "its" : "their"} limit`}
-            </span>
+          <button
+            type="button"
+            className={allAlertsUsedInFull ? "budget-alert-banner budget-alert-banner-done" : "budget-alert-banner"}
+            onClick={() => setShowBudgetAlerts((v) => !v)}
+          >
+            {!allAlertsUsedInFull && <IconEntryGlyph entry={flatIconEntry("warning-icon")} className="budget-alert-icon" />}
+            <span>{describeBudgetAlerts(budgetAlerts)}</span>
           </button>
         )}
         <StatDetailPanel
@@ -754,7 +770,7 @@ export function DashboardView({
           </p>
           {assetsTotal !== 0 && (
             <p className="modal-message-secondary" style={{ marginTop: 4 }}>
-              Includes Property &amp; Valuables at their current value throughout — since they only carry a value as
+              Includes property and valuables at their current value throughout — since they only carry a value as
               of today, past points assume that same value applied back then too.
             </p>
           )}
@@ -804,10 +820,15 @@ export function DashboardView({
             const budgeted = lines.reduce((s, b) => s + effectiveBudget(b), 0);
             const actual = sumMoney(lines.map((b) => b.actual));
             const pct = budgeted ? Math.min(100, (actual / budgeted) * 100) : 0;
-            const over = group === "income" ? actual < budgeted : actual > budgeted;
+            // The same colour rule as the Budget page: income still arriving is neutral, not red. This
+            // card always shows the current month.
+            const today = new Date();
+            const elapsed = monthElapsed(today.getFullYear(), today.getMonth() + 1, today);
+            const fillClass = budgetGroupFillClass(group, actual, budgeted, elapsed?.fraction ?? 0, "current");
             return (
               <div
                 key={group}
+                data-dashboard-budget-group={group}
                 className="clickable-row"
                 style={{ marginBottom: 14, padding: 4, borderRadius: 6 }}
                 onClick={onOpenBudget}
@@ -823,10 +844,7 @@ export function DashboardView({
                   </span>
                 </div>
                 <div className="progress-track">
-                  <div
-                    className="progress-fill"
-                    style={{ width: `${pct}%`, background: over ? "var(--negative)" : undefined }}
-                  />
+                  <div className={fillClass} style={{ width: `${pct}%` }} />
                 </div>
               </div>
             );
@@ -850,7 +868,7 @@ export function DashboardView({
                 </span>
                 <div className="suggested-info">
                   <div className="account-name-cell">{r.merchant}</div>
-                  <span className="account-col">{r.next_date}</span>
+                  <span className="account-col">{formatDisplayDate(r.next_date)}</span>
                 </div>
                 <span className="suggested-amt">{formatAmount(r.amount)}</span>
               </div>
@@ -879,7 +897,7 @@ export function DashboardView({
           <tbody>
             {recent.map((t) => (
               <tr key={t.id} className="clickable-row" onClick={onOpenLedger} title="Go to the Transactions tab">
-                <td>{t.date}</td>
+                <td className="date-cell">{formatDisplayDate(t.date)}</td>
                 <td>
                   <span className="cell-with-icon">
                     <span className="row-icon-badge">
@@ -1048,8 +1066,9 @@ export function DashboardView({
     const group = groupOf(account.account_type);
     const isDebt = group === "credit" || group === "loan";
     const amount = isDebt ? owedAmount(account) : netWorthContribution(account);
-    const tint = isDebt ? "tint-red" : group === "investment" ? "tint-purple" : "tint-blue";
-    const badgeColor = isDebt ? "red" : group === "investment" ? "purple" : "blue";
+    // A debt account is not by itself a problem (s4), so its tile and badge stay neutral.
+    const tint = isDebt ? "tint-neutral" : group === "investment" ? "tint-purple" : "tint-blue";
+    const badgeColor = isDebt ? "neutral" : group === "investment" ? "purple" : "blue";
     return (
       <div className={`stat stat-hero ${tint}`}>
         <div className="stat-top">
@@ -1198,24 +1217,29 @@ export function DashboardView({
     <div className="reports-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Dashboard</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Dashboard</h1>
+            {onOpenHelp && <HelpLink tab="dashboard" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">Your accounts, budget, and goals at a glance.</p>
         </div>
+        <div className="page-actions">
+          <button type="button" onClick={onAddTransaction}>
+            + Add transaction
+          </button>
+          <button type="button" className="modal-secondary" onClick={onAddAccount}>
+            + Add account
+          </button>
+          <button type="button" className="modal-secondary" onClick={onOpenBudget}>
+            Set budget
+          </button>
+          <button type="button" className="modal-secondary" onClick={onOpenBuckets}>
+            Update goals
+          </button>
+        </div>
       </div>
-      <div className="quick-actions">
-        <button type="button" onClick={onAddTransaction}>
-          + Add transaction
-        </button>
-        <button type="button" className="modal-secondary" onClick={onAddAccount}>
-          + Add account
-        </button>
-        <button type="button" className="modal-secondary" onClick={onOpenBudget}>
-          Set budget
-        </button>
-        <button type="button" className="modal-secondary" onClick={onOpenBuckets}>
-          Update goals
-        </button>
-      </div>
+      {/* Owner decision (1.3.0): Ask the Vault stays this big card, directly under the title row.
+          Don't shrink it into the title row. DashboardView.test.tsx and feature270 pin this. */}
       <LedgerQaBox
         onAsk={(question) =>
           answerLedgerQuestion(question, {
@@ -1232,16 +1256,21 @@ export function DashboardView({
 
       <div className="dashboard-toolbar">
         <MenuSelect
-          ariaLabel="Dashboard layout"
+          ariaLabel="Layout"
+          showName
           triggerClassName="layout-select-toggle"
           value={presetKey}
           options={[
             ...(Object.keys(LAYOUT_PRESETS) as LayoutPresetKey[]).map((key) => ({ value: key, label: LAYOUT_PRESET_LABELS[key] })),
             ...customPresets.map((p) => ({ value: `custom:${p.name}`, label: p.name })),
             ...(presetKey === "custom" ? [{ value: "custom", label: "Custom (unsaved)", disabled: true }] : []),
+            { value: CUSTOMIZE_OPTION, label: customizeMode ? "Done customizing" : "Customize…" },
           ]}
           onChange={(value) => {
-            if (value.startsWith("custom:")) {
+            // Customize is an action, not a layout: it never changes the arrangement.
+            if (value === CUSTOMIZE_OPTION) {
+              setCustomizeMode((v) => !v);
+            } else if (value.startsWith("custom:")) {
               const found = customPresets.find((p) => p.name === value.slice("custom:".length));
               if (found) onSetLayoutWidgets([...found.widgets]);
             } else {
@@ -1287,20 +1316,23 @@ export function DashboardView({
           <button
             type="button"
             className="modal-secondary btn-sm"
-            title="Delete this saved report"
+            title="Delete this saved layout"
             onClick={() => deleteCustomLayout(presetKey.slice("custom:".length))}
           >
             Delete
           </button>
         )}
         {customizeMode && (
-          <button type="button" className="modal-secondary btn-sm" onClick={onOpenAddWidget}>
-            + Add widget…
-          </button>
+          <>
+            <button type="button" className="modal-secondary btn-sm" onClick={onOpenAddWidget}>
+              + Add widget…
+            </button>
+            {/* Only while customizing: a visible way out (the Layout menu's "Done customizing" too). */}
+            <button type="button" className="btn-sm" data-customize-done onClick={() => setCustomizeMode(false)}>
+              Done
+            </button>
+          </>
         )}
-        <button type="button" className="modal-secondary" onClick={() => setCustomizeMode((v) => !v)}>
-          {customizeMode ? "Done" : "Customize"}
-        </button>
       </div>
 
       {showChecklist && (
@@ -1330,12 +1362,13 @@ export function DashboardView({
       {layoutRows.map((row) =>
         row.isCompactRow ? (
           <div key={row.key} className={customizeMode ? "dashboard-widget-customizing" : undefined}>
-            <div className="stats">
+            <div className="stats dashboard-stat-row">
               {row.ids.map((id, offset) => {
                 const index = row.startIndex + offset;
                 return (
                   <div
                     key={id}
+                    data-widget-id={id}
                     className={customizeMode ? "dashboard-stat-wrap" : undefined}
                     draggable={customizeMode}
                     onDragStart={() => setDragWidgetId(id)}
@@ -1387,6 +1420,7 @@ export function DashboardView({
         ) : (
           <div
             key={row.key}
+            data-widget-id={row.ids[0]}
             className={customizeMode ? "dashboard-widget-customizing" : undefined}
             draggable={customizeMode}
             onDragStart={() => setDragWidgetId(row.ids[0])}

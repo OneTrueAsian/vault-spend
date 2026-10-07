@@ -5,8 +5,12 @@
 import { isTransferTransaction } from "./transfers";
 import type { AnomalyFlag, Transaction } from "./types";
 
-/** An auto-categorization the classifier made below this confidence is worth
- * a second look. (Rule matches are exact and never flagged.) */
+/** An auto-categorization made below this confidence is worth a second look. A
+ * plain rule match carries no confidence and is never flagged; a contested rule
+ * (its merchant filed under more than one category) reports just under this.
+ * Import has its own, lower cutoff (`IMPORT_CHOICE_BELOW` = 0.5 in
+ * `core/src/import_resolution.rs`): below it the person chooses before the row
+ * is saved, so a guess between 0.5 and this is saved and still shown here. */
 export const LOW_CONFIDENCE = 0.7;
 
 export type InboxReasonKind = "uncategorized" | "low_confidence" | "duplicate" | "large";

@@ -1,4 +1,4 @@
-/* Futuristic ("Neon Ledger"): loaded after App.css (see App.tsx), so its rules win ties with the base
+/* Futuristic ("Neon Ledger"): loaded after the base stylesheets (see App.tsx), so its rules win ties with the base
    ones. Everything here is scoped to :root[data-palette="futuristic"], so Default and Retro are untouched.
    Typefaces are bundled (SIL OFL, see docs/THIRD-PARTY-FONTS.md): only the Latin files, and only the
    weights used. A browser fetches a face only when text uses it, so other styles download nothing. */
@@ -100,6 +100,8 @@
   --radius-control: 7px;
   --radius-small: 5px;
   --radius-menu: 10px;
+  /* Every open menu's drop shadow and faint neon edge (the shared menu-panel list and RowMenu). */
+  --menu-panel-shadow: 0 18px 36px rgb(0 0 0 / 0.35), 0 0 calc(16px * var(--glow)) rgba(var(--neon-rgb), 0.12);
   --radius-dialog: 14px;
 
   color-scheme: light;
@@ -235,9 +237,9 @@
 
 /* ------------------------------------------------------------------ Components
    Selectors start with :where([data-palette="futuristic"]) so each rule keeps the specificity of the
-   component class it restyles: it beats App.css's equal rule by coming later, and still loses to a
+   component class it restyles: it beats the base stylesheets' equal rule by coming later, and still loses to a
    more specific state rule there (a modifier class, :hover on a compound, etc.). Only looks change
-   here: colors, borders, corners, type, shadows. Layout and sizes stay App.css's. */
+   here: colors, borders, corners, type, shadows. Layout and sizes stay in the base stylesheets. */
 
 /* Page atmosphere: a restrained 46px grid and two soft blooms behind the scrolling content. They sit in
    the background of .main itself, so they can never cover text, menus or the privacy mask, and at
@@ -349,7 +351,7 @@
   backdrop-filter: none;
   border: 1px solid rgba(var(--accent-rgb), 0.38);
   border-radius: var(--radius-menu);
-  box-shadow: 0 18px 36px rgb(0 0 0 / 0.35), 0 0 calc(16px * var(--glow)) rgba(var(--neon-rgb), 0.12);
+  box-shadow: var(--menu-panel-shadow);
 }
 
 :where([data-palette="futuristic"]) :is(
@@ -400,21 +402,6 @@
   border-color: var(--accent);
 }
 
-/* Header */
-:where([data-palette="futuristic"]) .topbar {
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  border-bottom-color: var(--border-soft);
-}
-
-:where([data-palette="futuristic"]) .topbar h1 {
-  font-weight: 700;
-  font-size: 24px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 /* Segmented controls: Light/Dark/System, tab strips, report ranges, ledger density, comparison
    choices. Comparisons.css loads lazily (after this file), so its two selectors repeat their class to
    outrank the equal rules there. */
@@ -440,6 +427,25 @@
   background: rgba(var(--accent-rgb), 0.14);
   color: var(--accent);
   box-shadow: inset 0 -2px var(--accent);
+}
+
+/* Light / Dark / System sits on the rail, which stays dark even in Light, so it takes the rail's
+   colours and the neon instead of the page's field and accent. Placed after the shared segmented
+   rule above so it wins the specificity tie. */
+:where([data-palette="futuristic"]) .sidebar-controls .theme-toggle {
+  background: var(--sidebar-bg-hover);
+  border-color: var(--sidebar-border);
+}
+
+:where([data-palette="futuristic"]) .sidebar-controls .theme-toggle button.theme-toggle-active {
+  border-color: rgba(var(--neon-rgb), 0.4);
+  background: rgba(var(--neon-rgb), 0.14);
+  color: var(--sidebar-text-active);
+  box-shadow: inset 0 -2px var(--neon);
+}
+
+:where([data-palette="futuristic"]) .sidebar-controls :is(.privacy-toggle, .theme-cycle) {
+  border-radius: var(--radius-control);
 }
 
 /* Page headings */
@@ -536,7 +542,7 @@
 }
 
 /* Fields */
-/* Fields keep the panel color (every field rule in App.css uses --surface, so they all match); only
+/* Fields keep the panel color (every base field rule uses --surface, so they all match); only
    their corners change. */
 :where([data-palette="futuristic"]) :is(.text-input, .account-select, textarea) {
   border-radius: var(--radius-control);
@@ -546,10 +552,10 @@
   border-radius: var(--radius-control);
 }
 
-/* App.css gives full-size fields and filter triggers their 8px corners in one :is() list, which takes
+/* SharedControls.css gives full-size fields and filter triggers their 8px corners in one :is() list, which takes
    the specificity of its most specific entry (0,3,1). The same list here ties it and wins by order. */
-:where([data-palette="futuristic"]) :is(.text-input, .bucket-new-form input, .bucket-new-form select,
-    .bucket-contribution-form input, .bucket-contribution-form select,
+:where([data-palette="futuristic"]) :is(.text-input, .bucket-new-form input:not([type="checkbox"]), .bucket-new-form select,
+    .bucket-contribution-form input:not([type="checkbox"]), .bucket-contribution-form select,
     .labeled-field input, .labeled-field select, .ledger-filters input,
     .ledger-filters select, .rules-controls select, .account-filter-toggle,
     .account-select, .month-select, .saved-filter-form input, .help-search,

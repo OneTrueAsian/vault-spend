@@ -1,14 +1,18 @@
+import "./CashFlowCharts.css";
 import { useEffect, useState } from "react";
 import type { Account, BillAwareForecast, CashFlow, CategoryAmount, DebtPayoffPlan, YoyCashFlow } from "./types";
 import { lowestPoint } from "./safeToSpend";
 import { BarChart, DonutChart, LineChart, fmtMoneyShort } from "./charts";
-import { formatAmount } from "./format";
+import { formatAmount, formatDisplayDate } from "./format";
+import { forecastChartPoints } from "./forecastChart";
 import { DebtPayoffPlannerSection } from "./ReportsOverview";
 import { PinToDashboardButton } from "./PinToDashboardButton";
 import type { WidgetId } from "./dashboardLayout";
 import { MenuSelect } from "./MenuSelect";
 import { CategorySpendDialog } from "./CategorySpendDialog";
 import { CATEGORY_COLORS } from "./categoryPalette";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 const FORECAST_DAY_OPTIONS = [30, 60, 90];
 
@@ -33,6 +37,7 @@ export function CashFlowView({
   onSetAccountExcludedFromDebtPayoff,
   layoutWidgets,
   onPinWidget,
+  onOpenHelp,
 }: {
   cashFlow: CashFlow | null;
   range: number;
@@ -72,6 +77,8 @@ export function CashFlowView({
    * the Debt Payoff Planner. */
   layoutWidgets: WidgetId[];
   onPinWidget: (id: WidgetId) => void;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   // Local to this view (like `expandedStat`/`showBudgetAlerts` on the
   // Dashboard) rather than lifted to App.tsx — a per-view UI concern, not
@@ -167,7 +174,10 @@ export function CashFlowView({
     <div className="reports-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Cash Flow</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Cash Flow</h1>
+            {onOpenHelp && <HelpLink tab="cashflow" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">Income vs. expenses, forecast, and payoff planning.</p>
         </div>
       </div>
@@ -365,22 +375,15 @@ export function CashFlowView({
           {forecastData ? (
             <>
             <LineChart
-              // LineChart renders one axis label per point with no built-in
-              // thinning — fine for the ~6-month net-worth trend elsewhere,
-              // but 30-90 daily points would overlap into an unreadable mess.
-              // Only label roughly every 8th point; every point still
-              // contributes to the line/tooltip itself.
-              points={forecastData.points.map((p, i) => ({
-                label: i % Math.max(1, Math.ceil(forecastData.points.length / 8)) === 0 ? p.date.slice(5) : "",
-                value: parseFloat(p.balance),
-              }))}
+              // Only about every 8th of the 30-90 daily points is labelled (see forecastChartPoints).
+              points={forecastChartPoints(forecastData.points)}
               height={200}
             />
             {forecastData.uses_recurring && (() => {
               const low = lowestPoint(forecastData.points);
               return low ? (
                 <p className="forecast-lowest" data-forecast-lowest>
-                  Lowest balance: <strong>{formatAmount(low.balance.toFixed(2))}</strong> on {low.date}
+                  Lowest balance: <strong>{formatAmount(low.balance.toFixed(2))}</strong> on {formatDisplayDate(low.date)}
                 </p>
               ) : null;
             })()}
@@ -390,7 +393,7 @@ export function CashFlowView({
                 <ul>
                   {forecastData.events.slice(0, 10).map((ev, i) => (
                     <li key={`${ev.date}-${ev.label}-${i}`}>
-                      <span className="forecast-event-date">{ev.date}</span>
+                      <span className="forecast-event-date">{formatDisplayDate(ev.date)}</span>
                       <span className="forecast-event-label">{ev.label}</span>
                       <span className={parseFloat(ev.amount) < 0 ? "forecast-event-amount neg" : "forecast-event-amount"}>
                         {formatAmount(ev.amount)}

@@ -14,6 +14,16 @@ mod legacy_migration;
 mod live_price_provider;
 mod live_prices;
 mod maintenance;
+mod mobile_api;
+mod mobile_bootstrap;
+mod mobile_certificates;
+mod mobile_commands;
+mod mobile_devices;
+mod mobile_discovery;
+#[cfg(debug_assertions)]
+mod mobile_race;
+mod mobile_secrets;
+mod mobile_server;
 mod perf_log;
 mod profiles;
 mod protection_commands;
@@ -36,6 +46,7 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(command_thread::CommandQueue::start())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -104,6 +115,8 @@ pub fn run() {
             // beside config.json, so a start with no profile open can still decide what the tray and
             // the window do without a database.
             app.manage(device_settings::DeviceSettingsStore::load(default_dir.join(device_settings::DEVICE_SETTINGS_FILENAME)));
+            let mobile = mobile_server::MobileService::new(default_dir.clone());
+            app.manage(mobile_api::MobileAccess::new(default_dir.clone()));
             app.manage::<AppStateHandle>(runtime::AppRuntime::no_profile_open());
             app.manage(config::AppPaths {
                 config_path: config_path.clone(),
@@ -113,6 +126,9 @@ pub fn run() {
             app.manage(startup::LaunchStatus::new(default_dir.clone()));
             app.manage(protection_session::Sessions::new());
             app.manage(auto_lock::AutoLockController::new());
+            mobile.attach(app.handle().clone());
+            app.manage(mobile.clone());
+            mobile.resume();
 
             if let Err(error) = system_session::install(app.handle()) {
                 eprintln!("system session event hook could not be installed: {error}");
@@ -417,9 +433,44 @@ pub fn run() {
             debug_commands::debug_set_main_window_visible,
             #[cfg(debug_assertions)]
             debug_commands::debug_check_reminders,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_start_mobile_asset_server,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_start_mobile_setup_server,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_quit_app,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_mobile_authorization_race,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_mobile_database_digest,
+            mobile_commands::mobile_server_status,
+            mobile_commands::mobile_begin_pairing,
+            mobile_commands::mobile_pending_pairings,
+            mobile_commands::mobile_pairing_profiles,
+            mobile_commands::mobile_decide_pairing,
+            mobile_commands::mobile_cancel_pairing,
+            mobile_commands::mobile_list_devices,
+            mobile_commands::mobile_revoke_device,
+            mobile_commands::mobile_remove_grant,
+            mobile_commands::mobile_network_interfaces,
+            mobile_commands::mobile_configure,
+            mobile_commands::mobile_configure_guided,
+            mobile_commands::mobile_begin_setup,
+            mobile_commands::mobile_cancel_setup,
+            mobile_commands::mobile_setup_status,
+            mobile_commands::mobile_disable,
+            mobile_commands::mobile_public_certificate,
+            mobile_commands::mobile_saved_config,
+            mobile_commands::mobile_reset_trust,
+            mobile_commands::mobile_export_certificate,
         ])))
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
+                app.state::<mobile_server::MobileService>().stop();
+            }
+        });
 }
 
 #[cfg(test)]

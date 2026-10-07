@@ -435,7 +435,13 @@ describe("subscriptions and bills", () => {
     });
     const r = ask("when is my next bill due", c);
     expect(r.answer).toContain("Rent");
-    expect(r.answer).toContain("2026-09-10");
+    // The context's own today (2026-09-06), not the wall clock, decides whether the year is shown.
+    expect(r.answer).toContain("on Sep 10.");
+  });
+
+  it("names the year of a next bill in another year than the context's today", () => {
+    const c = ctx({ today: new Date(2026, 11, 30), recurring: [recurring({ id: 2, merchant: "Rent", amount: "-1500.00", next_date: "2027-01-01" })] });
+    expect(ask("when is my next bill due", c).answer).toContain("on Jan 1, 2027.");
   });
 });
 
@@ -523,6 +529,7 @@ describe("biggest single transaction", () => {
     expect(r.answer).toContain("New Laptop");
     expect(r.answer).toContain("$899.00");
     expect(r.answer).not.toContain("5,000.00");
+    expect(r.answer).toContain("on Jul 15.");
   });
 
   it("reports no spending found rather than crashing on an empty match set", () => {

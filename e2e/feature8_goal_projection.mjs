@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature8_goal_projection.mjs
 
-import { launchApp, chooseMenuOption } from "./harness.mjs";
+import { launchApp, chooseMenuOption, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -46,9 +46,15 @@ try {
   }
 
   const contributionInput = await app.browser.$("//label[span[text()='Monthly contribution']]/input");
-  await contributionInput.setValue("1000");
   const yearsSelect = await app.browser.$("//label[span[text()='Time horizon']]//button[contains(@class,'menu-select-toggle')]");
-  await chooseMenuOption(yearsSelect, { value: "10" });
+  await withFocusRetry(app.browser, async () => {
+    await contributionInput.setValue("1000");
+    await chooseMenuOption(yearsSelect, { value: "10" });
+    await app.browser.waitUntil(async () => /projected in 10 years/i.test(await goalCard.getText()), {
+      timeout: 5000,
+      timeoutMsg: "choosing a 10-year horizon should update the projection",
+    });
+  });
 
   const afterText = await goalCard.getText();
   console.log("goal projection card (after edit):", afterText);

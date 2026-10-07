@@ -2,7 +2,7 @@
 //
 // - Every date fits its cell, in Default and in Futuristic (whose wider digits used to run under the
 //   description and its icon).
-// - "Apply to a debt" appears only on money going out, never on income or transfers in.
+// - "Apply to a debt…" (in the row's ⋯ menu) appears only on money going out, never on income or transfers in.
 // - The "Sorted by" column says how a category was set in words, not the stored code ("rule").
 //
 // Run with: node e2e/feature159_ledger_cells.mjs
@@ -36,14 +36,41 @@ try {
         const span = date.querySelector(".date-cell") ?? date;
         const amountText = r.querySelector(".amount-col, td:nth-child(4)")?.textContent ?? "";
         return {
+          id: r.dataset.paymentRow ?? null,
           date: span.textContent.trim(),
           spills: span.getBoundingClientRect().right > date.getBoundingClientRect().right + 0.5,
           incoming: !/[-−]\$/.test(amountText) && /\$/.test(amountText),
-          hasDebtButton: Boolean(r.querySelector(".debt-apply-trigger")),
           source: r.querySelector("td.source-col")?.textContent.trim() ?? "",
         };
       });
     });
+    // "Apply to a debt…" lives in each row's ⋯ menu: open it, read its items and close it again,
+    // from inside the page. React draws the menu just after the click, so wait a moment for it, and
+    // click again if another window taking focus closed it before it could be read.
+    const menus = await browser.executeAsync((ids, done) => {
+      const settle = () => new Promise((r) => setTimeout(r, 0));
+      (async () => {
+        const out = {};
+        for (const id of ids) {
+          const trigger = document.querySelector(`tr[data-payment-row="${id}"] [data-row-menu]`);
+          if (!trigger) continue;
+          let labels = null;
+          for (let attempt = 0; attempt < 20 && labels === null; attempt++) {
+            if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
+            await settle();
+            const panel = document.querySelector(".row-menu-panel");
+            if (panel) labels = [...panel.querySelectorAll("[role^='menuitem']")].map((b) => b.textContent.trim());
+          }
+          if (trigger.getAttribute("aria-expanded") === "true") trigger.click();
+          await settle();
+          out[id] = labels;
+        }
+        done(out);
+      })();
+    }, cells.map((c) => c.id).filter(Boolean));
+    for (const c of cells) c.hasDebtButton = (menus[c.id] ?? []).includes("Apply to a debt…");
+    const unread = cells.filter((c) => c.id && menus[c.id] === null).map((c) => c.date);
+    assert.deepEqual(unread, [], `${style}: some rows' ⋯ menus never opened`);
     assert.ok(cells.length > 5, `${style}: expected ledger rows`);
     // No column header runs into the next one ("Sorted by" once ran into "Debt").
     const crowdedHeaders = await browser.execute(() =>

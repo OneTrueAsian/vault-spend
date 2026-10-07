@@ -64,7 +64,7 @@ export function TransactionNotesDialog({
         />
       </label>
       <p className={overLimit ? "notes-char-count notes-char-count-over" : "notes-char-count"}>
-        {charCount.toLocaleString()} / {NOTES_MAX_CHARS.toLocaleString()}
+        {charCount.toLocaleString("en-US")} / {NOTES_MAX_CHARS.toLocaleString("en-US")}
       </p>
       <div className="modal-actions">
         <button type="button" className="modal-secondary" onClick={onClose} disabled={saving}>

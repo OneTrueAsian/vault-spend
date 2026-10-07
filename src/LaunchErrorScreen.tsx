@@ -1,3 +1,4 @@
+import "./LaunchErrorScreen.css";
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {

@@ -1,0 +1,606 @@
+/* ---------------------------- App shell ---------------------------- */
+
+/* The shell's layout sizes, shared by the sidebar, its narrow icon-only
+   form (AppResponsive.css) and Default's floating panels (App.css). */
+.app-shell {
+  --sidebar-w: 224px;
+  --rail-w: 68px;
+  --sidebar-expanded-w: 232px;
+  /* Space around the shell's panels, and between them (Default only). */
+  --shell-pad: 0px;
+  --shell-gap: 0px;
+  /* From the icon rail's edge to a name or menu shown beside it. */
+  --popout-gap: 8px;
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: var(--sidebar-w);
+  flex: 0 0 auto;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+  --sidebar-pad-x: 12px;
+  border-right: 1px solid var(--sidebar-border);
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Everything above the controls at the foot. Only this part scrolls in a
+   short window, so the foot never covers a tab (or a focused one) and
+   nothing scrolls underneath it. */
+.sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px var(--sidebar-pad-x) 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* A thin scrollbar leaves the contents (and the narrow icon-only rail)
+     room. */
+  scrollbar-width: thin;
+}
+
+/* "Show names" / "Hide names", for the icon-only sidebar of a narrow
+   window; shown only there (AppResponsive.css). */
+.sidebar-expand {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 44px;
+  height: 34px;
+  margin-bottom: 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: none;
+  color: var(--sidebar-text);
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sidebar-expand:hover {
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text-active);
+}
+
+.app-shell.sidebar-expanded .sidebar-expand {
+  align-self: flex-start;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 20px;
+  color: var(--sidebar-text-active);
+}
+
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex: none;
+}
+
+.brand-word {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--sidebar-text);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.nav-item .ico {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  opacity: 0.9;
+}
+
+.nav-item:hover {
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text-active);
+}
+
+/* `.nav-item` (one class) beats nothing; `.nav-item:hover` (class +
+   pseudo-class) outranks a plain `.nav-item-active` (one class) by CSS
+   specificity regardless of source order, so hovering the already-active
+   item was falling back to the hover background/text color instead of
+   staying on the active styling — true for all three themes, since all of
+   them share this one rule. Matching the compound class the DOM actually
+   has (`nav-item nav-item-active`) ties hover's specificity, and this
+   rule's later position in the file wins that tie. */
+.nav-item.nav-item-active {
+  background: var(--sidebar-bg-active);
+  color: #ffffff;
+  box-shadow: var(--nav-active-shadow, none);
+}
+
+/* Slate's active nav item sits on a bold accent gradient (--sidebar-bg-active
+   above) in both light and dark mode, so its text and icon go white rather
+   than the mode-following --sidebar-text-active (which is dark in light
+   mode, sized for the light --sidebar-bg-hover surface, not this gradient —
+   that mismatch was unreadable dark-on-dark text in Slate light mode).
+   Futuristic and Transparent keep their own flat/translucent active
+   backgrounds where --sidebar-text-active or --accent reads correctly,
+   overridden back below. */
+.nav-item-active .ico {
+  color: #ffffff;
+}
+
+/* Transparent's active nav item sits on a soft translucent tint
+   (--sidebar-bg-active above), not Slate's bold gradient or Futuristic's
+   flat dark fill, so it needs its own readable text/icon color — same
+   pattern as Futuristic just above, including the same `.nav-item.` prefix
+   so it also beats `.nav-item:hover`. (Previously this lived up in the
+   palette-definition block above `.sidebar`/`.nav-item`'s own rules, which
+   put it *before* `.nav-item:hover` in source order — losing the same
+   specificity tie `.nav-item.nav-item-active` above just fixed for Slate
+   and Futuristic use position to win, not just specificity.) */
+[data-palette="transparent"] .nav-item.nav-item-active {
+  color: var(--accent);
+  backdrop-filter: blur(12px) saturate(1.6);
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
+}
+
+[data-palette="transparent"] .nav-item-active .ico {
+  color: var(--accent);
+}
+
+.nav-item-dragging {
+  opacity: 0.4;
+}
+
+.nav-group {
+  margin-bottom: 4px;
+}
+
+.nav-group-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  color: var(--sidebar-text-dim);
+  padding: 12px 12px 5px;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: var(--sidebar-border);
+  margin: 8px 6px;
+}
+
+.sidebar-spacer {
+  flex: 1;
+}
+
+/* The foot of the sidebar: Hide amounts and Light / Dark / System stay on
+   screen in a short window, below the part that scrolls (.sidebar-scroll),
+   on the sidebar's own background. */
+.sidebar-foot {
+  flex: none;
+  border-top: 1px solid var(--sidebar-border);
+  padding: 10px var(--sidebar-pad-x);
+}
+
+.sidebar-version {
+  text-align: center;
+  font-size: 12px;
+  color: var(--sidebar-text-dim);
+  margin: 0 0 8px 0;
+}
+
+/* Hide amounts and Light / Dark / System, stacked at the foot of the
+   sidebar (they used to fill a bar across the top of every page). They are
+   coloured from the sidebar's own tokens, not the page's, because the rail
+   has its own palette (always dark in Futuristic, even in Light). */
+.sidebar-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 2px 10px;
+}
+
+.sidebar-controls .privacy-toggle,
+.sidebar-controls .theme-cycle {
+  width: 100%;
+  background: transparent;
+  color: var(--sidebar-text);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 9px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sidebar-controls .privacy-toggle:hover,
+.sidebar-controls .theme-cycle:hover {
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text-active);
+}
+
+.sidebar-controls .privacy-toggle.privacy-toggle-on {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+/* The one-button theme switch, for the narrow icon-only sidebar. */
+.sidebar-controls .theme-cycle {
+  display: none;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.sidebar-controls .theme-toggle {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 2px;
+  background: var(--sidebar-bg-hover);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 9px;
+  padding: 3px;
+}
+
+.sidebar-controls .theme-toggle button {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--sidebar-text);
+  padding: 6px 4px;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.sidebar-controls .theme-toggle button:hover {
+  background: transparent;
+  color: var(--sidebar-text-active);
+}
+
+.sidebar-controls .theme-toggle button.theme-toggle-active {
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text-active);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-switcher {
+  position: relative;
+  margin: 0 2px 14px;
+}
+
+.profile-switcher-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--sidebar-border);
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text-active);
+  cursor: pointer;
+}
+
+.profile-switcher-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+}
+
+/* The Lucide fallback (no avatar picked yet) renders as a bare <svg>, not
+   an <img> like the bundled avatar pictures — give it a filled circle so
+   it doesn't float as an unstyled outline next to the colorful ones. */
+svg.profile-switcher-icon {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  padding: 3px;
+  box-sizing: border-box;
+}
+
+.profile-switcher-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-switcher-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 200px;
+  max-height: 260px;
+  overflow-y: auto;
+  /* Floats over navigation: --menu-bg is a blurred glass in Transparent, solid elsewhere. */
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  padding: 6px;
+}
+
+.profile-switcher-option {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 7px 8px;
+  font-size: 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
+}
+
+.profile-switcher-option:hover {
+  background: var(--surface-2);
+}
+
+.profile-switcher-option-active {
+  font-weight: 600;
+  cursor: default;
+}
+
+.profile-switcher-option-active:hover {
+  background: none;
+}
+
+.profile-switcher-manage {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding: 8px 8px 4px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.profile-switcher-manage:hover {
+  color: var(--text);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.import-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Beside a page title the Transactions controls join the title row's own
+   wrapping row, so a narrow window wraps them as one list instead of
+   stacking a row inside a row. */
+.page-actions > .import-controls {
+  display: contents;
+}
+
+.import-controls-label {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.btn-icon {
+  padding: 0.55em 0.7em;
+}
+
+.more-menu {
+  position: relative;
+}
+
+.more-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  transform-origin: top right;
+  animation: menu-in 140ms ease;
+}
+
+.more-menu-panel-closing {
+  animation: menu-out 140ms ease forwards;
+}
+
+/* `transform` only, deliberately never `opacity` — see `.stat-detail-panel`'s
+   own comment on `panel-in`/`panel-out` for why (real, reproduced
+   `getText()` flakiness on this app's WebDriver stack during an
+   opacity-0 frame, which the same "programmatically empty mid-fade"
+   concern applies to for a screen reader too). */
+@keyframes menu-in {
+  from {
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes menu-out {
+  from {
+    transform: none;
+  }
+  to {
+    transform: scale(0.96) translateY(-4px);
+  }
+}
+
+.more-menu-item {
+  display: flex;
+  width: 100%;
+  /* The shared button rule centres its content; a menu reads down a left edge. */
+  justify-content: flex-start;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  border-radius: 7px;
+}
+
+.more-menu-item:hover {
+  background: var(--surface-2);
+}
+
+.more-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 5px 4px;
+}
+
+.page {
+  padding: 24px 28px 64px;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+/* Every other tab reads better capped at a comfortable line length; the
+   Transactions ledger is a wide table that should use whatever width the
+   window actually has (a 1920px window still stopped at 1180px, forcing a
+   sideways scrollbar the window had room to avoid). */
+.page-ledger {
+  max-width: 1298px;
+  min-width: 0;
+}
+
+/* Per-view header — title, one-line description, and that page's primary
+   action button(s) — the first thing every view renders now, replacing
+   reliance on the sidebar's active-item highlight alone to say what page
+   you're on. */
+.page-top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.view-title {
+  font-size: 26px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+/* A page's title with its ? Help button (HelpLink) beside it. */
+.view-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.help-link {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.help-link:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.view-sub {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 0 1 auto;
+}

@@ -4,8 +4,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CATEGORY_COLORS, categoryColor } from "./categoryPalette";
+import { readCssWithImports } from "./cssTestUtils";
 
-const css = readFileSync(new URL("./App.css", import.meta.url), "utf8");
+const css = readCssWithImports(new URL("./App.css", import.meta.url));
 
 describe("category palette", () => {
   it("is six CSS variables, cycled in order", () => {

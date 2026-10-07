@@ -3,8 +3,9 @@
 // and "No accounts yet" for several seconds on a 50,000-row profile; 20,000 rows here).
 //
 // - From launch until the ledger shows its rows, the page never shows those empty-state messages.
-// - The loading placeholder shows instead, and Import transactions… stays disabled until the data
-//   is there.
+// - The loading placeholder shows instead, and Import transactions… can't be used (it is missing
+//   or disabled) until the data is there. Since 1.3.0 it sits beside the page title, which the
+//   placeholder replaces, while Hide amounts and Light / Dark / System stay usable in the sidebar.
 //
 // Run with: node e2e/feature157_loading_state.mjs
 
@@ -31,17 +32,21 @@ try {
   const seen = await browser.executeAsync((done) => {
     const nav = [...document.querySelectorAll(".nav-item")].find((b) => b.textContent.trim() === "Transactions");
     nav.click();
-    const out = { emptyClaims: [], placeholder: false, importDisabledWhileLoading: null };
+    const out = { emptyClaims: [], placeholder: false, importUsableWhileLoading: false, sidebarControlsWhileLoading: null };
     const started = performance.now();
     const look = () => {
       const page = document.querySelector(".page")?.innerText ?? "";
       for (const claim of ["No transactions yet", "0 transactions across 0 accounts", "No accounts yet"]) {
-        if (page.includes(claim) || document.querySelector(".topbar")?.innerText.includes(claim)) out.emptyClaims.push(claim);
+        if (page.includes(claim)) out.emptyClaims.push(claim);
       }
       if (document.querySelector("[data-data-loading]")) {
         out.placeholder = true;
-        const importButton = [...document.querySelectorAll(".topbar button")].find((b) => b.textContent.includes("Import transactions"));
-        if (importButton && out.importDisabledWhileLoading === null) out.importDisabledWhileLoading = importButton.disabled;
+        const importButton = [...document.querySelectorAll("button")].find((b) => b.textContent.includes("Import transactions"));
+        if (importButton && !importButton.disabled) out.importUsableWhileLoading = true;
+        if (out.sidebarControlsWhileLoading === null) {
+          out.sidebarControlsWhileLoading = !!document.querySelector(".sidebar-foot .sidebar-controls [data-privacy-toggle]") &&
+            !!document.querySelector(".sidebar-foot .sidebar-controls .theme-toggle");
+        }
       }
       if (document.querySelectorAll("table.ledger tbody tr").length > 0) return done({ ...out, emptyClaims: [...new Set(out.emptyClaims)], ms: Math.round(performance.now() - started) });
       if (performance.now() - started > 60000) return done({ ...out, timedOut: true });
@@ -53,7 +58,10 @@ try {
   assert.equal(seen.timedOut, undefined, "the ledger never showed its rows");
   assert.deepEqual(seen.emptyClaims, [], "no empty-state message while the data was loading");
   assert.equal(seen.placeholder, true, "the loading placeholder showed while the data loaded");
-  assert.equal(seen.importDisabledWhileLoading, true, "Import transactions… is disabled until the accounts are there");
+  // Only meaningful because the placeholder was seen (asserted just above): Import was looked for
+  // on every frame it showed.
+  assert.ok(seen.placeholder && seen.importUsableWhileLoading === false, "Import transactions… can't be used until the accounts are there");
+  assert.equal(seen.sidebarControlsWhileLoading, true, "Hide amounts and Light / Dark / System are in the sidebar while the data loads");
   assert.equal(await (await browser.$("button*=Import transactions")).isEnabled(), true, "and enabled once they are");
   console.log("FEATURE 157 E2E TEST PASSED");
 } finally {

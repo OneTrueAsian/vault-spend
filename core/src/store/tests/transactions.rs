@@ -275,8 +275,8 @@ fn a_transactions_own_category_column_is_registered_immediately_on_import() {
     // The low-level insert: a category on a transaction handed to
     // `save_transactions` lands on the row and is registered right away, no
     // restart needed. This is NOT what stops an import adopting a bank's own
-    // "Category" column ("Merchandise", ...) — `commit_import` settles those with
-    // `reconcile_import_categories` first, so only categories the person has (or
+    // "Category" column ("Merchandise", ...) — `commit_import` settles those first
+    // (`budget_core::import_resolution`), so only categories the person has (or
     // chose to add) ever reach this insert.
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);

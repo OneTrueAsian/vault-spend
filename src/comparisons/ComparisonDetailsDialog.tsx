@@ -13,6 +13,7 @@ import {
   sourceLabel,
 } from "./format";
 import { personKey } from "./setupDraft";
+import { formatDisplayDate } from "../format";
 
 const EXCLUDE_TEXT: Record<ExcludeReason, string> = {
   default_type_not_included: "This kind of account does not count here",
@@ -91,7 +92,7 @@ export function ComparisonDetailsDialog({
           )}
           {metric.origin.kind === "entered" && (
             <p className="cmp-detail-note">
-              Entered on {metric.origin.measuredOn}
+              Entered on {formatDisplayDate(metric.origin.measuredOn)}
               {metric.origin.explanation.trim() === "" ? "." : `: ${metric.origin.explanation.trim()}`}
               {metric.origin.stale && <strong> This figure may be out of date; it is still being used.</strong>}
             </p>
@@ -271,7 +272,7 @@ export function ComparisonDetailsDialog({
             tell you what share of people are above or below you.
           </p>
           <p>
-            Published figures describe a past period, so they are brought up to the latest prices on file using the Consumer Price Index. That adjusts for
+            The official figures describe a past period, so they are brought up to the latest prices on file using the Consumer Price Index. That adjusts for
             inflation; it does not make an old survey a current one. Everything is calculated on this computer; nothing about you is sent anywhere.
           </p>
         </section>

@@ -15,8 +15,8 @@ import path from "node:path";
 
 async function selectTheme(app, label) {
   await app.browser.execute((text) => {
-    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-row')).find(
-      (r) => r.querySelector(".feature-toggle-label")?.textContent === text,
+    const row = Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')).find(
+      (r) => r.querySelector(".style-preview-name")?.textContent === text,
     );
     if (!row) throw new Error(`no theme option labelled "${text}"`);
     row.querySelector("input").click();
@@ -51,7 +51,7 @@ try {
   await appearanceHeading.waitForExist({ timeout: 10000 });
 
   const labels = await app.browser.execute(() =>
-    Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Theme"] .feature-toggle-label')).map((el) => el.textContent),
+    Array.from(document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-name')).map((el) => el.textContent),
   );
   assert.deepEqual(labels, ["Default", "Futuristic", "Retro"]);
 
@@ -60,7 +60,7 @@ try {
   await selectTheme(app, "Retro");
   assert.equal(await app.browser.execute(() => document.documentElement.getAttribute("data-palette")), "retro");
   assert.equal(await app.browser.execute(() => document.documentElement.getAttribute("data-theme")), "light", "choosing a style must not change Light/Dark/System");
-  assert.ok(await app.browser.execute(() => !!document.querySelector(".topbar .theme-toggle")), "the Light/Dark/System toggle must stay in the header");
+  assert.ok(await app.browser.execute(() => !!document.querySelector(".sidebar-controls .theme-toggle")), "the Light/Dark/System toggle must stay in the sidebar");
   console.log("Retro: data-palette set, mode untouched, toggle present — OK");
 
   // It is saved: a reload brings the style back (and Default stays the default for everyone else).

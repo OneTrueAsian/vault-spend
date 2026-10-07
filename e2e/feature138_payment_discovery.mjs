@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { launchApp, pickFromMenu } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
-import { dateInMonth } from "./lib/dates.mjs";
+import { dateInMonth, displayDate } from "./lib/dates.mjs";
 
 // Last month: the payment on the 1st, applied to the card on the 2nd, the purchases on the 20th.
 const PAYMENT_DATE = dateInMonth(-1, 1);
@@ -43,9 +43,12 @@ async function accountFilter(names) {
   for (const name of names) await (await (await browser.$(".payment-account-filter")).$(`label=${name}`)).click();
   await (await browser.$(".payment-account-filter .account-filter-toggle")).click();
 }
+// The category filter is a menu that closes when the window loses focus (another spec's window
+// launching in a parallel run), so open it and pick through pickFromMenu, which retries in that case.
 async function categoryFilter(name) {
-  await (await browser.$(".category-filter-toggle")).click();
-  await (await (await browser.$(".category-filter-panel")).$(`button=${name}`)).click();
+  await pickFromMenu(browser, ".ledger-filters .category-filter-toggle", async () =>
+    (await browser.$(".ledger-filters .category-filter-panel")).$(`button=${name}`),
+  );
 }
 async function openCard() {
   await nav("Accounts");
@@ -81,7 +84,9 @@ try {
   let row = await waitForPayment();
   assert.equal((await browser.$$("[data-payment-row]")).length, 1);
   assert.match(await row.getText(), /Fixture Checking.*Fixture Card/s);
-  assert.match(await row.getText(), new RegExp(`Applied.*55\\.35.*${APPLIED_DATE}`, "s"));
+  // The applied date reads the way every date on screen does ("Sep 2"), not as the stored YYYY-MM-DD.
+  const rowText = await row.getText();
+  assert.ok(rowText.includes(`Applied $55.35 on ${displayDate(APPLIED_DATE)}\n`), `the row should say when the payment was applied: ${rowText}`);
   assert.match(await row.getText(), /-\$100\.00/);
   await accountFilter(["Fixture Checking", "Fixture Card"]);
   assert.equal((await browser.$$("[data-payment-row]")).length, 1);
@@ -107,7 +112,8 @@ try {
   await browser.keys("Enter");
   row = await waitForPayment();
   await browser.waitUntil(async () => await browser.execute(() => document.activeElement?.getAttribute("data-payment-row") === "201"), { timeout: 5000 });
-  assert.match(await (await browser.$(".ledger-pagination")).getText(), /Page 2 of 2/);
+  // The ledger showed more rows to reach the payment (61 rows; it was past the first 50).
+  assert.match(await (await browser.$("[data-ledger-shown]")).getText(), /Showing all 61 transactions/);
   assert.equal(await (await browser.$('[aria-label="Search description"]')).getValue(), "");
   assert.ok(await (await browser.$("button=More filters")).isExisting());
   assert.match(await (await browser.$(".category-filter-toggle")).getText(), /All categories/);
@@ -117,6 +123,9 @@ try {
   // Readable at wide and narrow widths in real light/dark modes. The row
   // density selector is hidden; its saved preference is covered by feature65.
   for (const mode of ["Light", "Dark"]) {
+    // Light / Dark / System shows in the full sidebar; below 1000px the sidebar is icons only and has
+    // a one-button switch instead, so pick the mode in a wide window.
+    await browser.setWindowSize(1440, 1000);
     await (await browser.$(`button=${mode}`)).click();
     for (const width of [1440, 800]) {
       await browser.setWindowSize(width, 1000);

@@ -10,6 +10,7 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('High-Yield Savings', 'savings', '1000.00')")
@@ -49,7 +50,7 @@ try {
   await dialog.waitForExist({ timeout: 10000 });
   const panel = await browser.$("div[role='dialog']");
   await (await panel.$("input[placeholder='e.g. \"Coffee shop\"']")).setValue("Test deposit");
-  await (await panel.$("input[placeholder='Negative = money out']")).setValue("100.00");
+  await enterTransactionAmount(browser, panel, "100.00");
   await (await panel.$("button=Add transaction")).click();
   await dialog.waitForExist({ timeout: 5000, reverse: true });
 

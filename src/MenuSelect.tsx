@@ -1,3 +1,4 @@
+import "./MenuSelect.css";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 export interface MenuSelectOption {
@@ -30,6 +31,7 @@ export function MenuSelect({
   placeholder,
   disabled = false,
   fill = false,
+  showName = false,
   title,
   triggerClassName = "",
   panelClassName = "",
@@ -45,6 +47,9 @@ export function MenuSelect({
   disabled?: boolean;
   /** Stretch to the width of the container, the way a native select does in a form field. */
   fill?: boolean;
+  /** Also show the name on the trigger, so it reads "<ariaLabel>: <selected label> ▾" (the Dashboard's
+   * "Layout: Default"), for a menu with no visible label beside it. */
+  showName?: boolean;
   title?: string;
   triggerClassName?: string;
   panelClassName?: string;
@@ -154,7 +159,7 @@ export function MenuSelect({
         }}
         {...triggerAttrs}
       >
-        <span>{selectedLabel}</span>
+        <span>{showName && !showingPlaceholder ? `${ariaLabel}: ${selectedLabel}` : selectedLabel}</span>
         <span className="account-filter-caret" aria-hidden="true">
           ▾
         </span>
@@ -205,6 +210,9 @@ export function MenuSelect({
                   data-value={option.value}
                   disabled={option.disabled}
                   className="account-destination-option"
+                  // Keep focus inside the menu until click selects the option. Safari
+                  // can blur mouse-clicked buttons before click, closing the popover.
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => choose(option.value)}
                 >
                   <span>{option.label}</span>

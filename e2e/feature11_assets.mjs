@@ -1,11 +1,11 @@
-// E2E smoke test for manual asset tracking ("Property & Valuables"):
+// E2E smoke test for manual asset tracking ("Property and valuables"):
 // creates a real estate asset from the Accounts tab, confirms it's listed
 // with its value folded into the Total Assets / Net Worth stats, edits its
 // value, then deletes it and confirms the stats settle back down.
 //
 // Run with: node e2e/feature11_assets.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, pickFromMenu } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -29,17 +29,15 @@ try {
   const saveBtn = await app.browser.$("button=Save");
   await saveBtn.click();
 
-  const propertySection = await app.browser.$(
-    "//h2[contains(., 'Property & Valuables')]/following-sibling::div[contains(@class,'table-scroll')][1]/table",
-  );
-  // This table exists (with its header row) even with zero assets — the
-  // empty-state message renders in place of body rows, not instead of the
-  // table — so `waitForExist` above proves nothing about whether the
-  // create actually landed yet. Poll for the asset's own text instead,
-  // same pattern already used below for the edit and delete steps.
+  // Property and valuables is one group card on Accounts (UAT s7.1), a row per thing.
+  const propertySection = await app.browser.$("[data-property-assets]");
+  // This card exists even with nothing in it (it holds the add button), so
+  // `waitForExist` proves nothing about whether the create actually landed
+  // yet. Poll for the asset's own text instead, same pattern already used
+  // below for the edit and delete steps.
   await app.browser.waitUntil(async () => (await propertySection.getText()).includes("Home"), {
     timeout: 10000,
-    timeoutMsg: 'expected "Home" to appear in the Property & Valuables table after saving',
+    timeoutMsg: 'expected "Home" to appear in the Property and valuables card after saving',
   });
   let sectionText = await propertySection.getText();
   console.log("property section after add:", sectionText);
@@ -49,7 +47,7 @@ try {
 
   // Property & Valuables sits on the Accounts tab beside the Total Assets /
   // Net Worth stats (1000 checking + 350000 home = 351000 net worth).
-  const netWorthStat = await app.browser.$("//span[text()='Net Worth']/parent::button");
+  const netWorthStat = await app.browser.$("//span[text()='Net worth']/parent::button");
   await netWorthStat.waitForExist({ timeout: 5000 });
   let netWorthText = await netWorthStat.getText();
   console.log("net worth stat after add:", netWorthText);
@@ -57,9 +55,10 @@ try {
     throw new Error(`expected Net Worth to include the $350,000 asset, got:\n${netWorthText}`);
   }
 
-  // Edit the value — scoped to the table row containing "Home" specifically.
-  const valueCellXPath = "//tr[.//div[text()='Home']]//span[contains(@class,'amount-editable')]";
-  const editInputXPath = "//tr[.//div[text()='Home']]//input[contains(@class,'amount-edit-input')]";
+  // Edit the value — scoped to the row containing "Home" specifically.
+  const homeRow = "//div[@data-asset-id][.//div[text()='Home']]";
+  const valueCellXPath = `${homeRow}//button[contains(@class,'amount-editable')]`;
+  const editInputXPath = `${homeRow}//input[contains(@class,'amount-edit-input')]`;
 
   // The value cell swaps to an <input autoFocus ... onBlur={commit}> the
   // instant it's clicked — a real, if narrow, race: clicking that freshly-
@@ -100,15 +99,14 @@ try {
     { timeout: 10000, timeoutMsg: "expected the edited value $400,000.00 to appear" },
   );
 
-  // Delete it and confirm it's gone, with the stat back down to just cash.
-  const deleteBtn = await app.browser.$("//table[.//th[text()='Value']]//button[text()='Delete']");
-  await deleteBtn.click();
-  const confirmDeleteBtn = await app.browser.$("//table[.//th[text()='Value']]//button[text()='Delete']");
+  // Delete it from the row's ⋯ menu and confirm it's gone, with the stat back down to just cash.
+  await pickFromMenu(app.browser, `${homeRow}//button[@data-row-menu]`, "//div[contains(@class,'row-menu-panel')]//button[normalize-space()='Delete…']");
+  const confirmDeleteBtn = await app.browser.$(`${homeRow}//span[contains(@class,'row-delete-confirm')]//button[text()='Delete']`);
   await confirmDeleteBtn.waitForExist({ timeout: 5000 });
   await confirmDeleteBtn.click();
 
   await app.browser.waitUntil(
-    async () => (await propertySection.getText()).includes("No property or valuables tracked yet"),
+    async () => (await propertySection.getText()).includes("No property or valuables added yet"),
     { timeout: 10000, timeoutMsg: "expected the asset to be gone after delete" },
   );
 

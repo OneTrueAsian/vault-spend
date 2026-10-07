@@ -1,5 +1,20 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { chooseMenuOption, dismissFirstLaunchDialogs, menuOptionLabels, pickFromMenu, reclaimWindowFocus, withFocusRetry } from "./harness.mjs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  DEFAULT_WINDOW_SIZE,
+  DRIVER_REQUEST_OPTIONS,
+  isCommandTimeout,
+  applyLaunchWindowSize,
+  applyWindowSize,
+  chooseMenuOption,
+  chooseStyle,
+  dismissFirstLaunchDialogs,
+  menuOptionLabels,
+  pickFromMenu,
+  reclaimWindowFocus,
+  requestedWindowSize,
+  trackWindowSize,
+  withFocusRetry,
+} from "./harness.mjs";
 
 // Unit tests for the harness's own logic, against a stand-in for WebdriverIO: no app, no driver. The
 // stand-in models one MenuSelect (a trigger, its popover menu, the items) and lets a test make the menu
@@ -349,6 +364,129 @@ describe("reclaimWindowFocus", () => {
     await reclaimWindowFocus(browser);
     expect(state.size).toEqual({ width: 1440, height: 1000 });
   });
+
+  it("puts back the size last asked for, even if the window has slipped to another size", async () => {
+    const { browser, state } = fakeWindow({ size: { width: 800, height: 600 } });
+    trackWindowSize(browser);
+    await browser.setWindowSize(1280, 800);
+    state.size = { width: 800, height: 600 }; // an earlier un-maximize that did not hold
+    await reclaimWindowFocus(browser);
+    expect(state.size).toEqual({ width: 1280, height: 800 });
+  });
+});
+
+describe("window size", () => {
+  it("defaults to 1280x800, wide enough for the sidebar to show its names", () => {
+    expect(DEFAULT_WINDOW_SIZE).toEqual({ width: 1280, height: 800 });
+  });
+
+  it("applyWindowSize asks again until the size holds, and remembers it", async () => {
+    const asked = [];
+    const state = { size: { width: 800, height: 600 }, misses: 1 };
+    const browser = {
+      async getWindowSize() {
+        return { ...state.size };
+      },
+      async setWindowSize(width, height) {
+        asked.push([width, height]);
+        if (state.misses-- > 0) return; // the first request is ignored, as after an un-maximize
+        state.size = { width, height };
+      },
+    };
+    trackWindowSize(browser);
+    expect(await applyWindowSize(browser, DEFAULT_WINDOW_SIZE)).toEqual({ width: 1280, height: 800 });
+    expect(state.size).toEqual({ width: 1280, height: 800 });
+    expect(asked).toEqual([
+      [1280, 800],
+      [1280, 800],
+    ]);
+  });
+
+  const stuckAt800 = () => ({
+    async getWindowSize() {
+      return { width: 800, height: 600 };
+    },
+    async setWindowSize() {},
+  });
+
+  it("applyWindowSize returns the size the window ended at when the size never holds", async () => {
+    expect(await applyWindowSize(stuckAt800(), DEFAULT_WINDOW_SIZE)).toEqual({ width: 800, height: 600 });
+  });
+
+  it("applyLaunchWindowSize logs the size it ended at and throws when the launch default does not hold", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await expect(applyLaunchWindowSize(stuckAt800(), DEFAULT_WINDOW_SIZE)).rejects.toThrow(/1280x800.*800x600/);
+      expect(log).toHaveBeenCalledWith("[harness] window 800x600");
+      log.mockClear();
+      const fine = { async getWindowSize() { return { width: 1280, height: 800 }; }, async setWindowSize() {} };
+      expect(await applyLaunchWindowSize(fine, DEFAULT_WINDOW_SIZE)).toEqual({ width: 1280, height: 800 });
+      expect(log).toHaveBeenCalledWith("[harness] window 1280x800");
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("trackWindowSize records sizes a spec sets itself", async () => {
+    const browser = {
+      async setWindowSize() {},
+      async getWindowSize() {
+        return { width: 1, height: 1 };
+      },
+    };
+    trackWindowSize(browser);
+    await browser.setWindowSize(800, 600);
+    expect(requestedWindowSize(browser)).toEqual({ width: 800, height: 600 });
+  });
+});
+
+describe("chooseStyle", () => {
+  /** Settings > Appearance, whose style tiles render only after `rowsAfter` reads (a lazy page). */
+  function fakeAppearance({ rowsAfter = 1, labels = ["Default", "Futuristic", "Retro"] } = {}) {
+    const state = { reads: 0, palette: "transparent", settingsClicks: 0, radioClicks: 0 };
+    const rows = labels.map((label) => ({
+      querySelector(selector) {
+        if (selector === ".style-preview-name") return { textContent: label };
+        if (selector === "input") return { click: () => (state.radioClicks++, (state.palette = label.toLowerCase())) };
+        return null;
+      },
+    }));
+    const browser = {
+      async $(selector) {
+        expect(selector).toBe(".nav-item[data-tab=settings]");
+        return { click: async () => state.settingsClicks++ };
+      },
+      async execute(fn, ...args) {
+        globalThis.document = {
+          documentElement: { dataset: { palette: state.palette } },
+          querySelectorAll: (selector) => {
+            expect(selector).toBe('[role="radiogroup"][aria-label="Style"] .style-preview-tile');
+            return state.reads++ >= rowsAfter ? rows : [];
+          },
+        };
+        return fn(...args);
+      },
+      async waitUntil(condition, { timeoutMsg } = {}) {
+        for (let i = 0; i < 3; i++) if (await condition()) return true;
+        throw new Error(timeoutMsg ?? "waitUntil timed out");
+      },
+    };
+    return { browser, state };
+  }
+
+  it("opens Settings, waits for the style's row, then chooses it", async () => {
+    const { browser, state } = fakeAppearance({ rowsAfter: 1 });
+    await chooseStyle(browser, "Retro", "retro");
+    expect(state.settingsClicks).toBe(1);
+    expect(state.radioClicks).toBe(1);
+    expect(state.palette).toBe("retro");
+  });
+
+  it("fails by name, without clicking, when the style is never offered", async () => {
+    const { browser, state } = fakeAppearance({ labels: ["Default"] });
+    await expect(chooseStyle(browser, "Retro", "retro")).rejects.toThrow(/should offer Retro/);
+    expect(state.radioClicks).toBe(0);
+  });
 });
 
 describe("pickFromMenu", () => {
@@ -487,5 +625,22 @@ describe("dismissFirstLaunchDialogs", () => {
       },
     });
     await expect(dismissFirstLaunchDialogs(browser)).rejects.toThrow(/intercepted/);
+  });
+});
+
+// A WebDriver command that never gets an answer used to wait WebdriverIO's default 120 s (and then retry
+// three times), so a spec sat silent until run-all.mjs killed it at 60 s with no clue which command hung
+// (feature163, Task 16). Each command now gives up well inside that cap and says which one it was.
+describe("driver request limits", () => {
+  it("gives every command 25 s and never repeats one silently", () => {
+    expect(DRIVER_REQUEST_OPTIONS).toEqual({ connectionRetryTimeout: 25_000, connectionRetryCount: 0 });
+  });
+
+  it("recognises a command that timed out, and nothing else", () => {
+    const timedOut = Object.assign(new Error('WebDriverError: Request timed out! Consider increasing the "connectionRetryTimeout" option. when running "http://127.0.0.1:4444/session/s1/elements" with method "POST"'), { name: "WebDriverRequestError", code: "ETIMEDOUT" });
+    expect(isCommandTimeout(timedOut)).toBe(true);
+    expect(isCommandTimeout(new Error("element not interactable"))).toBe(false);
+    expect(isCommandTimeout(new Error("waitUntil condition timed out after 3000ms"))).toBe(false);
+    expect(isCommandTimeout(undefined)).toBe(false);
   });
 });

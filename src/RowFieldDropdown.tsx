@@ -1,5 +1,7 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useDismiss } from "./useDismiss";
+import { useFixedPanel } from "./useFixedPanel";
 
 /** A row-level single-select — the account/member/category editor for one
  * ledger row — replacing a native `<select>`. A native select's closed-state
@@ -23,6 +25,9 @@ export function RowFieldDropdown({
   value,
   ariaLabel,
   onChange,
+  variant = "boxed",
+  displayLabel,
+  triggerClassName,
 }: {
   /** `disabled` marks a placeholder that describes the current "nothing
    * chosen" state without itself being a choosable value — mirroring a
@@ -33,6 +38,12 @@ export function RowFieldDropdown({
   value: string;
   ariaLabel: string;
   onChange: (value: string) => void;
+  /** "plain" reads as ordinary table text (no box; the caret shows on hover, focus or while open). */
+  variant?: "boxed" | "plain";
+  /** Overrides the trigger's text, e.g. "" so a row with no family member shows a blank cell. */
+  displayLabel?: string;
+  /** Extra class on the trigger, e.g. `row-field-needs` for a "needs you" state. */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -40,58 +51,20 @@ export function RowFieldDropdown({
   const panelRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const selectedLabel = options.find((o) => o.value === value)?.label ?? value;
+  const shownLabel = displayLabel ?? selectedLabel;
 
-  useEffect(() => {
-    if (!open) return;
-    function handlePointerDown(e: MouseEvent) {
-      const target = e.target as Node;
-      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
-      setOpen(false);
-    }
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    }
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
+  useDismiss(open, [rootRef, panelRef], (reason) => {
+    setOpen(false);
+    if (reason === "escape") triggerRef.current?.focus();
+  });
+
+  useFixedPanel(open, triggerRef, panelRef);
 
   useLayoutEffect(() => {
-    if (!open || !panelRef.current || !triggerRef.current) return;
+    if (!open || !panelRef.current) return;
     const panel = panelRef.current;
-    const trigger = triggerRef.current;
-    function place() {
-      const rect = trigger.getBoundingClientRect();
-      const below = window.innerHeight - rect.bottom - 12;
-      const above = rect.top - 12;
-      const wanted = Math.min(panel.scrollHeight + 2, 340);
-      const useAbove = below < wanted && above > below;
-      panel.style.maxHeight = `${Math.max(0, Math.min(wanted, useAbove ? above : below))}px`;
-      panel.style.top = useAbove ? "auto" : `${rect.bottom + 6}px`;
-      panel.style.bottom = useAbove ? `${window.innerHeight - rect.top + 6}px` : "auto";
-      const width = Math.max(rect.width, 220);
-      panel.style.minWidth = `${width}px`;
-      let left = rect.left;
-      const maxLeft = window.innerWidth - 8 - panel.offsetWidth;
-      if (left > maxLeft) left = maxLeft;
-      if (left < 8) left = 8;
-      panel.style.left = `${left}px`;
-    }
-    place();
     (panel.querySelector<HTMLButtonElement>('[aria-checked="true"]:not([aria-disabled="true"])') ??
       panel.querySelector<HTMLButtonElement>('[role="menuitemradio"]:not([aria-disabled="true"])'))?.focus();
-    window.addEventListener("resize", place);
-    document.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      document.removeEventListener("scroll", place, true);
-    };
   }, [open]);
 
   function choose(next: string) {
@@ -106,7 +79,7 @@ export function RowFieldDropdown({
       <button
         type="button"
         ref={triggerRef}
-        className="account-filter-toggle row-field-toggle"
+        className={["account-filter-toggle row-field-toggle", variant === "plain" ? "row-field-toggle-plain" : "", triggerClassName ?? ""].filter(Boolean).join(" ")}
         aria-label={ariaLabel}
         // The ledger clips a long label with an ellipsis; this keeps the full name readable on hover.
         title={selectedLabel}
@@ -121,7 +94,7 @@ export function RowFieldDropdown({
           }
         }}
       >
-        <span>{selectedLabel}</span>
+        {shownLabel !== "" && <span>{shownLabel}</span>}
         <span className="account-filter-caret" aria-hidden="true">
           ▾
         </span>

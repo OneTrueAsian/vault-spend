@@ -2,9 +2,10 @@
 // search input at the top of the page filters every section at once —
 // "Getting started"/"Importing transactions"/"Bulk setup-data import/
 // export" show or hide as whole cards (they're single ordered
-// walkthroughs), while "A tour of the tabs"/"Exporting your data"/"FAQ"
-// filter at the individual-item level and disappear entirely once they
-// have zero visible items. A query with no matches anywhere shows one
+// walkthroughs), while "Help for each page" (one section per page, opened
+// when a search matches it)/"Exporting your data"/"FAQ" filter at the
+// individual-item level and disappear entirely once they have zero
+// visible items. A query with no matches anywhere shows one
 // page-level "no results" message instead of a wall of empty cards.
 //
 // Run with: node e2e/feature26_help_search.mjs
@@ -26,7 +27,7 @@ try {
   const beforeText = await helpPage.getText();
   const expectedHeadings = [
     "Getting started",
-    "A tour of the tabs",
+    "Help for each page",
     "Importing transactions",
     "Bulk setup-data import/export",
     "Exporting your data",
@@ -38,14 +39,14 @@ try {
     }
   }
   if (!beforeText.includes("Is my data private?") || !beforeText.includes("Dashboard")) {
-    throw new Error(`expected FAQ and tab-tour content visible with no search query, got:\n${beforeText}`);
+    throw new Error(`expected FAQ and per-page Help content visible with no search query, got:\n${beforeText}`);
   }
   console.log("every section visible by default");
 
-  // "backup" is tagged on exactly one tour-of-tabs bullet (Settings) and
+  // "backup" is tagged on exactly one page's Help section (Settings) and
   // exactly one FAQ entry — and nothing else — so it proves both true
   // global filtering (unrelated cards disappear entirely) and per-item
-  // filtering within a card (only the matching bullet/question survives).
+  // filtering within a card (only the matching section/question survives).
   await searchInput.setValue("backup");
 
   await app.browser.waitUntil(
@@ -53,14 +54,14 @@ try {
       const text = await helpPage.getText();
       return (
         text.includes("How do automatic backups work") &&
-        text.includes("A tour of the tabs") &&
+        text.includes("Help for each page") &&
         text.includes("Settings") &&
         !text.includes("Getting started") &&
         !text.includes("Dashboard") &&
         !text.includes("Is my data private?")
       );
     },
-    { timeout: 10000, timeoutMsg: 'expected "backup" to narrow the whole page down to just the matching tour bullet and FAQ entry' },
+    { timeout: 10000, timeoutMsg: 'expected "backup" to narrow the whole page down to just the matching Help section and FAQ entry' },
   );
   console.log("global search narrowed every section correctly, at the right granularity");
 
@@ -87,6 +88,20 @@ try {
   );
   console.log("password protection has a searchable Help topic");
 
+  await reclaimWindowFocus(app.browser);
+  await searchInput.click();
+  await app.browser.keys(["Control", "a"]);
+  await app.browser.keys("Backspace");
+
+  await searchInput.setValue("mobile snapshots");
+  await app.browser.waitUntil(async () => {
+    const text = await helpPage.getText();
+    return text.includes("How do I set up mobile snapshots on my phone?") &&
+      text.includes("Can I use mobile snapshots away from my computer?") &&
+      text.includes("How do I stop phone access or remove mobile snapshots?") &&
+      text.includes("Ready offline") && text.includes("No desktop control can remotely erase") &&
+      !text.includes("Getting started");
+  }, { timeout: 10000, timeoutMsg: "mobile setup, offline and removal guidance should be searchable together" });
   await reclaimWindowFocus(app.browser);
   await searchInput.click();
   await app.browser.keys(["Control", "a"]);

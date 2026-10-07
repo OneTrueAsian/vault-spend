@@ -1,0 +1,632 @@
+/* ------------------------------- Modals ------------------------------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 16, 14, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: overlay-in 160ms ease;
+}
+
+.modal-panel {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 24px 26px;
+  width: 340px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  animation: panel-pop-in 160ms ease;
+  /* Without this, a child wider than the panel (an unwrapped table) would
+     flip this axis to `auto` too (per the CSS overflow computation rule:
+     a non-"visible" overflow-y forces overflow-x off "visible" as well),
+     scrolling the *entire* panel — title and buttons included — sideways
+     instead of just the wide content. Anything that can outgrow the
+     panel should wrap itself in its own scrolling container instead
+     (see `.modal-table-scroll`). */
+  overflow-x: hidden;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+}
+
+/* The panel itself is only ever focused programmatically on open (as a
+   landing spot for keyboard/AT users when the dialog has no autoFocus
+   field of its own) — never via Tab — so it doesn't need a focus ring the
+   way a real control does. */
+.modal-panel:focus {
+  outline: none;
+}
+
+/* Entrance only — deliberately no matching exit animation. `onCancel`
+   (Escape/backdrop, wired in ModalShell) is only half of how a dialog
+   closes: every dialog's own in-panel Cancel/Save/Done button also calls
+   that same prop directly, bypassing ModalShell entirely, so an exit
+   transition here could only ever cover one of the two paths — a
+   fade-out on Escape but an instant cut on clicking Cancel would read as
+   broken, not polished, so this stays enter-only. */
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* `transform` only on the panel itself (unlike the backdrop above, which
+   is purely decorative and fine to fade) — see `.stat-detail-panel`'s
+   comment on `panel-in`/`panel-out` for why real dialog content never
+   gets an opacity-0 frame: a real, reproduced `getText()` flake on this
+   app's WebDriver stack during one, which the same concern applies to
+   for a screen reader reading the dialog's labels/inputs on open. */
+@keyframes panel-pop-in {
+  from {
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.modal-panel-wide {
+  /* Content-heavy dialogs vary a lot in how much room they actually need
+     (a short list vs. a 5-column ledger table) — sizing from a generous
+     upper bound rather than one fixed pixel width lets each dialog use
+     what it needs up to that cap, and still shrink to fit a small
+     window rather than clipping. */
+  width: min(760px, calc(100vw - 40px));
+}
+
+.modal-table-scroll {
+  overflow-x: auto;
+  margin-bottom: 14px;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  margin: 0 0 16px 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* A header row with something (a Close button) at the top right. */
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.modal-header .modal-title {
+  margin: 0;
+  min-width: 0;
+}
+
+.modal-header button {
+  flex: 0 0 auto;
+}
+
+/* Header and footer stay put; only the body between them scrolls — so the title,
+   Close and the navigation buttons are always reachable, in any window size. */
+.modal-panel-fixed-chrome {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-panel-fixed-chrome .modal-header {
+  flex: 0 0 auto;
+}
+
+.modal-panel-fixed-chrome .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+
+.modal-panel-fixed-chrome .modal-footer {
+  flex: 0 0 auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.modal-panel-fixed-chrome .modal-footer .modal-actions {
+  margin-top: 0;
+}
+
+.modal-message {
+  margin: 0 0 12px 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.modal-message-secondary {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.choice-card-list {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+
+.choice-card {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+}
+
+.choice-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.choice-card span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.modal-changelog-list {
+  margin: 0 0 16px 0;
+  padding-left: 20px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.modal-changelog-list li {
+  margin-bottom: 8px;
+}
+
+.modal-changelog-list li:last-child {
+  margin-bottom: 0;
+}
+
+.release-notes-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.release-note-entry {
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+}
+
+.release-note-entry:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.release-note-entry summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13.5px;
+  list-style: none;
+}
+
+.release-note-entry summary::-webkit-details-marker {
+  display: none;
+}
+
+.release-note-entry summary::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+
+.release-note-entry[open] summary::before {
+  transform: rotate(90deg);
+}
+
+/* Explicit, rather than relying on the browser's own
+   `details:not([open]) > *:not(summary) { display: none }` UA-stylesheet
+   default — confirmed not to reliably apply in this app's WebView2
+   runtime, meaning every version's changelog has been rendering in full
+   regardless of the "collapsed" arrow state (only the first, meant-to-be-
+   open entry was ever supposed to show its list). */
+.release-note-entry > .modal-changelog-list {
+  display: none;
+}
+
+.release-note-entry[open] > .modal-changelog-list {
+  display: block;
+}
+
+.release-note-entry .modal-changelog-list {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.release-note-current {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+}
+
+.icon-credits-disclosure summary,
+.third-party-notices summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13.5px;
+  list-style: none;
+}
+
+.icon-credits-disclosure summary::-webkit-details-marker,
+.third-party-notices summary::-webkit-details-marker {
+  display: none;
+}
+
+.icon-credits-disclosure summary::before,
+.third-party-notices summary::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+
+.icon-credits-disclosure[open] summary::before,
+.third-party-notices[open] summary::before {
+  transform: rotate(90deg);
+}
+
+/* Explicit, rather than relying on the browser's own
+   `details:not([open]) > *:not(summary) { display: none }` UA-stylesheet
+   default — that default doesn't reliably apply in this app's WebView2
+   runtime (confirmed: a closed <details> here still renders its child at
+   full height), so state has to be driven from the `[open]` attribute
+   directly instead of assumed. */
+.icon-credits-disclosure > ul {
+  display: none;
+}
+
+.icon-credits-disclosure[open] > ul {
+  display: block;
+}
+
+/* Same explicit open/closed handling as the icon credits above: a closed <details> can still paint
+   its child in this WebView2, so the notices text is shown only from the [open] attribute. */
+.third-party-notices > pre {
+  display: none;
+}
+
+.third-party-notices[open] > pre {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  margin: 12px 0 0;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.protection-new-badge {
+  margin-inline-start: 0.5rem;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.75em;
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.modal-field input,
+.modal-field select,
+.modal-field textarea {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.modal-field textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+.modal-field input[aria-invalid="true"],
+.modal-field textarea[aria-invalid="true"] {
+  border-color: var(--negative);
+}
+
+.notes-char-count {
+  margin: -8px 0 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.notes-char-count-over {
+  color: var(--negative);
+  font-weight: 600;
+}
+
+/* A checkbox + its sentence on one line, inside a dialog. */
+.modal-field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.modal-field-inline input {
+  padding: 0;
+}
+
+/* In place of a view until the profile's data arrives (DataLoading.tsx). */
+.data-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 240px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.data-loading-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: data-loading-spin 0.9s linear infinite;
+}
+
+@keyframes data-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.field-error {
+  color: var(--negative);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.field-hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Higher specificity than either `.field-hint` or `.report-over-budget`
+   alone, so this wins regardless of which order they're declared in. */
+.field-hint.report-over-budget {
+  color: var(--negative);
+}
+
+.field-hint.field-warning {
+  color: var(--warning);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.category-create-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+/* Settings > Profiles: the row wraps in a narrow window, so the name box keeps room to type in instead
+   of shrinking to a sliver beside the two buttons and the password checkbox. */
+.profile-create-form {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.category-create-form.profile-create-form input:not([type="checkbox"]):not([type="radio"]) {
+  flex: 1 1 220px;
+  min-width: 220px;
+}
+
+.category-create-form input:not([type="checkbox"]):not([type="radio"]) {
+  flex: 1;
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.category-create-form .checkbox-label input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.settings-profile-lock {
+  margin-left: 6px;
+  font-size: 12px;
+}
+
+.category-create-form button {
+  padding: 0.4em 0.9em;
+  font-size: 0.9em;
+}
+
+.widget-group-title {
+  font-weight: 600;
+  margin: 14px 0 6px 0;
+}
+
+.widget-group-title:first-child {
+  margin-top: 0;
+}
+
+.category-manage-list {
+  list-style: none;
+  margin: 0 0 14px 0;
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.category-manage-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.category-manage-row:last-child {
+  border-bottom: none;
+}
+
+/* "+ Add widget" dialog only — a 2-column grid of boxed rows instead of one
+   tall single-column list, so the catalog (now 13 entries once the stat
+   cards count as 4 of their own) reads as a compact picker rather than a
+   long scroll. Also drops the list's own max-height/scroll (the modal
+   panel itself already scrolls as a whole — see .modal-panel) so this
+   doesn't nest a second scrollbar inside the first. */
+.category-manage-list.widget-catalog-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: none;
+  overflow: visible;
+}
+
+.category-manage-list.widget-catalog-list .category-manage-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.category-manage-list.widget-catalog-list .category-manage-row:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.category-manage-name {
+  font-size: 13.5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-manage-row input {
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.category-manage-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.category-manage-confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 1 1 100%;
+}
+
+.large-expense-list {
+  list-style: none;
+  margin: 0 0 14px 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.large-expense-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.large-expense-row:last-child {
+  border-bottom: none;
+}
+
+.category-manage-confirm .modal-message-secondary {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.category-manage-actions button,
+.category-manage-confirm button {
+  padding: 0.3em 0.7em;
+  font-size: 0.85em;
+}

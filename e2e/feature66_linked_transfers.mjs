@@ -9,7 +9,7 @@
 //
 // Run with: node e2e/feature66_linked_transfers.mjs
 
-import { launchApp } from "./harness.mjs";
+import { chooseRowAction, launchApp } from "./harness.mjs";
 import os from "node:os";
 import path from "node:path";
 import { seedFixture } from "./lib/seed.mjs";
@@ -132,7 +132,7 @@ try {
 
   // Unlink one.
   const rentRow = await browser.$("//tr[contains(@class,'ledger-row-transfer')][td[contains(.,'Rent Share')]]");
-  await (await rentRow.$("button=Unlink")).click();
+  await chooseRowAction(browser, async () => rentRow.$("[data-row-menu]"), "Unlink transfer…");
   await browser.waitUntil(async () => (await transferRows()).length === 2, { timeout: 10000, timeoutMsg: "unlinking should drop back to two merged rows" });
   const afterUnlink = await (await browser.$("table.ledger")).getText();
   if (!afterUnlink.includes("Roommate deposit")) throw new Error("after unlinking, the incoming leg should be its own row again");

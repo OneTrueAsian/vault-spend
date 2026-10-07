@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { InfoTip } from "../InfoTip";
 import { MenuSelect } from "../MenuSelect";
-import { toLocalIsoDate } from "../format";
+import { formatDisplayDate, toLocalIsoDate } from "../format";
 import type { Account, Asset, FamilyMember } from "../types";
 import { AgeField } from "./AgeField";
 import { AmountEditor } from "./AmountEditor";
@@ -292,7 +292,7 @@ export function ComparisonDetailsPanel({
               value={p.age?.age ?? null}
               onChange={(age) => edit((s) => setAge(s, p.person, age, today))}
             />
-            {p.age && <span className="modal-message-secondary">Age confirmed {p.age.confirmedOn}.</span>}
+            {p.age && <span className="modal-message-secondary">Age confirmed {formatDisplayDate(p.age.confirmedOn)}.</span>}
           </div>
         ))}
       </section>
@@ -507,7 +507,7 @@ export function ComparisonDetailsPanel({
               <button type="button" className="modal-secondary" data-cmp-confirm={m} onClick={() => edit((s) => confirmBalances(s, m, today))}>
                 {confirmed ? "Confirm again today" : "Confirm these are complete and current"}
               </button>
-              <span className="modal-message-secondary">{confirmed ? `Last confirmed ${confirmed}.` : "Not confirmed yet."}</span>
+              <span className="modal-message-secondary">{confirmed ? `Last confirmed ${formatDisplayDate(confirmed)}.` : "Not confirmed yet."}</span>
             </div>
           );
         })}

@@ -52,16 +52,16 @@ describe("ImportCategoryReconcile", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("says how many categories are unfamiliar and that none will be added on its own", () => {
+  it("says in plain words that these are the bank's categories, and that the choice is remembered", () => {
     show();
     const text = container.textContent ?? "";
-    expect(text).toContain("2 categories in this file aren't in your list");
-    expect(text).toMatch(/won't add them unless you say so/i);
+    expect(text).toContain("Your bank uses 2 categories you don't have");
+    expect(text).toContain("Pick one of yours for each. The app will remember it next time.");
   });
 
   it("uses the singular for a single category", () => {
     show({ "Gas/Automotive": { action: "skip" } }, [{ name: "Gas/Automotive", count: 1 }]);
-    expect(container.textContent).toContain("1 category in this file isn't in your list");
+    expect(container.textContent).toContain("Your bank uses 1 category you don't have");
   });
 
   it("lists each category with how many rows use it, one dropdown each", () => {
@@ -87,7 +87,7 @@ describe("ImportCategoryReconcile", () => {
   it("offers not using it, adding the file's category, or any of the person's own", () => {
     show();
     const options = menuOptions(selects()[0]).map((o) => o.label);
-    expect(options[0]).toBe("Don't use it");
+    expect(options[0]).toBe("Let the app guess");
     expect(options[1]).toBe("Add as a new category");
     expect(options.slice(2)).toEqual(mine);
   });
@@ -110,10 +110,39 @@ describe("ImportCategoryReconcile", () => {
     expect(selects().map(menuValue)).toEqual(["map:Groceries", "create"]);
   });
 
+  it("fills in a choice remembered from an earlier import, and says so", () => {
+    const withMemory = [{ name: "Merchandise", count: 12, remembered_category: "Groceries" }, { name: "Gas/Automotive", count: 1 }];
+    expect(defaultCategoryChoices(withMemory)).toEqual({
+      Merchandise: { action: "map_to", category: "Groceries" },
+      "Gas/Automotive": { action: "skip" },
+    });
+    show(defaultCategoryChoices(withMemory), withMemory);
+    expect(selects().map(menuValue)).toEqual(["map:Groceries", "skip"]);
+    const rows = [...container.querySelectorAll(".import-category-row")];
+    expect(rows[0].textContent).toContain("Your choice from last time");
+    expect(rows[1].textContent).not.toContain("Your choice from last time");
+  });
+
+  it("stops saying it remembered once the choice is changed", () => {
+    const withMemory = [{ name: "Merchandise", count: 12, remembered_category: "Groceries" }];
+    show({ Merchandise: { action: "skip" } }, withMemory);
+    expect(container.textContent).not.toContain("Your choice from last time");
+  });
+
+  it("locks every control while the import is being saved", () => {
+    act(() => {
+      root.render(
+        <ImportCategoryReconcile unmatched={unmatched} categories={mine} choices={defaultCategoryChoices(unmatched)} onChange={onChange} onSetAll={onSetAll} disabled />,
+      );
+    });
+    expect(selects().every((b) => b.disabled)).toBe(true);
+    expect([...container.querySelectorAll("button:not([data-import-category-choice])")].every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+  });
+
   it("has one-click ways to not use any of them or to add them all", () => {
     show();
     const buttons = [...container.querySelectorAll("button")];
-    const leaveAll = buttons.find((b) => b.textContent === "Don't use any of them")!;
+    const leaveAll = buttons.find((b) => b.textContent === "Let the app guess for all")!;
     const addAll = buttons.find((b) => b.textContent === "Add all as new categories")!;
     act(() => leaveAll.click());
     expect(onSetAll).toHaveBeenLastCalledWith("skip");

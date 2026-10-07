@@ -9,7 +9,7 @@
 //
 // Run with: node e2e/feature52_income_calculation_qa.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 // Expected hand-computed values (account_type in parens):
@@ -114,7 +114,7 @@ try {
   await app.browser.setWindowSize(1280, 900);
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
-  await (await app.browser.$(".stats")).waitForExist({ timeout: 10000 });
+  await (await app.browser.$("[data-ledger-subtitle]")).waitForExist({ timeout: 10000 });
   // The ledger's narrow/wide layout switch depends on a ResizeObserver
   // callback, which lands asynchronously after the resize above — give it
   // a moment before reading page content that depends on the wide layout.
@@ -123,13 +123,15 @@ try {
     timeoutMsg: "expected the ledger to settle into its wide layout after resizing to 1280x900",
   });
 
-  const txCount = await statValue(app, "Transactions");
-  if (txCount !== "9") throw new Error(`expected 9 visible transactions, got ${txCount}`);
-  const correctedCount = await statValue(app, "Corrected by you");
-  if (correctedCount !== "9") throw new Error(`expected 9 "Corrected by you", got ${correctedCount}`);
-  const uncategorizedCount = await statValue(app, "Needs a category");
-  if (uncategorizedCount !== "0") {
-    throw new Error(`expected 0 "Needs a category" (every seeded row has a real category), got ${uncategorizedCount}`);
+  // The counts the old tiles showed now sit in the subtitle; the needs-a-category line shows only
+  // when something needs one.
+  const subtitle = await app.browser.$("[data-ledger-subtitle]");
+  await waitUntilOrDiagnose(app.browser, async () => /^9 transactions across \d+ accounts\. 0 sorted automatically, 9 by you\.$/.test((await subtitle.getText()).trim()), {
+    timeoutMsg: 'expected the subtitle "9 transactions across N accounts. 0 sorted automatically, 9 by you."',
+    extra: async () => ({ subtitle: await subtitle.getText() }),
+  });
+  if (await app.browser.$("[data-needs-category]").isExisting()) {
+    throw new Error(`expected no needs-a-category line (every seeded row has a real category), got "${await app.browser.$("[data-needs-category]").getText()}"`);
   }
 
   const ledgerText = await (await app.browser.$(".page")).getText();
@@ -137,7 +139,7 @@ try {
   if (ledgerText.includes("Payment applied from")) {
     throw new Error("the debt-payment-generated transaction must stay hidden from the Ledger, but its description is visible");
   }
-  console.log("Ledger stats and linked/generated debt-payment visibility are correct");
+  console.log("Ledger counts and linked/generated debt-payment visibility are correct");
 
   const householdNav = await app.browser.$("button*=Household");
   await householdNav.click();
@@ -158,11 +160,12 @@ try {
   await (await app.browser.$(".stats")).waitForExist({ timeout: 10000 });
   const assetsText = await statValue(app, "What you own");
   const liabilitiesText = await statValue(app, "What you owe");
-  const netWorthText = await statValue(app, "Net Worth");
+  const netWorthText = await statValue(app, "Net worth");
   if (assetsText !== "$7,990.00") throw new Error(`expected Total Assets $7,990.00, got ${assetsText}`);
   // See the file-level comment: "Total Liabilities" is this app's existing
   // signed net-worth-contribution convention, not an owed-amount magnitude.
-  if (liabilitiesText !== "-$9,800.00") throw new Error(`expected Total Liabilities -$9,800.00, got ${liabilitiesText}`);
+  // "What you owe" shows the amount owed (UAT s7.1 mockup), not its negative net-worth contribution.
+  if (liabilitiesText !== "$9,800.00") throw new Error(`expected What you owe $9,800.00, got ${liabilitiesText}`);
   if (netWorthText !== "-$1,810.00") throw new Error(`expected Net Worth -$1,810.00, got ${netWorthText}`);
   console.log("Accounts assets/liabilities/net worth are correct");
 

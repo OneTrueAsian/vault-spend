@@ -55,6 +55,19 @@ const PAGE_REACHED_DEADLINE_MS = 15_000;
 // A launch that stalls before the page loads is tried once more, with a fresh driver and app.
 const LAUNCH_ATTEMPTS = 2;
 
+/** Every WebDriver command gets 25 s to be answered and is never sent twice. WebdriverIO's defaults (120 s,
+ * then three more tries) meant a command the driver never answered left the spec silent until run-all.mjs
+ * killed it at 60 s, with nothing saying which command it was (feature163 and feature106 in Task 16's
+ * full runs). Now it fails with "Request timed out ... when running <command>" and the spec's own stack.
+ * No healthy command takes anywhere near 25 s; a spec's longer waits poll with short commands. */
+export const DRIVER_REQUEST_OPTIONS = Object.freeze({ connectionRetryTimeout: 25_000, connectionRetryCount: 0 });
+
+/** Whether an error is a WebDriver command that got no answer in time (see DRIVER_REQUEST_OPTIONS), as
+ * opposed to a command that failed or a waitUntil that ran out. */
+export function isCommandTimeout(error) {
+  return Boolean(error) && /Request timed out/.test(String(error.message ?? ""));
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -157,6 +170,58 @@ export async function dismissFirstLaunchDialogs(browser) {
   }
 }
 
+// Every spec starts at this window size (launchApp's `windowSize`), wide enough for the sidebar to show
+// its names: below 1000px it shows icons only. A spec that needs the narrow layout sets it itself.
+export const DEFAULT_WINDOW_SIZE = Object.freeze({ width: 1280, height: 800 });
+
+const requestedSizes = new WeakMap();
+
+/** The window size last asked for through `browser.setWindowSize` (see trackWindowSize), if any. */
+export function requestedWindowSize(browser) {
+  return requestedSizes.get(browser);
+}
+
+/** Makes `browser.setWindowSize` remember each size asked for, so reclaimWindowFocus can put it back. */
+export function trackWindowSize(browser) {
+  const record = (width, height) => requestedSizes.set(browser, { width, height });
+  if (typeof browser.overwriteCommand === "function") {
+    browser.overwriteCommand("setWindowSize", async (original, width, height) => {
+      record(width, height);
+      return original(width, height);
+    });
+  } else {
+    const original = browser.setWindowSize.bind(browser);
+    browser.setWindowSize = async (width, height) => {
+      record(width, height);
+      return original(width, height);
+    };
+  }
+}
+
+/** Sets the window size, asking again (up to 3 times in all) until it holds, and returns the size the
+ * window ended at. A size it cannot take (narrower than the app's minimum, say) is left as it ends. */
+export async function applyWindowSize(browser, { width, height }) {
+  let now;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await browser.setWindowSize(width, height);
+    now = await browser.getWindowSize();
+    if (now.width === width && now.height === height) break;
+  }
+  return now;
+}
+
+/** The size every spec starts at (launchApp's `windowSize`). Logs the size the window ended at, and
+ * throws, naming both sizes, if it isn't the one asked for: a spec run at the wrong size would fail
+ * later in a confusing place (the narrow layout hides names and columns), so it fails here instead. */
+export async function applyLaunchWindowSize(browser, size) {
+  const ended = await applyWindowSize(browser, size);
+  console.log(`[harness] window ${ended.width}x${ended.height}`);
+  if (ended.width !== size.width || ended.height !== size.height) {
+    throw new Error(`launchApp should start the window at ${size.width}x${size.height}, but it stayed at ${ended.width}x${ended.height} after 3 attempts`);
+  }
+  return ended;
+}
+
 // Under the parallel runner, every other spec's app window that launches takes OS foreground from
 // this one: `document.hasFocus()` flips to false while `document.activeElement` is untouched, so
 // `:focus`/`:focus-visible` stop matching and any focus-dismissed UI (a dropdown menu) closes. That
@@ -168,16 +233,14 @@ export async function dismissFirstLaunchDialogs(browser) {
 // that is focused but still not `:focus-visible` after this is a real failure.
 export async function reclaimWindowFocus(browser) {
   if (await browser.execute(() => document.hasFocus())) return;
-  const { width, height } = await browser.getWindowSize();
+  // The size last asked for (see trackWindowSize), not the size the window reports: a window that an
+  // earlier attempt could not put back would otherwise keep the wrong size from then on.
+  const size = requestedWindowSize(browser) ?? (await browser.getWindowSize());
   await browser.maximizeWindow();
   // Resizing a maximized window only un-maximizes it, back to the size it was created at (800x600), and
   // ignores the size asked for — so a spec that had set 1440x1000 silently dropped to the narrow layout
   // after every reclaim. Ask again until the size really is back.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await browser.setWindowSize(width, height);
-    const now = await browser.getWindowSize();
-    if (now.width === width && now.height === height) break;
-  }
+  await applyWindowSize(browser, size);
   await browser.waitUntil(() => browser.execute(() => document.hasFocus()), {
     timeout: 5000,
     timeoutMsg: "the app window never regained focus (another window is holding OS foreground)",
@@ -227,6 +290,82 @@ export async function pickFromMenu(browser, trigger, option) {
   });
 }
 
+/** Answers the native file picker (`plugin:dialog|open`) with `files`, one path per pick, in order (null
+ * once they run out, which is "cancelled"), by wrapping `window.fetch`: Tauri sends each command as a
+ * fetch to ipc.localhost, and `__TAURI_INTERNALS__.invoke`, `window.__TAURI_INTERNALS__` and `window.ipc`
+ * are all read-only, so fetch is the one place a command can be answered.
+ *
+ * The catch (tauri's scripts/ipc-protocol.js): the first IPC fetch that fails, a request dropped while
+ * the machine is busy, switches the page to `window.ipc.postMessage` for good. From then on no command
+ * passes through fetch, so the pick goes to the real, modal file picker, which nobody answers: the spec
+ * hangs with no error until the runner kills it (feature162, once in a full run). So the wrapper also
+ * retries a failed IPC fetch before Tauri sees the failure (Tauri itself would resend the same message
+ * over postMessage, so this repeats nothing Tauri wouldn't), and the stub checks that commands still go
+ * through fetch, failing at once with the reason if the page had already switched. */
+export async function stubFilePicker(browser, files) {
+  const result = await browser.executeAsync((paths, done) => {
+    window.__pickedFiles = paths;
+    if (!window.__filePickerStubbed) {
+      window.__filePickerStubbed = true;
+      window.__ipcFetches = 0;
+      const answer = () => (window.__pickedFiles.length ? window.__pickedFiles.shift() : null);
+      const originalFetch = window.fetch;
+      const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      window.fetch = function (input) {
+        const url = decodeURIComponent(String(typeof input === "string" ? input : input.url));
+        if (!url.includes("ipc.localhost")) return originalFetch.apply(window, arguments);
+        window.__ipcFetches++;
+        if (url.endsWith("plugin:dialog|open")) {
+          return Promise.resolve(new Response(JSON.stringify(answer()), { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }));
+        }
+        const args = arguments;
+        const attempt = (left) => originalFetch.apply(window, args).catch((e) => (left > 0 ? pause(150).then(() => attempt(left - 1)) : Promise.reject(e)));
+        return attempt(5);
+      };
+    }
+    const before = window.__ipcFetches;
+    window.__TAURI_INTERNALS__.invoke("list_accounts").then(
+      () => done({ throughFetch: window.__ipcFetches > before }),
+      (e) => done({ error: String(e) }),
+    );
+  }, files);
+  if (result.error) throw new Error(`stubFilePicker: a test command failed: ${result.error}`);
+  if (!result.throughFetch) {
+    throw new Error("stubFilePicker: this window already sends Tauri commands over postMessage (an IPC fetch failed before the stub was installed), so the file picker can't be answered and would open for real");
+  }
+}
+
+/** Opens a row's ⋯ menu (RowMenu) and clicks the item with this exact label, through withFocusRetry
+ * (another window taking focus closes the menu between the two clicks). */
+export async function chooseRowAction(browser, trigger, label) {
+  try {
+    await pickFromMenu(browser, trigger, async () => {
+      // The panel renders after the click lands; on a busy machine that can be after this first
+      // look, so keep looking briefly rather than judging the menu on one read.
+      let found = null;
+      await browser
+        .waitUntil(
+          async () => {
+            for (const item of await browser.$$(".row-menu-panel [role^='menuitem']")) {
+              if ((await item.getText()).trim() === label) {
+                found = item;
+                return true;
+              }
+            }
+            return false;
+          },
+          { timeout: 3000, interval: 100 },
+        )
+        .catch(() => undefined);
+      // Not found: hand back a fixed, never-matching selector so the wait fails.
+      return found ?? browser.$(".row-menu-panel [data-row-action-missing]");
+    });
+  } catch (e) {
+    e.message += ` [chooseRowAction: looking for the menu item "${label}"]`;
+    throw e;
+  }
+}
+
 // A snapshot of what the app window looks like right now, for failure messages: whether it has OS
 // focus (see reclaimWindowFocus), where keyboard focus is, any dialog, alert or status text, and the
 // start of the visible page. Never throws — a dead window reports why instead.
@@ -268,6 +407,29 @@ export async function waitUntilOrDiagnose(browser, condition, { timeout = 10000,
   }
 }
 
+/** Picks a visual style on Settings > Appearance the way a person does: opens Settings, waits for that
+ * style's row (the click needs the row itself, not just its group), clicks its radio and waits until
+ * the style (`palette`, the value of `<html data-palette>`) is applied. */
+export async function chooseStyle(browser, label, palette) {
+  await (await browser.$(".nav-item[data-tab=settings]")).click();
+  const styleRows = (text) =>
+    [...document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')].filter(
+      (r) => r.querySelector(".style-preview-name")?.textContent === text,
+    ).length;
+  await waitUntilOrDiagnose(browser, async () => (await browser.execute(styleRows, label)) > 0, {
+    timeoutMsg: `Settings > Appearance should offer ${label}`,
+  });
+  await browser.execute((text) => {
+    const row = [...document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')].find(
+      (r) => r.querySelector(".style-preview-name")?.textContent === text,
+    );
+    row.querySelector("input").click();
+  }, label);
+  await waitUntilOrDiagnose(browser, () => browser.execute((p) => document.documentElement.dataset.palette === p, palette), {
+    timeoutMsg: `choosing ${label} should apply it`,
+  });
+}
+
 // Kills a process and everything it started. tauri-driver starts msedgedriver, which starts the app, so a
 // plain child.kill() would leave both running.
 function killTree(pid) {
@@ -279,7 +441,7 @@ function killTree(pid) {
 }
 
 // One launch attempt. See launchApp below for the retry around it.
-async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLegalNotice = false, waitForData = true } = {}) {
+async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLegalNotice = false, waitForData = true, windowSize = DEFAULT_WINDOW_SIZE } = {}) {
   const ownDbDir = dbDir === undefined;
   const testDbDir = dbDir ?? freshTestDbDir();
   const PORT = await getFreePort();
@@ -344,6 +506,7 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
         "tauri:options": { application: APP_EXE },
       },
       logLevel: "silent",
+      ...DRIVER_REQUEST_OPTIONS,
       // WebdriverIO times each BiDi command out after 180 s by default, with a timer that keeps this process
       // alive until it fires. A launch abandoned by the retry in launchApp leaves its stuck navigation command
       // pending against a driver that has been killed, so that timer outlived a spec that had already
@@ -377,6 +540,13 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
     // so it's on the app's own origin — but as early as possible relative to the app's own mount
     // effects, for a test that needs to be present before the app's very first read of it.
     if (beforeReady) await beforeReady(session);
+    // The window opens at 800x600, where the sidebar shows icons only. Start every spec at a size where it
+    // shows its names (DEFAULT_WINDOW_SIZE); `windowSize: null` keeps the size the window opened at.
+    trackWindowSize(session);
+    if (windowSize) {
+      const ended = await applyLaunchWindowSize(session, windowSize);
+      mark(`window set to ${ended.width}x${ended.height}`);
+    }
     try {
       await session.$(ready).waitForExist({ timeout: 15000 });
       mark(`${ready} rendered`);
@@ -389,11 +559,19 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
     // — call dismissFirstLaunchDialogs once the app itself is actually showing, e.g. after a
     // selector/lock-screen detour reaches it, if it needs to interact with anything past them.
     if (ready === ".brand-word") {
-      await dismissFirstLaunchDialogs(session);
-      mark("first-launch dialogs dismissed");
-      if (waitForData) {
-        await waitForDataLoaded(session);
-        mark("profile data loaded");
+      try {
+        await dismissFirstLaunchDialogs(session);
+        mark("first-launch dialogs dismissed");
+        if (waitForData) {
+          await waitForDataLoaded(session);
+          mark("profile data loaded");
+        }
+      } catch (e) {
+        // A command the driver never answered, before any step of the spec has run, is the same driver
+        // failure as a launch that never reaches its page (feature106 once hung here for 38 s in a full
+        // run): launchApp retries it, and run-all.mjs counts the retry.
+        if (isCommandTimeout(e)) throw Object.assign(e, { launchStalled: true });
+        throw e;
       }
     }
     return session;

@@ -1,16 +1,21 @@
 import { MenuSelect } from "./MenuSelect";
+import type { UnmatchedCategory } from "./importResolution";
+export type { UnmatchedCategory } from "./importResolution";
 /** What to do with a category an import file uses that the person doesn't have. Sent to
  * `commit_import` as-is (`action` is what the backend reads). Nothing is added to their
- * category list unless it is `create`. */
+ * category list unless it is `create`. "skip" is shown as "Let the app guess". */
 export type CategoryChoice = { action: "skip" } | { action: "create" } | { action: "map_to"; category: string };
 
-/** A category name the file uses that isn't one of the person's, and how many rows use it. */
-export type UnmatchedCategory = { name: string; count: number };
-
-/** Every unfamiliar category starts as "don't use it" — the choice that adds nothing to the
- * person's list and lets their own rules have a go at those rows. */
+/** A name the person mapped on an earlier import starts on that choice; every other one starts as
+ * "Let the app guess" — the choice that adds nothing to their list and lets their own rules and
+ * the auto-categorizer have a go at those rows. */
 export function defaultCategoryChoices(unmatched: UnmatchedCategory[]): Record<string, CategoryChoice> {
-  return Object.fromEntries(unmatched.map((u) => [u.name, { action: "skip" } as CategoryChoice]));
+  return Object.fromEntries(
+    unmatched.map((u) => [
+      u.name,
+      u.remembered_category ? ({ action: "map_to", category: u.remembered_category } as CategoryChoice) : ({ action: "skip" } as CategoryChoice),
+    ]),
+  );
 }
 
 function toValue(choice: CategoryChoice | undefined): string {
@@ -28,13 +33,14 @@ function fromValue(value: string): CategoryChoice {
 /** Shown on the import review screen when the file's own Category column holds names the person
  * doesn't have (a bank's "Merchandise", "Gas/Automotive", ...). Vault Spend no longer adds those
  * to the list by itself: for each one the person picks one of their own categories, adds it as a
- * new category, or doesn't use it. Renders nothing when there is nothing to decide. */
+ * new category, or lets the app guess. Renders nothing when there is nothing to decide. */
 export function ImportCategoryReconcile({
   unmatched,
   categories,
   choices,
   onChange,
   onSetAll,
+  disabled = false,
 }: {
   unmatched: UnmatchedCategory[];
   /** The person's own categories — the only ones a file category can be filed under. */
@@ -42,6 +48,8 @@ export function ImportCategoryReconcile({
   choices: Record<string, CategoryChoice>;
   onChange: (name: string, choice: CategoryChoice) => void;
   onSetAll: (action: "skip" | "create") => void;
+  /** While the import is being saved. */
+  disabled?: boolean;
 }) {
   if (unmatched.length === 0) return null;
   const many = unmatched.length !== 1;
@@ -50,21 +58,18 @@ export function ImportCategoryReconcile({
     <div className="import-category-reconcile" role="group" aria-labelledby="import-category-reconcile-title" data-import-category-reconcile>
       <div className="import-category-reconcile-head">
         <strong id="import-category-reconcile-title">
-          {unmatched.length} {many ? "categories" : "category"} in this file {many ? "aren't" : "isn't"} in your list
+          Your bank uses {unmatched.length} {many ? "categories" : "category"} you don't have
         </strong>
         <span className="import-category-reconcile-all">
-          <button type="button" className="modal-secondary" onClick={() => onSetAll("skip")}>
-            Don't use any of them
+          <button type="button" className="modal-secondary" onClick={() => onSetAll("skip")} disabled={disabled}>
+            Let the app guess for all
           </button>
-          <button type="button" className="modal-secondary" onClick={() => onSetAll("create")}>
+          <button type="button" className="modal-secondary" onClick={() => onSetAll("create")} disabled={disabled}>
             Add all as new categories
           </button>
         </span>
       </div>
-      <p className="modal-message-secondary">
-        Vault Spend won't add them unless you say so. For each one, use a category you already have, add it as a new category, or
-        don't use it — those rows are then categorized by your rules like any other import, or left uncategorized if nothing matches.
-      </p>
+      <p className="modal-message-secondary">Pick one of yours for each. The app will remember it next time.</p>
       <ul className="import-category-list">
         {unmatched.map((u) => (
           <li key={u.name} className="import-category-row">
@@ -72,14 +77,19 @@ export function ImportCategoryReconcile({
               <span className="import-category-file-name">{u.name}</span>
               <span className="account-col">
                 {u.count} {u.count === 1 ? "row" : "rows"}
+                {u.remembered_category &&
+                  choices[u.name]?.action === "map_to" &&
+                  (choices[u.name] as { category: string }).category === u.remembered_category &&
+                  " · Your choice from last time"}
               </span>
             </span>
             <MenuSelect
               ariaLabel={`What to do with the file's “${u.name}” category`}
               value={toValue(choices[u.name])}
               onChange={(v) => onChange(u.name, fromValue(v))}
+              disabled={disabled}
               options={[
-                { value: "skip", label: "Don't use it" },
+                { value: "skip", label: "Let the app guess" },
                 { value: "create", label: "Add as a new category" },
                 ...categories.map((c) => ({ value: `map:${c}`, label: c, group: "Use one of my categories" })),
               ]}

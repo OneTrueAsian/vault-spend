@@ -5,7 +5,7 @@
 //
 // Run with: node e2e/feature57_loan_principal_override.mjs
 
-import { launchApp } from "./harness.mjs";
+import { chooseRowAction, launchApp, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -41,32 +41,28 @@ cur.execute(
 
 const app = await launchApp({ dbDir });
 try {
-  // The app's own default launch size (800px) sits below the ledger's
-  // narrow-layout breakpoint, where the Debt cell moves behind a per-row
-  // Details toggle instead of its own column.
   await app.browser.setWindowSize(1280, 900);
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
-  const splitTrigger = await app.browser.$(".debt-apply-trigger");
-  await splitTrigger.waitForExist({ timeout: 10000 });
-  const triggerText = await splitTrigger.getText();
-  if (!triggerText.includes("Split principal")) throw new Error(`expected "Split principal" trigger, got "${triggerText}"`);
-  await splitTrigger.click();
+  // On a loan account the row's ⋯ menu offers "Split principal…" (never "Apply to a debt…").
+  const rowMenu = await app.browser.$("tr[data-payment-row] [data-row-menu]");
+  await rowMenu.waitForExist({ timeout: 10000 });
+  await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Split principal…");
 
   // The amount field pre-fills with the full transaction amount (2500.00)
   // — clear it and type just the principal portion.
   const amountInput = await app.browser.$(".debt-apply-amount");
   await amountInput.waitForExist({ timeout: 5000 });
-  await amountInput.setValue("500.00");
-
-  const confirm = await app.browser.$(".debt-apply-confirm");
-  await confirm.click();
-
   // Wait for the optimistic refresh: the trigger button is replaced by a
   // "Principal: $500.00" badge.
   const badge = await app.browser.$(".debt-applied-badge");
-  await badge.waitForExist({ timeout: 10000 });
+  await withFocusRetry(app.browser, async () => {
+    if (await badge.isExisting()) return; // a previous attempt already saved the principal
+    await amountInput.setValue("500.00");
+    await (await app.browser.$(".debt-apply-confirm")).click();
+    await badge.waitForExist({ timeout: 10000 });
+  });
   const badgeText = await badge.getText();
   console.log("badge text:", badgeText);
   if (!badgeText.includes("Principal") || !badgeText.includes("500.00")) {

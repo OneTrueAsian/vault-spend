@@ -23,8 +23,10 @@ pub use self::budgets::{
     BudgetActual, BudgetAlert, BudgetLine, BudgetSuggestion, BudgetSuggestions, CategoryTransaction, MemberBudgetActual, MonthReview, OverBudgetLine,
 };
 mod categories;
-pub use self::categories::{CategoryCounts, ImportCategoryChoice, ImportCategoryError, StoredCategory, UnmatchedImportCategory};
+pub use self::categories::{CategoryCounts, ImportCategoryChoice, ImportCategoryError, StoredCategory, UnmatchedImportCategory, import_category_key};
 mod family;
+mod imports;
+pub use self::imports::{ImportAccount, ImportBatch, ImportBatchError, ImportBatchOutcome, ImportBatchRow, RowCategory};
 mod insights;
 pub use self::insights::{AnomalyFlag, Insight, LargeExpense};
 mod rules;
@@ -46,6 +48,10 @@ mod forecast;
 pub use self::forecast::{BillAwareForecast, DebtPayoffLine, DebtPayoffPlan, ForecastEvent, ForecastPoint};
 mod reports;
 pub use self::reports::{AccountContributionDelta, CategoryMonthAmount, DailySpendAmount, NetWorthBreakdown};
+mod mobile_snapshot;
+pub use self::mobile_snapshot::{
+    MOBILE_REFRESH_INTERVAL, MobileRefreshDenied, MobileSnapshotContext, MobileSnapshotError, MobileSnapshotRefreshGate, MobileSnapshotRefreshPermit,
+};
 
 /// How a transaction's current category was decided — kept so a rule-guess
 /// can later be told apart from something the user confirmed by hand.

@@ -1,5 +1,5 @@
 {
-  "packageVersion": "2026.10.1",
+  "packageVersion": "2026.10.2",
   "transformationVersion": "1",
   "sources": [
     {
@@ -114,7 +114,7 @@
     "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCNS",
     "file": "cpiaucns.csv",
     "sha256": "f79e3a78837142293449cee4a1a9b1da7be677fb3e989ffb2ef48e8e7cf4cdd7",
-    "note": "CPI-U all items, U.S. city average, not seasonally adjusted (BLS series CUUR0000SA0), fetched through FRED because the BLS download host rejects automated clients. October 2025 was never published."
+    "note": "CPI-U all items, U.S. city average, not seasonally adjusted (BLS series CUUR0000SA0), fetched through FRED because the BLS download host rejects automated clients. October 2025 was never released."
   },
   "gaps": [
     {
@@ -130,12 +130,12 @@
     {
       "metric": "savings",
       "mode": "individual",
-      "reason": "Same as individual investments: only household-level SIPP asset tables are published by age."
+      "reason": "Same as individual investments: only household-level SIPP asset tables are released by age."
     },
     {
       "metric": "debt",
       "mode": "individual",
-      "reason": "Same as individual investments: only household-level SIPP debt tables are published by age."
+      "reason": "Same as individual investments: only household-level SIPP debt tables are released by age."
     }
   ]
 }

@@ -22,6 +22,7 @@ pub const THREAD_NAME: &str = "vaultspend-commands";
 type Job = Box<dyn FnOnce() + Send>;
 
 /// A single worker thread that runs jobs in the order they were queued.
+#[derive(Clone)]
 pub struct CommandQueue {
     jobs: Sender<Job>,
 }
@@ -58,8 +59,9 @@ where
     H: Fn(Invoke<R>) -> bool + Send + Sync + 'static,
 {
     let handler = Arc::new(handler);
-    let queue = CommandQueue::start();
     move |invoke: Invoke<R>| {
+        use tauri::Manager;
+        let queue = invoke.message.webview().app_handle().state::<CommandQueue>().inner().clone();
         let handler = Arc::clone(&handler);
         let resolver = invoke.resolver.clone();
         let command = invoke.message.command().to_string();
@@ -124,5 +126,94 @@ mod tests {
         // run() returned while the job is still blocked; let it finish
         release.send(()).unwrap();
         finished.recv_timeout(Duration::from_secs(5)).unwrap();
+    }
+
+    /// Disposable in-memory ledgers; measures the real command worker behind a desktop ledger read.
+    /// Run explicitly with --ignored --nocapture. No application/profile paths are opened.
+    #[test]
+    #[ignore = "manual mobile projection baseline"]
+    fn mobile_snapshot_queue_baseline() {
+        use budget_core::{
+            models::{AccountType, Transaction},
+            store::{MobileSnapshotContext, Store},
+        };
+        use chrono::{NaiveDate, TimeZone, Utc};
+        use rust_decimal::Decimal;
+        use std::time::Instant;
+        let today = NaiveDate::from_ymd_opt(2026, 10, 4).unwrap();
+        for count in [5000, 50000] {
+            let store = Store::open_in_memory().unwrap();
+            let mut ids = Vec::new();
+            for (i, kind) in [
+                AccountType::Checking,
+                AccountType::Savings,
+                AccountType::Credit,
+                AccountType::Loan,
+                AccountType::Investment,
+                AccountType::Other,
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let account = store.get_or_create_account(&format!("Account {i}"), kind).unwrap();
+                ids.push(account);
+            }
+            for (i, account) in ids.iter().enumerate() {
+                let rows: Vec<_> = (0..count)
+                    .filter(|n| n % 6 == i)
+                    .map(|n| Transaction {
+                        date: today - chrono::Duration::days((n % 2000) as i64),
+                        description: format!("Merchant {}", n % 60),
+                        amount: Decimal::from(if n % 5 == 0 { 100 } else { -20 }),
+                        category: Some(format!("Category {}", n % 10)),
+                    })
+                    .collect();
+                store.save_transactions(*account, &rows).unwrap();
+            }
+            for i in 0..10 {
+                store
+                    .set_budget(&format!("Category {i}"), "2021-01", Decimal::from(500), "flexible")
+                    .unwrap();
+            }
+            let store = Arc::new(Mutex::new(store));
+            let queue = CommandQueue::start();
+            for repetition in 0..3 {
+                let queued = Instant::now();
+                let desktop = Arc::clone(&store);
+                queue.run(Box::new(move || {
+                    let rows = desktop.lock().unwrap().all_transactions().unwrap();
+                    assert_eq!(rows.len(), count);
+                }));
+                let store = Arc::clone(&store);
+                let (done, finished) = channel();
+                queue.run(Box::new(move || {
+                    let wait = queued.elapsed();
+                    let context = MobileSnapshotContext {
+                        installation_id: "benchmark-installation".into(),
+                        profile_id: "benchmark-profile".into(),
+                        profile_name: "Disposable baseline".into(),
+                        profile_icon: None,
+                        epoch: "benchmark-epoch".into(),
+                        sequence: 1,
+                        generated_at: Utc.with_ymd_and_hms(2026, 10, 4, 12, 0, 0).unwrap(),
+                        alias_key: [11; 32],
+                    };
+                    let started = Instant::now();
+                    let snapshot = store.lock().unwrap().build_mobile_snapshot(&context, today).unwrap();
+                    let build = started.elapsed();
+                    let started = Instant::now();
+                    let json = budget_core::mobile_snapshot::serialize_mobile_snapshot(&snapshot).unwrap();
+                    done.send((wait, build, started.elapsed(), json.len(), snapshot.history.months.len()))
+                        .unwrap();
+                }));
+                let (wait, build, serialize, bytes, months) = finished.recv_timeout(Duration::from_secs(120)).unwrap();
+                println!(
+                    "MOBILE_BASELINE rows={count} run={repetition} queue_ms={} build_validate_ms={} serialize_validate_ms={} bytes={bytes} months={months}",
+                    wait.as_millis(),
+                    build.as_millis(),
+                    serialize.as_millis()
+                );
+            }
+        }
     }
 }

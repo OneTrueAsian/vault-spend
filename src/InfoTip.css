@@ -24,7 +24,7 @@
   flex-shrink: 0;
 }
 
-/* Two classes' worth of specificity on purpose: the base `button:hover` rule (App.css) fills every button
+/* Two classes' worth of specificity on purpose: the base `button:hover` rule (SharedButtons.css) fills every button
  * with the accent colour, which turned an open tip's button into a solid disc with the "i" lost in it. */
 .info-tip .info-tip-button:hover,
 .info-tip .info-tip-button[aria-expanded="true"] {

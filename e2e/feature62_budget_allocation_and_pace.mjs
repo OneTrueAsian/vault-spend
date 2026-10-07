@@ -52,7 +52,7 @@ try {
     throw new Error(`expected "$2,000.00 of your $6,000.00 ... isn't assigned", got (${status}): ${text}`);
   }
 
-  // The pace tick: one per expense group card + one per expense row (Rent, Groceries).
+  // The pace tick: one per expense group heading's bar + one per expense row (Rent, Groceries).
   const markers = await browser.execute(() =>
     [...document.querySelectorAll(".progress-pace")].map((m) => parseFloat(m.style.left)),
   );
@@ -71,6 +71,11 @@ try {
     return incomeRow ? incomeRow.querySelectorAll(".progress-pace").length : -1;
   });
   if (incomeRowMarkers !== 0) throw new Error(`the Income bar must not carry a pace marker (found ${incomeRowMarkers})`);
+  // Nor the Income group heading's bar.
+  const incomeHeadMarkers = await browser.execute(
+    () => document.querySelector("[data-budget-group='income'] .budget-group-head")?.querySelectorAll(".progress-pace").length ?? -1,
+  );
+  if (incomeHeadMarkers !== 0) throw new Error(`the Income group heading's bar must not carry a pace marker (found ${incomeHeadMarkers})`);
 
   // Previous month: a finished month has no "so far", and shows the over-allocation.
   await (await browser.$("button[aria-label='Previous month']")).click();

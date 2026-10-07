@@ -7,6 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   DEFAULT_LAYOUT,
   LAYOUT_PRESETS,
+  OLD_DEFAULT_LAYOUT_V1,
   STAT_WIDGET_IDS,
   WIDGET_CATALOG,
   accountWidgetId,
@@ -43,6 +44,97 @@ describe("WIDGET_CATALOG / DEFAULT_LAYOUT", () => {
         expect(preset).toContain(id);
       }
     }
+  });
+});
+
+describe("the 1.3.0 Dashboard order (money first, To do next)", () => {
+  it("puts the stat tiles first, then To do, Safe to spend and Runway", () => {
+    expect(DEFAULT_LAYOUT).toEqual([
+      "stat_net_worth",
+      "stat_cash",
+      "stat_debt",
+      "stat_investments",
+      "needs_a_look",
+      "safe_to_spend",
+      "runway",
+      "trend_spending",
+      "budget_bills",
+      "recent_transactions",
+    ]);
+  });
+
+  it("keeps the pre-1.3.0 default as OLD_DEFAULT_LAYOUT_V1, so it can be recognized on load", () => {
+    expect(OLD_DEFAULT_LAYOUT_V1).toEqual([
+      "stat_net_worth",
+      "stat_cash",
+      "stat_debt",
+      "stat_investments",
+      "runway",
+      "safe_to_spend",
+      "needs_a_look",
+      "trend_spending",
+      "budget_bills",
+      "recent_transactions",
+    ]);
+  });
+
+  it("moves someone who never customized (saved layout is exactly the old default) to the new order", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args) =>
+      cmd === "get_profile_ui_state" && (args as { key: string }).key === "dashboard_layout"
+        ? JSON.stringify(OLD_DEFAULT_LAYOUT_V1)
+        : null,
+    );
+
+    expect(await loadDashboardLayout()).toEqual(DEFAULT_LAYOUT);
+  });
+
+  it("moves the pre-split 'stats' form of the old default to the new order too", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args) =>
+      cmd === "get_profile_ui_state" && (args as { key: string }).key === "dashboard_layout"
+        ? JSON.stringify(["stats", ...OLD_DEFAULT_LAYOUT_V1.slice(4)])
+        : null,
+    );
+
+    expect(await loadDashboardLayout()).toEqual(DEFAULT_LAYOUT);
+  });
+
+  it("does not write the moved order back on load (the next save persists it)", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd) => (cmd === "get_profile_ui_state" ? JSON.stringify(OLD_DEFAULT_LAYOUT_V1) : null));
+
+    await loadDashboardLayout();
+
+    expect(invoke).not.toHaveBeenCalledWith("set_profile_ui_state", expect.anything());
+  });
+
+  it("leaves a custom order exactly as saved", async () => {
+    const custom: WidgetId[] = ["recent_transactions", "stat_net_worth", "stat_cash", "stat_debt", "stat_investments", "runway"];
+    vi.mocked(invoke).mockResolvedValue(JSON.stringify(custom));
+
+    expect(await loadDashboardLayout()).toEqual(custom);
+  });
+
+  it("leaves the old order alone when it is one of the person's own named layouts", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args) => {
+      if (cmd !== "get_profile_ui_state") return null;
+      const key = (args as { key: string }).key;
+      if (key === "dashboard_layout") return JSON.stringify(OLD_DEFAULT_LAYOUT_V1);
+      if (key === "dashboard_custom_layouts") return JSON.stringify([{ name: "My usual", widgets: OLD_DEFAULT_LAYOUT_V1 }]);
+      return null;
+    });
+
+    expect(await loadDashboardLayout()).toEqual(OLD_DEFAULT_LAYOUT_V1);
+  });
+
+  it("an order that only differs by one widget from the old default is a custom order, kept as saved", async () => {
+    const almost = OLD_DEFAULT_LAYOUT_V1.filter((id) => id !== "recent_transactions");
+    vi.mocked(invoke).mockResolvedValue(JSON.stringify(almost));
+
+    expect(await loadDashboardLayout()).toEqual(almost);
+  });
+
+  it("still names the new order 'default' in the Layout menu", () => {
+    expect(matchingLayoutPreset(DEFAULT_LAYOUT)).toBe("default");
+    expect(matchingLayoutPreset([...OLD_DEFAULT_LAYOUT_V1])).toBe("custom");
   });
 });
 

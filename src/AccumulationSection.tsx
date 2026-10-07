@@ -1,8 +1,9 @@
+import "./AccumulationSection.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, InvestmentAccumulation, PortfolioPoint } from "./types";
 import { SeriesChart, type SeriesChartSeries } from "./charts";
-import { formatAmount, shortMonthDay, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import {
   averageMonthlyContribution,
   combineProjections,
@@ -307,7 +308,7 @@ export function AccountAccumulationSection({
         <p className="modal-message-secondary" data-acc-value-note>
           {history.length === 0
             ? "The Worth line will start once Vault Spend has recorded this account's value — it does that each day you open the app. Earlier months are never estimated."
-            : `The Worth line starts on ${shortMonthDay(history[0].date)}, ${history[0].date.slice(0, 4)} — Vault Spend records this account's value each day you open it, so earlier months aren't drawn and nothing is estimated${
+            : `The Worth line starts on ${formatDisplayDate(history[0].date)} — Vault Spend records this account's value each day you open it, so earlier months aren't drawn and nothing is estimated${
                 showValueLine ? "." : ` (first point: ${formatAmount(history[0].value)}); it becomes a line after the next day it's opened.`
               }`}
         </p>

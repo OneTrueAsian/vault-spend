@@ -53,7 +53,7 @@ describe("LegalNoticeHelp", () => {
 
     await mount();
 
-    expect(container.querySelector("[data-legal-notice-status]")?.textContent).toMatch(/Acknowledged on .*2026/);
+    expect(container.querySelector("[data-legal-notice-status]")?.textContent).toMatch(/^Acknowledged on (Sep 30|Oct 1)(, 2026)?\.$/);
   });
 
   it("does not claim an older version's acknowledgement covers the current one", async () => {

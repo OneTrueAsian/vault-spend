@@ -1,0 +1,119 @@
+// E2E test: an account's icon picker sits on top of the account rows below it (Task 16 review).
+// Each account row is its own stacking layer, so a picker opened on any row but the last was drawn
+// under the next row, and a click where a swatch should be landed on that row's "open Details"
+// overlay instead. Opens the picker on the first of three accounts, checks every swatch is the
+// element under its own centre, then picks one and checks it saved without opening Details.
+//
+// Run with: node e2e/feature278_account_icon_picker_on_top.mjs
+
+import assert from "node:assert/strict";
+import { launchApp, chooseStyle, waitUntilOrDiagnose } from "./harness.mjs";
+import { seedFixture } from "./lib/seed.mjs";
+
+const dbDir = await seedFixture(`
+cur.execute("INSERT INTO accounts (id,name,account_type,starting_balance) VALUES (301,'First Checking','checking','100'),(302,'Second Savings','savings','200'),(303,'Third Savings','savings','300')")
+`);
+const app = await launchApp({ dbDir });
+try {
+  const { browser } = app;
+  await browser.setWindowSize(1440, 1000);
+  await (await browser.$('button.nav-item[data-tab="accounts"]')).click();
+  const first = await browser.$('.account-card[data-account-id="301"]');
+  await first.waitForExist({ timeout: 10000, timeoutMsg: "the first account row should show" });
+  await (await first.$(".type-badge")).click();
+  await (await first.$(".icon-picker-popover")).waitForDisplayed({ timeout: 5000, timeoutMsg: "the icon picker should open" });
+
+  // The picker is solid: the next row's name and details must not show through it (they did in the
+  // Default style, whose panels are see-through).
+  const alpha = await browser.execute(() => {
+    const bg = getComputedStyle(document.querySelector('.account-card[data-account-id="301"] .icon-picker-popover')).backgroundColor;
+    const parts = bg.match(/[\d.]+/g).map(Number);
+    return parts.length === 4 ? parts[3] : 1;
+  });
+  assert.equal(alpha, 1, "the icon picker's background should be opaque");
+
+  // Every swatch must be the element a click at its centre reaches (not the next row's overlay).
+  let covered = null;
+  await waitUntilOrDiagnose(
+    browser,
+    async () => {
+      covered = await browser.execute(() =>
+        [...document.querySelectorAll('.account-card[data-account-id="301"] .icon-picker-swatch')]
+          .filter((s) => {
+            const r = s.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return !s.contains(hit);
+          })
+          .map((s) => s.getAttribute("title")),
+      );
+      return covered.length === 0;
+    },
+    { timeoutMsg: "every swatch should be on top (not covered by the next account row)", extra: async () => ({ covered }) },
+  );
+
+  const swatchTitles = await browser.execute(() =>
+    [...document.querySelectorAll('.account-card[data-account-id="301"] .icon-picker-swatch')].map((s) => s.getAttribute("title")),
+  );
+  // The last swatch sits lowest in the picker, so it is the one most deeply under the rows below.
+  const target = swatchTitles[swatchTitles.length - 1];
+  await (await first.$(`.icon-picker-swatch[title="${target}"]`)).click();
+
+  await waitUntilOrDiagnose(browser, async () => !(await (await first.$(".icon-picker-popover")).isExisting()), {
+    timeoutMsg: "picking a swatch should close the picker",
+  });
+  // Details opening is a click landing on the next row; give it a moment to show, and require the
+  // accounts list to stay put throughout.
+  const settleUntil = Date.now() + 1500;
+  while (Date.now() < settleUntil) {
+    const state = await browser.execute(() => ({
+      detail: !!document.querySelector("[data-account-detail]"),
+      list: !!document.querySelector('.account-card[data-account-id="301"]'),
+    }));
+    assert.deepEqual(state, { detail: false, list: true }, "picking an icon must not open an account's Details");
+    await browser.pause(150);
+  }
+
+  // Reopen until the saved choice shows as the active swatch.
+  await waitUntilOrDiagnose(
+    browser,
+    async () => {
+      await (await first.$(".type-badge")).click();
+      const active = await (await first.$(".icon-picker-swatch-active")).getAttribute("title").catch(() => null);
+      if (active === target) return true;
+      await (await first.$(".type-badge")).click();
+      return false;
+    },
+    { timeoutMsg: `expected "${target}" to be saved as the first account's icon` },
+  );
+  // All theme variants must cover the rows beneath the open picker.
+  await (await first.$(".type-badge")).click();
+  for (const [style, palette] of [["Default", "transparent"], ["Futuristic", "futuristic"], ["Retro", "retro"]]) {
+    await chooseStyle(browser, style, palette);
+    for (const theme of ["light", "dark"]) {
+      await browser.execute(t => [...document.querySelectorAll(".theme-toggle button")].find(b => b.textContent === t).click(), theme === "light" ? "Light" : "Dark");
+      await (await browser.$('button.nav-item[data-tab="accounts"]')).click();
+      const row = await browser.$('.account-card[data-account-id="301"]');
+      await row.waitForDisplayed({ timeout: 5000 });
+      await (await row.$(".type-badge")).click();
+      await waitUntilOrDiagnose(browser, () => browser.execute(() => {
+        const picker = document.querySelector('.account-card[data-account-id="301"] .icon-picker-popover');
+        if (!picker) return false;
+        const parts = getComputedStyle(picker).backgroundColor.match(/[\d.]+/g)?.map(Number);
+        if (!parts || parts.length < 3) throw new Error("Cannot parse picker background");
+        const opaque = parts.length === 3 || parts.length === 4 && parts[3] === 1;
+        const swatches = [...picker.querySelectorAll(".icon-picker-swatch")];
+        return opaque && swatches.length > 0 && swatches.every(s => {
+          const r = s.getBoundingClientRect();
+          return s.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+        });
+      }), { timeoutMsg: `${palette}/${theme}: picker must be opaque and every swatch reachable` });
+      if (process.env.VS_PICKER_SHOTS) {
+        await browser.saveScreenshot(`${process.env.VS_PICKER_SHOTS}/${palette}-${theme}.png`);
+      }
+      await (await row.$(".type-badge")).click();
+    }
+  }
+  console.log("FEATURE 278 E2E TEST PASSED");
+} finally {
+  await app.close();
+}

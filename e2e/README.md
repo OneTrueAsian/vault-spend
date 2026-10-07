@@ -1,5 +1,9 @@
 # E2E testing (WebDriver, real compiled app)
 
+Mobile specs 171–172 add Settings management and the production viewer’s pairing/refresh flow. Spec 172 runs native Edge against a loopback test proxy that validates the compiled service’s HTTPS certificate and holds its cookie only in that isolated client. It exercises real projection/storage and browser UI; it does not establish browser TLS trust, Secure-cookie compatibility or physical phone acceptance. No global CA is installed.
+
+Mobile specs 167–170 exercise approved-device reads and deterministic authorization races through the compiled HTTPS service. Their shared helpers trust only a disposable fixture CA in the Node client; no global CA or firewall modification is made. Debug race actors require `VAULTSPEND_DB_DIR` to match the managed test directory and are excluded from release. The confirmation spec also checks six compiled theme variants with Axe and captures screenshots under `VAULTSPEND_MOBILE_TASK6_OUTPUT` (default: an OS temporary folder).
+
 Real UI automation for Vault Spend, driven through Tauri's official WebDriver
 support (`tauri-driver` + Microsoft Edge WebDriver, since the app uses
 WebView2 on Windows). No headless-browser stand-in — this drives the actual
@@ -54,6 +58,27 @@ config/runner) — `import { launchApp } from "./harness.mjs"`, do things with
 `app.browser.$(selector)` / `$$(selector)` are plain CSS selectors against
 the real rendered DOM.
 
+`launchApp()` sets the window to 1280x800 (`DEFAULT_WINDOW_SIZE` in
+`harness.mjs`) before the spec starts. The window opens at 800x600, and below
+1000px wide the sidebar shows icons only (its names stay in the page, as each
+tab's `aria-label` and visually hidden text, so `button*=Settings` still
+finds a tab). A spec that needs the narrow layout calls
+`browser.setWindowSize(800, 600)` itself; `launchApp({ windowSize: null })`
+keeps the size the window opened at. The launch prints the size the window
+ended at (`[harness] window 1280x800`) and fails at once if it isn't the size
+asked for, rather than letting the spec fail later in the narrow layout.
+
+To switch visual style the way a person does, use `chooseStyle(browser,
+"Retro", "retro")` from `harness.mjs`: it opens Settings, waits for that
+style's row, chooses it and waits until it applies.
+
+Dates on screen are written out ("Oct 4", or "Oct 4, 2025" for another year), the way
+`formatDisplayDate` in `src/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
+expect. Every date field is `DateField`: a real `<input type="date">` that keeps the stored
+`YYYY-MM-DD` value (so `setValue`, typing and `getValue` work as before), with the date written out
+over it while it isn't being edited. Read that text with `lib/dateFields.mjs`. Exported files keep
+`YYYY-MM-DD`.
+
 ## Running the full suite
 
 ```
@@ -107,7 +132,7 @@ that's worth fixing properly, not a race to paper over — re-run it alone (or
 at `--concurrency=1`) first to confirm it's not simply a flaky assertion,
 then look for accidental shared state (a hardcoded port, a fixed temp path,
 anything read from the real AppData folder instead of `VAULTSPEND_DB_DIR`).
-Shared state has not been the cause so far; four other causes have been.
+Shared state has not been the cause so far; the causes below have been.
 
 ## Failures that only happen in parallel runs
 
@@ -133,7 +158,9 @@ reproduced on demand and fixed at its cause, not retried away.
   it, back to the app's 800x600 default. Every spec that had set a larger
   window and then reclaimed focus silently switched to the narrow layout
   (missing columns, moved controls), which failed whichever check came next.
-  It now sets the size again until it holds (`e2e/harness.test.mjs`).
+  It now sets the size again until it holds (`e2e/harness.test.mjs`), and it
+  restores the size the spec last asked for (the harness records every
+  `setWindowSize`), not whatever size the window reports.
 - **Counting IPC as loads.** Tauri sends every command as a fetch to
   `ipc.localhost`, so `performance.getEntriesByType("resource")` grows
   whenever a background command runs; leave those out when checking that
@@ -155,6 +182,14 @@ reproduced on demand and fixed at its cause, not retried away.
   widget for an investment account that did not exist, and the app is meant
   to drop such pins once its data loads, so the layout it read back depended
   on timing. A fixture must describe a state the app keeps.
+- **A dropped IPC request switches Tauri to postMessage.** Tauri sends each command as a fetch to
+  ipc.localhost, and the first one that fails switches the page to `window.ipc.postMessage` for
+  good (tauri's `scripts/ipc-protocol.js`). Specs answer the native file picker by wrapping
+  `window.fetch` (`invoke`, `__TAURI_INTERNALS__` and `window.ipc` are all read-only), so after the
+  switch the real picker opened, nobody answered it, and `feature162` hung silently until the
+  runner killed it at 60 s. Use `stubFilePicker(browser, files)` from `harness.mjs`: it retries a
+  failed IPC fetch before Tauri sees the failure, and fails at once if the page had already
+  switched. `feature119`'s save-dialog stub retries the same way.
 - **Launch failures before any page loads.** In roughly 1 launch in 100 under
   load the driver layer either creates a session whose first navigation never
   returns, or reports "invalid session id" as soon as it starts. Nothing of the
@@ -163,6 +198,17 @@ reproduced on demand and fixed at its cause, not retried away.
   page, kills that attempt's process tree, and tries once more. A retry
   prints `[harness] launch retry` and `run-all.mjs` totals them, so a run that
   needed one says so.
+
+- **A command the driver never answers.** Twice in Task 16's full runs a
+  WebDriver command got no answer at all: once while `launchApp` was
+  dismissing the first-launch dialogs (feature106), once in the middle of
+  feature163. Neither recurred in 48 stressed runs each. With WebdriverIO's
+  defaults (120 s, then three more tries) such a spec sat silent until the
+  runner killed it at 60 s. The harness now gives every command 25 s and no
+  silent repeat (`DRIVER_REQUEST_OPTIONS`), so a hang fails with "Request
+  timed out ... when running <command>" and the spec's stack. A hang inside
+  `launchApp`, before any step of the spec, is retried like the launch
+  failures below and counted the same way.
 
 To reproduce a load-dependent failure and to show a fix works, use
 `e2e/stress.mjs`:
@@ -174,3 +220,15 @@ node e2e/stress.mjs e2e/feature121_auto_lock_settings.mjs 8 6 12   # 8 rounds, 6
 It reports the pass rate and each distinct failure, and saves the full output
 of failing runs (`STRESS_OUT`, default the temp folder). A fix should turn a
 measured failure rate into zero, not just pass once.
+
+
+### Mobile HTTPS public-asset foundation
+
+`feature166_mobile_https_assets.mjs` exercises the compiled Tauri listener, Windows protected identity, static-asset boundaries, restart and actual desktop Quit. The debug-only fixture binds loopback in the harness's disposable data directory; it never enables a LAN listener or installs a certificate. Its Node HTTPS client uses an explicit per-client test CA, with certificate and hostname checks enabled. Production financial APIs/pairing are separate later specs. Tauri builds now embed `dist-mobile` as well as the desktop frontend: `npm run build` generates both, and the CLI before-build hook invokes it. On a fresh checkout, build frontend assets before direct `cargo test`/`cargo clippy`.
+
+
+### Mobile browser acceptance
+
+After the fresh debug Tauri CLI build, run `npm run mobile:acceptance:e2e` for native Chromium/Firefox/WebKit synthetic HTTP UI/storage checks and `npm run mobile:tls:e2e` for the production HTTPS viewer directly in Firefox. Install the pinned binaries with `npx playwright install chromium firefox webkit`. The trusted Firefox helper modifies only a checked disposable NSS profile with a public root; Windows trust is never changed, and certificate-error bypass remains off. This requires Python, Windows NSS/browser binaries and the existing `target/debug/init_db.exe`/compiled app/WebDriver prerequisites. Browser scripts are separate from full native `npm run e2e`; do not combine their counts or infer physical phone results. The external phone worksheet includes iPhone/Android normal/home-screen, cold restart/days-offline, trust removal/renewal and network changes.
+
+Guided local setup spec 173 checks the compiled desktop guide in six palette/mode combinations with Axe, and a certificate-only HTTP bootstrap bound strictly to loopback through a debug fixture guarded by VAULTSPEND_DB_DIR. Three installed browser engines check the real instruction page, certificate verification acknowledgement and 360px containment. Public PEM/profile downloads, route/method/Origin isolation and cancellation are asserted. No LAN opt-in, CA installation, browser TLS-error bypass or actual-phone acceptance. The fixture command is absent from release.

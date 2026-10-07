@@ -9,10 +9,10 @@ export const GROUP_ORDER = ["cash", "credit", "loan", "investment", "other"] as 
 export type AccountGroup = (typeof GROUP_ORDER)[number];
 export const GROUP_LABELS: Record<AccountGroup, string> = {
   cash: "Cash",
-  credit: "Credit Cards",
+  credit: "Credit cards",
   loan: "Loans",
   investment: "Investments",
-  other: "Other Assets",
+  other: "Other assets",
 };
 
 export function groupOf(accountType: string): AccountGroup {
@@ -39,6 +39,14 @@ export function netWorthContribution(a: Account): number {
     return -parseFloat(a.current_balance);
   }
   return parseFloat(a.current_balance);
+}
+
+/** A balance below zero on an account that should never go below zero (cash, investments, other
+ * assets). This needs you (s4), unlike what's owed on a card or loan, which is normal. */
+export function isOverdrawn(a: Account): boolean {
+  const group = groupOf(a.account_type);
+  if (group === "credit" || group === "loan") return false;
+  return netWorthContribution(a) < 0;
 }
 
 /** How much is actually owed on a debt account, as a positive number —
@@ -104,4 +112,16 @@ export function pickDefaultAccountId(accounts: { id: number; account_type: strin
     if (match) return match.id;
   }
   return accounts.length > 0 ? accounts[0].id : null;
+}
+
+/** Plain display names; stored account types stay unchanged. */
+/** A stored type name ("real_estate", "health savings") as words with capitals: "Real Estate". Accounts
+ * and Property & Valuables both name types this way. */
+export function storedTypeLabel(type: string): string {
+  return type.replace(/[_-]+/g, " ").replace(/\b\w+/g, word => word[0].toUpperCase() + word.slice(1).toLowerCase());
+}
+
+export function accountTypeLabel(type: string): string {
+  if (type === "credit") return "Credit card";
+  return storedTypeLabel(type);
 }

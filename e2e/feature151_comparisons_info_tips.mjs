@@ -41,6 +41,25 @@ const tipState = (label) =>
     };
   }, label);
 
+/** Whether the tip is pinned open: with the pointer moved away and focus taken off its button, hover
+ * and focus can't hold a tip open, so only a click-pinned one stays. Taking focus away also matters
+ * in a parallel run: when another window gives focus back, the browser re-focuses the button, which
+ * opens its tip unpinned, and a click on that tip pins it instead of closing it. */
+async function pinnedOpen(label) {
+  await browser.action("pointer").move({ x: 2, y: 2 }).perform();
+  await browser.execute(() => document.activeElement?.blur());
+  return (await tipState(label)).open;
+}
+
+/** One click on the tip's button, from a settled state, must leave it pinned open (`open`) or
+ * closed; retried only when the window really lost focus during the step. */
+async function clickTipTo(button, label, open, message) {
+  await withFocusRetry(browser, async () => {
+    if ((await pinnedOpen(label)) !== open) await button.click();
+    await browser.waitUntil(async () => (await pinnedOpen(label)) === open, { timeout: 3000, timeoutMsg: message });
+  });
+}
+
 try {
   await browser.setWindowSize(1440, 1000);
   await openComparisonDetails(browser);
@@ -97,14 +116,12 @@ try {
         palette,
         mode,
       );
-      await withFocusRetry(browser, async () => {
-        if (!(await tipState("Household income per year")).open) await income.click();
-        await browser.waitUntil(async () => (await tipState("Household income per year")).shown, { timeout: 3000, timeoutMsg: `the tip should open in ${palette} ${mode}` });
-      });
-      assert.ok((await tipState("Household income per year")).inside, `the open tip should sit inside the window in ${palette} ${mode}`);
+      await clickTipTo(income, "Household income per year", true, `clicking the closed tip should open it in ${palette} ${mode}`);
+      const state = await tipState("Household income per year");
+      assert.ok(state.shown, `the open tip should show in ${palette} ${mode}`);
+      assert.ok(state.inside, `the open tip should sit inside the window in ${palette} ${mode}`);
       await browser.saveScreenshot(path.join(SHOTS_DIR, `info-tip-${palette}-${mode}.png`));
-      await income.click();
-      await browser.waitUntil(async () => !(await tipState("Household income per year")).open, { timeout: 3000 });
+      await clickTipTo(income, "Household income per year", false, `clicking the open tip should close it in ${palette} ${mode}`);
     }
   }
   console.log(`[feature151] screenshots saved under ${SHOTS_DIR}`);

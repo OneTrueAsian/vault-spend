@@ -1,0 +1,134 @@
+[
+  {
+    "name": "invalid leap day",
+    "path": "/asOfDate",
+    "value": "2025-02-29",
+    "valid": false
+  },
+  {
+    "name": "Unicode timestamp",
+    "path": "/generatedAt",
+    "value": "2026-10-\ud83d\ude0015:00:00Z",
+    "valid": false
+  },
+  {
+    "name": "nonUTC timestamp",
+    "path": "/generatedAt",
+    "value": "2026-10-04T15:00:00+01:00",
+    "valid": false
+  },
+  {
+    "name": "leap second",
+    "path": "/generatedAt",
+    "value": "2026-10-04T15:00:60Z",
+    "valid": false
+  },
+  {
+    "name": "overscaled money",
+    "path": "/overview/cash",
+    "value": "1.1234567890123",
+    "valid": false
+  },
+  {
+    "name": "exponent money",
+    "path": "/overview/cash",
+    "value": "1e3",
+    "valid": false
+  },
+  {
+    "name": "high precision money",
+    "path": "/overview/cash",
+    "value": "0.123456789012",
+    "valid": true
+  },
+  {
+    "name": "long uint64",
+    "path": "/sequence",
+    "value": "18446744073709551615",
+    "valid": true
+  },
+  {
+    "name": "blank profile",
+    "path": "/profile/id",
+    "value": "",
+    "valid": false
+  },
+  {
+    "name": "path profile",
+    "path": "/profile/id",
+    "value": "../private",
+    "valid": false
+  },
+  {
+    "name": "unknown account type",
+    "path": "/accounts/0/accountType",
+    "value": "brokerage",
+    "valid": false
+  },
+  {
+    "name": "partial section without reason",
+    "path": "/sections/investments/reason",
+    "value": null,
+    "valid": false
+  },
+  {
+    "name": "unknown account ref",
+    "path": "/calculators/debts/0/accountId",
+    "value": "missing",
+    "valid": false
+  },
+  {
+    "name": "future daily spending",
+    "path": "/history/daily/0/date",
+    "value": "2026-10-05",
+    "valid": false
+  },
+  {
+    "name": "history bounds mismatch",
+    "path": "/history/fromMonth",
+    "value": "2026-07",
+    "valid": false
+  },
+  {
+    "name": "unsupported currency",
+    "path": "/currency",
+    "value": "EUR",
+    "valid": false
+  },
+  {
+    "name": "unverified daily gain",
+    "path": "/investments/dayChange",
+    "value": "100.00",
+    "valid": false
+  },
+  {
+    "name": "quote counts invalid",
+    "path": "/investments/coverage/valuedPositions",
+    "value": 3,
+    "valid": false
+  },
+  {
+    "name": "future contributions",
+    "path": "/calculators/accumulation/0/months/0/month",
+    "value": "2026-11",
+    "valid": false
+  },
+  {
+    "name": "future scheduled flows beyond horizon",
+    "path": "/calculators/forecast/schedule/0/date",
+    "value": "2027-02-01",
+    "valid": false
+  },
+  {
+    "name": "malformed budget alert",
+    "path": "/budgets/0/lines/0/alert",
+    "value": "danger",
+    "valid": false
+  },
+  {
+    "name": "integral numeric spelling",
+    "path": "/schemaVersion",
+    "value": 1.0,
+    "valid": true
+  }
+]

@@ -1,14 +1,53 @@
 /** Small hand-rolled inline-SVG chart components — no charting library,
  * same technique as the Monarch-styled mockup this was adapted from. */
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState, type RefObject, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
+
+/** Draw in the container's pixel coordinate space so labels keep their font size. */
+export function useMeasuredWidth(fallback: number, min = 280): [RefObject<HTMLDivElement | null>, number] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [measured, setMeasured] = useState<number | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const observedElement = useRef<HTMLDivElement | null>(null);
+  // A SeriesChart renders nothing until it has points. Check the committed ref
+  // after each render, but keep the observer while the same element is mounted.
+  useEffect(() => {
+    const el = ref.current;
+    if (el === observedElement.current) return;
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    observedElement.current = el;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = Math.round(entry.contentRect.width);
+      if (width > 0) setMeasured(previous => previous === width ? previous : width);
+    });
+    observerRef.current = observer;
+    observer.observe(el);
+  });
+  useEffect(() => () => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    observedElement.current = null;
+  }, []);
+  return [ref, Math.max(measured ?? fallback, min)];
+}
 
 export function fmtMoneyShort(n: number): string {
   const abs = Math.abs(n);
   let s: string;
-  if (abs >= 1000000) s = (abs / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
-  else if (abs >= 1000) s = (abs / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+  // The thresholds sit where rounding reaches the next unit, so 999,960 reads "$1M", not "$1000k".
+  if (abs >= 999_950) s = (abs / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  else if (abs >= 999.5) s = (abs / 1000).toFixed(1).replace(/\.0$/, "") + "k";
   else s = abs.toFixed(0);
   return (n < 0 ? "-" : "") + "$" + s;
+}
+
+/** The left gutter a chart needs for its value-axis labels, which are drawn right-aligned 8 units
+ * left of the plot. Axis text is 12px (`.axis-label`) and a digit about 0.6em wide; never less
+ * than the 46 units the charts always had, so short labels look as before. */
+export function axisGutter(labels: string[], fontSize = 12): number {
+  const widest = Math.max(0, ...labels.map((l) => l.length));
+  return Math.max(46, Math.ceil(widest * fontSize * 0.62) + 10);
 }
 
 export function ProgressRing({
@@ -16,11 +55,14 @@ export function ProgressRing({
   size = 64,
   stroke = 7,
   color = "var(--accent)",
+  ariaLabel,
 }: {
   pct: number;
   size?: number;
   stroke?: number;
   color?: string;
+  /** What the ring shows, for screen readers (the ring is an image: `role="img"`). */
+  ariaLabel?: string;
 }) {
   const r = (size - stroke) / 2;
   const cx = size / 2;
@@ -29,7 +71,12 @@ export function ProgressRing({
   const dash = Math.min(1, Math.max(0, pct / 100)) * circ;
   return (
     <div className="goal-ring-wrap" style={{ width: size, height: size }}>
-      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        width={size}
+        height={size}
+        {...(ariaLabel ? { role: "img", "aria-label": ariaLabel } : {})}
+      >
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--surface-2)" strokeWidth={stroke} />
         <circle
           cx={cx}
@@ -177,7 +224,7 @@ export function Sparkline({
 
 export function BarChart({
   data,
-  width = 560,
+  width: initialWidth = 560,
   height = 220,
   onBarClick,
 }: {
@@ -188,21 +235,22 @@ export function BarChart({
    * informational chart (no click affordance shown). */
   onBarClick?: (index: number) => void;
 }) {
+  const [wrapRef, width] = useMeasuredWidth(initialWidth);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   // useId's colons are fine in an id but not in url(#…), so strip them
   const barGradId = "bar-" + useId().replace(/:/g, "");
 
-  const padL = 46;
   const padR = 12;
   const padT = 14;
   const padB = 26;
-  const innerW = width - padL - padR;
   const innerH = height - padT - padB;
   let max = 0;
   data.forEach((d) => d.values.forEach((v) => { max = Math.max(max, Math.abs(v.value)); }));
   max = max === 0 ? 1 : max * 1.15;
-  const groupW = innerW / (data.length || 1);
   const gridCount = 4;
+  const padL = axisGutter(Array.from({ length: gridCount + 1 }, (_, i) => fmtMoneyShort(max - (max * i) / gridCount)));
+  const innerW = width - padL - padR;
+  const groupW = innerW / (data.length || 1);
 
   const hovered = hoveredIndex !== null ? data[hoveredIndex] : null;
 
@@ -223,118 +271,120 @@ export function BarChart({
   }
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} preserveAspectRatio="xMidYMid meet">
-      {/* A bright-top-to-dim-base gradient per bar. Only the Futuristic style paints with it (fill: var(--bar-fill));
-          the other styles keep the bar's flat fill attribute. */}
-      <defs>
-        {data.map((d, gi) =>
-          d.values.map((v, vi) => (
-            <linearGradient key={`${gi}-${vi}`} id={`${barGradId}-${gi}-${vi}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" style={{ stopColor: `color-mix(in srgb, ${v.color} 65%, white)` }} />
-              <stop offset="100%" style={{ stopColor: `color-mix(in srgb, ${v.color} 38%, transparent)` }} />
-            </linearGradient>
-          )),
-        )}
-      </defs>
-      {Array.from({ length: gridCount + 1 }).map((_, i) => {
-        const gy = padT + (innerH * i) / gridCount;
-        const val = max - (max * i) / gridCount;
-        return (
-          <g key={i}>
-            <line x1={padL} y1={gy} x2={width - padR} y2={gy} stroke="var(--border)" strokeWidth={1} />
-            <text x={padL - 8} y={gy + 3} textAnchor="end" className="axis-label">
-              {fmtMoneyShort(val)}
-            </text>
-          </g>
-        );
-      })}
-      {data.map((d, gi) => {
-        const n = d.values.length || 1;
-        const barGap = 6;
-        const barW = Math.min(26, (groupW - barGap * 2) / n);
-        const totalBarsW = barW * n + (n - 1) * 2;
-        const groupX = padL + groupW * gi + (groupW - totalBarsW) / 2;
-        return (
-          <g key={gi}>
-            {gi === hoveredIndex && (
-              <rect x={padL + groupW * gi} y={padT} width={groupW} height={innerH} fill="var(--surface-2)" />
-            )}
-            <rect
-              x={padL + groupW * gi}
-              y={padT}
-              width={groupW}
-              height={innerH}
-              fill="transparent"
-              style={{ cursor: onBarClick ? "pointer" : "default" }}
-              onMouseEnter={() => setHoveredIndex(gi)}
-              onMouseLeave={() => setHoveredIndex(null)}
-              onClick={onBarClick ? () => onBarClick(gi) : undefined}
-            />
-            {d.values.map((v, vi) => {
-              const bh = (Math.abs(v.value) / max) * innerH;
-              const bx = groupX + vi * (barW + 2);
-              const by = padT + innerH - bh;
-              return (
-                <rect
-                  key={vi}
-                  x={bx}
-                  y={by}
-                  width={barW}
-                  height={bh}
-                  rx={4}
-                  fill={v.color}
-                  className="chart-bar"
-                  style={{ pointerEvents: "none", color: v.color, "--bar-fill": `url(#${barGradId}-${gi}-${vi})` } as CSSProperties}
-                />
-              );
-            })}
-            <text x={padL + groupW * gi + groupW / 2} y={height - 6} textAnchor="middle" className="axis-label">
-              {d.label}
-            </text>
-          </g>
-        );
-      })}
-      {hovered && (
-        <g style={{ pointerEvents: "none" }}>
-          <rect
-            x={tooltipX}
-            y={tooltipY}
-            width={tooltipW}
-            height={tooltipH}
-            rx={8}
-            fill="var(--surface)"
-            stroke="var(--border-strong)"
-            strokeWidth={1}
-          />
-          <text x={tooltipX + tooltipPadding} y={tooltipY + tooltipPadding + 9} className="chart-tooltip-title">
-            {hovered.label}
-          </text>
-          {hovered.values.map((v, vi) => (
-            <g key={vi}>
-              <circle
-                cx={tooltipX + tooltipPadding + 4}
-                cy={tooltipY + tooltipPadding + tooltipLineH * (vi + 1) + 5}
-                r={4}
-                fill={v.color}
-              />
-              <text
-                x={tooltipX + tooltipPadding + 14}
-                y={tooltipY + tooltipPadding + tooltipLineH * (vi + 1) + 9}
-                className="chart-tooltip-text"
-              >
-                {(v.name ? v.name + ": " : "") + fmtMoneyShort(v.value)}
+    <div ref={wrapRef} className="chart-fit">
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+        {/* A bright-top-to-dim-base gradient per bar. Only the Futuristic style paints with it (fill: var(--bar-fill));
+            the other styles keep the bar's flat fill attribute. */}
+        <defs>
+          {data.map((d, gi) =>
+            d.values.map((v, vi) => (
+              <linearGradient key={`${gi}-${vi}`} id={`${barGradId}-${gi}-${vi}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" style={{ stopColor: `color-mix(in srgb, ${v.color} 65%, white)` }} />
+                <stop offset="100%" style={{ stopColor: `color-mix(in srgb, ${v.color} 38%, transparent)` }} />
+              </linearGradient>
+            )),
+          )}
+        </defs>
+        {Array.from({ length: gridCount + 1 }).map((_, i) => {
+          const gy = padT + (innerH * i) / gridCount;
+          const val = max - (max * i) / gridCount;
+          return (
+            <g key={i}>
+              <line x1={padL} y1={gy} x2={width - padR} y2={gy} stroke="var(--border)" strokeWidth={1} />
+              <text x={padL - 8} y={gy + 3} textAnchor="end" className="axis-label">
+                {fmtMoneyShort(val)}
               </text>
             </g>
-          ))}
-        </g>
-      )}
-    </svg>
+          );
+        })}
+        {data.map((d, gi) => {
+          const n = d.values.length || 1;
+          const barGap = 6;
+          const barW = Math.max(0, Math.min(48, (groupW - barGap * 2 - (n - 1) * 2) / n));
+          const totalBarsW = barW * n + (n - 1) * 2;
+          const groupX = padL + groupW * gi + (groupW - totalBarsW) / 2;
+          return (
+            <g key={gi}>
+              {gi === hoveredIndex && (
+                <rect x={padL + groupW * gi} y={padT} width={groupW} height={innerH} fill="var(--surface-2)" />
+              )}
+              <rect
+                x={padL + groupW * gi}
+                y={padT}
+                width={groupW}
+                height={innerH}
+                fill="transparent"
+                style={{ cursor: onBarClick ? "pointer" : "default" }}
+                onMouseEnter={() => setHoveredIndex(gi)}
+                onMouseLeave={() => setHoveredIndex(null)}
+                onClick={onBarClick ? () => onBarClick(gi) : undefined}
+              />
+              {d.values.map((v, vi) => {
+                const bh = (Math.abs(v.value) / max) * innerH;
+                const bx = groupX + vi * (barW + 2);
+                const by = padT + innerH - bh;
+                return (
+                  <rect
+                    key={vi}
+                    x={bx}
+                    y={by}
+                    width={barW}
+                    height={bh}
+                    rx={4}
+                    fill={v.color}
+                    className="chart-bar"
+                    style={{ pointerEvents: "none", color: v.color, "--bar-fill": `url(#${barGradId}-${gi}-${vi})` } as CSSProperties}
+                  />
+                );
+              })}
+              <text x={padL + groupW * gi + groupW / 2} y={height - 6} textAnchor="middle" className="axis-label">
+                {d.label}
+              </text>
+            </g>
+          );
+        })}
+        {hovered && (
+          <g style={{ pointerEvents: "none" }}>
+            <rect
+              x={tooltipX}
+              y={tooltipY}
+              width={tooltipW}
+              height={tooltipH}
+              rx={8}
+              fill="var(--surface)"
+              stroke="var(--border-strong)"
+              strokeWidth={1}
+            />
+            <text x={tooltipX + tooltipPadding} y={tooltipY + tooltipPadding + 9} className="chart-tooltip-title">
+              {hovered.label}
+            </text>
+            {hovered.values.map((v, vi) => (
+              <g key={vi}>
+                <circle
+                  cx={tooltipX + tooltipPadding + 4}
+                  cy={tooltipY + tooltipPadding + tooltipLineH * (vi + 1) + 5}
+                  r={4}
+                  fill={v.color}
+                />
+                <text
+                  x={tooltipX + tooltipPadding + 14}
+                  y={tooltipY + tooltipPadding + tooltipLineH * (vi + 1) + 9}
+                  className="chart-tooltip-text"
+                >
+                  {(v.name ? v.name + ": " : "") + fmtMoneyShort(v.value)}
+                </text>
+              </g>
+            ))}
+          </g>
+        )}
+      </svg>
+    </div>
   );
 }
 
 export function LineChart({
   points,
-  width = 560,
+  width: initialWidth = 560,
   height = 200,
   color = "var(--accent)",
   formatValue = fmtMoneyShort,
@@ -352,13 +402,12 @@ export function LineChart({
    * (e.g. a percentage) needs its own. */
   formatValue?: (v: number) => string;
 }) {
+  const [wrapRef, width] = useMeasuredWidth(initialWidth);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const padL = 46;
-  const padR = 12;
+  const padR = Math.max(12, Math.ceil(Math.max(0, ...points.map(point => point.label.length)) * 12 * 0.62 / 2) + 4);
   const padT = 14;
   const padB = 26;
-  const innerW = width - padL - padR;
   const innerH = height - padT - padB;
   const values = points.map((p) => p.value);
   let min = Math.min(...values);
@@ -371,11 +420,13 @@ export function LineChart({
   const minPad = min - span * 0.12;
   const maxPad = max + span * 0.12;
   const spanPad = maxPad - minPad || 1;
+  const gridCount = 4;
+  const padL = axisGutter(Array.from({ length: gridCount + 1 }, (_, i) => formatValue(maxPad - (spanPad * i) / gridCount)));
+  const innerW = width - padL - padR;
   const x = (i: number) => padL + (points.length === 1 ? innerW / 2 : (innerW * i) / (points.length - 1));
   const y = (v: number) => padT + innerH - ((v - minPad) / spanPad) * innerH;
   const linePts = points.map((p, i) => `${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
   const areaPts = `${x(0).toFixed(1)},${(padT + innerH).toFixed(1)} ${linePts} ${x(points.length - 1).toFixed(1)},${(padT + innerH).toFixed(1)}`;
-  const gridCount = 4;
   const lastX = x(points.length - 1);
   const lastY = y(points[points.length - 1]?.value ?? 0);
   const gradId = "grad-" + Math.random().toString(36).slice(2, 8);
@@ -400,101 +451,103 @@ export function LineChart({
   }
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} preserveAspectRatio="xMidYMid meet">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.32} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      {Array.from({ length: gridCount + 1 }).map((_, i) => {
-        const gy = padT + (innerH * i) / gridCount;
-        const val = maxPad - (spanPad * i) / gridCount;
-        return (
-          <g key={i}>
-            <line x1={padL} y1={gy} x2={width - padR} y2={gy} stroke="var(--border)" strokeWidth={1} />
-            <text x={padL - 8} y={gy + 3} textAnchor="end" className="axis-label">
-              {formatValue(val)}
+    <div ref={wrapRef} className="chart-fit">
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.32} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        {Array.from({ length: gridCount + 1 }).map((_, i) => {
+          const gy = padT + (innerH * i) / gridCount;
+          const val = maxPad - (spanPad * i) / gridCount;
+          return (
+            <g key={i}>
+              <line x1={padL} y1={gy} x2={width - padR} y2={gy} stroke="var(--border)" strokeWidth={1} />
+              <text x={padL - 8} y={gy + 3} textAnchor="end" className="axis-label">
+                {formatValue(val)}
+              </text>
+            </g>
+          );
+        })}
+        <polygon points={areaPts} fill={`url(#${gradId})`} />
+        <polyline
+          points={linePts}
+          fill="none"
+          stroke={color}
+          strokeWidth={2.25}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          style={{ pointerEvents: "none" }}
+        />
+        {points.length > 0 && hoveredIndex === null && (
+          <circle cx={lastX} cy={lastY} r={4} fill={color} stroke="var(--surface)" strokeWidth={2} />
+        )}
+        {points.map((p, i) => {
+          const step = maxLabels && points.length > maxLabels ? Math.ceil((points.length - 1) / (maxLabels - 1)) : 1;
+          const last = points.length - 1;
+          // Every `step`th label, plus the newest — dropping a regular one that would sit on top of it.
+          const show = i === last || (i % step === 0 && last - i >= step * 0.6);
+          if (!show) return null;
+          return (
+            <text key={i} x={x(i)} y={height - 6} textAnchor="middle" className="axis-label">
+              {p.label}
+            </text>
+          );
+        })}
+        {hoveredIndex !== null && (
+          <g style={{ pointerEvents: "none" }}>
+            <line
+              x1={x(hoveredIndex)}
+              y1={padT}
+              x2={x(hoveredIndex)}
+              y2={padT + innerH}
+              stroke="var(--border-strong)"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+            <circle cx={x(hoveredIndex)} cy={y(points[hoveredIndex].value)} r={5} fill={color} stroke="var(--surface)" strokeWidth={2} />
+          </g>
+        )}
+        {points.map((_, i) => {
+          const bx = padL + bandW * i;
+          return (
+            <rect
+              key={i}
+              x={bx}
+              y={padT}
+              width={bandW}
+              height={innerH}
+              fill="transparent"
+              style={{ cursor: "default" }}
+              onMouseEnter={() => setHoveredIndex(i)}
+              onMouseLeave={() => setHoveredIndex(null)}
+            />
+          );
+        })}
+        {hovered && (
+          <g style={{ pointerEvents: "none" }}>
+            <rect
+              x={tooltipX}
+              y={tooltipY}
+              width={tooltipW}
+              height={tooltipH}
+              rx={8}
+              fill="var(--surface)"
+              stroke="var(--border-strong)"
+              strokeWidth={1}
+            />
+            <text x={tooltipX + tooltipPadding} y={tooltipY + tooltipPadding + 9} className="chart-tooltip-title">
+              {hovered.label}
+            </text>
+            <text x={tooltipX + tooltipPadding} y={tooltipY + tooltipPadding + tooltipLineH + 9} className="chart-tooltip-text">
+              {formatValue(hovered.value)}
             </text>
           </g>
-        );
-      })}
-      <polygon points={areaPts} fill={`url(#${gradId})`} />
-      <polyline
-        points={linePts}
-        fill="none"
-        stroke={color}
-        strokeWidth={2.25}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        style={{ pointerEvents: "none" }}
-      />
-      {points.length > 0 && hoveredIndex === null && (
-        <circle cx={lastX} cy={lastY} r={4} fill={color} stroke="var(--surface)" strokeWidth={2} />
-      )}
-      {points.map((p, i) => {
-        const step = maxLabels && points.length > maxLabels ? Math.ceil((points.length - 1) / (maxLabels - 1)) : 1;
-        const last = points.length - 1;
-        // Every `step`th label, plus the newest — dropping a regular one that would sit on top of it.
-        const show = i === last || (i % step === 0 && last - i >= step * 0.6);
-        if (!show) return null;
-        return (
-          <text key={i} x={x(i)} y={height - 6} textAnchor="middle" className="axis-label">
-            {p.label}
-          </text>
-        );
-      })}
-      {hoveredIndex !== null && (
-        <g style={{ pointerEvents: "none" }}>
-          <line
-            x1={x(hoveredIndex)}
-            y1={padT}
-            x2={x(hoveredIndex)}
-            y2={padT + innerH}
-            stroke="var(--border-strong)"
-            strokeWidth={1}
-            strokeDasharray="3 3"
-          />
-          <circle cx={x(hoveredIndex)} cy={y(points[hoveredIndex].value)} r={5} fill={color} stroke="var(--surface)" strokeWidth={2} />
-        </g>
-      )}
-      {points.map((_, i) => {
-        const bx = padL + bandW * i;
-        return (
-          <rect
-            key={i}
-            x={bx}
-            y={padT}
-            width={bandW}
-            height={innerH}
-            fill="transparent"
-            style={{ cursor: "default" }}
-            onMouseEnter={() => setHoveredIndex(i)}
-            onMouseLeave={() => setHoveredIndex(null)}
-          />
-        );
-      })}
-      {hovered && (
-        <g style={{ pointerEvents: "none" }}>
-          <rect
-            x={tooltipX}
-            y={tooltipY}
-            width={tooltipW}
-            height={tooltipH}
-            rx={8}
-            fill="var(--surface)"
-            stroke="var(--border-strong)"
-            strokeWidth={1}
-          />
-          <text x={tooltipX + tooltipPadding} y={tooltipY + tooltipPadding + 9} className="chart-tooltip-title">
-            {hovered.label}
-          </text>
-          <text x={tooltipX + tooltipPadding} y={tooltipY + tooltipPadding + tooltipLineH + 9} className="chart-tooltip-text">
-            {formatValue(hovered.value)}
-          </text>
-        </g>
-      )}
-    </svg>
+        )}
+      </svg>
+    </div>
   );
 }
 
@@ -566,30 +619,13 @@ export function SeriesChart({
   ariaLabel: string;
 }) {
   const [hoverX, setHoverX] = useState<number | null>(null);
-  // Drawn at the card's real pixel width, so the text stays its own size and the
-  // chart fills the card instead of sitting at a fixed width in the middle of it.
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [measured, setMeasured] = useState<number | null>(null);
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(([entry]) => {
-      const w = Math.round(entry.contentRect.width);
-      setMeasured((prev) => (w > 0 && w !== prev ? w : prev));
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  const width = Math.max(measured ?? initialWidth, 280);
+  const [wrapRef, width] = useMeasuredWidth(initialWidth);
   const drawn = series.filter((s) => s.points.length > 0);
   // Nothing to draw (an account with no deposits, no value history and no plan yet): a grid of
   // made-up axis labels would only mislead, so leave it to the caller's own note.
   if (drawn.length === 0) return null;
-  const padL = 46;
-  const padR = 14;
   const padT = 14;
   const padB = 26;
-  const innerW = width - padL - padR;
   const innerH = height - padT - padB;
 
   const allX = drawn.flatMap((s) => s.points.map((p) => p.x));
@@ -605,11 +641,14 @@ export function SeriesChart({
   const vMaxRaw = Math.max(0, ...allV);
   const vMax = vMaxRaw === vMin ? vMin + 1 : vMaxRaw + (vMaxRaw - vMin) * 0.08;
   const spanV = vMax - vMin;
+  const gridCount = 4;
+  const xTicks = timeTicks(xMin, xMax, width < 480 ? 4 : 6);
+  const padR = Math.max(14, Math.ceil(Math.max(0, ...xTicks.map(tick => tick.label.length)) * 12 * 0.62 / 2) + 4);
+  const padL = axisGutter(Array.from({ length: gridCount + 1 }, (_, i) => formatValue(vMax - (spanV * i) / gridCount)));
+  const innerW = width - padL - padR;
   const x = (v: number) => padL + ((v - xMin) / spanX) * innerW;
   const y = (v: number) => padT + innerH - ((v - vMin) / spanV) * innerH;
 
-  const gridCount = 4;
-  const xTicks = timeTicks(xMin, xMax, width < 480 ? 4 : 6);
 
   const sortedX = Array.from(new Set(allX)).sort((a, b) => a - b);
   function nearestX(target: number): number {
@@ -680,6 +719,7 @@ export function SeriesChart({
   return (
     <div
       data-series-chart
+      className="chart-fit"
       ref={wrapRef}
       tabIndex={0}
       role="group"
@@ -687,7 +727,7 @@ export function SeriesChart({
       onKeyDown={onKey}
       onBlur={() => setHoverX(null)}
     >
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} preserveAspectRatio="xMidYMid meet" role="img" aria-label={ariaLabel}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} role="img" aria-label={ariaLabel}>
         {Array.from({ length: gridCount + 1 }).map((_, i) => {
           const gy = padT + (innerH * i) / gridCount;
           const val = vMax - (spanV * i) / gridCount;

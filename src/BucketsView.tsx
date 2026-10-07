@@ -1,11 +1,15 @@
+import "./BudgetAndGoals.css";
 import { FormEvent, useState } from "react";
 import type { Account, Bucket, FamilyMember } from "./types";
-import { formatAmount, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, formatMonthYear, toLocalIsoDate } from "./format";
+import { DateField } from "./DateField";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { BUCKET_ICON_OPTIONS, BucketIcon, isBucketIconKey, type BucketIconKey } from "./icons";
 import { goalPlan, type GoalPlan } from "./goalPlan";
 import { usePopover } from "./usePopover";
 import { MenuSelect } from "./MenuSelect";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 const BUCKET_COLORS = ["#1E9E76", "#3E7CB8", "#C08A2E", "#8A5FB0", "#BD5B3C", "#4E8FC9", "#B0526A", "#5FA85E"];
 
@@ -68,13 +72,23 @@ export function daysLeft(targetDate: string): number {
   return Math.max(0, Math.round((target.getTime() - today.getTime()) / 86400000));
 }
 
+/** Open state lives in `BucketsView`, so the empty page's "Create a goal" and starting points can
+ * open this form (with `initialName`, and for some `initialTarget`, filled in) from outside it. */
 function NewBucketForm({
   accounts,
   familyMembers,
+  open,
+  onOpenChange,
+  initialName,
+  initialTarget,
   onCreate,
 }: {
   accounts: Account[];
   familyMembers: FamilyMember[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialName?: string;
+  initialTarget?: string;
   onCreate: (
     name: string,
     targetAmount: string | null,
@@ -87,8 +101,9 @@ function NewBucketForm({
     tracksAccount: boolean,
   ) => void;
 }) {
-  const [name, setName] = useState("");
-  const [target, setTarget] = useState("");
+  // The empty page mounts this form already open, so the name (and target) start from the initial ones too.
+  const [name, setName] = useState(initialName ?? "");
+  const [target, setTarget] = useState(initialTarget ?? "");
   const [targetDate, setTargetDate] = useState("");
   const [accountId, setAccountId] = useState("");
   const [memberId, setMemberId] = useState("");
@@ -96,7 +111,14 @@ function NewBucketForm({
   const [color, setColor] = useState<string | null>(null);
   const [iconKey, setIconKey] = useState<BucketIconKey | null>(null);
   const [tracksAccount, setTracksAccount] = useState(false);
-  const [open, setOpen] = useState(false);
+  // An example name replaces the name field each time the form opens with one; opening without one
+  // keeps whatever is already in the field, like the other fields.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open && initialName) setName(initialName);
+    if (open && initialTarget) setTarget(initialTarget);
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -121,12 +143,12 @@ function NewBucketForm({
     setColor(null);
     setIconKey(null);
     setTracksAccount(false);
-    setOpen(false);
+    onOpenChange(false);
   }
 
   if (!open) {
     return (
-      <button type="button" className="add-tile" onClick={() => setOpen(true)}>
+      <button type="button" className="add-tile" onClick={() => onOpenChange(true)}>
         <span className="add-tile-plus" aria-hidden="true">+</span>
         New goal…
       </button>
@@ -137,7 +159,7 @@ function NewBucketForm({
     <form className="bucket-new-form" onSubmit={handleSubmit}>
       <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. "Emergency Fund"' />
       <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Target amount (optional)" />
-      <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} title="Target date" />
+      <DateField value={targetDate} onChange={setTargetDate} ariaLabel="Target date (optional)" placeholder="Target date (optional)" title="Target date" />
       <MenuSelect
         ariaLabel="Linked account"
         value={accountId}
@@ -178,12 +200,27 @@ function NewBucketForm({
         <button type="submit" disabled={!name.trim()}>
           Create
         </button>
-        <button type="button" className="modal-secondary" onClick={() => setOpen(false)}>
+        <button type="button" className="modal-secondary" onClick={() => onOpenChange(false)}>
           Cancel
         </button>
       </div>
     </form>
   );
+}
+
+/** The empty Goals page's starting points (from the UI mockup). The emergency fund suggests three
+ * months of the household's average spending, rounded to the nearest $100, when there is any. */
+function goalStarters(avgMonthlySpend: string): { name: string; description: string; target?: string }[] {
+  const threeMonths = Math.round((parseFloat(avgMonthlySpend) * 3) / 100) * 100;
+  const emergency =
+    threeMonths > 0
+      ? { name: "Emergency fund", description: `3 months of spending, about ${formatAmount(threeMonths.toFixed(2)).replace(/\.00$/, "")}`, target: String(threeMonths) }
+      : { name: "Emergency fund", description: "3 months of your spending" };
+  return [
+    emergency,
+    { name: "Holiday", description: "A trip next summer, you pick the amount" },
+    { name: "Once-a-year bill", description: "Car insurance or a subscription, saved monthly" },
+  ];
 }
 
 function EditBucketForm({
@@ -236,7 +273,7 @@ function EditBucketForm({
         onChange={(e) => setTarget(e.target.value)}
         placeholder="Target amount (optional)"
       />
-      <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} title="Target date" />
+      <DateField value={targetDate} onChange={setTargetDate} ariaLabel="Target date (optional)" placeholder="Target date (optional)" title="Target date" />
       <MenuSelect
         ariaLabel="Linked account"
         value={accountId}
@@ -332,12 +369,9 @@ function ContributePopover({
   );
 }
 
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "Jun 2027" / "Dec 18, 2026" from a stored "YYYY-MM-DD". */
+/** "Jun 2027" / "Dec 18" (or "Dec 18, 2027" for another year) from a stored "YYYY-MM-DD". */
 function shortDate(iso: string, withDay: boolean): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return withDay ? `${MONTH_NAMES[m - 1]} ${d}, ${y}` : `${MONTH_NAMES[m - 1]} ${y}`;
+  return withDay ? formatDisplayDate(iso) : formatMonthYear(iso);
 }
 
 /** The projection lines under a goal's progress bar: where the recent pace
@@ -384,6 +418,8 @@ export function BucketsView({
   onUpdateBucketDetails,
   onAddContribution,
   onDeleteBucket,
+  onOpenHelp,
+  avgMonthlySpend = "0",
 }: {
   buckets: Bucket[];
   accounts: Account[];
@@ -411,23 +447,104 @@ export function BucketsView({
   ) => void;
   onAddContribution: (bucketId: number, date: string, amount: string, note: string | null) => void;
   onDeleteBucket: (id: number) => void;
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
+  /** Average monthly spending (the Dashboard's runway figure), for the emergency-fund starting point. */
+  avgMonthlySpend?: string;
 }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [newGoalOpen, setNewGoalOpen] = useState(false);
+  const [newGoalName, setNewGoalName] = useState("");
+  const [newGoalTarget, setNewGoalTarget] = useState("");
   const today = new Date();
+
+  function openNewGoal(name: string, target = "") {
+    setNewGoalName(name);
+    setNewGoalTarget(target);
+    setNewGoalOpen(true);
+  }
+
+  function changeNewGoalOpen(open: boolean) {
+    setNewGoalOpen(open);
+    if (!open) {
+      setNewGoalName("");
+      setNewGoalTarget("");
+    }
+  }
+
+  const newGoalForm = (
+    <NewBucketForm
+      accounts={accounts}
+      familyMembers={familyMembers}
+      open={newGoalOpen}
+      onOpenChange={changeNewGoalOpen}
+      initialName={newGoalName}
+      initialTarget={newGoalTarget}
+      onCreate={onCreateBucket}
+    />
+  );
+
+  if (buckets.length === 0) {
+    return (
+      <div className="buckets-view">
+        <div className="page-top">
+          <div>
+            <div className="view-title-row">
+              <h1 className="view-title">Goals</h1>
+              {onOpenHelp && <HelpLink tab="buckets" onOpen={onOpenHelp} />}
+            </div>
+            <p className="view-sub">Money you're setting aside for something</p>
+          </div>
+        </div>
+        <div className="goals-empty">
+          {newGoalOpen ? (
+            newGoalForm
+          ) : (
+            <>
+              <span className="goals-empty-icon" aria-hidden="true">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="12" cy="12" r="8" />
+                  <circle cx="12" cy="12" r="4" />
+                  <circle cx="12" cy="12" r="0.8" fill="currentColor" />
+                </svg>
+              </span>
+              <h2>Save toward something</h2>
+              <p className="goals-empty-lede">
+                A goal is an amount you want to have by a date: a holiday, a new car, a cushion for emergencies, or a bill
+                that comes once a year. Vault Spend shows how much to put aside each month to get there.
+              </p>
+              <button type="button" className="goals-empty-create" onClick={() => openNewGoal("")}>
+                Create a goal
+              </button>
+              <p className="goals-empty-or">Or start from one of these:</p>
+              <div className="goals-empty-starters" role="group" aria-label="Start from one of these">
+                {goalStarters(avgMonthlySpend).map((starter) => (
+                  <button key={starter.name} type="button" className="goals-empty-starter" onClick={() => openNewGoal(starter.name, starter.target)}>
+                    <b>{starter.name}</b>
+                    <span>{starter.description}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="buckets-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Goals</h1>
-          <p className="view-sub">Savings goals and sinking funds.</p>
+          <div className="view-title-row">
+            <h1 className="view-title">Goals</h1>
+            {onOpenHelp && <HelpLink tab="buckets" onOpen={onOpenHelp} />}
+          </div>
+          <p className="view-sub">Money you're setting aside for something, like a holiday or a yearly bill.</p>
         </div>
       </div>
-      {buckets.length === 0 && (
-        <p className="empty-state">No savings goals yet — create one to start tracking a goal.</p>
-      )}
       <div className="buckets-grid">
         {buckets.map((b) => {
           const saved = parseFloat(b.saved_amount);
@@ -503,7 +620,7 @@ export function BucketsView({
             </div>
           );
         })}
-        <NewBucketForm accounts={accounts} familyMembers={familyMembers} onCreate={onCreateBucket} />
+        {newGoalForm}
       </div>
     </div>
   );

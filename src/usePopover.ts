@@ -30,15 +30,23 @@ export function usePopover() {
       // Measure the normal CSS size first; all offsets remain relative to the
       // existing container, including Transparent's backdrop-filter containers.
       for (const property of ["left", "right", "top", "bottom", "max-height"]) panel.style.removeProperty(property);
-      const header = rootRef.current?.closest(".main")?.querySelector(".topbar")?.getBoundingClientRect();
-      const topEdge = Math.max(8, header?.bottom ?? 8);
-      const below = Math.max(0, window.innerHeight - trigger.bottom - 12);
-      const above = Math.max(0, trigger.top - topEdge - 12);
+      const topEdge = 8;
+      // A `position: fixed` panel (the profile menu beside the icon-only sidebar) opens level with
+      // its trigger, in window coordinates: its top at the trigger's top or, short of room below,
+      // its bottom at the trigger's bottom.
+      const fixed = getComputedStyle(panel).position === "fixed";
+      const below = Math.max(0, window.innerHeight - (fixed ? trigger.top : trigger.bottom) - 12);
+      const above = Math.max(0, (fixed ? trigger.bottom : trigger.top) - topEdge - 12);
       const wanted = Math.min(panel.scrollHeight + 2, parseFloat(getComputedStyle(panel).maxHeight) || 340);
       const useAbove = (below < wanted && above > below) ||
         (panel.classList.contains("bucket-contribute-panel") && above >= wanted);
-      panel.style.top = useAbove ? "auto" : "calc(100% + 6px)";
-      panel.style.bottom = useAbove ? "calc(100% + 6px)" : "auto";
+      if (fixed) {
+        panel.style.top = useAbove ? "auto" : `${trigger.top}px`;
+        panel.style.bottom = useAbove ? `${window.innerHeight - trigger.bottom}px` : "auto";
+      } else {
+        panel.style.top = useAbove ? "auto" : "calc(100% + 6px)";
+        panel.style.bottom = useAbove ? "calc(100% + 6px)" : "auto";
+      }
       panel.style.maxHeight = `${Math.min(wanted, useAbove ? above : below)}px`;
       const rect = panel.getBoundingClientRect();
       const shift = rect.left < 8 ? 8 - rect.left : Math.min(0, window.innerWidth - 8 - rect.right);
@@ -52,9 +60,16 @@ export function usePopover() {
       placePanel();
     }
     placePanel();
+    // The panel's height is fitted to its contents when it opens; contents that change while it is
+    // open (More filters' Clear all row appears once a filter is set) fit it again, or the new row
+    // would push the last field into a scroll. Only added or removed nodes and text count: the
+    // panel's own style changes, made here, don't.
+    const contents = new MutationObserver(placePanel);
+    contents.observe(panel, { childList: true, subtree: true, characterData: true });
     window.addEventListener("resize", placePanel);
     document.addEventListener("scroll", onScroll, true);
     return () => {
+      contents.disconnect();
       window.removeEventListener("resize", placePanel);
       document.removeEventListener("scroll", onScroll, true);
     };

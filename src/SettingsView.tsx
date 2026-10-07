@@ -1,3 +1,4 @@
+import "./Rules.css";
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -13,7 +14,19 @@ import { getCurrentGeneration } from "./profileUiState";
 import { ModalShell } from "./Modal";
 import { PasswordForm } from "./PasswordForm";
 import { MenuSelect } from "./MenuSelect";
+import { formatDisplayDateTime } from "./format";
+import { MobileSettings } from "./MobileSettings";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs, type NeonAccent } from "./themeBootstrap";
+import type { Theme } from "./appTypes";
+import { ThemeSwitch } from "./SidebarControls";
+import transparentLightPreview from "./assets/style-previews/transparent-light.webp";
+import transparentDarkPreview from "./assets/style-previews/transparent-dark.webp";
+import futuristicLightPreview from "./assets/style-previews/futuristic-light.webp";
+import futuristicDarkPreview from "./assets/style-previews/futuristic-dark.webp";
+import retroLightPreview from "./assets/style-previews/retro-light.webp";
+import retroDarkPreview from "./assets/style-previews/retro-dark.webp";
+import { HelpLink } from "./HelpLink";
+import type { Tab } from "./appTypes";
 
 const LIVE_PRICE_PROVIDERS: Record<
   LivePriceProviderId,
@@ -264,7 +277,7 @@ export function BackupsBlock({
         <tbody>
           {backups.map((b) => (
             <tr key={b.filename}>
-              <td>{b.created_at}</td>
+              <td className="date-cell">{formatDisplayDateTime(b.created_at)}</td>
               <td className="amount-col">{(b.size_bytes / 1024).toFixed(0)} KB</td>
               <td className="actions-col">
                 {confirmingRestoreFilename === b.filename ? (
@@ -439,24 +452,26 @@ function LivePricesSection({
   );
 }
 
-const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string }[] = [
+/** Each style shown as a picture (its Dashboard, captured by tools/capture-style-previews.mjs) in the
+ * light or dark the app is showing, with a one-line description. */
+const THEME_STYLE_OPTIONS: { id: ThemeStyle; label: string; description: string; previews: { light: string; dark: string } }[] = [
   {
     id: "transparent",
     label: "Default",
-    description:
-      "Vault Spend's standard look — translucent, blurred sidebar and cards, pill-shaped buttons, and a soft glass highlight behind the active nav item. Follows the header's Light/Dark/System toggle.",
+    description: "Clean and soft, with see-through panels.",
+    previews: { light: transparentLightPreview, dark: transparentDarkPreview },
   },
   {
     id: "futuristic",
     label: "Futuristic",
-    description:
-      "A neon look on deep navy — a glowing accent color you choose, tall narrow headings, rounded panels, and its own angular sidebar icons. When it's selected, you can pick the accent color and how strongly it glows. Also follows the header's Light/Dark/System toggle.",
+    description: "Neon colors on dark blue. Pick the glow color below.",
+    previews: { light: futuristicLightPreview, dark: futuristicDarkPreview },
   },
   {
     id: "retro",
     label: "Retro",
-    description:
-      "A classic desktop reskin — gray raised and sunken controls, square corners, white document areas, and navy selection, in a plain system sans. Light is the classic gray; Dark is a modern adaptation of the same shapes. Also follows the header's Light/Dark/System toggle.",
+    description: "Classic gray desktop look with square corners.",
+    previews: { light: retroLightPreview, dark: retroDarkPreview },
   },
 ];
 
@@ -471,11 +486,18 @@ export function AppearanceSection({
   onSetThemeStyle,
   appearance,
   onSetAppearance,
+  theme,
+  onSetTheme,
+  resolvedTheme,
 }: {
   themeStyle: ThemeStyle;
   onSetThemeStyle: (style: ThemeStyle) => void;
   appearance: AppearancePrefs;
   onSetAppearance: (next: AppearancePrefs) => void;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+  /** The light or dark actually showing, so the pictures match it. */
+  resolvedTheme: "light" | "dark";
 }) {
   return (
     <div className="card">
@@ -486,19 +508,31 @@ export function AppearanceSection({
         Choose Vault Spend's visual theme. This only changes colors, fonts, and shapes — nothing about how the app
         works.
       </p>
-      <div className="feature-toggle-list" role="radiogroup" aria-label="Theme">
+      <div className="appearance-theme">
+        <span className="feature-toggle-label" id="appearance-light-dark">Light or dark</span>
+        <ThemeSwitch theme={theme} onSetTheme={onSetTheme} className="view-toggle" labelledBy="appearance-light-dark" />
+      </div>
+      <div className="style-preview-grid" role="radiogroup" aria-label="Style">
         {THEME_STYLE_OPTIONS.map((opt) => (
-          <label key={opt.id} className="feature-toggle-row">
+          <label key={opt.id} className={themeStyle === opt.id ? "style-preview-tile style-preview-tile-checked" : "style-preview-tile"}>
             <input
               type="radio"
               name="theme-style"
+              className="style-preview-radio"
               checked={themeStyle === opt.id}
+              aria-label={opt.label}
+              aria-describedby={`style-description-${opt.id}`}
               onChange={() => onSetThemeStyle(opt.id)}
             />
-            <span className="feature-toggle-text">
-              <span className="feature-toggle-label">{opt.label}</span>
-              <span className="modal-message-secondary">{opt.description}</span>
-            </span>
+            <img
+              className="style-preview-image"
+              src={opt.previews[resolvedTheme]}
+              alt={`${opt.label} style preview`}
+              width={480}
+              height={300}
+            />
+            <span className="style-preview-name">{opt.label}</span>
+            <span className="style-preview-description" id={`style-description-${opt.id}`}>{opt.description}</span>
           </label>
         ))}
       </div>
@@ -577,7 +611,7 @@ function PrivacySection({ autoHide, onSetAutoHide }: { autoHide: boolean; onSetA
         <span className="reports-section-title">Privacy</span>
       </div>
       <p className="modal-message-secondary">
-        The header's "Hide amounts" button covers every dollar figure on screen with ••••, so you can open Vault Spend
+        The Hide amounts button at the bottom of the sidebar covers every dollar figure on screen with ••••, so you can open Vault Spend
         with someone next to you. It hides the numbers, not the charts' shapes.
       </p>
       <div className="feature-toggle-list">
@@ -734,14 +768,14 @@ function FeatureTogglesSection({
     {
       key: "envelope_caps_enabled",
       label: "Envelope Caps",
-      description: 'Shows the "Cap" checkbox on Budget categories, for warning at 90% instead of the default 80%.',
+      description: 'Adds "Warn at 90%" to each Budget category\'s ⋯ menu, for warning at 90% instead of the default 80%.',
       onChange: onSetEnvelopeCapsEnabled,
     },
     {
       key: "rollover_enabled",
       label: "Rollover unspent",
       description:
-        'Lets a Budget category carry what it didn\'t spend into next month (the "Roll over unspent" checkbox on each line). Off: nothing rolls over, and each category\'s choice is remembered for when you turn it back on.',
+        'Lets a Budget category carry what it didn\'t spend into next month ("Roll over unspent" in each line\'s ⋯ menu). Off: nothing rolls over, and each category\'s choice is remembered for when you turn it back on.',
       onChange: onSetRolloverEnabled,
     },
     {
@@ -978,7 +1012,7 @@ export function ProfilesSection({
           ))}
         </tbody>
       </table>
-      <form className="category-create-form" onSubmit={handleCreateSubmit}>
+      <form className="category-create-form profile-create-form" onSubmit={handleCreateSubmit}>
         <input
           value={newProfileName}
           onChange={(e) => setNewProfileName(e.target.value)}
@@ -1108,6 +1142,7 @@ function AboutSection() {
       <div className="card-head">
         <span className="reports-section-title">About</span>
       </div>
+      <p className="modal-message-secondary">Own your Data, Own your Money!</p>
       <p className="modal-message-secondary">
         Vault Spend is an independent open-source project and is not affiliated with, endorsed by, or partnered with
         any external financial services or wallet providers.
@@ -1149,6 +1184,9 @@ export function SettingsView({
   onSetThemeStyle,
   appearance,
   onSetAppearance,
+  theme,
+  onSetTheme,
+  resolvedTheme,
   privacyAutoHide,
   onSetPrivacyAutoHide,
   onDownloadSetupTemplate,
@@ -1162,6 +1200,7 @@ export function SettingsView({
   categories,
   onRulesApplied,
   onMessage,
+  onOpenHelp,
 }: {
   onDownloadSetupTemplate: () => void;
   onImportSetupData: () => void;
@@ -1211,12 +1250,20 @@ export function SettingsView({
   onSetThemeStyle: (style: ThemeStyle) => void;
   appearance: AppearancePrefs;
   onSetAppearance: (next: AppearancePrefs) => void;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+  resolvedTheme: "light" | "dark";
+  /** Opens Help at this page's section (the ? beside the title). */
+  onOpenHelp?: (tab: Tab) => void;
 }) {
   return (
     <div className="reports-view">
       <div className="page-top">
         <div>
-          <h1 className="view-title">Settings</h1>
+          <div className="view-title-row">
+            <h1 className="view-title">Settings</h1>
+            {onOpenHelp && <HelpLink tab="settings" onOpen={onOpenHelp} />}
+          </div>
           <p className="view-sub">Appearance, profile, and local data.</p>
         </div>
       </div>
@@ -1225,6 +1272,9 @@ export function SettingsView({
         onSetThemeStyle={onSetThemeStyle}
         appearance={appearance}
         onSetAppearance={onSetAppearance}
+        theme={theme}
+        onSetTheme={onSetTheme}
+        resolvedTheme={resolvedTheme}
       />
       <PrivacySection autoHide={privacyAutoHide} onSetAutoHide={onSetPrivacyAutoHide} />
       <ProfilesSection
@@ -1239,6 +1289,7 @@ export function SettingsView({
       />
       <ProfileProtectionSection profiles={profiles} onProtected={onProtected} />
       <ProtectionLeftovers profiles={profiles} />
+      <MobileSettings />
       <DataSection
         dataFileLocation={dataFileLocation}
         onRelocateDataFile={onRelocateDataFile}

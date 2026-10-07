@@ -1,0 +1,73 @@
+/* MenuSelect: the popover single-select that replaces a native <select>. The trigger shares the
+   account-filter-toggle look; the panel is a top-layer popover (positioned from the trigger in
+   MenuSelect.tsx), so dialogs, scrolling tables and backdrop-filter ancestors cannot clip it. */
+.menu-select {
+  position: relative;
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+/* Fills its field the way a native select does in a form. */
+.menu-select-fill {
+  display: block;
+  width: 100%;
+  /* `auto`, not a pixel basis: in a column form the basis would become the field's height. */
+  flex: 1 1 auto;
+  min-width: 100px;
+}
+
+.import-category-row .menu-select {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 320px;
+}
+
+.menu-select-toggle {
+  width: 100%;
+  justify-content: space-between;
+  background: var(--surface);
+  border-color: var(--border-strong);
+  text-align: left;
+  white-space: normal;
+}
+
+.menu-select-toggle:hover {
+  background: var(--surface-2);
+}
+
+.menu-select-toggle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.menu-select-placeholder > span:first-child {
+  color: var(--text-muted);
+}
+
+.menu-select-panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+}
+
+.menu-select-group {
+  padding: 8px 10px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}

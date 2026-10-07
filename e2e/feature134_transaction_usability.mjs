@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp, withFocusRetry } from "./harness.mjs";
+import { chooseRowAction, launchApp, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const SHOT_DIR = path.join(os.tmpdir(), "vault-feature134-shots");
@@ -160,13 +160,12 @@ try {
 
   // Issue 2 — no way to add notes to a transaction: real functional check
   // (not just presence) once Task 4 lands — add one through the real
-  // "+ Add note" button and confirm it actually saved, not just that a
+  // "Add note…" row action and confirm it actually saved, not just that a
   // button with the word "note" exists somewhere on the page.
   await check("a transaction row offers a notes action", async () => {
     const row = await browser.$("//tr[td[contains(.,'Green Leaf Grocers')]]");
-    const addBtn = await row.$("button[aria-label*='Add note for']");
-    assert.ok(await addBtn.isExisting(), "expected an Add note action on the Green Leaf Grocers row, found none");
-    await addBtn.click();
+    // Throws (naming the item) if the row's ⋯ menu has no "Add note…".
+    await chooseRowAction(browser, async () => row.$("[data-row-menu]"), "Add note…");
     const dialogHeading = await browser.$("//h2[contains(@class,'modal-title')][contains(text(),'Note for')]");
     await dialogHeading.waitForExist({ timeout: 5000, timeoutMsg: "expected the note dialog to open" });
     const panel = await browser.$(".modal-panel");

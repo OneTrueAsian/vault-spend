@@ -1,7 +1,7 @@
 # Vault Spend Legal Notice and Disclaimer
 
-**Version:** 2026-09-30  
-**What changed:** First version.
+**Version:** 2026-10-05
+**What changed:** Explained optional local mobile snapshots, remembered phone access, certificate trust and removal limits.
 
 ---
 
@@ -11,10 +11,10 @@ This summary explains the most important points in everyday language. The full n
 
 - Vault Spend is free, open-source software licensed under the MIT License.
 - Vault Spend is provided **"as is"**, without warranties or guarantees.
-- Your financial data is stored locally on your computer. Vault Spend does not operate a user account system or maintain a cloud copy of your financial database.
+- Your main financial data is stored locally on your computer. If you enable mobile snapshots, approved phones can save read-only copies over your private local network. Vault Spend does not operate an online user account system or maintain a cloud copy of your financial database.
 - Vault Spend may make limited internet requests for updates, fonts, or optional investment-price features. These are explained below.
 - Financial calculations, projections, budgets, reports, debt payoff estimates, and similar information are estimates only. They are not financial, investment, tax, accounting, or legal advice.
-- You are responsible for maintaining backups of your data and protecting your passwords, recovery codes, API keys, exported files, and computer.
+- You are responsible for maintaining backups of your data and protecting your passwords, recovery codes, API keys, exported files, computer and any phone with saved snapshots.
 - Vault Spend does not maintain your password, encryption key, or a master recovery key. If you lose your password and all valid recovery codes, Vault Spend has no built-in mechanism to restore access to an encrypted profile.
 - Vault Spend is an independent project. It is not affiliated with or endorsed by any bank, broker, financial institution, investment company, or third-party data provider.
 - Third-party services operate under their own terms, privacy policies, availability, and limitations.
@@ -63,6 +63,16 @@ Vault Spend does not operate a user account system.
 Vault Spend does not automatically upload your financial database to the Vault Spend project.
 
 Vault Spend does not sell your financial information.
+
+### Optional Local Mobile Snapshots
+
+If you enable mobile snapshots, the app runs a local HTTPS connection on your chosen private network interface. You approve each phone and the profiles it may read. Approved phones receive limited, read-only financial snapshots directly from your computer. This feature uses no hosted viewer, financial cloud storage or internet relay. The phone viewer's files and fonts are supplied locally.
+
+The browser remembers access and stores encrypted snapshots with its encryption keys. This does not add a separate phone password: someone using your unlocked phone may be able to view the saved data. Copies show their saved time and can remain readable while the computer is unavailable. Browser storage cleanup may remove them. A refresh requires the desktop app to be running with the requested profile active and unlocked.
+
+Setup includes installing and trusting this installation's certificate authority on the phone. Verify the actual public certificate against the computer, or transfer it through a trusted direct method, before trusting it. This grants the authority permission to sign certificates; it is not a phone password. The temporary HTTP setup page serves only a public certificate and instructions, never finances or pairing credentials. Do not bypass certificate warnings. Remove this certificate separately in phone Settings when you stop using the feature.
+
+Disabling access or revoking a phone or profile blocks future downloads; it cannot erase existing offline copies. Locking a desktop profile prevents refresh until it is unlocked. Changing a profile password does not revoke an independently approved phone. Use the phone's Forget this phone action to remove its saved copies, keys and remembered access; if used offline, also revoke the phone on the desktop. Removing browser data does not remove the installed certificate. Resetting mobile trust revokes all phones and requires new certificate trust and pairing.
 
 ### External Network Requests
 

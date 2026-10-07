@@ -1,12 +1,14 @@
 // E2E test for Phase 2 item 7c (optional unspent rollover per budget category):
 //   - a category with "Roll over unspent" on carries last month's leftover into
-//     this month: the row says "+ $100.00 rolled in" and "left" counts it;
-//   - switching it off drops the carry; switching it back on restores it;
+//     this month: the row says "+ $100.00 rolled in" and its Left column counts it;
+//   - switching it off (in the row's ⋯ menu since 1.3.0) drops the carry and the
+//     row's "Rolls over" marker; switching it back on restores both;
 //   - the first month of a rollover run has nothing rolled in.
 //
 // Run with: node e2e/feature78_budget_rollover.mjs
 
-import { launchApp } from "./harness.mjs";
+import { chooseRowAction, launchApp } from "./harness.mjs";
+import { budgetRowMenu, budgetRowMenuItems, waitForBudgetRow } from "./lib/budgetRows.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -43,45 +45,36 @@ async function nav(label) {
   }
   throw new Error(`no nav button "${label}"`);
 }
-const groceriesRow = () =>
-  browser.$("//div[contains(@class,'cat-row')][.//span[contains(@class,'category-link')][normalize-space()='Groceries']]");
-async function rowText() {
-  const row = await groceriesRow();
-  await row.waitForExist({ timeout: 10000, timeoutMsg: "no Groceries budget row" });
-  return row.getText();
-}
+const row = (test, timeoutMsg) => waitForBudgetRow(browser, "Groceries", test, { timeoutMsg });
+const rollOver = (browser) => chooseRowAction(browser, budgetRowMenu(browser, "Groceries"), "Roll over unspent");
 
 try {
   await browser.setWindowSize(1440, 1100);
   await nav("Budget");
 
-  let text = await rowText();
-  console.log("this month:", text.replace(/\s+/g, " "));
-  if (!text.includes("+ $100.00 rolled in")) throw new Error(`this month should show $100.00 rolled in:\n${text}`);
+  // The row reads Budget | Spent | Left under the group's column headings.
+  let r = await row((g) => g.text.includes("rolled in"), "this month should show what rolled in");
+  console.log("this month:", JSON.stringify(r));
+  if (!r.text.includes("+ $100.00 rolled in")) throw new Error(`this month should show $100.00 rolled in: ${r.text}`);
   // $400 budget + $100 rolled in - $120 spent = $380 left.
-  if (!text.includes("$380.00 left")) throw new Error(`the remaining figure should count the rolled-in money ($380.00 left):\n${text}`);
-  if (!text.includes("$400.00 budget")) throw new Error(`the planned budget itself is unchanged:\n${text}`);
+  if (r.left !== "$380.00") throw new Error(`the remaining figure should count the rolled-in money ($380.00 left): ${JSON.stringify(r)}`);
+  if (Number(r.budget) !== 400) throw new Error(`the planned budget itself is unchanged ($400): ${JSON.stringify(r)}`);
+  if (!r.text.includes("Rolls over")) throw new Error(`the row should say it rolls over: ${r.text}`);
+  const item = (await budgetRowMenuItems(browser, "Groceries")).find((i) => i.label === "Roll over unspent");
+  if (!item || item.checked !== true) throw new Error(`the menu's "Roll over unspent" should start ticked: ${JSON.stringify(item)}`);
 
   // Off: the carry disappears.
-  const toggle = async () => (await groceriesRow()).$(".//label[contains(., 'Roll over unspent')]//input");
-  if (!(await (await toggle()).isSelected())) throw new Error("the box should start ticked");
-  await (await toggle()).click();
-  await browser.waitUntil(async () => !(await rowText()).includes("rolled in"), { timeout: 10000, timeoutMsg: "turning rollover off should drop the carry" });
-  text = await rowText();
-  if (!text.includes("$280.00 left")) throw new Error(`without the carry: $400 - $120 = $280.00 left:\n${text}`);
+  await rollOver(browser);
+  r = await row((g) => !g.text.includes("rolled in") && g.left === "$280.00", "turning rollover off should drop the carry ($400 - $120 = $280.00 left)");
+  if (r.text.includes("Rolls over")) throw new Error(`the "Rolls over" marker should go with it: ${r.text}`);
 
   // On again: it comes back.
-  await (await toggle()).click();
-  await browser.waitUntil(async () => (await rowText()).includes("+ $100.00 rolled in"), { timeout: 10000, timeoutMsg: "turning rollover back on should restore the carry" });
+  await rollOver(browser);
+  await row((g) => g.text.includes("+ $100.00 rolled in") && g.text.includes("Rolls over"), "turning rollover back on should restore the carry");
 
   // Last month is the first of the run: nothing rolled into it.
   await (await browser.$("button[aria-label='Previous month']")).click();
-  await browser.waitUntil(async () => (await rowText()).includes("Groceries") && !(await rowText()).includes("rolled in"), {
-    timeout: 10000,
-    timeoutMsg: "the first month of a rollover run has no carry",
-  });
-  text = await rowText();
-  if (!text.includes("$100.00 left")) throw new Error(`last month: $400 - $300 = $100.00 left:\n${text}`);
+  await row((g) => !g.text.includes("rolled in") && g.left === "$100.00", "last month is the first of the run: no carry, $400 - $300 = $100.00 left");
 
   console.log("FEATURE 78 E2E TEST PASSED");
 } finally {

@@ -96,7 +96,8 @@ try {
     async () =>
       browser.execute(() =>
         [...document.querySelectorAll(".cat-row")].some(
-          (r) => r.querySelector(".category-link")?.textContent.trim() === "Groceries" && r.textContent.includes("$450.00"),
+          // The budget is the row's typed field (its value isn't row text) since 1.3.0.
+          (r) => r.querySelector(".category-link")?.textContent.trim() === "Groceries" && Number(r.querySelector("input[aria-label='Budget for Groceries']")?.value) === 450,
         ),
       ),
     { timeout: 10000, timeoutMsg: "Groceries should appear as a $450.00 budget line" },

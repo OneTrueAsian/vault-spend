@@ -1,0 +1,1307 @@
+
+.buckets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+/* The "New bucket…" tile lives inline as a grid cell (see BucketsView.tsx)
+   rather than a separate button below the grid — same dashed-border
+   affordance as an empty upload slot. */
+.add-tile {
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 16px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.add-tile:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.add-tile-plus {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.buckets-overview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.buckets-overview-row-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+
+.pin-widget-pinned {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--positive);
+  white-space: nowrap;
+}
+
+.ledger-qa-card .category-create-form {
+  margin: 0;
+}
+
+.ledger-qa-answer {
+  margin: 12px 0 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13.5px;
+}
+
+.ledger-qa-answer-unmatched {
+  color: var(--text-muted);
+}
+
+.ledger-qa-tips p.field-hint {
+  margin: 0 0 10px 0;
+  line-height: 1.5;
+}
+
+.ledger-qa-examples {
+  list-style: none;
+  margin: 0 0 12px 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ledger-qa-examples button {
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ledger-qa-examples button:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dashboard-widget-customizing {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 16px;
+  padding: 10px;
+  cursor: grab;
+}
+
+/* A compact card (stat/account/bucket/investment) inside a shared `.stats`
+   row, in Customize mode. The dashed frame + padding lives on the row's
+   outer wrapper (`.dashboard-widget-customizing`, one per row rather than
+   one per card — see DashboardView.tsx) so 4 small cards don't each add
+   their own border and padding on top of the grid's own gap, which read
+   as an oversized gap between rows. This wrapper only needs the drag
+   affordance; its own controls bar sits directly above the card. */
+.dashboard-stat-wrap {
+  cursor: grab;
+}
+
+.dashboard-widget-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.dashboard-widget-controls button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.bucket-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.goal-ring-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.goal-ring-label {
+  position: absolute;
+  text-align: center;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 10px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* "Top categories" typically has far fewer rows than its "Top merchants"
+   grid sibling, so the grid row's equal-height stretch leaves it with a
+   lot of empty space below a small donut pinned to the top — center its
+   content in the space it's actually given instead. */
+.cashflow-category-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.cashflow-category-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.cashflow-category-body > * {
+  width: 100%;
+}
+
+.donut-with-legend {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.donut-hole {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.donut-hole-amt {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.donut-hole-lbl {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-2);
+  padding: 3px;
+  border-radius: 10px;
+  width: fit-content;
+  margin-bottom: 4px;
+}
+
+.tab-btn {
+  border: none;
+  background: transparent;
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.tab-btn-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.axis-label {
+  font-size: 12px;
+  fill: var(--text-faint);
+  font-family: var(--font-body);
+}
+
+.chart-tooltip-title {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--text);
+  font-family: var(--font-body);
+}
+
+.chart-tooltip-text {
+  font-size: 12px;
+  fill: var(--text-muted);
+  font-family: var(--font-body);
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 12px;
+}
+
+.chart-hint {
+  margin: 6px 0 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+}
+
+.chart-legend-button {
+  width: 100%;
+  padding: 4px 6px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+}
+
+.chart-legend-button:hover,
+.chart-legend-button:focus-visible {
+  border-color: var(--border);
+  background: var(--surface-hover, var(--surface));
+}
+
+.donut-interactive-slice { cursor: pointer; }
+.donut-interactive-slice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Budget (s2): the month's totals in one strip — four cells side by side, two by two below
+   900px. The small breakdown line and the income allocation note sit under the cells. */
+/* .budget-view is a flex column with an 18px gap, which spaces the strip from the groups; a card's
+   own bottom margin would double it. */
+.budget-summary {
+  padding: 16px 20px;
+  margin-bottom: 0;
+}
+
+.budget-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+
+@media (max-width: 900px) {
+  .budget-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.budget-summary-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.budget-summary-cell .stat-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-summary-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-summary-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Inside the strip the allocation note is one more line of it, not a box in a box; it keeps its
+   colour (muted, positive when balanced, negative and bold when over). */
+.budget-summary .budget-allocation {
+  margin: 4px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  font-size: 12px;
+}
+
+.category-trend {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  min-width: 44px;
+  text-align: right;
+}
+
+/* Spending is up vs. the prior month — flagged the same way an
+   over-budget amount is elsewhere in the app. */
+.category-trend-up {
+  color: var(--negative);
+}
+
+.category-trend-down {
+  color: var(--positive);
+}
+
+.category-trend-new {
+  color: var(--accent);
+}
+
+.chart-legend-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.category-legend-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--text-muted);
+}
+
+/* A small neutral icon badge for one row of a merchant/category list
+   (Recent transactions, the Ledger, Recurring, Top merchants, Upcoming
+   bills) — deliberately not colored per-category, since the donut chart's
+   own category colors are assigned by chart position, not a stable
+   per-category identity (see chart-legend-swatch above), so reusing them
+   here would tie a category to a color that can change chart-to-chart. */
+.row-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  flex: none;
+}
+
+.row-icon-badge svg,
+.row-icon-badge img {
+  width: 19px;
+  height: 19px;
+}
+
+/* Bundled Noun Project PNG icons (src/assets/icons/, credited in Settings
+   ▸ Icon credits) — raster line art on a transparent background, so
+   unlike the SVG icon set they can't recolor via `currentColor`. Forced to
+   solid black in light mode and solid white in dark mode instead of their
+   original mixed source colors — max-contrast monochrome, matching the
+   redesign's icon convention, and guarantees visibility in every context
+   regardless of a given icon's original palette. Scoped to this class
+   only — never applied to the existing `.ico`/lucide SVG icons, which are
+   already theme-correct via `currentColor` and would be double-filtered
+   by this. */
+.icon-img {
+  display: block;
+  filter: brightness(0);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .icon-img {
+    filter: brightness(0) invert(1);
+  }
+}
+
+:root[data-theme="dark"] .icon-img {
+  filter: brightness(0) invert(1);
+}
+
+/* Bundled full-color icons (src/assets/icons/*-category.svg etc., see
+   flatIcons.ts) — genuine multi-color artwork the user hand-picked
+   specifically for its color, so unlike `.icon-img` this applies no
+   filter in either theme; the icon's own palette already has enough
+   internal contrast to read on both a light and dark ground. */
+.icon-img-color {
+  display: block;
+}
+
+.cell-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goal-ring-pct {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.bucket-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bucket-card-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-family: var(--font-display);
+}
+
+.bucket-ico {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.bucket-ico svg,
+.bucket-ico img {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+}
+
+.bucket-saved {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.bucket-target {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.bucket-meta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 2px 0 0;
+}
+
+.progress-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+/* "You are here in the month" tick — see PaceMarker in BudgetView. Sits
+   over the fill; a contrasting hairline reads on the fill and the track. */
+.progress-pace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+  opacity: 0.7;
+  pointer-events: auto;
+}
+
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.todo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.todo-list li:last-child .todo-row {
+  border-bottom: none;
+}
+
+/* Beats the generic `button:hover` accent fill, which put dark text on blue (about 2:1). */
+.todo-row:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
+.todo-row:hover .todo-text {
+  text-decoration: underline;
+}
+
+.todo-count {
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning-soft, var(--surface-2));
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.todo-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-detail {
+  color: var(--text-muted);
+}
+
+.todo-chevron {
+  color: var(--text-muted);
+  font-size: 18px;
+}
+
+.budget-allocation {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.budget-allocation-balanced {
+  color: var(--positive);
+}
+
+.budget-allocation-over {
+  color: var(--negative);
+  font-weight: 600;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.progress-fill.warn {
+  background: var(--warning);
+}
+
+.progress-fill.over {
+  background: var(--negative);
+}
+
+/* Income still arriving (s4): neither good nor bad yet, so grey, never red. Solid --text-muted, not
+   faded: at 60% opacity it fell to about 2.6:1 against the light tracks, under the 3:1 a bar needs
+   (WCAG 1.4.11); solid it clears 3:1 in every style (feature271 measures it). */
+.progress-fill.neutral {
+  background: var(--text-muted);
+}
+
+/* A budget group's heading: its name, then how it's going ("$X of $Y · 64% used"), with the
+   group's progress bar full width underneath (these replaced the old row of group tiles). */
+.budget-group-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.budget-group-head-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.budget-group-progress {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-group-track {
+  height: 6px;
+}
+
+.cat-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow-x: auto;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 8px;
+}
+
+/* A shared, fixed grid template — not flex-grow — is what makes every
+ * row's columns land at the same X position. Flex-grow distributes
+ * *leftover* space per row, and `.cat-amt`'s own width used to hug its
+ * formatted dollar text (no explicit `width`, just a `min-width` floor),
+ * so two rows with differently-long amounts consumed different total
+ * width and left different leftover space for the name column to grow
+ * into — the category name column drifted sideways row to row. Every
+ * track here is either a fixed length or an `fr`/`minmax` share, never
+ * content-sized, so the math is identical for every row regardless of
+ * what's actually printed in it. The heading row (`.cat-list-head`) uses
+ * the same template so each heading sits over its column:
+ * Category | bar | Budget | Spent | Left | ⋯ */
+.cat-row,
+.cat-list-head {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(120px, 2fr) 110px 110px 110px 36px;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cat-row:last-child {
+  border-bottom: none;
+}
+
+.cat-list-head {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cat-list-head > :nth-child(n + 3):nth-child(-n + 5) {
+  text-align: right;
+}
+
+.cat-row-name {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.cat-row-name-stack {
+  flex: 1;
+  min-width: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cat-row-name .category-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sparkline / alert badge / rolled-in note / setting markers — sits under the
+   name so none of them compete with it for width. */
+.cat-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+/* What the ⋯ menu has switched on for this row ("Rolls over", "Warns at 90%"),
+   so the settings stay visible at a glance. */
+.cat-row-marker {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.cat-row-bar {
+  width: 100%;
+  min-width: 0;
+}
+
+.cat-amt {
+  font-family: var(--font-mono);
+  font-size: 12.8px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-amt.neg {
+  color: var(--negative);
+  font-weight: 600;
+}
+
+/* The typed budget field fills its column, its figure lined up with the
+   amounts beside it. */
+.budget-amount-input {
+  box-sizing: border-box;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12.8px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+}
+
+/* While amounts are hidden the budget shows as (masked) text you click to edit;
+   a real button for the keyboard, styled as plain text. */
+.cat-amt button.amount-editable {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.cat-amt button.amount-editable:hover,
+.cat-amt button.amount-editable:focus-visible {
+  border-bottom-color: var(--text-muted);
+}
+
+.cat-row-actions {
+  justify-self: end;
+  position: relative;
+}
+
+/* The ⋯ column is only wide enough for the button, so the Cancel / Delete
+   confirm that replaces it sits over the right end of its own row, on the
+   same surface as an open menu (as in the Transactions table). */
+.cat-row .row-delete-confirm {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 2;
+  transform: translateY(-50%);
+  align-items: center;
+  width: max-content;
+  padding: 6px 8px;
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* The grid template above is ~670px of columns plus gaps and padding; below
+   1100px of window the page beside the sidebar can be narrower than that.
+   Wrap instead of scroll: the category name/trend/badges keep their own
+   full-width line, then the bar, then the amounts and ⋯. The heading row can't
+   line up with wrapped cells, so it hides and each amount carries its own
+   heading in front of it (from the cell's data-label). */
+@media (max-width: 1100px) {
+  .cat-row {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .cat-list-head {
+    display: none;
+  }
+
+  .cat-row-name {
+    flex: 1 1 100%;
+  }
+
+  /* The bar gets its own full-width line under the name, so the three amounts and the ⋯ fit on
+     one line beneath it even at 800px (beside the bar, a long Difference pushed the ⋯ onto a
+     line of its own). */
+  .cat-row-bar {
+    flex: 1 1 100%;
+    width: auto;
+  }
+
+  .cat-amt {
+    flex: 0 1 auto;
+  }
+
+  .cat-amt[data-label]::before {
+    content: attr(data-label) " ";
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .cat-amt-budget {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .cat-amt-budget .budget-amount-input {
+    width: 96px;
+  }
+
+  .cat-row-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+}
+
+/* Column, not a wrapping row — same reasoning as `.bucket-new-form` below:
+   inside a `.bucket-card` (~260px wide), two `flex:1; min-width:100px`
+   inputs plus the Add button fit on one line only by each shrinking to
+   its min-width, which was clipping the amount field's placeholder
+   ("Amount (negative = withdrawal)") down to a few characters. */
+.bucket-contribution-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Lives inside a `.buckets-grid` cell (see `.add-tile`) rather than a
+   full-width row, so it stacks instead of wrapping a flex row into a
+   narrow ~260px column. */
+.bucket-new-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.bucket-new-form .bucket-new-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* An empty Goals page (BucketsView.tsx), as in the UI mockup: one centred card with a target icon,
+   what a goal is for, "Create a goal", and three starting points as small cards. The new-goal form
+   opens inside the same card, so it drops its own card chrome there rather than nesting a card in a card. */
+.goals-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 48px 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.goals-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-soft-text, var(--accent));
+}
+
+.goals-empty h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.goals-empty p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.goals-empty .goals-empty-lede {
+  max-width: 52ch;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.goals-empty .goals-empty-create {
+  min-height: 44px;
+  padding: 0 22px;
+  font-size: 15px;
+}
+
+.goals-empty .goals-empty-or {
+  margin-top: 8px;
+}
+
+.goals-empty-starters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+  margin-top: 4px;
+}
+
+@media (max-width: 1000px) {
+  .goals-empty-starters {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 420px;
+  }
+}
+
+/* Two classes (0,2,0) so a starting point never takes a style's plain-button look (centred text,
+   Retro's raised face): it is a small card, its name over a one-line description. */
+.goals-empty .goals-empty-starter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.goals-empty .goals-empty-starter:hover,
+.goals-empty .goals-empty-starter:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.goals-empty-starter b {
+  font-size: 15px;
+}
+
+.goals-empty-starter span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.goals-empty .bucket-new-form {
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.bucket-color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bucket-color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.bucket-color-swatch-active {
+  border-color: var(--text);
+}
+
+.bucket-color-swatch-none {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  position: relative;
+}
+
+.bucket-color-swatch-none::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-top: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+}
+
+.icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.icon-picker-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.icon-picker-swatch svg,
+.icon-picker-swatch img {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-picker-swatch-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+}
+
+/* A detailed illustrated face (the profile-avatar set) needs meaningfully
+   more pixels than a simple flat-color glyph to actually read — bumping
+   both the button and the image inside it, not just one, since a bigger
+   button around an unchanged tiny image would just add padding. */
+.icon-picker-swatch-lg {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+}
+
+.icon-picker-swatch-lg svg,
+.icon-picker-swatch-lg img {
+  width: 44px;
+  height: 44px;
+}
+
+/* Text fields only: a checkbox in the form (Progress follows this account's balance) keeps its own
+   size instead of stretching into a field-sized box. */
+.bucket-new-form input:not([type="checkbox"]),
+.bucket-contribution-form input:not([type="checkbox"]),
+.bucket-new-form select,
+.bucket-contribution-form select {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+  flex: 1;
+  min-width: 100px;
+}
+
+.bucket-new-form button,
+.bucket-contribution-form button {
+  padding: 0.4em 0.8em;
+  font-size: 0.85em;
+}
+
+/* A labeled-field form is the same idea as .bucket-new-form (a flexible
+ * row of inputs) but each field carries its own visible label above it —
+ * a bare placeholder disappears the moment you type, so a calculator
+ * with several similarly-shaped numeric fields needs a label that stays. */
+.labeled-field-form {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.labeled-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 130px;
+}
+
+.labeled-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.labeled-field input,
+.labeled-field select {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+}
+
+/* The app's standard entry field — the same look as the Transactions search box —
+   for a field that isn't already inside one of the form containers above
+   (.labeled-field, .ledger-filters, .modal-field, …). */
+.text-input {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.text-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.text-input[aria-invalid="true"] {
+  border-color: var(--negative);
+}
+
+.account-select {
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+}
+
+.month-select {
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+  align-self: center;
+  flex: none;
+}
+
+.account-col {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.account-name-cell {
+  font-weight: 600;
+}
+
+.account-name-detail-static {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.modal-actions.modal-actions-split {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modal-actions-end {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.account-name-detail {
+  display: block;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  border-bottom: 1px dashed transparent;
+  width: fit-content;
+}
+
+.account-name-detail:hover {
+  border-bottom-color: var(--text-muted);
+}
+
+.account-details-edit {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.account-details-edit input {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+  width: 80px;
+}
+
+.account-details-edit button {
+  padding: 0.2em 0.6em;
+  font-size: 0.8em;
+}

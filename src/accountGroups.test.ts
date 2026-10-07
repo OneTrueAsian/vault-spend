@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBeforeAccountCheckpoint, isIncomeTransaction, pickDefaultAccountId } from "./accountGroups";
+import { accountTypeLabel, storedTypeLabel, isBeforeAccountCheckpoint, isIncomeTransaction, isOverdrawn, pickDefaultAccountId } from "./accountGroups";
 import type { Account, Transaction } from "./types";
 
 function account(overrides: Partial<Account> = {}): Account {
@@ -154,5 +154,38 @@ describe("pickDefaultAccountId", () => {
   it("takes the first account when none is an everyday one, and null when there are none", () => {
     expect(pickDefaultAccountId([acct(7, "loan"), acct(8, "investment")], null)).toBe(7);
     expect(pickDefaultAccountId([], null)).toBeNull();
+  });
+});
+
+// s4: a negative balance needs you; owing money on a card or loan, by itself, does not.
+describe("isOverdrawn", () => {
+  it("flags a cash account below zero", () => {
+    expect(isOverdrawn(account({ current_balance: "-12.50" }))).toBe(true);
+  });
+
+  it("doesn't flag a cash account at or above zero", () => {
+    expect(isOverdrawn(account({ current_balance: "0" }))).toBe(false);
+    expect(isOverdrawn(account({ current_balance: "40.00" }))).toBe(false);
+  });
+
+  it("doesn't flag what's owed on a loan or a credit card", () => {
+    expect(isOverdrawn(account({ account_type: "loan", starting_balance: "9000.00", current_balance: "8000.00" }))).toBe(false);
+    expect(isOverdrawn(account({ account_type: "credit", starting_balance: "0", current_balance: "-450.00" }))).toBe(false);
+  });
+
+  it("flags an investment or other account below zero", () => {
+    expect(isOverdrawn(account({ account_type: "investment", current_balance: "-1.00" }))).toBe(true);
+  });
+});
+
+describe("storedTypeLabel", () => {
+  it.each([["real_estate", "Real Estate"], ["property", "Property"], ["boat-trailer", "Boat Trailer"], ["HSA", "Hsa"]])("names %s as %s", (type, label) => {
+    expect(storedTypeLabel(type)).toBe(label);
+  });
+});
+
+describe("accountTypeLabel", () => {
+  it.each([["checking", "Checking"], ["savings", "Savings"], ["credit", "Credit card"], ["loan", "Loan"], ["investment", "Investment"], ["property", "Property"], ["vehicle", "Vehicle"], ["other", "Other"], ["health savings", "Health Savings"]])("names %s as %s", (type, label) => {
+    expect(accountTypeLabel(type)).toBe(label);
   });
 });

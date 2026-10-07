@@ -1,5 +1,5 @@
 // E2E test for saving a named custom Dashboard layout: removing a widget
-// during Customize mode makes the Layout dropdown fall into the disabled
+// during Customize mode (chosen from the Layout menu) makes the Layout dropdown fall into the disabled
 // "Custom (unsaved)" state, "+ Save as…" persists it under a chosen name
 // (localStorage, mirroring the Ledger's saved-filter pattern), and it then
 // behaves like any built-in preset — selectable from the dropdown, and
@@ -11,9 +11,7 @@ import { chooseMenuOption, launchApp, menuOptionLabels } from "./harness.mjs";
 
 const app = await launchApp();
 try {
-  const customizeBtn = await app.browser.$("button=Customize");
-  await customizeBtn.waitForExist({ timeout: 10000 });
-  await customizeBtn.click();
+  await chooseMenuOption(await app.browser.$(".layout-select-toggle"), { label: "Customize…" });
 
   const removeBtn = await app.browser.$('button[aria-label="Remove widget"]');
   await removeBtn.waitForExist({ timeout: 5000 });

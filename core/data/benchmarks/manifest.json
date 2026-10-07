@@ -63,7 +63,7 @@
   ],
   "cpi": {
     "latestMonth": "2026-08",
-    "note": "CPI-U all items, U.S. city average, not seasonally adjusted (BLS series CUUR0000SA0), fetched through FRED because the BLS download host rejects automated clients. October 2025 was never published.",
+    "note": "CPI-U all items, U.S. city average, not seasonally adjusted (BLS series CUUR0000SA0), fetched through FRED because the BLS download host rejects automated clients. October 2025 was never released.",
     "series": "CPIAUCNS",
     "sha256": "f79e3a78837142293449cee4a1a9b1da7be677fb3e989ffb2ef48e8e7cf4cdd7",
     "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCNS"
@@ -83,16 +83,16 @@
     {
       "metric": "savings",
       "mode": "individual",
-      "reason": "Same as individual investments: only household-level SIPP asset tables are published by age."
+      "reason": "Same as individual investments: only household-level SIPP asset tables are released by age."
     },
     {
       "metric": "debt",
       "mode": "individual",
-      "reason": "Same as individual investments: only household-level SIPP debt tables are published by age."
+      "reason": "Same as individual investments: only household-level SIPP debt tables are released by age."
     }
   ],
-  "packageVersion": "2026.10.1",
-  "recordsSha256": "2abeb7dde6746f1ec203efede2efbe141e4ed8d7516dc90f2359f94358dc8347",
+  "packageVersion": "2026.10.2",
+  "recordsSha256": "8357f7dd5293b7c68a79cead9404ce1bccd9423c8bf6de7de3e4f01c6031b107",
   "sources": [
     {
       "dataset": "CPS ASEC 2026, PINC-01 (total work experience, both sexes, all races)",

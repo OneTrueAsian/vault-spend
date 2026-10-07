@@ -10,6 +10,7 @@
 
 import { launchApp, chooseMenuOption, menuSelectValue, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '1000.00')")
@@ -36,8 +37,7 @@ try {
   // First transaction: explicit category, skipping auto-categorize entirely.
   const descriptionInput = await dialogPanel.$("input[placeholder='e.g. \"Coffee shop\"']");
   await descriptionInput.setValue("Local Coffee Shop");
-  const amountInput = await dialogPanel.$("input[placeholder='Negative = money out']");
-  await amountInput.setValue("-4.50");
+  await enterTransactionAmount(app.browser, dialogPanel, "-4.50");
   // The Category <select>'s first option is "Auto-categorize" — find the
   // select containing that option and pick "Dining Out" (a seeded default
   // category) explicitly instead. Confirmed via `.getValue()` before
@@ -97,7 +97,7 @@ try {
 
   // The note typed into the creation dialog should have been saved
   // atomically with the rest of the transaction, and shows as a preview
-  // button on the row (not the raw "+ Add note" prompt for a note-less row).
+  // button on the row (adding a note is otherwise in the row's ⋯ menu).
   const coffeeNoteButton = await coffeeRow.$("button*=Split with Jordan");
   if (!(await coffeeNoteButton.isExisting())) {
     throw new Error('expected the note typed while creating the transaction ("Split with Jordan") to appear as a preview on its row');
@@ -111,8 +111,7 @@ try {
   await dialog.waitForExist({ timeout: 10000 });
   const descriptionInput2 = await dialogPanel.$("input[placeholder='e.g. \"Coffee shop\"']");
   await descriptionInput2.setValue("Zzyzx Test Merchant Nine Four Two");
-  const amountInput2 = await dialogPanel.$("input[placeholder='Negative = money out']");
-  await amountInput2.setValue("-12.00");
+  await enterTransactionAmount(app.browser, dialogPanel, "-12.00");
   const submitBtn2 = await dialogPanel.$("button=Add transaction");
   await submitBtn2.click();
   await dialog.waitForExist({ timeout: 5000, reverse: true });
@@ -123,14 +122,14 @@ try {
   );
 
   // Same precise per-row check: the row's own category editor reading
-  // "Uncategorized" means nothing matched during categorize_uncategorized,
+  // "Needs a category" means nothing matched during categorize_uncategorized,
   // as expected for this made-up description — not just the word
   // "Uncategorized" appearing anywhere on the page (the toolbar's category
   // filter always lists it as an option regardless of any row's value).
   const zzyzxRow = await app.browser.$("//tr[td[contains(.,'Zzyzx Test Merchant')]]");
   const zzyzxRowCategoryTrigger = await zzyzxRow.$("[aria-label*='Category for']");
   const zzyzxCategoryText = await zzyzxRowCategoryTrigger.getText();
-  if (!zzyzxCategoryText.includes("Uncategorized")) {
+  if (!zzyzxCategoryText.includes("Needs a category")) {
     throw new Error(`expected the auto-categorize path to leave an unmatched transaction Uncategorized, got category "${zzyzxCategoryText}"`);
   }
   console.log("second transaction correctly left Uncategorized via the auto-categorize path");

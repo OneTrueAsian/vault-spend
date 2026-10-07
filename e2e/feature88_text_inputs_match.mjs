@@ -40,14 +40,14 @@ async function goTo(label) {
   throw new Error(`no nav button "${label}"`);
 }
 async function setTheme(label) {
-  for (const b of await browser.$$(".topbar button")) {
+  for (const b of await browser.$$(".sidebar-controls button")) {
     if ((await b.getText()).trim() === label) {
       await b.click();
       await browser.pause(400);
       return;
     }
   }
-  throw new Error(`no ${label} theme button in the header`);
+  throw new Error(`no ${label} theme button in the sidebar`);
 }
 const PROPS = [
   "fontFamily", "fontSize", "fontWeight", "color", "backgroundColor",

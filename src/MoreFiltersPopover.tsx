@@ -1,5 +1,6 @@
 import { usePopover } from "./usePopover";
 import { MenuSelect } from "./MenuSelect";
+import { DateField } from "./DateField";
 
 /** Collapses the Transactions tab's less-frequently-used filters (date range, tag)
  * behind one toggle — same toggle-button/click-outside/panel shape as
@@ -49,7 +50,7 @@ export function MoreFiltersPopover({
         <span className="account-filter-caret">▾</span>
       </button>
       {open && (
-        <div className="account-filter-panel">
+        <div className="account-filter-panel more-filters-panel">
           {activeCount > 0 && (
             <div className="account-filter-panel-actions">
               <button type="button" className="modal-secondary" onClick={clearAll}>
@@ -59,11 +60,11 @@ export function MoreFiltersPopover({
           )}
           <label className="labeled-field" style={{ marginBottom: 8 }}>
             <span className="labeled-field-label">From date</span>
-            <input type="date" value={filterFrom} onChange={(e) => onSetFrom(e.target.value)} />
+            <DateField value={filterFrom} onChange={onSetFrom} ariaLabel="From date" placeholder="Any date" />
           </label>
           <label className="labeled-field" style={{ marginBottom: 8 }}>
             <span className="labeled-field-label">To date</span>
-            <input type="date" value={filterTo} onChange={(e) => onSetTo(e.target.value)} />
+            <DateField value={filterTo} onChange={onSetTo} ariaLabel="To date" placeholder="Any date" />
           </label>
           <label className="labeled-field">
             <span className="labeled-field-label">Tag</span>

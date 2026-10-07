@@ -117,6 +117,12 @@ impl Store {
             CREATE TABLE IF NOT EXISTS categories (
                 name TEXT PRIMARY KEY COLLATE NOCASE
             );
+            -- An import file's category name (trimmed, lower-cased) and the person's
+            -- category it maps to, remembered for the next import.
+            CREATE TABLE IF NOT EXISTS import_category_mappings (
+                file_category TEXT PRIMARY KEY,
+                category TEXT NOT NULL COLLATE NOCASE
+            );
             CREATE TABLE IF NOT EXISTS balance_resets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 account_id INTEGER NOT NULL REFERENCES accounts(id),

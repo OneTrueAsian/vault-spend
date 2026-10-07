@@ -3,7 +3,8 @@
 //   1. Recurring's stat row orphaned a redundant fifth "Active items" card
 //      onto a second row (it repeated the subtitle's own count).
 //   2. Budget category names were truncated ("Subscri…") because the alert
-//      badge, sparkline and the cryptic "Cap" toggle shared the name's row.
+//      badge, sparkline and the cryptic "Cap" toggle shared the name's row
+//      (that setting is "Warn at 90%" in the row's ⋯ menu since 1.3.0).
 //   3. Transactions dates wrapped at their hyphens ("2026-" / "09-18").
 //   4. The Transactions header's account control was labeled "Account" and
 //      read like a filter; it's really where imports/new transactions start.
@@ -14,6 +15,7 @@
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { budgetRowMenuItems, readBudgetRow } from "./lib/budgetRows.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -44,11 +46,12 @@ try {
   await browser.setWindowSize(1440, 1000);
   await browser.pause(800);
 
-  // 1. Recurring: exactly the four money cards, no orphaned fifth.
+  // 1. Recurring: exactly the two money cards (bills and income, each with its yearly figure as
+  //    small text since 1.3.0), side by side.
   await nav("Recurring");
   await (await browser.$(".stats")).waitForExist({ timeout: 10000 });
   const statCount = await browser.execute(() => document.querySelectorAll(".stats .stat").length);
-  if (statCount !== 4) throw new Error(`expected 4 Recurring stat cards, found ${statCount}`);
+  if (statCount !== 2) throw new Error(`expected 2 Recurring stat cards, found ${statCount}`);
   const tops = await browser.execute(() => [...document.querySelectorAll(".stats .stat")].map((el) => Math.round(el.getBoundingClientRect().top)));
   if (new Set(tops).size !== 1) throw new Error(`Recurring stat cards wrapped onto multiple rows: ${JSON.stringify(tops)}`);
 
@@ -58,9 +61,13 @@ try {
   await name.waitForExist({ timeout: 10000 });
   const truncated = await browser.execute((el) => el.scrollWidth > el.clientWidth, name);
   if (truncated) throw new Error("the Subscriptions category name is still truncated with its badge showing");
-  const rowText = await (await name.parentElement().parentElement().parentElement()).getText();
-  if (!rowText.includes("Warn at 90%")) throw new Error(`expected the toggle to read "Warn at 90%", got:\n${rowText}`);
-  if (/\bCap\b/.test(rowText)) throw new Error(`the cryptic "Cap" label should be gone, got:\n${rowText}`);
+  // The setting lives in the row's ⋯ menu since 1.3.0, still worded "Warn at 90%".
+  const rowText = (await readBudgetRow(browser, "Subscriptions")).text;
+  const menuLabels = (await budgetRowMenuItems(browser, "Subscriptions")).map((item) => item.label);
+  if (!menuLabels.includes("Warn at 90%")) throw new Error(`expected the menu's setting to read "Warn at 90%", got: ${JSON.stringify(menuLabels)}`);
+  if (/\bCap\b/.test(rowText) || menuLabels.some((l) => /\bCap\b/.test(l))) {
+    throw new Error(`the cryptic "Cap" label should be gone, got:\n${rowText}\n${JSON.stringify(menuLabels)}`);
+  }
 
   // 3 + 4. Transactions: a single-line date, and an honest account label.
   await nav("Transactions");
@@ -68,7 +75,10 @@ try {
   await date.waitForExist({ timeout: 10000 });
   const lineCount = await browser.execute((el) => el.getClientRects().length, date);
   if (lineCount !== 1) throw new Error(`the date wrapped onto ${lineCount} lines`);
-  const label = await (await browser.$(".import-controls-label")).getText();
+  // The Add to control sits beside the page title (1.3.0 dropped the top bar).
+  const labelEl = await browser.$(".page-top .page-actions .import-controls-label");
+  await labelEl.waitForExist({ timeout: 10000 });
+  const label = await labelEl.getText();
   if (label.trim() !== "Add to") throw new Error(`expected the account control's label to be "Add to", got "${label}"`);
 
   // 5. Household: the empty state offers the action itself.

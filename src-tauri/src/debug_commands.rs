@@ -99,3 +99,58 @@ pub fn debug_set_main_window_visible(visible: bool, app: tauri::AppHandle) -> Re
     }
     window.is_visible().map_err(|e| e.to_string())
 }
+
+/// Public-asset HTTPS fixture with current-user protected keys, never registered in release.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub async fn debug_start_mobile_asset_server(
+    service: tauri::State<'_, crate::mobile_server::MobileService>,
+) -> Result<(crate::mobile_server::MobileStatus, crate::mobile_server::PublicCertificate), String> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || service.start_test_fixture())
+        .await
+        .map_err(|_| "Test HTTPS could not start.".to_string())?
+}
+
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_mobile_authorization_race(app: tauri::AppHandle, stage: String, action: String, target: String) -> Result<String, String> {
+    crate::mobile_race::arm(app, stage, action, target)
+}
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_mobile_database_digest(app: tauri::AppHandle) -> Result<String, String> {
+    use sha2::Digest;
+    let directory = std::path::PathBuf::from(std::env::var_os("VAULTSPEND_DB_DIR").ok_or("Disposable data required")?);
+    let paths = app.state::<crate::config::AppPaths>();
+    if directory.canonicalize().ok() != paths.config_path.parent().and_then(|p| p.canonicalize().ok()) {
+        return Err("Disposable data required".into());
+    }
+    let file = directory.join(format!("mobile-read-check-{}.db", crate::mobile_devices::random()?));
+    app.state::<crate::runtime::AppRuntime>()
+        .lock()?
+        .store
+        .backup_to(&file)
+        .map_err(|_| "Test backup failed")?;
+    let result = std::fs::read(&file)
+        .map(|bytes| format!("{:x}", sha2::Sha256::digest(bytes)))
+        .map_err(|_| "Test backup failed".into());
+    let _ = std::fs::remove_file(file);
+    result
+}
+
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub async fn debug_start_mobile_setup_server(
+    service: tauri::State<'_, crate::mobile_server::MobileService>,
+) -> Result<crate::mobile_bootstrap::SetupInfo, String> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || service.start_test_setup_fixture())
+        .await
+        .map_err(|_| "Setup fixture unavailable.".to_string())?
+}

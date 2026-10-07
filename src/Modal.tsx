@@ -1,6 +1,8 @@
+import "./Modal.css";
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatAmount, isValidDecimalString, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
+import { DateField } from "./DateField";
 import type { Account, Bucket, CategoryTransaction, FamilyMember, Holding, MonthExpenseDetail, ReportBudgetLine, Transaction } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { isBeforeAccountCheckpoint } from "./accountGroups";
@@ -20,6 +22,7 @@ import {
   IconPicker,
 } from "./icons";
 import { errorMessage } from "./errorMessage";
+import { amountProblem, directionLabels, signedAmount, type Direction } from "./transactionDirection";
 
 /** Shared shell: a dimmed overlay behind a centered panel. Clicking the
  * overlay (not the panel) cancels, matching how a native dialog behaves —
@@ -37,6 +40,7 @@ export function ModalShell({
   wide,
   headerAction,
   footer,
+  dismissOnOverlayClick = true,
 }: {
   title: string;
   onCancel: () => void;
@@ -49,6 +53,9 @@ export function ModalShell({
   /** Pins these controls below a body that scrolls on its own: the header and
    * the footer stay on screen however small the window or long the content. */
   footer?: React.ReactNode;
+  /** A click outside the panel cancels it. Pass `false` for a dialog holding work a stray click
+   * shouldn't throw away (an import review); Escape still cancels. */
+  dismissOnOverlayClick?: boolean;
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -149,7 +156,7 @@ export function ModalShell({
   // `.page`) becomes its containing block — laying it out against the whole
   // scrolled page instead of the window, so it could sit mostly off-screen.
   return createPortal(
-    <div className="modal-overlay" onClick={onCancel}>
+    <div className="modal-overlay" onClick={dismissOnOverlayClick ? onCancel : undefined}>
       <div
         ref={panelRef}
         className={["modal-panel", wide ? "modal-panel-wide" : "", footer ? "modal-panel-fixed-chrome" : ""].filter(Boolean).join(" ")}
@@ -466,29 +473,40 @@ export function NewTransactionDialog({
   const [date, setDate] = useState(() => toLocalIsoDate());
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  // The switch, not a typed minus sign, decides whether the amount is money out or in.
+  const [direction, setDirection] = useState<Direction>("out");
   const [category, setCategory] = useState("");
   const [memberId, setMemberId] = useState("");
   const [notes, setNotes] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const amountTrimmed = amount.trim();
-  const amountIsNumeric = amountTrimmed !== "" && isValidDecimalString(amountTrimmed);
-  const amountError = amountTrimmed === "" ? "Enter an amount." : !amountIsNumeric ? "That doesn't look like a number." : null;
-  const valid = accountId !== "" && description.trim() !== "" && amountIsNumeric && date !== "";
+  const signed = signedAmount(amount, direction);
+  const problem = amountProblem(amount);
+  const amountError =
+    problem === "empty"
+      ? "Enter an amount."
+      : problem === "zero"
+        ? "Enter an amount other than zero."
+        : problem === "not_a_number"
+          ? "That doesn't look like a number."
+          : null;
+  const valid = accountId !== "" && description.trim() !== "" && signed !== null && date !== "";
 
   const budgetImpact = budgetActuals.find((b) => b.category === category);
   const selectedAccount = accounts.find((a) => String(a.id) === accountId);
   const backdated = selectedAccount ? isBeforeAccountCheckpoint(selectedAccount, date) : false;
+  const [outLabel, inLabel] = directionLabels(selectedAccount?.account_type);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitAttempted(true);
     if (!valid) return;
+    if (signed === null) return;
     onSubmit(
       Number(accountId),
       date,
       description.trim(),
-      amountTrimmed,
+      signed,
       category || null,
       memberId ? Number(memberId) : null,
       notes.trim() === "" ? null : notes,
@@ -513,10 +531,10 @@ export function NewTransactionDialog({
         </label>
         <label className="modal-field">
           <span>Date</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateField value={date} onChange={setDate} ariaLabel="Date" />
           {backdated && selectedAccount && (
             <span className="field-hint field-warning">
-              {selectedAccount.name}'s balance was last locked in as of {selectedAccount.checkpoint_date} — this
+              {selectedAccount.name}'s balance was last locked in as of {formatDisplayDate(selectedAccount.checkpoint_date ?? "")} — this
               transaction won't change today's balance shown on the Accounts page (it still counts in past balance
               history).
             </span>
@@ -533,12 +551,41 @@ export function NewTransactionDialog({
           />
           {submitAttempted && description.trim() === "" && <span className="field-error">Enter a description.</span>}
         </label>
+        <div
+          className="view-toggle direction-toggle"
+          role="radiogroup"
+          aria-label="Direction"
+          onKeyDown={(e) => {
+            if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+            e.preventDefault();
+            const next: Direction = direction === "out" ? "in" : "out";
+            setDirection(next);
+            e.currentTarget.querySelector<HTMLButtonElement>(`[data-direction="${next}"]`)?.focus();
+          }}
+        >
+          {(["out", "in"] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              role="radio"
+              aria-checked={direction === d}
+              tabIndex={direction === d ? 0 : -1}
+              data-direction={d}
+              className={direction === d ? "view-toggle-active" : ""}
+              onClick={() => setDirection(d)}
+            >
+              {d === "out" ? outLabel : inLabel}
+            </button>
+          ))}
+        </div>
         <label className="modal-field">
           <span>Amount</span>
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder="Negative = money out"
+            placeholder="0.00"
+            inputMode="decimal"
+            data-amount-input
             aria-invalid={submitAttempted && amountError !== null}
           />
           {submitAttempted && amountError && <span className="field-error">{amountError}</span>}
@@ -1062,7 +1109,7 @@ export function CategoryTransactionsDialog({
                         />
                       )}
                     </td>
-                    <td>{t.date}</td>
+                    <td className="date-cell">{formatDisplayDate(t.date)}</td>
                     <td>
                       {t.description}
                       {t.is_split && (
@@ -1253,9 +1300,9 @@ export function ConfirmInvertDialog({
         statement (with payments shown as negative)?
       </p>
       <p className="modal-message modal-message-secondary">
-        Choose "Flip the signs" to match the rest of your transactions (negative =
-        money out). Choose "Keep as-is" if it already uses that convention —
-        most bank/checking exports do.
+        Choose "Flip the signs" to match the rest of your transactions, where money
+        out is a minus amount. Choose "Keep as-is" if the file already shows money
+        out as minus — most bank and checking files do.
       </p>
       {hint && (
         <p className="modal-message" data-import-sign-hint>
@@ -1600,18 +1647,21 @@ export function AccountEditDialog({
   onSave,
   onDelete,
   onCancel,
+  startWithDeleteConfirm = false,
 }: {
   account: Account;
   familyMembers: FamilyMember[];
   onSave: (changes: { accountType?: string; memberId?: number | null; institution?: string | null; mask?: string | null }) => void;
   onDelete: () => void;
   onCancel: () => void;
+  /** Opened from a row's Delete…: already asking whether to delete. */
+  startWithDeleteConfirm?: boolean;
 }) {
   const [accountType, setAccountType] = useState(account.account_type);
   const [memberId, setMemberId] = useState<number | null>(account.member_id);
   const [institution, setInstitution] = useState(account.institution ?? "");
   const [mask, setMask] = useState(account.mask ?? "");
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(startWithDeleteConfirm);
   useAutoCancelDelete(confirmingDelete ? "delete" : null, () => setConfirmingDelete(false));
 
   function handleSubmit(e: FormEvent) {
@@ -1786,7 +1836,7 @@ export function TransferReviewDialog({
             <li key={p.out.id}>
               <label className="transfer-review-row">
                 <input type="checkbox" checked={checked.has(pairKey(p))} onChange={() => toggle(pairKey(p))} />
-                <span className="transfer-review-when">{p.out.date}</span>
+                <span className="transfer-review-when">{formatDisplayDate(p.out.date)}</span>
                 <span className="transfer-review-what">
                   {p.out.account_name} → {p.in.account_name}
                 </span>
@@ -1799,7 +1849,7 @@ export function TransferReviewDialog({
                   {[{ transaction: p.out, direction: "Money out" }, { transaction: p.in, direction: "Money in" }].map(({ transaction, direction }) => (
                     <div className="transfer-review-transaction" key={transaction.id}>
                       <strong>{direction} · {transaction.account_name}</strong>
-                      <span>{transaction.date} · {formatAmount(transaction.amount)}</span>
+                      <span>{formatDisplayDate(transaction.date)} · {formatAmount(transaction.amount)}</span>
                       <span>{transaction.description}</span>
                       <span className="transfer-review-note">Category: {transaction.category || "Uncategorized"}</span>
                     </div>
@@ -1869,7 +1919,7 @@ export function AutoLinkedReviewDialog({
           {pairs.map((p) => (
             <li key={p.out.id}>
               <div className="autolink-review-row" data-autolink-row={p.out.id}>
-                <span className="transfer-review-when">{p.out.date}</span>
+                <span className="transfer-review-when">{formatDisplayDate(p.out.date)}</span>
                 <span className="transfer-review-what">
                   {p.out.account_name} → {p.in.account_name}
                 </span>

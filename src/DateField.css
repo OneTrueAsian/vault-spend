@@ -1,0 +1,101 @@
+/* The one date field (DateField.tsx). The real date input draws the box, so whatever field style its
+   context gives inputs (dialog, filter panel, inline row editor) still applies, and it stays the thing
+   that is clicked, typed into and read by tests. While it isn't being edited its own "mm/dd/yyyy"
+   segments are hidden and the written-out date sits over it in the same place. */
+.date-field {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.date-field-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Fills the field by default; a context that gives its input a width (Comparisons' 140px) keeps it. */
+:where(.date-field-input) {
+  width: 100%;
+}
+
+/* The browser pads a date input's text segments a pixel above and below, which made every date field
+   2px taller than the text fields beside it. */
+.date-field-input::-webkit-datetime-edit,
+.date-field-input::-webkit-datetime-edit-fields-wrapper {
+  padding-block: 0;
+}
+
+/* Hide only the input's own "mm/dd/yyyy" text: its border, background and calendar button stay.
+   !important because every theme sets field text colour with a long selector (Retro's is 0,6,1), and
+   this is a state, not a look: whatever the theme, the text under the written-out date must not show. */
+.date-field:not(.date-field-editing) > .date-field-input {
+  color: transparent !important;
+}
+
+.date-field:not(.date-field-editing) > .date-field-input::-webkit-datetime-edit {
+  opacity: 0;
+}
+
+.date-field-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  /* Starts where the input's own text does (its 1px border plus the usual field padding) and stops
+     short of the calendar button on the right, so a long hint in a narrow field ends in "…" before it. */
+  padding: 0 calc(var(--date-field-pad-x, 10px) + 1px + var(--date-field-button, 22px)) 0 calc(var(--date-field-pad-x, 10px) + 1px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  font-family: inherit;
+  font-size: 13px;
+  /* Fields reset weight to normal; a label around the field (dialogs) is bold. */
+  font-weight: 400;
+  color: var(--text);
+}
+
+.date-field-empty .date-field-text {
+  color: var(--text-muted);
+}
+
+.date-field-disabled .date-field-text {
+  opacity: 0.6;
+}
+
+.date-field-editing .date-field-text {
+  visibility: hidden;
+}
+
+/* Dialog fields are a size larger (SharedControls.css). */
+.modal-panel .modal-field .date-field-text {
+  font-size: 14px;
+}
+
+/* The compact inline editors in table rows. */
+.date-field:has(> .row-edit-input) {
+  display: flex;
+  width: 100%;
+  --date-field-pad-x: 7px;
+}
+
+.date-field:has(> .row-edit-input) .date-field-text {
+  font-size: 13px;
+}
+
+/* In a row of fields that share the width (new goal, new bill), the field takes its share like the
+   inputs beside it. */
+:is(.bucket-new-form, .bucket-contribution-form) > .date-field {
+  flex: 1;
+  min-width: 100px;
+}
+
+/* A labelled field's input fills its column. */
+.labeled-field > .date-field,
+.modal-field > .date-field {
+  display: flex;
+  width: 100%;
+}

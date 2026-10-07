@@ -6,7 +6,7 @@
 //
 // Run with: node e2e/feature23_family_members.mjs
 
-import { launchApp, reclaimWindowFocus, chooseMenuOption } from "./harness.mjs";
+import { chooseRowAction, launchApp, reclaimWindowFocus, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -117,9 +117,7 @@ try {
 
   // Member assignment lives in the account's Edit dialog now (it used to be
   // an always-visible dropdown on every card).
-  const editButton = await app.browser.$("//div[contains(@class,'account-card')]//button[normalize-space()='Edit']");
-  await editButton.waitForExist({ timeout: 10000 });
-  await editButton.click();
+  await chooseRowAction(app.browser, ".account-card [data-row-menu]", "Edit…");
   const editDialog = await app.browser.$("[role='dialog']");
   await editDialog.waitForExist({ timeout: 10000 });
   const accountMemberSelect = await editDialog.$("//label[contains(.,'Family member')]//button[contains(@class,'menu-select-toggle')]");

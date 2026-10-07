@@ -1,3 +1,4 @@
+import { House, TrendingUp } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import { iconForAccount, isAccountIconKey } from "./accountIcons";
 import { FLAT_ICONS } from "./flatIcons";
@@ -12,15 +13,15 @@ describe("iconForAccount", () => {
   });
 
   it("an explicit recognized icon_key overrides the account_type guess", () => {
-    expect(iconForAccount("checking", "investment")).toEqual({ kind: "image-color", src: FLAT_ICONS["investment-acct"].src });
+    expect(iconForAccount("checking", "investment")).toEqual({ kind: "lucide", Icon: TrendingUp });
   });
 
   it("an unrecognized icon_key falls back to the account_type guess instead of erroring", () => {
     expect(iconForAccount("checking", "not-a-real-key")).toEqual({ kind: "image-color", src: FLAT_ICONS["money-checkings-acct"].src });
   });
 
-  it("loan borrows the debt-dash icon (no dedicated loan asset was provided)", () => {
-    expect(iconForAccount("loan")).toEqual({ kind: "image-color", src: FLAT_ICONS["debt-dash"].src });
+  it("loan uses the existing house glyph", () => {
+    expect(iconForAccount("loan")).toEqual({ kind: "lucide", Icon: House });
   });
 
   it("other borrows the net-worth-dash icon (no dedicated other-asset asset was provided)", () => {

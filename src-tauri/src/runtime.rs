@@ -5,6 +5,7 @@
 use crate::commands::AppState;
 use crate::maintenance::MaintenanceSummary;
 use std::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 
 /// The error text of a command that needs an open profile and finds it locked starts with this.
@@ -26,6 +27,7 @@ enum Slot {
 }
 
 pub struct AppRuntime {
+    revision: AtomicU64,
     slot: Mutex<Slot>,
     /// What opening the current profile's housekeeping did, waiting for the page to show it once.
     /// Cleared whenever the slot changes hands, so it can never reach another profile or a locked one.
@@ -60,6 +62,7 @@ impl DerefMut for OpenSession<'_> {
 impl AppRuntime {
     pub fn no_profile_open() -> Self {
         AppRuntime {
+            revision: AtomicU64::new(0),
             slot: Mutex::new(Slot::NoProfileOpen),
             notice: Mutex::new(MaintenanceSummary::default()),
         }
@@ -96,14 +99,23 @@ impl AppRuntime {
     /// Makes `state` the open profile, dropping whatever was there (its connection closes).
     pub fn install(&self, state: AppState) {
         self.clear_notice();
-        *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Open(state);
+        let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
+        self.revision.fetch_add(1, Ordering::SeqCst);
+        *slot = Slot::Open(state);
+    }
+    /// Bumped under the slot mutex, including the interval before AppPaths is updated.
+    /// A captured mobile projection cannot survive closing/reopening the same profile.
+    pub fn current_revision(&self) -> u64 {
+        self.revision.load(Ordering::SeqCst)
     }
 
     /// Drops the open profile's state (its connection closes) and remembers which profile is locked.
     #[allow(dead_code)] // used by the lock screen and auto-lock in Phases C and E
     pub fn lock_profile(&self, profile_id: &str) {
         self.clear_notice();
-        *self.slot.lock().unwrap_or_else(|e| e.into_inner()) = Slot::Locked {
+        let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
+        self.revision.fetch_add(1, Ordering::SeqCst);
+        *slot = Slot::Locked {
             profile_id: profile_id.to_string(),
         };
     }
@@ -129,6 +141,7 @@ impl AppRuntime {
         }
         let before_drop_error = before_drop(state);
         self.clear_notice();
+        self.revision.fetch_add(1, Ordering::SeqCst);
         *guard = Slot::Locked {
             profile_id: profile_id.to_string(),
         };
@@ -144,6 +157,7 @@ impl AppRuntime {
     pub fn release_lock(&self) {
         let mut guard = self.slot.lock().unwrap_or_else(|e| e.into_inner());
         if matches!(&*guard, Slot::Locked { .. }) {
+            self.revision.fetch_add(1, Ordering::SeqCst);
             *guard = Slot::NoProfileOpen;
         }
     }
@@ -168,6 +182,21 @@ mod tests {
     use super::*;
     use crate::commands::AppState;
     use std::path::PathBuf;
+    #[test]
+    fn session_revision_changes_even_before_path_generation_or_same_profile_reopen() {
+        let runtime = AppRuntime::no_profile_open();
+        let initial = runtime.current_revision();
+        runtime.install(open_state("mobile-session-revision"));
+        let opened = runtime.current_revision();
+        assert!(opened > initial);
+        runtime.lock_profile("same");
+        let locked = runtime.current_revision();
+        assert!(locked > opened);
+        runtime.release_lock();
+        assert!(runtime.current_revision() > locked);
+        runtime.install(open_state("mobile-session-revision-reopened"));
+        assert!(runtime.current_revision() > opened);
+    }
 
     fn temp_db(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("vaultspend-runtime-test-{name}-{}", std::process::id()));

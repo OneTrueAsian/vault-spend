@@ -6,7 +6,7 @@
 //
 // Run with: node e2e/feature77_command_palette.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -115,6 +115,7 @@ try {
   await openPalette();
   await typeInPalette("savings");
   if (!(await (await firstOption()).getAttribute("data-palette-option")).startsWith("account:")) throw new Error("the savings account should be found");
+  await waitUntilOrDiagnose(browser, async () => await (await firstOption()).$(".palette-hint").getText() === "Savings", { timeoutMsg: "account search hints should use the display type label" });
   await browser.keys("Enter");
   await browser.$("[data-account-detail]").waitForExist({ timeout: 10000, timeoutMsg: "an account result should open that account's page" });
   await openPalette();

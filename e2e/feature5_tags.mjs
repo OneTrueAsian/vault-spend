@@ -4,7 +4,7 @@
 //
 // Run with: node e2e/feature5_tags.mjs
 
-import { launchApp, menuOptionLabels } from "./harness.mjs";
+import { chooseRowAction, launchApp, menuOptionLabels, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -23,13 +23,20 @@ try {
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
-  const tagInput = await app.browser.$(".tag-input");
-  await tagInput.waitForExist({ timeout: 10000 });
-  await tagInput.setValue("vacation");
-  await app.browser.keys("Enter");
-
+  // "Add tag…" in the row's ⋯ menu opens the tag field (focused); Enter adds the tag.
+  const rowMenu = await app.browser.$("tr[data-payment-row] [data-row-menu]");
+  await rowMenu.waitForExist({ timeout: 10000 });
   const pill = await app.browser.$(".tag-pill");
-  await pill.waitForExist({ timeout: 10000 });
+  await withFocusRetry(app.browser, async () => {
+    if (await pill.isExisting()) return; // an earlier attempt already added it
+    await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Add tag…");
+    const tagInput = await app.browser.$(".tag-input");
+    await tagInput.waitForExist({ timeout: 5000 });
+    await tagInput.setValue("vacation");
+    await app.browser.keys("Enter");
+    await pill.waitForExist({ timeout: 10000 });
+  });
+
   console.log("tag pill text:", await pill.getText());
 
   // The tag filter now lives behind the "More filters" popover (see

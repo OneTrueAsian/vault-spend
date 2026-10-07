@@ -1,8 +1,11 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { accountTypeLabel } from "./accountGroups";
+import "./AccountsCards.css";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";
 import { LineChart } from "./charts";
-import { formatAmount, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
+import { formatAmount, formatDisplayDate, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
+import { DateField } from "./DateField";
 import { errorMessage } from "./errorMessage";
 // Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
 const AccountAccumulationSection = lazy(() => import("./AccumulationSection").then((m) => ({ default: m.AccountAccumulationSection })));
@@ -26,6 +29,7 @@ export function AccountDetailView({
   onOpenTransactions,
   onOpenPayment,
   onMessage,
+  focus = null,
 }: {
   account: Account;
   onBack: () => void;
@@ -34,6 +38,9 @@ export function AccountDetailView({
   onOpenTransactions: () => void;
   onOpenPayment: (sourceId: number) => void;
   onMessage: (text: string, kind: "success" | "error" | "info") => void;
+  /** "reconcile": opened from an account row's "Reconcile with a statement…", so the page starts at
+   * the reconcile card with its first field ready to type in. */
+  focus?: "reconcile" | null;
 }) {
   const [history, setHistory] = useState<BalancePoint[]>([]);
   const [transactions, setTransactions] = useState<AccountTransaction[]>([]);
@@ -46,6 +53,15 @@ export function AccountDetailView({
   const [status, setStatus] = useState<ReconciliationStatus | null>(null);
 
   const canReconcile = RECONCILABLE_TYPES.has(account.account_type);
+  const reconcileCardRef = useRef<HTMLDivElement>(null);
+  const statementBalanceRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focus !== "reconcile") return;
+    reconcileCardRef.current?.scrollIntoView({ block: "start" });
+    statementBalanceRef.current?.focus({ preventScroll: true });
+    // Only when the page opens: later re-renders leave the person where they are.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadOverview = useCallback(async () => {
     setHistory(await invoke<BalancePoint[]>("account_balance_history", { accountId: account.id, months: 12 }));
@@ -94,7 +110,7 @@ export function AccountDetailView({
       setReconciling(false);
       setStatementBalance("");
       await loadOverview();
-      onMessage(`Reconciled ${account.name} through ${statementDate}.`, "success");
+      onMessage(`Reconciled ${account.name} through ${formatDisplayDate(statementDate)}.`, "success");
     } catch (e) {
       onMessage(errorMessage(e), "error");
     }
@@ -114,7 +130,7 @@ export function AccountDetailView({
             {account.name}
           </h1>
           <p className="view-sub">
-            {account.account_type}
+            {accountTypeLabel(account.account_type)}
             {account.institution ? ` · ${account.institution}` : ""}
             {account.mask ? ` ···${account.mask}` : ""}
           </p>
@@ -127,7 +143,7 @@ export function AccountDetailView({
           <span className="stat-label">Balance</span>
         </div>
         <div className="stat tint-blue" data-last-reconciled={lastRec ? lastRec.statement_date : ""}>
-          <span className={lastRec ? "stat-value" : "stat-value stat-value-muted"}>{lastRec ? lastRec.statement_date : "Never"}</span>
+          <span className={lastRec ? "stat-value" : "stat-value stat-value-muted"}>{lastRec ? formatDisplayDate(lastRec.statement_date) : "Never"}</span>
           <span className="stat-label">Last reconciled</span>
         </div>
       </div>
@@ -154,7 +170,7 @@ export function AccountDetailView({
         )}
       </div>
 
-      <div className="card" data-reconcile-card>
+      <div className="card" data-reconcile-card ref={reconcileCardRef}>
         <div className="card-head">
           <span className="reports-section-title">Reconcile with a statement</span>
         </div>
@@ -175,11 +191,12 @@ export function AccountDetailView({
             >
               <label className="labeled-field">
                 <span className="labeled-field-label">Statement ending date</span>
-                <input type="date" value={statementDate} onChange={(e) => setStatementDate(e.target.value)} data-statement-date />
+                <DateField value={statementDate} onChange={setStatementDate} ariaLabel="Statement ending date" data-statement-date />
               </label>
               <label className="labeled-field">
                 <span className="labeled-field-label">Statement ending balance</span>
                 <input
+                  ref={statementBalanceRef}
                   value={statementBalance}
                   onChange={(e) => setStatementBalance(e.target.value)}
                   placeholder="0.00"
@@ -230,7 +247,7 @@ export function AccountDetailView({
                     <td className="dup-review-check">
                       <input type="checkbox" checked={t.cleared} onChange={() => void toggleCleared(t)} aria-label={`Cleared: ${t.description}`} />
                     </td>
-                    <td>{t.date}</td>
+                    <td className="date-cell">{formatDisplayDate(t.date)}</td>
                     <td>{t.description}</td>
                     <td className="amount-col">{formatAmount(t.amount)}</td>
                   </tr>
@@ -238,7 +255,7 @@ export function AccountDetailView({
                 {candidates.length === 0 && (
                   <tr>
                     <td colSpan={4} className="empty-state">
-                      Nothing left to reconcile up to {statementDate}.
+                      Nothing left to reconcile up to {formatDisplayDate(statementDate)}.
                     </td>
                   </tr>
                 )}
@@ -273,12 +290,12 @@ export function AccountDetailView({
           <tbody>
             {transactions.map((t) => (
               <tr key={t.id}>
-                <td>{t.date}</td>
+                <td className="date-cell">{formatDisplayDate(t.date)}</td>
                 <td>
                   {t.description}
                   {t.payment_source_id != null && (
                     <button type="button" className="modal-secondary btn-sm view-payment"
-                      aria-label={`View payment from ${t.payment_source_account_name} on ${t.payment_source_date}`}
+                      aria-label={`View payment from ${t.payment_source_account_name} on ${formatDisplayDate(t.payment_source_date ?? "")}`}
                       onClick={() => onOpenPayment(t.payment_source_id!)}>
                       View payment
                     </button>

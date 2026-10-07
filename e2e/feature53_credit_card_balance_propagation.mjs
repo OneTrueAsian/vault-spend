@@ -9,8 +9,9 @@
 //
 // Run with: node e2e/feature53_credit_card_balance_propagation.mjs
 
-import { launchApp, chooseMenuOption } from "./harness.mjs";
+import { launchApp, chooseMenuOption, chooseRowAction } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
 
 const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Checking', 'checking', '5000.00')")
@@ -31,7 +32,7 @@ async function statValue(app, label) {
 // 'account-card') also matches the outer .account-cards *group* wrapper
 // (same trap statValue above works around for "stat"/".stats").
 function accountCardXPath(accountName) {
-  return `//div[contains(concat(' ', normalize-space(@class), ' '), ' account-card ')][.//div[contains(@class,'account-name-cell')][text()='${accountName}']]`;
+  return `//div[contains(concat(' ', normalize-space(@class), ' '), ' account-card ')][.//div[contains(@class,'account-name-cell')][normalize-space()='${accountName}']]`;
 }
 
 async function visaOwedAndAvailable(app) {
@@ -57,7 +58,7 @@ async function addTransaction(app, { accountName, description, amount }) {
   const accountSelect = (await panel.$$(".menu-select-toggle"))[0];
   await chooseMenuOption(accountSelect, { label: accountName });
   await (await panel.$("input[placeholder='e.g. \"Coffee shop\"']")).setValue(description);
-  await (await panel.$("input[placeholder='Negative = money out']")).setValue(amount);
+  await enterTransactionAmount(app.browser, panel, amount);
 
   const submit = await panel.$("button=Add transaction");
   await submit.click();
@@ -66,8 +67,8 @@ async function addTransaction(app, { accountName, description, amount }) {
 
 async function deleteTransaction(app, description) {
   const row = await app.browser.$(`//tr[td[contains(.,'${description}')]]`);
-  const deleteBtn = await row.$("button=Delete");
-  await deleteBtn.click();
+  // "Delete…" in the row's ⋯ menu shows the inline Cancel/Delete confirm in its place.
+  await chooseRowAction(app.browser, async () => row.$("[data-row-menu]"), "Delete…");
   const confirmBtn = await row.$(".btn-danger");
   await confirmBtn.waitForExist({ timeout: 5000 });
   await confirmBtn.click();
@@ -92,9 +93,9 @@ try {
   let { owed, available } = await visaOwedAndAvailable(app);
   console.log("baseline:", { owed, available });
   if (owed !== "Owed $0.00") throw new Error(`expected a fresh card to owe $0.00, got "${owed}"`);
-  if (available !== "Available $2,000.00") throw new Error(`expected $2,000.00 available, got "${available}"`);
+  if (available !== "$2,000.00 available") throw new Error(`expected $2,000.00 available, got "${available}"`);
 
-  let netWorth = await statValue(app, "Net Worth");
+  let netWorth = await statValue(app, "Net worth");
   if (netWorth !== "$5,000.00") throw new Error(`expected baseline Net Worth $5,000.00 (unused credit contributes $0), got ${netWorth}`);
   console.log("Baseline correct: unused credit card owes $0 and contributes nothing to net worth");
 
@@ -122,12 +123,13 @@ try {
   ({ owed, available } = await visaOwedAndAvailable(app));
   console.log("after $300 charge:", { owed, available });
   if (owed !== "Owed $300.00") throw new Error(`expected $300.00 owed after the charge, got "${owed}"`);
-  if (available !== "Available $1,700.00") throw new Error(`expected $1,700.00 available after the charge, got "${available}"`);
+  if (available !== "$1,700.00 available") throw new Error(`expected $1,700.00 available after the charge, got "${available}"`);
 
-  netWorth = await statValue(app, "Net Worth");
+  netWorth = await statValue(app, "Net worth");
   if (netWorth !== "$4,700.00") throw new Error(`expected Net Worth $4,700.00 after the $300 charge, got ${netWorth}`);
   let liabilities = await statValue(app, "What you owe");
-  if (liabilities !== "-$300.00") throw new Error(`expected Total Liabilities -$300.00, got ${liabilities}`);
+  // "What you owe" shows the amount owed (UAT s7.1 mockup).
+  if (liabilities !== "$300.00") throw new Error(`expected What you owe $300.00, got ${liabilities}`);
 
   let legendText = await cashFlowLegendText(app);
   if (!legendText.includes("Income · $0.00")) throw new Error(`expected $0.00 income, got:\n${legendText}`);
@@ -148,9 +150,9 @@ try {
   ({ owed, available } = await visaOwedAndAvailable(app));
   console.log("after $150 payment:", { owed, available });
   if (owed !== "Owed $150.00") throw new Error(`expected $150.00 owed after the payment, got "${owed}"`);
-  if (available !== "Available $1,850.00") throw new Error(`expected $1,850.00 available after the payment, got "${available}"`);
+  if (available !== "$1,850.00 available") throw new Error(`expected $1,850.00 available after the payment, got "${available}"`);
 
-  netWorth = await statValue(app, "Net Worth");
+  netWorth = await statValue(app, "Net worth");
   if (netWorth !== "$4,850.00") throw new Error(`expected Net Worth $4,850.00 after the payment, got ${netWorth}`);
 
   legendText = await cashFlowLegendText(app);
@@ -176,13 +178,13 @@ try {
   ({ owed, available } = await visaOwedAndAvailable(app));
   console.log("after deleting the charge:", { owed, available });
   if (owed !== "Owed -$150.00") throw new Error(`expected an overpaid $-150.00 owed, got "${owed}"`);
-  if (available !== "Available $2,150.00") throw new Error(`expected $2,150.00 available, got "${available}"`);
+  if (available !== "$2,150.00 available") throw new Error(`expected $2,150.00 available, got "${available}"`);
 
-  netWorth = await statValue(app, "Net Worth");
+  netWorth = await statValue(app, "Net worth");
   if (netWorth !== "$5,150.00") throw new Error(`expected Net Worth $5,150.00 (checking $5,000 + $150 overpayment), got ${netWorth}`);
   liabilities = await statValue(app, "What you owe");
-  if (liabilities !== "$150.00") {
-    throw new Error(`expected Total Liabilities to flip to +$150.00 once overpaid (documented sign convention), got ${liabilities}`);
+  if (liabilities !== "-$150.00") {
+    throw new Error(`expected What you owe to read -$150.00 once overpaid (the card's row also reads "Owed -$150.00"), got ${liabilities}`);
   }
 
   legendText = await cashFlowLegendText(app);

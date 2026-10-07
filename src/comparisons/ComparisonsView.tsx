@@ -175,7 +175,7 @@ export function ComparisonsView({
             </p>
           )}
           <p className="cmp-footnote">
-            Published figures come from public surveys (reference data {report.packageVersion}) and are adjusted for inflation. Calculated on this
+            The official figures come from public surveys (reference data {report.packageVersion}) and are adjusted for inflation. Calculated on this
             computer.
           </p>
         </>

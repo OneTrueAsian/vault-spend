@@ -205,7 +205,7 @@
   {
     "ageMax": 24,
     "ageMin": 15,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -237,7 +237,7 @@
   {
     "ageMax": 29,
     "ageMin": 25,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -269,7 +269,7 @@
   {
     "ageMax": 34,
     "ageMin": 30,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -301,7 +301,7 @@
   {
     "ageMax": 39,
     "ageMin": 35,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -333,7 +333,7 @@
   {
     "ageMax": 44,
     "ageMin": 40,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -365,7 +365,7 @@
   {
     "ageMax": 49,
     "ageMin": 45,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -397,7 +397,7 @@
   {
     "ageMax": 54,
     "ageMin": 50,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -429,7 +429,7 @@
   {
     "ageMax": 59,
     "ageMin": 55,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -461,7 +461,7 @@
   {
     "ageMax": 64,
     "ageMin": 60,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -493,7 +493,7 @@
   {
     "ageMax": 69,
     "ageMin": 65,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -525,7 +525,7 @@
   {
     "ageMax": 74,
     "ageMin": 70,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -557,7 +557,7 @@
   {
     "ageMax": null,
     "ageMin": 75,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_hinc02_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -589,7 +589,7 @@
   {
     "ageMax": 24,
     "ageMin": 15,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -621,7 +621,7 @@
   {
     "ageMax": 29,
     "ageMin": 25,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -653,7 +653,7 @@
   {
     "ageMax": 34,
     "ageMin": 30,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -685,7 +685,7 @@
   {
     "ageMax": 39,
     "ageMin": 35,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -717,7 +717,7 @@
   {
     "ageMax": 44,
     "ageMin": 40,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -749,7 +749,7 @@
   {
     "ageMax": 49,
     "ageMin": 45,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -781,7 +781,7 @@
   {
     "ageMax": 54,
     "ageMin": 50,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -813,7 +813,7 @@
   {
     "ageMax": 59,
     "ageMin": 55,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -845,7 +845,7 @@
   {
     "ageMax": 64,
     "ageMin": 60,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -877,7 +877,7 @@
   {
     "ageMax": 69,
     "ageMin": 65,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -909,7 +909,7 @@
   {
     "ageMax": 74,
     "ageMin": 70,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",
@@ -941,7 +941,7 @@
   {
     "ageMax": null,
     "ageMin": 75,
-    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never published, so no complete annual average exists.",
+    "annotation": "Income year 2025 reported in 2025 dollars; priced at the July 2025 CPI because the October 2025 CPI was never released, so no complete annual average exists.",
     "definitionId": "cps_pinc01_money_income_median",
     "dollarBasis": {
       "kind": "month",

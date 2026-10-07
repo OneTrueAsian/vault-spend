@@ -16,6 +16,9 @@ import { useDelayedVisibility } from "./useDelayedVisibility";
  * this particular number, since that's inverted for Debt versus Cash/Net
  * Worth/Investments.
  *
+ * A row's amount is red when it needs you (s4): when the row's `flag` says so, or, without a
+ * flag, when it is negative (a budget alert's negative amount is over budget).
+ *
  * Always mounted by its caller (not `{expandedStat && <StatDetailPanel/>}`)
  * so it can play a real close transition instead of vanishing the instant
  * `isOpen` flips false — `title`/`rows` go `null` on close, but the panel
@@ -32,7 +35,7 @@ export function StatDetailPanel({
   onClose,
 }: {
   title: string | null;
-  rows: { name: string; amount: number }[] | null;
+  rows: { name: string; amount: number; flag?: boolean }[] | null;
   changeRows?: { name: string; delta: number }[] | null;
   changeLabel?: string;
   changeGoodDirection?: "up" | "down";
@@ -43,7 +46,7 @@ export function StatDetailPanel({
   const { shouldRender, closing } = useDelayedVisibility(isOpen);
   const lastContent = useRef<{
     title: string;
-    rows: { name: string; amount: number }[];
+    rows: { name: string; amount: number; flag?: boolean }[];
     changeRows: { name: string; delta: number }[] | null;
     changeLabel?: string;
     changeGoodDirection: "up" | "down";
@@ -79,7 +82,7 @@ export function StatDetailPanel({
               style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: "13px" }}
             >
               <span>{row.name}</span>
-              <span className={row.amount < 0 ? "amount-col report-over-budget" : "amount-col"}>
+              <span className={(row.flag ?? row.amount < 0) ? "amount-col report-over-budget" : "amount-col"}>
                 {formatAmount(row.amount)}
               </span>
             </div>

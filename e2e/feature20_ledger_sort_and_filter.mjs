@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature20_ledger_sort_and_filter.mjs
 
-import { launchApp, chooseMenuOption, menuSelectValue } from "./harness.mjs";
+import { launchApp, chooseMenuOption, menuSelectValue, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -95,22 +95,30 @@ try {
 
   const ariaSortOf = (label) =>
     app.browser.execute((l) => [...document.querySelectorAll("th.sortable-col")].find((th) => th.textContent.includes(l))?.getAttribute("aria-sort") ?? null, label);
-  await app.browser.execute(() => {
-    const th = [...document.querySelectorAll("th.sortable-col")].find((h) => h.textContent.includes("Date"));
-    th.querySelector("button").focus();
+  await withFocusRetry(app.browser, async () => {
+    // A retry starts on a different column so Enter on Date still selects ascending. Do not refocus
+    // between Enter and Space: the test must continue to prove focus survives the table update.
+    if ((await ariaSortOf("Date")) !== null) {
+      await amountHeader.click();
+      await app.browser.waitUntil(async () => (await ariaSortOf("Amount")) !== null);
+    }
+    await app.browser.execute(() => {
+      const th = [...document.querySelectorAll("th.sortable-col")].find((h) => h.textContent.includes("Date"));
+      th.querySelector("button").focus();
+    });
+    await app.browser.keys("Enter");
+    await app.browser.waitUntil(
+      async () => (await app.browser.$(firstDescriptionCell).getText()).includes("Apple Store"),
+      { timeout: 10000, timeoutMsg: "Enter on the focused Date heading should sort by date, oldest first (Apple Store)" },
+    );
+    if ((await ariaSortOf("Date")) !== "ascending") throw new Error(`after Enter the Date heading should be aria-sort=ascending, got ${await ariaSortOf("Date")}`);
+    await app.browser.keys(" ");
+    await app.browser.waitUntil(
+      async () => (await app.browser.$(firstDescriptionCell).getText()).includes("Coffee Shop"),
+      { timeout: 10000, timeoutMsg: "Space on the still-focused Date heading should flip it to newest first (Coffee Shop)" },
+    );
+    if ((await ariaSortOf("Date")) !== "descending") throw new Error(`after Space the Date heading should be aria-sort=descending, got ${await ariaSortOf("Date")}`);
   });
-  await app.browser.keys("Enter");
-  await app.browser.waitUntil(
-    async () => (await app.browser.$(firstDescriptionCell).getText()).includes("Apple Store"),
-    { timeout: 10000, timeoutMsg: "Enter on the focused Date heading should sort by date, oldest first (Apple Store)" },
-  );
-  if ((await ariaSortOf("Date")) !== "ascending") throw new Error(`after Enter the Date heading should be aria-sort=ascending, got ${await ariaSortOf("Date")}`);
-  await app.browser.keys(" ");
-  await app.browser.waitUntil(
-    async () => (await app.browser.$(firstDescriptionCell).getText()).includes("Coffee Shop"),
-    { timeout: 10000, timeoutMsg: "Space on the still-focused Date heading should flip it to newest first (Coffee Shop)" },
-  );
-  if ((await ariaSortOf("Date")) !== "descending") throw new Error(`after Space the Date heading should be aria-sort=descending, got ${await ariaSortOf("Date")}`);
   console.log("keyboard sorting verified");
   // Account filter: open the dropdown, confirm both accounts show grouped
   // under their type headers, then uncheck Credit Card.
@@ -118,7 +126,7 @@ try {
   await filterToggle.waitForExist({ timeout: 5000 });
   await filterToggle.click();
 
-  const creditGroupLabel = await app.browser.$("//label[contains(@class,'account-filter-group-label')][text()='Credit Cards']");
+  const creditGroupLabel = await app.browser.$("//label[contains(@class,'account-filter-group-label')][text()='Credit cards']");
   await creditGroupLabel.waitForExist({ timeout: 5000 });
 
   const creditCheckbox = await app.browser.$(

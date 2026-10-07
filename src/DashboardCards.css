@@ -1,0 +1,447 @@
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The Dashboard's row of money tiles (and any pinned account, goal or investment tiles next to
+   them): the tiles share the whole row, however many there are, and wrap below 200px each.
+   Each tile is a <button> inside a wrapper, and a button only grows to fit its text unless told
+   to fill its cell. */
+.stats.dashboard-stat-row {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--gap, 14px);
+}
+
+.dashboard-stat-row > * > .stat {
+  width: 100%;
+  height: 100%;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  /* Dashboard/Accounts render this as a <button> (for the expandable
+     detail panel); the generic button rule below sets a --on-accent text
+     color meant for solid-accent buttons, which otherwise leaks in here
+     since nothing overrode it — invisible-looking stat values in every
+     dark theme (Aurora, Midnight Emerald, Futuristic).
+     Same leak for align-items/justify-content (both default to `center`
+     on `button`): left unset here, every stat rendered as a <button>
+     had its icon/label row and value centered instead of pinned to the
+     top-left, while only the sparkline (explicit width:100%) reached
+     the true left edge. */
+  color: var(--text);
+}
+
+.stat-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.stat-top-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stat-spark {
+  flex: none;
+  display: block;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  /* 220px cards (see the .stats gridTemplateColumns call sites) comfortably
+     fit up to a 7-figure negative amount, measured against this exact
+     font/weight/size. Wrapping (rather than clipping or overflowing into a
+     neighboring card) is the fallback for whatever's still bigger than
+     that — an 8-figure net worth should still read correctly, just on two
+     lines, never as truncated or overlapping digits. */
+  overflow-wrap: anywhere;
+}
+
+.stat-value-muted {
+  color: var(--text-muted);
+}
+
+/* " a month" after a tile's value (Recurring): read as part of the figure, smaller than it. */
+.stat-value-unit {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* A tile's second figure in small text, such as the yearly total under a monthly one. */
+.stat-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stat-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.stat-label-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.stat-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+.stat-delta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.stat-delta.up {
+  color: var(--positive);
+}
+
+.stat-delta.down {
+  color: var(--negative);
+}
+
+.stat-detail-divider {
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+
+.stat-clickable {
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+
+.stat-clickable:hover {
+  border-color: var(--border-strong);
+}
+
+.stat-expanded {
+  border-color: var(--accent);
+}
+
+/* Subtle per-metric tinted backgrounds, applied to any `.stat` tile
+   app-wide (Accounts/Recurring/Budget/Reports/Investments stat rows, and
+   the Dashboard's `.stat-hero` cards below) — a top-to-bottom gradient
+   from the plain surface color into a faint wash of the metric's color,
+   matching the redesign's stat-card treatment. Decorative only (never the
+   sole way a value's sign/status is conveyed — that's still text color/
+   icons), so one set of 5 works for every palette via `color-mix`. */
+.stat.tint-accent {
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--accent) 6%, var(--surface)) 100%);
+}
+
+.stat.tint-blue {
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--info) 8%, var(--surface)) 100%);
+}
+
+.stat.tint-red {
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--negative) 8%, var(--surface)) 100%);
+}
+
+/* For figures that are neither good nor bad news (s4: red only for what needs you), such as what
+   you owe. A plain wash toward the second surface colour instead of a hue. */
+.stat.tint-neutral {
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface-2) 60%, var(--surface)) 100%);
+}
+
+.stat.tint-purple {
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, #8a5fb0 8%, var(--surface)) 100%);
+}
+
+.stat.tint-teal {
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, #1dbed2 8%, var(--surface)) 100%);
+}
+
+/* Dashboard's 4 hero stat cards (Net Worth/Cash/Debt/Investments) — a
+   distinct, larger presentation from the compact `.stat` tiles used
+   elsewhere, layered on top of the tints above via the same `.tint-*`
+   classes. Layout-only here; color comes from `.tint-*` above. */
+.stat-hero {
+  padding: 16px;
+  border-radius: 18px;
+  box-shadow: var(--shadow-md);
+}
+
+.stat-hero .stat-top {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
+.stat-hero .mini-ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  flex: none;
+}
+
+.stat-hero .mini-ico svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Pinned account/goal widgets use AccountTypeIcon/BucketIcon, which render
+   a bundled PNG for most types instead of a lucide <svg> — needs its own
+   sizing, and a forced-white filter (regardless of theme) to read against
+   the badge's own saturated gradient, the same way the svg icons already
+   get color:#fff for free via currentColor. */
+.stat-hero .mini-ico img {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) invert(1);
+}
+
+/* A full-color icon (flatIcons.ts) inside a stat badge keeps its own
+   colors — no forced-white filter — and sits on a neutral card instead of
+   the saturated gradient below, which would otherwise fight the icon's
+   own palette for attention at this size. */
+.stat-hero .mini-ico-plain {
+  background: var(--surface);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.stat-hero .mini-ico img.icon-img-color {
+  filter: none;
+}
+
+.stat-hero .mini-ico.accent {
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+}
+
+.stat-hero .mini-ico.blue {
+  background: linear-gradient(135deg, var(--accent-strong), var(--info));
+}
+
+/* A debt account badge stays neutral. Full-colour icons retain their colours;
+   the house and rising-line glyphs inherit the theme foreground. */
+.stat-hero .mini-ico.neutral {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.stat-hero .mini-ico.purple {
+  background: linear-gradient(135deg, #a688d9, #8a5fb0);
+}
+
+.stat-hero .stat-spark-fluid {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.stat-detail-panel .card-head {
+  align-items: center;
+}
+
+/* `transform` only — deliberately never `opacity`. An opacity-0 start/end
+   frame briefly made this element read as empty to more than just the
+   eye: this app's own WebDriver E2E suite hit real, reproducible
+   `getText()` flakiness on it (confirmed by disabling the animation
+   entirely and watching the flake disappear across a dozen runs), which
+   means a screen reader's own text-extraction could plausibly hit the
+   exact same "visually present, programmatically empty" window — not
+   worth a fade for either audience. A slide is still real motion. */
+.stat-detail-panel {
+  animation: panel-in 160ms ease;
+}
+
+.stat-detail-panel-closing {
+  animation: panel-out 160ms ease forwards;
+}
+
+@keyframes panel-in {
+  from {
+    transform: translateY(-4px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes panel-out {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateY(-4px);
+  }
+}
+
+/* Floats above the page instead of sitting in document flow (its old
+   `margin-bottom`-only layout), so it's visible regardless of scroll
+   position and never shifts the content below it — real "Visibility of
+   System Status" (Nielsen #1) for the bulk-delete undo toast specifically:
+   that control lives in the bulk-action bar at the bottom of a
+   potentially long, scrolled Ledger table, so an in-flow banner at the
+   top of the page could land entirely outside the viewport. `.toast-stack`
+   (below) positions the fixed container; `.status` itself stays a normal
+   flex row within it. */
+.toast-stack {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(92vw, 480px);
+  pointer-events: none;
+}
+
+/* A message floats over the page for up to 10 seconds. Clicks go through its text to whatever is
+   underneath, so it never blocks a control there (QA L5); its own buttons (Dismiss, Undo) still
+   take clicks. */
+.toast-stack .status {
+  pointer-events: none;
+  box-shadow: var(--shadow-md);
+}
+
+.toast-stack .status button {
+  pointer-events: auto;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+}
+
+.status-success {
+  color: var(--accent-soft-text);
+  background: var(--accent-soft);
+  border-color: var(--positive);
+}
+
+.status-error {
+  color: var(--negative);
+  background: var(--negative-soft);
+  border-color: var(--negative);
+}
+
+.status-info {
+  color: var(--info);
+  background: var(--info-soft);
+  border-color: var(--info);
+}
+
+/* A toast floats over whatever is on the page, so its fill has to be opaque:
+   the status tint is layered over --status-base. (Transparent's tints are
+   14–22% alpha washes; used alone they let table rows show through the
+   message.) --status-base is just --surface everywhere but Transparent,
+   where --surface itself is see-through. */
+.toast-stack .status-success {
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--status-base);
+}
+
+.toast-stack .status-error {
+  background: linear-gradient(var(--negative-soft), var(--negative-soft)), var(--status-base);
+}
+
+.toast-stack .status-info {
+  background: linear-gradient(var(--info-soft), var(--info-soft)), var(--status-base);
+}
+
+/* Transparent's error and info hues are too dim to read as text on their own
+   tint in dark mode (about 3:1 and 2.8:1), so lean them toward the text
+   colour: still red / indigo, but AA-legible in both modes. */
+[data-palette="transparent"] .toast-stack .status-error {
+  color: color-mix(in srgb, var(--negative) 55%, var(--text));
+}
+
+[data-palette="transparent"] .toast-stack .status-info {
+  color: color-mix(in srgb, var(--info) 55%, var(--text));
+}
+
+.status-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.status-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.status-action {
+  flex: none;
+  border: 1px solid currentColor;
+  background: none;
+  color: inherit;
+  opacity: 0.85;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.status-action:hover {
+  opacity: 1;
+  background: rgba(127, 127, 127, 0.18);
+}
+
+.status-dismiss {
+  flex: none;
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.status-dismiss:hover {
+  opacity: 1;
+  background: rgba(127, 127, 127, 0.18);
+}

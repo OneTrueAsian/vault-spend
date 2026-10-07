@@ -1,6 +1,42 @@
-import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+// Eager stylesheet modules keep the original cascade and prevent lazy views from reloading base rules.
+import "./App.css";
+import "./AppShell.css";
+import "./SharedButtons.css";
+import "./SharedCards.css";
+import "./AccountsCards.css";
+import "./BudgetAndGoals.css";
+import "./DashboardCards.css";
+import "./Ledger.css";
+import "./Rules.css";
+import "./FirstRunChecklist.css";
+import "./Modal.css";
+import "./AppResponsive.css";
+import "./CashFlowCharts.css";
+import "./AccumulationSection.css";
+import "./LaunchErrorScreen.css";
+import "./ProfileAccess.css";
+import "./ProtectionSetupDialog.css";
+import "./SharedControls.css";
+import "./AppliedPaymentDetails.css";
+import "./LegalNotice.css";
+import "./MenuSelect.css";
+import "./themes/retro.css";
+import "./themes/futuristic.css";
+import { LedgerSavedFilters } from "./LedgerSavedFilters";
+import { useLedgerFilters } from "./useLedgerFilters";
+import { LedgerTable } from "./LedgerTable";
+import { LedgerNeedsCategory } from "./LedgerNeedsCategory";
+import { SidebarControls } from "./SidebarControls";
+import { useResolvedTheme } from "./useResolvedTheme";
+import { HelpLink } from "./HelpLink";
+import { LedgerPageActions } from "./LedgerPageActions";
+import { LedgerBulkActions } from "./LedgerBulkActions";
+import { LedgerFilterBar } from "./LedgerFilterBar";
+import { SetupImportReviewDialog } from "./SetupImportReviewDialog";
+import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { pickDefaultAccountId } from "./accountGroups";
+import { accountTypeLabel, pickDefaultAccountId } from "./accountGroups";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "./nativeDialog";
@@ -38,22 +74,38 @@ import {
   WhatsNewDialog,
 } from "./Modal";
 import { TransactionNotesDialog } from "./TransactionNotesDialog";
-import { flipConfirmText, importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
-import { DEFAULT_LAYOUT, loadDashboardLayout, parseWidgetId, saveDashboardLayout, type WidgetId } from "./dashboardLayout";
+import { importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
+import {
+  DEFAULT_LAYOUT,
+  loadDashboardLayout,
+  parseWidgetId,
+  saveDashboardLayout,
+  type WidgetId,
+} from "./dashboardLayout";
 import { ProfileSwitcher } from "./ProfileSwitcher";
+import { MobilePairingPrompt } from "./MobilePairingPrompt";
 import { lockCurrentProfile, unlockProfile } from "./protection";
 import { hasObservableUnsavedInput } from "./unsavedInput";
-import { TransferRow } from "./TransferRow";
-import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
+
 import { matchesPaymentAccount, paymentDisplayIndex } from "./paymentDiscovery";
 import { usePaymentSource } from "./usePaymentSource";
-import { CategoryFilterDropdown } from "./CategoryFilterDropdown";
-import { RowFieldDropdown } from "./RowFieldDropdown";
+
 import { MonthReviewDialog } from "./MonthReviewDialog";
 import { AccountDetailView } from "./AccountDetailView";
-import { SortableTh } from "./SortableTh";
-import { ImportCategoryReconcile, defaultCategoryChoices, type CategoryChoice, type UnmatchedCategory } from "./ImportCategoryReconcile";
-import { AccountDestinationDropdown } from "./AccountDestinationDropdown";
+
+import { ImportReviewDialog } from "./ImportReviewDialog";
+import { useImportReview } from "./useImportReview";
+import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel, transactionsInRows } from "./ledgerPaging";
+import {
+  SELECT_ALL_CAP,
+  canSelectMore,
+  isBatchSelected,
+  selectAllNext,
+  selectAllNote,
+  unselectBatch,
+  type SelectAllBatch,
+} from "./ledgerSelection";
+
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
 import type { PaletteEntry } from "./paletteSearch";
@@ -62,12 +114,6 @@ import { monthReviewDue } from "./monthReview";
 import { loadPrivacyPrefs, savePrivacyPrefs, startPrivacyMask, type PrivacyPrefs } from "./privacy";
 import { distinctMerchants, similarOfferText } from "./similarRules";
 import { canLinkAsTransfer, collapseTransferPairs } from "./transfers";
-// `CADENCE_OPTIONS` is used synchronously in the Transactions tab's own
-// (always-rendered, not tab-gated) bulk "Add to Recurring" control, so it
-// lives in its own tiny module — importing it here can't drag the rest of
-// `RecurringView` into the main bundle the way importing it from
-// `RecurringView` itself would.
-import { CADENCE_OPTIONS } from "./cadence";
 // Each tab view is its own chunk, loaded only the first time its tab is
 // actually opened, instead of every tab's code shipping in the one
 // startup bundle regardless of whether the user ever visits it.
@@ -82,17 +128,16 @@ const HouseholdView = lazy(() => import("./HouseholdView").then((m) => ({ defaul
 const CashFlowView = lazy(() => import("./CashFlowView").then((m) => ({ default: m.CashFlowView })));
 const DashboardView = lazy(() => import("./DashboardView").then((m) => ({ default: m.DashboardView })));
 const HelpView = lazy(() => import("./HelpView").then((m) => ({ default: m.HelpView })));
-import { AccountFilterDropdown, type AccountFilterValue } from "./AccountFilterDropdown";
-import { MemberFilterDropdown, type MemberFilterValue } from "./MemberFilterDropdown";
-import { MoreFiltersPopover } from "./MoreFiltersPopover";
+
 import { UpdateBanner } from "./UpdateBanner";
-import { NavIcon, CategoryIcon } from "./icons";
-import { formatAmount, toLocalIsoDate } from "./format";
+import { SidebarNav } from "./SidebarNav";
+import { useSidebarOverlay } from "./useSidebarOverlay";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
 import { DataLoading } from "./DataLoading";
-import { InfoTip } from "./InfoTip";
+
 import { ensureUiStateMigrated, getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import type {
   Account,
@@ -139,331 +184,31 @@ import type {
   TransactionSplit,
   YoyCashFlow,
 } from "./types";
-import "./App.css";
-import "./themes/futuristic.css";
 import { MenuSelect } from "./MenuSelect";
 import { errorMessage } from "./errorMessage";
 import { sumMoney } from "./money";
-
-type ImportSummary = {
-  inserted: number;
-  row_errors: number;
-  inserted_ids: number[];
-  /** Transfer pairs linked automatically by this import (0 unless auto-linking is on). */
-  auto_linked: number;
-};
-
-type ImportRow = {
-  index: number;
-  date: string;
-  description: string;
-  amount: string;
-  is_duplicate: boolean;
-  /** The row's own Account column, when the file has one — this app's own
-   * Transactions CSV export does. `commit_import` routes the row there by
-   * default (creating that account if none matches by name) unless the
-   * row's dropdown is changed. */
-  account_name: string | null;
-  /** The row's own Category column, when the file has one — the file's name for it, which
-   * may not be a category the person has (see `unmatched_categories`). */
-  category: string | null;
-};
-
-type ImportPreview = {
-  rows: ImportRow[];
-  row_errors: number;
-  /** Category names the file uses that the person doesn't have. Nothing is added for these
-   * unless the review screen sends back a "create" choice. */
-  unmatched_categories: UnmatchedCategory[];
-};
-
-type PendingImport = {
-  path: string;
-  invertAmounts: boolean;
-  defaultAccountId: number;
-  preview: ImportPreview;
-};
-
-type Stats = {
-  total: number;
-  auto_categorized: number;
-  user_confirmed: number;
-  uncategorized: number;
-};
-
-type NewAccountResult = {
-  name: string;
-  accountType: string;
-  startingBalance: string | null;
-  institution: string | null;
-  mask: string | null;
-  memberId: number | null;
-  iconKey: string | null;
-};
-
-type PendingDialog =
-  | {
-    kind: "newAccount";
-    resolve: (result: NewAccountResult | null) => void;
-  }
-  | { kind: "newCategory"; resolve: (name: string | null) => void }
-  | { kind: "confirmInvert"; resolve: (invert: boolean) => void; accountName?: string; suggestion?: ImportSignSuggestion }
-  | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
-
-/** How a transaction got its category, in words (the backend stores rule / user / classifier). */
-const CATEGORY_SOURCE_LABELS: Record<string, string> = { rule: "Your rule", user: "You", classifier: "Suggested" };
-
-type Tab =
-  | "dashboard"
-  | "accounts"
-  | "ledger"
-  | "buckets"
-  | "budget"
-  | "cashflow"
-  | "reports"
-  | "recurring"
-  | "investments"
-  | "household"
-  | "settings"
-  | "help";
-
-/** Groups the sidebar organizes its (reorderable) tabs under — Settings
- * and Help are pinned below these instead of belonging to a group, so
- * they're never part of the drag-to-reorder set (see `PINNED_NAV_ITEMS`). */
-type NavGroup = "overview" | "money" | "planning" | "insights";
-const NAV_GROUP_ORDER: NavGroup[] = ["overview", "money", "planning", "insights"];
-const NAV_GROUP_LABELS: Record<NavGroup, string> = {
-  overview: "Overview",
-  money: "Money",
-  planning: "Planning",
-  insights: "Insights",
-};
-
-type Theme = "light" | "dark" | "system";
-
-type StatusKind = "success" | "error" | "info";
-
-type LedgerSortColumn = "date" | "description" | "amount" | "account" | "category" | "source";
-
-function compareTransactionsBy(a: Transaction, b: Transaction, column: LedgerSortColumn): number {
-  switch (column) {
-    case "date":
-      return a.date.localeCompare(b.date);
-    case "description":
-      return a.description.localeCompare(b.description);
-    case "amount":
-      return parseFloat(a.amount) - parseFloat(b.amount);
-    case "account":
-      return a.account_name.localeCompare(b.account_name);
-    case "category":
-      return (a.category ?? "").localeCompare(b.category ?? "");
-    case "source":
-      return (a.category_source ?? "").localeCompare(b.category_source ?? "");
-  }
-}
-
-/** What deleting a transaction will do to its account's number, worded to
- * match what that account actually displays — "balance" for cash/other
- * accounts, "amount owed" for credit/loan (see AccountsView's identical
- * framing). Credit and loan both track "amount owed" in a way that moves
- * opposite a plain balance: a credit account's tracked value is
- * *available* credit (owed = limit − available), and a loan's
- * `current_balance` is owed directly but a positive (payment) transaction
- * *reduces* it (see `account_balance_as_of` on the Rust side) — so for
- * both, removing a negative transaction raises the tracked number and
- * therefore *lowers* what's owed, the opposite direction from every other
- * account type, where the tracked value and "owed" move together. Returns
- * `null` for a zero amount (no impact to explain) or an unknown account. */
-function describeDeleteImpact(amount: string, account: Account | undefined): string | null {
-  if (!account) return null;
-  const parsed = parseFloat(amount);
-  if (Number.isNaN(parsed) || parsed === 0) return null;
-
-  const isCredit = account.account_type === "credit";
-  const isLoan = account.account_type === "loan";
-  const label = isCredit || isLoan ? "amount owed" : "balance";
-  const trackedValueGoesUp = parsed < 0; // removing a negative (expense) frees up that much
-  const displayedNumberGoesUp = isCredit || isLoan ? !trackedValueGoesUp : trackedValueGoesUp;
-  const direction = displayedNumberGoesUp ? "increase" : "decrease";
-  return `Deleting this will ${direction} ${account.name}'s ${label} by ${formatAmount(Math.abs(parsed).toFixed(2))}.`;
-}
-
-/** The sidebar's reorderable tabs — grouped for display (see `NavGroup`)
- * but reordered as one flat sequence via drag-and-drop; rendering then
- * re-partitions that sequence by `group`, so a drag effectively only ever
- * reorders within its own group (dropping across a group boundary changes
- * the stored order but never moves an item out of its group visually) —
- * this keeps the mental model of the grouped redesign intact without
- * needing separate per-group order state. Settings and Help are pinned
- * outside this entirely (see `PINNED_NAV_ITEMS`), not reorderable. */
-const NAV_ITEMS: { id: Tab; label: string; icon: string; group: NavGroup }[] = [
-  { id: "dashboard", label: "Dashboard", icon: "home", group: "overview" },
-  { id: "accounts", label: "Accounts", icon: "bank", group: "money" },
-  { id: "ledger", label: "Transactions", icon: "swap", group: "money" },
-  { id: "recurring", label: "Recurring", icon: "repeat", group: "money" },
-  { id: "budget", label: "Budget", icon: "pie", group: "planning" },
-  { id: "buckets", label: "Goals", icon: "flag", group: "planning" },
-  { id: "cashflow", label: "Cash Flow", icon: "trend", group: "insights" },
-  { id: "investments", label: "Investments", icon: "barchart", group: "insights" },
-  { id: "household", label: "Household", icon: "users", group: "insights" },
-  { id: "reports", label: "Reports", icon: "wallet", group: "insights" },
-];
-
-/** Fixed, non-reorderable — rendered below a divider, outside every
- * group. */
-const PINNED_NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
-  { id: "settings", label: "Settings", icon: "settings" },
-  { id: "help", label: "Help", icon: "help" },
-];
-
-const NAV_ORDER_STORAGE_KEY = "meadow-nav-order";
-// Per-viewer, like the theme: how tall Transactions rows are. Compact is the
-// default — the comfortable layout stacked the tag box and Split button under
-// their cells and made every row ~75px tall.
-const LEDGER_DENSITY_STORAGE_KEY = "vaultspend-ledger-density";
-type LedgerDensity = "comfortable" | "compact";
-function loadLedgerDensity(): LedgerDensity {
-  try {
-    return localStorage.getItem(LEDGER_DENSITY_STORAGE_KEY) === "comfortable" ? "comfortable" : "compact";
-  } catch {
-    return "compact"; // private window, blocked site data, etc. — just use the default
-  }
-}
-// Which account a fresh import/manual transaction defaults to. Without
-// this, the default falls back to whichever account sorts first
-// alphabetically (list_accounts orders by name) — for most households
-// that's not their everyday checking account, so a CSV import or quick
-// add could silently land in the wrong place. Global rather than
-// per-profile, same as theme/nav-order above; a stale id from another
-// profile (or a deleted account) is harmless since callers only ever use
-// this as a first guess and fall back to accounts[0] when it doesn't
-// match a real, current account.
-const LAST_USED_ACCOUNT_STORAGE_KEY = "vaultspend-last-used-account-id";
-function getLastUsedAccountId(): number | null {
-  try {
-    const raw = localStorage.getItem(LAST_USED_ACCOUNT_STORAGE_KEY);
-    return raw ? Number(raw) : null;
-  } catch {
-    return null; // private window, blocked site data, etc. — just skip the preference
-  }
-}
-function setLastUsedAccountId(id: number) {
-  try {
-    localStorage.setItem(LAST_USED_ACCOUNT_STORAGE_KEY, String(id));
-  } catch {
-    // best effort, same as every other localStorage write in this file
-  }
-}
-/** Sentinel `filterCategory` value meaning "no category assigned" — kept
- * distinct from any real category name the same way the per-row category
- * `<select>`s already use `"__new__"` for "+ New category…". */
-const UNCATEGORIZED_FILTER = "__uncategorized__";
-
-/** A named snapshot of the Transactions tab's filter bar — a per-viewer shortcut,
- * same localStorage tier as theme/nav order. `filterAccountIds`/
- * `filterMemberIds` are stored as plain arrays (`Set` doesn't survive
- * `JSON.stringify`) and rehydrated back to `Set`s on apply — see
- * `applySavedFilter`. A saved account/category/tag that's since been
- * deleted just matches nothing once applied, the same as typing a filter
- * that happens to match zero rows — nothing here needs it to still exist. */
-type SavedLedgerFilter = {
-  name: string;
-  searchText: string;
-  filterCategory: string;
-  filterAccountIds: number[] | "all";
-  filterMemberIds: number[] | "all";
-  filterFrom: string;
-  filterTo: string;
-  filterTag: string;
-};
-
-async function loadSavedFilters(): Promise<SavedLedgerFilter[]> {
-  try {
-    const stored = await getProfileUiState("saved_filters");
-    if (stored) {
-      const parsed: unknown = JSON.parse(stored);
-      if (Array.isArray(parsed)) return parsed as SavedLedgerFilter[];
-    }
-  } catch {
-    // corrupt/unavailable value — fall back to no saved filters
-  }
-  return [];
-}
-
-async function saveSavedFilters(filters: SavedLedgerFilter[]) {
-  try {
-    const generation = await getCurrentGeneration();
-    await setProfileUiState("saved_filters", JSON.stringify(filters), generation);
-  } catch {
-    // per-viewer preference only — fine to skip if the save fails
-  }
-}
-
-/** Reads the sidebar's saved custom order — a per-viewer UI preference,
- * same as theme, so it lives in localStorage rather than the database.
- * Unknown ids (an old order from a build with different tabs) are
- * dropped; any tab missing from a stored order (a new tab shipped since
- * the user last reordered) is appended at the end rather than hidden. */
-function loadNavOrder(): Tab[] {
-  const known = NAV_ITEMS.map((item) => item.id);
-  try {
-    const stored = localStorage.getItem(NAV_ORDER_STORAGE_KEY);
-    if (stored) {
-      const parsed: unknown = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        const filtered = parsed.filter((id): id is Tab => known.includes(id as Tab));
-        const missing = known.filter((id) => !filtered.includes(id));
-        return [...filtered, ...missing];
-      }
-    }
-  } catch {
-    // corrupt/unavailable storage — fall back to the default order
-  }
-  return known;
-}
-
-/** The one status line shared by every success confirmation, error, and
- * in-progress message in the app (~90+ call sites) — styled by `kind` so an
- * error doesn't look identical to a routine confirmation (see App.css's
- * `.status-*` rules), with its own dismiss button since errors stay up
- * longer than the auto-dismiss timer and a raw error string is worth being
- * able to clear once read. */
-function StatusBanner({
-  text,
-  kind,
-  action,
-  onDismiss,
-}: {
-  text: string;
-  kind: StatusKind;
-  /** An optional extra button (e.g. "Undo") next to the dismiss ×, as a
-   * sibling — not nested inside it, so it's independently clickable/
-   * focusable. Used by the Transactions tab's bulk-delete undo toast, which is its
-   * own independent piece of state from `status` (see `undoToast` below)
-   * precisely so a routine confirmation elsewhere can't clobber an active
-   * undo window — both just render through this one shared component. */
-  action?: { label: string; onClick: () => void };
-  onDismiss: () => void;
-}) {
-  return (
-    <p className={`status status-${kind}`} role={kind === "error" ? "alert" : "status"}>
-      <svg className="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        {kind === "success" && <path d="M20 6 9 17l-5-5" />}
-        {kind === "error" && <><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></>}
-        {kind === "info" && <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>}
-      </svg>
-      <span className="status-text">{text}</span>
-      {action && (
-        <button type="button" className="status-action" onClick={action.onClick}>
-          {action.label}
-        </button>
-      )}
-      <button type="button" className="status-dismiss" onClick={onDismiss} aria-label="Dismiss message">
-        ×
-      </button>
-    </p>
-  );
-}
+import { StatusBanner } from "./StatusBanner";
+import { compareTransactionsBy, ledgerColumnCount as computeLedgerColumnCount } from "./ledgerHelpers";
+import {
+  NAV_ORDER_STORAGE_KEY,
+  getLastUsedAccountId,
+  loadLedgerDensity,
+  loadNavOrder,
+  setLastUsedAccountId,
+  type LedgerDensity,
+} from "./appStorage";
+import {
+  NAV_ITEMS,
+  PINNED_NAV_ITEMS,
+  UNCATEGORIZED_FILTER,
+  type LedgerSortColumn,
+  type NewAccountResult,
+  type PendingDialog,
+  type Stats,
+  type StatusKind,
+  type Tab,
+  type Theme,
+} from "./appTypes";
 
 function App({
   initialStatus,
@@ -479,6 +224,16 @@ function App({
   onDataFileChanged: (message: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  // The page whose ? button opened Help: Help opens that page's section. Cleared once Help is left,
+  // so opening Help from the sidebar later starts with every section closed.
+  const [helpFocus, setHelpFocus] = useState<Tab | null>(null);
+  function openHelpFor(tab: Tab) {
+    setHelpFocus(tab);
+    setActiveTab("help");
+  }
+  useEffect(() => {
+    if (activeTab !== "help") setHelpFocus(null);
+  }, [activeTab]);
   const mainScrollRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -500,6 +255,15 @@ function App({
   const [appearance, setAppearance] = useState<AppearancePrefs>(readStoredAppearancePrefs);
   const [navOrder, setNavOrder] = useState<Tab[]>(loadNavOrder);
   const [dragNavTab, setDragNavTab] = useState<Tab | null>(null);
+  // Below 1000px the sidebar shows icons only; "Show names" lays the full sidebar over the page
+  // (see useSidebarOverlay for what closes it).
+  const sidebarRef = useRef<HTMLElement>(null);
+  const {
+    expanded: sidebarExpanded,
+    setExpanded: setSidebarExpanded,
+    iconOnly: sidebarIconOnly,
+    handleBlur: handleSidebarBlur,
+  } = useSidebarOverlay(sidebarRef);
   const [layoutWidgets, setLayoutWidgetsState] = useState<WidgetId[]>(DEFAULT_LAYOUT);
   // Set once the person changes the layout, so a slow first read of the saved one (it arrives
   // asynchronously after mount) can't land afterwards and undo what they just did.
@@ -507,7 +271,30 @@ function App({
   const [addWidgetModalOpen, setAddWidgetModalOpen] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [anomalyFlags, setAnomalyFlags] = useState<AnomalyFlag[]>([]);
-  const [searchText, setSearchText] = useState("");
+  const {
+    searchText,
+    setSearchText,
+    filterCategory,
+    setFilterCategory,
+    filterAccountIds,
+    setFilterAccountIds,
+    filterMemberIds,
+    setFilterMemberIds,
+    filterFrom,
+    setFilterFrom,
+    filterTo,
+    setFilterTo,
+    filterTag,
+    setFilterTag,
+    savedFilters,
+    savingFilter,
+    setSavingFilter,
+    newFilterName,
+    setNewFilterName,
+    saveCurrentFilter,
+    applySavedFilter,
+    deleteSavedFilter,
+  } = useLedgerFilters();
   const [pendingPaymentId, setPendingPaymentId] = useState<number | null>(null);
   const [highlightedPaymentRow, setHighlightedPaymentRow] = useState<number | null>(null);
   const loadPaymentSource = usePaymentSource((source, fresh) => {
@@ -531,29 +318,6 @@ function App({
     void loadPaymentSource(sourceId);
   }
 
-  const [filterCategory, setFilterCategory] = useState("all");
-  const [filterAccountIds, setFilterAccountIds] = useState<AccountFilterValue>("all");
-  const [filterMemberIds, setFilterMemberIds] = useState<MemberFilterValue>("all");
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
-  const [filterTag, setFilterTag] = useState("all");
-  const [savedFilters, setSavedFilters] = useState<SavedLedgerFilter[]>([]);
-  const [savingFilter, setSavingFilter] = useState(false);
-  const [newFilterName, setNewFilterName] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    ensureUiStateMigrated()
-      .catch(() => { }) // best effort — the same treatment every browser-storage read/write here already gets
-      .then(() => loadSavedFilters())
-      .then((filters) => {
-        if (!cancelled) setSavedFilters(filters);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     ensureUiStateMigrated()
@@ -567,48 +331,12 @@ function App({
     };
   }, []);
 
-  function saveCurrentFilter() {
-    const name = newFilterName.trim();
-    if (!name) return;
-    const snapshot: SavedLedgerFilter = {
-      name,
-      searchText,
-      filterCategory,
-      filterAccountIds: filterAccountIds === "all" ? "all" : Array.from(filterAccountIds),
-      filterMemberIds: filterMemberIds === "all" ? "all" : Array.from(filterMemberIds),
-      filterFrom,
-      filterTo,
-      filterTag,
-    };
-    // Saving under a name that's already in use replaces it, rather than
-    // accumulating duplicates.
-    const next = [...savedFilters.filter((f) => f.name !== name), snapshot];
-    setSavedFilters(next);
-    saveSavedFilters(next);
-    setNewFilterName("");
-    setSavingFilter(false);
-  }
-
-  function applySavedFilter(filter: SavedLedgerFilter) {
-    setSearchText(filter.searchText);
-    setFilterCategory(filter.filterCategory);
-    setFilterAccountIds(filter.filterAccountIds === "all" ? "all" : new Set(filter.filterAccountIds));
-    setFilterMemberIds(filter.filterMemberIds === "all" ? "all" : new Set(filter.filterMemberIds));
-    setFilterFrom(filter.filterFrom);
-    setFilterTo(filter.filterTo);
-    setFilterTag(filter.filterTag);
-  }
-
-  function deleteSavedFilter(name: string) {
-    const next = savedFilters.filter((f) => f.name !== name);
-    setSavedFilters(next);
-    saveSavedFilters(next);
-  }
-
   const [sortColumn, setSortColumn] = useState<LedgerSortColumn>("date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [allTags, setAllTags] = useState<string[]>([]);
   const [newTagText, setNewTagText] = useState<Record<number, string>>({});
+  // The ledger row whose tag field is open (its ⋯ menu's "Add tag…").
+  const [taggingId, setTaggingId] = useState<number | null>(null);
   const [notesDialogFor, setNotesDialogFor] = useState<Transaction | null>(null);
   const [bulkTagText, setBulkTagText] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -1070,7 +798,7 @@ function App({
   // Wraps the raw state setter so ~90 existing `setStatus(errorMessage(e))` catch
   // blocks stay one-line error reports (kind defaults to "error" there) while
   // confirmations/in-progress messages opt into "success"/"info" explicitly —
-  // see the `.status-*` rules in App.css for what each kind looks like.
+  // see the `.status-*` rules in DashboardCards.css for what each kind looks like.
   function setStatus(text: string, kind: StatusKind = "error") {
     setStatusState(text ? { text, kind } : null);
   }
@@ -1150,7 +878,6 @@ function App({
 
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<PendingDialog | null>(null);
-  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [pendingSetupImport, setPendingSetupImport] = useState<{
     path: string;
     preview: SetupImportPreview;
@@ -1160,12 +887,6 @@ function App({
     includedBuckets: Set<number>;
     includedHoldings: Set<number>;
   } | null>(null);
-  const [includedIndices, setIncludedIndices] = useState<Set<number>>(new Set());
-  const [accountOverrides, setAccountOverrides] = useState<Map<number, number>>(new Map());
-  // What to do with each category the file uses that the person doesn't have (see
-  // ImportCategoryReconcile). Every one starts as "don't use it", so an import that
-  // isn't reviewed closely adds nothing to their category list.
-  const [importCategoryChoices, setImportCategoryChoices] = useState<Record<string, CategoryChoice>>({});
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
   const [manageFamilyMembersOpen, setManageFamilyMembersOpen] = useState(false);
   const [newTransactionOpen, setNewTransactionOpen] = useState(false);
@@ -1242,7 +963,11 @@ function App({
   //   }
   // }
   const [pageSize, setPageSize] = useState(50);
-  const [currentPage, setCurrentPage] = useState(1);
+  // How many matching rows the ledger shows; "Show N more" adds a step (see ledgerPaging.ts).
+  const [shownCount, setShownCount] = useState(50);
+  // The current Select all batch (see ledgerSelection.ts), and the note it leaves when capped.
+  const [selectAllBatch, setSelectAllBatch] = useState<SelectAllBatch | null>(null);
+  const [selectAllMessage, setSelectAllMessage] = useState<string | null>(null);
 
   // Below this container width (not window width — the sidebar eats into
   // that), Member/Source/Debt/Account/Category move out of the table into
@@ -1369,8 +1094,12 @@ function App({
   // Done after filtering and sorting so it only ever merges legs that are
   // both actually on screen, and before paging so page sizes stay honest.
   const { rows: displayTransactions, inLegByOutId } = useMemo(() => collapseTransferPairs(sortedTransactions), [sortedTransactions]);
-  const totalPages = Math.max(1, Math.ceil(displayTransactions.length / pageSize));
-  const pagedTransactions = displayTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pagedTransactions = displayTransactions.slice(0, shownCount);
+  // The count under the table is in transactions, like the selection: a merged transfer row is two.
+  const shownTransactions = transactionsInRows(
+    displayTransactions.map((t) => (inLegByOutId.has(t.id) ? 2 : 1)),
+    shownCount,
+  );
 
   // Suggested transfers (equal-and-opposite amounts in different accounts a
   // few days apart) — fetched whenever the Transactions tab is showing and
@@ -1473,25 +1202,25 @@ function App({
     () => [...new Set(transactions.filter((t) => selectedIds.has(t.id)).map((t) => t.account_name))].sort(),
     [selectedIds, transactions],
   );
-  // The Debt column is the only one of the three feature toggles that's a
-  // whole dedicated table column — Split lives inside the Category cell,
-  // so hiding it doesn't change the column count.
-  // select, date, description, amount, actions — plus, when not narrow,
-  // account, member, category, source, and debt (if enabled).
-  const ledgerColumnCount = ledgerNarrow ? 5 : appSettings.apply_to_debt_enabled ? 10 : 9;
+  // The Member column earns its space only when there's more than one person to choose between.
+  const showMemberCol = familyMembers.length >= 2;
+  // select, date, description, amount, actions — plus, when not narrow, account, [member], category
+  // and source. Debt payments live under the description and in the row's ⋯ menu, not a column.
+  const ledgerColumnCount = computeLedgerColumnCount(ledgerNarrow, showMemberCol);
 
-  // a filter/page-size change can leave `currentPage` pointing past the end
-  // (or the transaction list can shrink out from under it) — snap back rather than
-  // showing an empty page the user didn't ask for
+  // A new filter, search, sort or step starts over: the first step of rows, and fresh Select all batches.
   useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
-
-  useEffect(() => {
-    if (pendingPaymentId === null) setCurrentPage(1);
-    // Pending navigation owns pagination during the explicit filter reset.
+    if (pendingPaymentId === null) setShownCount(pageSize);
+    setSelectAllBatch(null);
+    setSelectAllMessage(null);
+    // Pending navigation owns how many rows show during the explicit filter reset.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag, pageSize]);
+  }, [searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag, pageSize, sortColumn, sortDirection]);
+
+  // The Select all note only describes a selection that is still there.
+  useEffect(() => {
+    if (selectedIds.size === 0) setSelectAllMessage(null);
+  }, [selectedIds]);
 
   useEffect(() => {
     if (pendingPaymentId === null) return;
@@ -1502,8 +1231,8 @@ function App({
       setStatus("Payment is no longer available.", "info");
       return;
     }
-    const page = Math.floor(index / pageSize) + 1;
-    if (currentPage !== page) { setCurrentPage(page); return; }
+    const needed = rowsToShowFor(index, shownCount, pageSize);
+    if (needed !== shownCount) { setShownCount(needed); return; }
     const rowId = displayTransactions[index].id;
     setDetailsOpenId(rowId);
     setHighlightedPaymentRow(rowId);
@@ -1511,7 +1240,7 @@ function App({
     row?.focus();
     row?.scrollIntoView({ block: "center" });
     setPendingPaymentId(null);
-  }, [pendingPaymentId, activeTab, displayTransactions, inLegByOutId, pageSize, currentPage]);
+  }, [pendingPaymentId, activeTab, displayTransactions, inLegByOutId, pageSize, shownCount]);
 
   useEffect(() => {
     if (highlightedPaymentRow === null) return;
@@ -1533,12 +1262,14 @@ function App({
     }
   }, [theme]);
 
+  const resolvedTheme = useResolvedTheme(theme);
+
   function setTheme(next: Theme) {
     setThemeState(next);
   }
 
   // Privacy mode: hides every dollar amount on screen (see privacy.ts). Two
-  // per-viewer preferences: the on/off toggle in the header, and an opt-in
+  // per-viewer preferences: the on/off button at the bottom of the sidebar, and an opt-in
   // "also hide whenever this window isn't in front" from Settings.
   const [privacyPrefs, setPrivacyPrefs] = useState<PrivacyPrefs>(loadPrivacyPrefs);
   const [windowFocused, setWindowFocused] = useState(() => document.hasFocus());
@@ -2087,7 +1818,7 @@ function App({
       const isPasswordProtected = profiles.find((p) => p.is_active)?.is_password_protected ?? false;
       const showNames = !isPasswordProtected || showBillNamesInReminders;
       for (const r of toNotify) {
-        const body = showNames ? `${r.merchant} — ${formatAmount(r.amount)} due ${r.next_date}` : "A bill is due soon.";
+        const body = showNames ? `${r.merchant} — ${formatAmount(r.amount)} due ${formatDisplayDate(r.next_date)}` : "A bill is due soon.";
         sendNotification({ title: "Upcoming bill", body });
         notified[String(r.id)] = todayIso;
       }
@@ -2294,6 +2025,14 @@ function App({
   // works through.
   const [inboxRequest, setInboxRequest] = useState<Set<number> | null>(null);
   const [inbox, setInbox] = useState<InboxItem[] | null>(null);
+  const importReview = useImportReview({
+    accounts,
+    busy,
+    setBusy,
+    setStatus,
+    refresh,
+    onImported: (ids) => setInboxRequest(new Set(ids)),
+  });
   const inboxCount = useMemo(() => buildInbox({ transactions, flags: anomalyFlags, scopeIds: null }).length, [transactions, anomalyFlags]);
   useEffect(() => {
     if (!inboxRequest) return;
@@ -2347,6 +2086,8 @@ function App({
   const accountDetail = accountDetailId === null ? null : (accounts.find((a) => a.id === accountDetailId) ?? null);
   // Set when a Details page was opened from another tab (the Investments summary), so Back returns there.
   const [detailReturnTab, setDetailReturnTab] = useState<Tab | null>(null);
+  // Set when an account row's "Reconcile with a statement…" opened the page: it opens at that card.
+  const [detailFocus, setDetailFocus] = useState<"reconcile" | null>(null);
   useEffect(() => {
     // The account page belongs to the Accounts tab; leaving it closes the page.
     if (activeTab !== "accounts") {
@@ -2415,14 +2156,14 @@ function App({
     if (inboxCount > 0) {
       entries.push({ id: "action:inbox", kind: "action", label: `Review inbox (${inboxCount})`, keywords: "triage uncategorized duplicates large" });
     }
-    for (const a of accounts) entries.push({ id: `account:${a.id}`, kind: "account", label: a.name, hint: a.account_type });
+    for (const a of accounts) entries.push({ id: `account:${a.id}`, kind: "account", label: a.name, hint: accountTypeLabel(a.account_type) });
     for (const b of buckets) entries.push({ id: `goal:${b.id}`, kind: "goal", label: b.name, hint: "Goal" });
     for (const t of transactions.slice(0, 3000)) {
       entries.push({
         id: `txn:${t.id}`,
         kind: "transaction",
         label: t.description,
-        hint: `${t.date} · ${formatAmount(t.amount)}`,
+        hint: `${formatDisplayDate(t.date)} · ${formatAmount(t.amount)}`,
         keywords: t.category ?? undefined,
       });
     }
@@ -3031,115 +2772,7 @@ function App({
     const counts = await invoke<ImportSignCounts>("count_import_signs", { path }).catch(() => null);
     const invertAmounts = await askConfirmInvert(account?.name, importSignSuggestion(account, counts));
 
-    setBusy(true);
-    setStatus("Reading file…", "info");
-    try {
-      const preview = await invoke<ImportPreview>("preview_import", {
-        path,
-        invertAmounts,
-        accountId,
-      });
-      // duplicates default to excluded (matches the old behavior), everything
-      // else defaults to included; the user can flip any row either way
-      setIncludedIndices(new Set(preview.rows.filter((r) => !r.is_duplicate).map((r) => r.index)));
-      // A row whose file said which account it belongs to (this app's own
-      // Transactions CSV export does) pre-selects that account in its dropdown
-      // when it matches one that already exists, rather than defaulting
-      // every row to the account picked before the file was chosen — the
-      // user still sees exactly what will happen and can change it.
-      // Unmatched account names (commit_import creates those fresh) are
-      // left showing the default, with a hint below the dropdown instead.
-      const seededOverrides = new Map<number, number>();
-      for (const row of preview.rows) {
-        if (!row.account_name) continue;
-        const matched = accounts.find((a) => a.name.toLowerCase() === row.account_name!.toLowerCase());
-        if (matched && matched.id !== accountId) {
-          seededOverrides.set(row.index, matched.id);
-        }
-      }
-      setAccountOverrides(seededOverrides);
-      setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories));
-      setPendingImport({ path, invertAmounts, defaultAccountId: accountId, preview });
-      setStatus("");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function toggleIncluded(index: number) {
-    setIncludedIndices((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
-  }
-
-  function toggleSelectAllImportRows() {
-    if (!pendingImport) return;
-    const rows = pendingImport.preview.rows;
-    const allIncluded = rows.length > 0 && rows.every((r) => includedIndices.has(r.index));
-    setIncludedIndices(allIncluded ? new Set() : new Set(rows.map((r) => r.index)));
-  }
-
-  function setImportRowAccount(index: number, accountId: number) {
-    if (!pendingImport) return;
-    setAccountOverrides((prev) => {
-      const next = new Map(prev);
-      if (accountId === pendingImport.defaultAccountId) {
-        next.delete(index); // matches the default again — no override needed
-      } else {
-        next.set(index, accountId);
-      }
-      return next;
-    });
-  }
-
-  async function confirmPendingImport() {
-    if (!pendingImport) return;
-    setBusy(true);
-    setStatus("Importing…", "info");
-    const totalRows = pendingImport.preview.rows.length;
-    const includedCount = includedIndices.size;
-    try {
-      const summary = await invoke<ImportSummary>("commit_import", {
-        path: pendingImport.path,
-        invertAmounts: pendingImport.invertAmounts,
-        defaultAccountId: pendingImport.defaultAccountId,
-        includedIndices: Array.from(includedIndices),
-        accountOverrides: Object.fromEntries(accountOverrides),
-        categoryChoices: importCategoryChoices,
-      });
-      await refresh();
-      if (summary.inserted_ids.length > 0) setInboxRequest(new Set(summary.inserted_ids));
-      const skipped = totalRows - includedCount;
-      setStatus(
-        `Imported ${summary.inserted} transaction(s)` +
-        (skipped ? ` — ${skipped} excluded` : "") +
-        (summary.auto_linked ? ` — linked ${summary.auto_linked} transfer${summary.auto_linked === 1 ? "" : "s"} automatically` : "") +
-        (summary.row_errors ? ` — ${summary.row_errors} row(s) couldn't be read` : ""),
-        summary.row_errors ? "error" : "success",
-      );
-    } catch (e) {
-      setStatus(errorMessage(e));
-    } finally {
-      setBusy(false);
-      setPendingImport(null);
-      setImportCategoryChoices({});
-    }
-  }
-
-  function cancelPendingImport() {
-    setPendingImport(null);
-    setIncludedIndices(new Set());
-    setAccountOverrides(new Map());
-    setImportCategoryChoices({});
-    setStatus("Import cancelled.", "info");
+    await importReview.begin(path, invertAmounts, accountId);
   }
 
   async function handleCategoryChange(id: number, value: string) {
@@ -3762,6 +3395,11 @@ function App({
   }
 
   function toggleSelectedMany(ids: number[]) {
+    const adding = ids.filter((id) => !selectedIds.has(id)).length;
+    if (adding > 0 && !canSelectMore(selectedIds, adding)) {
+      setStatus(`A change can apply to at most ${SELECT_ALL_CAP} transactions at a time.`, "info");
+      return;
+    }
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (ids.every((id) => next.has(id))) {
@@ -3774,6 +3412,10 @@ function App({
   }
 
   function toggleSelected(id: number) {
+    if (!selectedIds.has(id) && !canSelectMore(selectedIds, 1)) {
+      setStatus(`A change can apply to at most ${SELECT_ALL_CAP} transactions at a time.`, "info");
+      return;
+    }
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -3785,22 +3427,21 @@ function App({
     });
   }
 
-  function toggleSelectAllOnPage() {
-    // A merged transfer row stands for two transactions — select both.
-    const pageIds = pagedTransactions.flatMap((t) => {
+  function toggleSelectAll() {
+    if (isBatchSelected(selectAllBatch, selectedIds)) {
+      setSelectedIds(new Set());
+      setSelectAllBatch((batch) => (batch ? unselectBatch(batch) : batch));
+      return;
+    }
+    // Every matching row, not just those shown; a merged transfer row stands for two transactions.
+    const rows = displayTransactions.map((t) => {
       const inLeg = inLegByOutId.get(t.id);
       return inLeg ? [t.id, inLeg.id] : [t.id];
     });
-    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allSelected) {
-        pageIds.forEach((id) => next.delete(id));
-      } else {
-        pageIds.forEach((id) => next.add(id));
-      }
-      return next;
-    });
+    const result = selectAllNext(rows, selectedIds, selectAllBatch);
+    setSelectedIds(result.selected);
+    setSelectAllBatch(result.batch);
+    setSelectAllMessage(selectAllNote(result));
   }
 
   async function handleBulkCategoryChange(value: string) {
@@ -3875,214 +3516,68 @@ function App({
   }
 
   return (
-    <div className="app-shell">
+    <div className={sidebarExpanded ? "app-shell sidebar-expanded" : "app-shell"}>
       {showWelcome && (
         <WelcomeDialog onExploreHelp={handleExploreHelpFromWelcome} onGetStarted={dismissWelcome} />
       )}
       {!showWelcome && whatsNewVersion && (
         <WhatsNewDialog version={whatsNewVersion} notes={CHANGELOG[whatsNewVersion]} onClose={dismissWhatsNew} />
       )}
-      <aside className="sidebar">
-        <div className="brand">
-          <img className="brand-mark" src={vaultSpendIcon} alt="" />
-          <span className="brand-word">Vault Spend</span>
-        </div>
-        <ProfileSwitcher
-          profiles={profiles}
-          onSwitchProfile={handleSwitchProfile}
-          onManageProfiles={() => setActiveTab("settings")}
-          onLock={profiles.find((p) => p.is_active)?.is_password_protected ? handleLockProfile : undefined}
-        />
-        {NAV_GROUP_ORDER.map((group) => (
-          <div className="nav-group" key={group}>
-            <div className="nav-group-label" aria-hidden="true">{NAV_GROUP_LABELS[group]}</div>
-            <nav className="nav-list" aria-label={NAV_GROUP_LABELS[group]}>
-              {orderedNavItems
-                .filter((item) => item.group === group)
-                .map((item) => (
-                  <button
-                    key={item.id}
-                    draggable
-                    className={
-                      activeTab === item.id
-                        ? "nav-item nav-item-active"
-                        : dragNavTab === item.id
-                          ? "nav-item nav-item-dragging"
-                          : "nav-item"
-                    }
-                    onClick={() => setActiveTab(item.id)}
-                    onKeyDown={(e) => {
-                      // Alt+Up/Down: keyboard equivalent of dragging this
-                      // item — see `moveNavItem`'s doc comment.
-                      if (e.altKey && e.key === "ArrowUp") {
-                        e.preventDefault();
-                        moveNavItem(item.id, -1);
-                      } else if (e.altKey && e.key === "ArrowDown") {
-                        e.preventDefault();
-                        moveNavItem(item.id, 1);
-                      }
-                    }}
-                    aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                    title="Drag to reorder, or focus and press Alt+↑/↓"
-                    onDragStart={(e) => {
-                      // Native drag-and-drop requires a payload via setData or
-                      // the browser treats the drag as invalid and shows
-                      // "not-allowed" over every drop target, regardless of
-                      // what dragover/drop do.
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/plain", item.id);
-                      setDragNavTab(item.id);
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      handleNavDrop(item.id);
-                    }}
-                    onDragEnd={() => setDragNavTab(null)}
-                  >
-                    <NavIcon name={item.icon} />
-                    <span className="nav-text">{item.label}</span>
-                  </button>
-                ))}
-            </nav>
+      <aside className="sidebar" id="app-sidebar" ref={sidebarRef} onBlur={handleSidebarBlur}>
+        {/* Only this part scrolls, so the controls below never cover a tab. */}
+        <div className="sidebar-scroll">
+          <button
+            type="button"
+            className="sidebar-expand"
+            data-sidebar-expand
+            aria-expanded={sidebarExpanded}
+            aria-controls="app-sidebar"
+            aria-label={sidebarExpanded ? "Hide names" : "Show names"}
+            title={sidebarExpanded ? "Hide names" : "Show names"}
+            onClick={() => setSidebarExpanded((v) => !v)}
+          >
+            <span aria-hidden="true">☰</span>
+          </button>
+          <div className="brand">
+            <img className="brand-mark" src={vaultSpendIcon} alt="" />
+            <span className="brand-word">Vault Spend</span>
           </div>
-        ))}
-        <div className="sidebar-spacer"></div>
-        <div className="sidebar-divider"></div>
-        <nav className="nav-list" aria-label="Settings and help">
-          {PINNED_NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              className={activeTab === item.id ? "nav-item nav-item-active" : "nav-item"}
-              onClick={() => setActiveTab(item.id)}
-            >
-              <NavIcon name={item.icon} />
-              <span className="nav-text">{item.label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-foot">{appVersion && <p className="sidebar-version">v{appVersion}</p>}</div>
+          <ProfileSwitcher
+            profiles={profiles}
+            onSwitchProfile={handleSwitchProfile}
+            onManageProfiles={() => {
+              setActiveTab("settings");
+              setSidebarExpanded(false);
+            }}
+            onLock={profiles.find((p) => p.is_active)?.is_password_protected ? handleLockProfile : undefined}
+          />
+          <SidebarNav
+            items={orderedNavItems}
+            iconOnly={sidebarIconOnly}
+            activeTab={activeTab}
+            dragNavTab={dragNavTab}
+            onSelect={(tab) => {
+              setActiveTab(tab);
+              setSidebarExpanded(false);
+            }}
+            onDragStartItem={setDragNavTab}
+            onDragEndItem={() => setDragNavTab(null)}
+            onDropItem={handleNavDrop}
+            onMoveItem={moveNavItem}
+          />
+        </div>
+        <div className="sidebar-foot">
+          <SidebarControls
+            privacyHidden={privacyPrefs.hidden}
+            onTogglePrivacy={() => setPrivacyPrefs((p) => ({ ...p, hidden: !p.hidden }))}
+            theme={theme}
+            onSetTheme={setTheme}
+          />
+          {appVersion && <p className="sidebar-version">v{appVersion}</p>}
+        </div>
       </aside>
 
       <div className="main" ref={mainScrollRef}>
-        <header className="topbar">
-          <div>
-            <h1>Vault Spend</h1>
-            <p className="subtitle">Own your Data, Own your Money!</p>
-          </div>
-          <div className="topbar-actions">
-            <button
-              type="button"
-              className={privacyPrefs.hidden ? "privacy-toggle privacy-toggle-on" : "privacy-toggle"}
-              data-privacy-toggle
-              aria-pressed={privacyPrefs.hidden}
-              title={privacyPrefs.hidden ? "Amounts are hidden — click to show them" : "Hide every dollar amount on screen"}
-              onClick={() => setPrivacyPrefs((p) => ({ ...p, hidden: !p.hidden }))}
-            >
-              {privacyPrefs.hidden ? "Show amounts" : "Hide amounts"}
-            </button>
-            <div className="theme-toggle" role="group" aria-label="Theme">
-              {(["light", "dark", "system"] as Theme[]).map((t) => (
-                <button key={t} className={theme === t ? "theme-toggle-active" : ""} onClick={() => setTheme(t)}>
-                  {t[0].toUpperCase() + t.slice(1)}
-                </button>
-              ))}
-            </div>
-            {activeTab === "ledger" && (
-              <div className="import-controls">
-                <label
-                  className="import-controls-label"
-                  htmlFor="ledger-account-select"
-                  title="The account that Import transactions… and Add transaction… start on"
-                >
-                  Add to
-                </label>
-                <AccountDestinationDropdown
-                  accounts={accounts}
-                  value={selectedAccountId}
-                  onChange={handleAccountSelectChange}
-                  disabled={busy || pendingImport !== null || !dataLoaded}
-                  emptyLabel={dataLoaded ? undefined : "Loading…"}
-                />
-                <button onClick={handleImport} disabled={busy || pendingImport !== null || !dataLoaded}>
-                  {busy ? "Importing…" : "Import transactions…"}
-                </button>
-                <button
-                  className="modal-secondary"
-                  onClick={() => setNewTransactionOpen(true)}
-                  disabled={busy || pendingImport !== null || !dataLoaded}
-                >
-                  Add transaction…
-                </button>
-                <div className="more-menu" ref={moreMenuRef}>
-                  <button
-                    type="button"
-                    className="modal-secondary btn-icon"
-                    onClick={() => setMoreMenuOpen((v) => !v)}
-                    disabled={busy || pendingImport !== null || !dataLoaded}
-                    aria-label="More actions"
-                    title="More actions"
-                    aria-haspopup="true"
-                    aria-expanded={moreMenuOpen}
-                  >
-                    ⋯
-                  </button>
-                  {moreMenuShouldRender && (
-                    <div className={moreMenuClosing ? "more-menu-panel more-menu-panel-closing" : "more-menu-panel"}>
-                      <button
-                        type="button"
-                        className="more-menu-item"
-                        onClick={() => {
-                          setMoreMenuOpen(false);
-                          openManageCategories();
-                        }}
-                      >
-                        Manage categories…
-                      </button>
-                      <button
-                        type="button"
-                        className="more-menu-item"
-                        onClick={() => {
-                          setMoreMenuOpen(false);
-                          openManageFamilyMembers();
-                        }}
-                      >
-                        Manage family members…
-                      </button>
-                      <div className="more-menu-divider"></div>
-                      <button
-                        type="button"
-                        className="more-menu-item"
-                        onClick={() => {
-                          setMoreMenuOpen(false);
-                          handleRecategorize();
-                        }}
-                        title="Re-run categorization on every Uncategorized transaction using what's been learned so far"
-                      >
-                        Categorize uncategorized
-                      </button>
-                      <div className="more-menu-divider"></div>
-                      <button
-                        type="button"
-                        className="more-menu-item"
-                        onClick={() => {
-                          setMoreMenuOpen(false);
-                          handleExportLedgerCsv();
-                        }}
-                      >
-                        Export CSV…
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </header>
-
         <div className={activeTab === "ledger" ? "page page-ledger" : "page"} role="main">
 
           <UpdateBanner />
@@ -4126,6 +3621,7 @@ function App({
           {activeTab === "dashboard" && (
             <Suspense fallback={null}>
               <DashboardView
+                onOpenHelp={openHelpFor}
                 accounts={accounts}
                 netWorthHistory={netWorthHistory}
                 accountContributionDeltas={accountContributionDeltas}
@@ -4173,398 +3669,146 @@ function App({
           {activeTab === "ledger" && (
             <div className="page-top">
               <div>
-                <h1 className="view-title">Transactions</h1>
-                <p className="view-sub">
+                <div className="view-title-row">
+                  <h1 className="view-title">Transactions</h1>
+                  <HelpLink tab="ledger" onOpen={openHelpFor} />
+                </div>
+                <p className="view-sub" data-ledger-subtitle>
                   {transactions.length} transaction{transactions.length === 1 ? "" : "s"} across {accounts.length} account
                   {accounts.length === 1 ? "" : "s"}.
+                  {/* The counts the old tiles showed, kept here. */}
+                  {stats && (stats.auto_categorized > 0 || stats.user_confirmed > 0)
+                    ? ` ${stats.auto_categorized} sorted automatically, ${stats.user_confirmed} by you.`
+                    : null}
                 </p>
               </div>
-              {inboxCount > 0 && (
-                <button type="button" className="modal-secondary" onClick={openInbox} data-inbox-open>
-                  Review inbox ({inboxCount})
-                </button>
-              )}
+              <div className="page-actions">
+                {inboxCount > 0 && (
+                  <button type="button" className="modal-secondary" onClick={openInbox} data-inbox-open>
+                    Review inbox ({inboxCount})
+                  </button>
+                )}
+                <LedgerPageActions
+                  accounts={accounts}
+                  selectedAccountId={selectedAccountId}
+                  handleAccountSelectChange={handleAccountSelectChange}
+                  busy={busy}
+                  importReview={importReview}
+                  dataLoaded={dataLoaded}
+                  handleImport={handleImport}
+                  setNewTransactionOpen={setNewTransactionOpen}
+                  moreMenuRef={moreMenuRef}
+                  setMoreMenuOpen={setMoreMenuOpen}
+                  moreMenuOpen={moreMenuOpen}
+                  moreMenuShouldRender={moreMenuShouldRender}
+                  moreMenuClosing={moreMenuClosing}
+                  openManageCategories={openManageCategories}
+                  openManageFamilyMembers={openManageFamilyMembers}
+                  handleRecategorize={handleRecategorize}
+                  handleExportLedgerCsv={handleExportLedgerCsv}
+                />
+              </div>
             </div>
           )}
 
-          {activeTab === "ledger" && pendingImport && (
-            <div className="dup-review">
-              <p className="dup-review-summary">
-                Reviewing {pendingImport.preview.rows.length} transaction(s) from this file
-                {pendingImport.preview.row_errors
-                  ? ` (${pendingImport.preview.row_errors} row(s) couldn't be read)`
-                  : ""}
-                . Uncheck any you don't want to import, and fix the account for any row that doesn't belong to{" "}
-                {accounts.find((a) => a.id === pendingImport.defaultAccountId)?.name ?? "the selected account"}.
-              </p>
-              <ImportCategoryReconcile
-                unmatched={pendingImport.preview.unmatched_categories}
-                categories={categoryOptions}
-                choices={importCategoryChoices}
-                onChange={(name, choice) => setImportCategoryChoices((prev) => ({ ...prev, [name]: choice }))}
-                onSetAll={(action) =>
-                  setImportCategoryChoices(
-                    Object.fromEntries(pendingImport.preview.unmatched_categories.map((u) => [u.name, { action } as CategoryChoice])),
-                  )
-                }
-              />
-              <div className="dup-review-table-scroll">
-                <table className="dup-review-table">
-                  <thead>
-                    <tr>
-                      <th className="dup-review-check">
-                        <input
-                          type="checkbox"
-                          checked={
-                            pendingImport.preview.rows.length > 0 &&
-                            pendingImport.preview.rows.every((r) => includedIndices.has(r.index))
-                          }
-                          onChange={toggleSelectAllImportRows}
-                          aria-label="Select all"
-                        />
-                      </th>
-                      <th>Date</th>
-                      <th>Description</th>
-                      <th className="amount-col">Amount</th>
-                      <th>Account</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingImport.preview.rows.map((row) => (
-                      <tr key={row.index} className={row.is_duplicate ? "import-row-duplicate" : undefined}>
-                        <td className="dup-review-check">
-                          <input
-                            type="checkbox"
-                            checked={includedIndices.has(row.index)}
-                            onChange={() => toggleIncluded(row.index)}
-                          />
-                        </td>
-                        <td>{row.date}</td>
-                        <td>{row.description}</td>
-                        <td className="amount-col">{formatAmount(row.amount)}</td>
-                        <td>
-                          <MenuSelect
-                            ariaLabel={`Account for "${row.description}"`}
-                            value={String(accountOverrides.get(row.index) ?? pendingImport.defaultAccountId)}
-                            onChange={(v) => setImportRowAccount(row.index, Number(v))}
-                            options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
-                          />
-                          {row.account_name &&
-                            !accounts.some((a) => a.name.toLowerCase() === row.account_name!.toLowerCase()) && (
-                              <div className="account-col" title="No account by that name exists yet — it'll be created on import">
-                                CSV: {row.account_name} (new)
-                              </div>
-                            )}
-                        </td>
-                        <td className="source-col">{row.is_duplicate ? "Already added" : "New"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="dup-review-actions">
-                <button className="modal-secondary" onClick={cancelPendingImport} disabled={busy}>
-                  Cancel
-                </button>
-                <button onClick={confirmPendingImport} disabled={busy || includedIndices.size === 0}>
-                  {busy ? "Importing…" : `Import ${includedIndices.size} transaction(s)`}
-                </button>
-              </div>
-            </div>
+          {/* Pop-ups over whichever tab started them, so they are in front of the person wherever
+              they had scrolled (the setup-data one is started from Settings). */}
+          <ImportReviewDialog review={importReview} accounts={accounts} categoryOptions={categoryOptions} busy={busy} />
+          {pendingSetupImport && (
+            <SetupImportReviewDialog
+              pending={pendingSetupImport}
+              busy={busy}
+              onToggle={toggleSetupIncluded}
+              onCancel={() => setPendingSetupImport(null)}
+              onConfirm={confirmSetupImport}
+            />
           )}
 
           {activeTab === "ledger" && reviewIds && reviewIds.size > 0 && (
-            <div className="dup-review">
-              <p className="dup-review-summary">
-                Just categorized {reviewIds.size} transaction(s). Review and fix any that are wrong.
-              </p>
-              <table className="dup-review-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th className="amount-col">Amount</th>
-                    <th>Category</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions
-                    .filter((t) => reviewIds.has(t.id))
-                    .map((t) => (
-                      <tr key={t.id}>
-                        <td>{t.date}</td>
-                        <td>{t.description}</td>
-                        <td className="amount-col">{formatAmount(t.amount)}</td>
-                        <td>
-                          <MenuSelect
-                            ariaLabel={`Category for "${t.description}"`}
-                            value={t.category ?? ""}
-                            onChange={(v) => handleCategoryChange(t.id, v)}
-                            options={[
-                              { value: "", label: "Uncategorized", disabled: true },
-                              ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
-                              ...categoryOptions.map((c) => ({ value: c, label: c })),
-                              { value: "__new__", label: "+ New category…" },
-                            ]}
-                          />
-                        </td>
-                        <td className="source-col">
-                          {t.category_source ?? ""}
-                          {t.confidence !== null && (
-                            <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-              <div className="dup-review-actions">
-                <button onClick={() => setReviewIds(null)}>Done</button>
-              </div>
-            </div>
+            <RecategorizedReviewPanel
+              reviewIds={reviewIds}
+              transactions={transactions}
+              handleCategoryChange={handleCategoryChange}
+              categoryOptions={categoryOptions}
+              setReviewIds={setReviewIds}
+            />
           )}
 
           {activeTab === "ledger" && stats && (
-            <div className="stats">
-              <div className="stat tint-accent">
-                <span className="stat-value">{stats.total}</span>
-                <span className="stat-label">Transactions</span>
-              </div>
-              <div className="stat tint-blue">
-                <span className="stat-value">{stats.auto_categorized}</span>
-                <span className="stat-label">Auto-categorized</span>
-              </div>
-              <div className="stat tint-teal">
-                <span className="stat-value">{stats.user_confirmed}</span>
-                <span className="stat-label">Corrected by you</span>
-              </div>
-              <button
-                type="button"
-                className={
-                  filterCategory === UNCATEGORIZED_FILTER
-                    ? "stat tint-red stat-clickable stat-expanded"
-                    : "stat tint-red stat-clickable"
-                }
-                onClick={() => setFilterCategory((c) => (c === UNCATEGORIZED_FILTER ? "all" : UNCATEGORIZED_FILTER))}
-                title="Show only transactions that need a category"
-              >
-                <span className="stat-value">{stats.uncategorized}</span>
-                <span className="stat-label">Needs a category</span>
-              </button>
-            </div>
+            <LedgerNeedsCategory
+              count={stats.uncategorized}
+              active={filterCategory === UNCATEGORIZED_FILTER}
+              onToggle={() => setFilterCategory((c) => (c === UNCATEGORIZED_FILTER ? "all" : UNCATEGORIZED_FILTER))}
+            />
           )}
 
           {activeTab === "ledger" && (
-            <div className="ledger-filters">
-              <input
-                type="search"
-                placeholder="Search description…"
-                aria-label="Search description"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-              />
-              <CategoryFilterDropdown options={categoryFilterOptions} value={filterCategory} onChange={setFilterCategory} />
-              <AccountFilterDropdown accounts={accounts} value={filterAccountIds} onChange={setFilterAccountIds} />
-              <MemberFilterDropdown members={familyMembers} value={filterMemberIds} onChange={setFilterMemberIds} />
-              <MoreFiltersPopover
-                filterFrom={filterFrom}
-                onSetFrom={setFilterFrom}
-                filterTo={filterTo}
-                onSetTo={setFilterTo}
-                filterTag={filterTag}
-                allTags={allTags}
-                onSetTag={setFilterTag}
-              />
-              <datalist id="known-tags">
-                {allTags.map((tag) => (
-                  <option key={tag} value={tag} />
-                ))}
-              </datalist>
-            </div>
+            <LedgerFilterBar
+              searchText={searchText}
+              setSearchText={setSearchText}
+              categoryFilterOptions={categoryFilterOptions}
+              filterCategory={filterCategory}
+              setFilterCategory={setFilterCategory}
+              accounts={accounts}
+              filterAccountIds={filterAccountIds}
+              setFilterAccountIds={setFilterAccountIds}
+              familyMembers={familyMembers}
+              filterMemberIds={filterMemberIds}
+              setFilterMemberIds={setFilterMemberIds}
+              filterFrom={filterFrom}
+              setFilterFrom={setFilterFrom}
+              filterTo={filterTo}
+              setFilterTo={setFilterTo}
+              filterTag={filterTag}
+              allTags={allTags}
+              setFilterTag={setFilterTag}
+            />
           )}
 
           {activeTab === "ledger" && (
-            <div className="saved-filter-bar">
-              {savedFilters.map((f) => (
-                <span key={f.name} className="saved-filter-chip">
-                  <button type="button" onClick={() => applySavedFilter(f)} title={`Apply saved filter "${f.name}"`}>
-                    {f.name}
-                  </button>
-                  <button
-                    type="button"
-                    className="saved-filter-chip-remove"
-                    onClick={() => deleteSavedFilter(f.name)}
-                    aria-label={`Remove saved filter ${f.name}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-              {savingFilter ? (
-                <form
-                  className="saved-filter-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    saveCurrentFilter();
-                  }}
-                >
-                  <input
-                    autoFocus
-                    value={newFilterName}
-                    onChange={(e) => setNewFilterName(e.target.value)}
-                    placeholder='e.g. "Uncategorized this month"'
-                  />
-                  <button type="submit" className="btn-sm" disabled={!newFilterName.trim()}>
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    className="modal-secondary btn-sm"
-                    onClick={() => {
-                      setSavingFilter(false);
-                      setNewFilterName("");
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </form>
-              ) : (
-                <button type="button" className="modal-secondary btn-sm" onClick={() => setSavingFilter(true)}>
-                  + Save current filter…
-                </button>
-              )}
-              {transferCandidatePairs.length > 0 && (
-                <button type="button" className="modal-secondary btn-sm transfer-suggestion" onClick={() => setTransferReviewOpen(true)}>
-                  ⇄ {transferCandidatePairs.length} possible transfer{transferCandidatePairs.length === 1 ? "" : "s"} — review
-                </button>
-              )}
-              {autoLinkedPairs.length > 0 && (
-                <button
-                  type="button"
-                  className="modal-secondary btn-sm transfer-suggestion"
-                  data-autolink-review
-                  onClick={() => setAutoLinkReviewOpen(true)}
-                >
-                  ⇄ {autoLinkedPairs.length} auto-linked — review
-                </button>
-              )}
-              {/* Hidden by request; keep the original selector available to restore.
-              <div className="density-toggle" role="group" aria-label="Row density">
-                {(["comfortable", "compact"] as LedgerDensity[]).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    className={ledgerDensity === d ? "density-toggle-active" : ""}
-                    aria-pressed={ledgerDensity === d}
-                    onClick={() => setLedgerDensity(d)}
-                  >
-                    {d === "comfortable" ? "Comfortable" : "Compact"}
-                  </button>
-                ))}
-              </div>
-              */}
-            </div>
+            <LedgerSavedFilters
+              savedFilters={savedFilters}
+              applySavedFilter={applySavedFilter}
+              deleteSavedFilter={deleteSavedFilter}
+              savingFilter={savingFilter}
+              saveCurrentFilter={saveCurrentFilter}
+              newFilterName={newFilterName}
+              setNewFilterName={setNewFilterName}
+              setSavingFilter={setSavingFilter}
+              transferCandidatePairs={transferCandidatePairs}
+              setTransferReviewOpen={setTransferReviewOpen}
+              autoLinkedPairs={autoLinkedPairs}
+              setAutoLinkReviewOpen={setAutoLinkReviewOpen}
+            />
           )}
 
+          {activeTab === "ledger" && selectedIds.size > 0 && selectAllMessage && (
+            <p className="select-all-note" role="status" data-select-all-note>
+              {selectAllMessage}
+            </p>
+          )}
           {activeTab === "ledger" && selectedIds.size > 0 && (
-            <div className="bulk-actions-bar">
-              <span className="bulk-actions-count">{selectedIds.size} selected</span>
-              <MenuSelect
-                ariaLabel="Set category to…"
-                placeholder="Set category to…"
-                value={""}
-                onChange={(v) => handleBulkCategoryChange(v)}
-                options={[
-                  ...categoryOptions.map((c) => ({ value: c, label: c })),
-                  { value: "__new__", label: "+ New category…" },
-                ]}
-              />
-              <MenuSelect
-                ariaLabel="Add to Recurring…"
-                placeholder="Add to Recurring…"
-                value={""}
-                onChange={(v) => handleAddSelectedToRecurring(v)}
-                options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
-              />
-              {familyMembers.length > 0 && (
-                <MenuSelect
-                  ariaLabel="Set member to…"
-                  placeholder="Set member to…"
-                  value={""}
-                  onChange={(v) => handleBulkMemberChange(v)}
-                  options={[
-                    { value: "__none__", label: "Unassigned" },
-                    ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
-                  ]}
-                />
-              )}
-              <span className="bulk-tag-input">
-                <input
-                  list="known-tags"
-                  placeholder="+ Add tag…"
-                  value={bulkTagText}
-                  onChange={(e) => setBulkTagText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleBulkAddTag(bulkTagText);
-                    }
-                  }}
-                />
-                <button type="button" className="modal-secondary" disabled={!bulkTagText.trim()} onClick={() => handleBulkAddTag(bulkTagText)}>
-                  Add tag
-                </button>
-              </span>
-              {confirmingBulkDelete ? (
-                <span className="row-delete-confirm">
-                  <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(false)}>
-                    Cancel
-                  </button>
-                  <button type="button" className="btn-danger" onClick={handleBulkDelete}>
-                    Delete {selectedIds.size}
-                  </button>
-                </span>
-              ) : (
-                <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkDelete(true)}>
-                  Delete selected
-                </button>
-              )}
-              {confirmingBulkFlip ? (
-                <span className="row-delete-confirm" data-flip-signs-confirm>
-                  <span>{flipConfirmText(selectedIds.size, selectedAccountNames)}</span>
-                  <button type="button" className="modal-secondary" onClick={() => setConfirmingBulkFlip(false)}>
-                    Cancel
-                  </button>
-                  <button type="button" onClick={handleBulkFlipSigns}>
-                    Flip {selectedIds.size}
-                  </button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="modal-secondary"
-                  onClick={() => setConfirmingBulkFlip(true)}
-                  title="For rows imported the wrong way round: money out becomes money in and the other way round"
-                >
-                  Flip signs…
-                </button>
-              )}
-              {selectedPairForLink && (
-                <button
-                  type="button"
-                  className="modal-secondary"
-                  onClick={handleLinkSelectedAsTransfer}
-                  title="These two look like the two sides of one move between your own accounts"
-                >
-                  Link as transfer
-                </button>
-              )}
-              <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
-                Clear selection
-              </button>
-            </div>
+            <LedgerBulkActions
+              selectedIds={selectedIds}
+              handleBulkCategoryChange={handleBulkCategoryChange}
+              categoryOptions={categoryOptions}
+              handleAddSelectedToRecurring={handleAddSelectedToRecurring}
+              familyMembers={familyMembers}
+              handleBulkMemberChange={handleBulkMemberChange}
+              bulkTagText={bulkTagText}
+              setBulkTagText={setBulkTagText}
+              handleBulkAddTag={handleBulkAddTag}
+              confirmingBulkDelete={confirmingBulkDelete}
+              setConfirmingBulkDelete={setConfirmingBulkDelete}
+              handleBulkDelete={handleBulkDelete}
+              confirmingBulkFlip={confirmingBulkFlip}
+              selectedAccountNames={selectedAccountNames}
+              setConfirmingBulkFlip={setConfirmingBulkFlip}
+              handleBulkFlipSigns={handleBulkFlipSigns}
+              selectedPairForLink={selectedPairForLink}
+              handleLinkSelectedAsTransfer={handleLinkSelectedAsTransfer}
+              setSelectedIds={setSelectedIds}
+            />
           )}
 
           {activeTab === "ledger" && (
@@ -4597,506 +3841,82 @@ function App({
                   </button>
                 </div>
               )}
-              <div className="ledger-table-scroll" ref={setLedgerScrollEl}>
-                <table className={ledgerDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
-                  <colgroup>
-                    <col style={{ width: ledgerNarrow ? "6%" : "3%" }} />
-                    {/* the date needs ~80px in every style's font: 7% left it ~38px and it ran into the description */}
-                    <col style={{ width: ledgerNarrow ? "16%" : "11%" }} />
-                    <col style={{ width: ledgerNarrow ? "43%" : "17%" }} />
-                    <col style={{ width: ledgerNarrow ? "16%" : "8%" }} />
-                    {!ledgerNarrow && <col style={{ width: "14%" }} />}
-                    {!ledgerNarrow && <col style={{ width: "10%" }} />}
-                    {!ledgerNarrow && <col style={{ width: "13%" }} />}
-                    {!ledgerNarrow && <col style={{ width: "8%" }} />}
-                    {!ledgerNarrow && appSettings.apply_to_debt_enabled && <col style={{ width: "8%" }} />}
-                    <col style={{ width: ledgerNarrow ? "19%" : "7%" }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th className="select-col">
-                        <input
-                          type="checkbox"
-                          checked={pagedTransactions.length > 0 && pagedTransactions.every((t) => selectedIds.has(t.id))}
-                          onChange={toggleSelectAllOnPage}
-                          aria-label="Select all on this page"
-                        />
-                      </th>
-                      <SortableTh column="date" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-                        Date
-                      </SortableTh>
-                      <SortableTh column="description" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-                        Description
-                      </SortableTh>
-                      <SortableTh column="amount" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} className="amount-col">
-                        Amount
-                      </SortableTh>
-                      {!ledgerNarrow && (
-                        <SortableTh column="account" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-                          Account
-                        </SortableTh>
-                      )}
-                      {!ledgerNarrow && <th>Member</th>}
-                      {!ledgerNarrow && (
-                        <SortableTh column="category" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-                          Category
-                        </SortableTh>
-                      )}
-                      {!ledgerNarrow && (
-                        <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
-                          Sorted by
-                        </SortableTh>
-                      )}
-                      {!ledgerNarrow && appSettings.apply_to_debt_enabled && <th>Debt</th>}
-                      <th className="actions-col"><span className="sr-only">Actions</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedTransactions.map((t) => {
-                      const inLeg = inLegByOutId.get(t.id);
-                      if (inLeg) {
-                        return (
-                          <TransferRow
-                            key={t.id}
-                            out={t}
-                            highlighted={highlightedPaymentRow === t.id}
-                            incoming={inLeg}
-                            selected={selectedIds.has(t.id)}
-                            onToggleSelected={() => toggleSelectedMany([t.id, inLeg.id])}
-                            onUnlink={() => handleUnlinkTransfer(t.id)}
-                            onEditNote={setNotesDialogFor}
-                            showDebtColumn={appSettings.apply_to_debt_enabled}
-                            narrow={ledgerNarrow}
-                            detailsOpen={detailsOpenId === t.id}
-                            onToggleDetails={() => setDetailsOpenId(detailsOpenId === t.id ? null : t.id)}
-                          />
-                        );
-                      }
-                      // Extracted once per row so the same live editor — same
-                      // component, same handlers — can render either as its own
-                      // column (normal width) or folded into the row's Details panel
-                      // (narrow width), never both, without duplicating the editing
-                      // logic itself.
-                      const accountField = (
-                        <RowFieldDropdown
-                          ariaLabel={`Account for "${t.description}"`}
-                          value={String(t.account_id)}
-                          options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
-                          onChange={(value) => handleAccountChangeForTransaction(t.id, value)}
-                        />
-                      );
-                      const memberField = (
-                        <RowFieldDropdown
-                          ariaLabel={`Family member for "${t.description}"`}
-                          value={t.member_id !== null ? String(t.member_id) : ""}
-                          options={[
-                            { value: "", label: "Unassigned" },
-                            ...familyMembers.map((m) => ({ value: String(m.id), label: m.name })),
-                          ]}
-                          onChange={(value) => handleMemberChangeForTransaction(t.id, value)}
-                        />
-                      );
-                      const categoryField = (
-                        <>
-                          {t.split_count > 0 ? (
-                            <span className="split-summary">Split ({t.split_count})</span>
-                          ) : (
-                            <RowFieldDropdown
-                              ariaLabel={`Category for "${t.description}"`}
-                              value={t.category ?? ""}
-                              options={[
-                                // Matches the old native select's `<option disabled>`
-                                // placeholder: describes the current "nothing chosen"
-                                // state without itself being pickable — choosing it
-                                // would otherwise write an empty category back as a
-                                // real, saved choice (and register "" as a category,
-                                // and save a rule sending this merchant to "").
-                                { value: "", label: "Uncategorized", disabled: true },
-                                ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
-                                ...categoryOptions.map((c) => ({ value: c, label: c })),
-                                { value: "__new__", label: "+ New category…" },
-                              ]}
-                              onChange={(value) => handleCategoryChange(t.id, value)}
-                            />
-                          )}
-                          {appSettings.split_purchases_enabled && (
-                            <button type="button" className="modal-secondary split-toggle" onClick={() => toggleSplitEditor(t)}>
-                              {t.split_count > 0 ? "Edit splits" : "Split →"}
-                            </button>
-                          )}
-                        </>
-                      );
-                      const sourceField = (
-                        <>
-                          {t.category_source ? (CATEGORY_SOURCE_LABELS[t.category_source] ?? t.category_source) : ""}
-                          {t.confidence !== null && <span className="confidence-badge">{Math.round(t.confidence * 100)}%</span>}
-                        </>
-                      );
-                      const debtField = accounts.find((a) => a.id === t.account_id)?.account_type === "loan" ? (
-                        editingPrincipalId === t.id ? (
-                          <span className="debt-apply-form">
-                            <input
-                              className="debt-apply-amount"
-                              value={principalDraft}
-                              onChange={(e) => setPrincipalDraft(e.target.value)}
-                              title="How much of this transaction counts toward what's owed (e.g. just the principal on a mortgage payment)"
-                            />
-                            <button type="button" className="debt-apply-confirm" onClick={() => handleSetPrincipalAmount(t.id)}>
-                              Save
-                            </button>
-                            <button type="button" className="modal-secondary" onClick={() => setEditingPrincipalId(null)}>
-                              Cancel
-                            </button>
-                          </span>
-                        ) : t.principal_amount !== null ? (
-                          <span className="debt-applied-badge">
-                            Principal: {formatAmount(t.principal_amount)}
-                            <button type="button" className="modal-secondary" onClick={() => handleResetPrincipalAmount(t.id)}>
-                              Reset
-                            </button>
-                          </span>
-                        ) : (
-                          <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startEditingPrincipal(t)}>
-                            Split principal →
-                          </button>
-                        )
-                      ) : t.applied_to_debt ? (
-                        <span className="debt-applied-badge">
-                          → {t.applied_to_debt.debt_account_name} ({formatAmount(t.applied_to_debt.amount)})
-                          <button type="button" className="modal-secondary" onClick={() => handleUnapplyDebtPayment(t.id)}>
-                            Undo
-                          </button>
-                        </span>
-                      ) : applyingDebtId === t.id ? (
-                        <span className="debt-apply-form">
-                          <MenuSelect
-                            ariaLabel={`Debt account to apply "${t.description}" toward`}
-                            value={applyDebtForm.accountId}
-                            onChange={(v) => setApplyDebtForm({ ...applyDebtForm, accountId: v })}
-                            options={debtAccounts.map((a) => ({ value: String(a.id), label: a.name }))}
-                          />
-                          <input
-                            className="debt-apply-amount"
-                            value={applyDebtForm.amount}
-                            onChange={(e) => setApplyDebtForm({ ...applyDebtForm, amount: e.target.value })}
-                            title="How much of this payment counts toward the debt (e.g. just the principal on a mortgage payment)"
-                          />
-                          <button type="button" className="debt-apply-confirm" onClick={() => handleApplyDebtPayment(t.id, t.date)}>
-                            Apply
-                          </button>
-                          <button type="button" className="modal-secondary" onClick={() => setApplyingDebtId(null)}>
-                            Cancel
-                          </button>
-                        </span>
-                      ) : (
-                        // The loan case is already handled above — only credit
-                        // (excluded, a payment there needs no principal split) and
-                        // every non-debt account reach here.
-                        // Only money going out can be a debt payment (not income or a transfer in).
-                        debtAccounts.length > 0 &&
-                        parseFloat(t.amount) < 0 &&
-                        accounts.find((a) => a.id === t.account_id)?.account_type !== "credit" && (
-                          <button type="button" className="modal-secondary debt-apply-trigger" onClick={() => startApplyingDebtPayment(t)}>
-                            Apply to a debt →
-                          </button>
-                        )
-                      );
-                      return (
-                        <Fragment key={t.id}>
-                          <tr data-payment-row={t.id} tabIndex={-1} className={[selectedIds.has(t.id) ? "ledger-row-selected" : "", highlightedPaymentRow === t.id ? "payment-row-highlight" : ""].filter(Boolean).join(" ") || undefined}>
-                            <td className="select-col">
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.has(t.id)}
-                                onChange={() => toggleSelected(t.id)}
-                                aria-label={`Select transaction ${t.id}`}
-                              />
-                            </td>
-                            <td className="date-col">
-                              {editingDate?.id === t.id ? (
-                                <input
-                                  autoFocus
-                                  type="date"
-                                  className="row-edit-input"
-                                  value={editingDate.value}
-                                  onChange={(e) => setEditingDate({ id: t.id, value: e.target.value })}
-                                  onBlur={() => commitDateEdit(t.id, editingDate.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") commitDateEdit(t.id, editingDate.value);
-                                    if (e.key === "Escape") setEditingDate(null);
-                                  }}
-                                />
-                              ) : (
-                                <span
-                                  className="amount-editable date-cell"
-                                  title="Click to fix the date"
-                                  onClick={() => setEditingDate({ id: t.id, value: t.date })}
-                                >
-                                  {t.date}
-                                </span>
-                              )}
-                            </td>
-                            <td>
-                              <span className="cell-with-icon">
-                                <span className="row-icon-badge">
-                                  <CategoryIcon category={t.category} iconKey={t.category ? categoryIconMap[t.category] : null} />
-                                </span>
-                                {editingDescription?.id === t.id ? (
-                                  <input
-                                    autoFocus
-                                    className="row-edit-input"
-                                    value={editingDescription.value}
-                                    onChange={(e) => setEditingDescription({ id: t.id, value: e.target.value })}
-                                    onBlur={() => commitDescriptionEdit(t.id, editingDescription.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") commitDescriptionEdit(t.id, editingDescription.value);
-                                      if (e.key === "Escape") setEditingDescription(null);
-                                    }}
-                                  />
-                                ) : (
-                                  <span
-                                    className="amount-editable"
-                                    title="Click to fix the description"
-                                    onClick={() => setEditingDescription({ id: t.id, value: t.description })}
-                                  >
-                                    {t.description}
-                                  </span>
-                                )}
-                              </span>
-                              <AppliedPaymentDetails transaction={t} />
-                              {(anomalyFlagsByTransaction.get(t.id) ?? []).map((flag, i) => (
-                                <InfoTip
-                                  key={i}
-                                  label={flag.kind === "large" ? "unusually large charge" : "possible duplicate"}
-                                  text={flag.detail}
-                                  glyph={flag.kind === "large" ? "⚠" : "⧉"}
-                                  buttonClassName={flag.kind === "large" ? "anomaly-badge anomaly-large" : "anomaly-badge anomaly-duplicate"}
-                                />
-                              ))}
-                              {t.transfer_counterpart_id !== null && (
-                                <button
-                                  type="button"
-                                  className="transfer-badge transfer-badge-button"
-                                  title="Linked as a transfer with a transaction that isn't shown here — click to unlink"
-                                  onClick={() => handleUnlinkTransfer(t.id)}
-                                >
-                                  ⇄ Transfer ×
-                                </button>
-                              )}
-                              <div className="transaction-description-meta">
-                                <div className="tag-pills">
-                                  {t.tags.map((tag) => (
-                                    <span key={tag} className="tag-pill">
-                                      {tag}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemoveTag(t.id, tag)}
-                                        aria-label={`Remove tag ${tag}`}
-                                      >
-                                        ×
-                                      </button>
-                                    </span>
-                                  ))}
-
-                                  <input
-                                    className="tag-input"
-                                    list="known-tags"
-                                    placeholder="+ tag"
-                                    value={newTagText[t.id] ?? ""}
-                                    onChange={(e) =>
-                                      setNewTagText((prev) => ({
-                                        ...prev,
-                                        [t.id]: e.target.value,
-                                      }))
-                                    }
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        handleAddTag(t.id, newTagText[t.id] ?? "");
-                                      }
-                                    }}
-                                  />
-                                </div>
-
-                                {t.notes ? (
-                                  <button
-                                    type="button"
-                                    className="modal-secondary btn-sm transaction-note-preview"
-                                    onClick={() => setNotesDialogFor(t)}
-                                    title={t.notes}
-                                    aria-label={`Edit note for "${t.description}"`}
-                                  >
-                                    {t.notes.length > 40 ? `${t.notes.slice(0, 40)}…` : t.notes}
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="modal-secondary btn-sm transaction-note-add"
-                                    onClick={() => setNotesDialogFor(t)}
-                                    aria-label={`Add note for "${t.description}"`}
-                                  >
-                                    + Add note
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                            <td className="amount-col">
-                              {editingAmount?.id === t.id ? (
-                                <input
-                                  autoFocus
-                                  className="amount-edit-input"
-                                  value={editingAmount.value}
-                                  onChange={(e) => setEditingAmount({ id: t.id, value: e.target.value })}
-                                  onBlur={() => commitAmountEdit(t.id, editingAmount.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") commitAmountEdit(t.id, editingAmount.value);
-                                    if (e.key === "Escape") setEditingAmount(null);
-                                  }}
-                                />
-                              ) : (
-                                <span
-                                  className="amount-editable"
-                                  title="Click to fix the amount"
-                                  onClick={() => setEditingAmount({ id: t.id, value: t.amount })}
-                                >
-                                  {formatAmount(t.amount)}
-                                </span>
-                              )}
-                            </td>
-                            {!ledgerNarrow && <td className="account-col">{accountField}</td>}
-                            {!ledgerNarrow && <td className="member-col">{memberField}</td>}
-                            {!ledgerNarrow && <td className="category-col">{categoryField}</td>}
-                            {!ledgerNarrow && <td className="source-col">{sourceField}</td>}
-                            {!ledgerNarrow && appSettings.apply_to_debt_enabled && <td className="debt-col">{debtField}</td>}
-                            <td className="actions-col">
-                              {ledgerNarrow && (
-                                <button
-                                  type="button"
-                                  className="modal-secondary"
-                                  aria-expanded={detailsOpenId === t.id}
-                                  onClick={() => setDetailsOpenId(detailsOpenId === t.id ? null : t.id)}
-                                >
-                                  {detailsOpenId === t.id ? "Hide details" : "Details"}
-                                </button>
-                              )}
-                              {confirmingDeleteId === t.id ? (
-                                <span className="row-delete-confirm row-delete-confirm-detailed">
-                                  {(() => {
-                                    const impact = describeDeleteImpact(t.amount, accounts.find((a) => a.id === t.account_id));
-                                    return impact ? <span className="delete-impact-note">{impact}</span> : null;
-                                  })()}
-                                  <span className="row-delete-confirm-actions">
-                                    <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(null)}>
-                                      Cancel
-                                    </button>
-                                    <button type="button" className="btn-danger" onClick={() => handleDeleteTransaction(t.id)}>
-                                      Delete
-                                    </button>
-                                  </span>
-                                </span>
-                              ) : (
-                                <button type="button" className="modal-secondary" onClick={() => setConfirmingDeleteId(t.id)}>
-                                  Delete
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                          {ledgerNarrow && detailsOpenId === t.id && (
-                            <tr className="ledger-details-row">
-                              <td colSpan={ledgerColumnCount}>
-                                <div className="ledger-details">
-                                  <label className="ledger-details-field">
-                                    <span>Account</span>
-                                    {accountField}
-                                  </label>
-                                  <label className="ledger-details-field">
-                                    <span>Member</span>
-                                    {memberField}
-                                  </label>
-                                  <label className="ledger-details-field">
-                                    <span>Category</span>
-                                    {categoryField}
-                                  </label>
-                                  <label className="ledger-details-field">
-                                    <span>Sorted by</span>
-                                    {sourceField}
-                                  </label>
-                                  {appSettings.apply_to_debt_enabled && (
-                                    <label className="ledger-details-field">
-                                      <span>Debt</span>
-                                      {debtField}
-                                    </label>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                          {expandedSplitId === t.id && (
-                            <tr className="split-editor-row">
-                              <td colSpan={ledgerColumnCount}>
-                                <div className="split-editor">
-                                  {splitLines.map((line, i) => (
-                                    <div className="split-editor-line" key={i}>
-                                      <MenuSelect
-                                        ariaLabel={`Category for split ${i + 1} of "${t.description}"`}
-                                        value={line.category}
-                                        onChange={(v) => updateSplitLine(i, { category: v })}
-                                        options={categoryOptions.map((c) => ({ value: c, label: c }))}
-                                      />
-                                      <input
-                                        className="debt-apply-amount"
-                                        value={line.amount}
-                                        onChange={(e) => updateSplitLine(i, { amount: e.target.value })}
-                                        placeholder="Amount"
-                                      />
-                                      <input
-                                        value={line.note}
-                                        onChange={(e) => updateSplitLine(i, { note: e.target.value })}
-                                        placeholder="Note (optional)"
-                                      />
-                                      <button type="button" className="modal-secondary" onClick={() => removeSplitLine(i)}>
-                                        Remove
-                                      </button>
-                                    </div>
-                                  ))}
-                                  <div className="split-editor-actions">
-                                    <button type="button" className="modal-secondary" onClick={addSplitLine}>
-                                      Add line
-                                    </button>
-                                    <span className={Math.abs(splitRemaining(t)) < 0.01 ? "split-remaining split-remaining-ok" : "split-remaining"}>
-                                      Remaining to allocate: {formatAmount(splitRemaining(t).toFixed(2))}
-                                    </span>
-                                    <button type="button" disabled={Math.abs(splitRemaining(t)) >= 0.01} onClick={() => saveSplits(t)}>
-                                      Save splits
-                                    </button>
-                                    {t.split_count > 0 && (
-                                      <button type="button" className="modal-secondary" onClick={() => clearSplits(t)}>
-                                        Clear splits
-                                      </button>
-                                    )}
-                                    <button type="button" className="modal-secondary" onClick={() => setExpandedSplitId(null)}>
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                    {filteredTransactions.length === 0 && (
-                      <tr>
-                        <td colSpan={ledgerColumnCount} className="empty-state">
-                          {transactions.length === 0
-                            ? "No transactions yet — import a CSV to get started."
-                            : "No transactions match your filters."}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <LedgerTable
+              setLedgerScrollEl={setLedgerScrollEl}
+              ledgerDensity={ledgerDensity}
+              ledgerNarrow={ledgerNarrow}
+              showMemberCol={showMemberCol}
+              appSettings={appSettings}
+              selectAllBatch={selectAllBatch}
+              selectedIds={selectedIds}
+              toggleSelectAll={toggleSelectAll}
+              sortColumn={sortColumn}
+              sortDirection={sortDirection}
+              toggleSort={toggleSort}
+              pagedTransactions={pagedTransactions}
+              inLegByOutId={inLegByOutId}
+              highlightedPaymentRow={highlightedPaymentRow}
+              toggleSelectedMany={toggleSelectedMany}
+              handleUnlinkTransfer={handleUnlinkTransfer}
+              setNotesDialogFor={setNotesDialogFor}
+              detailsOpenId={detailsOpenId}
+              setDetailsOpenId={setDetailsOpenId}
+              accounts={accounts}
+              handleAccountChangeForTransaction={handleAccountChangeForTransaction}
+              familyMembers={familyMembers}
+              handleMemberChangeForTransaction={handleMemberChangeForTransaction}
+              categoryOptions={categoryOptions}
+              handleCategoryChange={handleCategoryChange}
+              toggleSplitEditor={toggleSplitEditor}
+              editingPrincipalId={editingPrincipalId}
+              principalDraft={principalDraft}
+              setPrincipalDraft={setPrincipalDraft}
+              handleSetPrincipalAmount={handleSetPrincipalAmount}
+              setEditingPrincipalId={setEditingPrincipalId}
+              handleResetPrincipalAmount={handleResetPrincipalAmount}
+              startEditingPrincipal={startEditingPrincipal}
+              handleUnapplyDebtPayment={handleUnapplyDebtPayment}
+              applyingDebtId={applyingDebtId}
+              applyDebtForm={applyDebtForm}
+              setApplyDebtForm={setApplyDebtForm}
+              debtAccounts={debtAccounts}
+              handleApplyDebtPayment={handleApplyDebtPayment}
+              setApplyingDebtId={setApplyingDebtId}
+              startApplyingDebtPayment={startApplyingDebtPayment}
+              toggleSelected={toggleSelected}
+              editingDate={editingDate}
+              setEditingDate={setEditingDate}
+              commitDateEdit={commitDateEdit}
+              categoryIconMap={categoryIconMap}
+              editingDescription={editingDescription}
+              setEditingDescription={setEditingDescription}
+              commitDescriptionEdit={commitDescriptionEdit}
+              anomalyFlagsByTransaction={anomalyFlagsByTransaction}
+              handleRemoveTag={handleRemoveTag}
+              newTagText={newTagText}
+              setNewTagText={setNewTagText}
+              handleAddTag={handleAddTag}
+              taggingId={taggingId}
+              setTaggingId={setTaggingId}
+              editingAmount={editingAmount}
+              setEditingAmount={setEditingAmount}
+              commitAmountEdit={commitAmountEdit}
+              confirmingDeleteId={confirmingDeleteId}
+              setConfirmingDeleteId={setConfirmingDeleteId}
+              handleDeleteTransaction={handleDeleteTransaction}
+              ledgerColumnCount={ledgerColumnCount}
+              expandedSplitId={expandedSplitId}
+              splitLines={splitLines}
+              updateSplitLine={updateSplitLine}
+              removeSplitLine={removeSplitLine}
+              addSplitLine={addSplitLine}
+              splitRemaining={splitRemaining}
+              saveSplits={saveSplits}
+              clearSplits={clearSplits}
+              setExpandedSplitId={setExpandedSplitId}
+              filteredTransactions={filteredTransactions}
+              transactions={transactions}
+            />
             </>
           )}
 
@@ -5105,47 +3925,29 @@ function App({
               <label className="ledger-page-size">
                 Show
                 <MenuSelect
-                  ariaLabel="Rows per page"
+                  ariaLabel="Rows at a time"
                   value={String(pageSize)}
                   onChange={(v) => setPageSize(Number(v))}
-                  options={[
-                    { value: "10", label: "10" },
-                    { value: "25", label: "25" },
-                    { value: "50", label: "50" },
-                  ]}
+                  options={LEDGER_STEPS.map((step) => ({ value: String(step), label: String(step) }))}
                 />
-                per page
+                at a time
               </label>
-              <div className="month-nav">
-                <button
-                  type="button"
-                  className="modal-secondary"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage <= 1}
-                  aria-label="Previous page"
-                >
-                  ‹
+              <span className="ledger-page-count" aria-live="polite" data-ledger-shown>
+                {ledgerShownLabel(shownTransactions.shown, shownTransactions.total)}
+              </span>
+              {showMoreLabel(shownCount, displayTransactions.length, pageSize) && (
+                <button type="button" className="modal-secondary" onClick={() => setShownCount((count) => count + pageSize)} data-ledger-show-more>
+                  {showMoreLabel(shownCount, displayTransactions.length, pageSize)}
                 </button>
-                <span className="month-label">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  type="button"
-                  className="modal-secondary"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage >= totalPages}
-                  aria-label="Next page"
-                >
-                  ›
-                </button>
-              </div>
-              <span className="ledger-page-count">{displayTransactions.length} total</span>
+              )}
             </div>
           )}
 
           {activeTab === "buckets" && (
             <Suspense fallback={null}>
               <BucketsView
+                onOpenHelp={openHelpFor}
+                avgMonthlySpend={avgMonthlySpend}
                 buckets={buckets}
                 accounts={accounts}
                 familyMembers={familyMembers}
@@ -5160,6 +3962,7 @@ function App({
           {activeTab === "budget" && (
             <Suspense fallback={null}>
               <BudgetView
+                onOpenHelp={openHelpFor}
                 categories={usedCategories}
                 budgetActuals={budgetMonthActuals}
                 monthFlow={budgetMonthFlow}
@@ -5180,6 +3983,7 @@ function App({
                 onSuggest={handleSuggestBudgets}
                 onApplySuggestions={handleApplyBudgetSuggestions}
                 onOpenMonthReview={() => void handleOpenMonthReview(budgetYear, budgetMonthNum)}
+                amountsHidden={amountsHidden}
               />
             </Suspense>
           )}
@@ -5187,6 +3991,7 @@ function App({
           {activeTab === "household" && (
             <Suspense fallback={null}>
               <HouseholdView
+                onOpenHelp={openHelpFor}
                 transactions={transactions}
                 accounts={accounts}
                 assets={assets}
@@ -5217,6 +4022,7 @@ function App({
           {activeTab === "recurring" && (
             <Suspense fallback={null}>
               <RecurringView
+                onOpenHelp={openHelpFor}
                 recurring={recurring}
                 matches={recurringMatches}
                 totals={recurringTotals}
@@ -5238,6 +4044,7 @@ function App({
           {activeTab === "investments" && (
             <Suspense fallback={null}>
               <InvestmentsView
+                onOpenHelp={openHelpFor}
                 holdings={holdings}
                 accounts={accounts}
                 onCreate={handleCreateHolding}
@@ -5262,13 +4069,14 @@ function App({
 
           {activeTab === "help" && (
             <Suspense fallback={null}>
-              <HelpView />
+              <HelpView focusTab={helpFocus} />
             </Suspense>
           )}
 
           {activeTab === "cashflow" && (
             <Suspense fallback={null}>
               <CashFlowView
+                onOpenHelp={openHelpFor}
                 cashFlow={cashFlow}
                 range={cashFlowRange}
                 onSetRange={setCashFlowRange}
@@ -5298,219 +4106,6 @@ function App({
 
           {monthDetail && <MonthExpenseDetailDialog detail={monthDetail} onClose={() => setMonthDetail(null)} />}
 
-          {activeTab === "reports" && pendingSetupImport && (
-            <div className="dup-review">
-              <p className="dup-review-summary">
-                Reviewing setup data from this file — uncheck anything you don't want imported.
-                {pendingSetupImport.preview.row_errors > 0 &&
-                  ` ${pendingSetupImport.preview.row_errors} row(s) had errors and will be ignored.`}
-              </p>
-
-              {pendingSetupImport.preview.accounts.length > 0 && (
-                <>
-                  <h2 className="reports-section-title">Accounts</h2>
-                  <table className="dup-review-table">
-                    <thead>
-                      <tr>
-                        <th className="select-col"><span className="sr-only">Include</span></th>
-                        <th>Name</th>
-                        <th>Type</th>
-                        <th className="amount-col">Starting balance</th>
-                        <th>Institution</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingSetupImport.preview.accounts.map((row) => (
-                        <tr key={row.index} className={row.already_exists ? "import-row-duplicate" : undefined}>
-                          <td className="select-col">
-                            <input
-                              type="checkbox"
-                              checked={pendingSetupImport.includedAccounts.has(row.index)}
-                              onChange={() => toggleSetupIncluded("includedAccounts", row.index)}
-                              aria-label={`Include account ${row.name}`}
-                            />
-                          </td>
-                          <td>{row.name}</td>
-                          <td>{row.account_type}</td>
-                          <td className="amount-col">{row.starting_balance ? formatAmount(row.starting_balance) : ""}</td>
-                          <td>{row.institution ?? ""}</td>
-                          <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
-
-              {pendingSetupImport.preview.categories.length > 0 && (
-                <>
-                  <h2 className="reports-section-title">Categories</h2>
-                  <table className="dup-review-table">
-                    <thead>
-                      <tr>
-                        <th className="select-col"><span className="sr-only">Include</span></th>
-                        <th>Name</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingSetupImport.preview.categories.map((row) => (
-                        <tr key={row.index} className={row.already_exists ? "import-row-duplicate" : undefined}>
-                          <td className="select-col">
-                            <input
-                              type="checkbox"
-                              checked={pendingSetupImport.includedCategories.has(row.index)}
-                              onChange={() => toggleSetupIncluded("includedCategories", row.index)}
-                              aria-label={`Include category ${row.name}`}
-                            />
-                          </td>
-                          <td>{row.name}</td>
-                          <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
-
-              {pendingSetupImport.preview.budgets.length > 0 && (
-                <>
-                  <h2 className="reports-section-title">Budgets</h2>
-                  <table className="dup-review-table">
-                    <thead>
-                      <tr>
-                        <th className="select-col"><span className="sr-only">Include</span></th>
-                        <th>Category</th>
-                        <th>Group</th>
-                        <th className="amount-col">Monthly amount</th>
-                        <th>Period</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingSetupImport.preview.budgets.map((row) => (
-                        <tr key={row.index}>
-                          <td className="select-col">
-                            <input
-                              type="checkbox"
-                              checked={pendingSetupImport.includedBudgets.has(row.index)}
-                              onChange={() => toggleSetupIncluded("includedBudgets", row.index)}
-                              aria-label={`Include budget ${row.category}`}
-                            />
-                          </td>
-                          <td>{row.category}</td>
-                          <td>{row.budget_group}</td>
-                          <td className="amount-col">{formatAmount(row.monthly_amount)}</td>
-                          <td>{row.period ?? "This month"}</td>
-                          <td className="source-col">{row.will_update ? "Will update existing" : "New"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
-
-              {pendingSetupImport.preview.buckets.length > 0 && (
-                <>
-                  <h2 className="reports-section-title">Goals</h2>
-                  <table className="dup-review-table">
-                    <thead>
-                      <tr>
-                        <th className="select-col"><span className="sr-only">Include</span></th>
-                        <th>Name</th>
-                        <th className="amount-col">Target</th>
-                        <th>Target date</th>
-                        <th>Linked account</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingSetupImport.preview.buckets.map((row) => (
-                        <tr key={row.index} className={row.already_exists ? "import-row-duplicate" : undefined}>
-                          <td className="select-col">
-                            <input
-                              type="checkbox"
-                              checked={pendingSetupImport.includedBuckets.has(row.index)}
-                              onChange={() => toggleSetupIncluded("includedBuckets", row.index)}
-                              aria-label={`Include goal ${row.name}`}
-                            />
-                          </td>
-                          <td>{row.name}</td>
-                          <td className="amount-col">{row.target_amount ? formatAmount(row.target_amount) : ""}</td>
-                          <td>{row.target_date ?? ""}</td>
-                          <td>{row.linked_account_name ?? ""}</td>
-                          <td className="source-col">{row.already_exists ? "Already exists" : "New"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
-
-              {pendingSetupImport.preview.holdings.length > 0 && (
-                <>
-                  <h2 className="reports-section-title">Holdings</h2>
-                  <table className="dup-review-table">
-                    <thead>
-                      <tr>
-                        <th className="select-col"><span className="sr-only">Include</span></th>
-                        <th>Account</th>
-                        <th>Symbol</th>
-                        <th>Name</th>
-                        <th className="amount-col">Shares</th>
-                        <th className="amount-col">Price</th>
-                        <th className="amount-col">What you paid</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingSetupImport.preview.holdings.map((row) => (
-                        <tr key={row.index} className={row.account_found ? undefined : "import-row-duplicate"}>
-                          <td className="select-col">
-                            <input
-                              type="checkbox"
-                              checked={pendingSetupImport.includedHoldings.has(row.index)}
-                              onChange={() => toggleSetupIncluded("includedHoldings", row.index)}
-                              aria-label={`Include holding ${row.symbol}`}
-                            />
-                          </td>
-                          <td>{row.account_name}</td>
-                          <td>{row.symbol}</td>
-                          <td>{row.name ?? ""}</td>
-                          <td className="amount-col">{row.shares}</td>
-                          <td className="amount-col">{formatAmount(row.price)}</td>
-                          <td className="amount-col">{formatAmount(row.cost_basis)}</td>
-                          <td className="source-col">{row.account_found ? "New" : "Account not found"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
-
-              <div className="dup-review-actions">
-                <button className="modal-secondary" onClick={() => setPendingSetupImport(null)} disabled={busy}>
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmSetupImport}
-                  disabled={
-                    busy ||
-                    pendingSetupImport.includedAccounts.size +
-                    pendingSetupImport.includedCategories.size +
-                    pendingSetupImport.includedBudgets.size +
-                    pendingSetupImport.includedBuckets.size +
-                    pendingSetupImport.includedHoldings.size ===
-                    0
-                  }
-                >
-                  {busy ? "Importing…" : "Import selected"}
-                </button>
-              </div>
-            </div>
-          )}
-
           {activeTab === "accounts" && accountDetail && (
             <AccountDetailView
               key={accountDetail.id}
@@ -5523,12 +4118,14 @@ function App({
               onOpenTransactions={() => setActiveTab("ledger")}
               onOpenPayment={openPayment}
               onMessage={(text, kind) => setStatus(text, kind)}
+              focus={detailFocus}
             />
           )}
 
           {activeTab === "accounts" && !accountDetail && (
             <Suspense fallback={null}>
               <AccountsView
+                onOpenHelp={openHelpFor}
                 accounts={accounts}
                 manualAssetsTotal={sumMoney(assets.map((a) => a.value))}
                 netWorthHistory={netWorthHistory}
@@ -5542,7 +4139,10 @@ function App({
                 onSetAccountMember={handleSetAccountMember}
                 onSetAccountIcon={handleSetAccountIcon}
                 onAddAccount={handleNewAccount}
-                onOpenAccountDetail={setAccountDetailId}
+                onOpenAccountDetail={(id, focus) => {
+                  setDetailFocus(focus ?? null);
+                  setAccountDetailId(id);
+                }}
                 assets={assets}
                 onCreateAsset={handleCreateAsset}
                 onUpdateAssetValue={handleUpdateAssetValue}
@@ -5555,6 +4155,7 @@ function App({
           {activeTab === "reports" && !pendingSetupImport && (
             <Suspense fallback={null}>
               <ReportsView
+                onOpenHelp={openHelpFor}
                 accounts={accounts}
                 transactions={transactions}
                 assets={assets}
@@ -5571,6 +4172,7 @@ function App({
           {activeTab === "settings" && (
             <Suspense fallback={null}>
               <SettingsView
+                onOpenHelp={openHelpFor}
                 appVersion={appVersion}
                 dataFileLocation={dataFileLocation}
                 onRelocateDataFile={handleRelocateDataFile}
@@ -5603,6 +4205,9 @@ function App({
                 onSetThemeStyle={setThemeStyle}
                 appearance={appearance}
                 onSetAppearance={setAppearance}
+                theme={theme}
+                onSetTheme={setTheme}
+                resolvedTheme={resolvedTheme}
                 privacyAutoHide={privacyPrefs.autoHide}
                 onSetPrivacyAutoHide={(autoHide) => setPrivacyPrefs((p) => ({ ...p, autoHide }))}
                 onDownloadSetupTemplate={handleDownloadSetupTemplate}
@@ -5825,14 +4430,14 @@ function VaultSpendApp() {
   const [initialStatus, setInitialStatus] = useState("");
 
   return (
-    <App
+    <><MobilePairingPrompt /><App
       key={reloadKey}
       initialStatus={initialStatus}
       onDataFileChanged={(message) => {
         setInitialStatus(message);
         setReloadKey((k) => k + 1);
       }}
-    />
+    /></>
   );
 }
 

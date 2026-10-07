@@ -1,0 +1,129 @@
+/* RowMenu: the shared "⋯" actions menu on a row. The panel is portaled and positioned inline by
+   useFixedPanel; `.row-field-panel-fixed` (Ledger.css) supplies position: fixed. */
+/* `button.` (0,1,1) outranks each style's plain-button look, e.g. Retro's raised
+   `[data-palette="retro"] :where(button)` (0,1,0): the trigger is a quiet glyph, not a button face. */
+button.row-menu-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* (0,2,1) also outranks the global `button:hover` accent fill and Retro's `:where(button):hover`. */
+button.row-menu-toggle:hover,
+button.row-menu-toggle:focus-visible,
+button.row-menu-toggle[aria-expanded="true"] {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.row-menu-panel {
+  z-index: 40;
+  min-width: 200px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Two classes (0,2,0) so an item never picks up a style's plain-button look (the base button's
+   centred text, Retro's raised face). */
+.row-menu-panel .row-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-menu-panel .row-menu-item:hover,
+.row-menu-panel .row-menu-item:focus-visible {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
+.row-menu-panel .row-menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.row-menu-panel .row-menu-item[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.row-menu-panel .row-menu-item-danger {
+  color: var(--negative);
+}
+
+/* Each style's menus, matching its other open menus (MenuSelect, the filters, More). */
+[data-palette="futuristic"] .row-menu-panel {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid rgba(var(--accent-rgb), 0.38);
+  border-radius: var(--radius-menu);
+  box-shadow: var(--menu-panel-shadow);
+}
+
+[data-palette="futuristic"] .row-menu-panel .row-menu-item:hover,
+[data-palette="futuristic"] .row-menu-panel .row-menu-item:focus-visible {
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+[data-palette="retro"] .row-menu-panel {
+  background: var(--retro-face);
+  border: 1px solid transparent;
+  box-shadow: var(--retro-raised), var(--shadow-md);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+[data-palette="retro"] .row-menu-panel .row-menu-item:hover,
+[data-palette="retro"] .row-menu-panel .row-menu-item:focus-visible {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+}
+
+/* The tick sits after the label, pushed to the item's right edge, so a check item's label lines up
+   with the plain items above and below it. */
+.row-menu-check {
+  flex: none;
+  margin-left: auto;
+}
+
+.row-menu-check-on::before {
+  content: "✓";
+  padding-left: 12px;
+}
+
+.row-menu-divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
