@@ -5523,7 +5523,7 @@ dependencies = [
 
 [[package]]
 name = "vaultspend"
-version = "1.2.9"
+version = "1.3.0"
 dependencies = [
  "base64 0.22.1",
  "budget_core",
