@@ -43,6 +43,19 @@ describe("release metadata", () => {
     expect(notes).toMatch(/Accounts/);
     expect(notes).toMatch(/Goals/);
     expect(notes).toMatch(/1900.*2100/);
+    // Everything else 1.3.0 changed that people will notice.
+    expect(notes).toMatch(/import review/i);
+    expect(notes).toMatch(/remember/i);
+    expect(notes).toMatch(/Show more/);
+    expect(notes).toMatch(/Money out \/ Money in/);
+    expect(notes).toMatch(/Show names/);
+    expect(notes).toMatch(/Budget/);
+    expect(notes).toMatch(/Dashboard/);
+    expect(notes).toMatch(/Recurring/);
+    expect(notes).toMatch(/Oct 4/);
+    expect(notes).toMatch(/red only/i);
+    expect(notes).toMatch(/Charts/);
+    expect(notes).toMatch(/Help/);
   });
 
   it("preserves the 1.2.9 release notes", () => {
