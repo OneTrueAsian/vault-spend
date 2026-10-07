@@ -462,11 +462,13 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
       stdio: ["ignore", "pipe", "pipe"],
       // The legal notice would stop every spec at its screen. The app honours the skip only alongside
       // VAULTSPEND_DB_DIR, so a real install cannot be affected. feature139 passes showLegalNotice.
+      // Keep update checks off only for the disposable test data folder.
       env: {
         ...process.env,
         ...isolatedTempEnv(launchTempDir),
         VAULTSPEND_DB_DIR: testDbDir,
         VAULTSPEND_SKIP_LEGAL_NOTICE: showLegalNotice ? "0" : "1",
+        VAULTSPEND_SKIP_UPDATE_CHECK: "1",
       },
     },
   );
