@@ -11,9 +11,9 @@
 .mobile-desktop-settings .mobile-desktop-code { font-size: 14px; color: var(--text); }
 .mobile-desktop-settings details { margin: 16px 0; }
 .mobile-desktop-settings summary { cursor: pointer; font-weight: 600; }
-.mobile-desktop-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(100px,160px); gap: 16px; }
-.mobile-desktop-fields label { display: grid; gap: 8px; }
-.mobile-desktop-fields input { width: 100%; }
+.mobile-desktop-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(100px,160px); gap: 16px; align-items: end; }
+.mobile-desktop-fields label { display: grid; gap: 8px; min-width: 0; }
+.mobile-desktop-fields input,.mobile-desktop-fields .menu-select-toggle { width: 100%; height: 36px; margin: 0; }
 .mobile-desktop-code { display: block; overflow-wrap: anywhere; font-family: var(--font-mono,monospace); }
 .mobile-desktop-pair { margin: 16px 0; }
 .mobile-desktop-pair svg { max-width: 100%; height: auto; }

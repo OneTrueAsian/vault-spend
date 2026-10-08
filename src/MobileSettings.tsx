@@ -74,7 +74,10 @@ export function MobileSettings(){
 
   <details><summary>Advanced connection settings</summary>
 
-  <div className="mobile-desktop-fields"><div><MenuSelect ariaLabel="Local network" value={network} onChange={setNetwork} options={interfaces.map(item=>({value:JSON.stringify(item),label:`${item[0]} · ${item[1]}`}))} placeholder="Choose a local network" disabled={busy} fill/></div><label>Fixed port<input aria-label="Mobile HTTPS port" type="number" min="1024" max="65535" value={port} disabled={busy} onChange={event=>setPort(event.target.value)}/></label></div>
+  <div className="mobile-desktop-fields">
+   <label><span>Local network</span><MenuSelect ariaLabel="Local network" value={network} onChange={setNetwork} options={interfaces.map(item=>({value:JSON.stringify(item),label:`${item[0]} · ${item[1]}`}))} placeholder="Choose a local network" disabled={busy} fill/></label>
+   <label><span>Fixed port</span><input aria-label="Mobile HTTPS port" type="number" min="1024" max="65535" value={port} disabled={busy} onChange={event=>setPort(event.target.value)}/></label>
+  </div>
 
   <p className="modal-message-secondary">Guided setup uses a stable local name. The advanced IP address method requires a stable address; changing its address or port creates a different saved-data location.</p>
 
