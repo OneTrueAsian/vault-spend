@@ -122,6 +122,51 @@ impl From<rusqlite::Error> for PlanError {
 }
 
 impl Store {
+    /// Add reviewed current positions and their value snapshots as one unit.
+    pub fn import_holdings(&self, account_id: i64, rows: &[crate::holding_import::HoldingInput], today: NaiveDate) -> Result<Vec<i64>, String> {
+        use std::collections::HashSet;
+        if rows.is_empty() || rows.len() > crate::holding_import::MAX_ROWS {
+            return Err("Select between 1 and 5,000 valid holdings.".into());
+        }
+        let tx = self.conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        let account = self
+            .list_accounts(today)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|a| a.id == account_id && a.account.account_type == AccountType::Investment)
+            .ok_or("Choose an existing investment account.")?;
+        let existing = self.list_holdings(today).map_err(|e| e.to_string())?;
+        let mut symbols: HashSet<String> = existing
+            .iter()
+            .filter(|h| h.account_id == account.id)
+            .map(|h| h.symbol.trim().to_uppercase())
+            .collect();
+        // Also protect subsequent portfolio sums from Decimal overflow.
+        let mut total = existing
+            .iter()
+            .try_fold(Decimal::ZERO, |sum, h| crate::holding_import::add_values(sum, h.value))?;
+        for row in rows {
+            row.validate()?;
+            if !symbols.insert(row.symbol.trim().to_uppercase()) {
+                return Err(format!(
+                    "{} already exists in this account or selection. Review the rows again.",
+                    row.symbol
+                ));
+            }
+            total = crate::holding_import::add_values(total, row.value()?)?;
+        }
+        let mut ids = Vec::with_capacity(rows.len());
+        for row in rows {
+            let (shares, price, cost) = row.amounts()?;
+            ids.push(
+                self.create_holding(account.id, &row.symbol, &row.name, shares, price, cost, row.asset_class.as_deref())
+                    .map_err(|e| e.to_string())?,
+            );
+        }
+        self.record_portfolio_snapshot(today).map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(ids)
+    }
     /// Adds an investment holding. `price` is whatever the caller passes in
     /// at creation time — manually typed, or auto-filled from a live quote
     /// when the optional Alpha Vantage integration is enabled (see

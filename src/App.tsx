@@ -4048,6 +4048,16 @@ function App({
                 holdings={holdings}
                 accounts={accounts}
                 onCreate={handleCreateHolding}
+                onImportSaved={async (count, account) => {
+                  try {
+                    await refresh();
+                    await refreshHoldings();
+                    await refreshReport();
+                    setStatus(`Added ${count} holdings to ${account}.`, "success");
+                  } catch (e) {
+                    setStatus(`Holdings were saved. Could not refresh totals: ${errorMessage(e)}`);
+                  }
+                }}
                 onUpdatePrice={handleUpdateHoldingPrice}
                 onDelete={handleDeleteHolding}
                 livePricesEnabled={livePriceSettings?.enabled ?? false}

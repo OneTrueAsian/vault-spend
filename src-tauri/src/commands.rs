@@ -36,6 +36,8 @@ mod recurring;
 pub use self::recurring::*;
 mod investments;
 pub use self::investments::*;
+mod holding_import;
+pub use self::holding_import::*;
 mod assets;
 pub use self::assets::*;
 

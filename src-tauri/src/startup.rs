@@ -406,6 +406,11 @@ pub fn activate(app: &tauri::AppHandle, opened: OpenedProfile) {
 /// above does — so a caller never needs to thread `device`/`status` through just for this.
 pub fn broadcast_state(app: &tauri::AppHandle) {
     use tauri::{Emitter, Manager};
+    if let Some(sessions) = app.try_state::<crate::holding_import::Sessions>() {
+        if let Ok(mut cache) = sessions.0.lock() {
+            cache.clear();
+        }
+    }
     let paths = app.state::<config::AppPaths>();
     let runtime = app.state::<AppStateHandle>();
     let status = app.state::<LaunchStatus>();

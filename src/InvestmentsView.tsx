@@ -10,6 +10,7 @@ import type { WidgetId } from "./dashboardLayout";
 import { StatDetailPanel } from "./StatDetailPanel";
 import { AccumulationSummaryCard } from "./AccumulationSection";
 import { MenuSelect } from "./MenuSelect";
+import { HoldingImportDialog } from "./HoldingImportDialog";
 import { categoryColor } from "./categoryPalette";
 import { sumMoney } from "./money";
 import { HelpLink } from "./HelpLink";
@@ -441,6 +442,7 @@ export function InvestmentsView({
   holdings,
   accounts,
   onCreate,
+  onImportSaved,
   onUpdatePrice,
   onDelete,
   livePricesEnabled,
@@ -462,6 +464,7 @@ export function InvestmentsView({
   onOpenAccountDetail: (accountId: number) => void;
   holdings: Holding[];
   accounts: Account[];
+  onImportSaved: (count: number, account: string) => Promise<void>;
   onCreate: (
     accountId: number,
     symbol: string,
@@ -481,6 +484,7 @@ export function InvestmentsView({
   onOpenHelp?: (tab: Tab) => void;
 }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
   const [editingPrice, setEditingPrice] = useState<{ id: number; value: string } | null>(null);
   const [expandedGainStat, setExpandedGainStat] = useState<"total" | "day" | null>(null);
@@ -764,6 +768,8 @@ export function InvestmentsView({
       ))}
       {holdings.length === 0 && <p className="empty-state">No holdings yet.</p>}
 
+      <button type="button" className="modal-secondary" onClick={() => setImportOpen(true)}>Import holdings…</button>
+      {importOpen && <HoldingImportDialog accounts={accounts} onClose={() => setImportOpen(false)} onSaved={onImportSaved} />}
       <NewHoldingForm
         accounts={accounts}
         onCreate={onCreate}

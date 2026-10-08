@@ -458,6 +458,16 @@ export const TAB_HELP: TabHelp[] = [
         ],
       },
       {
+        question: "How do I add several current holdings at once?",
+        steps: [
+          <>On Investments, click <strong>Import holdings…</strong> and choose an investment account. Browse for a CSV in the app, drop a CSV onto the file area, or paste spreadsheet rows including their headings.</>,
+          <>Match the symbol, shares, current price per share, and what you paid in total. Name and asset class are optional. Use a decimal point for numbers; unknown costs must be filled in rather than treated as zero. Excel workbooks must first be saved as CSV or copied as rows.</>,
+          <>Review the rows and untick anything you do not want. Existing symbols in this account are excluded; choose at most one row for each repeated symbol. Prices come from your file, though enabled live prices may update them later.</>,
+          <>Check the resulting account value, then click <strong>Add holdings</strong>. Once an account has holdings, their combined value supplies its balance, so include every current position if you want it to match your statement. The import adds current holdings, not past trades or tax lots.</>,
+          <>Import up to 5,000 rows and 5 MB at a time. Nothing is saved until you confirm. Closing the dialog or changing or locking the profile discards the preview; idle previews expire after 15 minutes.</>,
+        ],
+      },
+      {
         question: "How do I see what's driving my gains or losses?",
         steps: [
           <>Click <strong>Total gain/loss</strong> or <strong>Today's gain/loss</strong>.</>,
@@ -493,7 +503,7 @@ export const TAB_HELP: TabHelp[] = [
     tags: [
       "investments", "holdings", "shares", "cost basis", "gain loss", "what changed", "goal projection", "live prices",
       "stocks", "alpha vantage", "finnhub", "twelve data", "portfolio history", "allocation", "target allocation", "drift",
-      "rebalance", "save as goal", "accumulation", "projection", "roth", "529", "contributions", "withdraw", "add holding",
+      "rebalance", "save as goal", "accumulation", "projection", "roth", "529", "contributions", "withdraw", "add holding", "import holdings", "bulk upload", "csv", "spreadsheet",
     ],
   },
   {

@@ -9,6 +9,7 @@ mod config;
 mod debug_commands;
 mod device_settings;
 mod finnhub;
+mod holding_import;
 mod launch_commands;
 mod legacy_migration;
 mod live_price_provider;
@@ -47,6 +48,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .manage(command_thread::CommandQueue::start())
+        .manage(holding_import::Sessions::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -372,6 +374,11 @@ pub fn run() {
             commands::dismiss_recurring_candidate,
             commands::dismiss_recurring_price_change,
             commands::create_holding,
+            commands::load_holding_import,
+            commands::preview_holding_import,
+            commands::commit_holding_import,
+            commands::cancel_holding_import,
+            commands::list_holding_import_files,
             commands::list_holdings,
             commands::update_holding_price,
             commands::portfolio_history,

@@ -13,6 +13,7 @@ mod budgets;
 mod categories;
 mod family;
 mod forecast;
+mod holding_import;
 mod imports;
 mod insights;
 mod investments;

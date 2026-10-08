@@ -6,6 +6,7 @@ pub mod classifier;
 pub mod comparisons;
 pub mod csv_loader;
 pub mod fsutil;
+pub mod holding_import;
 pub mod import_resolution;
 pub mod importer;
 pub mod learner;
