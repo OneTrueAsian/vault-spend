@@ -51,6 +51,13 @@ try {
         timeoutMsg: `${view} never showed`,
       });
       await browser.pause(400); // charts and lazy sections settle
+      if (view === "Recurring") {
+        const inactiveStatus = await browser.$('.status-pill:not(.status-pill-active)');
+        if (await inactiveStatus.isExisting()) {
+          await inactiveStatus.moveTo();
+          await browser.pause(150); // Check the real hover state after its background transition.
+        }
+      }
       const nodes = await browser.executeAsync(
         (rules, done) =>
           window.axe.run(document, { runOnly: rules }).then((r) =>

@@ -1,3 +1,4 @@
+import { MonthField } from "./MonthField";
 import "./AccumulationSection.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -335,7 +336,7 @@ export function AccountAccumulationSection({
           </label>
           <label className="labeled-field">
             <span className="labeled-field-label">Withdraw month</span>
-            <input type="month" value={form.withdrawMonth} min={today.slice(0, 7)} onChange={(e) => set({ withdrawMonth: e.target.value })} data-acc-withdraw-month />
+            <MonthField aria-label="Withdraw month" value={form.withdrawMonth} min={today.slice(0, 7)} onChange={(value) => set({ withdrawMonth: value })} data-acc-withdraw-month />
           </label>
           <label className="labeled-field">
             <span className="labeled-field-label">Spread over (years, optional)</span>

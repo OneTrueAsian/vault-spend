@@ -3,6 +3,7 @@ use crate::mobile_secrets::SecretStore;
 use rcgen::{
     BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair, KeyUsagePurpose, PublicKeyData,
 };
+use rustls::pki_types::pem::PemObject;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::net::Ipv4Addr;
@@ -39,12 +40,10 @@ impl CertificateBundle {
         Ok(Sha256::digest(der).iter().map(|n| format!("{n:02X}")).collect::<Vec<_>>().join(":"))
     }
     pub fn tls_config(&self) -> Result<Arc<rustls::ServerConfig>, String> {
-        let certificates = rustls_pemfile::certs(&mut self.leaf_pem.as_bytes())
+        let certificates = rustls::pki_types::CertificateDer::pem_slice_iter(self.leaf_pem.as_bytes())
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| INVALID)?;
-        let key = rustls_pemfile::private_key(&mut self.leaf_key.as_bytes())
-            .map_err(|_| INVALID)?
-            .ok_or(INVALID)?;
+        let key = rustls::pki_types::PrivateKeyDer::from_pem_slice(self.leaf_key.as_bytes()).map_err(|_| INVALID)?;
         let provider = Arc::new(rustls::crypto::ring::default_provider());
         let mut config = rustls::ServerConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
@@ -94,7 +93,7 @@ impl CertificateBundle {
     }
 }
 fn pem_der(pem: &str) -> Result<Vec<u8>, String> {
-    rustls_pemfile::certs(&mut pem.as_bytes())
+    rustls::pki_types::CertificateDer::pem_slice_iter(pem.as_bytes())
         .next()
         .ok_or(INVALID)?
         .map(|c| c.to_vec())

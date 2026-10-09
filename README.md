@@ -5,10 +5,10 @@
 A local, private budgeting and transaction ledger for Windows and macOS.
 There's no service account, no cloud synchronization, and no subscription —
 your main data lives in files on your own computer, in independent profiles you
-can each password-protect. Vault Spend only reaches out to the internet for
-three things: its typefaces from Google Fonts and a check on GitHub for a newer
-version, both when it opens, and live investment prices if you set up a price
-provider. None of them sends your financial data. The full
+can each password-protect. Vault Spend reaches out to the internet for a check
+on GitHub for a newer version and live investment prices if you set up a price
+provider. Its typefaces are bundled locally. Neither service receives your
+financial ledger. The full
 [legal notice](docs/LEGAL-NOTICE.md) covers these, estimates, backups and
 recovery codes.
 
@@ -88,6 +88,9 @@ Access is remembered. An unlocked phone can read saved copies. Browser storage c
 Support evidence is version-specific. The owner confirmed pairing and functionality on an iPhone 16 Pro using Google Chrome, including all saved data loading in airplane mode with Wi-Fi off. OS/browser versions, tab versus home-screen mode, Android and wider router/macOS acceptance remain separate checks. Do not treat automated desktop browser tests as all-phone support. See Help for the on-screen instructions and `mobile/README.md` for the implementation/testing boundaries.
 
 ## Learn more
+
+For source development, start with the [architecture and invariants guide](docs/ARCHITECTURE.md)
+and [build instructions](docs/BUILDING.md).
 
 Open the **Help** tab inside the app for full guidance on every feature
 above, a searchable FAQ, and troubleshooting. The **?** beside any page's

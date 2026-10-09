@@ -122,7 +122,7 @@ pub fn switch_profile(
     // the live connection, and `paths.db_path` all left untouched.
     let new_state = AppState::open(&target.db_path)?;
     crate::config::write_db_location_config(&paths.config_path, &target.db_path).map_err(|e| e.to_string())?;
-    *state = new_state;
+    state.replace(new_state);
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = target.db_path.clone();
     paths.bump_generation();
 
@@ -183,23 +183,7 @@ pub fn add_existing_profile(
         return Err(format!("{} doesn't exist.", picked_path.display()));
     }
     if picked_path.is_dir() {
-        let attempt_id = format!("package:{}", picked_path.to_string_lossy().to_lowercase());
-        let remaining = sessions.delay_remaining(&attempt_id);
-        if !remaining.is_zero() {
-            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
-        }
-        let validated = match validate_protected_package(&picked_path, password.as_deref().unwrap_or_default()) {
-            Ok(package) => {
-                sessions.record_success(&attempt_id);
-                package
-            }
-            Err(error) => {
-                if error == "That password didn't work." {
-                    sessions.record_failure(&attempt_id);
-                }
-                return Err(error);
-            }
-        };
+        let validated = validate_protected_package(&picked_path, password.as_deref().unwrap_or_default(), &sessions)?;
         let live_db_path = current_db_path(&paths);
         let (id, imported_db_path) = crate::profiles::plan_new_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
         let imported_dir = imported_db_path.parent().ok_or_else(|| "invalid imported profile path".to_string())?;
@@ -227,6 +211,9 @@ pub fn add_existing_profile(
 
         let runtime = &*state;
         let mut state = runtime.lock()?;
+        if paths.current_generation() != expected_generation {
+            return Err("The active profile changed before this profile could be added.".into());
+        }
         if let Err(error) = crate::profiles::register_prepared_profile(
             &paths.config_path,
             &live_db_path,
@@ -239,7 +226,7 @@ pub fn add_existing_profile(
             return Err(error);
         }
         crate::config::write_db_location_config(&paths.config_path, &imported_db_path).map_err(|e| e.to_string())?;
-        *state = new_state;
+        state.replace(new_state);
         *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = imported_db_path.clone();
         paths.bump_generation();
         let summary = crate::startup::after_profile_opened(
@@ -270,27 +257,24 @@ pub fn add_existing_profile(
         // Delete) leaves exactly this shape on disk — an encrypted `.db` with its `.key` beside it,
         // no manifest — and the lock screen's own wording says it "can't be opened without the
         // password or recovery key", so re-adding it here with the right one must actually work.
-        let attempt_id = format!("existing-encrypted:{}", picked_path.to_string_lossy().to_lowercase());
-        let remaining = sessions.delay_remaining(&attempt_id);
-        if !remaining.is_zero() {
-            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
-        }
         let key_file = budget_core::protection::keyfile::KeyFile::read(&key_file_path).map_err(|e| e.to_string())?;
-        let dek = match key_file.unlock_with_password(password.as_deref().unwrap_or_default()) {
-            Ok(dek) => {
-                sessions.record_success(&attempt_id);
-                dek
-            }
-            Err(_) => {
-                sessions.record_failure(&attempt_id);
-                return Err("That password didn't work for this profile.".to_string());
-            }
-        };
+        let dek = sessions
+            .check_password(&key_file, password.as_deref().unwrap_or_default())
+            .map_err(|error| {
+                if error == "That password didn't work." {
+                    "That password didn't work for this profile.".to_owned()
+                } else {
+                    error
+                }
+            })?;
         let new_state = AppState::open_with_key(&picked_path, budget_core::store::DatabaseKey::Raw(dek.as_bytes()))
             .map_err(|e| format!("Couldn't open {} as a Vault Spend data file: {e}", picked_path.display()))?;
 
         let runtime = &*state;
         let mut state = runtime.lock()?;
+        if paths.current_generation() != expected_generation {
+            return Err("The active profile changed before this profile could be added.".into());
+        }
         let live_db_path = current_db_path(&paths);
         let profile = crate::profiles::add_existing_profile(
             &paths.config_path,
@@ -302,7 +286,7 @@ pub fn add_existing_profile(
         )?;
 
         crate::config::write_db_location_config(&paths.config_path, &picked_path).map_err(|e| e.to_string())?;
-        *state = new_state;
+        state.replace(new_state);
         *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
         paths.bump_generation();
 
@@ -345,7 +329,7 @@ pub fn add_existing_profile(
     // comment on the same ordering. `new_state` was already proven openable
     // above, so this reordering costs nothing: the swap itself can't fail.
     crate::config::write_db_location_config(&paths.config_path, &picked_path).map_err(|e| e.to_string())?;
-    *state = new_state;
+    state.replace(new_state);
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
     paths.bump_generation();
 

@@ -1,0 +1,19 @@
+{
+  "id": 1,
+  "transfer_counterpart_id": null,
+  "date": "2026-10-01",
+  "description": "Fixture",
+  "amount": "9007199254740992.01",
+  "category": null,
+  "category_source": null,
+  "confidence": null,
+  "account_id": 1,
+  "account_name": "Fixture",
+  "applied_to_debt": null,
+  "principal_amount": null,
+  "split_count": 0,
+  "tags": [],
+  "member_id": null,
+  "member_name": null,
+  "notes": null
+}

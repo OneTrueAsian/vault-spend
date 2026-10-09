@@ -564,12 +564,16 @@ pub fn commit_protection_conversion(
 /// where nothing was ever plaintext). See `ProfileEntry::former_plaintext_path`'s own doc comment
 /// for why `protection_leftovers::list_leftovers` needs this rather than the profile's current
 /// (already-encrypted) `db_path`.
-pub fn former_plaintext_path_for(config_path: &Path, live_db_path: &Path, id: &str) -> Option<PathBuf> {
-    entries_or_synthesize(config_path, live_db_path)
+pub fn former_plaintext_path_for(config_path: &Path, live_db_path: &Path, id: &str) -> Result<Option<PathBuf>, String> {
+    let entries = read_registry_strict(config_path)
+        .map_err(|problem| format!("Couldn't check the profile registry: {}", problem.reason))?
+        .map(|registry| registry.profiles)
+        .unwrap_or_else(|| vec![default_entry(live_db_path)]);
+    let entry = entries
         .into_iter()
-        .find(|p| p.id == id)
-        .and_then(|p| p.former_plaintext_path)
-        .map(PathBuf::from)
+        .find(|p| p.id == id && Path::new(&p.db_path) == live_db_path)
+        .ok_or_else(|| "The active profile changed before plaintext cleanup could be checked.".to_string())?;
+    Ok(entry.former_plaintext_path.map(PathBuf::from))
 }
 
 /// Removes a profile from the registry — the file it points at is left on
@@ -1537,7 +1541,7 @@ mod tests {
         commit_protection_conversion(&dir.join("config.json"), &alex.db_path, &alex.id, &new_path, Protection::new(1)).unwrap();
 
         assert_eq!(
-            former_plaintext_path_for(&dir.join("config.json"), &new_path, &alex.id),
+            former_plaintext_path_for(&dir.join("config.json"), &new_path, &alex.id).unwrap(),
             Some(alex.db_path)
         );
     }
@@ -1546,10 +1550,23 @@ mod tests {
     fn a_profile_with_no_conversion_behind_it_has_no_former_plaintext_path() {
         let dir = temp_dir("no-former-path");
         let live = dir.join("v.db");
-        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
-        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+        let alex = create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        assert_eq!(
+            former_plaintext_path_for(&dir.join("config.json"), &alex.db_path, &alex.id).unwrap(),
+            None
+        );
+    }
 
-        assert_eq!(former_plaintext_path_for(&dir.join("config.json"), &live, &id), None);
+    #[test]
+    fn plaintext_discovery_refuses_stale_identity_and_corrupt_registry() {
+        let dir = temp_dir("strict-plaintext-discovery");
+        let config = dir.join("config.json");
+        let live = dir.join("vaultspend.db");
+        let alex = create_profile(&config, &live, "Alex", dt("2026-08-30 12:00:00")).unwrap();
+        assert!(former_plaintext_path_for(&config, &live, &alex.id).is_err());
+        assert!(former_plaintext_path_for(&config, &live, "unknown-profile").is_err());
+        std::fs::write(registry_path(&config), b"{invalid registry").unwrap();
+        assert!(former_plaintext_path_for(&config, &live, DEFAULT_PROFILE_ID).is_err());
     }
 
     #[test]

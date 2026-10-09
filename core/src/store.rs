@@ -1,5 +1,6 @@
 use crate::models::{Account, Transaction};
 use chrono::{Datelike, NaiveDate};
+pub use rusqlite::Error as StoreError;
 use rusqlite::{Connection, params};
 use rust_decimal::Decimal;
 use std::path::Path;
@@ -273,6 +274,7 @@ pub fn looks_like_a_vault_spend_database(path: impl AsRef<Path>) -> Result<(), S
 
 pub struct Store {
     conn: Connection,
+    anomaly_cache: Box<std::cell::RefCell<Option<AnomalyCache>>>,
     /// Where to append a human-readable line for every account-affecting
     /// change (see `log_activity`) — `Some` only in a debug ("test") build
     /// with a real on-disk database, so a real release build shipped to a
@@ -284,7 +286,50 @@ pub struct Store {
     db_key: Option<zeroize::Zeroizing<[u8; 32]>>,
 }
 
+struct AnomalyCache {
+    revision: (u64, u64),
+    flags: Vec<AnomalyFlag>,
+}
+
 impl Store {
+    /// Runs related reads against one SQLite snapshot. The caller must not mutate this store.
+    pub fn read_snapshot<T>(&self, read: impl FnOnce(&Self) -> rusqlite::Result<T>) -> rusqlite::Result<T> {
+        struct CacheGuard<'a> {
+            cache: &'a std::cell::RefCell<Option<AnomalyCache>>,
+            committed: bool,
+        }
+        impl Drop for CacheGuard<'_> {
+            fn drop(&mut self) {
+                // total_changes also includes rolled-back writes. Never retain their derived data.
+                if !self.committed {
+                    *self.cache.borrow_mut() = None;
+                }
+            }
+        }
+        let mut cache_guard = CacheGuard {
+            cache: &self.anomaly_cache,
+            committed: false,
+        };
+        let transaction = self.conn.unchecked_transaction()?;
+        // Establish a database read snapshot before the caller's related queries.
+        self.conn
+            .query_row("SELECT COUNT(*) FROM sqlite_master", [], |row| row.get::<_, i64>(0))?;
+        let changes = self.conn.total_changes();
+        let value = read(self)?;
+        if self.conn.total_changes() != changes {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
+        transaction.commit()?;
+        cache_guard.committed = true;
+        Ok(value)
+    }
+
+    /// Connection-local writes and external commits, scoped to the current open session.
+    pub fn read_revision(&self) -> rusqlite::Result<(u64, u64)> {
+        let external = self.conn.query_row("PRAGMA data_version", [], |row| row.get::<_, u64>(0))?;
+        Ok((self.conn.total_changes(), external))
+    }
+
     pub fn open(path: impl AsRef<Path>) -> rusqlite::Result<Self> {
         let path = path.as_ref();
         let activity_log_path = if cfg!(debug_assertions) {
@@ -296,6 +341,7 @@ impl Store {
             conn: Connection::open(path)?,
             activity_log_path,
             db_key: None,
+            anomaly_cache: Box::new(std::cell::RefCell::new(None)),
         };
         store.init_schema()?;
         Ok(store)
@@ -306,6 +352,7 @@ impl Store {
             conn: Connection::open_in_memory()?,
             activity_log_path: None,
             db_key: None,
+            anomaly_cache: Box::new(std::cell::RefCell::new(None)),
         };
         store.init_schema()?;
         Ok(store)
@@ -517,5 +564,7 @@ fn add_one_year(d: NaiveDate) -> NaiveDate {
         .expect("Feb 29 -> Feb 28 fallback must exist")
 }
 
+#[cfg(test)]
+mod read_model_tests;
 #[cfg(test)]
 mod tests;

@@ -19,6 +19,7 @@ pub mod qif_loader;
 pub mod rules;
 pub mod setup_import;
 pub mod store;
+pub mod update_manifest;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

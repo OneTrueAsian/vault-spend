@@ -51,10 +51,11 @@ fn importing_a_protected_package_requires_its_password_and_intact_database() {
     let package = dir.join("Sam.vaultspend");
     export_protected_package(&package, "Sam", &source_path, &store, "2026-09-24T09:00:00Z").unwrap();
 
-    assert!(validate_protected_package(&package, "wrong password").is_err());
-    assert!(validate_protected_package(&package, "package password").is_ok());
+    let sessions = crate::protection_session::Sessions::new();
+    assert!(validate_protected_package(&package, "wrong password", &sessions).is_err());
+    assert!(validate_protected_package(&package, "package password", &sessions).is_ok());
     std::fs::write(package.join(budget_core::protection::package::DATABASE_FILENAME), b"damaged").unwrap();
-    assert!(validate_protected_package(&package, "package password")
+    assert!(validate_protected_package(&package, "package password", &sessions)
         .err()
         .unwrap()
         .contains("doesn't match"));

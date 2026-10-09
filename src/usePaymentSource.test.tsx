@@ -14,7 +14,7 @@ let open: (id: number) => Promise<void>;
 let mounted: boolean;
 const ready = vi.fn();
 const error = vi.fn();
-const source = { id: 1, applied_to_debt: { debt_account_id: 2 } };
+const source = { id: 1, transfer_counterpart_id: null, date: "2026-10-01", description: "Fixture", amount: "-12.34", category: null, category_source: null, confidence: null, account_id: 1, account_name: "Checking", applied_to_debt: { date: "2026-10-01", debt_account_id: 2, debt_account_name: "Loan", amount: "12.34" }, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null };
 function Harness() { open = usePaymentSource(ready, error); return null; }
 beforeEach(() => {
   vi.resetAllMocks();
@@ -32,7 +32,7 @@ it("refreshes once and resolves the exact linked source", async () => {
   expect(ready).toHaveBeenCalledWith(source, [source]);
 });
 it("reports a deleted or unapplied payment instead of navigating elsewhere", async () => {
-  vi.mocked(invoke).mockResolvedValue([{ id: 1, applied_to_debt: null }]);
+  vi.mocked(invoke).mockResolvedValue([{ ...source, applied_to_debt: null }]);
   await open(1);
   expect(ready).not.toHaveBeenCalled();
   expect(error).toHaveBeenCalledWith("Payment is no longer available.");
@@ -60,7 +60,7 @@ it("a newer request wins even when the old final generation read resolves last",
     .mockResolvedValueOnce(1)
     .mockImplementationOnce(() => new Promise(r => { resolve = r; }));
   const old = open(99);
-  await Promise.resolve(); await Promise.resolve();
+  for (let i = 0; i < 8 && !resolve; i++) await Promise.resolve();
   await open(1);
   resolve(1);
   await old;

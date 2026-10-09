@@ -37,6 +37,16 @@ pub struct AppRuntime {
 /// The open state, held under the runtime's lock for as long as this value lives.
 pub struct OpenSession<'a> {
     guard: MutexGuard<'a, Slot>,
+    revision: &'a AtomicU64,
+}
+
+impl OpenSession<'_> {
+    /// Every profile/database replacement retires old requests while holding the slot mutex.
+    /// Use this instead of assigning through DerefMut, including restore/relocation.
+    pub fn replace(&mut self, state: AppState) {
+        self.revision.fetch_add(1, Ordering::SeqCst);
+        *self.guard = Slot::Open(state);
+    }
 }
 
 impl Deref for OpenSession<'_> {
@@ -88,7 +98,13 @@ impl AppRuntime {
     pub fn lock(&self) -> Result<OpenSession<'_>, String> {
         let guard = self.slot.lock().map_err(|_| "app state poisoned".to_string())?;
         if matches!(&*guard, Slot::Open(_)) {
-            return Ok(OpenSession { guard });
+            if crate::request_session::expected().is_some_and(|expected| expected != self.current_revision()) {
+                return Err("STALE_PROFILE: This request belongs to a previous profile session.".to_string());
+            }
+            return Ok(OpenSession {
+                guard,
+                revision: &self.revision,
+            });
         }
         match &*guard {
             Slot::Locked { .. } => Err(format!("{PROFILE_LOCKED}: This profile is locked. Unlock it to continue.")),
@@ -182,6 +198,31 @@ mod tests {
     use super::*;
     use crate::commands::AppState;
     use std::path::PathBuf;
+    #[test]
+    fn queued_origin_session_cannot_read_or_write_a_reopened_profile() {
+        let runtime = AppRuntime::no_profile_open();
+        runtime.install(open_state("origin-session-old"));
+        let old = runtime.current_revision();
+        runtime.install(open_state("origin-session-new"));
+        {
+            let _request = crate::request_session::enter(Some(old));
+            assert!(runtime.lock().is_err(), "old queued work must fail before receiving the new database");
+        }
+        let _request = crate::request_session::enter(Some(runtime.current_revision()));
+        assert!(runtime.lock().is_ok());
+    }
+    #[test]
+    fn replacing_an_open_database_retires_queued_origin_requests() {
+        let runtime = AppRuntime::no_profile_open();
+        runtime.install(open_state("replace-session-old"));
+        let old = runtime.current_revision();
+        {
+            let mut session = runtime.lock().unwrap();
+            session.replace(open_state("replace-session-new"));
+        }
+        let _request = crate::request_session::enter(Some(old));
+        assert!(runtime.lock().is_err(), "queued edits must not reach a restored or relocated database");
+    }
     #[test]
     fn session_revision_changes_even_before_path_generation_or_same_profile_reopen() {
         let runtime = AppRuntime::no_profile_open();
@@ -376,14 +417,16 @@ mod tests {
 
     #[test]
     fn the_session_lets_a_command_swap_the_state_in_place() {
-        // relocate_data_file, restore_backup and switch_profile do `*state = AppState::open(..)?`.
+        // Profile/database replacements use OpenSession::replace to retire queued origin requests.
         let runtime = open_runtime(open_state("swap-first"));
+        let old = runtime.current_revision();
 
         {
             let mut session = runtime.lock().ok().unwrap();
-            *session = open_state("swap-second");
+            session.replace(open_state("swap-second"));
         }
 
         assert!(runtime.lock().is_ok());
+        assert!(runtime.current_revision() > old);
     }
 }

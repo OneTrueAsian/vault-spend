@@ -23,6 +23,33 @@ fn delay_for(failures: u32) -> Duration {
 struct ProfileAttempts {
     failures: u32,
     not_before: Instant,
+    in_flight: bool,
+}
+
+/// Reservation covers credential verification only. Other profiles remain independent; no mutex is
+/// held while running a KDF and callers never sleep with a database/runtime lock held.
+pub struct Attempt<'a> {
+    sessions: &'a Sessions,
+    profile_id: String,
+}
+
+impl Attempt<'_> {
+    pub fn finish<T>(self, result: Result<T, String>) -> Result<T, String> {
+        if result.is_ok() {
+            self.sessions.record_success(&self.profile_id);
+        } else {
+            self.sessions.record_failure(&self.profile_id);
+        }
+        result
+    }
+}
+
+impl Drop for Attempt<'_> {
+    fn drop(&mut self) {
+        if let Some(entry) = self.sessions.attempts.lock().unwrap_or_else(|e| e.into_inner()).get_mut(&self.profile_id) {
+            entry.in_flight = false;
+        }
+    }
 }
 
 /// What `Sessions::begin_setup` hands back for the frontend to show: the recovery code in full,
@@ -67,6 +94,52 @@ pub struct Sessions {
 }
 
 impl Sessions {
+    pub fn begin_attempt(&self, profile_id: &str) -> Result<Attempt<'_>, String> {
+        self.begin_attempt_at(profile_id, Instant::now())
+    }
+
+    fn begin_attempt_at(&self, profile_id: &str, now: Instant) -> Result<Attempt<'_>, String> {
+        let mut attempts = self.attempts.lock().unwrap_or_else(|e| e.into_inner());
+        let entry = attempts.entry(profile_id.to_owned()).or_insert(ProfileAttempts {
+            failures: 0,
+            not_before: now,
+            in_flight: false,
+        });
+        let remaining = entry.not_before.saturating_duration_since(now);
+        if !remaining.is_zero() {
+            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+        }
+        if entry.in_flight {
+            return Err("A credential check for this profile is already in progress.".to_string());
+        }
+        entry.in_flight = true;
+        Ok(Attempt {
+            sessions: self,
+            profile_id: profile_id.to_owned(),
+        })
+    }
+
+    pub fn check_password(
+        &self,
+        key: &budget_core::protection::keyfile::KeyFile,
+        password: &str,
+    ) -> Result<budget_core::protection::keyfile::UnlockedKey, String> {
+        let attempt = self.begin_attempt(&key.protection_id)?;
+        attempt.finish(key.unlock_with_password(password).map_err(|_| "That password didn't work.".to_owned()))
+    }
+
+    pub fn check_recovery(
+        &self,
+        key: &budget_core::protection::keyfile::KeyFile,
+        code: &str,
+    ) -> Result<budget_core::protection::keyfile::UnlockedKey, String> {
+        let attempt = self.begin_attempt(&key.protection_id)?;
+        let result = RecoveryCode::parse(code)
+            .map_err(|_| "That recovery key didn't work.".to_owned())
+            .and_then(|code| key.unlock_with_recovery(&code).map_err(|_| "That recovery key didn't work.".to_owned()));
+        attempt.finish(result)
+    }
+
     pub fn new() -> Self {
         Sessions {
             attempts: Mutex::new(HashMap::new()),
@@ -126,6 +199,7 @@ impl Sessions {
 
     /// How long the caller must wait before this profile's next attempt is allowed. `Duration::ZERO`
     /// means "attempt now." Does not itself record anything — see `record_failure`/`record_success`.
+    #[cfg(test)]
     pub fn delay_remaining(&self, profile_id: &str) -> Duration {
         let attempts = self.attempts.lock().unwrap_or_else(|e| e.into_inner());
         match attempts.get(profile_id) {
@@ -135,23 +209,90 @@ impl Sessions {
     }
 
     pub fn record_failure(&self, profile_id: &str) {
+        self.record_failure_at(profile_id, Instant::now());
+    }
+
+    fn record_failure_at(&self, profile_id: &str, now: Instant) {
         let mut attempts = self.attempts.lock().unwrap_or_else(|e| e.into_inner());
         let entry = attempts.entry(profile_id.to_string()).or_insert(ProfileAttempts {
             failures: 0,
-            not_before: Instant::now(),
+            not_before: now,
+            in_flight: false,
         });
-        entry.failures += 1;
-        entry.not_before = Instant::now() + delay_for(entry.failures);
+        entry.failures = entry.failures.saturating_add(1);
+        entry.not_before = now + delay_for(entry.failures);
     }
 
     pub fn record_success(&self, profile_id: &str) {
-        self.attempts.lock().unwrap_or_else(|e| e.into_inner()).remove(profile_id);
+        let mut attempts = self.attempts.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(entry) = attempts.get_mut(profile_id) {
+            entry.failures = 0;
+            entry.not_before = Instant::now();
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reservations_serialize_one_profile_and_release_on_abort_without_counting_io_errors() {
+        let sessions = Sessions::new();
+        let a = sessions.begin_attempt("a").unwrap();
+        assert!(sessions.begin_attempt("a").err().unwrap().contains("already in progress"));
+        let b = sessions.begin_attempt("b").unwrap();
+        drop(a);
+        drop(b);
+        assert!(sessions.begin_attempt("a").is_ok());
+        assert_eq!(sessions.attempts.lock().unwrap()["a"].failures, 0);
+    }
+
+    #[test]
+    fn deterministic_cooldown_steps_and_correct_credentials_cannot_skip_the_deadline() {
+        let sessions = Sessions::new();
+        let now = Instant::now();
+        for failure in 1..=8 {
+            sessions.record_failure_at("a", now);
+            let expected = delay_for(failure);
+            assert_eq!(sessions.attempts.lock().unwrap()["a"].not_before, now + expected);
+            if !expected.is_zero() {
+                assert!(sessions.begin_attempt_at("a", now + expected - Duration::from_nanos(1)).is_err());
+            }
+            drop(sessions.begin_attempt_at("a", now + expected).unwrap());
+        }
+        assert!(sessions.begin_attempt_at("b", now).is_ok());
+        sessions.record_success("a");
+        assert_eq!(sessions.attempts.lock().unwrap()["a"].failures, 0);
+    }
+
+    #[test]
+    fn passwords_recovery_and_copied_key_files_share_attempts_but_other_profiles_do_not() {
+        use budget_core::protection::{kdf::KdfParams, keyfile::create_protection};
+        let a = create_protection("right password", &KdfParams::FAST_FOR_TESTS, "2026-10-09T00:00:00Z").unwrap();
+        let b = create_protection("other password", &KdfParams::FAST_FOR_TESTS, "2026-10-09T00:00:00Z").unwrap();
+        let sessions = Sessions::new();
+        assert!(sessions.check_password(&a.key_file, "wrong").is_err());
+        assert!(sessions.check_recovery(&a.key_file, "malformed").is_err());
+        let copy = a.key_file.clone();
+        assert!(sessions.check_password(&copy, "wrong").is_err());
+        assert!(sessions.check_recovery(&copy, "malformed").is_err());
+        assert!(sessions
+            .check_password(&a.key_file, "right password")
+            .err()
+            .unwrap()
+            .contains("Try again"));
+        assert!(sessions
+            .check_recovery(&a.key_file, &a.recovery_code.display())
+            .err()
+            .unwrap()
+            .contains("Try again"));
+        assert!(sessions.check_password(&b.key_file, "other password").is_ok());
+        // Advance just this deterministic fixture's deadline, then recover successfully.
+        sessions.attempts.lock().unwrap().get_mut(&a.key_file.protection_id).unwrap().not_before = Instant::now();
+        assert!(sessions.check_recovery(&a.key_file, &a.recovery_code.display()).is_ok());
+        assert!(sessions.check_password(&a.key_file, "right password").is_ok());
+    }
 
     #[test]
     fn the_first_three_failures_carry_no_delay() {

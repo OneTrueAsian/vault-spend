@@ -150,6 +150,18 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* Goals grid rows stretch cards equally. Reserve the flex remainder above
+   the contribution footer; the card's 8px gap remains its minimum spacing.
+   Keep the popover's relative anchor and upward offset unchanged. */
+.buckets-view .buckets-grid > .bucket-card > .bucket-contribute {
+  margin-top: auto;
+}
+
+/* A narrow last-column card must not let its upward panel widen the page. */
+.buckets-view .bucket-contribute-panel {
+  max-width: 100%;
+}
+
 .goal-ring-wrap {
   position: relative;
   display: flex;

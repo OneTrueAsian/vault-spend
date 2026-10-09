@@ -1,32 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { filterPalette, scoreMatch, type PaletteEntry } from "./paletteSearch";
+import { filterPalette, type PaletteEntry } from "./paletteSearch";
 
 const tab = (id: string, label: string): PaletteEntry => ({ id: `tab:${id}`, kind: "tab", label });
 const action = (id: string, label: string, keywords?: string): PaletteEntry => ({ id: `action:${id}`, kind: "action", label, keywords });
 const txn = (id: number, label: string): PaletteEntry => ({ id: `txn:${id}`, kind: "transaction", label });
 
-describe("scoreMatch", () => {
+describe("filterPalette match quality with equal-kind entries", () => {
   it("ranks exact, then prefix, then word start, then substring, then scattered letters", () => {
-    const exact = scoreMatch("budget", "Budget");
-    const prefix = scoreMatch("bud", "Budget");
-    const wordStart = scoreMatch("cash", "Go to Cash Flow");
-    const substring = scoreMatch("dge", "Budget");
-    const scattered = scoreMatch("bgt", "Budget");
-
-    expect(exact).toBeGreaterThan(prefix);
-    expect(prefix).toBeGreaterThan(wordStart);
-    expect(wordStart).toBeGreaterThan(substring);
-    expect(substring).toBeGreaterThan(scattered);
-    expect(scattered).toBeGreaterThan(0);
+    const candidates = [tab("scattered", "B u d g e t"), tab("substring", "Rebudgeted"), tab("word", "Go to Budget"), tab("prefix", "Budgeting"), tab("exact", "Budget")];
+    expect(filterPalette(candidates, "budget").map(e => e.id)).toEqual(["tab:exact", "tab:prefix", "tab:word", "tab:substring", "tab:scattered"]);
   });
 
   it("is zero when the letters aren't there in order", () => {
-    expect(scoreMatch("xyz", "Budget")).toBe(0);
-    expect(scoreMatch("tgb", "Budget")).toBe(0);
+    expect(filterPalette([tab("budget", "Budget")], "xyz")).toEqual([]);
+    expect(filterPalette([tab("budget", "Budget")], "tgb")).toEqual([]);
   });
 
   it("ignores case", () => {
-    expect(scoreMatch("BUD", "budget")).toBe(scoreMatch("bud", "Budget"));
+    const candidates = [tab("lower", "budget"), tab("upper", "BUDGET"), tab("prefix", "Budgeting")];
+    expect(filterPalette(candidates, "BUD").map(e => e.id)).toEqual(["tab:lower", "tab:upper", "tab:prefix"]);
+    expect(filterPalette(candidates, "BUD")).toEqual(filterPalette(candidates, "bud"));
   });
 });
 

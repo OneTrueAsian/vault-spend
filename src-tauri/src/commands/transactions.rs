@@ -126,7 +126,7 @@ pub fn create_manual_transaction(
     Ok(id)
 }
 
-fn transaction_dto(s: budget_core::store::StoredTransaction) -> TransactionDto {
+pub(super) fn transaction_dto(s: budget_core::store::StoredTransaction) -> TransactionDto {
     TransactionDto {
         id: s.id,
         transfer_counterpart_id: s.transfer_counterpart_id,

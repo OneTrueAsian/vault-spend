@@ -1,3 +1,4 @@
+import { EditableCombobox } from "./EditableCombobox";
 import "./Modal.css";
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -104,6 +105,10 @@ export function ModalShell({
       panelRef.current?.focus();
     }
     function onKeyDown(e: KeyboardEvent) {
+      // A manual-lock confirmation can cover another dialog containing unsaved work. Only the
+      // uppermost dialog handles Escape and traps Tab; cancelling it must preserve the draft below.
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      if (dialogs[dialogs.length - 1] !== panelRef.current) return;
       if (e.key === "Escape") {
         onCancelRef.current();
         return;
@@ -1541,7 +1546,6 @@ export function RuleEditorDialog({
   const [category, setCategory] = useState(initial?.category ?? "");
   const [preview, setPreview] = useState<RulePreview | null>(null);
   const [applyToExisting, setApplyToExisting] = useState(true);
-  const datalistId = useId();
 
   // Latest `onPreview` without making it an effect dependency — the parent
   // hands in a fresh closure every render, and re-running the debounce on
@@ -1593,17 +1597,13 @@ export function RuleEditorDialog({
         </label>
         <label className="modal-field">
           <span>Give it this category</span>
-          <input
-            list={datalistId}
+          <EditableCombobox
+            options={categories}
+            aria-label="Give it this category"
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={setCategory}
             placeholder="Pick one, or type a new one"
           />
-          <datalist id={datalistId}>
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
         </label>
         <p className="modal-message modal-message-secondary" data-rule-preview={preview ? "ready" : "none"}>
           {preview === null

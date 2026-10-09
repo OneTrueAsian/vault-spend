@@ -9,6 +9,8 @@ const protection = vi.hoisted(() => ({
   deleteProtectionLeftovers: vi.fn(),
 }));
 vi.mock("./protection", () => protection);
+const generation = vi.hoisted(() => ({ getCurrentGeneration: vi.fn() }));
+vi.mock("./profileUiState", () => generation);
 
 import { ProtectionLeftovers } from "./ProtectionLeftovers";
 
@@ -35,6 +37,7 @@ describe("ProtectionLeftovers", () => {
   beforeEach(() => {
     protection.listProtectionLeftovers.mockReset();
     protection.deleteProtectionLeftovers.mockReset();
+    generation.getCurrentGeneration.mockReset().mockResolvedValue(19);
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -102,7 +105,7 @@ describe("ProtectionLeftovers", () => {
       await flush();
     });
 
-    expect(protection.deleteProtectionLeftovers).toHaveBeenCalledWith(["C:\\data\\vaultspend.db", "C:\\data\\backups\\old.db"]);
+    expect(protection.deleteProtectionLeftovers).toHaveBeenCalledWith(["C:\\data\\vaultspend.db", "C:\\data\\backups\\old.db"], "a", 19);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("C:\\data\\backups\\old.db");
   });
 
@@ -116,5 +119,111 @@ describe("ProtectionLeftovers", () => {
 
     expect(protection.deleteProtectionLeftovers).not.toHaveBeenCalled();
     expect(container.textContent).toBe("");
+  });
+
+  const mirror = { path: "D:\\mirror\\old.db", kind: "mirrored_plaintext_backup", size_bytes: 512 };
+  const local = { path: "C:\\data\\old.db", kind: "plaintext_backup", size_bytes: 512 };
+  const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === label)!;
+
+  it("discloses mirror-only files with a reachable checkbox and disables only the empty deletion selection", async () => {
+    protection.listProtectionLeftovers.mockResolvedValue([mirror]);
+    protection.deleteProtectionLeftovers.mockResolvedValue([]);
+    await show(PROTECTED_PROFILE);
+    expect(container.querySelector('[aria-label="Leftover plaintext files"]')).not.toBeNull();
+    expect(container.textContent).toContain("Local plaintext copies: 0");
+    expect(container.textContent).toContain("Second-folder copies: 1");
+    expect(button("Delete plaintext copies now").disabled).toBe(true);
+    act(() => container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    expect(button("Delete plaintext copies now").disabled).toBe(false);
+    await act(async () => { button("Delete plaintext copies now").click(); await flush(); });
+    expect(protection.deleteProtectionLeftovers).toHaveBeenCalledWith([mirror.path], "a", 19);
+  });
+
+  it("keeps the warning after deleting local files while the mirror is retained", async () => {
+    protection.listProtectionLeftovers.mockResolvedValueOnce([local, mirror]).mockResolvedValueOnce([mirror]);
+    protection.deleteProtectionLeftovers.mockResolvedValue([]);
+    await show(PROTECTED_PROFILE);
+    await act(async () => { button("Delete plaintext copies now").click(); await flush(); });
+    expect(container.textContent).toContain("Second-folder copies: 1");
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeNull();
+    expect(protection.deleteProtectionLeftovers).toHaveBeenCalledWith([local.path], "a", 19);
+  });
+
+  it("reports failed discovery and retries without claiming an empty inventory", async () => {
+    protection.listProtectionLeftovers.mockRejectedValueOnce(new Error("mirror unavailable")).mockResolvedValueOnce([mirror]);
+    await show(PROTECTED_PROFILE);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Cleanup status could not be checked");
+    expect(button("Delete plaintext copies now").disabled).toBe(true);
+    await act(async () => { button("Retry cleanup check").click(); await flush(); });
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.textContent).toContain("Second-folder copies: 1");
+  });
+
+  it("rejects a stale profile's late discovery result", async () => {
+    let complete!: (value: unknown[]) => void;
+    protection.listProtectionLeftovers.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; })).mockResolvedValueOnce([mirror]);
+    await show(PROTECTED_PROFILE);
+    await show([{ ...PROTECTED_PROFILE[0], id: "b" }]);
+    await act(async () => { complete([local]); await flush(); });
+    expect(container.textContent).toContain("Second-folder copies: 1");
+    expect(container.textContent).not.toContain(local.path);
+  });
+
+  it("reports deletion command failures without losing the known inventory", async () => {
+    protection.listProtectionLeftovers.mockResolvedValue([local]);
+    protection.deleteProtectionLeftovers.mockRejectedValue(new Error("active profile changed"));
+    await show(PROTECTED_PROFILE);
+    await act(async () => { button("Delete plaintext copies now").click(); await flush(); });
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("active profile changed");
+    expect(container.textContent).toContain(local.path);
+  });
+
+  it("retains partial-delete errors when rediscovery also fails", async () => {
+    protection.listProtectionLeftovers.mockResolvedValueOnce([local]).mockRejectedValueOnce(new Error("mirror unavailable"));
+    protection.deleteProtectionLeftovers.mockResolvedValue([local.path]);
+    await show(PROTECTED_PROFILE);
+    await act(async () => { button("Delete plaintext copies now").click(); await flush(); });
+    expect(container.textContent).toContain("Couldn't delete:");
+    expect(container.textContent).toContain("Cleanup status could not be checked");
+    expect(button("Delete plaintext copies now").disabled).toBe(true);
+  });
+
+  it("reserves a deletion immediately so double submission cannot start two operations", async () => {
+    protection.listProtectionLeftovers.mockResolvedValue([local]);
+    let complete!: (value: string[]) => void;
+    protection.deleteProtectionLeftovers.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+    await show(PROTECTED_PROFILE);
+    act(() => { button("Delete plaintext copies now").click(); button("Delete plaintext copies now").click(); });
+    expect(protection.deleteProtectionLeftovers).toHaveBeenCalledTimes(1);
+    await act(async () => { complete([]); await flush(); });
+  });
+
+  it("does not apply an old profile's completed deletion or error to the replacement profile", async () => {
+    protection.listProtectionLeftovers.mockResolvedValueOnce([local]).mockResolvedValueOnce([mirror]);
+    let complete!: (value: string[]) => void;
+    protection.deleteProtectionLeftovers.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    await show(PROTECTED_PROFILE);
+    act(() => button("Delete plaintext copies now").click());
+    await show([{ ...PROTECTED_PROFILE[0], id: "b" }]);
+    await act(async () => { complete([local.path]); await flush(); });
+    expect(container.textContent).toContain("Second-folder copies: 1");
+    expect(container.textContent).not.toContain("Couldn't delete:");
+    expect(protection.listProtectionLeftovers).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports generation discovery failures before issuing any inventory command", async () => {
+    generation.getCurrentGeneration.mockRejectedValueOnce(new Error("profile unavailable"));
+    await show(PROTECTED_PROFILE);
+    expect(protection.listProtectionLeftovers).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Cleanup status could not be checked");
+  });
+
+  it("refuses a completed inventory when generation changes within the same displayed profile", async () => {
+    generation.getCurrentGeneration.mockResolvedValueOnce(19).mockResolvedValue(20);
+    protection.listProtectionLeftovers.mockResolvedValue([local]);
+    await show(PROTECTED_PROFILE);
+    expect(container.textContent).not.toContain(local.path);
+    expect(container.textContent).toContain("active profile changed during the cleanup check");
+    expect(button("Delete plaintext copies now").disabled).toBe(true);
   });
 });

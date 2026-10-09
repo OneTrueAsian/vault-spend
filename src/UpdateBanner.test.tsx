@@ -9,10 +9,10 @@ import { createRoot, type Root } from "react-dom/client";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const tauri = vi.hoisted(() => ({ invoke: vi.fn(), getVersion: vi.fn() }));
+const tauri = vi.hoisted(() => ({ invoke: vi.fn(), getVersion: vi.fn(), openPath: vi.fn(), openUrl: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: tauri.invoke }));
 vi.mock("@tauri-apps/api/app", () => ({ getVersion: tauri.getVersion }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ openPath: vi.fn(), openUrl: vi.fn() }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openPath: tauri.openPath, openUrl: tauri.openUrl }));
 
 import { UpdateBanner } from "./UpdateBanner";
 
@@ -30,6 +30,8 @@ describe("UpdateBanner", () => {
   beforeEach(() => {
     tauri.invoke.mockReset();
     tauri.getVersion.mockReset();
+    tauri.openPath.mockReset();
+    tauri.openUrl.mockReset();
     tauri.getVersion.mockResolvedValue("1.2.9");
     pageFetch.mockReset();
     vi.stubGlobal("fetch", pageFetch);
@@ -64,7 +66,8 @@ describe("UpdateBanner", () => {
     tauri.invoke.mockResolvedValue(release("v1.3.0"));
     await mount();
     expect(container.textContent).toContain("A new version of Vault Spend (1.3.0) is available.");
-    expect(container.textContent).toContain("Update now");
+    expect(container.textContent).toContain("View release");
+    expect(container.textContent).not.toContain("Update now");
   });
 
   it("stays hidden when the installed version is current", async () => {
@@ -84,5 +87,15 @@ describe("UpdateBanner", () => {
     tauri.invoke.mockResolvedValue(release("v1.3.0"));
     await mount();
     expect(container.textContent).toBe("");
+  });
+
+  it("uses the fixed official release page even if metadata supplies another URL", async () => {
+    tauri.invoke.mockResolvedValue({ ...release("v1.3.0"), html_url: "https://example.invalid/installer" });
+    await mount();
+    const button = [...container.querySelectorAll("button")].find((b) => b.textContent === "View release")!;
+    await act(async () => button.click());
+    expect(tauri.openUrl).toHaveBeenCalledWith("https://github.com/OneTrueAsian/vault-spend/releases");
+    expect(tauri.openPath).not.toHaveBeenCalled();
+    expect(tauri.invoke.mock.calls.every(([command]) => command === "fetch_latest_release")).toBe(true);
   });
 });

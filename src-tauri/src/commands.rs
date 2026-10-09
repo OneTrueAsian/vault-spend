@@ -22,6 +22,10 @@ mod profiles;
 pub use self::profiles::*;
 mod import;
 pub use self::import::*;
+mod transaction_snapshot;
+pub use self::transaction_snapshot::*;
+mod financial_snapshot;
+pub use self::financial_snapshot::*;
 mod transactions;
 pub use self::transactions::*;
 mod categories;
@@ -62,7 +66,11 @@ struct ValidatedProtectedPackage {
     dek: budget_core::protection::keyfile::UnlockedKey,
 }
 
-fn validate_protected_package(package_dir: &std::path::Path, password: &str) -> Result<ValidatedProtectedPackage, String> {
+fn validate_protected_package(
+    package_dir: &std::path::Path,
+    password: &str,
+    sessions: &crate::protection_session::Sessions,
+) -> Result<ValidatedProtectedPackage, String> {
     use budget_core::protection::package::{sha256_file, DATABASE_FILENAME, MANIFEST_FILENAME};
     use budget_core::protection::PACKAGE_FORMAT;
 
@@ -91,9 +99,7 @@ fn validate_protected_package(package_dir: &std::path::Path, password: &str) -> 
     if key_file.format != manifest.protection_format {
         return Err("This package's protection information doesn't match its manifest.".to_string());
     }
-    let dek = key_file
-        .unlock_with_password(password)
-        .map_err(|_| "That password didn't work.".to_string())?;
+    let dek = sessions.check_password(&key_file, password)?;
     Ok(ValidatedProtectedPackage { manifest, key_file, dek })
 }
 

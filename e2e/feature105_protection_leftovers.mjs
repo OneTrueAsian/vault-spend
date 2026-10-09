@@ -31,6 +31,7 @@ try {
 
   const region = await browser.$(REGION);
   await region.waitForExist({ timeout: 10000, timeoutMsg: "the leftovers banner should appear once conversion finishes" });
+  await browser.waitUntil(async () => (await region.getText()).includes("vaultspend.db"), { timeout: 10000, timeoutMsg: "wait for the actual plaintext inventory after its checking state" });
   const regionText = await region.getText();
   assert.match(regionText, /vaultspend\.db/, `expected the original database's path, got:\n${regionText}`);
   assert.match(regionText, /vaultspend-20260918-090000\.db/, `expected the first backup's path, got:\n${regionText}`);
@@ -61,6 +62,8 @@ try {
   const region = await browser.$(REGION);
   await region.waitForExist({ timeout: 10000, timeoutMsg: "Keep for now must not persist — the banner should reappear on the next launch" });
 
+  await browser.waitUntil(() => browser.$("button=Delete plaintext copies now").isEnabled(), { timeout: 10000 });
+
   await (await browser.$("button=Delete plaintext copies now")).click();
   await browser.waitUntil(async () => !(await browser.$(REGION).isExisting()), {
     timeout: 10000,
@@ -86,7 +89,10 @@ try {
   await dismissFirstLaunchDialogs(browser);
   await (await browser.$("button*=Settings")).click();
   await (await browser.$("[data-data-file]")).waitForExist({ timeout: 10000 }); // Settings has fully rendered
-  assert.ok(!(await browser.$(REGION).isExisting()), "with nothing left to delete, the banner must not appear at all");
+  await browser.waitUntil(async () => !(await browser.$(REGION).isExisting()), {
+    timeout: 10000,
+    timeoutMsg: "with nothing left to delete, the completed cleanup check must remove the banner",
+  });
 } finally {
   await app.close();
 }

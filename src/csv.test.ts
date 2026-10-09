@@ -18,7 +18,7 @@ describe("toCsv", () => {
   });
 
   it("defuses a formula-shaped field for every caller, without an opt-in step", () => {
-    const csv = toCsv(["Description", "Amount"], [["=1+1", "-10"]]);
+    const csv = toCsv(["Description", "Amount"], [["=1+1", "-10"]], ["text", "decimal"]);
     const dataRow = csv.split("\r\n")[1];
     expect(dataRow.startsWith("=1+1,")).toBe(false);
     expect(dataRow).toBe("'=1+1,-10");
@@ -64,11 +64,26 @@ describe("sanitizeCsvText", () => {
     expect(sanitizeCsvText("Rent - September")).toBe("Rent - September");
   });
 
-  it("leaves a plain negative or positive decimal amount untouched", () => {
-    expect(sanitizeCsvText("-50.00")).toBe("-50.00");
-    expect(sanitizeCsvText("1234.56")).toBe("1234.56");
-    expect(sanitizeCsvText("-10")).toBe("-10");
-    expect(sanitizeCsvText("0")).toBe("0");
+  it("treats numeric-looking descriptions as text, independently of decimal amount columns", () => {
+    expect(sanitizeCsvText("-50.00")).toBe("'-50.00");
+    expect(toCsv(["Description", "Amount"], [["-50.00", "-50.00"]], ["text", "decimal"])).toBe("Description,Amount\r\n'-50.00,-50.00\r\n");
+  });
+
+  it.each([" =1+1", "\t=1+1", "\r=1+1", "\n=1+1", "\u0000=1+1", "\u0085=1+1", "＝1+1", "＋1", "－1+2", "＠SUM(1)"])("prefixes whitespace/control/full-width variant %j without removing characters", value => {
+    expect(sanitizeCsvText(value)).toBe(`'${value}`);
+  });
+
+  it("keeps ordinary apostrophes and precise decimal strings without number coercion", () => {
+    expect(toCsv(["Name", "Amount"], [["O'Brien", "-9007199254740992.01"], ["'=1+1", "0.000001"]], ["text", "decimal"])).toBe("Name,Amount\r\nO'Brien,-9007199254740992.01\r\n'=1+1,0.000001\r\n");
+  });
+
+  it.each(["=1+1", "-1+2", "NaN", "Infinity", " 12", "1e3"])("refuses non-decimal data in a declared decimal column: %s", value => {
+    expect(() => toCsv(["Amount"], [[value]], ["decimal"])).toThrow();
+  });
+
+  it("rejects mismatched column declarations and ragged records", () => {
+    expect(() => toCsv(["A", "B"], [["1", "2"]], ["text"])).toThrow();
+    expect(() => toCsv(["A"], [["1", "2"]])).toThrow();
   });
 
   it("still defuses a formula-shaped value that merely starts like a number", () => {

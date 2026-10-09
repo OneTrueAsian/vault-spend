@@ -1,3 +1,4 @@
+import { EditableCombobox } from "./EditableCombobox";
 import "./Ledger.css";
 import type * as React from "react";
 
@@ -15,6 +16,7 @@ interface LedgerBulkActionsProps {
   handleAddSelectedToRecurring: (cadence: string) => Promise<void>;
   familyMembers: FamilyMember[];
   handleBulkMemberChange: (value: string) => Promise<void>;
+  allTags: string[];
   bulkTagText: string;
   setBulkTagText: React.Dispatch<React.SetStateAction<string>>;
   handleBulkAddTag: (tag: string) => Promise<void>;
@@ -37,6 +39,7 @@ export function LedgerBulkActions({
   handleAddSelectedToRecurring,
   familyMembers,
   handleBulkMemberChange,
+  allTags,
   bulkTagText,
   setBulkTagText,
   handleBulkAddTag,
@@ -84,11 +87,12 @@ export function LedgerBulkActions({
         />
       )}
       <span className="bulk-tag-input">
-        <input
-          list="known-tags"
+        <EditableCombobox
+          options={allTags}
+          aria-label="Add tag to selected transactions"
           placeholder="+ Add tag…"
           value={bulkTagText}
-          onChange={(e) => setBulkTagText(e.target.value)}
+          onChange={setBulkTagText}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();

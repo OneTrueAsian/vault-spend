@@ -71,11 +71,6 @@ export function LedgerFilterBar({
         allTags={allTags}
         onSetTag={setFilterTag}
       />
-      <datalist id="known-tags">
-        {allTags.map((tag) => (
-          <option key={tag} value={tag} />
-        ))}
-      </datalist>
     </div>
   );
 }

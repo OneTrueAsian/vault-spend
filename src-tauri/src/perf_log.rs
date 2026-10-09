@@ -49,6 +49,15 @@ where
             return handler(invoke);
         };
         let cmd = invoke.message.command().to_string();
+        // A count identifies full versus targeted reads without recording financial identifiers.
+        let requested_rows = if cmd == "get_transaction_snapshot" {
+            match invoke.message.payload() {
+                tauri::ipc::InvokeBody::Json(value) => value.get("ids").and_then(|ids| ids.as_array()).map(Vec::len),
+                _ => None,
+            }
+        } else {
+            None
+        };
         let started = Instant::now();
         let handled = handler(invoke);
         let ms = started.elapsed().as_secs_f64() * 1000.0;
@@ -56,7 +65,15 @@ where
         let main_thread = std::thread::current().name() == Some("main");
         let _guard = log.write.lock().unwrap_or_else(|e| e.into_inner());
         if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log.path) {
-            let _ = file.write_all(line(&cmd, start_ms, ms, main_thread).as_bytes());
+            let mut entry = line(&cmd, start_ms, ms, main_thread);
+            if cmd == "get_transaction_snapshot" {
+                entry.truncate(entry.len() - 2);
+                entry.push_str(&format!(
+                    ",\"requested_rows\":{}}}\n",
+                    requested_rows.map(|n| n.to_string()).unwrap_or_else(|| "null".into())
+                ));
+            }
+            let _ = file.write_all(entry.as_bytes());
         }
         handled
     }

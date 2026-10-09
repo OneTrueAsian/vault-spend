@@ -65,3 +65,4 @@ db-backups/
 # Per-machine E2E spec timing history (run-all.mjs's longest-first
 # scheduling) — self-generated, machine-specific, and rebuilds itself.
 /e2e/.e2e-durations.json
+dependency-audit/

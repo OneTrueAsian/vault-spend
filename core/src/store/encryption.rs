@@ -97,6 +97,7 @@ impl Store {
             conn,
             activity_log_path,
             db_key,
+            anomaly_cache: Box::new(std::cell::RefCell::new(None)),
         };
         store.init_schema().map_err(StoreOpenError::Sqlite)?;
         Ok(store)

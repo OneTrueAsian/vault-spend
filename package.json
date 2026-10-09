@@ -57,6 +57,15 @@
     "typescript-eslint": "^8.71.0",
     "vite": "^7.0.4",
     "vitest": "^4.1.11",
-    "webdriverio": "^9.31.5"
+    "webdriverio": "^9.32.0",
+    "yauzl": "^3.4.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "overrides": {
+    "@wdio/utils": {
+      "@puppeteer/browsers": "3.2.4"
+    }
   }
 }

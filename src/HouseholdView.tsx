@@ -19,6 +19,7 @@ export function HouseholdView({
   assets,
   familyMembers,
   memberBudgetActuals,
+  budgetReadReady = true,
   monthLabel,
   year,
   month,
@@ -32,6 +33,7 @@ export function HouseholdView({
   assets: Asset[];
   familyMembers: FamilyMember[];
   memberBudgetActuals: MemberBudgetActual[];
+  budgetReadReady?: boolean;
   monthLabel: string;
   /** Same year/month `monthLabel` and `memberBudgetActuals` are already
    * scoped to (the Budget tab's own month cursor) — used to scope the
@@ -157,7 +159,7 @@ export function HouseholdView({
         </ul>
       </div>
 
-      <div className="card">
+      {budgetReadReady && <div className="card">
         <h2 className="reports-section-title">Budget, by category and person</h2>
         <p className="modal-message-secondary">
           Budgets are shared per category — there's no separate target per person, just each person's share of what's
@@ -189,7 +191,7 @@ export function HouseholdView({
             </tbody>
           </table>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

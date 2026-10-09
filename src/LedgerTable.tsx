@@ -1,3 +1,4 @@
+import { EditableCombobox } from "./EditableCombobox";
 import "./Ledger.css";
 import type * as React from "react";
 
@@ -80,6 +81,7 @@ interface LedgerTableProps {
   commitDescriptionEdit: (id: number, value: string) => Promise<void>;
   anomalyFlagsByTransaction: Map<number, AnomalyFlag[]>;
   handleRemoveTag: (id: number, tag: string) => Promise<void>;
+  allTags: string[];
   newTagText: Record<number, string>;
   setNewTagText: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   handleAddTag: (id: number, tag: string) => Promise<void>;
@@ -158,6 +160,7 @@ export function LedgerTable({
   commitDescriptionEdit,
   anomalyFlagsByTransaction,
   handleRemoveTag,
+  allTags,
   newTagText,
   setNewTagText,
   handleAddTag,
@@ -531,14 +534,14 @@ export function LedgerTable({
                               </span>
                             ))}
                             {taggingId === t.id && (
-                              <input
+                              <EditableCombobox
                                 autoFocus
                                 className="tag-input"
-                                list="known-tags"
+                                options={allTags}
                                 aria-label={`New tag for "${t.description}"`}
                                 placeholder="tag"
                                 value={newTagText[t.id] ?? ""}
-                                onChange={(e) => setNewTagText((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                                onChange={(value) => setNewTagText((prev) => ({ ...prev, [t.id]: value }))}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
                                     e.preventDefault();

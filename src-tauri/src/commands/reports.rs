@@ -377,7 +377,11 @@ pub fn cash_flow_for_range(
     state: tauri::State<AppStateHandle>,
 ) -> Result<CashFlowDto, String> {
     let state = state.lock()?;
-    let month_totals = month_totals_for_range(&state.store, from_year, from_month, to_year, to_month, "%b '%y")?;
+    cash_flow_for_store(&state.store, from_year, from_month, to_year, to_month)
+}
+
+pub(super) fn cash_flow_for_store(store: &Store, from_year: i32, from_month: u32, to_year: i32, to_month: u32) -> Result<CashFlowDto, String> {
+    let month_totals = month_totals_for_range(store, from_year, from_month, to_year, to_month, "%b '%y")?;
 
     let mut total_income = Decimal::ZERO;
     let mut total_expense = Decimal::ZERO;
@@ -390,8 +394,7 @@ pub fn cash_flow_for_range(
         chrono::NaiveDate::from_ymd_opt(from_year, from_month, 1).ok_or_else(|| format!("invalid start month: {from_year:04}-{from_month:02}"))?;
     let end_date = last_day_of_month(to_year, to_month);
 
-    let top_categories = state
-        .store
+    let top_categories = store
         .spending_by_category(start_date, end_date)
         .map_err(|e| e.to_string())?
         .into_iter()
@@ -401,8 +404,7 @@ pub fn cash_flow_for_range(
             amount: amount.to_string(),
         })
         .collect();
-    let top_merchants = state
-        .store
+    let top_merchants = store
         .top_merchants(start_date, end_date, 8)
         .map_err(|e| e.to_string())?
         .into_iter()

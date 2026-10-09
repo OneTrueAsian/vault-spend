@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import type { Account, CashFlow, DebtPayoffPlan, FamilyMember, MonthTotal, Transaction, Asset } from "./types";
+import { useFinancialRead } from "./useFinancialRead";
+import { FinancialReadState } from "./FinancialReadState";
+import type { ReportSnapshot } from "./financialContracts";
+import type { Account, DebtPayoffPlan, FamilyMember, MonthTotal, Transaction, Asset } from "./types";
 import { LineChart } from "./charts";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import { groupOf, isIncomeTransaction, owedAmount } from "./accountGroups";
@@ -551,8 +553,6 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
   );
 }
 
-type CategoryMonthCell = { month: string; category: string; amount: string };
-
 /** Reports > Overview: one date range drives everything on the page — the summary, a
  * category-by-month table, a year-by-year summary, and spending cut by family
  * member and by tag. (Property & Valuables lives on Accounts and data
@@ -563,6 +563,7 @@ export function ReportsOverview({
   assets,
   familyMembers,
   onExportCsv,
+  dataRevision = "",
   onPrint,
   onOpenBudget,
   layoutWidgets,
@@ -573,6 +574,7 @@ export function ReportsOverview({
   assets: Asset[];
   familyMembers: FamilyMember[];
   onExportCsv: () => void;
+  dataRevision?: string;
   onPrint: () => void;
   onOpenBudget: () => void;
   layoutWidgets: WidgetId[];
@@ -583,44 +585,20 @@ export function ReportsOverview({
   const months = monthKeys(from, to);
   const rangeKey = `${months[0]}..${months[months.length - 1]}`;
 
-  const [cells, setCells] = useState<CategoryMonthCell[]>([]);
-  const [flow, setFlow] = useState<CashFlow | null>(null);
-  const [daily, setDaily] = useState<DailyAmount[]>([]);
-  const [loadedRange, setLoadedRange] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
+  const reportRead = useFinancialRead<ReportSnapshot>();
+  const loadReport = reportRead.refresh;
+  const snapshot = reportRead.data?.key === rangeKey ? reportRead.data.value : null;
+  const cells = snapshot?.cells ?? [];
+  const flow = snapshot?.flow ?? null;
+  const daily = (snapshot?.daily ?? []).map(d => ({ date: d.date, amount: parseFloat(d.amount) }));
+  const loading = !snapshot;
+  const refreshRange = () => loadReport(rangeKey, client => client.report(from.year, from.month, to.year, to.month));
   useEffect(() => {
-    let cancelled = false;
-    setCells([]);
-    setFlow(null);
-    setDaily([]);
-    setLoadedRange(null);
-    setLoadError(null);
-    Promise.all([
-      invoke<CategoryMonthCell[]>("category_spending_by_month", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
-      invoke<CashFlow>("cash_flow_for_range", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
-      invoke<{ date: string; amount: string }[]>("daily_spending", { fromYear: from.year, fromMonth: from.month, toYear: to.year, toMonth: to.month }),
-    ])
-      .then(([spending, cashFlow, dailySpend]) => {
-        if (cancelled) return;
-        setCells(spending);
-        setFlow(cashFlow);
-        setDaily(dailySpend.map((d) => ({ date: d.date, amount: parseFloat(d.amount) })));
-        setLoadedRange(rangeKey);
-      })
-      .catch((reason) => {
-        if (!cancelled) {
-          setLoadError(String(reason));
-          setLoadedRange(rangeKey);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+    void loadReport(rangeKey, client => client.report(from.year, from.month, to.year, to.month)).catch(() => {});
+    // Range endpoints are determined by rangeKey; revision additionally refreshes live edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeKey]);
+  }, [rangeKey, dataRevision, loadReport]);
 
-  const loading = loadedRange !== rangeKey;
   const income = flow ? parseFloat(flow.total_income) : 0;
   const spending = flow ? parseFloat(flow.total_expense) : 0;
   const net = income - spending;
@@ -679,8 +657,9 @@ export function ReportsOverview({
           </button>
         ))}
       </div>
-      {loadError && <p role="alert">Could not load this report range: {loadError}</p>}
+      <FinancialReadState label="Report totals" initial={!snapshot} loading={reportRead.state?.key === rangeKey ? reportRead.state.loading : !snapshot} error={reportRead.state?.key === rangeKey ? reportRead.state.error?.message ?? null : null} onRetry={() => void refreshRange().catch(() => {})} />
 
+      {snapshot && <>
       <div className="stats" data-report-summary style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         <div className="stat tint-blue">
           <span className="stat-value" data-summary-income>
@@ -857,6 +836,7 @@ export function ReportsOverview({
       <div className="card clickable-row" onClick={onOpenBudget} title="Go to the Budget tab">
         <span className="category-link">This month's budget →</span>
       </div>
+      </>}
     </div>
   );
 }

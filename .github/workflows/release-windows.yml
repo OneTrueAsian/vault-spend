@@ -73,6 +73,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
         run: npm ci
+      - name: Install RustSec scanner
+        run: cargo install cargo-audit --locked
+      - name: Dependency security policy tests
+        run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
+      - name: Audit dependencies for x86_64-pc-windows-msvc
+        env:
+          VAULTSPEND_AUDIT_OUTPUT: dependency-audit/x86_64-pc-windows-msvc
+        run: node tools/audit-dependencies.mjs x86_64-pc-windows-msvc
+      - name: Retain dependency audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-release-windows
+          path: dependency-audit/
+          if-no-files-found: error
       - name: Frontend tests
         run: npm test
       - name: Lint

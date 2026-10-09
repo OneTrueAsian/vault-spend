@@ -78,25 +78,26 @@ pub fn list_accounts(state: tauri::State<AppStateHandle>) -> Result<Vec<AccountD
     let today = chrono::Local::now().date_naive();
     let accounts = state.store.list_accounts(today).map_err(|e| e.to_string())?;
 
-    Ok(accounts
-        .into_iter()
-        .map(|a| AccountDto {
-            id: a.id,
-            name: a.account.name,
-            account_type: a.account.account_type.as_str().to_string(),
-            starting_balance: a.starting_balance.to_string(),
-            current_balance: a.current_balance.to_string(),
-            institution: a.institution,
-            mask: a.mask,
-            interest_rate: a.interest_rate.map(|r| r.to_string()),
-            excluded_from_debt_payoff: a.excluded_from_debt_payoff,
-            member_id: a.member_id,
-            member_name: a.member_name,
-            checkpoint_date: a.checkpoint_date.map(|d| d.to_string()),
-            icon_key: a.icon_key,
-            import_flip_signs: a.import_flip_signs,
-        })
-        .collect())
+    Ok(accounts.into_iter().map(account_dto).collect())
+}
+
+pub(super) fn account_dto(a: budget_core::store::StoredAccount) -> AccountDto {
+    AccountDto {
+        id: a.id,
+        name: a.account.name,
+        account_type: a.account.account_type.as_str().to_string(),
+        starting_balance: a.starting_balance.to_string(),
+        current_balance: a.current_balance.to_string(),
+        institution: a.institution,
+        mask: a.mask,
+        interest_rate: a.interest_rate.map(|r| r.to_string()),
+        excluded_from_debt_payoff: a.excluded_from_debt_payoff,
+        member_id: a.member_id,
+        member_name: a.member_name,
+        checkpoint_date: a.checkpoint_date.map(|d| d.to_string()),
+        icon_key: a.icon_key,
+        import_flip_signs: a.import_flip_signs,
+    }
 }
 
 #[tauri::command]

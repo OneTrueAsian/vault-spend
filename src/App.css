@@ -1,22 +1,9 @@
-/* Slate — Vault Spend's default look (internal theme id stays "classic",
-   see SettingsView.tsx's THEME_STYLE_OPTIONS — only the label changed, so
-   an existing user's saved `meadow-theme-style` value keeps working with
-   no migration). Palette/type ported from the "Vault Spend Slate" design
-   mockup. The sidebar now matches the current light/dark mode instead of
-   staying permanently dark — --sidebar-* below are close to but distinct
-   from the main --surface-* tokens, same relationship the mockup uses.
-
-   --accent/--positive/--negative/--warning/--info below are darkened from
-   the mockup's own values (#233d7b/#1fbf7a/#ff6060/#a2690c(new)/#3f7cff)
-   where needed to clear WCAG 1.4.3's 4.5:1 minimum for normal text in
-   light mode — computed directly (relative-luminance contrast, not
-   eyeballed): the mockup's green/red/blue ranged 2.25-3.79:1 against
-   white, the same failure class the Classic palette's own colors had
-   before its prior remediation (see git history). --warning has no mockup
-   equivalent (the mockup never needed a distinct third alert hue) so it's
-   a new amber chosen to clear 4.5:1 and sit comfortably apart from
-   --negative. Dark mode's mockup values already clear 4.5:1+ and needed
-   only --accent nudged brighter (4.42→4.64:1 against --surface). */
+/* Base tokens retain the retired Slate palette as a fallback. The current
+   styles are Default (internal id "transparent"), Futuristic and Retro;
+   themeBootstrap.ts normalizes retired saved ids to Default. Palette selectors
+   below and themes/futuristic.css override these shared tokens. Light/dark
+   mode is independent of the style choice. Historical palette derivation
+   and contrast adjustments are available in git history. */
 :root {
   --bg: #f5f7fb;
   --surface: #ffffff;
@@ -166,12 +153,12 @@
   color-scheme: dark;
 }
 
-/* Transparent — the third optional reskin: Apple's own system colors
+/* Default (internal id "transparent") uses Apple's system colors
    (systemBlue/-Green/-Red/-Orange/-Indigo, as documented in Apple's HIG)
    on a frosted-glass surface treatment instead of Slate's solid cards.
    --accent/--positive/--negative/--warning below are darkened from
    Apple's raw system colors in light mode only, the same WCAG 4.5:1
-   remediation Slate's own header comment describes (Apple's own
+   remediation used for the shared base tokens (Apple's own
    systemGreen/-Red/-Orange fail 4.5:1 as text against white — verified
    directly, not eyeballed); dark mode uses Apple's raw values as-is since
    they already clear 4.5:1 against a near-black surface. Reuses the

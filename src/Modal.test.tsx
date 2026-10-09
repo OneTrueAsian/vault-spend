@@ -19,9 +19,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { ChooseExistingDataSourceDialog, ConfirmInvertDialog, CsvExportWarningDialog, NewAccountDialog, UseExistingDataFileDialog } from "./Modal";
+import { ModalShell, ChooseExistingDataSourceDialog, ConfirmInvertDialog, CsvExportWarningDialog, NewAccountDialog, UseExistingDataFileDialog } from "./Modal";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+it("Escape dismisses only the upper confirmation and leaves the unsaved dialog intact", () => {
+  const container = document.createElement("div"); document.body.append(container);
+  const root = createRoot(container), lower = vi.fn(), upper = vi.fn();
+  act(() => root.render(<><ModalShell title="Draft" onCancel={lower}><input defaultValue="unsaved" /></ModalShell>
+    <ModalShell title="Lock?" onCancel={upper}><button autoFocus>Keep editing</button></ModalShell></>));
+  act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(upper).toHaveBeenCalledOnce(); expect(lower).not.toHaveBeenCalled();
+  expect(document.querySelector("input")!.value).toBe("unsaved");
+  act(() => root.unmount()); container.remove();
+});
 
 describe("NewAccountDialog's autoFocus survives StrictMode's dev-only double-invoke", () => {
   let container: HTMLDivElement | null = null;

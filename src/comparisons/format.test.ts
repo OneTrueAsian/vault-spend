@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   sourceLabel,
   ageGroupLabel,
-  ageInputLabel,
   barWidths,
   cardNotice,
   cohortLabel,
@@ -25,12 +24,6 @@ describe("age groups", () => {
     expect(ageGroupLabel(25, 34)).toBe("25–34");
     expect(ageGroupLabel(75, null)).toBe("75 and over");
     expect(ageGroupLabel(18, 18)).toBe("18");
-  });
-
-  it("describes what the person entered", () => {
-    expect(ageInputLabel({ kind: "exact", age: 42 })).toBe("42");
-    expect(ageInputLabel({ kind: "band", min: 25, max: 34 })).toBe("25–34");
-    expect(ageInputLabel({ kind: "band", min: 65, max: null })).toBe("65 and over");
   });
 
   it("labels a cohort option for a picker", () => {

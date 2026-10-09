@@ -1,4 +1,4 @@
-import type { AgeInput, ComparisonCardResult, MetricId, Money, PersonRef, Reference, Universe } from "./types";
+import type { ComparisonCardResult, MetricId, Money, PersonRef, Reference, Universe } from "./types";
 
 const MINUS = "−";
 
@@ -13,10 +13,6 @@ export function formatWhole(amount: Money | number): string {
 export function ageGroupLabel(ageMin: number, ageMax: number | null): string {
   if (ageMax === null) return `${ageMin} and over`;
   return ageMin === ageMax ? String(ageMin) : `${ageMin}–${ageMax}`;
-}
-
-export function ageInputLabel(age: AgeInput): string {
-  return age.kind === "exact" ? String(age.age) : ageGroupLabel(age.min, age.max);
 }
 
 export function cohortLabel(option: { ageMin: number; ageMax: number | null }): string {

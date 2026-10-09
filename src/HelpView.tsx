@@ -759,8 +759,11 @@ const EXPORT_ENTRIES: HelpEntry[] = [
     tags: ["export", "csv", "reports"],
     node: (
       <li>
-        <strong>"Export CSV…"</strong> (Reports tab) exports whatever rows
-        are currently visible/filtered.
+        <strong>"Export CSV…"</strong> on Transactions exports all matching rows,
+        including rows beyond Show more. Reports exports account balances and the current budget.
+        CSV files are plain text. To reduce spreadsheet formula interpretation, risky text gets
+        a leading apostrophe; that character may be visible and remains when reimported.
+        Amounts keep their decimal values. Use database backups to preserve exact profile data.
       </li>
     ),
   },

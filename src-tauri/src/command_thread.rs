@@ -65,7 +65,21 @@ where
         let handler = Arc::clone(&handler);
         let resolver = invoke.resolver.clone();
         let command = invoke.message.command().to_string();
+        let expected = match invoke.message.payload() {
+            tauri::ipc::InvokeBody::Json(value) => match value.get("expectedSessionRevision") {
+                Some(value) => match value.as_u64() {
+                    Some(revision) => Some(revision),
+                    None => {
+                        resolver.reject(serde_json::json!({"code":"invalid_argument","message":"Invalid profile session."}));
+                        return true;
+                    }
+                },
+                None => None,
+            },
+            _ => None,
+        };
         queue.run(Box::new(move || {
+            let _session = crate::request_session::enter(expected);
             let outcome = catch_unwind(AssertUnwindSafe(|| handler(invoke)));
             match outcome {
                 // Tauri rejects an unknown command after the handler returns false; the handler now

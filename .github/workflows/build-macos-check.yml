@@ -35,10 +35,29 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install frontend dependencies
         run: npm ci
+      - name: Install RustSec scanner
+        run: cargo install cargo-audit --locked
+      - name: Dependency security policy tests
+        run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
+      - name: Audit dependencies for aarch64-apple-darwin
+        env:
+          VAULTSPEND_AUDIT_OUTPUT: dependency-audit/aarch64-apple-darwin
+        run: node tools/audit-dependencies.mjs aarch64-apple-darwin
+      - name: Audit dependencies for x86_64-apple-darwin
+        env:
+          VAULTSPEND_AUDIT_OUTPUT: dependency-audit/x86_64-apple-darwin
+        run: node tools/audit-dependencies.mjs x86_64-apple-darwin
+      - name: Retain dependency audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-build-macos-check
+          path: dependency-audit/
+          if-no-files-found: error
 
       # The Tauri crate embeds the built frontend, so it has to exist before the
       # Rust workspace compiles.

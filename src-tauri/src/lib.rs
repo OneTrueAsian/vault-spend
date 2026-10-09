@@ -32,12 +32,13 @@ mod protection_leftovers;
 mod protection_lifecycle;
 mod protection_session;
 mod protection_transition;
+mod request_session;
 mod runtime;
 mod startup;
 mod stockdata;
 mod system_session;
 mod twelve_data;
-mod updater;
+pub mod updater;
 mod window_state;
 
 use commands::AppStateHandle;
@@ -218,7 +219,6 @@ pub fn run() {
             launch_commands::start_with_new_profile_list,
             commands::write_text_file,
             commands::fetch_latest_release,
-            commands::download_update_asset,
             commands::get_data_file_location,
             commands::relocate_data_file,
             commands::export_database,
@@ -277,6 +277,10 @@ pub fn run() {
             commands::preview_import,
             commands::commit_import,
             commands::create_manual_transaction,
+            commands::get_transaction_context,
+            commands::get_transaction_snapshot,
+            commands::get_budget_snapshot,
+            commands::get_report_range_snapshot,
             commands::list_transactions,
             commands::list_transactions_by_ids,
             commands::correct_category,

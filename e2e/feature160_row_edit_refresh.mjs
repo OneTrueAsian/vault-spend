@@ -3,7 +3,7 @@
 //
 // - Fixing a description in the Transactions table shows the new text in that row, and the other
 //   rows are still there.
-// - The edit is followed by `list_transactions_by_ids` for that row, and no `list_transactions`.
+// - The edit is followed by one targeted coherent snapshot, and no full ledger read.
 //
 // Run with: node e2e/feature160_row_edit_refresh.mjs
 
@@ -65,9 +65,13 @@ try {
   await browser.pause(500);
   assert.equal(await browser.execute(() => document.querySelectorAll("table.ledger tbody tr").length), rowsBefore, "the other rows are all still there");
 
-  const after = fs.readFileSync(log, "utf8").trim().split("\n").slice(linesBefore).map((l) => JSON.parse(l).cmd);
+  const entries = fs.readFileSync(log, "utf8").trim().split("\n").slice(linesBefore).map((l) => JSON.parse(l));
+  const after = entries.map(l => l.cmd);
   assert.ok(after.includes("update_transaction_description"), `the edit was saved: ${after.join(", ")}`);
-  assert.ok(after.includes("list_transactions_by_ids"), `the row was re-read on its own: ${after.join(", ")}`);
+  assert.ok(after.includes("get_transaction_snapshot"), `the coherent row model was re-read: ${after.join(", ")}`);
+  const requests = entries.filter(l => l.cmd === "get_transaction_snapshot");
+  assert.equal(requests.length, 1, "one snapshot follows the row edit");
+  assert.equal(requests[0].requested_rows, 1, "the snapshot requests exactly the edited row");
   assert.ok(!after.includes("list_transactions"), `the whole ledger was not re-read: ${after.join(", ")}`);
 
   console.log("FEATURE 160 E2E TEST PASSED");

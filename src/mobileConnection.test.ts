@@ -1,8 +1,36 @@
 import { expect, it, vi } from "vitest";
-import { refreshMobileSnapshot, readMobileStatus } from "./mobileConnection";
+import { refreshMobileSnapshot, readMobileStatus, redeemMobilePairing, logoutMobile } from "./mobileConnection";
 import { completeMobilePairing } from "./mobileConnection";
 import { MAX_MOBILE_SNAPSHOT_BYTES } from "./mobileSnapshot";
 const binding = { installationId: "a".repeat(32), profileId: "b".repeat(64), epoch: "c".repeat(64) };
+it("all public transports use approved relative routes, same-origin credentials and refuse redirects", async () => {
+  const status = { installationId: binding.installationId, csrf: "d".repeat(64), profiles: [] };
+  const fetcher = vi.fn(async (input: RequestInfo | URL, _options?: RequestInit) => new Response(JSON.stringify(
+    input === "/api/status" ? status : input === "/api/pair/redeem" ? { claim: "e".repeat(64) } : { paired: true },
+  )));
+  await readMobileStatus(fetcher);
+  await redeemMobilePairing("f".repeat(64), "Phone", fetcher);
+  await completeMobilePairing("e".repeat(64), fetcher);
+  await logoutMobile(status.csrf, fetcher);
+  await refreshMobileSnapshot({ prepareRefresh: async () => ({ id: "saved", fence: "before" }), replace: async () => "saved" }, binding, {}, fetcher);
+  expect(fetcher.mock.calls.map(([route]) => route)).toEqual(["/api/status", "/api/pair/redeem", "/api/pair/complete", "/api/logout", `/api/snapshot/${binding.profileId}`]);
+  for (const [, options] of fetcher.mock.calls) expect(options).toMatchObject({ credentials: "same-origin", redirect: "error", cache: "no-store", referrerPolicy: "no-referrer" });
+  expect(fetcher.mock.calls[3][1]?.headers).toMatchObject({ "X-Vault-CSRF": status.csrf });
+});
+it.each(["//remote.invalid", "../other", "a/b", "a%2fb", "a?query", "a#fragment", "A".repeat(64)])("rejects unsafe snapshot identifiers before network: %s", async profileId => {
+  const fetcher = vi.fn();
+  await expect(refreshMobileSnapshot({ prepareRefresh: vi.fn(), replace: vi.fn() }, { ...binding, profileId }, {}, fetcher)).rejects.toThrow("mobile_binding_invalid");
+  expect(fetcher).not.toHaveBeenCalled();
+});
+it("a redirect refusal preserves the saved snapshot", async () => {
+  const replace = vi.fn();
+  const fetcher = vi.fn(async (_input: RequestInfo | URL, options?: RequestInit) => {
+    if (options?.redirect === "error") throw new TypeError("Redirect refused");
+    return new Response("untrusted redirected snapshot");
+  });
+  await expect(refreshMobileSnapshot({ prepareRefresh: async () => ({ id: "saved", fence: "before" }), replace }, binding, {}, fetcher)).rejects.toThrow("Redirect refused");
+  expect(replace).not.toHaveBeenCalled();
+});
 it("captures the removal fence before HTTP and passes the trusted binding unchanged", async () => {
   const order: string[] = [];
   const guard = { id: "saved", fence: "before" };

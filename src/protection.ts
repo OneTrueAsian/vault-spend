@@ -46,8 +46,9 @@ export interface LeftoverEntry {
   size_bytes: number;
 }
 
-export const listProtectionLeftovers = () => invoke<LeftoverEntry[]>("list_protection_leftovers");
+export const listProtectionLeftovers = (expectedProfileId: string, expectedGeneration: number) =>
+  invoke<LeftoverEntry[]>("list_protection_leftovers", { expectedProfileId, expectedGeneration });
 /** Returns whichever of `pathsToDelete` could NOT be deleted (a directory, the live database, or a
  * path that no longer exists) — never rejects just because some of them were refused. */
-export const deleteProtectionLeftovers = (pathsToDelete: string[]) =>
-  invoke<string[]>("delete_protection_leftovers", { pathsToDelete });
+export const deleteProtectionLeftovers = (pathsToDelete: string[], expectedProfileId: string, expectedGeneration: number) =>
+  invoke<string[]>("delete_protection_leftovers", { pathsToDelete, expectedProfileId, expectedGeneration });

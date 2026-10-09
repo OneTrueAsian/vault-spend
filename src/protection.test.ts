@@ -31,8 +31,8 @@ describe("protection.ts invoke wrappers", () => {
     await beginProtectionSetup("hunter2hunter2", 5);
     await cancelProtectionSetup("tok-1");
     await commitProtectionSetup("tok-1", ["AAAA", "BBBB"], "alpha", null);
-    await listProtectionLeftovers();
-    await deleteProtectionLeftovers(["a.db", "b.db"]);
+    await listProtectionLeftovers("alpha", 5);
+    await deleteProtectionLeftovers(["a.db", "b.db"], "alpha", 5);
 
     expect(invokeMock.mock.calls).toEqual([
       ["show_profile_selector"],
@@ -45,8 +45,8 @@ describe("protection.ts invoke wrappers", () => {
         "commit_protection_setup",
         { token: "tok-1", answers: ["AAAA", "BBBB"], targetProfileId: "alpha", newProfileName: null },
       ],
-      ["list_protection_leftovers"],
-      ["delete_protection_leftovers", { pathsToDelete: ["a.db", "b.db"] }],
+      ["list_protection_leftovers", { expectedProfileId: "alpha", expectedGeneration: 5 }],
+      ["delete_protection_leftovers", { pathsToDelete: ["a.db", "b.db"], expectedProfileId: "alpha", expectedGeneration: 5 }],
     ]);
   });
 });

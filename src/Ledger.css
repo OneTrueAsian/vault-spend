@@ -1873,6 +1873,14 @@ table.ledger.report-table {
   border-color: transparent;
 }
 
+/* Inactive audit choices use neutral controls; the global primary-button hover put muted text
+   on the bright accent background, making a hovered Reviewing choice unreadable in dark mode. */
+.status-pill:not(.status-pill-active):hover {
+  background: var(--surface-hover);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
 .status-pill-active.status-pill-reviewing {
   background: var(--warning-soft);
   color: var(--warning);

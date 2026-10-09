@@ -117,6 +117,7 @@ function baseProps(transactions: Transaction[], familyMembers: FamilyMember[]): 
     commitDescriptionEdit: vi.fn(),
     anomalyFlagsByTransaction: new Map(),
     handleRemoveTag: vi.fn(),
+    allTags: [],
     newTagText: {},
     setNewTagText: vi.fn(),
     handleAddTag: vi.fn(),

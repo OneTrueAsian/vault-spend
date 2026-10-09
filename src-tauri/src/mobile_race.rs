@@ -94,7 +94,7 @@ pub fn arm(app: tauri::AppHandle, stage: String, action: String, target: String)
                     let new = crate::commands::AppState::open(&profile.db_path)?;
                     let mut state = runtime.lock()?;
                     crate::config::write_db_location_config(&paths.config_path, &profile.db_path).map_err(|_| "mobile_test_profile")?;
-                    *state = new;
+                    state.replace(new);
                     *paths.db_path.lock().map_err(|_| "mobile_test_profile")? = profile.db_path;
                     paths.bump_generation();
                 }

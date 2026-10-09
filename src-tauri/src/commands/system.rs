@@ -95,19 +95,7 @@ pub fn get_current_generation(paths: tauri::State<crate::config::AppPaths>) -> u
 /// The newest published release, for `UpdateBanner.tsx`'s launch check.
 #[tauri::command]
 pub async fn fetch_latest_release() -> Result<crate::updater::LatestRelease, String> {
-    crate::updater::fetch_latest_release(&reqwest::Client::new()).await
-}
-
-/// Downloads a GitHub release asset (`UpdateBanner.tsx`'s "Update now") to
-/// the OS temp directory and returns its local path — the frontend then
-/// hands that path to `openPath` (tauri-plugin-opener) to launch the OS's
-/// normal installer, so the user still gets the usual installer prompts
-/// rather than anything silently self-installing.
-#[tauri::command]
-pub async fn download_update_asset(url: String, filename: String) -> Result<String, String> {
-    let client = reqwest::Client::new();
-    let path = crate::updater::download_asset(&client, &url, &filename).await?;
-    Ok(path.to_string_lossy().to_string())
+    crate::updater::fetch_latest_release().await
 }
 
 /// Global feature toggles shown as switches under Settings — see

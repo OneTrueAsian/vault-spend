@@ -4,7 +4,7 @@ Vault Spend is a Tauri v2 app: a React + TypeScript frontend (Vite) and a Rust b
 
 ## What you need
 
-- Node.js 20 or newer
+- Node.js 22.19.0 or newer (matches `package.json`)
 - Rust (stable), through [rustup](https://rustup.rs)
 
 **Windows**
@@ -20,12 +20,13 @@ Vault Spend is a Tauri v2 app: a React + TypeScript frontend (Vite) and a Rust b
 
 ```bash
 npm install
-npx tauri build --debug --no-bundle   # use this, not `cargo build`: the frontend is embedded by tauri
+npm run build                         # generate desktop/mobile assets before Rust checks on a fresh checkout
 npm test                              # frontend unit tests
 cargo test --workspace                # Rust tests
+npx tauri build --debug --no-bundle   # build after Rust tests; embeds frontend assets for WebDriver
 ```
 
-See `AGENTS.md` for which checks to run for which kind of change, and `e2e/README.md` before touching the end-to-end suite. A release build is `npx tauri build`.
+Start with the [architecture and invariants guide](ARCHITECTURE.md) for code ownership and lifecycle contracts. See `AGENTS.md` for which checks to run for which kind of change, and `e2e/README.md` before touching the end-to-end suite. A release build is `npx tauri build`.
 
 ## Testing notes
 
