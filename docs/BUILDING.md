@@ -34,3 +34,11 @@ Start with the [architecture and invariants guide](ARCHITECTURE.md) for code own
 - **Build before you drive the app.** The end-to-end specs drive the compiled app, so run `npx tauri build --debug --no-bundle` after any frontend or backend change, then the specs. To build into a different folder, set a *short* `CARGO_TARGET_DIR` and point `VAULTSPEND_EXE` at that build.
 - **Isolated data.** Every spec launches the app with its own throwaway `VAULTSPEND_DB_DIR`; set it yourself when you launch a build for manual testing so it never touches your real profiles.
 - **Platforms.** The end-to-end suite uses Windows WebDriver (`tauri-driver` with Edge WebDriver) and runs on Windows only. macOS builds are compiled and unit-tested in CI (`.github/workflows/build-macos-check.yml`), and their behavior is checked by hand on a real Mac; there is no automated macOS UI test.
+
+## Keeping `target/` small
+
+`target\debug\incremental` only speeds up rebuilding this project's own crates and collects stale copies
+over the weeks (it reached 60 GB). Between sessions, not during a build or test run, run
+`.\tools\trim-incremental.ps1`: it clears the folder only when it is over 10 GB (`-LimitGB` changes the
+limit, `-WhatIf` shows what it would do) and refuses while cargo, rustc, tauri or the app is running.
+The next build recreates the cache.
