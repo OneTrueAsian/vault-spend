@@ -52,7 +52,7 @@ pub fn create_profile(
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
-) -> Result<String, String> {
+) -> Result<String, crate::profiles::ProfileRefusal> {
     // A request from an open app must retain its origin guard through publication.
     // The empty-registry entry point has no origin and can still install a profile.
     let mut previous = if crate::request_session::expected().is_some() {
@@ -366,7 +366,7 @@ pub fn rename_profile(
     new_name: String,
     paths: tauri::State<crate::config::AppPaths>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
-) -> Result<(), String> {
+) -> Result<(), crate::profiles::ProfileRefusal> {
     let mut result = Ok(());
     device.update(|settings| {
         result = crate::profiles::rename_profile(&paths.config_path, &current_db_path(&paths), &id, &new_name);
@@ -392,7 +392,7 @@ pub fn delete_profile(
     runtime: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
     mobile: tauri::State<crate::mobile_api::MobileAccess>,
-) -> Result<(), String> {
+) -> Result<(), crate::profiles::ProfileRefusal> {
     // Revoke before removing the registry entry: an I/O failure must never leave old grants
     // able to match a later profile with a reused internal ID.
     mobile.devices.remove_profile(&id)?;

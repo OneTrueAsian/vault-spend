@@ -1,4 +1,5 @@
 import { array, boolean, integer, nullable, object, string } from "./contractChecks";
+import type { AutoLockSettings } from "./autoLock";
 import type { LeftoverEntry, SetupChallenge } from "./protection";
 import type { StartupState } from "./startup";
 
@@ -102,4 +103,34 @@ export function validateRefusedPaths(value: unknown): string[] {
 export function validateVoid(value: unknown): void {
   // Tauri serializes unit as null; undefined also supports the bridge's void/mocked return.
   if (value !== null && value !== undefined) return invalid();
+}
+
+/** A short confirmation sentence the backend returns after creating a profile. */
+export function validateMessage(value: unknown): string {
+  if (!nonempty(value)) return invalid();
+  return value as string;
+}
+export function validateGeneration(value: unknown): number {
+  if (!integer(value)) return invalid();
+  return value as number;
+}
+export function validateStoredText(value: unknown): string | null {
+  if (!nullable(string)(value)) return invalid();
+  return value as string | null;
+}
+export function validateFlag(value: unknown): boolean {
+  if (typeof value !== "boolean") return invalid();
+  return value;
+}
+
+const autoLockSettings = object({
+  inactivity_minutes: (value) => value === 0 || value === 1 || value === 5 || value === 15 || value === 30 || value === 60,
+  lock_when_hidden: boolean,
+  lock_on_focus_loss: boolean,
+  lock_on_system_event: boolean,
+  system_event_supported: boolean,
+});
+export function validateAutoLockSettings(value: unknown): AutoLockSettings {
+  if (!autoLockSettings(value)) return invalid();
+  return value as AutoLockSettings;
 }

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeProfile } from "./profileIpc";
 
 export type UiStateKey =
   | "saved_filters"
@@ -13,12 +13,12 @@ export type UiStateKey =
  * frontend had no reason to track its own copy of it before this. Fetched once per mount; `App`
  * remounts fresh (a new `key`) whenever the live profile changes, so a stale value here can't
  * outlive the profile it was fetched for. */
-export const getCurrentGeneration = () => invoke<number>("get_current_generation");
+export const getCurrentGeneration = () => invokeProfile("get_current_generation");
 
-export const getProfileUiState = (key: UiStateKey) => invoke<string | null>("get_profile_ui_state", { key });
+export const getProfileUiState = (key: UiStateKey) => invokeProfile("get_profile_ui_state", { key });
 
 export const setProfileUiState = (key: UiStateKey, value: string, expectedGeneration: number) =>
-  invoke<void>("set_profile_ui_state", { key, value, expectedGeneration });
+  invokeProfile("set_profile_ui_state", { key, value, expectedGeneration });
 
 /** The exact global keys these settings used before this table existed — never read again once
  * `migrateLegacyProfileUiState` has run once on this computer (`device_settings.ui_state_migrated`).
@@ -50,7 +50,7 @@ export async function migrateLegacyProfileUiState(expectedGeneration: number, al
     if (value !== null) writes.push(setProfileUiState(key, value, expectedGeneration));
   }
   await Promise.all(writes);
-  await invoke<void>("mark_ui_state_migrated");
+  await invokeProfile("mark_ui_state_migrated");
   for (const legacyKey of Object.values(LEGACY_KEYS)) {
     try {
       localStorage.removeItem(legacyKey);
@@ -67,7 +67,7 @@ export async function migrateLegacyProfileUiState(expectedGeneration: number, al
  * already-true flag), so there is no need to coordinate between callers. */
 export async function ensureUiStateMigrated(): Promise<number> {
   const generation = await getCurrentGeneration();
-  const alreadyMigrated = await invoke<boolean>("is_ui_state_migrated");
+  const alreadyMigrated = await invokeProfile("is_ui_state_migrated");
   await migrateLegacyProfileUiState(generation, alreadyMigrated);
   return generation;
 }

@@ -16,6 +16,43 @@ const REGISTRY_FILENAME: &str = "profiles.json";
 const DEFAULT_PROFILE_ID: &str = "default";
 const DEFAULT_PROFILE_NAME: &str = "Default";
 
+/// A refused profile action. `code` is the stable identity callers branch on; `message` is written
+/// for people and may be reworded. Failures without a named domain meaning keep their text and
+/// share one generic code instead of having a meaning guessed from their wording.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ProfileRefusal {
+    pub code: &'static str,
+    pub message: String,
+}
+
+impl ProfileRefusal {
+    fn duplicate_name(name: &str) -> Self {
+        Self {
+            code: "duplicate_profile_name",
+            message: format!("A profile named '{name}' already exists."),
+        }
+    }
+}
+
+impl From<String> for ProfileRefusal {
+    /// The runtime's `STALE_PROFILE:` prefix is its machine marker for a request from a closed
+    /// profile session, not prose, so it keeps its own code. Nothing else is classified.
+    fn from(message: String) -> Self {
+        let code = if message.starts_with("STALE_PROFILE:") {
+            "stale_profile"
+        } else {
+            "profile_operation_failed"
+        };
+        Self { code, message }
+    }
+}
+
+impl From<ProfileRefusal> for String {
+    fn from(refusal: ProfileRefusal) -> Self {
+        refusal.message
+    }
+}
+
 /// The on-disk shape of one registry entry. `icon_key` is a purely
 /// cosmetic pick from the bundled `account-avatar-profile-*` set (see
 /// `flatIcons.ts` on the frontend) — `#[serde(default)]` so a
@@ -340,10 +377,10 @@ pub fn list_profiles(config_path: &Path, live_db_path: &Path) -> Vec<Profile> {
 /// half of `create_profile`, split out so protected creation (Phase C, Task 6) can write the
 /// database file in between choosing the path and registering it: verify before registering, never
 /// the reverse.
-pub fn plan_new_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<(String, PathBuf), String> {
+pub fn plan_new_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<(String, PathBuf), ProfileRefusal> {
     let entries = entries_or_synthesize(config_path, live_db_path);
     if entries.iter().any(|p| p.name.eq_ignore_ascii_case(name)) {
-        return Err(format!("A profile named '{name}' already exists."));
+        return Err(ProfileRefusal::duplicate_name(name));
     }
     let id = unique_profile_id(&entries, name, now);
     let db_path = profiles_dir(config_path).join(&id).join("vaultspend.db");
@@ -376,7 +413,7 @@ pub fn register_prepared_profile(
     write_registry(config_path, &Registry { profiles: entries })
 }
 
-pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<Profile, String> {
+pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<Profile, ProfileRefusal> {
     let (id, db_path) = plan_new_profile(config_path, live_db_path, name, now)?;
     register_prepared_profile(config_path, live_db_path, &id, name, &db_path, None)?;
     Ok(Profile {
@@ -453,20 +490,20 @@ pub fn add_existing_profile(
 /// never actually been renamed. Rejects a case-insensitive duplicate of
 /// *another* profile's name; renaming a profile to its own current name is
 /// always allowed.
-pub fn rename_profile(config_path: &Path, live_db_path: &Path, id: &str, new_name: &str) -> Result<(), String> {
+pub fn rename_profile(config_path: &Path, live_db_path: &Path, id: &str, new_name: &str) -> Result<(), ProfileRefusal> {
     let mut entries = entries_or_synthesize(config_path, live_db_path);
     if !entries.iter().any(|p| p.id == id) {
         return Ok(());
     }
     if entries.iter().any(|p| p.id != id && p.name.eq_ignore_ascii_case(new_name)) {
-        return Err(format!("A profile named '{new_name}' already exists."));
+        return Err(ProfileRefusal::duplicate_name(new_name));
     }
     for p in entries.iter_mut() {
         if p.id == id {
             p.name = new_name.to_string();
         }
     }
-    write_registry(config_path, &Registry { profiles: entries })
+    Ok(write_registry(config_path, &Registry { profiles: entries })?)
 }
 
 /// Sets (or clears, with `None`) a profile's icon — a purely cosmetic pick
@@ -588,16 +625,19 @@ pub fn former_plaintext_path_for(config_path: &Path, live_db_path: &Path, id: &s
 /// locked profile's registry entry is safe (no open connection holds it) and
 /// is exactly what the "forgot password, remove this profile" escape needs.
 /// Unknown id is a harmless no-op.
-pub fn delete_profile(config_path: &Path, live_db_path: &Path, currently_open: bool, id: &str) -> Result<(), String> {
+pub fn delete_profile(config_path: &Path, live_db_path: &Path, currently_open: bool, id: &str) -> Result<(), ProfileRefusal> {
     let entries = entries_or_synthesize(config_path, live_db_path);
     let Some(target) = entries.iter().find(|p| p.id == id) else {
         return Ok(());
     };
     if currently_open && &target.db_path == live_db_path {
-        return Err("Can't delete the profile you're currently using — switch to another one first.".to_string());
+        return Err(ProfileRefusal {
+            code: "profile_in_use",
+            message: "Can't delete the profile you're currently using — switch to another one first.".to_string(),
+        });
     }
     let remaining: Vec<ProfileEntry> = entries.into_iter().filter(|p| p.id != id).collect();
-    write_registry(config_path, &Registry { profiles: remaining })
+    Ok(write_registry(config_path, &Registry { profiles: remaining })?)
 }
 
 /// Called by `relocate_data_file`/`restore_backup` after they hot-swap the
@@ -947,6 +987,36 @@ mod tests {
         let result = rename_profile(&config_path, &live_db_path, &alex.id, "SAM");
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn refusals_carry_a_stable_code_apart_from_their_wording() {
+        let dir = temp_dir("refusal-codes");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("vaultspend.db");
+        let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-08-30 12:00:00")).unwrap();
+        let sam = create_profile(&config_path, &live_db_path, "Sam", dt("2026-08-30 12:00:01")).unwrap();
+
+        let renamed = rename_profile(&config_path, &live_db_path, &alex.id, "SAM").unwrap_err();
+        assert_eq!(renamed.code, "duplicate_profile_name");
+        let created = create_profile(&config_path, &live_db_path, "sam", dt("2026-08-30 12:00:02")).unwrap_err();
+        assert_eq!(created.code, "duplicate_profile_name");
+        let planned = plan_new_profile(&config_path, &live_db_path, "SAM", dt("2026-08-30 12:00:03")).unwrap_err();
+        assert_eq!(planned.code, "duplicate_profile_name");
+        let deleted = delete_profile(&config_path, &sam.db_path, true, &sam.id).unwrap_err();
+        assert_eq!(deleted.code, "profile_in_use");
+
+        // The wire shape is exactly {code, message}; the message is still written for people.
+        let wire = serde_json::to_value(&deleted).unwrap();
+        assert_eq!(wire["code"], "profile_in_use");
+        assert!(wire["message"].as_str().unwrap().contains("switch to another one"));
+        assert_eq!(wire.as_object().unwrap().len(), 2);
+        // Other failures keep working as plain text and get one generic code.
+        let other: ProfileRefusal = String::from("disk full").into();
+        assert_eq!(other.code, "profile_operation_failed");
+        let stale: ProfileRefusal = String::from("STALE_PROFILE: This request belongs to a previous profile session.").into();
+        assert_eq!(stale.code, "stale_profile");
+        assert_eq!(String::from(other), "disk full");
     }
 
     #[test]

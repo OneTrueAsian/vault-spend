@@ -1,6 +1,6 @@
 import "./ProfileAccess.css";
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeProfile } from "./profileIpc";
 import { ProfileIcon } from "./icons";
 import { selectProfile } from "./protection";
 import { getCurrentGeneration } from "./profileUiState";
@@ -11,7 +11,7 @@ import { errorMessage } from "./errorMessage";
 
 /** A card per profile — an avatar, the name, and (matching Settings' own Profiles section, the only
  * other place these two actions exist) inline Rename/Delete, plus a dedicated "Add profile" tile.
- * Rename/Delete/Create all reach the backend directly via `invoke` (the same pattern
+ * Rename/Delete/Create all reach the backend directly via the typed profile adapter (the same pattern
  * `EmptyRegistryScreen` already uses), since this screen renders before any profile is open and has
  * no access to `App.tsx`'s own handlers. Neither `rename_profile` nor `delete_profile` needs an open
  * session (confirmed by reading `commands.rs` directly), so both work fine from here. Reuses the
@@ -66,7 +66,7 @@ export function ProfileSelector({
     setEditingId(null);
     if (!trimmed || trimmed === oldName) return;
     try {
-      await invoke("rename_profile", { id, newName: trimmed });
+      await invokeProfile("rename_profile", { id, newName: trimmed });
       setEntries((cur) => cur.map((p) => (p.id === id ? { ...p, name: trimmed } : p)));
     } catch (e) {
       setProblem(errorMessage(e));
@@ -76,7 +76,7 @@ export function ProfileSelector({
   async function commitDelete(id: string) {
     setConfirmingDeleteId(null);
     try {
-      await invoke("delete_profile", { id });
+      await invokeProfile("delete_profile", { id });
       setEntries((cur) => cur.filter((p) => p.id !== id));
     } catch (e) {
       setProblem(errorMessage(e));
@@ -94,7 +94,7 @@ export function ProfileSelector({
         setBusy(false);
         return;
       }
-      await invoke("create_profile", { name: trimmed });
+      await invokeProfile("create_profile", { name: trimmed });
       onResolved({ status: "open" });
     } catch (e) {
       setProblem(errorMessage(e));

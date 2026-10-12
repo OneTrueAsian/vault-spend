@@ -1,6 +1,6 @@
 # Startup and protection IPC contract
 
-`startup.ts` and `protection.ts` route 25 desktop commands through `profileIpc.ts`.
+Startup, protection, profile CRUD and profile UI-state code route 36 desktop commands through `profileIpc.ts`.
 Command names, camelCase arguments and inferred return types have one feature
 boundary. `profileContracts.ts` validates unknown native responses before callers
 use them. These adapters do not replace backend authorization or lifecycle guards.
@@ -64,7 +64,26 @@ replies, real Tauri delivery of crafted malformed events, recovery from valid
 events, and a truly malformed on-disk conversion journal. Existing full desktop
 protection/recovery/cleanup specs cover ordinary user paths.
 
-Direct profile CRUD in the selector/empty-registry screens, profile UI-state
-storage, device preferences and other legacy feature commands are outside this
-25-command migration. The prior App/transaction/financial contracts remain separate
+Eight more commands use the same adapter: `create_profile`, `rename_profile`,
+`delete_profile` (selector, empty-registry and locked-profile screens),
+`get_current_generation`, `get_profile_ui_state`, `set_profile_ui_state`,
+`mark_ui_state_migrated` and `is_ui_state_migrated` (`profileUiState.ts`). Replies
+are runtime-validated (non-empty confirmation text, non-negative integer generation,
+text-or-null state, boolean flag, unit). Their native refusals are still plain
+strings, so they surface as `legacy_error` rather than a guessed domain code.
+
+Auto-lock settings (`get_auto_lock_settings`, `set_auto_lock_settings`,
+`record_trusted_activity`) use the adapter too; the settings reply must hold one of
+the allowed minute values and four booleans.
+
+`create_profile`, `rename_profile` and `delete_profile` now refuse with a structured
+`{ code, message }` (Rust `ProfileRefusal`): `duplicate_profile_name`,
+`profile_in_use`, or the generic `profile_operation_failed` for any other failure,
+which keeps its text and is never classified from its wording. Callers branch on
+`ProfileIpcError.code`; the message may be reworded. `add_existing_profile` and
+switching are not yet converted.
+
+Profile switching/adding in `App.tsx` (which runs through the financial-call
+owner), other device preferences and other legacy feature commands are
+outside this migration. The prior App/transaction/financial contracts remain separate
 owners. This checkpoint is not completion of every task N command or of O/R/F.

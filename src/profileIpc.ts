@@ -1,12 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { SavedAutoLockSettings } from "./autoLock";
 import { errorMessage } from "./errorMessage";
 import {
   ProfileIpcError,
+  validateAutoLockSettings,
+  validateFlag,
+  validateGeneration,
   validateLeftovers,
+  validateMessage,
   validateRecoveryDisplay,
   validateRefusedPaths,
   validateSetupChallenge,
   validateStartupState,
+  validateStoredText,
   validateVoid,
 } from "./profileContracts";
 
@@ -36,6 +42,17 @@ const decoders = {
   commit_protection_setup: validateStartupState,
   list_protection_leftovers: validateLeftovers,
   delete_protection_leftovers: validateRefusedPaths,
+  create_profile: validateMessage,
+  rename_profile: validateVoid,
+  delete_profile: validateVoid,
+  get_current_generation: validateGeneration,
+  get_profile_ui_state: validateStoredText,
+  set_profile_ui_state: validateVoid,
+  mark_ui_state_migrated: validateVoid,
+  is_ui_state_migrated: validateFlag,
+  get_auto_lock_settings: validateAutoLockSettings,
+  set_auto_lock_settings: validateVoid,
+  record_trusted_activity: validateVoid,
 };
 
 type Answers = [string, string];
@@ -63,6 +80,13 @@ interface Arguments {
   };
   list_protection_leftovers: { expectedProfileId: string; expectedGeneration: number };
   delete_protection_leftovers: { pathsToDelete: string[]; expectedProfileId: string; expectedGeneration: number };
+  create_profile: { name: string };
+  rename_profile: { id: string; newName: string };
+  delete_profile: { id: string };
+  get_profile_ui_state: { key: string };
+  set_profile_ui_state: { key: string; value: string; expectedGeneration: number };
+  set_auto_lock_settings: { settings: SavedAutoLockSettings; expectedGeneration: number };
+  record_trusted_activity: { expectedGeneration: number };
 }
 
 /** One call, one decode. No retries of writes or guesses from native error message wording. */
