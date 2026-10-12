@@ -51,7 +51,9 @@ pub fn changed(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 pub fn arm(app: tauri::AppHandle, stage: String, action: String, target: String) -> Result<String, String> {
-    if !matches!(stage.as_str(), "queued" | "building" | "ready") || !matches!(action.as_str(), "lock" | "switch" | "revoke") {
+    if !matches!(stage.as_str(), "queued" | "building" | "ready")
+        || !matches!(action.as_str(), "lock" | "switch" | "revoke" | "remove_grant" | "remove_profile")
+    {
         return Err("mobile_test_barrier_invalid".into());
     }
     let directory = PathBuf::from(std::env::var_os("VAULTSPEND_DB_DIR").ok_or("Disposable data required")?);
@@ -100,6 +102,14 @@ pub fn arm(app: tauri::AppHandle, stage: String, action: String, target: String)
                 }
                 "revoke" => {
                     app.state::<crate::mobile_api::MobileAccess>().devices.revoke(&target)?;
+                }
+                "remove_grant" => {
+                    // "device|profile": forget one profile on one phone, leaving the phone paired.
+                    let (device, profile) = target.split_once('|').ok_or("mobile_test_barrier_invalid")?;
+                    app.state::<crate::mobile_api::MobileAccess>().devices.remove_grant(device, profile)?;
+                }
+                "remove_profile" => {
+                    app.state::<crate::mobile_api::MobileAccess>().devices.remove_profile(&target)?;
                 }
                 _ => unreachable!(),
             }

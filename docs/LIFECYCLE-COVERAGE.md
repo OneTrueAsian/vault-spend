@@ -19,10 +19,10 @@ the backend no longer has. The behaviour of each group is described in `TRANSACT
 | Mirror folder unreachable | `protection_leftovers.rs` (`unavailable_configured_mirror_fails_closed_before_any_deletion`) | — | `feature131`, `feature289` |
 | Interrupted protection change or publication | `protection_transition` tests | — | `feature106`, `feature130`, `feature293` (unreadable journal) |
 | Lock or switch while work is in flight | `OpenSession::replace` tests | `useTransactionData`, `useApplicationCalls` | `feature133`, `feature283`, `feature292` |
-| Duplicate submission | — | `ProtectionLeftovers.test.tsx`, `ImportInboxDialog.test.tsx`, `TransferReviewDialog.test.tsx` | not mapped |
+| Duplicate submission | — | `ProtectionLeftovers.test.tsx`, `ImportInboxDialog.test.tsx`, `TransferReviewDialog.test.tsx` | `feature295` (Add transaction pressed twice adds one row; relies on identical in-flight calls sharing one request in `transactionReads.ts`) |
 | Stale import preview | review token check in `commands/import.rs` | `importResolution.test.ts`, `ImportReviewDialog.test.tsx` | `feature162` |
 | Refused profile switch or add | `profiles.rs` refusal codes | `profileIpc.test.ts` | `feature294` |
-| Phone viewer removed while a snapshot refreshes | not mapped | not mapped | `feature172` (not checked for this case) |
+| Phone viewer authorization changes while a snapshot refreshes (lock, switch, revoke, remove one profile from a phone, forget a profile) | `mobile_api.rs` unit tests | — | `feature168`, `feature169`, `feature170` (queued, building and ready stages, via `mobileRaceHarness.mjs`) |
 
 ## Cross-view money rules (R)
 
@@ -31,4 +31,4 @@ purchases on each neighbouring month's boundary day, a linked transfer pair, a s
 applied to a debt, and a deleted purchase. It requires the same expense total from the monthly totals, the
 ranged totals, Reports' category breakdown, category-by-month table, daily heatmap and top merchants,
 Comparisons' spending rows, and the Budget lines (with the drill-down list matching each line).
-Not covered: the phone viewer's projection and income-side totals other than the monthly total.
+The phone viewer's projection is checked against the same month (monthly totals, daily, category and merchant spending, and the Budget lines). Not covered: income-side totals other than the monthly total.

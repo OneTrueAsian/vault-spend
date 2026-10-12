@@ -166,3 +166,81 @@ fn the_budget_drill_down_lists_the_same_dollars_as_the_budget_line() {
         assert_eq!(listed, line.actual, "{category}: the list behind a budget line must add up to the line");
     }
 }
+
+#[test]
+fn the_phone_viewer_projection_counts_the_same_august_spending() {
+    use crate::store::mobile_snapshot::MobileSnapshotContext;
+    use chrono::{TimeZone, Utc};
+    let store = Store::open_in_memory().unwrap();
+    awkward_month(&store);
+    let (income, expense) = store.monthly_totals(2026, 8).unwrap();
+    let context = MobileSnapshotContext {
+        installation_id: "installation-test".into(),
+        profile_id: "profile-test".into(),
+        profile_name: "Personal".into(),
+        profile_icon: None,
+        epoch: "epoch-test".into(),
+        sequence: 1,
+        generated_at: Utc.with_ymd_and_hms(2026, 8, 31, 12, 0, 0).unwrap(),
+        alias_key: [7; 32],
+    };
+    let snapshot = store.build_mobile_snapshot(&context, "2026-08-31".parse().unwrap()).unwrap();
+    let amount = |text: &str| -> Decimal { text.parse().unwrap() };
+    let august = |month: &str| month == "2026-08";
+
+    let month = snapshot
+        .history
+        .months
+        .iter()
+        .find(|row| august(&row.month))
+        .expect("August is in the phone history");
+    assert_eq!(
+        (amount(&month.income), amount(&month.spending)),
+        (income, expense),
+        "phone monthly totals"
+    );
+    let daily: Decimal = snapshot
+        .history
+        .daily
+        .iter()
+        .filter(|row| row.date.starts_with("2026-08"))
+        .map(|row| amount(&row.spending))
+        .sum();
+    assert_eq!(daily, expense, "phone daily spending");
+    let categories: Decimal = snapshot
+        .history
+        .categories
+        .iter()
+        .filter(|row| august(&row.month))
+        .map(|row| amount(&row.spending))
+        .sum();
+    assert_eq!(categories, expense, "phone category spending");
+    let merchants: Decimal = snapshot
+        .history
+        .merchants
+        .iter()
+        .filter(|row| august(&row.month))
+        .map(|row| amount(&row.spending))
+        .sum();
+    assert_eq!(merchants, expense, "phone merchant spending");
+
+    let budget = snapshot
+        .budgets
+        .iter()
+        .find(|row| august(&row.month))
+        .expect("August is in the phone budgets");
+    let line = |category: &str| {
+        budget
+            .lines
+            .iter()
+            .find(|line| line.category == category)
+            .map(|line| amount(&line.actual))
+    };
+    assert_eq!(line("Groceries"), Some(d("270.00")));
+    assert_eq!(line("Household"), Some(d("80.00")));
+    assert_eq!(
+        line("Savings Goal"),
+        Some(Decimal::ZERO),
+        "the phone must not count a linked transfer as spending"
+    );
+}

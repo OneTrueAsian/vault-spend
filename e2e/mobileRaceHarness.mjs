@@ -13,14 +13,15 @@ export async function runRaceSuite(stage) {
   try {
     const [server,certificate]=await ipc(app,"debug_start_mobile_asset_server");const request=client(server.origin,certificate.pem);
     const base=(await ipc(app,"list_profiles"))[0];
-    for(const action of ["lock","switch","revoke"]){
+    for(const action of ["lock","switch","revoke","remove_grant","remove_profile"]){
       const name=`Race ${stage} ${action}`;
       await ipc(app,"create_profile",{name});
       const active=(await ipc(app,"list_profiles")).find(p=>p.is_active);
       const cookie=await pair(app,request,[active.id],`Phone ${action}`);
       const status=JSON.parse((await request("/api/status",{cookie})).body);
       const devices=await ipc(app,"mobile_list_devices");
-      const target=action==="switch"?base.id:action==="revoke"?devices.at(-1).id:active.id;
+      // remove_grant needs both ids, so it is "device|profile"; remove_profile forgets the profile everywhere.
+      const target=action==="switch"?base.id:action==="revoke"?devices.at(-1).id:action==="remove_grant"?`${devices.at(-1).id}|${active.id}`:active.id;
       const nonce=await ipc(app,"debug_mobile_authorization_race",{stage,action,target});
       const marker=suffix=>path.join(app.testDbDir,`mobile-race-${nonce}.${suffix}`);
       const responsePromise=request(`/api/snapshot/${status.profiles[0].id}`,{cookie}).then(response=>({response}),error=>({error}));
@@ -35,6 +36,6 @@ export async function runRaceSuite(stage) {
       assert.ok(!body.includes('"overview"')&&!body.includes(name),`${stage}/${action} must not deliver an unsent financial projection`);
       if(result.response)assert.notEqual(result.response.status,200,body);
     }
-    console.log(`PASS compiled ${stage} financial delivery barriers: lock, switch and revoke`);
+    console.log(`PASS compiled ${stage} financial delivery barriers: lock, switch, revoke, remove grant and remove profile`);
   }finally{await app.close();}
 }
