@@ -2,6 +2,7 @@
 //! that the reading adds up. Every bank-specific choice comes from a `StatementLayout` (data); nothing
 //! in this module names a bank. See docs/STATEMENT-RECONCILE.md.
 
+pub mod fixture_pdf;
 pub mod layout;
 pub mod model;
 pub mod text;
