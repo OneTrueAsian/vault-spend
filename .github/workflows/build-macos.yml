@@ -29,6 +29,9 @@ concurrency:
 jobs:
   build-macos:
     runs-on: macos-latest
+    outputs:
+      source-sha: ${{ steps.provenance.outputs.source_sha }}
+      installer-digests: ${{ steps.provenance.outputs.digests }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,6 +53,8 @@ jobs:
         run: cargo install cargo-audit --locked
       - name: Dependency security policy tests
         run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
+      - name: Verify signed updater release contracts
+        run: node --test tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs
       - name: Audit dependencies for aarch64-apple-darwin
         env:
           VAULTSPEND_AUDIT_OUTPUT: dependency-audit/aarch64-apple-darwin
@@ -67,6 +72,7 @@ jobs:
           if-no-files-found: error
 
       - name: Build and attach macOS bundle
+        id: package
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -76,3 +82,42 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: --target universal-apple-darwin
+      - name: Record final macOS build provenance
+        id: provenance
+        env:
+          ARTIFACT_PATHS: ${{ steps.package.outputs.artifactPaths }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node tools/update-build-provenance.mjs macos-universal "${RELEASE_TAG#v}"
+
+  sign-updates:
+    needs: build-macos
+    runs-on: ubuntu-latest
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build-macos.outputs.source-sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download final macOS release artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+          mkdir "$RUNNER_TEMP/update-input"
+          gh release download "$RELEASE_TAG" --repo OneTrueAsian/vault-spend --dir "$RUNNER_TEMP/update-input" --pattern "Vault.Spend_${RELEASE_TAG#v}_universal.dmg"
+      - name: Sign exact final macOS bytes
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          VAULTSPEND_UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+          VAULTSPEND_UPDATE_SIGNING_PASSWORD: ${{ secrets.UPDATE_SIGNING_PASSWORD }}
+          VAULTSPEND_UPDATE_SIGNING_KEY_ID: ${{ vars.UPDATE_SIGNING_KEY_ID }}
+          VAULTSPEND_UPDATE_EXPECTED_DIGESTS: ${{ needs.build-macos.outputs.installer-digests }}
+        run: node tools/update-signing.mjs sign macos-universal "${RELEASE_TAG#v}" "$RUNNER_TEMP/update-signed" "$RUNNER_TEMP/update-input/"*
+      - name: Publish immutable macOS manifest and signature
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: gh release upload "$RELEASE_TAG" --repo OneTrueAsian/vault-spend "$RUNNER_TEMP/update-signed/"*.json

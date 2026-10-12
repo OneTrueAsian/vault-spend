@@ -1,7 +1,9 @@
-//! Backend release notification. Installer downloading/opening is disabled until authenticated
-//! manifests and production publisher keys are integrated.
+//! Backend release notification and authenticated installer handoff.
+//! Empty production trust retains manual release access and disables signed offers.
+pub mod service;
 pub mod staging;
 pub mod transport;
+pub mod trust;
 /// GitHub's "latest release" endpoint for this app. Asked from the backend,
 /// not the page: the window's content rules refuse every remote request from
 /// the page, which is how 1.2.9's page-side check silently never saw 1.3.0.

@@ -100,6 +100,8 @@ pub fn run() {
                 None => app.path().app_data_dir()?,
             };
             std::fs::create_dir_all(&default_dir)?;
+            // Global, nonfinancial update cache remains independent of profile lock/switch.
+            app.manage(updater::service::UpdateService::new(&default_dir.join("updates")));
             // Only against a real install's real AppData folder — never a
             // throwaway test/dev directory, which wouldn't have a genuine
             // sibling legacy-identifier folder to find anyway. A failure
@@ -219,6 +221,10 @@ pub fn run() {
             launch_commands::start_with_new_profile_list,
             commands::write_text_file,
             commands::fetch_latest_release,
+            updater::service::prepare_signed_update,
+            updater::service::download_signed_update,
+            updater::service::cancel_signed_update,
+            updater::service::install_signed_update,
             commands::get_data_file_location,
             commands::relocate_data_file,
             commands::export_database,

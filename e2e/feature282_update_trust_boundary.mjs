@@ -26,6 +26,16 @@ try {
   });
   assert.equal(open.allowed, false, "renderer cannot open an installer path");
   assert.match(open.error, /not allowed|denied|permission|scope|forbidden/i, "the permission boundary rejects opening");
+  for (const [command, args] of [
+    ["download_signed_update", { handle: "a".repeat(64) }],
+    ["cancel_signed_update", { handle: "b".repeat(64) }],
+    ["install_signed_update", { token: path.join(dbDir, "nonexistent-update-installer.exe") }],
+    ["install_signed_update", { token: "c".repeat(64) }],
+  ]) {
+    const result = await invokeResult(command, args);
+    assert.equal(result.allowed, false, `${command} refuses unauthenticated handles and paths`);
+    assert.doesNotMatch(result.error, /not found/i, "signed updater command is registered in the compiled app");
+  }
   console.log("FEATURE 282 UPDATE TRUST BOUNDARY PASSED");
 } finally {
   await app.close();

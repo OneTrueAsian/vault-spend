@@ -170,6 +170,84 @@ pub(super) async fn installer_response(update: &SelectedUpdate) -> Result<reqwes
         .map_err(|_| "Couldn't download the signed update installer.".into())
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct SignatureEnvelope {
+    format: u32,
+    key_id: String,
+    signature: String,
+}
+
+/// The release can locate bounded public bytes, but cannot provide its own trusted key or URL.
+pub async fn signed_selection(release: &super::LatestRelease) -> Result<SelectedUpdate, String> {
+    use base64::Engine;
+    let keys = super::trust::embedded_keys()?;
+    if keys.is_empty() {
+        return Err("Production update signing is not configured. Use the official release page.".into());
+    }
+    let version = release.tag_name.strip_prefix('v').ok_or("The release version is invalid.")?;
+    let parts: Vec<_> = version.split('.').collect();
+    if parts.len() != 3
+        || parts.iter().any(|part| {
+            part.is_empty()
+                || !part.bytes().all(|byte| byte.is_ascii_digit())
+                || (part.len() > 1 && part.starts_with('0'))
+                || part.parse::<u32>().is_err()
+        })
+    {
+        return Err("The release version is invalid.".into());
+    }
+    let filename = if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        format!("Vault.Spend_{version}_x64-setup.exe")
+    } else if cfg!(target_os = "macos") {
+        format!("Vault.Spend_{version}_universal.dmg")
+    } else {
+        return Err("Updates are unavailable for this platform.".into());
+    };
+    let manifest = public_metadata_asset(
+        release,
+        &format!("{filename}.manifest.json"),
+        budget_core::update_manifest::MAX_MANIFEST_BYTES,
+    )
+    .await?;
+    let signature = public_metadata_asset(release, &format!("{filename}.signature.json"), 2048).await?;
+    let envelope: SignatureEnvelope = serde_json::from_slice(&signature).map_err(|_| "The update signature envelope is invalid.")?;
+    if envelope.format != 1 {
+        return Err("The update signature format is unsupported.".into());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(envelope.signature)
+        .map_err(|_| "The update signature is invalid.")?;
+    if bytes.len() != 64 {
+        return Err("The update signature is invalid.".into());
+    }
+    select_update(release, &manifest, &bytes, &envelope.key_id, &super::trust::borrowed(&keys))
+}
+
+async fn public_metadata_asset(release: &super::LatestRelease, name: &str, limit: usize) -> Result<Vec<u8>, String> {
+    let expected = format!(
+        "https://github.com/OneTrueAsian/vault-spend/releases/download/{}/{name}",
+        release.tag_name
+    );
+    let mut matches = release.assets.iter().filter(|asset| asset.name == name);
+    let asset = matches
+        .next()
+        .ok_or("This release does not have a complete signed update. Use the official release page.")?;
+    if matches.next().is_some() || asset.browser_download_url != expected || asset.size == 0 || asset.size > limit as u64 {
+        return Err("The signed update metadata source or size is invalid.".into());
+    }
+    let response = client(true)?
+        .get(expected)
+        .send()
+        .await
+        .map_err(|_| "Couldn't download signed update metadata.")?;
+    let bytes = bounded_body(response, limit).await?;
+    if bytes.len() as u64 != asset.size {
+        return Err("The signed update metadata size changed.".into());
+    }
+    Ok(bytes)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

@@ -1,4 +1,4 @@
-//! Backend-only staging primitives; no download/install IPC is registered.
+//! Private staging and one-use handoff primitives used by the native update service.
 use super::transport::SelectedUpdate;
 use std::{
     collections::HashMap,
@@ -38,7 +38,22 @@ impl UpdateStaging {
         self.stage_response(update, response).await
     }
 
-    async fn stage_response(&mut self, update: SelectedUpdate, mut response: reqwest::Response) -> Result<String, String> {
+    pub async fn download_progress(&mut self, update: SelectedUpdate, progress: impl FnMut(u64, u64, bool)) -> Result<String, String> {
+        self.ensure_not_staged(&update)?;
+        let response = super::transport::installer_response(&update).await?;
+        self.stage_response_progress(update, response, progress).await
+    }
+
+    async fn stage_response(&mut self, update: SelectedUpdate, response: reqwest::Response) -> Result<String, String> {
+        self.stage_response_progress(update, response, |_, _, _| {}).await
+    }
+
+    async fn stage_response_progress(
+        &mut self,
+        update: SelectedUpdate,
+        mut response: reqwest::Response,
+        mut progress: impl FnMut(u64, u64, bool),
+    ) -> Result<String, String> {
         use std::io::Write;
         self.ensure_not_staged(&update)?;
         ensure_directory(&self.directory)?;
@@ -62,15 +77,22 @@ impl UpdateStaging {
             .map_err(|_| "Couldn't create the staged installer.".to_string())?;
         pending.owned = true;
         let mut size = 0u64;
+        let mut reported = 0u64;
+        progress(0, manifest.size, false);
         while let Some(chunk) = response.chunk().await.map_err(|_| "Couldn't read the installer download.")? {
             if chunk.len() as u64 > manifest.size.saturating_sub(size) {
                 return Err("The installer download is too large.".into());
             }
             file.write_all(&chunk).map_err(|_| "Couldn't save the installer download.")?;
             size += chunk.len() as u64;
+            if size - reported >= 256 * 1024 || size == manifest.size {
+                progress(size, manifest.size, false);
+                reported = size;
+            }
         }
         file.sync_all().map_err(|_| "Couldn't finish saving the installer.")?;
         drop(file);
+        progress(size, manifest.size, true);
         verify_file(&self.directory, &path, &manifest)?;
         self.entries
             .insert(token.clone(), (path, manifest, Instant::now() + Duration::from_secs(600)));
@@ -89,8 +111,8 @@ impl UpdateStaging {
         Ok(())
     }
 
-    /// One-use token; rehash immediately before an explicitly confirmed future backend action.
-    /// This callback is never wired to an opener while production trust is unavailable.
+    /// One-use token; rehash before an action that finishes reading the file synchronously.
+    /// Installer processes use `handoff_verified_installer` instead, retaining their input.
     pub fn with_verified_installer(&mut self, token: &str, action: impl FnOnce(&Path) -> Result<(), String>) -> Result<(), String> {
         let (path, manifest, expires) = self.entries.remove(token).ok_or("The update token is invalid or no longer available.")?;
         let _cleanup = PendingFile {
@@ -102,6 +124,23 @@ impl UpdateStaging {
         }
         verify_file(&self.directory, &path, &manifest)?;
         action(&path)
+    }
+
+    /// A successful OS handoff must retain bytes while the installer reads them. The consumed
+    /// token cannot be reused; nonrecursive restart cleanup later reclaims this session folder.
+    pub fn handoff_verified_installer(&mut self, token: &str, action: impl FnOnce(&Path) -> Result<(), String>) -> Result<(), String> {
+        let (path, manifest, expires) = self.entries.remove(token).ok_or("The update token is invalid or no longer available.")?;
+        let mut cleanup = PendingFile {
+            path: path.clone(),
+            owned: true,
+        };
+        if Instant::now() >= expires {
+            return Err("The update token has expired.".into());
+        }
+        verify_file(&self.directory, &path, &manifest)?;
+        action(&path)?;
+        cleanup.owned = false;
+        Ok(())
     }
 
     pub fn cancel(&mut self, token: &str) -> Result<(), String> {
@@ -355,6 +394,30 @@ mod tests {
         assert_eq!(fs::read_dir(&staging.directory).unwrap().count(), 0);
         drop(release);
         server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn successful_handoff_retains_bytes_but_refusal_and_changed_bytes_are_cleaned() {
+        let mut staging = stage();
+        let directory = staging.directory.clone();
+        let token = staging.stage_response(selection(), response(INERT).await).await.unwrap();
+        let path = staging.entries[&token].0.clone();
+        staging.handoff_verified_installer(&token, |_| Ok(())).unwrap();
+        assert!(path.exists());
+        assert!(staging.handoff_verified_installer(&token, |_| panic!("reuse")).is_err());
+        let failed = staging.stage_response(selection(), response(INERT).await).await.unwrap();
+        let failed_path = staging.entries[&failed].0.clone();
+        assert!(staging.handoff_verified_installer(&failed, |_| Err("inert refusal".into())).is_err());
+        assert!(!failed_path.exists());
+        let changed = staging.stage_response(selection(), response(INERT).await).await.unwrap();
+        let changed_path = staging.entries[&changed].0.clone();
+        std::fs::write(&changed_path, b"other").unwrap();
+        assert!(staging.handoff_verified_installer(&changed, |_| panic!("tampered handoff")).is_err());
+        assert!(!changed_path.exists());
+        drop(staging);
+        assert!(path.exists());
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(directory).unwrap();
     }
 
     #[test]

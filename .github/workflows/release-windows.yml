@@ -26,6 +26,9 @@ concurrency:
 jobs:
   release:
     runs-on: windows-latest
+    outputs:
+      source-sha: ${{ steps.provenance.outputs.source_sha }}
+      installer-digests: ${{ steps.provenance.outputs.digests }}
     timeout-minutes: 90
     defaults:
       run:
@@ -77,6 +80,9 @@ jobs:
         run: cargo install cargo-audit --locked
       - name: Dependency security policy tests
         run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
+      - name: Verify signed updater release contracts
+        if: ${{ !inputs.recovery }}
+        run: node --test tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs
       - name: Audit dependencies for x86_64-pc-windows-msvc
         env:
           VAULTSPEND_AUDIT_OUTPUT: dependency-audit/x86_64-pc-windows-msvc
@@ -119,6 +125,7 @@ jobs:
       - name: Full desktop E2E release gate
         run: npm run e2e
       - name: Build and publish Windows installers
+        id: package
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,3 +135,44 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: --bundles nsis,msi
+      - name: Record final Windows build provenance
+        if: ${{ !inputs.recovery }}
+        id: provenance
+        env:
+          ARTIFACT_PATHS: ${{ steps.package.outputs.artifactPaths }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node tools/update-build-provenance.mjs windows-x86_64 $env:RELEASE_TAG.Substring(1)
+
+  sign-updates:
+    if: ${{ !inputs.recovery }}
+    needs: release
+    runs-on: ubuntu-latest
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.source-sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download final Windows release artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+          mkdir "$RUNNER_TEMP/update-input"
+          gh release download "$RELEASE_TAG" --repo OneTrueAsian/vault-spend --dir "$RUNNER_TEMP/update-input" --pattern "Vault.Spend_${RELEASE_TAG#v}_x64-setup.exe" --pattern "Vault.Spend_${RELEASE_TAG#v}_x64_en-US.msi"
+      - name: Sign exact final Windows bytes
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          VAULTSPEND_UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+          VAULTSPEND_UPDATE_SIGNING_PASSWORD: ${{ secrets.UPDATE_SIGNING_PASSWORD }}
+          VAULTSPEND_UPDATE_SIGNING_KEY_ID: ${{ vars.UPDATE_SIGNING_KEY_ID }}
+          VAULTSPEND_UPDATE_EXPECTED_DIGESTS: ${{ needs.release.outputs.installer-digests }}
+        run: node tools/update-signing.mjs sign windows-x86_64 "${RELEASE_TAG#v}" "$RUNNER_TEMP/update-signed" "$RUNNER_TEMP/update-input/Vault.Spend_${RELEASE_TAG#v}_x64-setup.exe" "$RUNNER_TEMP/update-input/Vault.Spend_${RELEASE_TAG#v}_x64_en-US.msi"
+      - name: Publish immutable Windows manifests and signatures
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: gh release upload "$RELEASE_TAG" --repo OneTrueAsian/vault-spend "$RUNNER_TEMP/update-signed/"*.json
