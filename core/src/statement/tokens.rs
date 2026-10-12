@@ -50,7 +50,7 @@ pub fn is_date_range(rest: &str, rules: &DateRules, period: &Period) -> bool {
     let r = rest.trim_start();
     let after = if let Some(x) = r.strip_prefix('-').or_else(|| r.strip_prefix('–')) {
         x
-    } else if r.len() > 3 && r[..3].eq_ignore_ascii_case("to ") {
+    } else if r.get(..3).is_some_and(|word| word.eq_ignore_ascii_case("to ")) {
         &r[3..]
     } else {
         return false;
@@ -279,10 +279,11 @@ pub fn money_token(tok: &str, rules: &AmountRules) -> Option<(Decimal, Option<Ne
         style = Some(NegativeStyle::Parentheses);
     }
     if style.is_none() && t.len() > 2 {
-        let upper = t[t.len() - 2..].to_ascii_uppercase();
-        let candidate = match upper.as_str() {
-            "CR" => Some(NegativeStyle::CrSuffix),
-            "DR" => Some(NegativeStyle::DrSuffix),
+        // `get` rather than slicing: the last two bytes can fall inside a non-ASCII character.
+        let upper = t.get(t.len() - 2..).map(str::to_ascii_uppercase);
+        let candidate = match upper.as_deref() {
+            Some("CR") => Some(NegativeStyle::CrSuffix),
+            Some("DR") => Some(NegativeStyle::DrSuffix),
             _ => None,
         };
         if let Some(s) = candidate
@@ -553,5 +554,52 @@ mod money_tests {
         let line = "Jul 31 ONLINE PYMT - $3,975.23 thanks";
         let money = find_money(line, &permissive_amounts());
         assert_eq!(without_money(line, &money), "Jul 31 ONLINE PYMT thanks");
+    }
+}
+
+#[cfg(test)]
+mod robustness_tests {
+    use super::*;
+    use crate::statement::layout::DateFormat;
+
+    /// Real statements carry accents, bullets, euro signs and non-breaking spaces. Nothing the reader
+    /// does to a line may panic when such a character sits anywhere in it.
+    #[test]
+    fn non_ascii_text_anywhere_in_a_line_never_panics() {
+        let rules = permissive_amounts();
+        let dates = DateRules {
+            formats: DateFormat::ALL.to_vec(),
+            second_date: true,
+            ignore_markers: vec!['*'],
+        };
+        let period = Period::new("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap()).unwrap();
+        let bases = [
+            "12.50",
+            "(10.84)",
+            "- $3,975.23",
+            "75.00 CR",
+            "12.00-",
+            "-$43.08",
+            "to 08/05/26",
+            "- Aug 24, 2026",
+            "Aug 5 Aug 6 Caf\u{e9} 4.50",
+            "08/05/26* AUTOPAY 4.50 864",
+            "10.000 at $43.62 ($436.15)",
+        ];
+        for base in bases {
+            let positions: Vec<usize> = base.char_indices().map(|(i, _)| i).chain(std::iter::once(base.len())).collect();
+            for at in positions {
+                for ch in ['\u{e9}', '\u{2014}', '\u{2022}', '\u{20ac}', '\u{a0}', '\u{65e5}'] {
+                    let mut line = base.to_string();
+                    line.insert(at, ch);
+                    let _ = find_money(&line, &rules);
+                    let _ = money_token(&line, &rules);
+                    let _ = parse_number_token(&line, &rules, 2);
+                    let _ = without_money(&line, &find_money(&line, &rules));
+                    let _ = leading_date(&line, &dates, &period);
+                    let _ = is_date_range(&line, &dates, &period);
+                }
+            }
+        }
     }
 }
