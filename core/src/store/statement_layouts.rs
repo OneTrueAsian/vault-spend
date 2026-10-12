@@ -35,9 +35,9 @@ impl std::fmt::Display for LayoutSaveError {
                 f,
                 "Give it a name of up to 80 characters, without account numbers, email addresses or phone numbers."
             ),
-            LayoutSaveError::Missing => write!(f, "That statement is no longer in the list. Read the statement again."),
+            LayoutSaveError::Missing => write!(f, "That saved way of reading statements is no longer there."),
             LayoutSaveError::Layout(e) => write!(f, "{e}"),
-            LayoutSaveError::Db(e) => write!(f, "{e}"),
+            LayoutSaveError::Db(_) => write!(f, "Something went wrong saving this. Please try again."),
         }
     }
 }
@@ -80,8 +80,9 @@ impl Store {
         let mut layout = layout.clone();
         layout.name = name.to_string();
         layout.id = "learned".to_string();
-        layout.validate().map_err(LayoutSaveError::Layout)?;
         let json = layout.to_json();
+        // Round-trip exactly as listing will read it (size limit and validation), so anything saved is listable.
+        StatementLayout::from_json(&json).map_err(LayoutSaveError::Layout)?;
         match id {
             Some(id) => {
                 let changed = self.conn.execute(
@@ -103,13 +104,40 @@ impl Store {
         }
     }
 
+    /// Renames the row whatever its contents. The stored layout's own name is updated only when the row
+    /// still parses and validates; a damaged row is renamed but not repaired, so it stays skipped.
     pub fn rename_statement_layout(&self, id: i64, name: &str, now: NaiveDateTime) -> Result<(), LayoutSaveError> {
-        let stored = self
-            .list_statement_layouts()?
-            .into_iter()
-            .find(|l| l.id == id)
-            .ok_or(LayoutSaveError::Missing)?;
-        self.save_statement_layout(Some(id), name, &stored.layout, now).map(|_| ())
+        let name = name.trim();
+        if !is_safe_phrase(name) {
+            return Err(LayoutSaveError::Name);
+        }
+        let stored: String = match self
+            .conn
+            .query_row("SELECT layout FROM statement_layouts WHERE id = ?1", params![id], |r| r.get(0))
+        {
+            Ok(json) => json,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Err(LayoutSaveError::Missing),
+            Err(e) => return Err(e.into()),
+        };
+        let now = now.to_string();
+        match StatementLayout::from_json(&stored) {
+            Ok(mut layout) => {
+                layout.name = name.to_string();
+                let json = layout.to_json();
+                StatementLayout::from_json(&json).map_err(LayoutSaveError::Layout)?;
+                self.conn.execute(
+                    "UPDATE statement_layouts SET name = ?1, layout = ?2, updated_at = ?3 WHERE id = ?4",
+                    params![name, json, now, id],
+                )?;
+            }
+            Err(_) => {
+                self.conn.execute(
+                    "UPDATE statement_layouts SET name = ?1, updated_at = ?2 WHERE id = ?3",
+                    params![name, now, id],
+                )?;
+            }
+        }
+        Ok(())
     }
 
     pub fn delete_statement_layout(&self, id: i64) -> rusqlite::Result<()> {
