@@ -1,10 +1,11 @@
 # Production update signing and activation
 
-The signed-update flow is implemented, but `src-tauri/update-keys.json` deliberately
-contains no publisher keys. No production key was generated or GitHub setting
-changed during implementation. Until activation, the app offers the fixed official
-release page and refuses signed downloads. This is a security gate, not a missing
-permission or network setting.
+The signed-update flow embeds the production public key `release-2026` in
+`src-tauri/update-keys.json`. The encrypted private key and its passphrase are
+configured as secrets in the protected GitHub `release-signing` environment.
+Publication and real installation acceptance must still complete before production
+activation is considered finished. Older builds without this public key continue
+to use the official release page for manual installation.
 
 ## Generate and protect the key
 
@@ -39,7 +40,9 @@ In `OneTrueAsian/vault-spend`, create/configure the **release-signing** environm
 
 - Restrict deployment tags to approved stable release tags and require an owner
   reviewer where the repository's GitHub plan supports it. Disable self approval
-  and administrator bypass if available. Merely naming an environment in YAML
+  when a second reviewer is available, and disable administrator bypass. The
+  current sole-owner configuration allows owner self approval, requires review,
+  disables administrator bypass, and permits only `v*` tags. Merely naming an environment in YAML
   does not establish these protections.
 - Environment secret `UPDATE_SIGNING_PRIVATE_KEY`: the entire encrypted PEM.
 - Environment secret `UPDATE_SIGNING_PASSWORD`: its passphrase.

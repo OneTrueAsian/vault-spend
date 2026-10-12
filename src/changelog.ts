@@ -5,6 +5,10 @@
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, string[]> = {
+  "1.3.1": [
+    "Updates can now download verified installers from the official release, with progress, cancellation and confirmation before opening the installer.",
+    "Update authenticity is checked against a publisher public key embedded in the app; unavailable or invalid metadata keeps the manual release link available.",
+  ],
   "1.1.2": [
     "Ledger columns are now sortable — click a header to sort by it, click again to flip direction.",
     "The Ledger's account filter is now a dropdown grouped by account type, with a checkbox per account so you can filter to several at once.",
