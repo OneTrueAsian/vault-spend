@@ -133,7 +133,7 @@ jobs:
       - name: Desktop WebDriver smoke preflight
         run: npm run e2e:smoke
       - name: Full desktop E2E release gate
-        run: npm run e2e
+        run: npm run e2e -- --concurrency=3
       - name: Build and publish Windows installers
         if: ${{ !inputs.diagnostic_only }}
         id: package

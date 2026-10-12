@@ -32,6 +32,13 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertTrue('if: ${{ !inputs.recovery && !inputs.diagnostic_only }}' in signing, 'diagnostics must not enter protected signing')
         self.assertLess(source.index('      - name: Desktop WebDriver smoke preflight'), source.index('      - name: Full desktop E2E release gate'))
 
+    def test_hosted_runner_gate_limits_concurrent_app_launches(self):
+        # The hosted Windows runner stalled WebView launches at the harness default of 6 (118/202 passed,
+        # 45 launch retries) while the single-spec smoke preflight passed; the full gate must stay lower.
+        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        gate = source.split('      - name: Full desktop E2E release gate\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('run: npm run e2e -- --concurrency=3', gate)
+
     def execute_repair(self, source):
         with tempfile.TemporaryDirectory(prefix='release-recovery-') as folder:
             root = Path(folder)
