@@ -1,9 +1,11 @@
 //! Dates and money on statement lines, recognised by hand (no regular expressions): every accepted form
 //! comes from the layout's closed option set.
 
-use super::layout::{DateFormat, DateRules};
+use super::layout::{AmountRules, Currency, DateFormat, DateRules, DecimalMark, NegativeStyle, Thousands};
 use super::model::Period;
 use chrono::{Datelike, NaiveDate};
+use rust_decimal::Decimal;
+use std::str::FromStr;
 
 const MONTHS: [&str; 12] = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
@@ -164,6 +166,236 @@ pub fn parse_date_prefix(s: &str, format: DateFormat, period: &Period) -> Option
     }
 }
 
+/// A money amount on a line: its signed value, where it sits, and how a negative was written.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Money {
+    pub value: Decimal,
+    pub start: usize,
+    pub end: usize,
+    pub negative_style: Option<NegativeStyle>,
+}
+
+/// The widest reasonable reading, for teaching and for downloads.
+pub fn permissive_amounts() -> AmountRules {
+    AmountRules {
+        negatives: vec![
+            NegativeStyle::LeadingMinus,
+            NegativeStyle::SpacedMinus,
+            NegativeStyle::Parentheses,
+            NegativeStyle::TrailingMinus,
+            NegativeStyle::CrSuffix,
+            NegativeStyle::DrSuffix,
+        ],
+        currency: Currency::Optional,
+        thousands: Thousands::Comma,
+        decimal: DecimalMark::Period,
+    }
+}
+
+fn tokens(line: &str) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut start = None;
+    for (i, c) in line.char_indices() {
+        if c.is_whitespace() {
+            if let Some(s) = start.take() {
+                out.push((s, i));
+            }
+        } else if start.is_none() {
+            start = Some(i);
+        }
+    }
+    if let Some(s) = start {
+        out.push((s, line.len()));
+    }
+    out
+}
+
+fn suffix_style(tok: &str, rules: &AmountRules) -> Option<NegativeStyle> {
+    let style = if tok.eq_ignore_ascii_case("CR") {
+        NegativeStyle::CrSuffix
+    } else if tok.eq_ignore_ascii_case("DR") {
+        NegativeStyle::DrSuffix
+    } else {
+        return None;
+    };
+    rules.negatives.contains(&style).then_some(style)
+}
+
+/// Every money amount on the line, in order.
+pub fn find_money(line: &str, rules: &AmountRules) -> Vec<Money> {
+    let toks = tokens(line);
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < toks.len() {
+        let (s, e) = toks[i];
+        let tok = &line[s..e];
+        if tok == "-"
+            && rules.negatives.contains(&NegativeStyle::SpacedMinus)
+            && let Some(&(ns, ne)) = toks.get(i + 1)
+            && let Some((v, None)) = money_token(&line[ns..ne], rules)
+        {
+            out.push(Money {
+                value: -v,
+                start: s,
+                end: ne,
+                negative_style: Some(NegativeStyle::SpacedMinus),
+            });
+            i += 2;
+            continue;
+        }
+        if let Some((mut value, mut style)) = money_token(tok, rules) {
+            let mut end = e;
+            if style.is_none()
+                && let Some(&(ns, ne)) = toks.get(i + 1)
+                && let Some(suffix) = suffix_style(&line[ns..ne], rules)
+            {
+                value = -value;
+                style = Some(suffix);
+                end = ne;
+                i += 1;
+            }
+            out.push(Money {
+                value,
+                start: s,
+                end,
+                negative_style: style,
+            });
+        }
+        i += 1;
+    }
+    out
+}
+
+/// One whitespace-free token as money: its signed value and how a negative was written.
+pub fn money_token(tok: &str, rules: &AmountRules) -> Option<(Decimal, Option<NegativeStyle>)> {
+    let allows = |s: NegativeStyle| rules.negatives.contains(&s);
+    let mut t = tok.trim_end_matches([',', ';']);
+    let mut style = None;
+    if t.len() > 2 && t.starts_with('(') && t.ends_with(')') {
+        if !allows(NegativeStyle::Parentheses) {
+            return None;
+        }
+        t = &t[1..t.len() - 1];
+        style = Some(NegativeStyle::Parentheses);
+    }
+    if style.is_none() && t.len() > 2 {
+        let upper = t[t.len() - 2..].to_ascii_uppercase();
+        let candidate = match upper.as_str() {
+            "CR" => Some(NegativeStyle::CrSuffix),
+            "DR" => Some(NegativeStyle::DrSuffix),
+            _ => None,
+        };
+        if let Some(s) = candidate
+            && t[..t.len() - 2].ends_with(|c: char| c.is_ascii_digit())
+        {
+            if !allows(s) {
+                return None;
+            }
+            t = &t[..t.len() - 2];
+            style = Some(s);
+        }
+    }
+    if style.is_none() && t.starts_with('-') {
+        if !allows(NegativeStyle::LeadingMinus) {
+            return None;
+        }
+        t = &t[1..];
+        style = Some(NegativeStyle::LeadingMinus);
+    }
+    if style.is_none() && t.len() > 1 && t.ends_with('-') {
+        if !allows(NegativeStyle::TrailingMinus) {
+            return None;
+        }
+        t = &t[..t.len() - 1];
+        style = Some(NegativeStyle::TrailingMinus);
+    }
+    let had_symbol = t.starts_with('$');
+    if had_symbol {
+        t = &t[1..];
+    } else if rules.currency == Currency::Required {
+        return None;
+    }
+    if style.is_none() && had_symbol && t.starts_with('-') {
+        if !allows(NegativeStyle::LeadingMinus) {
+            return None;
+        }
+        t = &t[1..];
+        style = Some(NegativeStyle::LeadingMinus);
+    }
+    let magnitude = plain_number(t, rules, Some(2))?;
+    Some((if style.is_some() { -magnitude } else { magnitude }, style))
+}
+
+/// A number with exactly `decimals` digits after the decimal mark (0 = a whole number), with an
+/// optional leading `$`. Used for share quantities and prices.
+pub fn parse_number_token(tok: &str, rules: &AmountRules, decimals: u8) -> Option<Decimal> {
+    let t = tok.trim_end_matches([',', ';']);
+    let t = t.strip_prefix('$').unwrap_or(t);
+    plain_number(t, rules, Some(decimals as usize))
+}
+
+fn marks(rules: &AmountRules) -> (char, Option<char>) {
+    let decimal = match rules.decimal {
+        DecimalMark::Period => '.',
+        DecimalMark::Comma => ',',
+    };
+    let thousands = match rules.thousands {
+        Thousands::Comma => Some(','),
+        Thousands::Period => Some('.'),
+        Thousands::Apostrophe => Some('\''),
+        Thousands::None => None,
+    };
+    (decimal, thousands)
+}
+
+fn plain_number(t: &str, rules: &AmountRules, decimals: Option<usize>) -> Option<Decimal> {
+    let (decimal, thousands) = marks(rules);
+    let (int_part, frac) = match t.rfind(decimal) {
+        Some(p) => (&t[..p], Some(&t[p + decimal.len_utf8()..])),
+        None => (t, None),
+    };
+    let frac_ok = |f: &str| !f.is_empty() && f.bytes().all(|b| b.is_ascii_digit());
+    match (decimals, frac) {
+        (Some(0), None) | (None, None) => {}
+        (Some(n), Some(f)) if n > 0 && f.len() == n && frac_ok(f) => {}
+        (None, Some(f)) if frac_ok(f) => {}
+        _ => return None,
+    }
+    if int_part.is_empty() {
+        frac?;
+    } else {
+        let groups: Vec<&str> = match thousands {
+            Some(c) => int_part.split(c).collect(),
+            None => vec![int_part],
+        };
+        if groups.iter().any(|g| g.is_empty() || !g.bytes().all(|b| b.is_ascii_digit())) {
+            return None;
+        }
+        if groups.len() > 1 && (groups[0].len() > 3 || groups[1..].iter().any(|g| g.len() != 3)) {
+            return None;
+        }
+    }
+    let digits: String = int_part.chars().filter(char::is_ascii_digit).collect();
+    let text = match frac {
+        Some(f) => format!("{}.{}", if digits.is_empty() { "0" } else { &digits }, f),
+        None => digits,
+    };
+    Decimal::from_str(&text).ok()
+}
+
+/// The line with its money removed and whitespace tidied — what's left is description.
+pub fn without_money(line: &str, money: &[Money]) -> String {
+    let mut out = String::new();
+    let mut at = 0;
+    for m in money {
+        out.push_str(&line[at..m.start]);
+        out.push(' ');
+        at = m.end;
+    }
+    out.push_str(&line[at..]);
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 #[cfg(test)]
 mod date_tests {
     use super::*;
@@ -254,5 +486,72 @@ mod date_tests {
             leading_date("2026-08-09 Gas -30.00", &rules(&[YyyyMmDd], false), &p).unwrap().date,
             d("2026-08-09")
         );
+    }
+}
+
+#[cfg(test)]
+mod money_tests {
+    use super::*;
+    use rust_decimal_macros::dec;
+
+    fn values(line: &str) -> Vec<Decimal> {
+        find_money(line, &permissive_amounts()).into_iter().map(|m| m.value).collect()
+    }
+
+    #[test]
+    fn every_negative_style_seen_on_real_statements() {
+        assert_eq!(values("Payments/Credits -$43.08"), vec![dec!(-43.08)]);
+        assert_eq!(values("Jul 31 Jul 31 ONLINE PYMT - $3,975.23"), vec![dec!(-3975.23)]);
+        assert_eq!(values("($10.84) $144.21"), vec![dec!(-10.84), dec!(144.21)]);
+        assert_eq!(values("Transfer received 75.00 CR"), vec![dec!(-75.00)]);
+        assert_eq!(values("Refund 12.00-"), vec![dec!(-12.00)]);
+    }
+
+    #[test]
+    fn only_two_decimal_numbers_are_money() {
+        assert_eq!(values("05/12 Audible*AJ63E4WA3 Amzn.com/bill NJ .99"), vec![dec!(0.99)]);
+        assert_eq!(values("04/26 AMAZON.COM AMZN.COM/BILLWA 8.64 864"), vec![dec!(8.64)]);
+        assert_eq!(values("Bought 10.000 at $43.62 ($436.15)"), vec![dec!(43.62), dec!(-436.15)]);
+        assert!(values("REINVEST AT 9.470 Quantity 1.054 252.523 $339.3500 5.500% 1,936 800-782-7282").is_empty());
+        assert_eq!(values("New Balance = $1,442.49"), vec![dec!(1442.49)]);
+    }
+
+    #[test]
+    fn a_style_the_layout_does_not_allow_is_not_money() {
+        let mut rules = permissive_amounts();
+        rules.negatives = vec![NegativeStyle::LeadingMinus];
+        assert!(find_money("($10.84)", &rules).is_empty());
+        rules.currency = Currency::Required;
+        assert!(find_money("33.91", &rules).is_empty());
+        assert_eq!(find_money("$33.91", &rules)[0].value, dec!(33.91));
+    }
+
+    #[test]
+    fn european_marks() {
+        let mut rules = permissive_amounts();
+        rules.thousands = Thousands::Period;
+        rules.decimal = DecimalMark::Comma;
+        assert_eq!(find_money("Miete -1.234,56", &rules)[0].value, dec!(-1234.56));
+    }
+
+    #[test]
+    fn bad_grouping_is_not_money() {
+        assert!(values("12,34.56 1234,567.00").is_empty());
+    }
+
+    #[test]
+    fn numbers_with_a_set_number_of_decimals() {
+        let r = permissive_amounts();
+        assert_eq!(parse_number_token("252.523", &r, 3), Some(dec!(252.523)));
+        assert_eq!(parse_number_token("$339.3500", &r, 4), Some(dec!(339.35)));
+        assert_eq!(parse_number_token("10.5000", &r, 3), None);
+        assert_eq!(parse_number_token("1,050", &r, 0), Some(dec!(1050)));
+    }
+
+    #[test]
+    fn the_text_around_the_money_is_kept() {
+        let line = "Jul 31 ONLINE PYMT - $3,975.23 thanks";
+        let money = find_money(line, &permissive_amounts());
+        assert_eq!(without_money(line, &money), "Jul 31 ONLINE PYMT thanks");
     }
 }
