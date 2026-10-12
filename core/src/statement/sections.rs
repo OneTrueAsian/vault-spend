@@ -5,7 +5,7 @@ use super::holdings::HoldingsReader;
 use super::layout::StatementLayout;
 use super::model::{Period, StatementLine, StatementSection};
 use super::rows::RowReader;
-use super::text::{contains_label, contains_phrase, is_label_only, starts_with_label};
+use super::text::{contains_label, contains_phrase, is_label_only, label_end, starts_with_label};
 use super::tokens::{find_money, leading_date};
 use rust_decimal::Decimal;
 
@@ -18,7 +18,7 @@ pub(crate) fn label_amount(lines: &[StatementLine], i: usize, label: &str, layou
     let text = lines[i].text.trim();
     let body = leading_date(text, &layout.dates, period).map(|d| d.rest).unwrap_or(text);
     if !starts_with_label(body, label) {
-        return None;
+        return anywhere_amount(body, label, layout);
     }
     let money = find_money(body, &layout.amounts);
     if !money.is_empty() {
@@ -35,6 +35,17 @@ pub(crate) fn label_amount(lines: &[StatementLine], i: usize, label: &str, layou
         }
     }
     None
+}
+
+/// With `labels_anywhere`: the amount right after `label`, wherever the label sits in the line. Words
+/// between the label and the amount mean it is a sentence about the label, not a figure for it.
+fn anywhere_amount(body: &str, label: &str, layout: &StatementLayout) -> Option<Decimal> {
+    if !layout.balances.labels_anywhere {
+        return None;
+    }
+    let after = &body[label_end(body, label)?..];
+    let first = find_money(after, &layout.amounts).into_iter().next()?;
+    (!after[..first.start].chars().any(char::is_alphabetic)).then_some(first.value)
 }
 
 struct SectionBuilder<'l> {
@@ -309,5 +320,35 @@ mod tests {
             (Some(dec!(10.00)), Some(dec!(20.00)))
         );
         assert_eq!(sections[1].name, "CHECKING Share Account ID 02");
+    }
+
+    #[test]
+    fn labels_anywhere_reads_a_summary_that_shares_its_line_with_other_text() {
+        use crate::statement::model::StatementLine;
+        let line = |text: &str| StatementLine {
+            page: 0,
+            text: text.to_string(),
+        };
+        let lines = vec![
+            line("For late payments, the Previous Balance $100.00"),
+            line("Payments - $20.00"),
+            line("If you pay your New Balance in full by the due date you owe no interest"),
+            line("their statement total New Balance = $80.00"),
+        ];
+        let period = crate::statement::model::Period::new("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap()).unwrap();
+        let mut l = layout(GENERAL_ID);
+        let off = &read_statement(&lines, &l, &period)[0];
+        assert_eq!(
+            (off.starting_balance, off.ending_balance),
+            (None, None),
+            "off by default: labels must start the line"
+        );
+        l.balances.labels_anywhere = true;
+        let on = &read_statement(&lines, &l, &period)[0];
+        assert_eq!(
+            (on.starting_balance, on.ending_balance),
+            (Some(dec!(100.00)), Some(dec!(80.00))),
+            "the sentence about paying in full is not a balance: words stand between the label and any amount"
+        );
     }
 }

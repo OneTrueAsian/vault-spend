@@ -2,4 +2,4 @@
   "dates": { "formats": ["mon_dd"], "second_date": true },
   "amounts": { "negatives": ["parentheses"], "currency": "optional", "thousands": "comma", "decimal": "period" },
   "rows": { "amount": "first", "running_balance": true },
-  "balances": { "pairs": [{ "start": "Beginning Balance", "end": "Ending Balance" }], "section_start": ["Share Account ID"] } }
+  "balances": { "pairs": [{ "start": "Beginning Balance", "end": "Ending Balance" }], "section_start": ["Share Account ID", "Loan Account ID"] } }

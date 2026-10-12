@@ -166,6 +166,10 @@ pub struct BalanceRules {
     /// Which column of a multi-column summary line to read (0 = first, "current month").
     #[serde(default)]
     pub summary_column: u8,
+    /// A balance or total label may sit anywhere in a line (a summary in a second column shares its line
+    /// with other text). The amount must follow the label directly, with no words in between.
+    #[serde(default)]
+    pub labels_anywhere: bool,
     #[serde(default)]
     pub activity_totals: Vec<TotalsPair>,
     /// An investment account's total value (reference only).
