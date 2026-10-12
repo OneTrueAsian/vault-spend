@@ -10,6 +10,15 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-11-statement-upload-reconcile-design.md` (read it before starting; this plan argues from it).
 
+## Execution Method (chosen by the owner, 2026-10-11)
+
+Hybrid. Not started yet; use this split when the owner says to begin.
+
+- **Subagent-driven** (`superpowers:subagent-driven-development`: an implementer subagent, then a reviewer subagent, per task) for the tasks that write or decide financial data: **1, 2, 15, 16, 17, 18, 19, 20, 21**.
+- **Native** (`superpowers:executing-plans`, in the main session) for **3–14 and 22–25**. Tasks 8 and 13 stay native so the owner's real statements are never sent to extra agents.
+- After Task 25: one fresh reviewer checks the whole branch before any merge.
+- Check in with the owner before Task 13 (each statement's period, for `periods.txt`) and at the end (full gate, branch review, UAT page). No push, merge or release without the owner's say-so.
+
 ## Global Constraints
 
 - Work in a git worktree on a new branch `feature/statement-reconcile` cut from `release-1.3.1` (`superpowers:using-git-worktrees`). Another session edits the main checkout; never commit its files.
@@ -5291,7 +5300,7 @@ git commit -m "Finish a statement reconciliation in one step, including share co
 - [ ] **Step 1: Write the failing tests** — `src-tauri/src/commands/statements/tests.rs` (follows `commands/import/tests.rs`: a real profile in a temp folder; commands are exercised through their `*_for` functions):
 
 ```rust
-use super::*;
+use super::*;
 use budget_core::models::AccountType;
 use budget_core::statement::fixture_pdf::{build_pdf, fixture};
 
