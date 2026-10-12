@@ -22,6 +22,15 @@ def workflow_step(name):
 
 
 class RecoveryWorkflowTests(unittest.TestCase):
+    def test_diagnostic_runs_cannot_publish_installers(self):
+        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        self.assertTrue('diagnostic_only:' in source, 'missing non-publishing diagnostic input')
+        packaging = source.split('      - name: Build and publish Windows installers\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('if: ${{ !inputs.diagnostic_only }}', packaging)
+        signing = source.split('  sign-updates:\n', 1)[1]
+        self.assertTrue('if: ${{ !inputs.recovery && !inputs.diagnostic_only }}' in signing, 'diagnostics must not enter protected signing')
+        self.assertLess(source.index('      - name: Desktop WebDriver smoke preflight'), source.index('      - name: Full desktop E2E release gate'))
+
     def execute_repair(self, source):
         with tempfile.TemporaryDirectory(prefix='release-recovery-') as folder:
             root = Path(folder)

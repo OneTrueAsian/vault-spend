@@ -15,6 +15,10 @@ on:
       source_sha:
         description: 'Expected existing tag commit (required for recovery)'
         type: string
+      diagnostic_only:
+        description: 'Run all build and test gates without publishing installers or signatures'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -25,7 +29,8 @@ concurrency:
 
 jobs:
   release:
-    runs-on: windows-latest
+    # Pin the desktop environment; image migrations must pass the smoke preflight first.
+    runs-on: windows-2022
     outputs:
       source-sha: ${{ steps.provenance.outputs.source_sha }}
       installer-digests: ${{ steps.provenance.outputs.digests }}
@@ -122,9 +127,12 @@ jobs:
           Expand-Archive $zip -DestinationPath (Join-Path $cargoHome 'bin') -Force
       - name: Build current desktop test app
         run: npx tauri build --debug --no-bundle
+      - name: Desktop WebDriver smoke preflight
+        run: npm run e2e:smoke
       - name: Full desktop E2E release gate
         run: npm run e2e
       - name: Build and publish Windows installers
+        if: ${{ !inputs.diagnostic_only }}
         id: package
         uses: tauri-apps/tauri-action@v0
         env:
@@ -136,7 +144,7 @@ jobs:
           prerelease: false
           args: --bundles nsis,msi
       - name: Record final Windows build provenance
-        if: ${{ !inputs.recovery }}
+        if: ${{ !inputs.recovery && !inputs.diagnostic_only }}
         id: provenance
         env:
           ARTIFACT_PATHS: ${{ steps.package.outputs.artifactPaths }}
@@ -144,7 +152,7 @@ jobs:
         run: node tools/update-build-provenance.mjs windows-x86_64 $env:RELEASE_TAG.Substring(1)
 
   sign-updates:
-    if: ${{ !inputs.recovery }}
+    if: ${{ !inputs.recovery && !inputs.diagnostic_only }}
     needs: release
     runs-on: ubuntu-latest
     environment: release-signing
