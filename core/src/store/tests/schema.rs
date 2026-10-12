@@ -84,3 +84,57 @@ fn init_schema_creates_every_performance_index_including_the_ones_added_after_mi
         assert!(names.contains(expected), "expected index {expected} to exist, got {names:?}");
     }
 }
+
+#[test]
+fn a_fresh_store_has_the_reconciliation_link_columns_and_layout_table() {
+    let store = Store::open_in_memory().unwrap();
+    assert!(store.table_has_column("transactions", "reconciliation_id").unwrap());
+    for column in ["period_start", "starting_balance", "source", "holdings_checked"] {
+        assert!(store.table_has_column("reconciliations", column).unwrap(), "{column}");
+    }
+    let count: i64 = store
+        .conn
+        .query_row("SELECT COUNT(*) FROM statement_layouts", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+}
+
+#[test]
+fn existing_reconciliations_settle_the_ticked_rows_dated_on_or_before_them() {
+    let store = Store::open_in_memory().unwrap();
+    let acct = store.get_or_create_account("Old Checking", AccountType::Checking).unwrap();
+    store
+        .save_transactions(
+            acct,
+            &[tx("2026-07-10", "July rent", "-900.00"), tx("2026-08-10", "August rent", "-900.00"), tx("2026-08-12", "Unticked", "-5.00")],
+        )
+        .unwrap();
+    let july = id_of(&store, "July rent", "2026-07-10");
+    let august = id_of(&store, "August rent", "2026-08-10");
+    let unticked = id_of(&store, "Unticked", "2026-08-12");
+    store.set_transactions_cleared(&[july, august], true).unwrap();
+    store
+        .conn
+        .execute_batch(&format!(
+            "INSERT INTO reconciliations (account_id, statement_date, statement_balance, finished_at) VALUES ({acct}, '2026-07-31', '100.00', '2026-08-01 09:00:00');
+             INSERT INTO reconciliations (account_id, statement_date, statement_balance, finished_at) VALUES ({acct}, '2026-08-31', '-800.00', '2026-09-01 09:00:00');"
+        ))
+        .unwrap();
+
+    store.link_existing_reconciliations().unwrap();
+
+    let link = |id: i64| -> Option<i64> {
+        store
+            .conn
+            .query_row("SELECT reconciliation_id FROM transactions WHERE id = ?1", params![id], |r| r.get(0))
+            .unwrap()
+    };
+    let first: i64 = store.conn.query_row("SELECT MIN(id) FROM reconciliations", [], |r| r.get(0)).unwrap();
+    assert_eq!(link(july), Some(first), "July's tick belongs to the July reconciliation");
+    assert_eq!(link(august), Some(first + 1), "August's tick belongs to the August one");
+    assert_eq!(link(unticked), None, "an unticked row is never settled");
+
+    // Running it again changes nothing.
+    store.link_existing_reconciliations().unwrap();
+    assert_eq!(link(july), Some(first));
+}
