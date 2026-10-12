@@ -6,6 +6,7 @@ pub mod checks;
 pub mod fixture_pdf;
 pub mod holdings;
 pub mod layout;
+pub mod learn;
 pub mod model;
 pub mod pdf_text;
 pub mod rows;
