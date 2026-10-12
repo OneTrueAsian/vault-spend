@@ -1,7 +1,7 @@
 # Reconcile by uploading a statement — design
 
-Date: 2026-10-11. Status: approved in brainstorming (revised the same day for learned layouts), awaiting
-written-spec review.
+Date: 2026-10-11. Status: approved in brainstorming (revised the same day for learned layouts and for
+investment statements), awaiting written-spec review.
 
 ## Goal
 
@@ -14,7 +14,8 @@ The reader must **adapt to banks the owner has never seen**. When a user uploads
 unrecognised bank, the app learns how to read it and supports that bank's statements from then on.
 
 **Success:**
-- On the owner's real statements (Capital One, Amex, Chase, a credit union, a mortgage), every statement
+- On the owner's real statements (Capital One, Amex, Chase, a credit union, a mortgage, an LPL investment
+  portfolio), every statement
   transaction is either matched automatically or clearly surfaced for review, and nothing is ever marked
   as matched by mistake.
 - A statement from an unknown layout is either read correctly by the general rules or can be taught in a
@@ -34,6 +35,9 @@ unrecognised bank, the app learns how to read it and supports that bank's statem
   either automatically or by the user teaching it.
 - Learned layouts stay **on the user's computer**. No sharing, export or import of layouts.
 - Balance rule: **pick up from last time** (see "Balance rule"), shared by manual and upload.
+- **Investment accounts** reconcile **activity plus share counts**: cash activity is matched like any
+  account and checked against the statement's activity totals, and each holding's share count must match the
+  app exactly. Market value is shown but not required to match (see "Investment accounts").
 
 ## Assumptions
 
@@ -41,7 +45,7 @@ unrecognised bank, the app learns how to read it and supports that bank's statem
 - Scanned/photographed PDFs (no text layer) are unsupported, with a plain explanation and the fallbacks.
 - A PDF may hold several accounts (the credit union's does); the user picks the section that matches.
 
-## What the real statements showed (13 PDFs, 5 institutions)
+## What the real statements showed (16 PDFs, 6 institutions)
 
 - All are text-based. No OCR needed.
 - **Content (stream) order is the right reading order.** Visual layout order scrambles Amex and credit-union
@@ -55,6 +59,19 @@ unrecognised bank, the app learns how to read it and supports that bank's statem
 - Balance labels: `Previous Balance` / `New Balance`, `Beginning Balance` / `Ending Balance`,
   `Outstanding Principal` (mortgage, with a principal/interest/escrow/total payment table).
 - Some rows are dated a little outside the printed period (transaction date versus posting date).
+- **Investment (LPL) statements:**
+  - The ending value includes "Change in Market Value", so start + activity ≠ end. Each account instead has
+    an Activity Summary whose "Total Additions" and "Total Subtractions" equal the sum of its rows.
+  - One PDF holds a portfolio summary page plus one section per account ("Account Ending in …"); the
+    portfolio summary is not an account.
+  - Rows carry prices before the amount (`Bought 10.000 at $43.62 ($436.15)`): the transaction amount is the
+    **last** money amount on the row, not the first. Rows wrap; "AS OF" lines carry share counts but no amount.
+  - Summary tables have several columns (current month, quarter to date, year to date).
+  - The quarter-end statement repeats every row of the quarter, so rows well outside the entered period must
+    be dropped quietly.
+  - A "Cash Sweep Activity" section restates internal movements and is excluded from the activity totals by
+    the statement itself; reading it would double-count.
+  - Holdings list symbol and name, share quantity (e.g. `252.523`), price (`$9.4700`) and market value.
 
 ## User flow (Account Detail → "Reconcile with a statement")
 
@@ -92,19 +109,22 @@ Small units, each testable alone. Every bank-specific choice comes from a `State
 contain no bank names.
 
 1. **`pdf_text`**: extracts text lines in content order with a pure-Rust library. First candidate:
-   `pdf_oxide` (MIT); the choice is confirmed by reproducing all 13 real statements before it is adopted.
+   `pdf_oxide` (MIT); the choice is confirmed by reproducing all 16 real statements before it is adopted.
    Returns a distinct error for no text layer, encrypted, and unreadable files.
 2. **`layout`**: the `StatementLayout` model (below), its strict validation, and its JSON form.
 3. **`tokens`**: date and amount recognition driven by the layout's options; infers a missing year from the
    entered period (including December→January periods).
-4. **`rows`**: groups lines into rows using the layout's row rules. By default a row starts at a line
+4. **`rows`**: groups lines into rows using the layout's row rules. Rows dated more than the matching
+   leeway (7 days) outside the entered period are dropped quietly, not shown as "Couldn't read", because
+   quarterly statements repeat earlier months. By default a row starts at a line
    beginning with a date and ends at the first money amount; lines in between are the description; a
    following amount is the running balance when the layout says so. A dated line with no amount before the
    next date goes to "Couldn't read" and is never guessed.
 5. **`sections`**: splits on the layout's starting/ending-balance label pairs; each section has a name, a
    starting balance, an ending balance and its rows.
-6. **`checks`**: start + rows = end per section, and running-balance continuity per row. Failures are shown
-   and never block on their own.
+6. **`checks`**: per section, whichever the layout provides: start + rows = end, or rows = the statement's
+   activity totals (additions and subtractions) for investment-style statements; plus running-balance
+   continuity per row. Failures are shown and never block on their own.
 7. **`select`**: chooses the layout for a statement (see "Choosing a layout").
 8. **`learn`**: derives a layout from a successful general read or from the user's marked examples
    (see "Learning").
@@ -122,13 +142,21 @@ executable content, a size limit, and strict validation on every load. Fields:
   marker characters to ignore (e.g. `*`).
 - **Amounts:** negative styles from a fixed list (leading `-`, spaced `- `, parentheses, trailing `-`,
   `CR`/`DR` suffix); currency symbol optional or required; thousands and decimal separators.
-- **Rows:** whether a running balance follows the amount; whether integer columns after the amount are
-  ignored (points); whether description lines may follow the amount.
-- **Balances and sections:** starting/ending label pairs and a section-start label.
+- **Rows:** which money amount on the row is the transaction amount (first or last); whether a running
+  balance follows it; whether integer columns after the amount are ignored (points); whether description
+  lines may follow the amount.
+- **Balances and sections:** starting/ending label pairs; a section-start label; which column of a
+  multi-column summary to read (by position, default the first, "current month"); and, for
+  investment-style statements, the activity-total labels (e.g. "Total Additions" / "Total Subtractions")
+  used by the check instead of start + rows = end.
+- **Sections to skip:** headings whose content is ignored up to the next heading (e.g. "Cash Sweep
+  Activity", a portfolio-wide summary page).
+- **Holdings table (investment layouts):** the heading that starts it and the order of symbol, quantity,
+  price and market value within an entry.
 - **Lines to ignore:** literal phrases (e.g. "Order Number", "Continued on").
 - **Signs:** as printed or reversed, per account group (cash, credit, loan).
 
-**Built-in layouts** for the five owner banks and a **general default layout** ship in
+**Built-in layouts** for the six owner institutions and a **general default layout** ship in
 `core/data/statement_layouts/` (embedded at build time), each covered by a synthetic fixture test.
 Learned layouts are stored in a new `statement_layouts` table in the profile's own database (encrypted with a
 protected profile), additive `CREATE TABLE IF NOT EXISTS`.
@@ -170,6 +198,30 @@ protected profile), additive `CREATE TABLE IF NOT EXISTS`.
 
 Out of scope: OCR; sharing, exporting or importing layouts; keeping the statement file.
 
+## Investment accounts
+
+The statement's account value moves with the market, so the cash-balance rule cannot apply. An investment
+reconciliation instead has two parts, both on the same review screen:
+
+1. **Activity.** Every activity row (dividends, interest, buys, sells, reinvestments, deposits, withdrawals,
+   fees) is matched to the account's transactions exactly as for other accounts, with the same Add / Skip /
+   possible-match handling. The self-check is rows = the statement's activity totals for the period.
+2. **Share counts.** The holdings table is read into (symbol, name, shares, price, market value) and compared
+   with the app's holdings for the account by symbol:
+   - **Same shares:** shown as matching.
+   - **Different shares:** "Update the app to {n} shares" or leave it.
+   - **On the statement, not in the app:** "Add this holding" with symbol, name, shares and price from the
+     statement; the user must enter what they paid (cost basis), since the statement's market value is not
+     what they paid.
+   - **In the app, not on the statement:** shown with "Remove from the app" or leave it.
+   - Market value is displayed for reference only.
+
+**Finishing an investment reconciliation** is allowed when every activity row is resolved (matched, added,
+or explicitly skipped) and every share count matches exactly after the user's choices. The record stores the
+period, the statement's total ending value for reference, and `source`; there is no exact-balance rule.
+Holding updates are applied in the same database transaction as the rest of the finish, through the existing
+holdings store functions.
+
 ## Signs (statement amount → app amount)
 
 App conventions (`core/src/store.rs`, `StoredAccount` docs): cash accounts store money in as positive;
@@ -199,7 +251,7 @@ One-to-one between statement rows and app transactions.
   converted amount. It is categorised the way imports are (categorizer and import category memory) and
   ticked as part of the finish.
 
-## Balance rule (manual and upload)
+## Balance rule (manual and upload; all accounts except investments)
 
 - **Starting point:** the ending balance of the account's last finished reconciliation; on the first
   reconciliation, the statement's starting balance (manual reconciling asks for it the first time only).
@@ -271,6 +323,9 @@ All commands run on the existing FIFO command worker. Commands are exported with
 
 ## Testing (test-first)
 
+- **Investment units:** activity-total check, last-amount rows, multi-column summaries, skipped sections,
+  quiet out-of-period drops, holdings parsing, share-count comparison and the investment finish rule
+  (blocked until every row is resolved and every share count matches).
 - **Core units:** tokens (every date and amount form, year inference, December→January), rows (multi-line
   descriptions, running balances, points column), sections and checks, layout validation (rejects unknown
   options, oversize documents and personal-looking recognition phrases), layout selection (recognised,
@@ -281,12 +336,16 @@ All commands run on the existing FIFO command worker. Commands are exported with
   (rollback on failure, stale tokens, layout saved only on success).
 - **Synthetic PDF fixtures:** generated by a committed script with fictional names, numbers and amounts,
   under `core/tests/fixtures/statements/`:
-  - one per owner-bank layout;
-  - **"unknown bank" fixtures** in layouts that are none of the five (e.g. `DD/MM/YYYY` dates, `CR` suffixes,
+  - one per owner-institution layout (including the mortgage);
+  - an **investment portfolio** fixture: two accounts plus a portfolio page, prices before amounts, a
+    three-column summary, a skipped sweep section, a holdings table, and a quarterly variant repeating
+    earlier months;
+  - **"unknown bank" fixtures** in layouts that are none of the six (e.g. `DD/MM/YYYY` dates, `CR` suffixes,
     descriptions after the amount), used to prove the general read, teaching and next-time recognition.
 - **Real-statement check (local only, never committed):** an ignored test or example reads PDFs from
   `E:\misc\Programming\Claude\Statements` and prints counts only.
-  - Acceptance per statement: start + rows = end; zero false matches against a reviewed expectation; every
+  - Acceptance per statement: the layout's check passes (start + rows = end, or rows = activity totals);
+    every holding read for investment statements; zero false matches against a reviewed expectation; every
     non-parsed transaction-like line appears in "Couldn't read".
   - Also run with the built-in layouts disabled, to measure how the general rules plus teaching cope with
     banks the app has never seen.
