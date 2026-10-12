@@ -18,14 +18,25 @@ export function generateKeyFiles(directory, id, passphrase) {
     throw Error("Use a passphrase of at least 20 characters.");
   const parent = fs.realpathSync(path.dirname(path.resolve(directory)));
   const dest = path.join(parent, path.basename(directory));
+  const repositories = [ROOT, fs.realpathSync(ROOT)];
+  const insideRepository = (candidate) => repositories.some((repository) => {
+    const relative = path.relative(repository, candidate);
+    return !relative || (!relative.startsWith(".." + path.sep) && !path.isAbsolute(relative));
+  });
   // Check both the requested path and its physical destination: a junction inside
   // source must not make an outside custody folder appear safe to version control.
   for (const candidate of [path.resolve(directory), dest]) {
-    for (const repository of [ROOT, fs.realpathSync(ROOT)]) {
-      const relative = path.relative(repository, candidate);
-      if (!relative || (!relative.startsWith(".." + path.sep) && !path.isAbsolute(relative)))
-        throw Error("Private keys must be generated outside the repository.");
-    }
+    if (insideRepository(candidate)) throw Error("Private keys must be generated outside the repository.");
+  }
+  // ESM resolves the tool's path physically. Canonicalize each requested ancestor
+  // as well: an aliased repository root (/var vs /private/var on macOS, or a
+  // Windows junction) must not conceal an in-repository link pointing outside.
+  for (let ancestor = path.dirname(path.resolve(directory)); ;) {
+    if (insideRepository(fs.realpathSync(ancestor)))
+      throw Error("Private keys must be generated outside the repository.");
+    const next = path.dirname(ancestor);
+    if (next === ancestor) break;
+    ancestor = next;
   }
   fs.mkdirSync(dest, { mode: 0o700 }); // Never overwrite an existing custody directory.
   const pair = crypto.generateKeyPairSync("ed25519", {

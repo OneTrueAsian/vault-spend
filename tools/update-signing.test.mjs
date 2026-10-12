@@ -155,6 +155,39 @@ test("a junction inside source cannot expose an outside private custody folder t
     assert.equal(fs.existsSync(path.join(outside, "custody")), false);
   } finally {
     if (fs.existsSync(junction)) fs.unlinkSync(junction);
+    const custody = path.join(outside, "custody");
+    for (const name of ["update-signing-private.pem", "update-public-keys.json"]) {
+      const file = path.join(custody, name);
+      if (fs.existsSync(file)) fs.unlinkSync(file);
+    }
+    if (fs.existsSync(custody)) fs.rmdirSync(custody);
     fs.unlinkSync(copy); fs.rmdirSync(tools); fs.rmdirSync(project); fs.rmdirSync(outside);
+  }
+});
+
+test("repository aliases cannot hide an in-source junction from the custody guard", async () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "vs-custody-alias-"));
+  const project = path.join(parent, "project"), outside = path.join(parent, "outside");
+  const alias = path.join(parent, "repository-alias"), tools = path.join(project, "tools");
+  const junction = path.join(project, "external"), custody = path.join(outside, "custody");
+  const copy = path.join(tools, "update-signing.mjs");
+  fs.mkdirSync(project); fs.mkdirSync(outside); fs.mkdirSync(tools);
+  fs.copyFileSync(fileURLToPath(new URL("./update-signing.mjs", import.meta.url)), copy);
+  try {
+    fs.symlinkSync(project, alias, "junction");
+    fs.symlinkSync(outside, junction, "junction");
+    const isolated = await import(pathToFileURL(path.join(alias, "tools", "update-signing.mjs")).href);
+    assert.throws(() => isolated.generateKeyFiles(path.join(alias, "external", "custody"), "release", "inert sufficiently long passphrase"), /outside the repository/);
+    assert.equal(fs.existsSync(custody), false, "refusal must precede key creation");
+  } finally {
+    // Clean only these explicitly owned fixture files, even if the guard regresses.
+    for (const name of ["update-signing-private.pem", "update-public-keys.json"]) {
+      const file = path.join(custody, name);
+      if (fs.existsSync(file)) fs.unlinkSync(file);
+    }
+    if (fs.existsSync(custody)) fs.rmdirSync(custody);
+    if (fs.existsSync(junction)) fs.unlinkSync(junction);
+    if (fs.existsSync(alias)) fs.unlinkSync(alias);
+    fs.unlinkSync(copy); fs.rmdirSync(tools); fs.rmdirSync(project); fs.rmdirSync(outside); fs.rmdirSync(parent);
   }
 });
