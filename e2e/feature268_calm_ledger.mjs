@@ -59,14 +59,15 @@ async function openTransactions() {
 }
 
 /** Scrolls so the table runs past the bottom of the window, and returns the last row that is fully
- * inside it (its ⋯ trigger has no room for a menu below). */
+ * inside it (its ⋯ trigger has no room for a menu below). Merged transfer rows are skipped: their menu
+ * has no "Belongs to" item, and which row ends up last depends on the style's row height. */
 async function lastVisibleRowId() {
   return browser.execute(() => {
     const rows = [...document.querySelectorAll("table.ledger tbody tr[data-payment-row]")];
     rows[Math.min(14, rows.length - 1)].scrollIntoView({ block: "end" });
     const inside = rows.filter((r) => {
       const b = r.getBoundingClientRect();
-      return b.top >= 0 && b.bottom <= window.innerHeight && r.querySelector("[data-row-menu]");
+      return b.top >= 0 && b.bottom <= window.innerHeight && r.querySelector("[data-row-menu]") && !r.querySelector(".transfer-amount");
     });
     return inside.at(-1)?.dataset.paymentRow ?? null;
   });

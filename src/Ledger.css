@@ -1804,7 +1804,8 @@ table.ledger.report-table {
 
 .budget-alert-over {
   background: var(--negative-soft);
-  color: var(--negative);
+  /* The soft red chip is tinted by whatever sits under it, so the plain red alone can fall below 4.5:1. */
+  color: color-mix(in srgb, var(--negative) 80%, var(--text));
 }
 
 /* A budget used exactly in full: done, not a warning (s4), so plain text on a quiet chip. */

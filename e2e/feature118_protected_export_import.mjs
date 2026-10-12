@@ -14,7 +14,7 @@ const PASSWORD = "correct horse battery staple";
 
 async function invoke(browser, command, args = {}) {
   return browser.executeAsync((command, args, done) => {
-    window.__TAURI_INTERNALS__.invoke(command, args).then((value) => done({ ok: value }), (error) => done({ error: String(error) }));
+    window.__TAURI_INTERNALS__.invoke(command, args).then((value) => done({ ok: value }), (error) => done({ error: String(error?.message ?? error), code: error?.code }));
   }, command, args);
 }
 
@@ -84,6 +84,7 @@ try {
     expectedGeneration: await invoke(browser, "get_current_generation").then((r) => r.ok),
   });
   assert.match(wrongPasswordAttempt.error, /didn't work/, "a wrong password must not register anything");
+  assert.equal(wrongPasswordAttempt.code, "wrong_password");
   assert.ok(
     (await invoke(browser, "list_profiles")).ok.every((p) => p.name !== "Should not register"),
     "the failed attempt must not have registered a profile",

@@ -4,10 +4,12 @@ import { errorMessage } from "./errorMessage";
 import {
   ProfileIpcError,
   validateAutoLockSettings,
+  validateBackgroundSettings,
   validateFlag,
   validateGeneration,
   validateLeftovers,
   validateMessage,
+  validateProfileList,
   validateRecoveryDisplay,
   validateRefusedPaths,
   validateSetupChallenge,
@@ -42,6 +44,14 @@ const decoders = {
   commit_protection_setup: validateStartupState,
   list_protection_leftovers: validateLeftovers,
   delete_protection_leftovers: validateRefusedPaths,
+  switch_profile: validateMessage,
+  add_existing_profile: validateMessage,
+  set_profile_icon: validateVoid,
+  path_looks_password_protected: validateFlag,
+  list_profiles: validateProfileList,
+  get_background_settings: validateBackgroundSettings,
+  set_tray_enabled: validateVoid,
+  set_autostart_enabled: validateVoid,
   create_profile: validateMessage,
   rename_profile: validateVoid,
   delete_profile: validateVoid,
@@ -80,6 +90,12 @@ interface Arguments {
   };
   list_protection_leftovers: { expectedProfileId: string; expectedGeneration: number };
   delete_protection_leftovers: { pathsToDelete: string[]; expectedProfileId: string; expectedGeneration: number };
+  switch_profile: { id: string };
+  add_existing_profile: { name: string; dbPath: string; password: string | null; expectedGeneration: number };
+  set_profile_icon: { id: string; iconKey: string | null };
+  path_looks_password_protected: { path: string };
+  set_tray_enabled: { enabled: boolean };
+  set_autostart_enabled: { enabled: boolean };
   create_profile: { name: string };
   rename_profile: { id: string; newName: string };
   delete_profile: { id: string };

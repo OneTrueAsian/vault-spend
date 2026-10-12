@@ -201,4 +201,131 @@ describe("profile typed IPC", () => {
       });
     }
   });
+  it("routes profile CRUD, UI-state and generation commands with exact arguments and typed returns", async () => {
+    native.mockImplementation((command) =>
+      Promise.resolve(
+        command === "create_profile"
+          ? "Created"
+          : command === "get_current_generation"
+            ? 7
+            : command === "get_profile_ui_state"
+              ? "{}"
+              : command === "is_ui_state_migrated"
+                ? true
+                : null,
+      ),
+    );
+    expect(await invokeProfile("create_profile", { name: "Home" })).toBe("Created");
+    await invokeProfile("rename_profile", { id: "a", newName: "Away" });
+    await invokeProfile("delete_profile", { id: "a" });
+    expect(await invokeProfile("get_current_generation")).toBe(7);
+    expect(await invokeProfile("get_profile_ui_state", { key: "saved_filters" })).toBe("{}");
+    await invokeProfile("set_profile_ui_state", { key: "saved_filters", value: "[]", expectedGeneration: 7 });
+    await invokeProfile("mark_ui_state_migrated");
+    expect(await invokeProfile("is_ui_state_migrated")).toBe(true);
+    expect(native.mock.calls).toEqual([
+      ["create_profile", { name: "Home" }],
+      ["rename_profile", { id: "a", newName: "Away" }],
+      ["delete_profile", { id: "a" }],
+      ["get_current_generation"],
+      ["get_profile_ui_state", { key: "saved_filters" }],
+      ["set_profile_ui_state", { key: "saved_filters", value: "[]", expectedGeneration: 7 }],
+      ["mark_ui_state_migrated"],
+      ["is_ui_state_migrated"],
+    ]);
+    expectTypeOf<ReturnType<typeof invokeProfile<"get_current_generation">>>().toEqualTypeOf<Promise<number>>();
+    expectTypeOf<ReturnType<typeof invokeProfile<"get_profile_ui_state">>>().toEqualTypeOf<Promise<string | null>>();
+    expectTypeOf<ReturnType<typeof invokeProfile<"is_ui_state_migrated">>>().toEqualTypeOf<Promise<boolean>>();
+  });
+
+  it("refuses malformed CRUD/UI-state replies without retrying and keeps legacy refusals distinct", async () => {
+    native.mockResolvedValue({ unexpected: true });
+    const calls = [
+      () => invokeProfile("create_profile", { name: "Home" }),
+      () => invokeProfile("rename_profile", { id: "a", newName: "Away" }),
+      () => invokeProfile("delete_profile", { id: "a" }),
+      () => invokeProfile("get_current_generation"),
+      () => invokeProfile("get_profile_ui_state", { key: "saved_filters" }),
+      () => invokeProfile("set_profile_ui_state", { key: "saved_filters", value: "x", expectedGeneration: 1 }),
+      () => invokeProfile("mark_ui_state_migrated"),
+      () => invokeProfile("is_ui_state_migrated"),
+    ];
+    for (const call of calls) await expect(call()).rejects.toMatchObject({ code: "invalid_response" });
+    expect(native).toHaveBeenCalledTimes(calls.length);
+    for (const bad of [-1, 1.5, "7", null]) {
+      native.mockResolvedValueOnce(bad);
+      await expect(invokeProfile("get_current_generation")).rejects.toMatchObject({ code: "invalid_response" });
+    }
+    native.mockResolvedValueOnce(5);
+    await expect(invokeProfile("get_profile_ui_state", { key: "saved_filters" })).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+    native.mockResolvedValueOnce(null);
+    await expect(invokeProfile("get_profile_ui_state", { key: "saved_filters" })).resolves.toBeNull();
+    native.mockRejectedValueOnce("A profile named 'Home' already exists.");
+    await expect(invokeProfile("create_profile", { name: "Home" })).rejects.toMatchObject({
+      code: "legacy_error",
+      message: "A profile named 'Home' already exists.",
+    });
+  });
+
+  it("routes switch, add-existing, icon and protected-file probes with exact arguments and typed returns", async () => {
+    native.mockImplementation((command) =>
+      Promise.resolve(command === "path_looks_password_protected" ? true : command === "set_profile_icon" ? null : "Home"),
+    );
+    expect(await invokeProfile("switch_profile", { id: "a" })).toBe("Home");
+    expect(
+      await invokeProfile("add_existing_profile", { name: "Home", dbPath: "C:/x.db", password: null, expectedGeneration: 3 }),
+    ).toBe("Home");
+    await invokeProfile("set_profile_icon", { id: "a", iconKey: null });
+    expect(await invokeProfile("path_looks_password_protected", { path: "C:/x.db" })).toBe(true);
+    expect(native.mock.calls).toEqual([
+      ["switch_profile", { id: "a" }],
+      ["add_existing_profile", { name: "Home", dbPath: "C:/x.db", password: null, expectedGeneration: 3 }],
+      ["set_profile_icon", { id: "a", iconKey: null }],
+      ["path_looks_password_protected", { path: "C:/x.db" }],
+    ]);
+    native.mockResolvedValue({ unexpected: true });
+    for (const call of [
+      () => invokeProfile("switch_profile", { id: "a" }),
+      () => invokeProfile("add_existing_profile", { name: "H", dbPath: "p", password: "x", expectedGeneration: 1 }),
+      () => invokeProfile("set_profile_icon", { id: "a", iconKey: "k" }),
+      () => invokeProfile("path_looks_password_protected", { path: "p" }),
+    ])
+      await expect(call()).rejects.toMatchObject({ code: "invalid_response" });
+    native.mockRejectedValueOnce("The active profile changed before this profile could be added.");
+    await expect(
+      invokeProfile("add_existing_profile", { name: "H", dbPath: "p", password: null, expectedGeneration: 1 }),
+    ).rejects.toMatchObject({ code: "legacy_error" });
+  });
+
+  it("validates the profile list and device background settings and routes their setters", async () => {
+    const profile = { id: "a", name: "Home", is_active: true, icon_key: null, is_password_protected: false };
+    const background = { tray_enabled: true, autostart_enabled: false, autostart_supported: true };
+    native.mockImplementation((command) =>
+      Promise.resolve(command === "list_profiles" ? [profile] : command === "get_background_settings" ? background : null),
+    );
+    expect(await invokeProfile("list_profiles")).toEqual([profile]);
+    expect(await invokeProfile("get_background_settings")).toEqual(background);
+    await invokeProfile("set_tray_enabled", { enabled: false });
+    await invokeProfile("set_autostart_enabled", { enabled: true });
+    expect(native.mock.calls.slice(2)).toEqual([
+      ["set_tray_enabled", { enabled: false }],
+      ["set_autostart_enabled", { enabled: true }],
+    ]);
+    for (const bad of [
+      [{ ...profile, is_active: "yes" }],
+      [{ ...profile, name: "" }],
+      [profile, { ...profile }],
+      { profile },
+      [{ id: "a", name: "Home" }],
+    ]) {
+      native.mockResolvedValueOnce(bad);
+      await expect(invokeProfile("list_profiles")).rejects.toMatchObject({ code: "invalid_response" });
+    }
+    for (const bad of [{ ...background, tray_enabled: 1 }, { tray_enabled: true }, null]) {
+      native.mockResolvedValueOnce(bad);
+      await expect(invokeProfile("get_background_settings")).rejects.toMatchObject({ code: "invalid_response" });
+    }
+  });
 });

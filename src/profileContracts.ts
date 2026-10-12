@@ -2,6 +2,7 @@ import { array, boolean, integer, nullable, object, string } from "./contractChe
 import type { AutoLockSettings } from "./autoLock";
 import type { LeftoverEntry, SetupChallenge } from "./protection";
 import type { StartupState } from "./startup";
+import type { BackgroundSettings, Profile } from "./types";
 
 /** Machine identity is separate from display wording. Never include a rejected payload or secrets. */
 export class ProfileIpcError extends Error {
@@ -133,4 +134,24 @@ const autoLockSettings = object({
 export function validateAutoLockSettings(value: unknown): AutoLockSettings {
   if (!autoLockSettings(value)) return invalid();
   return value as AutoLockSettings;
+}
+
+const profileEntry = object({
+  id: nonempty,
+  name: nonempty,
+  is_active: boolean,
+  icon_key: nullable(string),
+  is_password_protected: boolean,
+});
+/** The full profile list; ids are unique because they key React rows and switch targets. */
+export function validateProfileList(value: unknown): Profile[] {
+  if (!array(profileEntry)(value)) return invalid();
+  const profiles = value as Profile[];
+  if (new Set(profiles.map((profile) => profile.id)).size !== profiles.length) return invalid();
+  return profiles;
+}
+export function validateBackgroundSettings(value: unknown): BackgroundSettings {
+  if (!object({ tray_enabled: boolean, autostart_enabled: boolean, autostart_supported: boolean })(value))
+    return invalid();
+  return value as BackgroundSettings;
 }

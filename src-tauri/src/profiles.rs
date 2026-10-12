@@ -32,6 +32,51 @@ impl ProfileRefusal {
             message: format!("A profile named '{name}' already exists."),
         }
     }
+
+    fn already_registered(path: &Path, existing_name: &str) -> Self {
+        Self {
+            code: "profile_already_registered",
+            message: format!("{} is already registered as the '{}' profile.", path.display(), existing_name),
+        }
+    }
+
+    pub fn profile_not_found() -> Self {
+        Self {
+            code: "profile_not_found",
+            message: "That profile no longer exists.".to_string(),
+        }
+    }
+
+    pub fn data_file_missing(name: &str, path: &Path) -> Self {
+        Self {
+            code: "data_file_missing",
+            message: format!(
+                "{name}'s data file wasn't found at {} — was it moved, or is a removable drive disconnected?",
+                path.display()
+            ),
+        }
+    }
+
+    pub fn profile_changed() -> Self {
+        Self {
+            code: "profile_changed",
+            message: "The active profile changed before this profile could be added.".to_string(),
+        }
+    }
+
+    pub fn wrong_password() -> Self {
+        Self {
+            code: "wrong_password",
+            message: "That password didn't work for this profile.".to_string(),
+        }
+    }
+
+    pub fn file_not_found(path: &Path) -> Self {
+        Self {
+            code: "file_not_found",
+            message: format!("{} doesn't exist.", path.display()),
+        }
+    }
 }
 
 impl From<String> for ProfileRefusal {
@@ -444,10 +489,10 @@ pub fn add_existing_profile(
     existing_db_path: &Path,
     protection: Option<Protection>,
     now: NaiveDateTime,
-) -> Result<Profile, String> {
+) -> Result<Profile, ProfileRefusal> {
     let mut entries = entries_or_synthesize(config_path, live_db_path);
     if entries.iter().any(|p| p.name.eq_ignore_ascii_case(name)) {
-        return Err(format!("A profile named '{name}' already exists."));
+        return Err(ProfileRefusal::duplicate_name(name));
     }
     // Case-insensitive, matching Windows/macOS filesystem semantics (this
     // app's only two build targets — see the CI workflow) — an exact,
@@ -456,11 +501,7 @@ pub fn add_existing_profile(
     // stored, silently defeating the whole point of this check.
     let picked_lossy = existing_db_path.to_string_lossy();
     if let Some(existing) = entries.iter().find(|p| p.db_path.eq_ignore_ascii_case(&picked_lossy)) {
-        return Err(format!(
-            "{} is already registered as the '{}' profile.",
-            existing_db_path.display(),
-            existing.name
-        ));
+        return Err(ProfileRefusal::already_registered(existing_db_path, &existing.name));
     }
 
     let id = unique_profile_id(&entries, name, now);
@@ -933,7 +974,11 @@ mod tests {
         let result = add_existing_profile(&config_path, &live_db_path, "Alex Again", &alex.db_path, None, dt("2026-09-02 09:00:01"));
 
         let err = result.unwrap_err();
-        assert!(err.contains("Alex"), "error should name the profile already using that file: {err}");
+        assert!(
+            err.message.contains("Alex"),
+            "error should name the profile already using that file: {}",
+            err.message
+        );
     }
 
     #[test]
@@ -958,7 +1003,42 @@ mod tests {
         );
 
         let err = result.unwrap_err();
-        assert!(err.contains("Alex"), "error should name the profile already using that file: {err}");
+        assert!(
+            err.message.contains("Alex"),
+            "error should name the profile already using that file: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn switching_and_adding_refusals_carry_stable_codes_independent_of_wording() {
+        let dir = temp_dir("switch-add-codes");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("vaultspend.db");
+        let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-09-02 09:00:00")).unwrap();
+
+        let same_name = add_existing_profile(
+            &config_path,
+            &live_db_path,
+            "ALEX",
+            &dir.join("other.db"),
+            None,
+            dt("2026-09-02 09:00:01"),
+        )
+        .unwrap_err();
+        assert_eq!(same_name.code, "duplicate_profile_name");
+        let same_file = add_existing_profile(&config_path, &live_db_path, "Again", &alex.db_path, None, dt("2026-09-02 09:00:02")).unwrap_err();
+        assert_eq!(same_file.code, "profile_already_registered");
+        assert!(same_file.message.contains("Alex"));
+
+        assert_eq!(ProfileRefusal::profile_not_found().code, "profile_not_found");
+        let missing = ProfileRefusal::data_file_missing("Alex", Path::new("D:/gone.db"));
+        assert_eq!(missing.code, "data_file_missing");
+        assert!(missing.message.contains("Alex") && missing.message.contains("gone.db"));
+        assert_eq!(ProfileRefusal::profile_changed().code, "profile_changed");
+        assert_eq!(ProfileRefusal::wrong_password().code, "wrong_password");
+        assert_eq!(ProfileRefusal::wrong_password().message, "That password didn't work for this profile.");
+        assert_eq!(ProfileRefusal::file_not_found(Path::new("D:/x.db")).code, "file_not_found");
     }
 
     #[test]

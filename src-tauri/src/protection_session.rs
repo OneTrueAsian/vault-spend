@@ -9,6 +9,9 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use zeroize::Zeroizing;
 
+/// The refusal text for a password that did not unlock. Callers compare against this constant, not
+/// a copy of its wording, to tell a wrong password from a cooldown or storage failure.
+pub const WRONG_PASSWORD: &str = "That password didn't work.";
 const FREE_ATTEMPTS: u32 = 3;
 
 fn delay_for(failures: u32) -> Duration {
@@ -125,7 +128,7 @@ impl Sessions {
         password: &str,
     ) -> Result<budget_core::protection::keyfile::UnlockedKey, String> {
         let attempt = self.begin_attempt(&key.protection_id)?;
-        attempt.finish(key.unlock_with_password(password).map_err(|_| "That password didn't work.".to_owned()))
+        attempt.finish(key.unlock_with_password(password).map_err(|_| WRONG_PASSWORD.to_owned()))
     }
 
     pub fn check_recovery(

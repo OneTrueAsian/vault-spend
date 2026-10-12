@@ -108,21 +108,17 @@ pub fn switch_profile(
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
-) -> Result<String, String> {
+) -> Result<String, crate::profiles::ProfileRefusal> {
     let runtime = &*state;
     let mut state = runtime.lock()?;
     let live_db_path = current_db_path(&paths);
     let target = crate::profiles::list_profiles(&paths.config_path, &live_db_path)
         .into_iter()
         .find(|p| p.id == id)
-        .ok_or_else(|| "That profile no longer exists.".to_string())?;
+        .ok_or_else(crate::profiles::ProfileRefusal::profile_not_found)?;
 
     if !target.db_path.exists() {
-        return Err(format!(
-            "{}'s data file wasn't found at {} — was it moved, or is a removable drive disconnected?",
-            target.name,
-            target.db_path.display()
-        ));
+        return Err(crate::profiles::ProfileRefusal::data_file_missing(&target.name, &target.db_path));
     }
 
     // Unlike `create_profile` (whose target is a file this app just
@@ -189,13 +185,13 @@ pub fn add_existing_profile(
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
     sessions: tauri::State<crate::protection_session::Sessions>,
-) -> Result<String, String> {
+) -> Result<String, crate::profiles::ProfileRefusal> {
     if paths.current_generation() != expected_generation {
-        return Err("The active profile changed before this profile could be added.".to_string());
+        return Err(crate::profiles::ProfileRefusal::profile_changed());
     }
     let picked_path = std::path::PathBuf::from(&db_path);
     if !picked_path.exists() {
-        return Err(format!("{} doesn't exist.", picked_path.display()));
+        return Err(crate::profiles::ProfileRefusal::file_not_found(&picked_path));
     }
     if picked_path.is_dir() {
         let validated = validate_protected_package(&picked_path, password.as_deref().unwrap_or_default(), &sessions)?;
@@ -220,14 +216,14 @@ pub fn add_existing_profile(
             Ok(state) => state,
             Err(error) => {
                 let _ = std::fs::remove_dir_all(imported_dir);
-                return Err(error);
+                return Err(error.into());
             }
         };
 
         let runtime = &*state;
         let mut state = runtime.lock()?;
         if paths.current_generation() != expected_generation {
-            return Err("The active profile changed before this profile could be added.".into());
+            return Err(crate::profiles::ProfileRefusal::profile_changed());
         }
         if let Err(error) = crate::profiles::register_prepared_profile(
             &paths.config_path,
@@ -238,7 +234,7 @@ pub fn add_existing_profile(
             Some(crate::profiles::Protection::new(validated.manifest.protection_format)),
         ) {
             let _ = std::fs::remove_dir_all(imported_dir);
-            return Err(error);
+            return Err(error.into());
         }
         crate::config::write_db_location_config(&paths.config_path, &imported_db_path).map_err(|e| e.to_string())?;
         state.replace(new_state);
@@ -265,7 +261,9 @@ pub fn add_existing_profile(
         let key_file_path = budget_core::protection::keyfile::key_file_path_for(&picked_path);
         if !key_file_path.exists() {
             return Err(
-                "Choose the .vaultspend package folder, or a database with its matching .key file, not a bare encrypted database file.".to_string(),
+                "Choose the .vaultspend package folder, or a database with its matching .key file, not a bare encrypted database file."
+                    .to_string()
+                    .into(),
             );
         }
         // A profile removed from the list ("forgot the password? remove this profile" or a plain
@@ -276,10 +274,10 @@ pub fn add_existing_profile(
         let dek = sessions
             .check_password(&key_file, password.as_deref().unwrap_or_default())
             .map_err(|error| {
-                if error == "That password didn't work." {
-                    "That password didn't work for this profile.".to_owned()
+                if error == crate::protection_session::WRONG_PASSWORD {
+                    crate::profiles::ProfileRefusal::wrong_password()
                 } else {
-                    error
+                    crate::profiles::ProfileRefusal::from(error)
                 }
             })?;
         let new_state = AppState::open_with_key(&picked_path, budget_core::store::DatabaseKey::Raw(dek.as_bytes()))
@@ -288,7 +286,7 @@ pub fn add_existing_profile(
         let runtime = &*state;
         let mut state = runtime.lock()?;
         if paths.current_generation() != expected_generation {
-            return Err("The active profile changed before this profile could be added.".into());
+            return Err(crate::profiles::ProfileRefusal::profile_changed());
         }
         let live_db_path = current_db_path(&paths);
         let profile = crate::profiles::add_existing_profile(

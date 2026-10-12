@@ -120,17 +120,41 @@ import { loadPrivacyPrefs, savePrivacyPrefs, startPrivacyMask, type PrivacyPrefs
 // Each tab view is its own chunk, loaded only the first time its tab is
 // actually opened, instead of every tab's code shipping in the one
 // startup bundle regardless of whether the user ever visits it.
-const AccountsView = lazy(() => import("./AccountsView").then((m) => ({ default: m.AccountsView })));
-const RecurringView = lazy(() => import("./RecurringView").then((m) => ({ default: m.RecurringView })));
-const BucketsView = lazy(() => import("./BucketsView").then((m) => ({ default: m.BucketsView })));
-const BudgetView = lazy(() => import("./BudgetView").then((m) => ({ default: m.BudgetView })));
-const ReportsView = lazy(() => import("./ReportsView").then((m) => ({ default: m.ReportsView })));
-const SettingsView = lazy(() => import("./SettingsView").then((m) => ({ default: m.SettingsView })));
-const InvestmentsView = lazy(() => import("./InvestmentsView").then((m) => ({ default: m.InvestmentsView })));
-const HouseholdView = lazy(() => import("./HouseholdView").then((m) => ({ default: m.HouseholdView })));
-const CashFlowView = lazy(() => import("./CashFlowView").then((m) => ({ default: m.CashFlowView })));
-const DashboardView = lazy(() => import("./DashboardView").then((m) => ({ default: m.DashboardView })));
-const HelpView = lazy(() => import("./HelpView").then((m) => ({ default: m.HelpView })));
+// Each view's code is fetched once and ahead of time (see viewLoaders.ts), so opening a view never
+// waits behind React's hold-back of freshly loaded lazy content.
+const viewLoaders = createViewLoaders<unknown, string>({
+  accounts: () => import("./AccountsView").then((m) => ({ default: m.AccountsView })),
+  recurring: () => import("./RecurringView").then((m) => ({ default: m.RecurringView })),
+  buckets: () => import("./BucketsView").then((m) => ({ default: m.BucketsView })),
+  budget: () => import("./BudgetView").then((m) => ({ default: m.BudgetView })),
+  reports: () => import("./ReportsView").then((m) => ({ default: m.ReportsView })),
+  settings: () => import("./SettingsView").then((m) => ({ default: m.SettingsView })),
+  investments: () => import("./InvestmentsView").then((m) => ({ default: m.InvestmentsView })),
+  household: () => import("./HouseholdView").then((m) => ({ default: m.HouseholdView })),
+  cashflow: () => import("./CashFlowView").then((m) => ({ default: m.CashFlowView })),
+  dashboard: () => import("./DashboardView").then((m) => ({ default: m.DashboardView })),
+  help: () => import("./HelpView").then((m) => ({ default: m.HelpView })),
+});
+// Once a view's code has arrived it is drawn directly; React.lazy would suspend on every first draw,
+// even for code already in memory, and then hold the content back for about 300 ms.
+function lazyView<C extends ComponentType<any>>(name: string) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const Lazy = lazy(() => viewLoaders.load(name) as Promise<{ default: C }>);
+  return function View(props: ComponentProps<C>) {
+    const ready = viewLoaders.peek(name) as { default: C } | undefined;
+    return ready ? createElement(ready.default, props) : createElement(Lazy, props as ComponentProps<typeof Lazy>);
+  };
+}
+const AccountsView = lazyView<typeof import("./AccountsView").AccountsView>("accounts");
+const RecurringView = lazyView<typeof import("./RecurringView").RecurringView>("recurring");
+const BucketsView = lazyView<typeof import("./BucketsView").BucketsView>("buckets");
+const BudgetView = lazyView<typeof import("./BudgetView").BudgetView>("budget");
+const ReportsView = lazyView<typeof import("./ReportsView").ReportsView>("reports");
+const SettingsView = lazyView<typeof import("./SettingsView").SettingsView>("settings");
+const InvestmentsView = lazyView<typeof import("./InvestmentsView").InvestmentsView>("investments");
+const HouseholdView = lazyView<typeof import("./HouseholdView").HouseholdView>("household");
+const CashFlowView = lazyView<typeof import("./CashFlowView").CashFlowView>("cashflow");
+const DashboardView = lazyView<typeof import("./DashboardView").DashboardView>("dashboard");
+const HelpView = lazyView<typeof import("./HelpView").HelpView>("help");
 
 import { UpdateBanner } from "./UpdateBanner";
 import { SidebarNav } from "./SidebarNav";
@@ -140,6 +164,9 @@ import { summarizeLivePriceRefresh } from "./livePriceStatus";
 import { useDelayedVisibility } from "./useDelayedVisibility";
 import { DataLoading } from "./DataLoading";
 
+import { invokeProfile } from "./profileIpc";
+import { createViewLoaders } from "./viewLoaders";
+import { createElement, type ComponentProps, type ComponentType } from "react";
 import { ensureUiStateMigrated, getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import type {
   Account,
@@ -458,13 +485,23 @@ function App({
   });
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
 
+  // Fetch the first screen's code right away and every other view's once the app is idle, so a
+  // first visit to any view draws as soon as its data is ready instead of after React's hold-back.
+  useEffect(() => {
+    void viewLoaders.preload(["dashboard"]);
+    const hasIdle = "requestIdleCallback" in window;
+    const idle = hasIdle
+      ? window.requestIdleCallback(() => void viewLoaders.preloadRest())
+      : window.setTimeout(() => void viewLoaders.preloadRest(), 1000);
+    return () => (hasIdle ? window.cancelIdleCallback(idle) : window.clearTimeout(idle));
+  }, []);
   const [backupCopyDir, setBackupCopyDir] = useState<string | null>(null);
   const [backgroundSettings, setBackgroundSettings] = useState<BackgroundSettings | null>(null);
   useEffect(() => {
-    invoke<BackgroundSettings>("get_background_settings")
+    invokeProfile("get_background_settings")
       .then(setBackgroundSettings)
       .catch(() => undefined);
-  }, [invoke]);
+  }, []);
   // Off by default for every profile; only meaningfully different once the profile is protected
   // (decision 9) — shown in Settings unconditionally so the value is already correct if the profile
   // is protected later, rather than hidden and then defaulted for an already-configured profile.
@@ -489,8 +526,8 @@ function App({
   }, [invoke]);
 
   const refreshProfiles = useCallback(async () => {
-    setProfiles(await invoke<Profile[]>("list_profiles"));
-  }, [invoke]);
+    setProfiles(await invokeProfile("list_profiles"));
+  }, []);
 
   const refreshDataFileLocation = useCallback(async () => {
     setDataFileLocation(await invoke<string>("get_data_file_location"));
@@ -557,12 +594,12 @@ function App({
 
   async function handleSetTray(enabled: boolean) {
     try {
-      await invoke("set_tray_enabled", { enabled });
-      const settings = await invoke<BackgroundSettings>("get_background_settings");
+      await invokeProfile("set_tray_enabled", { enabled });
+      const settings = await invokeProfile("get_background_settings");
       // Turning the tray off also ends "start at sign-in" — hidden in a tray
       // that isn't there would leave nothing to bring the window back.
       if (!enabled && settings.autostart_enabled) {
-        await invoke("set_autostart_enabled", { enabled: false });
+        await invokeProfile("set_autostart_enabled", { enabled: false });
         settings.autostart_enabled = false;
       }
       setBackgroundSettings(settings);
@@ -574,8 +611,8 @@ function App({
 
   async function handleSetAutostart(enabled: boolean) {
     try {
-      await invoke("set_autostart_enabled", { enabled });
-      setBackgroundSettings(await invoke<BackgroundSettings>("get_background_settings"));
+      await invokeProfile("set_autostart_enabled", { enabled });
+      setBackgroundSettings(await invokeProfile("get_background_settings"));
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -642,7 +679,7 @@ function App({
 
   async function handleCreateProfile(name: string) {
     try {
-      const created = await invoke<string>("create_profile", { name });
+      const created = await invokeProfile("create_profile", { name });
       onDataFileChanged(`Switched to the new "${created}" profile — it starts completely empty.`);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -668,7 +705,7 @@ function App({
     // field before the person ever hits "Use this file" and gets a confusing refusal.
     let requiresPassword = false;
     try {
-      requiresPassword = await invoke<boolean>("path_looks_password_protected", { path });
+      requiresPassword = await invokeProfile("path_looks_password_protected", { path });
     } catch {
       /* best effort — worst case the dialog omits the password field and the backend's own
          "That password didn't work for this profile" surfaces if it turns out to be needed */
@@ -690,7 +727,7 @@ function App({
     if (!pendingExistingDbPath) return;
     try {
       const expectedGeneration = await getCurrentGeneration();
-      const added = await invoke<string>("add_existing_profile", {
+      const added = await invokeProfile("add_existing_profile", {
         name,
         dbPath: pendingExistingDbPath,
         password: password ?? null,
@@ -713,7 +750,7 @@ function App({
       return;
     }
     try {
-      const switched = await invoke<string>("switch_profile", { id });
+      const switched = await invokeProfile("switch_profile", { id });
       onDataFileChanged(`Switched to "${switched}".`);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -726,7 +763,7 @@ function App({
   const manualLock = useManualProfileLock({
     generation: getCurrentGeneration,
     originGeneration: () => captureManualLockGeneration(profiles.find(profile => profile.is_active)?.id,
-      getCurrentGeneration, async () => (await invoke<Profile[]>("list_profiles")).find(profile => profile.is_active)?.id),
+      getCurrentGeneration, async () => (await invokeProfile("list_profiles")).find(profile => profile.is_active)?.id),
     lock: lockCurrentProfile,
     dirty: hasObservableUnsavedInput,
     onError: (error) => setStatus(errorMessage(error)),
@@ -735,7 +772,7 @@ function App({
 
   async function handleRenameProfile(id: string, newName: string) {
     try {
-      await invoke("rename_profile", { id, newName });
+      await invokeProfile("rename_profile", { id, newName });
       await refreshProfiles();
     } catch (e) {
       setStatus(errorMessage(e));
@@ -744,7 +781,7 @@ function App({
 
   async function handleSetProfileIcon(id: string, iconKey: string | null) {
     try {
-      await invoke("set_profile_icon", { id, iconKey });
+      await invokeProfile("set_profile_icon", { id, iconKey });
       await refreshProfiles();
     } catch (e) {
       setStatus(errorMessage(e));
@@ -753,7 +790,7 @@ function App({
 
   async function handleDeleteProfile(id: string) {
     try {
-      await invoke("delete_profile", { id });
+      await invokeProfile("delete_profile", { id });
       await refreshProfiles();
     } catch (e) {
       setStatus(errorMessage(e));
@@ -2798,7 +2835,7 @@ function App({
       get_backup_copy_dir: refreshBackups,
       get_data_file_location: refreshDataFileLocation,
       get_app_settings: refreshAppSettings,
-      get_background_settings: async () => setBackgroundSettings(await invoke("get_background_settings")),
+      get_background_settings: async () => setBackgroundSettings(await invokeProfile("get_background_settings")),
       get_live_price_settings: refreshLivePriceSettings,
     };
     // Several related failures can share one refresh function; retry it once.

@@ -1,6 +1,6 @@
 # Startup and protection IPC contract
 
-Startup, protection, profile CRUD and profile UI-state code route 36 desktop commands through `profileIpc.ts`.
+Startup, protection, profile CRUD and profile UI-state code route 44 desktop commands through `profileIpc.ts`.
 Command names, camelCase arguments and inferred return types have one feature
 boundary. `profileContracts.ts` validates unknown native responses before callers
 use them. These adapters do not replace backend authorization or lifecycle guards.
@@ -76,14 +76,22 @@ Auto-lock settings (`get_auto_lock_settings`, `set_auto_lock_settings`,
 `record_trusted_activity`) use the adapter too; the settings reply must hold one of
 the allowed minute values and four booleans.
 
-`create_profile`, `rename_profile` and `delete_profile` now refuse with a structured
-`{ code, message }` (Rust `ProfileRefusal`): `duplicate_profile_name`,
-`profile_in_use`, or the generic `profile_operation_failed` for any other failure,
-which keeps its text and is never classified from its wording. Callers branch on
-`ProfileIpcError.code`; the message may be reworded. `add_existing_profile` and
-switching are not yet converted.
+`create_profile`, `rename_profile`, `delete_profile`, `switch_profile` and
+`add_existing_profile` refuse with a structured `{ code, message }` (Rust
+`ProfileRefusal`). Codes: `duplicate_profile_name`, `profile_in_use`,
+`profile_already_registered`, `profile_not_found`, `data_file_missing`,
+`profile_changed` (the active profile moved on before an add finished), `file_not_found`,
+`wrong_password` (matched against the shared `WRONG_PASSWORD` constant, never against copied
+wording), `stale_profile` (only from the runtime's `STALE_PROFILE:` marker), and the generic
+`profile_operation_failed` for any other failure, which keeps its text and is never
+classified from its wording. Callers branch on `ProfileIpcError.code`; the message may be
+reworded.
 
-Profile switching/adding in `App.tsx` (which runs through the financial-call
-owner), other device preferences and other legacy feature commands are
+`switch_profile`, `add_existing_profile`, `set_profile_icon`, `path_looks_password_protected`,
+`list_profiles` (unique ids, five-field entries), `get_background_settings`,
+`set_tray_enabled` and `set_autostart_enabled` all run through the adapter with runtime
+validation of their replies.
+
+Other legacy feature commands (transactions, accounts, budgets, reports and so on) are
 outside this migration. The prior App/transaction/financial contracts remain separate
-owners. This checkpoint is not completion of every task N command or of O/R/F.
+owners.
