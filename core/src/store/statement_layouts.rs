@@ -72,6 +72,8 @@ impl Store {
             .collect())
     }
 
+    /// Runs one plain statement and never opens a transaction of its own, so finishing a statement
+    /// reconciliation can call it inside its transaction (keep it that way).
     pub fn save_statement_layout(&self, id: Option<i64>, name: &str, layout: &StatementLayout, now: NaiveDateTime) -> Result<i64, LayoutSaveError> {
         let name = name.trim();
         if !is_safe_phrase(name) {
