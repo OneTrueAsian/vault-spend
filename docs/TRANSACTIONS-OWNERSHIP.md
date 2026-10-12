@@ -11,6 +11,9 @@ tab navigation.
 | `useLedgerFilters` | Filter fields, saved filter snapshots and existing profile UI-state persistence |
 | `transactionReads` / `transactionContracts` | Versioned validated snapshot adapter, profile-bound calls, pending-call coalescing and stable error classification; compatibility list reads |
 | `useTransactionData` | Atomic shared transactions/accounts/stats/categories/icons/tags/flags/members; full/targeted reads, fallback, loading/error/retry, optimistic reconciliation and session/request cancellation |
+| `compactTransactionContracts` | Validated lossless version-2 wire decoding into the existing full transaction model; no backend paging |
+| `useApplicationCalls` / `applicationContracts` | Bound App calls; registered supplemental runtime checks, request sequence/error/initial-read ownership and successful financial mutation epoch |
+| `financialReads` / `useFinancialRead` | Coherent Dashboard/Accounts history, Budget/Household, Reports range and report-summary export snapshots, latest-request publication and persistent Retry |
 | `useTransactionRowActions` | Row-edit, delete, debt, principal, split, notes/tag state and actions; chooses complete versus targeted refresh |
 | `useTransactionBulkActions` | Manual creation, categorization, similar-merchant decisions, bulk category/member/tags/delete/flip, undo and review state; explicit recurring refresh dependency |
 | `useTransactionTransfers` | Transfer candidate/auto-link review, link/unlink, dismissal and undo state/actions |
@@ -55,12 +58,15 @@ deferred recurring suggestions are documented in `TRANSACTION-DATA-CONTRACT.md`.
 1. Keep the feature-owned row, bulk, transfer, export, import and shared read units
    cohesive. A combined facade is optional if it simplifies composition; shared
    account/category/member management and cross-view navigation belong in the shell.
-2. Extend stable typed argument/result adapters and freshness/error ownership to
-   non-transaction features. Their legacy aggregate calls and async/profile commands
-   do not inherit the synchronous runtime request scope automatically.
+2. Continue stable argument/result adapters and freshness/error ownership for
+   independent feature modules. Registered App supplemental reads and aggregate
+   consumers now have explicit contracts, but unknown commands and separate modules
+   retain their own boundaries. Async live-price origin propagation is explicit;
+   no async command inherits thread-local scope automatically.
 3. Keep the explicit mutation dependency table current and replace remaining
-   legacy version bumps only with corresponding coverage. A scoped transaction
-   revision is not an app-wide data revision.
+   legacy refresh paths only with corresponding coverage. The retired Dashboard
+   version counter is replaced by transaction revisions and the successful financial
+   mutation epoch; neither is an atomic app-wide financial snapshot.
 4. Continue missing transition and cross-view metric fixtures as each fix lands.
    The external implementation report maps new versus existing coverage and gaps.
 5. Use measured cold, warm and actual-edit costs to decide the next F optimization

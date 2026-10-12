@@ -1,7 +1,29 @@
 import { array, boolean, date, decimal, id, integer, nullable, object, string } from "./contractChecks";
-import { TransactionError, type TransactionContext } from "./transactionContracts";
-import type { BudgetAlert, CashFlow, MemberBudgetActual, ReportBudgetLine } from "./types";
+import { accountCheck, TransactionError, type TransactionContext } from "./transactionContracts";
+import type {
+  Account,
+  AccountContributionDelta,
+  BudgetAlert,
+  CashFlow,
+  CategoryAmount,
+  Insight,
+  MemberBudgetActual,
+  NetWorthPoint,
+  Report,
+  ReportBudgetLine,
+} from "./types";
 type Envelope = { contractVersion: 1; context: TransactionContext; revision: { local: number; external: number } };
+export type DashboardSnapshot = Envelope & {
+  asOf: string;
+  report: Report;
+  netWorth: NetWorthPoint[];
+  spending: CategoryAmount[];
+  alerts: BudgetAlert[];
+  insights: Insight[];
+  averageSpend: string;
+  contributions: AccountContributionDelta[];
+};
+export type ReportSummarySnapshot = Envelope & { asOf: string; report: Report; accounts: Account[]; averageSpend: string };
 export type BudgetSnapshot = Envelope & {
   year: number;
   month: number;
@@ -122,5 +144,61 @@ export function validateReportSnapshot(value: unknown): ReportSnapshot {
     return n >= start && n <= end;
   };
   if (result.cells.some((c) => !contains(c.month)) || result.daily.some((d) => !contains(d.date))) return invalid();
+  return result;
+}
+
+const summaryReport = object({
+  total_saved: decimal,
+  income_total: decimal,
+  month_label: string,
+  budget_actuals: array(budgetLine),
+});
+const summary = object({ ...envelope, asOf: date, report: summaryReport, accounts: array(accountCheck), averageSpend: decimal });
+const dashboard = object({
+  ...envelope,
+  asOf: date,
+  report: summaryReport,
+  netWorth: array(
+    object({ month_label: string, value: decimal, cash: decimal, debt: decimal, investments: decimal, as_of: date }),
+  ),
+  spending: array(object({ category: string, amount: decimal })),
+  alerts: array(
+    object({
+      category: string,
+      budget_group: string,
+      budgeted: decimal,
+      actual: decimal,
+      pct: decimal,
+      level: (v) => v === "warning" || v === "over",
+      cap_enabled: boolean,
+    }),
+  ),
+  insights: array(
+    object({
+      severity: (v) => v === "warning" || v === "info" || v === "positive",
+      kind: (v) => v === "pace" || v === "category_jump" || v === "category_drop" || v === "large_expense",
+      message: string,
+    }),
+  ),
+  averageSpend: decimal,
+  contributions: array(
+    object({ account_id: id, name: string, group: string, from_amount: decimal, to_amount: decimal, delta: decimal }),
+  ),
+});
+export function validateReportSummarySnapshot(value: unknown): ReportSummarySnapshot {
+  if (!summary(value)) return invalid();
+  return value as ReportSummarySnapshot;
+}
+export function validateDashboardSnapshot(value: unknown): DashboardSnapshot {
+  if (!dashboard(value)) return invalid();
+  const result = value as DashboardSnapshot;
+  if (
+    result.netWorth.length !== 6 ||
+    result.netWorth.at(-1)?.as_of !== result.asOf ||
+    result.netWorth.some(
+      (point, i) => point.as_of > result.asOf || (i > 0 && point.as_of <= result.netWorth[i - 1].as_of),
+    )
+  )
+    return invalid();
   return result;
 }

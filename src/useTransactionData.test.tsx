@@ -10,23 +10,29 @@ import type { TransactionSnapshot } from "./transactionContracts";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const context = { contractVersion: 1 as const, generation: 3, sessionRevision: 7 };
-const row = { id: 1, transfer_counterpart_id: null, date: "2026-10-01", description: "Fixture", amount: "-12.34", category: null, category_source: null, confidence: null, account_id: 1, account_name: "Checking", applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null };
-const snapshot = (local = 1): TransactionSnapshot => ({ contractVersion: 1, context, revision: { local, external: 1 }, requestedIds: null, transactions: [row], stats: { total: 1, auto_categorized: 0, user_confirmed: 0, uncategorized: 1 }, accounts: [], categories: [], categoryIcons: [], flags: [], tags: [], members: [] });
+const row = { id: 1, transfer_counterpart_id: null, date: "2026-10-01", description: "Fixture", amount: "-12.34", category: null, category_source: null, confidence: null, account_id: 1, account_name: "Checking", applied_to_debt: null, principal_amount: null, split_count: 0, tags: [], member_id: null, member_name: null, notes: null,
+};
+const snapshot = (local = 1): TransactionSnapshot => ({ contractVersion: 1, context, revision: { local, external: 1 }, requestedIds: null, transactions: [row], stats: { total: 1, auto_categorized: 0, user_confirmed: 0, uncategorized: 1 }, accounts: [], categories: [], categoryIcons: [], flags: [], tags: [], members: [],
+});
 const deferred = <T,>() => { let resolve!: (v: T) => void; let reject!: (e: unknown) => void; const promise = new Promise<T>((a,b) => { resolve=a; reject=b; }); return { promise, resolve, reject }; };
 let root: Root; let mounted: boolean; let data: ReturnType<typeof useTransactionData>;
 function Harness() { data=useTransactionData(); return null; }
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(invoke).mockImplementation(async command => command === "get_transaction_context" ? context : snapshot());
+  vi.mocked(invoke).mockImplementation(async (command) => command === "get_transaction_context" ? context : snapshot(),
+  );
   root=createRoot(document.createElement("div"));
-  act(() => root.render(<StrictMode><Harness /></StrictMode>)); mounted=true;
+  act(() => root.render(<StrictMode><Harness /></StrictMode>,
+    ),
+  ); mounted=true;
 });
 afterEach(() => { if(mounted) act(() => root.unmount()); });
 
 it("publishes the whole validated model once and works after StrictMode cleanup", async () => {
   await act(async () => { await data.refresh(); });
   expect(data.snapshot).toEqual(snapshot());
-  expect(invoke).toHaveBeenCalledWith("get_transaction_snapshot", { ids: null, expectedGeneration: 3, expectedSessionRevision: 7 });
+  expect(invoke).toHaveBeenCalledWith("get_transaction_snapshot_compact", { ids: null, expectedGeneration: 3, expectedSessionRevision: 7,
+  });
   const first=data.snapshot;
   await act(async () => { await data.refresh(); });
   expect(data.snapshot).toBe(first);
@@ -47,10 +53,12 @@ it("an initial refusal never publishes empty financial totals and Retry can acqu
   expect(data.snapshot?.stats.total).toBe(1); expect(data.error).toBe(null);
 });
 it("does not publish malformed or wrong-profile replies", async () => {
-  for(const reply of [{ ...snapshot(), tags: undefined }, { ...snapshot(), context: { ...context, generation: 4 } }]) {
+  for(const reply of [{ ...snapshot(), tags: undefined }, { ...snapshot(), context: { ...context, generation: 4 } },
+  ]) {
     await act(async () => { await data.refresh(); });
     vi.mocked(invoke).mockResolvedValueOnce(reply);
-    await act(async () => { await expect(data.refresh()).rejects.toMatchObject({ code: reply.tags === undefined ? "invalid_response" : "stale_profile" }); });
+    await act(async () => { await expect(data.refresh()).rejects.toMatchObject({ code: reply.tags === undefined ? "invalid_response" : "stale_profile",
+      }); });
     expect(data.snapshot?.context.generation).toBe(3);
   }
 });
@@ -68,8 +76,11 @@ it("a newer targeted response wins when an older full request resolves last", as
 });
 
 it("overlapping row edits reload a complete model so neither discarded delta is lost", async () => {
-  const pair = (local: number, first: string, second: string) => ({ ...snapshot(local), transactions: [{ ...row, amount: first }, { ...row, id: 2, amount: second }], stats: { ...snapshot().stats, total: 2 } });
-  vi.mocked(invoke).mockImplementation(async command => command === "get_transaction_context" ? context : pair(1,"-12.34","-12.34"));
+  const pair = (local: number, first: string, second: string) => ({ ...snapshot(local), transactions: [{ ...row, amount: first }, { ...row, id: 2, amount: second },
+    ], stats: { ...snapshot().stats, total: 2 },
+  });
+  vi.mocked(invoke).mockImplementation(async (command) => command === "get_transaction_context" ? context : pair(1,"-12.34","-12.34"),
+  );
   await act(async () => { await data.refresh(); });
   const old=deferred<TransactionSnapshot>(); const newest=deferred<TransactionSnapshot>();
   vi.mocked(invoke).mockReturnValueOnce(old.promise).mockReturnValueOnce(newest.promise);
@@ -78,12 +89,13 @@ it("overlapping row edits reload a complete model so neither discarded delta is 
   expect(vi.mocked(invoke).mock.calls.at(-1)?.[1]).toMatchObject({ ids: null });
   await act(async () => { newest.resolve(pair(3,"-20.01","-30.02")); await second; });
   await act(async () => { old.resolve({ ...pair(2,"-20.01","-12.34"), requestedIds: [1], transactions: [{ ...row, amount:"-20.01" }] }); await expect(first).rejects.toMatchObject({ code:"superseded" }); });
-  expect(data.snapshot?.transactions.map(t => t.amount)).toEqual(["-20.01","-30.02"]);
+  expect(data.snapshot?.transactions.map((t) => t.amount)).toEqual(["-20.01","-30.02"]);
 });
 
 it("an external commit forces a full read even when targeted row counts still match", async () => {
   await act(async () => { await data.refresh(); });
-  const external={ ...snapshot(1), revision:{local:1,external:2}, transactions:[{...row,description:"External change"}] };
+  const external={ ...snapshot(1), revision:{local:1,external:2}, transactions:[{...row,description:"External change"}],
+  };
   vi.mocked(invoke).mockResolvedValueOnce({ ...external,requestedIds:[1] }).mockResolvedValueOnce(external);
   await act(async () => { await data.refreshRows([1]); });
   expect(vi.mocked(invoke).mock.calls.at(-1)?.[1]).toMatchObject({ids:null});
@@ -98,17 +110,19 @@ it("falls back to a complete snapshot if targeted counts expose another inserted
 });
 it("discards in-flight replies and refuses new actions after unmount", async () => {
   const pending=deferred<TransactionSnapshot>();
-  vi.mocked(invoke).mockImplementation(async command => command === "get_transaction_context" ? context : pending.promise);
+  vi.mocked(invoke).mockImplementation(async (command) => command === "get_transaction_context" ? context : pending.promise,
+  );
   let result!: Promise<TransactionSnapshot>;
   await act(async () => { result=data.refresh(); await Promise.resolve(); });
   act(() => root.unmount()); mounted=false;
   pending.resolve(snapshot());
-  await expect(result).rejects.toMatchObject({ code: "superseded" });
+  await expect(result).rejects.toMatchObject({ code: "stale_profile" });
   await expect(data.call("delete_transaction", { id: 1 })).rejects.toMatchObject({ code: "stale_profile" });
 });
 it("coalesces duplicate pending mutations and does not retry a failed write", async () => {
   const write=deferred<null>();
-  vi.mocked(invoke).mockImplementation(async command => command === "get_transaction_context" ? context : write.promise);
+  vi.mocked(invoke).mockImplementation(async (command) => command === "get_transaction_context" ? context : write.promise,
+  );
   const client=createTransactionClient();
   const first=client.call("create_manual_transaction", { amount: "-1.01" });
   const second=client.call("create_manual_transaction", { amount: "-1.01" });

@@ -1,4 +1,5 @@
 import { EditableCombobox } from "./EditableCombobox";
+import { FinancialReadState } from "./FinancialReadState";
 import "./Modal.css";
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -446,6 +447,10 @@ export function NewTransactionDialog({
   familyMembers,
   defaultAccountId,
   budgetActuals,
+  budgetReadReady = true,
+  budgetLoading = false,
+  budgetError = null,
+  onRetryBudgets = () => {},
   onCancel,
   onSubmit,
 }: {
@@ -453,14 +458,13 @@ export function NewTransactionDialog({
   categories: string[];
   familyMembers: FamilyMember[];
   defaultAccountId: number | null;
-  /** Current calendar month's budget-vs-actual (from `report`, which
-   * `get_report` always computes for *today's* month regardless of what
-   * the Budget page happens to be scrolled to) — reused here rather than
-   * a new fetch, to show "$602 of $700 used — $98 left" live as the user
-   * picks a category. Deliberately not `budgetMonthActuals` (the Budget
-   * page's own state): that one only populates after the Budget tab has
-   * been visited, which this dialog is opened without needing to. */
+  /** Current calendar month's validated planning snapshot, independent of
+   * the Budget page's month cursor. Optional hints do not block transaction entry. */
   budgetActuals: ReportBudgetLine[];
+  budgetReadReady?: boolean;
+  budgetLoading?: boolean;
+  budgetError?: string | null;
+  onRetryBudgets?: () => void;
   onCancel: () => void;
   onSubmit: (
     accountId: number,
@@ -497,7 +501,7 @@ export function NewTransactionDialog({
           : null;
   const valid = accountId !== "" && description.trim() !== "" && signed !== null && date !== "";
 
-  const budgetImpact = budgetActuals.find((b) => b.category === category);
+  const budgetImpact = budgetReadReady ? budgetActuals.find((b) => b.category === category) : undefined;
   const selectedAccount = accounts.find((a) => String(a.id) === accountId);
   const backdated = selectedAccount ? isBeforeAccountCheckpoint(selectedAccount, date) : false;
   const [outLabel, inLabel] = directionLabels(selectedAccount?.account_type);
@@ -521,6 +525,8 @@ export function NewTransactionDialog({
   return (
     <ModalShell title="Add transaction" onCancel={onCancel}>
       <form onSubmit={handleSubmit}>
+        <FinancialReadState label="Budget hints" initial={!budgetReadReady} loading={budgetLoading}
+          error={budgetError} onRetry={onRetryBudgets} />
         <label className="modal-field">
           <span>Account</span>
           <MenuSelect

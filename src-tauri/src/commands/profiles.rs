@@ -53,6 +53,13 @@ pub fn create_profile(
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<String, String> {
+    // A request from an open app must retain its origin guard through publication.
+    // The empty-registry entry point has no origin and can still install a profile.
+    let mut previous = if crate::request_session::expected().is_some() {
+        Some(state.lock()?)
+    } else {
+        None
+    };
     let live_db_path = current_db_path(&paths);
     let profile = crate::profiles::create_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
 
@@ -63,11 +70,19 @@ pub fn create_profile(
     // live on the old profile instead of silently drifting out of sync with
     // `config.json`.
     crate::config::write_db_location_config(&paths.config_path, &profile.db_path).map_err(|e| e.to_string())?;
-    state.install(AppState::open(&profile.db_path)?);
+    let opened = AppState::open(&profile.db_path)?;
+    if let Some(session) = previous.as_mut() {
+        session.replace(opened);
+    } else {
+        state.install(opened);
+    }
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = profile.db_path.clone();
     paths.bump_generation();
 
-    let session = state.lock()?;
+    let session = match previous {
+        Some(session) => session,
+        None => state.lock()?,
+    };
     let summary = crate::startup::after_profile_opened(
         &paths.config_path,
         &profile.db_path,

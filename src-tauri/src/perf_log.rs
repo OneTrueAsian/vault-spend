@@ -50,7 +50,8 @@ where
         };
         let cmd = invoke.message.command().to_string();
         // A count identifies full versus targeted reads without recording financial identifiers.
-        let requested_rows = if cmd == "get_transaction_snapshot" {
+        let snapshot_command = matches!(cmd.as_str(), "get_transaction_snapshot" | "get_transaction_snapshot_compact");
+        let requested_rows = if snapshot_command {
             match invoke.message.payload() {
                 tauri::ipc::InvokeBody::Json(value) => value.get("ids").and_then(|ids| ids.as_array()).map(Vec::len),
                 _ => None,
@@ -66,7 +67,7 @@ where
         let _guard = log.write.lock().unwrap_or_else(|e| e.into_inner());
         if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log.path) {
             let mut entry = line(&cmd, start_ms, ms, main_thread);
-            if cmd == "get_transaction_snapshot" {
+            if snapshot_command {
                 entry.truncate(entry.len() - 2);
                 entry.push_str(&format!(
                     ",\"requested_rows\":{}}}\n",

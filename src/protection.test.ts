@@ -1,6 +1,7 @@
 // Argument names here are the contract with Rust (Tauri turns camelCase into snake_case); a typo
 // would otherwise only show up in the real app.
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import fixtures from "../core/tests/fixtures/profile_ipc.json";
 
 const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
@@ -19,7 +20,19 @@ import {
 
 beforeEach(() => {
   invokeMock.mockReset();
-  invokeMock.mockResolvedValue({ status: "open" });
+  invokeMock.mockImplementation((command) =>
+    Promise.resolve(
+      command === "begin_protection_setup"
+        ? fixtures.challenge
+        : command === "cancel_protection_setup"
+          ? null
+          : command === "list_protection_leftovers"
+            ? fixtures.leftovers
+            : command === "delete_protection_leftovers"
+              ? []
+              : { status: "open" },
+    ),
+  );
 });
 
 describe("protection.ts invoke wrappers", () => {
@@ -46,7 +59,10 @@ describe("protection.ts invoke wrappers", () => {
         { token: "tok-1", answers: ["AAAA", "BBBB"], targetProfileId: "alpha", newProfileName: null },
       ],
       ["list_protection_leftovers", { expectedProfileId: "alpha", expectedGeneration: 5 }],
-      ["delete_protection_leftovers", { pathsToDelete: ["a.db", "b.db"], expectedProfileId: "alpha", expectedGeneration: 5 }],
+      [
+        "delete_protection_leftovers",
+        { pathsToDelete: ["a.db", "b.db"], expectedProfileId: "alpha", expectedGeneration: 5 },
+      ],
     ]);
   });
 });

@@ -63,6 +63,15 @@ describe("LaunchErrorScreen", () => {
   }
   const action = (name: string) => container.querySelector<HTMLButtonElement>(`[data-launch-action='${name}']`);
   const problem = () => container.querySelector("[data-launch-error-problem]")?.textContent ?? "";
+
+  it("gives unreadable protection journals a heading and avoids unrelated reset/locate actions", () => {
+    show(launchError({ kind: "protection_journal_unreadable", message: "A protection change needs attention." }));
+    expect(container.querySelector("h1")?.textContent).toMatch(/protection/i);
+    expect(action("retry")).not.toBeNull();
+    expect(action("locate")).toBeNull();
+    expect(action("new-file")).toBeNull();
+    expect(action("new-list")).toBeNull();
+  });
   async function click(element: Element | null) {
     expect(element).not.toBeNull();
     await act(async () => {
@@ -82,7 +91,13 @@ describe("LaunchErrorScreen", () => {
   });
 
   it("always offers Try again and Quit", () => {
-    for (const kind of ["registry_unreadable", "location_unreadable", "data_file_missing", "data_file_unreadable", "startup_failed"] as const) {
+    for (const kind of [
+      "registry_unreadable",
+      "location_unreadable",
+      "data_file_missing",
+      "data_file_unreadable",
+      "startup_failed",
+    ] as const) {
       show(launchError({ kind }));
       expect(action("retry"), kind).not.toBeNull();
       expect(action("quit"), kind).not.toBeNull();

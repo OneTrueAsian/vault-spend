@@ -1233,8 +1233,7 @@ export function SettingsView({
   onRenameProfile: (id: string, newName: string) => void;
   onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
-  /** Password-protection state changed. Refresh profile metadata and any Settings values whose
-   * backing files can move during a protection transition. */
+  /** Protection changed: reload bound owners for the new Store session, retaining Settings. */
   onProtected: () => void;
   livePriceSettings: LivePriceSettings | null;
   onSetLivePriceApiKey: (provider: LivePriceProviderId, apiKey: string | null) => void;

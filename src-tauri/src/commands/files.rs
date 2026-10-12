@@ -161,7 +161,8 @@ pub struct BackupDto {
 
 #[tauri::command]
 pub fn list_backups(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<Vec<BackupDto>, String> {
-    let is_encrypted = state.lock()?.store.is_encrypted();
+    let origin = state.lock()?;
+    let is_encrypted = origin.store.is_encrypted();
     let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths), is_encrypted);
     Ok(crate::backups::list_backups(&backups_dir, is_encrypted)?
         .into_iter()
@@ -233,6 +234,9 @@ pub fn set_backup_copy_dir(
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<String, String> {
+    // Clearing a mirror is also a profile-specific write. Retain the origin
+    // through both the filesystem operation and device-settings publication.
+    let origin = state.lock()?;
     let profile_id = active_profile_id(&paths);
     let dir = dir.map(|d| d.trim().to_string()).filter(|d| !d.is_empty());
     let Some(dir) = dir else {
@@ -242,7 +246,7 @@ pub fn set_backup_copy_dir(
         return Ok("Backups will no longer be copied to a second folder.".to_string());
     };
 
-    let is_encrypted = state.lock()?.store.is_encrypted();
+    let is_encrypted = origin.store.is_encrypted();
     let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths), is_encrypted);
     let copy_dir = std::path::Path::new(&dir);
     crate::backups::check_copy_dir(&backups_dir, copy_dir)?;
@@ -374,7 +378,8 @@ pub fn restore_backup(
 /// back as mojibake. `setup_import::load_setup_csv` strips a leading BOM
 /// back out when reading a file this produced, so the round trip is safe.
 #[tauri::command]
-pub fn write_text_file(path: String, content: String) -> Result<(), String> {
+pub fn write_text_file(path: String, content: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let _origin = state.lock()?;
     let mut bytes = vec![0xEF, 0xBB, 0xBF];
     bytes.extend_from_slice(content.as_bytes());
     std::fs::write(&path, bytes).map_err(|e| e.to_string())

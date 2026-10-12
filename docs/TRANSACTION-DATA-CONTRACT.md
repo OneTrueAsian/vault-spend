@@ -10,6 +10,17 @@ The shared renderer owner is `useTransactionData`. It publishes one validated mo
 
 ## Mutation dependencies
 
+The shared owner now requests `get_transaction_snapshot_compact` (wire version 2).
+Its envelope and metadata retain version-1 semantics; a string dictionary and
+fixed 17-field transaction tuples reduce repeated field names and strings without
+paging or dropping any rows. Debt payments use four-field nested tuples and flags
+use three-field tuples. `compactTransactionContracts.ts` validates references,
+tuple lengths and nested values, reconstructs the full model, then applies the
+version-1 validator. Raw dictionary/tuple arrays are not retained by the owner.
+Version 1 remains available and explicitly accepted for existing consumers;
+unknown versions fail closed. Both wire formats share the same origin/read guards.
+`core/tests/fixtures/compact_transaction.json` pins exact-decimal serialization.
+
 | Mutation | Shared snapshot | Additional dependent consumers |
 | --- | --- | --- |
 | Amount/date/description/category/account/member/principal/notes/tags | Targeted rows plus all snapshot metadata | Relevant active Reports, Budget, Household, Cash Flow, Dashboard, recurring matches; account-tracked Goals |
@@ -17,9 +28,23 @@ The shared renderer owner is `useTransactionData`. It publishes one validated mo
 | Link/unlink transfer, splits, apply/unapply debt, flip signs, rule application | Full snapshot when related rows can change | Transfer suggestions/auto-linked review, split and generated-payment inclusion rules, all matching consumers |
 | Anomaly/transfer dismissal | Their existing review refresh | Dismissal does not hide spending or change financial totals |
 | Profile lock/switch/reopen | Discard owner and cache; establish a new context | Existing profile lifecycle clears financial UI and state |
-| Budget/Recurring/Goals/assets/holdings changes | Their existing feature refreshes | These feature owners still use their legacy refresh policies; broad adoption is separate work |
+| Registered Budget/Recurring/Goals/assets/holdings changes | Their feature reads, and shared snapshot where requested | Successful writes advance the app's explicit financial epoch for active aggregate consumers; failed writes and backup bookkeeping do not |
 
-Accepted transaction revisions key active-view refetches. The small shared budget-alert cache additionally checks the transaction revision. This is a transaction freshness slice, not a repository-wide feature cache. Existing per-view range and generation guards remain in place; non-transaction aggregate requests still need progressively defined freshness/error states.
+Accepted transaction revisions plus the registered successful-mutation epoch key
+active-view refetches. The old Dashboard version counter and shared budget-alert
+cache are retired. Known supplemental reads have runtime validation, per-command
+sequence/error state and explicit Retry. This is not a repository-wide feature
+cache; independent modules still require progressively defined contracts.
+
+App calls use their mounted profile's bound client. `create_profile` keeps an
+open caller's origin guard through replacement and startup maintenance while
+preserving unbound creation from an empty registry. `write_text_file` acquires an
+origin-checked runtime guard before publishing any CSV bytes.
+Backup listing retains the runtime guard through directory reads; both setting
+and clearing a backup mirror retain it through device-settings publication.
+Async live-price commands explicitly validate optional generation/session inputs before accessing
+credentials and captured generation/session after their network await. This is
+explicit async propagation, not an extension of thread-local scope to async tasks.
 
 ## Performance boundaries
 

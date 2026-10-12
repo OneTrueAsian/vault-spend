@@ -9,9 +9,9 @@ import type { Profile } from "./types";
 
 /** The Profile section's password-protection status and entry point into `ProtectionSetupDialog` —
  * mounted once in `SettingsView` for whichever profile is currently active. Once the dialog reports
- * success, `onProtected` refreshes the `profiles` list (not a full data-file reload): `enable_
- * profile_protection` re-encrypts the exact same rows, so everything already fetched from them stays
- * valid — only the `is_password_protected` flag this section itself reads is actually stale. */
+ * success, `onProtected` reloads the app's bound read owners while retaining Settings.
+ * Protection conversion/password changes can replace the Store and retire its session:
+ * unchanged financial rows do not make the old request origin reusable. */
 export function ProfileProtectionSection({
   profiles,
   onProtected,

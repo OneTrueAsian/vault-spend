@@ -1,4 +1,5 @@
 import { useFinancialRead } from "./useFinancialRead";
+import type { DashboardSnapshot, ReportSummarySnapshot } from "./financialContracts";
 import { FinancialReadState } from "./FinancialReadState";
 import type { BudgetSnapshot } from "./financialContracts";
 import { captureManualLockGeneration, useManualProfileLock } from "./useManualProfileLock";
@@ -47,7 +48,7 @@ import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { accountTypeLabel, pickDefaultAccountId } from "./accountGroups";
-import { invoke } from "@tauri-apps/api/core";
+import { useApplicationCalls } from "./useApplicationCalls";
 import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "./nativeDialog";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
@@ -149,7 +150,6 @@ import type {
   Asset,
   Backup,
   Bucket,
-  BudgetAlert,
   BudgetSuggestions,
   CashFlow,
   MonthReview,
@@ -160,20 +160,16 @@ import type {
   FamilyMember,
   BillAwareForecast,
   Holding,
-  AccountContributionDelta,
-  Insight,
   LivePriceProviderId,
   LivePriceRefreshSummary,
   LivePriceSettings,
   MonthExpenseDetail,
-  NetWorthPoint,
   Profile,
   PortfolioPoint,
   Recurring,
   RecurringCandidate,
   RecurringMatch,
   RecurringTotals,
-  Report,
   MaintenanceSummary,
   SetupImportPreview,
   SetupImportSummary,
@@ -216,18 +212,20 @@ const EMPTY_ICONS: CategoryIconEntry[] = [];
 
 function App({
   initialStatus,
+  initialTab,
   onDataFileChanged,
 }: {
   initialStatus: string;
+  initialTab: Tab;
   /** Called after `relocate_data_file`/`restore_backup` succeeds — the Rust
    * side has already hot-swapped its live connection to the new file (see
    * commands.rs), so all this needs to do is force every piece of frontend
    * state to re-fetch from scratch. The wrapper below does that by
    * remounting this whole component under a fresh `key`, carrying `message`
    * over as the freshly-mounted instance's starting status banner. */
-  onDataFileChanged: (message: string) => void;
+  onDataFileChanged: (message: string, tab?: Tab) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   // The page whose ? button opened Help: Help opens that page's section. Cleared once Help is left,
   // so opening Help from the sidebar later starts with every section closed.
   const [helpFocus, setHelpFocus] = useState<Tab | null>(null);
@@ -275,7 +273,12 @@ function App({
   const [addWidgetModalOpen, setAddWidgetModalOpen] = useState(false);
   useLayoutEffect(() => { recordTransactionPerf("app-commit"); });
   const transactionData = useTransactionData();
-  const { refresh, call: callTransaction, revision: transactionRevision } = transactionData;
+  const { refresh, call: rawTransactionCall, revision: transactionRevision } = transactionData;
+  const applicationCalls = useApplicationCalls(rawTransactionCall);
+  const invoke = applicationCalls.call;
+  const callTransaction = invoke;
+  const financialRevision = applicationCalls.revision;
+  const dependentRevision = transactionRevision + ":" + financialRevision;
   const transactions = transactionData.snapshot?.transactions ?? EMPTY_TRANSACTIONS;
   const anomalyFlags = transactionData.snapshot?.flags ?? EMPTY_FLAGS;
   const accounts = transactionData.snapshot?.accounts ?? EMPTY_ACCOUNTS;
@@ -461,7 +464,7 @@ function App({
     invoke<BackgroundSettings>("get_background_settings")
       .then(setBackgroundSettings)
       .catch(() => undefined);
-  }, []);
+  }, [invoke]);
   // Off by default for every profile; only meaningfully different once the profile is protected
   // (decision 9) — shown in Settings unconditionally so the value is already correct if the profile
   // is protected later, rather than hidden and then defaulted for an already-configured profile.
@@ -483,25 +486,25 @@ function App({
   const refreshBackups = useCallback(async () => {
     setBackups(await invoke<Backup[]>("list_backups"));
     setBackupCopyDir(await invoke<string | null>("get_backup_copy_dir"));
-  }, []);
+  }, [invoke]);
 
   const refreshProfiles = useCallback(async () => {
     setProfiles(await invoke<Profile[]>("list_profiles"));
-  }, []);
+  }, [invoke]);
 
   const refreshDataFileLocation = useCallback(async () => {
     setDataFileLocation(await invoke<string>("get_data_file_location"));
-  }, []);
+  }, [invoke]);
 
   const refreshLivePriceSettings = useCallback(async () => {
     setLivePriceSettings(await invoke<LivePriceSettings>("get_live_price_settings"));
-  }, []);
+  }, [invoke]);
 
   const refreshAppSettings = useCallback(async () => {
     const next = await invoke<AppSettings>("get_app_settings");
     setAppSettings(next);
     setAppSettingsLoaded(true);
-  }, []);
+  }, [invoke]);
 
   useEffect(() => {
     refreshDataFileLocation().catch((e) => setStatus(errorMessage(e)));
@@ -510,14 +513,6 @@ function App({
     refreshLivePriceSettings().catch((e) => setStatus(errorMessage(e)));
     refreshAppSettings().catch((e) => setStatus(errorMessage(e)));
   }, [refreshBackups, refreshProfiles, refreshDataFileLocation, refreshLivePriceSettings, refreshAppSettings]);
-
-  const refreshProtectionState = useCallback(async () => {
-    try {
-      await Promise.all([refreshProfiles(), refreshDataFileLocation(), refreshBackups()]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }, [refreshBackups, refreshDataFileLocation, refreshProfiles]);
 
   // Once live prices are enabled for the active profile, refresh right away
   // and then every 2 hours for as long as the app stays open. Keyed on
@@ -809,10 +804,7 @@ function App({
     try {
       await invoke("set_rollover_enabled", { enabled });
       await refreshAppSettings();
-      // What carries into a month is worked out in the backend, and the alerts
-      // (and the month review) count it as part of the budget — drop the cached
-      // alerts so they're read again against the new setting.
-      currentMonthAlertsRef.current = null;
+      // Reload the selected month after its carry policy changes.
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -868,7 +860,27 @@ function App({
       return null; // convenience autofill only — swallow errors rather than interrupting the form
     }
   }
-  const [report, setReport] = useState<Report | null>(null);
+  const dashboardRead = useFinancialRead<DashboardSnapshot>();
+  const loadDashboard = dashboardRead.refresh;
+  const todayKey = toLocalIsoDate();
+  const dashboardKey = todayKey + ":" + dependentRevision;
+  const dashboardSnapshot = dashboardRead.data?.value.asOf === todayKey ? dashboardRead.data.value : null;
+  const lastDashboardKey = useRef<string | null>(null);
+  const refreshDashboard = useCallback(async () => {
+    try {
+      await loadDashboard(dashboardKey, client => client.dashboard());
+      lastDashboardKey.current = dashboardKey;
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "superseded") return;
+      throw error;
+    }
+  }, [dashboardKey, loadDashboard]);
+  const reportSummaryRead = useFinancialRead<ReportSummarySnapshot>();
+  const readReportSummary = reportSummaryRead.refresh;
+  const planningRead = useFinancialRead<ReportSummarySnapshot>();
+  const loadPlanning = planningRead.refresh;
+  const planningSnapshot = planningRead.data?.value.asOf === todayKey ? planningRead.data.value : null;
+  const report = dashboardSnapshot?.report ?? null;
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [status, setStatusState] = useState<{ text: string; kind: StatusKind } | null>(
     initialStatus ? { text: initialStatus, kind: "success" } : null,
@@ -1318,14 +1330,6 @@ function App({
     return new Promise((resolve) => setDialog({ kind: "csvExportWarning", resolve }));
   }
 
-  // Bumped by every refetch below that follows a real mutation (never by
-  // `refreshDashboard`/`refreshReport` themselves, which only ever *read*)
-  // — the Dashboard tab-switch effect compares against this instead of
-  // unconditionally refetching on every visit, so bouncing between tabs
-  // with nothing actually changed skips 6 redundant backend calls. A ref,
-  // not state, since bumping it should never itself trigger a render.
-  const dataVersionRef = useRef(0);
-
   // A pinned account/bucket/investment-account widget's dead-reference
   // pruning effect (below) needs to tell "this account was deleted" apart
   // from "accounts just haven't loaded yet" — both start out as `[]`
@@ -1340,8 +1344,7 @@ function App({
   useEffect(() => {
     if (!dataLoaded) return;
     accountsLoadedRef.current = true;
-    dataVersionRef.current++;
-  }, [dataLoaded, transactionRevision]);
+  }, [dataLoaded, dependentRevision]);
 
   // The first time a profile opens in a new calendar month, every account's
   // balance rolls forward into a fresh baseline and each sinking-fund bucket
@@ -1363,13 +1366,12 @@ function App({
     if (summary.warnings.length > 0) {
       setStatus(summary.warnings.join(" "));
     }
-  }, []);
+  }, [invoke]);
 
   const refreshBuckets = useCallback(async () => {
     setBuckets(await invoke<Bucket[]>("list_buckets"));
     bucketsLoadedRef.current = true;
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   // A goal that follows an account's balance gets its figure from the backend
   // as of when the goals were read, so when the accounts are re-read (a
@@ -1388,20 +1390,15 @@ function App({
       const names = applied.map((a) => a.bucket_name).join(", ");
       setStatus(`Added this month's automatic contribution for ${applied.length} bucket(s): ${names}.`, "success");
     }
-  }, []);
-
-  const refreshReport = useCallback(async () => {
-    setReport(await invoke<Report>("get_report"));
-  }, []);
+  }, [invoke]);
 
   const refreshRecurring = useCallback(async () => {
     setRecurring(await invoke<Recurring[]>("list_recurring"));
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   const refreshRecurringMatches = useCallback(async () => {
     setRecurringMatches(await invoke<RecurringMatch[]>("recurring_matches"));
-  }, []);
+  }, [invoke]);
 
   // Matches depend on the transactions as much as on the recurring list, so
   // they're re-read whenever a screen that shows them opens rather than
@@ -1410,34 +1407,30 @@ function App({
     if (activeTab === "recurring" || activeTab === "dashboard") {
       refreshRecurringMatches().catch((e) => setStatus(errorMessage(e)));
     }
-  }, [activeTab, refreshRecurringMatches, transactionRevision]);
+  }, [activeTab, refreshRecurringMatches, dependentRevision]);
 
   const refreshRecurringTotals = useCallback(async () => {
     setRecurringTotals(await invoke<RecurringTotals>("recurring_totals"));
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   const refreshRecurringCandidates = useCallback(async () => {
     setRecurringCandidates(await invoke<RecurringCandidate[]>("list_recurring_candidates"));
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   useEffect(() => {
     if (activeTab === "recurring" && dataLoaded) refreshRecurringCandidates().catch(e => setStatus(errorMessage(e)));
-  }, [activeTab, dataLoaded, transactionRevision, refreshRecurringCandidates]);
+  }, [activeTab, dataLoaded, dependentRevision, refreshRecurringCandidates]);
 
   const refreshAssets = useCallback(async () => {
     setAssets(await invoke<Asset[]>("list_assets"));
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   const refreshHoldings = useCallback(async () => {
     setHoldings(await invoke<Holding[]>("list_holdings"));
     setPortfolioHistory(await invoke<PortfolioPoint[]>("portfolio_history"));
     setAllocationTargets(await invoke<AllocationTarget[]>("list_allocation_targets"));
     holdingsLoadedRef.current = true;
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   // A pinned account/bucket/investment-account widget outlives the record
   // it points at — deleting that account or bucket (or losing its last
@@ -1468,7 +1461,7 @@ function App({
 
   const refreshCashFlow = useCallback(async (months: number) => {
     setCashFlow(await invoke<CashFlow>("get_cash_flow", { months }));
-  }, []);
+  }, [invoke]);
 
   // Same trailing window get_cash_flow already shows, paired against the
   // identical span exactly one year earlier.
@@ -1483,7 +1476,7 @@ function App({
       fromYear -= 1;
     }
     setYoyCashFlow(await invoke<YoyCashFlow>("year_over_year_cash_flow", { fromYear, fromMonth, toYear, toMonth }));
-  }, []);
+  }, [invoke]);
 
   const [monthDetail, setMonthDetail] = useState<MonthExpenseDetail | null>(null);
 
@@ -1526,14 +1519,14 @@ function App({
     ]);
     setTopCategoriesData(current);
     setPreviousMonthCategorySpending(previous);
-  }, []);
+  }, [invoke]);
 
   const [forecastDays, setForecastDays] = useState(30);
   const [forecastData, setForecastData] = useState<BillAwareForecast | null>(null);
 
   const refreshForecast = useCallback(async (days: number) => {
     setForecastData(await invoke<BillAwareForecast>("bill_aware_forecast", { days }));
-  }, []);
+  }, [invoke]);
 
   // The Dashboard's "Safe to spend" needs a horizon long enough to reach the
   // next paycheck (monthly pay is up to ~35 days out) — its own fetch, since
@@ -1552,7 +1545,7 @@ function App({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, appSettingsLoaded, appSettings.safe_to_spend_enabled, layoutWidgets, transactions, recurring, accounts]);
+  }, [invoke, activeTab, appSettingsLoaded, appSettings.safe_to_spend_enabled, layoutWidgets, transactions, recurring, accounts]);
 
   useEffect(() => {
     if (activeTab === "cashflow") {
@@ -1569,7 +1562,7 @@ function App({
   }, [
     activeTab,
     cashFlowRange,
-    transactionRevision,
+    dependentRevision,
     compareLastYear,
     topCategoriesMonth,
     forecastDays,
@@ -1580,75 +1573,29 @@ function App({
     refreshForecast,
   ]);
 
-  const [netWorthHistory, setNetWorthHistory] = useState<NetWorthPoint[]>([]);
-  const [accountContributionDeltas, setAccountContributionDeltas] = useState<AccountContributionDelta[]>([]);
-  const [spendingThisMonth, setSpendingThisMonth] = useState<CategoryAmount[]>([]);
-  const [dashboardBudgetAlerts, setDashboardBudgetAlerts] = useState<BudgetAlert[]>([]);
-  const [dashboardInsights, setDashboardInsights] = useState<Insight[]>([]);
-  const [avgMonthlySpend, setAvgMonthlySpend] = useState("0");
-
-  // Declared here (rather than alongside the rest of the Budget tab's
-  // state, further down) specifically so `refreshDashboard` below can
-  // read them — a `useCallback` dependency array is evaluated immediately
-  // as part of the call expression, not deferred like the callback body
-  // itself, so referencing a `const` declared later in the component
-  // would be a genuine temporal-dead-zone error, not just a style choice.
+  const netWorthHistory=dashboardSnapshot?.netWorth??[];
+  const accountContributionDeltas=dashboardSnapshot?.contributions??[];
+  const spendingThisMonth=dashboardSnapshot?.spending??[];
+  const dashboardBudgetAlerts=dashboardSnapshot?.alerts??[];
+  const dashboardInsights=dashboardSnapshot?.insights??[];
+  const avgMonthlySpend = activeTab === "buckets" ? planningSnapshot?.averageSpend ?? "0" : dashboardSnapshot?.averageSpend ?? "0";
+  useEffect(() => {
+    if ((activeTab === "buckets" || newTransactionOpen) && dataLoaded)
+      void loadPlanning(dashboardKey, client => client.reportSummary()).catch(error => {
+        if (!(error && typeof error === "object" && "code" in error && error.code === "superseded")) setStatus(errorMessage(error));
+      });
+  }, [activeTab, newTransactionOpen, dataLoaded, dashboardKey, loadPlanning]);
   const now = new Date();
   const [budgetYear, setBudgetYear] = useState(now.getFullYear());
   const [budgetMonthNum, setBudgetMonthNum] = useState(now.getMonth() + 1);
-
-  // Dashboard may reuse alerts from a completed Budget snapshot for the
-  // same month and accepted transaction revision. Budget always reads its
-  // own coherent aggregate; it never consumes this independent alert cache.
-  const currentMonthAlertsRef = useRef<{ month: string; alerts: BudgetAlert[]; revision: string } | null>(null);
-
-  const refreshDashboard = useCallback(async () => {
-    const today = new Date();
-    const todayYear = today.getFullYear();
-    const todayMonth = today.getMonth() + 1;
-    const monthKey = `${todayYear}-${todayMonth}`;
-    const cachedAlerts = currentMonthAlertsRef.current?.month === monthKey && currentMonthAlertsRef.current.revision === transactionRevision ? currentMonthAlertsRef.current.alerts : null;
-
-    const [nw, spend, alerts, insights, avgSpend] = await Promise.all([
-      invoke<NetWorthPoint[]>("net_worth_history", { months: 6 }),
-      invoke<CategoryAmount[]>("spending_this_month"),
-      cachedAlerts ? Promise.resolve(cachedAlerts) : invoke<BudgetAlert[]>("budget_alerts_for_month", { year: todayYear, month: todayMonth }),
-      invoke<Insight[]>("dashboard_insights"),
-      invoke<string>("average_monthly_spend"),
-    ]);
-    currentMonthAlertsRef.current = { month: monthKey, alerts, revision: transactionRevision };
-    setNetWorthHistory(nw);
-    setSpendingThisMonth(spend);
-    setDashboardBudgetAlerts(alerts);
-    setDashboardInsights(insights);
-    setAvgMonthlySpend(avgSpend);
-    // Budget owns one coherent snapshot; Dashboard cannot replace its alerts independently.
-    // "What changed" behind each stat card's trend, over the same span the
-    // sparkline itself covers — a follow-up call (not part of the
-    // Promise.all above) since it needs the history's own endpoint dates.
-    if (nw.length >= 2) {
-      invoke<AccountContributionDelta[]>("account_contribution_deltas", {
-        from: nw[0].as_of,
-        to: nw[nw.length - 1].as_of,
-      })
-        .then(setAccountContributionDeltas)
-        .catch((e) => setStatus(errorMessage(e)));
-    } else {
-      setAccountContributionDeltas([]);
-    }
-  }, [budgetYear, budgetMonthNum, transactionRevision]);
-
-  // -1 so the very first Dashboard visit always fetches (dataVersionRef
-  // starts at 0, which would otherwise look identical to "nothing's
-  // changed" on a version-less first render).
-  const lastDashboardFetchVersionRef = useRef(-1);
   useEffect(() => {
-    if (activeTab === "dashboard" && dataVersionRef.current !== lastDashboardFetchVersionRef.current) {
-      lastDashboardFetchVersionRef.current = dataVersionRef.current;
-      refreshDashboard().catch((e) => setStatus(errorMessage(e)));
-      refreshReport().catch((e) => setStatus(errorMessage(e)));
+    if (activeTab !== "dashboard" && activeTab !== "accounts") {
+      lastDashboardKey.current = null;
+      return;
     }
-  }, [activeTab, refreshDashboard, refreshReport, transactionRevision]);
+    if (dataLoaded && lastDashboardKey.current !== dashboardKey)
+      void refreshDashboard().catch(error => setStatus(errorMessage(error)));
+  }, [activeTab, dataLoaded, dashboardKey, refreshDashboard]);
 
   // Launch-time bill-due check — not a background reminder (this only runs
   // when the app is actually open), and deliberately no backend command:
@@ -1715,14 +1662,12 @@ function App({
   const memberBudgetActuals = budgetSnapshot?.members ?? [];
   const refreshBudgetMonthActuals = useCallback(async (year: number, month: number) => {
     try {
-      const next = await loadBudget(`${year}-${month}`, client => client.budget(year, month));
-      currentMonthAlertsRef.current = { month: `${year}-${month}`, alerts: next.alerts, revision: transactionRevision };
-      dataVersionRef.current++;
+      await loadBudget(`${year}-${month}`, client => client.budget(year, month));
     } catch (error) {
       if (error && typeof error === "object" && "code" in error && error.code === "superseded") return;
       throw error;
     }
-  }, [loadBudget, transactionRevision]);
+  }, [loadBudget]);
   const refreshMemberBudgetActuals = refreshBudgetMonthActuals;
 
   // Memoized so `BudgetRow`'s fetch-on-mount effect (keyed on this
@@ -1741,7 +1686,7 @@ function App({
         return []; // decorative sparkline only — swallow errors rather than interrupting the row
       }
     },
-    [budgetYear, budgetMonthNum],
+    [invoke, budgetYear, budgetMonthNum],
   );
 
   useEffect(() => {
@@ -1765,22 +1710,13 @@ function App({
   ]);
 
   useEffect(() => {
-    // the report aggregates transaction/bucket/budget data, so refetch it fresh
-    // whenever the user actually looks at that tab, rather than tracking
-    // every mutation that could affect one of its numbers
-    if (activeTab === "reports") {
-      refreshReport().catch((e) => setStatus(errorMessage(e)));
-    }
-  }, [activeTab, refreshReport, transactionRevision]);
-
-  useEffect(() => {
     // the Budget tab browses arbitrary months, independent of Reports'
     // fixed "current month" view — refetch whenever the tab is open or
     // the selected month changes
     if (activeTab === "budget") {
       refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(errorMessage(e)));
     }
-  }, [activeTab, budgetYear, budgetMonthNum, refreshBudgetMonthActuals, transactionRevision]);
+  }, [activeTab, budgetYear, budgetMonthNum, refreshBudgetMonthActuals, dependentRevision]);
 
   useEffect(() => {
     // Household reuses Budget's own month cursor rather than a second
@@ -1789,7 +1725,7 @@ function App({
     if (activeTab === "household") {
       refreshMemberBudgetActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(errorMessage(e)));
     }
-  }, [activeTab, budgetYear, budgetMonthNum, refreshMemberBudgetActuals, transactionRevision]);
+  }, [activeTab, budgetYear, budgetMonthNum, refreshMemberBudgetActuals, dependentRevision]);
 
   function handlePrevBudgetMonth() {
     if (budgetMonthNum === 1) {
@@ -1833,7 +1769,7 @@ function App({
   const [monthReview, setMonthReview] = useState<MonthReview | null>(null);
   const refreshReviewedMonths = useCallback(async () => {
     setReviewedMonths(await invoke<string[]>("list_reviewed_months"));
-  }, []);
+  }, [invoke]);
   useEffect(() => {
     refreshReviewedMonths().catch((e) => setStatus(errorMessage(e)));
   }, [refreshReviewedMonths]);
@@ -2101,8 +2037,7 @@ function App({
   async function handleSetRollover(category: string, rolloverEnabled: boolean) {
     try {
       await callTransaction("set_budget_rollover", { category, period: budgetPeriod, rolloverEnabled });
-      // A category's carry changes what counts as over budget — don't reuse cached alerts.
-      currentMonthAlertsRef.current = null;
+      // Reload the selected month after its carry policy changes.
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -2692,7 +2627,7 @@ function App({
   async function handleRenameCategory(oldName: string, newName: string) {
     try {
       await invoke("rename_category", { oldName, newName });
-      await Promise.all([refresh(), refreshReport(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
+      await Promise.all([refresh(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -2701,7 +2636,7 @@ function App({
   async function handleDeleteCategory(name: string) {
     try {
       await invoke("delete_category", { name });
-      await Promise.all([refresh(), refreshReport(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
+      await Promise.all([refresh(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -2786,7 +2721,7 @@ function App({
         includedHoldings: Array.from(pendingSetupImport.includedHoldings),
       });
       setPendingSetupImport(null);
-      await Promise.all([refresh(), refreshBuckets(), refreshReport(), refreshHoldings()]);
+      await Promise.all([refresh(), refreshBuckets(), refreshHoldings()]);
       const parts = [
         `${summary.accounts_created} account(s)`,
         `${summary.categories_created} categor${summary.categories_created === 1 ? "y" : "ies"}`,
@@ -2813,17 +2748,18 @@ function App({
     });
     if (!path) return;
     try {
+      const exported = await readReportSummary("export", client => client.reportSummary());
       const accountsCsv = toCsv(
         ["Account", "Type", "Balance / Limit", "Current Balance"],
-        accounts.map((a) => [a.name, a.account_type, a.starting_balance, a.current_balance]),
+        exported.accounts.map((a) => [a.name, a.account_type, a.starting_balance, a.current_balance]),
         ["text", "text", "decimal", "decimal"],
       );
       const budgetCsv = toCsv(
         ["Category", "Group", "Budgeted", "Actual"],
-        (report?.budget_actuals ?? []).map((b) => [b.category, b.budget_group, b.budgeted, b.actual]),
+        exported.report.budget_actuals.map((b) => [b.category, b.budget_group, b.budgeted, b.actual]),
         ["text", "text", "decimal", "decimal"],
       );
-      const csv = `Accounts\r\n${accountsCsv}\r\n${report?.month_label ?? ""}'s Budget\r\n${budgetCsv}`;
+      const csv = `Accounts\r\n${accountsCsv}\r\n${exported.report.month_label}'s Budget\r\n${budgetCsv}`;
       await invoke("write_text_file", { path, content: csv });
       setStatus(`Exported reports to ${path}.`, "success");
     } catch (e) {
@@ -2840,6 +2776,35 @@ function App({
   // what's still, in total, a handful of rows.
 
   // Rows imported the wrong way round (a card export with charges as positive, imported with "Keep as-is").
+
+  const dashboardSupplementalReady = [
+    "list_assets", "list_holdings", "portfolio_history", "list_allocation_targets",
+    "list_buckets", "list_recurring", "recurring_totals",
+  ].every(command => applicationCalls.loaded.has(command));
+
+  function retryRelatedReads() {
+    const retries: Record<string, () => Promise<unknown>> = {
+      list_assets: refreshAssets,
+      list_holdings: refreshHoldings,
+      portfolio_history: refreshHoldings,
+      list_allocation_targets: refreshHoldings,
+      list_buckets: refreshBuckets,
+      list_recurring: refreshRecurring,
+      recurring_totals: refreshRecurringTotals,
+      recurring_matches: refreshRecurringMatches,
+      list_recurring_candidates: refreshRecurringCandidates,
+      list_profiles: refreshProfiles,
+      list_backups: refreshBackups,
+      get_backup_copy_dir: refreshBackups,
+      get_data_file_location: refreshDataFileLocation,
+      get_app_settings: refreshAppSettings,
+      get_background_settings: async () => setBackgroundSettings(await invoke("get_background_settings")),
+      get_live_price_settings: refreshLivePriceSettings,
+    };
+    // Several related failures can share one refresh function; retry it once.
+    const requests = new Set(Object.keys(applicationCalls.errors).map(command => retries[command]).filter(Boolean));
+    void Promise.all([...requests].map(retry => retry())).catch(() => {});
+  }
 
   return (
     <div className={sidebarExpanded ? "app-shell sidebar-expanded" : "app-shell"}>
@@ -2940,12 +2905,24 @@ function App({
             document.body,
           )}
 
+          {Object.keys(applicationCalls.errors).length > 0 && (
+            <FinancialReadState label="Related profile data" initial={false} loading={false}
+              error={Object.values(applicationCalls.errors).map(error => error.message).join(" ")}
+              onRetry={retryRelatedReads} />
+          )}
           {dataLoaded && <TransactionReadState initial={false} loading={transactionData.loading} error={transactionData.error?.message ?? null} onRetry={() => void refresh().catch(() => {})} />}
           {!dataLoaded && activeTab !== "settings" && activeTab !== "help" ? (
             transactionData.error ? <TransactionReadState initial loading={false} error={transactionData.error.message} onRetry={() => void refresh().catch(() => {})} /> : <DataLoading />
           ) : (
           <>
-          {activeTab === "dashboard" && (
+          {(activeTab === "dashboard" || activeTab === "accounts") && (
+            <FinancialReadState label={activeTab === "dashboard" ? "Dashboard totals" : "Account trends"}
+              initial={!dashboardSnapshot}
+              loading={(dashboardRead.state?.loading ?? !dashboardSnapshot) || !dashboardSupplementalReady}
+              error={dashboardRead.state?.error?.message ?? null}
+              onRetry={() => void refreshDashboard().catch(() => {})} />
+          )}
+          {activeTab === "dashboard" && dashboardSnapshot && dashboardSupplementalReady && (
             <Suspense fallback={null}>
               <DashboardView
                 onOpenHelp={openHelpFor}
@@ -3273,6 +3250,12 @@ function App({
           )}
 
           {activeTab === "buckets" && (
+            <FinancialReadState label="Goal planning totals" initial={!planningSnapshot}
+              loading={planningRead.state?.loading ?? !planningSnapshot}
+              error={planningRead.state?.error?.message ?? null}
+              onRetry={() => void loadPlanning(dashboardKey, client => client.reportSummary()).catch(() => {})} />
+          )}
+          {activeTab === "buckets" && planningSnapshot && applicationCalls.loaded.has("list_buckets") && (
             <Suspense fallback={null}>
               <BucketsView
                 onOpenHelp={openHelpFor}
@@ -3387,7 +3370,6 @@ function App({
                   try {
                     await refresh();
                     await refreshHoldings();
-                    await refreshReport();
                     setStatus(`Added ${count} holdings to ${account}.`, "success");
                   } catch (e) {
                     setStatus(`Holdings were saved. Could not refresh totals: ${errorMessage(e)}`);
@@ -3467,7 +3449,7 @@ function App({
             />
           )}
 
-          {activeTab === "accounts" && !accountDetail && (
+          {activeTab === "accounts" && !accountDetail && dashboardSnapshot && applicationCalls.loaded.has("list_assets") && (
             <Suspense fallback={null}>
               <AccountsView
                 onOpenHelp={openHelpFor}
@@ -3505,7 +3487,7 @@ function App({
                 transactions={transactions}
                 assets={assets}
                 familyMembers={familyMembers}
-                dataRevision={transactionRevision}
+                dataRevision={dependentRevision}
                 onExportCsv={handleExportReportsCsv}
                 onPrint={() => window.print()}
                 onOpenBudget={() => setActiveTab("budget")}
@@ -3536,7 +3518,7 @@ function App({
                 onRenameProfile={handleRenameProfile}
                 onSetProfileIcon={handleSetProfileIcon}
                 onDeleteProfile={handleDeleteProfile}
-                onProtected={() => void refreshProtectionState()}
+                onProtected={() => onDataFileChanged("Profile protection updated.", "settings")}
                 livePriceSettings={livePriceSettings}
                 onSetLivePriceApiKey={handleSetLivePriceApiKey}
                 onRefreshLivePrices={handleRefreshLivePrices}
@@ -3761,7 +3743,11 @@ function App({
               categories={categoryOptions}
               familyMembers={familyMembers}
               defaultAccountId={selectedAccountId}
-              budgetActuals={report?.budget_actuals ?? []}
+              budgetActuals={planningSnapshot?.report.budget_actuals ?? []}
+              budgetReadReady={planningSnapshot !== null}
+              budgetLoading={planningRead.state?.loading ?? true}
+              budgetError={planningRead.state?.error?.message ?? null}
+              onRetryBudgets={() => void loadPlanning(dashboardKey, client => client.reportSummary()).catch(() => {})}
               onCancel={() => setNewTransactionOpen(false)}
               onSubmit={handleCreateManualTransaction}
             />
@@ -3783,13 +3769,16 @@ function App({
 function VaultSpendApp() {
   const [reloadKey, setReloadKey] = useState(0);
   const [initialStatus, setInitialStatus] = useState("");
+  const [initialTab, setInitialTab] = useState<Tab>("dashboard");
 
   return (
     <><MobilePairingPrompt /><App
       key={reloadKey}
       initialStatus={initialStatus}
-      onDataFileChanged={(message) => {
+      initialTab={initialTab}
+      onDataFileChanged={(message, tab = "dashboard") => {
         setInitialStatus(message);
+        setInitialTab(tab);
         setReloadKey((k) => k + 1);
       }}
     /></>

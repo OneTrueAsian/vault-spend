@@ -726,6 +726,96 @@ mod tests {
     }
 
     #[test]
+    fn profile_ipc_serialization_matches_the_renderer_contract_fixture() {
+        // Shared with profileContracts.test.ts: a Rust enum/field change cannot quietly drift
+        // from the renderer's runtime checks. All paths/secrets here are inert fixture values.
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../core/tests/fixtures/profile_ipc.json")).unwrap();
+        let mut states = vec![
+            StartupState::Open,
+            StartupState::EmptyRegistry,
+            StartupState::Locked {
+                profile_id: "alpha".into(),
+                profile_name: "Avery".into(),
+            },
+            StartupState::Selector {
+                profiles: vec![
+                    SelectorEntry {
+                        id: "alpha".into(),
+                        name: "Avery".into(),
+                        icon_key: None,
+                        is_password_protected: true,
+                    },
+                    SelectorEntry {
+                        id: "beta".into(),
+                        name: "Blair".into(),
+                        icon_key: Some("cat".into()),
+                        is_password_protected: false,
+                    },
+                ],
+                last_used_id: Some("alpha".into()),
+            },
+        ];
+        for (kind, message, has_path, restore, other) in [
+            (LaunchErrorKind::RegistryUnreadable, "Cannot read profiles.", false, true, false),
+            (LaunchErrorKind::LocationUnreadable, "Cannot read location.", false, false, false),
+            (LaunchErrorKind::DataFileMissing, "Data file is missing.", true, false, true),
+            (LaunchErrorKind::DataFileUnreadable, "Cannot open data file.", true, false, false),
+            (
+                LaunchErrorKind::ProtectionJournalUnreadable,
+                "Cannot read protection journal.",
+                false,
+                false,
+                false,
+            ),
+        ] {
+            states.push(StartupState::Error {
+                error: LaunchError {
+                    kind,
+                    message: message.into(),
+                    details: "Fixture details".into(),
+                    db_path: has_path.then(|| "E:\\fixture\\vaultspend.db".into()),
+                    can_restore_registry: restore,
+                    other_profiles: if other {
+                        vec![LaunchProfile {
+                            id: "beta".into(),
+                            name: "Blair".into(),
+                        }]
+                    } else {
+                        vec![]
+                    },
+                },
+            });
+        }
+        assert_eq!(serde_json::to_value(states).unwrap(), fixture["startup"]);
+        let challenge = crate::protection_session::SetupChallenge {
+            token: "inert-contract-token".into(),
+            recovery_display: "0000-0000-0000-0000-0000-0000-0000".into(),
+            challenge_group_indices: [0, 6],
+        };
+        assert_eq!(serde_json::to_value(&challenge).unwrap(), fixture["challenge"]);
+        assert!(budget_core::protection::recovery::RecoveryCode::parse(&challenge.recovery_display).is_ok());
+        use crate::protection_leftovers::{LeftoverEntry, LeftoverKind};
+        let leftovers = vec![
+            LeftoverEntry {
+                path: "E:\\fixture\\original.db".into(),
+                kind: LeftoverKind::OriginalDatabase,
+                size_bytes: 4096,
+            },
+            LeftoverEntry {
+                path: "E:\\fixture\\backup.db".into(),
+                kind: LeftoverKind::PlaintextBackup,
+                size_bytes: 0,
+            },
+            LeftoverEntry {
+                path: "E:\\fixture\\mirror.db".into(),
+                kind: LeftoverKind::MirroredPlaintextBackup,
+                size_bytes: 8192,
+            },
+        ];
+        assert_eq!(serde_json::to_value(leftovers).unwrap(), fixture["leftovers"]);
+    }
+
+    #[test]
     fn the_startup_state_is_open_only_while_a_profile_is_open() {
         let dir = temp_dir("state");
         let runtime = AppRuntime::no_profile_open();

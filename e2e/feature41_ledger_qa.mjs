@@ -32,6 +32,9 @@ cur.execute(
 cur.execute("INSERT INTO buckets (name, target_amount, color) VALUES ('Vacation Fund', '2000.00', '#8A5FB0')")
 vacation_id = cur.lastrowid
 cur.execute("INSERT INTO bucket_contributions (bucket_id, date, amount) VALUES (?, '${dateInMonth(-2, 1)}', '500.00')", (vacation_id,))
+# Keep the runway's trailing 90-day window populated independently of the
+# historical Dining Out query. Three-month-old rows can legitimately age out.
+cur.execute("INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, '${dateInMonth(-1, 5)}', 'Recent runway fixture', '-30.00', 'Groceries', 'fp_recent')", (checking_id,))
 `);
 
 async function ask(app, question) {

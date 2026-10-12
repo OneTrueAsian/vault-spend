@@ -2,10 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CHANGELOG } from "./changelog";
 
-// The version lives in several files that must be bumped together for a release; this keeps them
-// from drifting apart. `CANDIDATE` is the version this branch is preparing — change it (and add the
-// CHANGELOG entry) as part of cutting the next release.
-const CANDIDATE = "1.3.0";
+// Current metadata must agree; historical feature promises remain attached to their release.
 
 const read = (relative: string) => readFileSync(new URL(`../${relative}`, import.meta.url), "utf8");
 
@@ -34,9 +31,8 @@ describe("release metadata", () => {
     expect(CHANGELOG[pkg]?.length ?? 0).toBeGreaterThan(0);
   });
 
-  it(`is the ${CANDIDATE} release candidate and its notes cover what shipped`, () => {
-    expect(pkg).toBe(CANDIDATE);
-    const notes = (CHANGELOG[CANDIDATE] ?? []).join("\n");
+  it("preserves the feature notes that shipped in 1.3.0", () => {
+    const notes = (CHANGELOG["1.3.0"] ?? []).join("\n");
     expect(notes).toMatch(/mobile/i);
     expect(notes).toMatch(/snapshot/i);
     expect(notes).toMatch(/Settings/);

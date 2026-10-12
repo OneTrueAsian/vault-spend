@@ -20,7 +20,7 @@ import {
 
 beforeEach(() => {
   invokeMock.mockReset();
-  invokeMock.mockResolvedValue({ status: "open" });
+  invokeMock.mockImplementation((command) => Promise.resolve(command === "quit_app" ? null : { status: "open" }));
 });
 
 describe("launch commands", () => {

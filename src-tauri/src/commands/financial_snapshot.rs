@@ -69,6 +69,9 @@ fn origin(paths: &crate::config::AppPaths, state: &AppStateHandle, generation: u
     Ok(())
 }
 fn budget_snapshot(store: &Store, context: FinancialContext, year: i32, month: u32) -> Result<BudgetSnapshot, String> {
+    // Budget reads deliberately initialize an untouched month's inherited plan.
+    // Complete that legacy write before capturing a coherent read-only revision.
+    store.list_budgets(&format!("{year:04}-{month:02}")).map_err(|e| e.to_string())?;
     store
         .read_snapshot(|store| {
             let (local, external) = store.read_revision()?;
@@ -211,9 +214,175 @@ pub fn get_report_range_snapshot(
     .map_err(|e| ReadError::new("internal_error", e))
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardSnapshot {
+    contract_version: u8,
+    context: FinancialContext,
+    revision: FinancialRevision,
+    as_of: String,
+    report: ReportDto,
+    net_worth: Vec<NetWorthPointDto>,
+    spending: Vec<CategoryAmountDto>,
+    alerts: Vec<BudgetAlertDto>,
+    insights: Vec<InsightDto>,
+    average_spend: String,
+    contributions: Vec<AccountContributionDeltaDto>,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportSummarySnapshot {
+    contract_version: u8,
+    context: FinancialContext,
+    revision: FinancialRevision,
+    as_of: String,
+    report: ReportDto,
+    accounts: Vec<AccountDto>,
+    average_spend: String,
+}
+fn summary_snapshot(store: &Store, context: FinancialContext, today: chrono::NaiveDate) -> Result<ReportSummarySnapshot, String> {
+    store.list_budgets(&today.format("%Y-%m").to_string()).map_err(|e| e.to_string())?;
+    store
+        .read_snapshot(|store| {
+            let (local, external) = store.read_revision()?;
+            let report = reports::report_for_store(store, today).map_err(query_error)?;
+            let accounts = store.list_accounts(today)?.into_iter().map(super::accounts::account_dto).collect();
+            let average_spend = store.average_monthly_spend(today)?.to_string();
+            Ok(ReportSummarySnapshot {
+                contract_version: 1,
+                context,
+                revision: FinancialRevision { local, external },
+                as_of: today.to_string(),
+                report,
+                accounts,
+                average_spend,
+            })
+        })
+        .map_err(|e| e.to_string())
+}
+fn dashboard_snapshot(store: &Store, context: FinancialContext, today: chrono::NaiveDate) -> Result<DashboardSnapshot, String> {
+    store.list_budgets(&today.format("%Y-%m").to_string()).map_err(|e| e.to_string())?;
+    use chrono::Datelike;
+    store
+        .read_snapshot(|store| {
+            let (local, external) = store.read_revision()?;
+            let report = reports::report_for_store(store, today).map_err(query_error)?;
+            let net_worth = reports::net_worth_for_store(store, today, 6).map_err(query_error)?;
+            let first = chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1).expect("current month is valid");
+            let spending = store
+                .spending_by_category(first, today)?
+                .into_iter()
+                .map(|(category, amount)| CategoryAmountDto {
+                    category,
+                    amount: amount.to_string(),
+                })
+                .collect();
+            let alerts = store
+                .budget_alerts_for_month(today.year(), today.month())?
+                .into_iter()
+                .map(|a| BudgetAlertDto {
+                    category: a.category,
+                    budget_group: a.budget_group,
+                    budgeted: a.budgeted.to_string(),
+                    actual: a.actual.to_string(),
+                    pct: a.pct.to_string(),
+                    level: a.level,
+                    cap_enabled: a.cap_enabled,
+                })
+                .collect();
+            let insights = store
+                .dashboard_insights(today)?
+                .into_iter()
+                .map(|i| InsightDto {
+                    severity: i.severity,
+                    kind: i.kind,
+                    message: i.message,
+                })
+                .collect();
+            let average_spend = store.average_monthly_spend(today)?.to_string();
+            let from = chrono::NaiveDate::parse_from_str(&net_worth[0].as_of, "%Y-%m-%d").map_err(|e| query_error(e.to_string()))?;
+            let contributions = store
+                .account_contribution_deltas(from, today)?
+                .into_iter()
+                .map(|d| AccountContributionDeltaDto {
+                    account_id: d.account_id,
+                    name: d.name,
+                    group: d.group,
+                    from_amount: d.from_amount.to_string(),
+                    to_amount: d.to_amount.to_string(),
+                    delta: d.delta.to_string(),
+                })
+                .collect();
+            Ok(DashboardSnapshot {
+                contract_version: 1,
+                context,
+                revision: FinancialRevision { local, external },
+                as_of: today.to_string(),
+                report,
+                net_worth,
+                spending,
+                alerts,
+                insights,
+                average_spend,
+                contributions,
+            })
+        })
+        .map_err(|e| e.to_string())
+}
+#[tauri::command]
+pub fn get_dashboard_snapshot(
+    expected_generation: u64,
+    expected_session_revision: u64,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+) -> Result<DashboardSnapshot, ReadError> {
+    let session = state.lock().map_err(ReadError::from)?;
+    origin(&paths, &state, expected_generation, expected_session_revision)?;
+    dashboard_snapshot(
+        &session.store,
+        context(expected_generation, expected_session_revision),
+        chrono::Local::now().date_naive(),
+    )
+    .map_err(|e| ReadError::new("internal_error", e))
+}
+#[tauri::command]
+pub fn get_report_summary_snapshot(
+    expected_generation: u64,
+    expected_session_revision: u64,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+) -> Result<ReportSummarySnapshot, ReadError> {
+    let session = state.lock().map_err(ReadError::from)?;
+    origin(&paths, &state, expected_generation, expected_session_revision)?;
+    summary_snapshot(
+        &session.store,
+        context(expected_generation, expected_session_revision),
+        chrono::Local::now().date_naive(),
+    )
+    .map_err(|e| ReadError::new("internal_error", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn untouched_month_is_initialized_before_coherent_reads_without_resurrecting_deleted_lines() {
+        let store = Store::open_in_memory().unwrap();
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 8).unwrap();
+        store.set_budget("Fixture", "2026-09", Decimal::from(50), "flexible").unwrap();
+        let first = dashboard_snapshot(&store, context(2, 7), today).unwrap();
+        assert_eq!(first.report.budget_actuals[0].budgeted, "50");
+        store.delete_budget("Fixture", "2026-10").unwrap();
+        assert!(summary_snapshot(&store, context(2, 7), today).unwrap().report.budget_actuals.is_empty());
+        assert!(budget_snapshot(&store, context(2, 7), 2026, 11).unwrap().actuals.is_empty());
+        assert_eq!(
+            dashboard_snapshot(&Store::open_in_memory().unwrap(), context(2, 7), today)
+                .unwrap()
+                .report
+                .total_saved,
+            "0"
+        );
+    }
     fn fixture() -> (Store, i64, i64) {
         let store = Store::open_in_memory().unwrap();
         let account = store.get_or_create_account("Synthetic", AccountType::Checking).unwrap();
@@ -229,6 +398,24 @@ mod tests {
         };
         let id = store.create_transaction(account, &row, None).unwrap();
         (store, account, id)
+    }
+    #[test]
+    fn dashboard_and_export_reconcile_with_budget_and_exact_accounts() {
+        let (store, _, id) = fixture();
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 8).unwrap();
+        let dashboard = dashboard_snapshot(&store, context(2, 7), today).unwrap();
+        let summary = summary_snapshot(&store, context(2, 7), today).unwrap();
+        assert_eq!(dashboard.report.budget_actuals[0].actual, "12.34");
+        assert_eq!(summary.report.budget_actuals[0].actual, dashboard.report.budget_actuals[0].actual);
+        assert_eq!(dashboard.spending[0].amount, "12.34");
+        assert_eq!(summary.accounts[0].current_balance, "-12.34");
+        assert_eq!(dashboard.net_worth.len(), 6);
+        store.delete_transaction(id, chrono::Local::now().naive_local()).unwrap();
+        assert_eq!(
+            Decimal::from_str(&summary_snapshot(&store, context(2, 7), today).unwrap().report.budget_actuals[0].actual).unwrap(),
+            Decimal::ZERO
+        );
+        assert!(dashboard_snapshot(&store, context(2, 7), today).unwrap().spending.is_empty());
     }
     #[test]
     fn budget_serialization_matches_shared_decimal_and_nullable_contract() {

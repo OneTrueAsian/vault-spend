@@ -68,8 +68,8 @@ try {
   const entries = fs.readFileSync(log, "utf8").trim().split("\n").slice(linesBefore).map((l) => JSON.parse(l));
   const after = entries.map(l => l.cmd);
   assert.ok(after.includes("update_transaction_description"), `the edit was saved: ${after.join(", ")}`);
-  assert.ok(after.includes("get_transaction_snapshot"), `the coherent row model was re-read: ${after.join(", ")}`);
-  const requests = entries.filter(l => l.cmd === "get_transaction_snapshot");
+  assert.ok(after.includes("get_transaction_snapshot_compact"), `the coherent row model was re-read: ${after.join(", ")}`);
+  const requests = entries.filter(l => l.cmd === "get_transaction_snapshot_compact");
   assert.equal(requests.length, 1, "one snapshot follows the row edit");
   assert.equal(requests[0].requested_rows, 1, "the snapshot requests exactly the edited row");
   assert.ok(!after.includes("list_transactions"), `the whole ledger was not re-read: ${after.join(", ")}`);

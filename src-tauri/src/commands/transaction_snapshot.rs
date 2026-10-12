@@ -1,5 +1,7 @@
 //! Versioned, origin-session-bound reads for the shared transaction model.
 use super::*;
+mod compact;
+pub use compact::*;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -39,6 +39,7 @@ ${loanResetsFixture("Mortgage", "mortgage", [10000, 10000, 10000, 10000, 10000])
 
 const app = await launchApp({ dbDir });
 try {
+  await app.browser.$('.stat').waitForExist({ timeout: 15000 });
   const stats = await app.browser.$$(".stat");
   const debtTile = stats[2];
   await debtTile.waitForExist({ timeout: 10000 });

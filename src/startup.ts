@@ -1,10 +1,11 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeProfile } from "./profileIpc";
 
 export type LaunchErrorKind =
   | "registry_unreadable"
   | "location_unreadable"
   | "data_file_missing"
   | "data_file_unreadable"
+  | "protection_journal_unreadable"
   // Made here, not by the backend: it could not even be asked how startup went.
   | "startup_failed";
 
@@ -38,14 +39,14 @@ export type StartupState =
   | { status: "empty_registry" }
   | { status: "error"; error: LaunchError };
 
-export const getStartupState = () => invoke<StartupState>("get_startup_state");
-export const retryStartup = () => invoke<StartupState>("retry_startup");
-export const restoreRegistryBackup = () => invoke<StartupState>("restore_registry_backup");
-export const openProfileAtLaunch = (id: string) => invoke<StartupState>("open_profile_at_launch", { id });
-export const locateDataFile = (path: string) => invoke<StartupState>("locate_data_file", { path });
-export const quitApp = () => invoke<void>("quit_app");
-export const startWithNewDataFile = () => invoke<StartupState>("start_with_new_data_file");
-export const startWithNewProfileList = () => invoke<StartupState>("start_with_new_profile_list");
+export const getStartupState = () => invokeProfile("get_startup_state");
+export const retryStartup = () => invokeProfile("retry_startup");
+export const restoreRegistryBackup = () => invokeProfile("restore_registry_backup");
+export const openProfileAtLaunch = (id: string) => invokeProfile("open_profile_at_launch", { id });
+export const locateDataFile = (path: string) => invokeProfile("locate_data_file", { path });
+export const quitApp = () => invokeProfile("quit_app");
+export const startWithNewDataFile = () => invokeProfile("start_with_new_data_file");
+export const startWithNewProfileList = () => invokeProfile("start_with_new_profile_list");
 
 export function startupFailure(reason: unknown): LaunchError {
   return {

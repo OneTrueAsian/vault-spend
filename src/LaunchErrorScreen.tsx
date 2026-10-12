@@ -20,6 +20,7 @@ const TITLES: Record<LaunchErrorKind, string> = {
   location_unreadable: "Vault Spend can't tell where your data is kept",
   data_file_missing: "Your data file wasn't found",
   data_file_unreadable: "Vault Spend can't open your data file",
+  protection_journal_unreadable: "Vault Spend can't finish a protection change",
   startup_failed: "Vault Spend couldn't start",
 };
 
@@ -29,7 +30,13 @@ const CAN_START_NEW_FILE: LaunchErrorKind[] = ["location_unreadable", "data_file
 // Shown instead of the app when no profile could be opened. Every recovery here works without a
 // password, and none of them deletes anything: they choose which data file to open, or set the old
 // one aside after asking.
-export function LaunchErrorScreen({ error, onResolved }: { error: LaunchError; onResolved: (next: StartupState) => void }) {
+export function LaunchErrorScreen({
+  error,
+  onResolved,
+}: {
+  error: LaunchError;
+  onResolved: (next: StartupState) => void;
+}) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
@@ -98,7 +105,12 @@ export function LaunchErrorScreen({ error, onResolved }: { error: LaunchError; o
         </p>
         <div className="launch-error-actions">
           {error.can_restore_registry && (
-            <button type="button" disabled={busy} data-launch-action="restore-registry" onClick={() => run(restoreRegistryBackup)}>
+            <button
+              type="button"
+              disabled={busy}
+              data-launch-action="restore-registry"
+              onClick={() => run(restoreRegistryBackup)}
+            >
               Use the previous profile list
             </button>
           )}
@@ -107,26 +119,50 @@ export function LaunchErrorScreen({ error, onResolved }: { error: LaunchError; o
               Find the data file…
             </button>
           )}
-          <button type="button" disabled={busy} data-launch-action="retry" onClick={() => run(retryStartup, "It still can't be opened. The message above says why.")}>
+          <button
+            type="button"
+            disabled={busy}
+            data-launch-action="retry"
+            onClick={() => run(retryStartup, "It still can't be opened. The message above says why.")}
+          >
             Try again
           </button>
           <button type="button" disabled={busy} data-launch-action="quit" onClick={() => void quitApp()}>
             Quit
           </button>
           {CAN_START_NEW_FILE.includes(error.kind) && (
-            <button type="button" disabled={busy || confirming !== null} data-launch-action="start-new-file" onClick={() => setConfirming("file")}>
+            <button
+              type="button"
+              disabled={busy || confirming !== null}
+              data-launch-action="start-new-file"
+              onClick={() => setConfirming("file")}
+            >
               Start with a new data file…
             </button>
           )}
           {error.kind === "registry_unreadable" && (
-            <button type="button" disabled={busy || confirming !== null} data-launch-action="start-new-list" onClick={() => setConfirming("list")}>
+            <button
+              type="button"
+              disabled={busy || confirming !== null}
+              data-launch-action="start-new-list"
+              onClick={() => setConfirming("list")}
+            >
               Start with a new profile list…
             </button>
           )}
         </div>
         {confirming && (
-          <div className="launch-error-confirm" role="group" aria-labelledby="launch-error-confirm-title" tabIndex={-1} ref={confirmRef} data-launch-confirm>
-            <h2 id="launch-error-confirm-title">{confirming === "file" ? "Start with a new, empty data file?" : "Start with a new profile list?"}</h2>
+          <div
+            className="launch-error-confirm"
+            role="group"
+            aria-labelledby="launch-error-confirm-title"
+            tabIndex={-1}
+            ref={confirmRef}
+            data-launch-confirm
+          >
+            <h2 id="launch-error-confirm-title">
+              {confirming === "file" ? "Start with a new, empty data file?" : "Start with a new profile list?"}
+            </h2>
             <p>
               {confirming === "file"
                 ? "Vault Spend will start with an empty data file. Your old file isn't touched or deleted; if it turns up later, add it back from Settings with Use existing data file."
@@ -148,7 +184,12 @@ export function LaunchErrorScreen({ error, onResolved }: { error: LaunchError; o
             <ul className="launch-error-profiles">
               {error.other_profiles.map((profile) => (
                 <li key={profile.id}>
-                  <button type="button" disabled={busy} data-launch-profile={profile.id} onClick={() => run(() => openProfileAtLaunch(profile.id))}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    data-launch-profile={profile.id}
+                    onClick={() => run(() => openProfileAtLaunch(profile.id))}
+                  >
                     {profile.name}
                   </button>
                 </li>

@@ -76,15 +76,22 @@ Retry; it is not an empty successful result. Writes are never automatically retr
 Accepted transaction revisions trigger relevant active-view reads. Insert,
 delete, import, split, transfer and generated-payment operations can affect more
 than one row. Use the [mutation dependency table](TRANSACTION-DATA-CONTRACT.md#mutation-dependencies)
-to choose full/targeted reads and additional consumers. Non-transaction features
-retain their own legacy refresh policies; this is not an app-wide revision/cache.
+to choose full/targeted reads and additional consumers. Registered successful
+non-transaction financial writes advance `useApplicationCalls`' invalidation epoch.
+It refreshes active aggregate consumers alongside accepted transaction revisions;
+it is not a database revision or an app-wide cache. Registered supplemental reads
+validate runtime payloads and reject older or unmounted completions.
 
-Budget category/alert/flow/member reads and Reports Overview range reads now
+Dashboard totals/history, report-summary CSV, Budget category/alert/flow/member
+reads and Reports Overview range reads now
 use [coherent aggregate contracts](FINANCIAL-READ-CONTRACT.md). Their feature
 owner validates one snapshot, rejects superseded requests and matches the
 visible month/range before displaying totals. Same-period refresh failures keep
-last loaded figures with a persistent warning and Retry. Legacy CSV summary,
-other Household models and non-transaction freshness remain separate owners.
+last loaded figures with a persistent warning and Retry. Accounts shares the
+Dashboard history/contribution model. Supplemental widgets and other Household/
+Comparisons models remain separate owners; a snapshot does not make all visible
+feature data atomic. Budget month initialization completes before read-only
+snapshots, preserving inheritance and intentionally empty months.
 
 ## Import commit boundary
 
@@ -104,6 +111,10 @@ to every legacy multi-step mutation or other import format without checking its 
 
 ## Trace a lock or switch
 
+Startup/protection commands and profile-state events have a validated feature
+boundary; see [Startup and protection IPC](PROFILE-IPC-CONTRACT.md) for wire/error
+compatibility and the remaining legacy command scope.
+
 The runtime slot is `NoProfileOpen`, `Locked { profile_id }` or `Open(AppState)`.
 Only an open slot provides a usable Store. [lock_current_profile](../src-tauri/src/protection_commands.rs#L167)
 passes the captured generation to [auto_lock](../src-tauri/src/auto_lock.rs),
@@ -122,6 +133,11 @@ and relocation must retire old requests using the existing replacement path.
 `OpenSession::replace` advances session identity under its mutex; do not assign
 a replacement AppState through `DerefMut`.
 
+Protection conversion and password changes also replace the open session. The
+App shell remounts its profile-bound read owners after these operations while
+preserving Settings navigation. Refreshing protection metadata alone would leave
+those owners bound to a retired session.
+
 | Identity | Meaning |
 |---|---|
 | Profile ID / path generation | Intended profile and lifecycle/path generation; captured operations must refuse a changed origin. |
@@ -135,6 +151,9 @@ omit metadata, or replace authorization. See [transaction contract](TRANSACTION-
 [credential accounting](CREDENTIAL-ATTEMPTS.md) and [plaintext cleanup](PLAINTEXT-CLEANUP.md).
 Protection covers the active database; retained exports/backups/external copies
 require their own handling. Locking does not erase previously approved phone copies.
+Async live-price commands explicitly capture/recheck generation and session around
+network awaits. Bound CSV writes and open-app profile creation acquire the origin
+guard before publication; empty-registry creation remains independently supported.
 
 ## Desktop and mobile trust
 

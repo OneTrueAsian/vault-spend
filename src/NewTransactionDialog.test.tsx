@@ -89,6 +89,16 @@ function submit() {
 }
 
 describe("NewTransactionDialog direction switch", () => {
+  it("keeps entry usable and offers Retry when optional budget hints fail", () => {
+    const retry = vi.fn();
+    render({ budgetReadReady: false, budgetLoading: false, budgetError: "Unavailable", onRetryBudgets: retry });
+    const status = document.querySelector('[data-financial-read="Budget hints"]')!;
+    expect(status.getAttribute("role")).toBe("alert");
+    expect(status.textContent).toContain("could not be loaded");
+    act(() => (status.querySelector("button") as HTMLButtonElement).click());
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(document.querySelector("input[autofocus]" ) ?? document.querySelector("input[data-amount-input]")).not.toBeNull();
+  });
   it("shows a Direction switch with Money out chosen, above a 0.00 amount field", () => {
     render();
     expect(direction()).not.toBeNull();
