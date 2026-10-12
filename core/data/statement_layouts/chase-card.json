@@ -1,0 +1,7 @@
+{ "schema": 1, "id": "chase-card", "name": "Chase card", "recognize": ["Opening/Closing Date"],
+  "dates": { "formats": ["mm_dd"] },
+  "amounts": { "negatives": ["leading_minus"], "currency": "optional", "thousands": "comma", "decimal": "period" },
+  "rows": { "amount": "first" },
+  "balances": { "pairs": [{ "start": "Previous Balance", "end": "New Balance" }] },
+  "skip_sections": ["Rewards Activity"],
+  "ignore_lines": ["Order Number"] }

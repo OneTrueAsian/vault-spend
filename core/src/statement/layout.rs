@@ -345,6 +345,12 @@ impl StatementLayout {
 const BUILT_IN_JSON: &[&str] = &[
     include_str!("../../data/statement_layouts/general.json"),
     include_str!("../../data/statement_layouts/general-investment.json"),
+    include_str!("../../data/statement_layouts/amex.json"),
+    include_str!("../../data/statement_layouts/chase-card.json"),
+    include_str!("../../data/statement_layouts/capital-one.json"),
+    include_str!("../../data/statement_layouts/credit-union.json"),
+    include_str!("../../data/statement_layouts/mortgage.json"),
+    include_str!("../../data/statement_layouts/lpl.json"),
 ];
 
 /// The layouts shipped with the app. Each is covered by tests, so loading cannot fail.
@@ -421,5 +427,33 @@ mod tests {
         let mut layout = built_in_layouts().into_iter().find(|l| l.id == GENERAL_ID).unwrap();
         layout.schema = LAYOUT_SCHEMA + 1;
         assert!(layout.validate().is_err());
+    }
+
+    #[test]
+    fn each_owner_layout_reads_its_fictional_fixture_and_adds_up() {
+        use crate::statement::checks::{CheckOutcome, check_section};
+        use crate::statement::fixture_pdf::fixture_lines;
+        use crate::statement::sections::read_statement;
+        let pairs = [
+            ("amex", "card-a"),
+            ("chase-card", "card-b"),
+            ("capital-one", "card-c"),
+            ("credit-union", "credit-union"),
+            ("mortgage", "mortgage"),
+            ("lpl", "brokerage"),
+        ];
+        for (id, fixture) in pairs {
+            let layout = built_in_layouts().into_iter().find(|l| l.id == id).unwrap_or_else(|| panic!("{id}"));
+            let (lines, period) = fixture_lines(fixture);
+            let sections = read_statement(&lines, &layout, &period);
+            assert!(!sections.is_empty(), "{id}");
+            for s in &sections {
+                let c = check_section(s);
+                assert!(!matches!(c.activity, CheckOutcome::Failed { .. }), "{id}: {:?}", c.activity);
+                assert!(!matches!(c.holdings, CheckOutcome::Failed { .. }), "{id}: {:?}", c.holdings);
+                assert!(c.running_balance_breaks.is_empty(), "{id}");
+                assert!(s.unread.is_empty(), "{id}: {:?}", s.unread);
+            }
+        }
     }
 }

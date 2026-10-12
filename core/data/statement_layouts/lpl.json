@@ -1,0 +1,11 @@
+{ "schema": 1, "id": "lpl", "name": "LPL Financial", "recognize": ["LPL Financial"],
+  "dates": { "formats": ["mm_dd"] },
+  "amounts": { "negatives": ["parentheses"], "currency": "optional", "thousands": "comma", "decimal": "period" },
+  "rows": { "amount": "last" },
+  "balances": {
+    "section_start": ["Account Summary"],
+    "activity_totals": [{ "additions": "Total Additions", "subtractions": "Total Subtractions" }],
+    "value": { "start": "Starting Value", "end": "Total Ending Value" } },
+  "skip_sections": ["Cash Sweep Activity"],
+  "holdings": { "heading": ["Account Holdings"], "order": ["symbol", "name", "quantity", "price", "market_value"],
+    "quantity_decimals": 3, "price_decimals": 4, "total": ["Total Account Holdings"], "cash": ["Total Cash and Cash Equivalents"] } }
