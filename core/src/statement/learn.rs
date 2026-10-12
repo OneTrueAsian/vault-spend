@@ -57,6 +57,9 @@ pub enum TeachError {
     AmountNotFound,
     LabelLooksPersonal,
     NotThere,
+    HeadingNotFound,
+    NotUsable,
+    MarksDisagree,
 }
 
 impl std::fmt::Display for TeachError {
@@ -69,6 +72,9 @@ impl std::fmt::Display for TeachError {
                 "The words next to that amount look like an account number or contact details, so the app won't remember them."
             }
             TeachError::NotThere => "That example is no longer on the statement. Read the statement again.",
+            TeachError::HeadingNotFound => "The app couldn't find the heading above your holdings. Mark a holding that sits under its heading.",
+            TeachError::NotUsable => "The app couldn't use what you marked. Check the examples and try again.",
+            TeachError::MarksDisagree => "The examples you marked don't follow the same pattern. Check them and try again.",
         })
     }
 }
@@ -129,10 +135,13 @@ pub fn from_marks(base: &StatementLayout, lines: &[StatementLine], marks: &Teach
         return Err(TeachError::NothingMarked);
     }
     let mut layout = base.clone();
+    let mut row_shape: Option<(bool, AmountPosition)> = None;
 
     for row in &marks.rows {
         let (text, at) = line_at(lines, row.date)?;
         let clicked = &text[at..];
+        // When a date reads as more than one format and they tie on distance from the period (05/06 as
+        // May 6 or June 5, both inside it), the format listed first in `DateFormat::ALL` wins.
         let format = DateFormat::ALL
             .iter()
             .copied()
@@ -150,27 +159,33 @@ pub fn from_marks(base: &StatementLayout, lines: &[StatementLine], marks: &Teach
         {
             layout.amounts.negatives.push(style);
         }
-        layout.rows.running_balance = index + 1 < count;
-        layout.rows.amount = if index == 0 { AmountPosition::First } else { AmountPosition::Last };
+        let shape = (index + 1 < count, if index == 0 { AmountPosition::First } else { AmountPosition::Last });
+        if row_shape.is_some_and(|earlier| earlier != shape) {
+            return Err(TeachError::MarksDisagree);
+        }
+        row_shape = Some(shape);
+        (layout.rows.running_balance, layout.rows.amount) = shape;
     }
 
     match &marks.balances {
         Some(BalanceMark::StartEnd { start, end }) => {
+            clicked_money(lines, *start)?;
+            let (column, _, _, _, _) = clicked_money(lines, *end)?;
             let pair = BalancePair {
                 start: Some(label_for(lines, *start, period)?),
                 end: label_for(lines, *end, period)?,
             };
-            let (column, _, _, _, _) = clicked_money(lines, *end)?;
             layout.balances.summary_column = column as u8;
             layout.balances.pairs.retain(|p| p != &pair);
             layout.balances.pairs.insert(0, pair);
         }
         Some(BalanceMark::Totals { additions, subtractions }) => {
+            clicked_money(lines, *subtractions)?;
+            let (column, _, _, _, _) = clicked_money(lines, *additions)?;
             let pair = TotalsPair {
                 additions: label_for(lines, *additions, period)?,
                 subtractions: label_for(lines, *subtractions, period)?,
             };
-            let (column, _, _, _, _) = clicked_money(lines, *additions)?;
             layout.balances.summary_column = column as u8;
             layout.balances.activity_totals.retain(|p| p != &pair);
             layout.balances.activity_totals.insert(0, pair);
@@ -182,20 +197,23 @@ pub fn from_marks(base: &StatementLayout, lines: &[StatementLine], marks: &Teach
         line_at(lines, h.symbol)?;
         let quantity_text = word_at(lines, h.quantity)?;
         let price_text = h.price.map(|p| word_at(lines, p)).transpose()?;
+        clicked_money(lines, h.market_value)?;
+        clicked_money(lines, h.total)?;
         let total = label_for(lines, h.total, period)?;
-        let heading = (0..h.symbol.line)
+        // The nearest safe heading-like line above the symbol (no digits, not starting with a ticker).
+        let candidates: Vec<&str> = (0..h.symbol.line)
             .rev()
             .take(30)
             .map(|i| lines[i].text.trim())
-            .find(|t| {
-                !t.is_empty()
-                    && !t.chars().any(|c| c.is_ascii_digit())
-                    && t.split_whitespace().count() >= 1
-                    && !super::holdings::is_ticker(t.split_whitespace().next().unwrap_or(""))
+            .filter(|t| {
+                !t.is_empty() && !t.chars().any(|c| c.is_ascii_digit()) && !super::holdings::is_ticker(t.split_whitespace().next().unwrap_or(""))
             })
-            .map(str::to_string)
-            .filter(|t| is_safe_phrase(t))
-            .ok_or(TeachError::LabelLooksPersonal)?;
+            .collect();
+        let heading = match candidates.iter().find(|t| is_safe_phrase(t)) {
+            Some(t) => t.to_string(),
+            None if candidates.is_empty() => return Err(TeachError::HeadingNotFound),
+            None => return Err(TeachError::LabelLooksPersonal),
+        };
         let mut fields = vec![
             (h.symbol, HoldingField::Symbol),
             (h.quantity, HoldingField::Quantity),
@@ -237,7 +255,7 @@ pub fn from_marks(base: &StatementLayout, lines: &[StatementLine], marks: &Teach
     if try_both(&reversed) > try_both(&layout) {
         layout = reversed;
     }
-    layout.validate().map_err(|_| TeachError::LabelLooksPersonal)?;
+    layout.validate().map_err(|_| TeachError::NotUsable)?;
     Ok(layout)
 }
 
@@ -276,8 +294,10 @@ pub fn narrow(layout: &StatementLayout, lines: &[StatementLine], sections: &[Sta
             }
         }
     }
-    out.amounts.negatives = styles;
-    out
+    if !styles.is_empty() {
+        out.amounts.negatives = styles;
+    }
+    if out.validate().is_ok() { out } else { layout.clone() }
 }
 
 const GENERIC: &[&str] = &[
@@ -440,5 +460,282 @@ mod tests {
         assert_eq!(name, "Riverbend Mutual Bank");
         assert_eq!(phrases, vec!["Riverbend Mutual Bank".to_string()]);
         assert!(phrases.iter().all(|p| crate::statement::layout::is_safe_phrase(p)));
+    }
+
+    fn lines_of(texts: &[&str]) -> Vec<StatementLine> {
+        texts
+            .iter()
+            .map(|t| StatementLine {
+                page: 0,
+                text: t.to_string(),
+            })
+            .collect()
+    }
+    fn aug() -> Period {
+        Period::new("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap()).unwrap()
+    }
+    fn row(date: TextRef, amount: TextRef) -> TeachMarks {
+        TeachMarks {
+            rows: vec![RowMark { date, amount }],
+            balances: None,
+            holdings: vec![],
+        }
+    }
+    fn holding_mark(lines: &[StatementLine]) -> HoldingMark {
+        HoldingMark {
+            symbol: at(lines, "QQQZ", "QQQZ"),
+            quantity: at(lines, "10.5000", "10.5000"),
+            price: Some(at(lines, "10.5000", "$300.25")),
+            market_value: at(lines, "10.5000", "$3,152.63"),
+            total: at(lines, "Total Market Value", "$3,152.63"),
+        }
+    }
+    fn holdings_marks(h: HoldingMark) -> TeachMarks {
+        TeachMarks {
+            rows: vec![],
+            balances: None,
+            holdings: vec![h],
+        }
+    }
+    fn holding_lines() -> Vec<StatementLine> {
+        lines_of(&[
+            "Holdings",
+            "QQQZ NASDAQ TRACKER FUND",
+            "10.5000 $300.25 $3,152.63",
+            "Total Market Value $3,152.63",
+        ])
+    }
+
+    #[test]
+    fn a_month_with_only_deposits_keeps_the_negative_styles() {
+        let lines = lines_of(&["Opening balance 100.00", "08/03/2026 Deposit 50.00", "Closing balance 150.00"]);
+        let general = base(GENERAL_ID);
+        assert!(!general.amounts.negatives.is_empty());
+        let (sections, _) = read_with(&lines, &general, &aug());
+        let narrowed = narrow(&general, &lines, &sections, &aug());
+        assert_eq!(narrowed.amounts.negatives, general.amounts.negatives);
+        assert!(narrowed.validate().is_ok());
+    }
+
+    #[test]
+    fn narrowing_always_gives_a_usable_layout() {
+        for name in crate::statement::fixture_pdf::FIXTURE_NAMES {
+            let (lines, period) = fixture_lines(name);
+            for id in [GENERAL_ID, GENERAL_INVESTMENT_ID] {
+                let b = base(id);
+                let (sections, _) = read_with(&lines, &b, &period);
+                assert!(narrow(&b, &lines, &sections, &period).validate().is_ok(), "{name} {id}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_amount_mark_must_be_a_real_amount_on_a_real_line() {
+        let lines = holding_lines();
+        let b = base(GENERAL_INVESTMENT_ID);
+        let mut h = holding_mark(&lines);
+        h.market_value = at(&lines, "QQQZ", "NASDAQ");
+        assert_eq!(from_marks(&b, &lines, &holdings_marks(h), &aug()), Err(TeachError::AmountNotFound));
+        let mut h = holding_mark(&lines);
+        h.market_value = TextRef { line: 99, start: 0 };
+        assert_eq!(from_marks(&b, &lines, &holdings_marks(h), &aug()), Err(TeachError::NotThere));
+        let mut h = holding_mark(&lines);
+        h.total = at(&lines, "Total Market Value", "Market");
+        assert_eq!(from_marks(&b, &lines, &holdings_marks(h), &aug()), Err(TeachError::AmountNotFound));
+
+        let (bank, period) = fixture_lines("unknown-bank");
+        let g = base(GENERAL_ID);
+        let start_end = |a: TextRef, e: TextRef| TeachMarks {
+            rows: vec![],
+            balances: Some(BalanceMark::StartEnd { start: a, end: e }),
+            holdings: vec![],
+        };
+        let good = at(&bank, "Closing", "3,132.00");
+        let gone = TextRef { line: 99, start: 0 };
+        assert_eq!(
+            from_marks(&g, &bank, &start_end(at(&bank, "Opening", "balance"), good), &period),
+            Err(TeachError::AmountNotFound)
+        );
+        assert_eq!(from_marks(&g, &bank, &start_end(good, gone), &period), Err(TeachError::NotThere));
+        let totals = |a: TextRef, s: TextRef| TeachMarks {
+            rows: vec![],
+            balances: Some(BalanceMark::Totals {
+                additions: a,
+                subtractions: s,
+            }),
+            holdings: vec![],
+        };
+        assert_eq!(
+            from_marks(&g, &bank, &totals(good, at(&bank, "Closing", "Closing")), &period),
+            Err(TeachError::AmountNotFound)
+        );
+        assert_eq!(from_marks(&g, &bank, &totals(gone, good), &period), Err(TeachError::NotThere));
+    }
+
+    #[test]
+    fn a_holding_with_no_heading_above_it_is_refused_plainly() {
+        let lines = lines_of(&["QQQZ NASDAQ TRACKER FUND", "10.5000 $300.25 $3,152.63", "Total Market Value $3,152.63"]);
+        let r = from_marks(&base(GENERAL_INVESTMENT_ID), &lines, &holdings_marks(holding_mark(&lines)), &aug());
+        assert_eq!(r, Err(TeachError::HeadingNotFound));
+    }
+
+    #[test]
+    fn the_heading_search_skips_unsafe_lines_and_uses_the_nearest_safe_one() {
+        let lines = lines_of(&[
+            "Holdings",
+            "write to help@example.org",
+            "QQQZ NASDAQ TRACKER FUND",
+            "10.5000 $300.25 $3,152.63",
+            "Total Market Value $3,152.63",
+        ]);
+        let taught = from_marks(&base(GENERAL_INVESTMENT_ID), &lines, &holdings_marks(holding_mark(&lines)), &aug()).unwrap();
+        let heading = taught.holdings.unwrap().heading;
+        assert!(heading.contains(&"Holdings".to_string()));
+        assert!(heading.iter().all(|h| !h.contains('@')));
+
+        let only_unsafe = lines_of(&[
+            "write to help@example.org",
+            "QQQZ NASDAQ TRACKER FUND",
+            "10.5000 $300.25 $3,152.63",
+            "Total Market Value $3,152.63",
+        ]);
+        let r = from_marks(
+            &base(GENERAL_INVESTMENT_ID),
+            &only_unsafe,
+            &holdings_marks(holding_mark(&only_unsafe)),
+            &aug(),
+        );
+        assert_eq!(r, Err(TeachError::LabelLooksPersonal));
+    }
+
+    #[test]
+    fn a_layout_that_cannot_be_used_is_not_called_personal() {
+        let (lines, period) = fixture_lines("unknown-bank");
+        let mut broken = base(GENERAL_ID);
+        broken.name = String::new();
+        let marks = row(at(&lines, "03/08", "03/08/2026"), at(&lines, "03/08", "54.20"));
+        assert_eq!(from_marks(&broken, &lines, &marks, &period), Err(TeachError::NotUsable));
+    }
+
+    #[test]
+    fn examples_that_follow_different_patterns_are_refused() {
+        let lines = lines_of(&["08/03/2026 Shop 54.20", "08/04/2026 Cafe 10.00 90.00"]);
+        let marks = TeachMarks {
+            rows: vec![
+                RowMark {
+                    date: at(&lines, "08/03", "08/03/2026"),
+                    amount: at(&lines, "08/03", "54.20"),
+                },
+                RowMark {
+                    date: at(&lines, "08/04", "08/04/2026"),
+                    amount: at(&lines, "08/04", "10.00"),
+                },
+            ],
+            balances: None,
+            holdings: vec![],
+        };
+        assert_eq!(from_marks(&base(GENERAL_ID), &lines, &marks, &aug()), Err(TeachError::MarksDisagree));
+    }
+
+    #[test]
+    fn an_ambiguous_date_reads_the_first_format_in_the_list() {
+        let lines = lines_of(&["05/06/2026 Shop 10.00"]);
+        let period = Period::new("2026-05-06".parse().unwrap(), "2026-06-05".parse().unwrap()).unwrap();
+        let marks = row(at(&lines, "05/06", "05/06/2026"), at(&lines, "05/06", "10.00"));
+        let taught = from_marks(&base(GENERAL_ID), &lines, &marks, &period).unwrap();
+        assert_eq!(taught.dates.formats[0], DateFormat::MmDdYyyy);
+    }
+
+    #[test]
+    fn clicks_after_non_ascii_text_find_the_right_word() {
+        for lead in ["Café", "Müller \u{2014} shop", "Bar\u{a0}code", "Price \u{20ac} shop"] {
+            let text = format!("08/03/2026 {lead} 54.20");
+            let lines = lines_of(&[text.as_str()]);
+            let marks = row(at(&lines, "08/03", "08/03/2026"), at(&lines, "08/03", "54.20"));
+            let taught = from_marks(&base(GENERAL_ID), &lines, &marks, &aug()).unwrap_or_else(|e| panic!("{lead}: {e}"));
+            assert_eq!(taught.rows.amount, AmountPosition::First, "{lead}");
+            assert_eq!(taught.dates.formats[0], DateFormat::MmDdYyyy, "{lead}");
+        }
+    }
+
+    #[test]
+    fn a_missing_line_or_a_click_past_the_end_is_not_there() {
+        let lines = lines_of(&["08/03/2026 Shop 54.20"]);
+        let g = base(GENERAL_ID);
+        let good = at(&lines, "08/03", "08/03/2026");
+        let amount = at(&lines, "08/03", "54.20");
+        let gone = TextRef { line: 5, start: 0 };
+        let past = TextRef { line: 0, start: 500 };
+        assert_eq!(from_marks(&g, &lines, &row(gone, amount), &aug()), Err(TeachError::NotThere));
+        assert_eq!(from_marks(&g, &lines, &row(good, gone), &aug()), Err(TeachError::NotThere));
+        assert_eq!(from_marks(&g, &lines, &row(past, amount), &aug()), Err(TeachError::NotThere));
+        assert_eq!(from_marks(&g, &lines, &row(good, past), &aug()), Err(TeachError::NotThere));
+    }
+
+    #[test]
+    fn a_balance_label_with_an_account_number_is_not_remembered() {
+        let lines = lines_of(&["Account 1234567890 opening 1,250.00", "Account 1234567890 closing 3,132.00"]);
+        let marks = TeachMarks {
+            rows: vec![],
+            balances: Some(BalanceMark::StartEnd {
+                start: at(&lines, "Account 1234567890 opening", "1,250.00"),
+                end: at(&lines, "Account 1234567890 closing", "3,132.00"),
+            }),
+            holdings: vec![],
+        };
+        assert_eq!(from_marks(&base(GENERAL_ID), &lines, &marks, &aug()), Err(TeachError::LabelLooksPersonal));
+    }
+
+    #[test]
+    fn suggested_phrases_never_hold_contact_details() {
+        let mut lines = lines_of(&["Write to help@example.org today", "Call us on 555 123 4567 now", "Open Hours Mon Fri"]);
+        let (_, phrases) = suggest_name_and_phrases(&lines, &[]);
+        assert!(phrases.iter().all(|p| !p.contains('@') && !p.chars().any(|c| c.is_ascii_digit())));
+        assert_eq!(phrases, vec!["Open Hours Mon Fri".to_string()]);
+
+        lines.pop();
+        let (name, phrases) = suggest_name_and_phrases(&lines, &[]);
+        assert!(phrases.is_empty());
+        assert_eq!(name, "My statement");
+    }
+
+    #[test]
+    fn non_ascii_text_at_any_position_never_panics() {
+        let texts = [
+            "08/03/2026 Café \u{2014} Müller\u{a0}shop \u{20ac} 54.20",
+            "Opening balance \u{20ac}1.250,00 Zürich",
+            "\u{a0}\u{2014}é 08/03/2026 54.20 CR",
+            "ÀÉÎ Closing balance 3,132.00 ñ",
+        ];
+        let lines = lines_of(&texts);
+        let g = base(GENERAL_ID);
+        let inv = base(GENERAL_INVESTMENT_ID);
+        for line in 0..=texts.len() {
+            for start in 0..60 {
+                let r = TextRef { line, start };
+                let _ = from_marks(&g, &lines, &row(r, r), &aug());
+                let h = HoldingMark {
+                    symbol: r,
+                    quantity: r,
+                    price: Some(r),
+                    market_value: r,
+                    total: r,
+                };
+                let _ = from_marks(&inv, &lines, &holdings_marks(h), &aug());
+                let balances = Some(BalanceMark::StartEnd { start: r, end: r });
+                let _ = from_marks(
+                    &g,
+                    &lines,
+                    &TeachMarks {
+                        rows: vec![],
+                        balances,
+                        holdings: vec![],
+                    },
+                    &aug(),
+                );
+            }
+        }
+        let (sections, _) = read_with(&lines, &g, &aug());
+        let _ = narrow(&g, &lines, &sections, &aug());
     }
 }
