@@ -3,10 +3,12 @@
 //! in this module names a bank. See docs/STATEMENT-RECONCILE.md.
 
 pub mod fixture_pdf;
+pub mod holdings;
 pub mod layout;
 pub mod model;
 pub mod pdf_text;
 pub mod rows;
+pub mod sections;
 pub mod text;
 pub mod tokens;
 
