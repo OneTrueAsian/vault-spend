@@ -1362,8 +1362,13 @@ impl Store {
     /// this keep working.
     fn migrate_add_reconciliation_links_if_missing(&self) -> rusqlite::Result<()> {
         if !self.table_has_column("transactions", "reconciliation_id")? {
+            // The ADD COLUMN and the backfill share one transaction. If the backfill fails, the column is
+            // rolled back too, so the next start still sees it missing and retries both, rather than
+            // leaving a column that the backfill never filled and that is never revisited.
+            let sql_tx = self.conn.unchecked_transaction()?;
             self.conn.execute("ALTER TABLE transactions ADD COLUMN reconciliation_id INTEGER", [])?;
             self.link_existing_reconciliations()?;
+            sql_tx.commit()?;
         }
         for (column, ddl) in [
             ("period_start", "ALTER TABLE reconciliations ADD COLUMN period_start TEXT"),
@@ -1398,6 +1403,7 @@ impl Store {
         }
         Ok(())
     }
+
     /// Same pattern again: a database from before optional transaction notes
     /// existed has no `notes` column. `NULL` (no note) is already correct
     /// for every existing row.

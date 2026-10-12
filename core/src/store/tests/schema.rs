@@ -80,6 +80,7 @@ fn init_schema_creates_every_performance_index_including_the_ones_added_after_mi
         "idx_budgets_period",
         "idx_transaction_splits_transaction_id",
         "idx_debt_payments_generated_transaction_id",
+        "idx_transactions_account_reconciliation",
     ] {
         assert!(names.contains(expected), "expected index {expected} to exist, got {names:?}");
     }
@@ -137,4 +138,86 @@ fn existing_reconciliations_settle_the_ticked_rows_dated_on_or_before_them() {
     // Running it again changes nothing.
     store.link_existing_reconciliations().unwrap();
     assert_eq!(link(july), Some(first));
+}
+
+/// Builds a database shaped like one from before `reconciliation_id` and the richer reconciliation
+/// columns existed: one ticked row dated on or before the reconciliation's statement date, one
+/// ticked row dated after it, and a finished reconciliation with no link columns filled in.
+fn old_shape_store_with_one_reconciliation() -> (Store, i64, i64) {
+    let store = Store::open_in_memory().unwrap();
+    let acct = store.get_or_create_account("Old Checking", AccountType::Checking).unwrap();
+    store
+        .save_transactions(acct, &[tx("2026-07-10", "July rent", "-900.00"), tx("2026-08-20", "Later", "-30.00")])
+        .unwrap();
+    let july = id_of(&store, "July rent", "2026-07-10");
+    let later = id_of(&store, "Later", "2026-08-20");
+    store.set_transactions_cleared(&[july, later], true).unwrap();
+    store
+        .conn
+        .execute(
+            "INSERT INTO reconciliations (account_id, statement_date, statement_balance, finished_at) VALUES (?1, '2026-07-31', '100.00', '2026-08-01 09:00:00')",
+            params![acct],
+        )
+        .unwrap();
+    store
+        .conn
+        .execute_batch(
+            "DROP INDEX idx_transactions_account_reconciliation;
+             ALTER TABLE transactions DROP COLUMN reconciliation_id;
+             ALTER TABLE reconciliations DROP COLUMN period_start;
+             ALTER TABLE reconciliations DROP COLUMN starting_balance;
+             ALTER TABLE reconciliations DROP COLUMN source;
+             ALTER TABLE reconciliations DROP COLUMN holdings_checked;",
+        )
+        .unwrap();
+    (store, july, later)
+}
+
+fn reconciliation_link(store: &Store, id: i64) -> Option<i64> {
+    store
+        .conn
+        .query_row("SELECT reconciliation_id FROM transactions WHERE id = ?1", params![id], |r| r.get(0))
+        .unwrap()
+}
+
+#[test]
+fn an_old_database_gains_the_link_column_and_settles_its_ticked_rows_on_the_next_start() {
+    let (store, july, later) = old_shape_store_with_one_reconciliation();
+    assert!(!store.table_has_column("transactions", "reconciliation_id").unwrap());
+
+    store.init_schema().unwrap();
+
+    assert!(store.table_has_column("transactions", "reconciliation_id").unwrap());
+    for column in ["period_start", "starting_balance", "source", "holdings_checked"] {
+        assert!(store.table_has_column("reconciliations", column).unwrap(), "{column}");
+    }
+    let rec: i64 = store.conn.query_row("SELECT MIN(id) FROM reconciliations", [], |r| r.get(0)).unwrap();
+    assert_eq!(reconciliation_link(&store, july), Some(rec), "the ticked row on/before the statement date is linked");
+    assert_eq!(reconciliation_link(&store, later), None, "a ticked row after the statement date is not linked");
+}
+
+#[test]
+fn a_failed_backfill_rolls_back_the_column_so_the_next_start_retries_both() {
+    let (store, july, _later) = old_shape_store_with_one_reconciliation();
+    store
+        .conn
+        .execute_batch(
+            "CREATE TRIGGER block_backfill AFTER UPDATE ON transactions WHEN NEW.description = 'July rent'
+             BEGIN SELECT RAISE(ABORT, 'backfill blocked'); END;",
+        )
+        .unwrap();
+
+    let err = store.init_schema().unwrap_err();
+    assert!(err.to_string().contains("backfill blocked"), "{err}");
+    assert!(
+        !store.table_has_column("transactions", "reconciliation_id").unwrap(),
+        "the ADD COLUMN must roll back together with the failed backfill"
+    );
+
+    store.conn.execute_batch("DROP TRIGGER block_backfill;").unwrap();
+    store.init_schema().unwrap();
+
+    assert!(store.table_has_column("transactions", "reconciliation_id").unwrap());
+    let rec: i64 = store.conn.query_row("SELECT MIN(id) FROM reconciliations", [], |r| r.get(0)).unwrap();
+    assert_eq!(reconciliation_link(&store, july), Some(rec));
 }
