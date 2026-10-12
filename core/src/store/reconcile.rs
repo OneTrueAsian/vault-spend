@@ -126,9 +126,30 @@ impl Store {
         Ok((change, rows.len()))
     }
 
+    /// The statement date and ending balance of the account's latest reconciliation that states a
+    /// balance (latest statement date, then latest id): the starting point for the next one. An
+    /// investment statement's record (`holdings_checked` set) is left out: it keeps the statement's total
+    /// value for reference only, which is not a cash balance to continue from. `last_reconciliation`, by
+    /// contrast, returns the latest record of any kind, for showing when the account was last reconciled.
+    pub fn last_balance_reconciliation(&self, account_id: i64) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
+        match self.conn.query_row(
+            "SELECT statement_date, statement_balance FROM reconciliations
+             WHERE account_id = ?1 AND holdings_checked IS NULL ORDER BY statement_date DESC, id DESC LIMIT 1",
+            params![account_id],
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+        ) {
+            Ok((date, balance)) => Ok(Some((
+                NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("dates stored by this crate are valid"),
+                dec(&balance),
+            ))),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn reconcile_status(&self, account_id: i64, statement_start: Option<Decimal>, statement_end: Decimal) -> rusqlite::Result<ReconcileStatus> {
         let kind = self.account_kind(account_id)?;
-        let last = self.last_reconciliation(account_id)?.map(|(_, balance)| balance);
+        let last = self.last_balance_reconciliation(account_id)?.map(|(_, balance)| balance);
         let starting_point = last.or(statement_start);
         let (ticked_change, ticked_count) = self.unsettled_ticked_change(account_id, kind)?;
         Ok(ReconcileStatus {
@@ -206,6 +227,9 @@ pub struct CandidateTx {
 /// One change to an investment account's holdings, made as part of finishing its statement.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HoldingChange {
+    /// Sets ONE holding row's (one lot's) shares. A symbol can be held in several lots; the statement
+    /// check compares per-symbol sums, so a caller fixing a symbol held in several lots must compare the
+    /// sums and adjust one lot by the difference, not set one lot to the statement's total.
     SetShares {
         holding_id: i64,
         shares: Decimal,
@@ -237,6 +261,9 @@ pub struct StatementFinish {
     pub matched: Vec<i64>,
     /// Statement rows to add, already in the app's sign and categorised.
     pub add: Vec<Transaction>,
+    /// Loan accounts only: the principal part of each row in `add` (same order and length), or empty for
+    /// none. A row with `None` counts at its full amount, as any loan payment without a principal part.
+    pub add_principal: Vec<Option<Decimal>>,
     /// Investment accounts only.
     pub holdings: Vec<HoldingChange>,
     /// Investment statements: the share counts the app must hold afterwards; `None` = not checked.
@@ -254,6 +281,12 @@ pub enum StatementFinishError {
     NotThisAccount,
     /// A transaction to add is already in the app (same account, date, description and amount).
     AlreadyInApp,
+    /// The finish's own details don't fit together (the message says how).
+    BadInput(&'static str),
+    /// A holding to change has an impossible value (the message says which).
+    InvalidHolding(&'static str),
+    /// Share counts were not checked against the statement, so they must not change.
+    HoldingsNotChecked,
     Layout(LayoutSaveError),
     Db(rusqlite::Error),
 }
@@ -273,6 +306,8 @@ impl std::fmt::Display for StatementFinishError {
             StatementFinishError::AlreadyInApp => {
                 write!(f, "One of the transactions to add is already in the app. Read the statement again.")
             }
+            StatementFinishError::BadInput(message) | StatementFinishError::InvalidHolding(message) => write!(f, "{message}"),
+            StatementFinishError::HoldingsNotChecked => write!(f, "Share counts can only be changed when they are checked against your statement."),
             StatementFinishError::Layout(e) => write!(f, "{e}"),
             StatementFinishError::Db(_) => write!(f, "Something went wrong saving this. Nothing was changed. Please try again."),
         }
@@ -286,6 +321,61 @@ pub struct StatementFinished {
     pub reconciliation_id: i64,
     pub added: usize,
     pub layout_id: Option<i64>,
+}
+
+/// Refuses a holdings change with an impossible value: a negative share count, or a holding to add
+/// without a symbol or with a price or cost basis that isn't above zero.
+fn validate_holding_change(change: &HoldingChange) -> Result<(), StatementFinishError> {
+    const NEGATIVE_SHARES: &str = "A share count can't be below zero.";
+    match change {
+        HoldingChange::SetShares { shares, .. } if *shares < Decimal::ZERO => Err(StatementFinishError::InvalidHolding(NEGATIVE_SHARES)),
+        HoldingChange::Add {
+            symbol,
+            shares,
+            price,
+            cost_basis,
+            ..
+        } => {
+            if symbol.trim().is_empty() {
+                Err(StatementFinishError::InvalidHolding("Each holding you add needs its symbol."))
+            } else if *shares < Decimal::ZERO {
+                Err(StatementFinishError::InvalidHolding(NEGATIVE_SHARES))
+            } else if *price <= Decimal::ZERO {
+                Err(StatementFinishError::InvalidHolding(
+                    "Enter a price above $0.00 for each holding you add.",
+                ))
+            } else if *cost_basis <= Decimal::ZERO {
+                Err(StatementFinishError::InvalidHolding(
+                    "Enter what you paid for each holding you add. It has to be more than $0.00.",
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Refuses principal parts that don't fit: a list that isn't empty or one per row to add, a principal
+/// part on an account that isn't a loan, or one below zero or above the payment's amount.
+fn validate_principals(kind: AccountKind, add: &[Transaction], principals: &[Option<Decimal>]) -> Result<(), StatementFinishError> {
+    if !principals.is_empty() && principals.len() != add.len() {
+        return Err(StatementFinishError::BadInput(
+            "The transactions to add don't line up with their details. Please read the statement again.",
+        ));
+    }
+    for (tx, principal) in add.iter().zip(principals) {
+        let Some(principal) = principal else { continue };
+        if kind != AccountKind::Loan {
+            return Err(StatementFinishError::BadInput("Only a loan payment can have a principal part."));
+        }
+        if *principal < Decimal::ZERO || *principal > tx.amount.abs() {
+            return Err(StatementFinishError::BadInput(
+                "The principal part of a payment has to be between $0.00 and the payment's amount.",
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Holdings share counts by symbol (trimmed, upper case), summed when a symbol appears more than once.
@@ -397,21 +487,39 @@ impl Store {
     }
 
     /// Finishes a statement reconciliation in one database transaction: unticks what is not on the
-    /// statement, adds the statement's new transactions, ticks the matched and added ones, applies the
-    /// holdings changes, checks the statement (the exact $0.00 rule, or for investment accounts the share
-    /// counts), records the reconciliation, settles the ticked transactions and saves the learned layout.
-    /// Any error writes nothing: returning early drops the open transaction, which rolls it all back.
+    /// statement, adds the statement's new transactions (with any loan principal parts), ticks the matched
+    /// and added ones, applies the holdings changes, checks the statement (the exact $0.00 rule, or for
+    /// investment accounts the share counts), records the reconciliation, settles the ticked transactions
+    /// and saves the learned layout. Any error writes nothing: returning early drops the open transaction,
+    /// which rolls it all back.
+    ///
+    /// The untick is deliberately account-wide, not limited to the statement window: every ticked,
+    /// unsettled transaction on the account is unticked first, including ones dated outside the window
+    /// that the review never showed. Settling then covers exactly the matched and added transactions, so
+    /// nothing the person did not see on this statement can be settled by it; an unticked row simply
+    /// waits for the statement it appears on.
     ///
     /// Like `finish_reconciliation`, this fails if the caller already holds a transaction. Everything
     /// called inside runs plain statements and never opens a transaction of its own.
     pub fn finish_statement_reconciliation(&self, f: &StatementFinish, now: NaiveDateTime) -> Result<StatementFinished, StatementFinishError> {
         let tx = self.conn.unchecked_transaction()?;
-        let kind = self.account_kind(f.account_id)?;
+        let kind = match self.account_kind(f.account_id) {
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Err(StatementFinishError::NotThisAccount),
+            other => other?,
+        };
+
+        // Checks that only read come first.
         if kind != AccountKind::Investment && !f.holdings.is_empty() {
             return Err(StatementFinishError::NotThisAccount);
         }
-
-        // Checks that only read come first.
+        // Share counts are checked only against a statement that lists some; without that check (the
+        // person finished without checking holdings) they must not change.
+        let shares_checked = kind == AccountKind::Investment && f.statement_shares.as_ref().is_some_and(|s| !s.is_empty());
+        if !f.holdings.is_empty() && !shares_checked {
+            return Err(StatementFinishError::HoldingsNotChecked);
+        }
+        f.holdings.iter().try_for_each(validate_holding_change)?;
+        validate_principals(kind, &f.add, &f.add_principal)?;
         let mut matched = f.matched.clone();
         matched.sort_unstable();
         matched.dedup();
@@ -435,7 +543,16 @@ impl Store {
             "UPDATE transactions SET cleared = 0 WHERE account_id = ?1 AND reconciliation_id IS NULL AND cleared = 1",
             params![f.account_id],
         )?;
+        // In debug builds this also writes "transaction added" lines to the activity log file as it goes;
+        // if the finish then fails those lines stay although the rows are rolled back. That is the app's
+        // existing debug-only behaviour (release builds keep no activity log) and is left as is.
         let added = self.save_transactions_with_ids(f.account_id, &f.add)?;
+        for (id, principal) in added.iter().zip(&f.add_principal) {
+            if let Some(principal) = principal {
+                // A plain UPDATE (no transaction of its own), so it stays inside this one.
+                self.update_transaction_principal_amount(*id, Some(*principal))?;
+            }
+        }
         let ticked: Vec<i64> = matched.iter().chain(added.iter()).copied().collect();
         self.set_transactions_cleared(&ticked, true)?;
 
@@ -462,7 +579,7 @@ impl Store {
         }
 
         let (statement_end, starting, holdings_checked) = if kind == AccountKind::Investment {
-            if let Some(expected) = &f.statement_shares {
+            if shares_checked && let Some(expected) = &f.statement_shares {
                 let mut stmt = self.conn.prepare("SELECT symbol, shares FROM holdings WHERE account_id = ?1")?;
                 let rows = stmt
                     .query_map(params![f.account_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
@@ -476,7 +593,11 @@ impl Store {
                     }
                 }
             }
-            (f.ending_value.unwrap_or_default(), None, Some(f.statement_shares.is_some()))
+            // `statement_balance` is NOT NULL, so it holds the statement's total value for reference, or 0
+            // when the statement printed none. Either way it is never a balance to continue from: this
+            // record has `holdings_checked` set, so `last_balance_reconciliation` (the starting point for
+            // every later reconciliation) never reads it.
+            (f.ending_value.unwrap_or_default(), None, Some(shares_checked))
         } else {
             let end = f.statement_end.ok_or(StatementFinishError::DoesNotBalance)?;
             let status = self.reconcile_status(f.account_id, f.statement_start, end)?;

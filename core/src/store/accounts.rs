@@ -183,7 +183,11 @@ impl Store {
     }
 
     /// The statement date and balance of the account's most recent finished
-    /// reconciliation, if it has had one.
+    /// reconciliation of any kind, if it has had one — for showing when the
+    /// account was last reconciled. For an investment statement's record the
+    /// balance is only the statement's total value, kept for reference; the
+    /// starting point for the next reconciliation comes from
+    /// `last_balance_reconciliation`, which leaves those records out.
     pub fn last_reconciliation(&self, account_id: i64) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
         match self.conn.query_row(
             "SELECT statement_date, statement_balance FROM reconciliations

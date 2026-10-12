@@ -338,10 +338,38 @@ fn finish_cash(acct: i64, matched: Vec<i64>, add: Vec<Transaction>, start: &str,
         source: ReconcileSource::StatementPdf,
         matched,
         add,
+        add_principal: vec![],
         holdings: vec![],
         statement_shares: None,
         layout: None,
     }
+}
+
+/// An investment statement for August worth `ending_value`, checking the given share counts.
+fn finish_investment(
+    acct: i64,
+    add: Vec<Transaction>,
+    holdings: Vec<HoldingChange>,
+    statement_shares: Option<Vec<(String, Decimal)>>,
+) -> StatementFinish {
+    StatementFinish {
+        account_id: acct,
+        period: august(),
+        statement_start: None,
+        statement_end: None,
+        ending_value: Some(dec("84089.71")),
+        source: ReconcileSource::StatementPdf,
+        matched: vec![],
+        add,
+        add_principal: vec![],
+        holdings,
+        statement_shares,
+        layout: None,
+    }
+}
+
+fn shares(list: &[(&str, &str)]) -> Option<Vec<(String, Decimal)>> {
+    Some(list.iter().map(|(symbol, n)| (symbol.to_string(), dec(n))).collect())
 }
 
 fn settled_by(store: &Store, id: i64) -> Option<i64> {
@@ -604,6 +632,7 @@ fn a_failing_holdings_change_rolls_back_the_added_transactions_and_other_holding
         source: ReconcileSource::StatementPdf,
         matched: vec![],
         add: vec![tx("2026-08-05", "Cash Dividend", "18.50")],
+        add_principal: vec![],
         holdings: vec![
             HoldingChange::SetShares {
                 holding_id: held,
@@ -618,7 +647,7 @@ fn a_failing_holdings_change_rolls_back_the_added_transactions_and_other_holding
             },
             HoldingChange::Remove { holding_id: elsewhere },
         ],
-        statement_shares: None,
+        statement_shares: Some(vec![("ABCD".into(), dec("50")), ("EFGH".into(), dec("1"))]),
         layout: None,
     };
     let result = store.finish_statement_reconciliation(&f, test_now());
@@ -665,6 +694,7 @@ fn an_investment_finish_fixes_share_counts_and_requires_them_to_match() {
         source: ReconcileSource::StatementPdf,
         matched: vec![],
         add: vec![tx("2026-08-05", "Cash Dividend", "18.50")],
+        add_principal: vec![],
         holdings: vec![],
         statement_shares: Some(vec![("ABCD".into(), dec("50.000")), ("EFGH".into(), dec("252.523"))]),
         layout: None,
@@ -727,6 +757,7 @@ fn an_investment_finish_allows_app_only_holdings_and_records_when_holdings_were_
         source: ReconcileSource::StatementDownload,
         matched: vec![],
         add: vec![],
+        add_principal: vec![],
         holdings: vec![],
         statement_shares: Some(vec![("abcd ".into(), dec("20")), ("ABCD".into(), dec("29.0"))]),
         layout: None,
@@ -864,14 +895,21 @@ fn statement_finish_errors_read_plainly() {
         StatementFinishError::AlreadyInApp.to_string(),
         StatementFinishError::Layout(LayoutSaveError::Missing).to_string(),
         StatementFinishError::Db(rusqlite::Error::QueryReturnedNoRows).to_string(),
+        StatementFinishError::HoldingsNotChecked.to_string(),
     ];
     assert!(messages[0].contains("$0.00"));
     assert!(messages[1].contains("ABCD"));
     for m in &messages {
-        let lower = m.to_lowercase();
-        for jargon in ["layout", "parse", "cleared", "unmatched", "tracked", "published", "sql", "query", "rows"] {
-            assert!(!lower.contains(jargon), "{m:?} uses {jargon:?}");
-        }
+        assert_plain(m);
+    }
+}
+
+/// User-visible text: not empty, and none of the words the app avoids.
+fn assert_plain(message: &str) {
+    assert!(!message.trim().is_empty());
+    let lower = message.to_lowercase();
+    for jargon in ["layout", "parse", "cleared", "unmatched", "tracked", "published", "sql", "query", "rows"] {
+        assert!(!lower.contains(jargon), "{message:?} uses {jargon:?}");
     }
 }
 
@@ -926,4 +964,332 @@ fn the_review_signature_changes_when_the_account_changes() {
     store.delete_transaction(elsewhere, test_now()).unwrap();
     store.create_holding(other, "WXYZ", "Other", dec("1"), dec("1"), dec("1"), None).unwrap();
     assert_eq!(before, sig(&store), "another account's changes don't count");
+}
+
+// Review round 1.
+
+fn holdings_checked(store: &Store, reconciliation_id: i64) -> Option<i64> {
+    store
+        .conn
+        .query_row(
+            "SELECT holdings_checked FROM reconciliations WHERE id = ?1",
+            params![reconciliation_id],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+#[test]
+fn an_investment_statement_finish_is_not_a_starting_point_for_later_reconciling() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    let done = store
+        .finish_statement_reconciliation(&finish_investment(brokerage, vec![], vec![], None), test_now())
+        .unwrap();
+    assert_eq!(holdings_checked(&store, done.reconciliation_id), Some(0));
+    assert_eq!(
+        store.last_reconciliation(brokerage).unwrap(),
+        Some((day("2026-08-31"), dec("84089.71"))),
+        "still the latest record of any kind, for showing its date"
+    );
+    assert_eq!(store.last_balance_reconciliation(brokerage).unwrap(), None);
+
+    store.save_transactions(brokerage, &[tx("2026-09-03", "Dividend", "10.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Dividend", "2026-09-03")], true).unwrap();
+    let status = store.reconcile_status(brokerage, Some(dec("500.00")), dec("510.00")).unwrap();
+    assert!(status.needs_starting_balance);
+    assert_eq!(status.starting_point, Some(dec("500.00")), "the typed start, not the total value");
+    assert_eq!(status.difference, Some(Decimal::ZERO));
+}
+
+#[test]
+fn a_manual_reconciliation_stays_the_starting_point_after_an_investment_statement_finish() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    store.save_transactions(brokerage, &[tx("2026-07-10", "Interest", "5.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Interest", "2026-07-10")], true).unwrap();
+    finish(&store, brokerage, "2026-07-31", Some("100.00"), "105.00").expect("balances");
+    store
+        .finish_statement_reconciliation(&finish_investment(brokerage, vec![], vec![], shares(&[])), test_now())
+        .unwrap();
+    assert_eq!(
+        store.last_balance_reconciliation(brokerage).unwrap(),
+        Some((day("2026-07-31"), dec("105.00")))
+    );
+
+    store.save_transactions(brokerage, &[tx("2026-09-03", "Dividend", "10.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Dividend", "2026-09-03")], true).unwrap();
+    let status = store.reconcile_status(brokerage, None, dec("115.00")).unwrap();
+    assert!(!status.needs_starting_balance);
+    assert_eq!(status.starting_point, Some(dec("105.00")));
+    assert_eq!(status.difference, Some(Decimal::ZERO));
+}
+
+#[test]
+fn a_cash_statement_finish_is_the_starting_point_for_the_next_reconciliation() {
+    let store = Store::open_in_memory().unwrap();
+    let (acct, [_, coffee, gas]) = checking(&store);
+    let done = store
+        .finish_statement_reconciliation(&finish_cash(acct, vec![coffee], vec![], "1200.00", "1150.00"), test_now())
+        .unwrap();
+    assert_eq!(holdings_checked(&store, done.reconciliation_id), None);
+    assert_eq!(
+        store.last_balance_reconciliation(acct).unwrap(),
+        Some((day("2026-08-31"), dec("1150.00")))
+    );
+
+    store.set_transactions_cleared(&[gas], true).unwrap();
+    let status = store.reconcile_status(acct, Some(dec("9999.00")), dec("1120.00")).unwrap();
+    assert!(!status.needs_starting_balance);
+    assert_eq!(status.starting_point, Some(dec("1150.00")));
+    assert_eq!(status.difference, Some(Decimal::ZERO));
+
+    // A later record on the same statement date wins the tie.
+    finish(&store, acct, "2026-08-31", None, "1120.00").expect("balances");
+    assert_eq!(
+        store.last_balance_reconciliation(acct).unwrap(),
+        Some((day("2026-08-31"), dec("1120.00")))
+    );
+}
+
+fn mortgage(store: &Store) -> i64 {
+    store.get_or_create_account("Mortgage", AccountType::Loan).unwrap()
+}
+
+/// August's mortgage statement: principal owed falls from 317,195.46 to 316,840.29.
+fn mortgage_finish(loan: i64, add: Vec<Transaction>, add_principal: Vec<Option<Decimal>>, end: &str) -> StatementFinish {
+    StatementFinish {
+        add_principal,
+        ..finish_cash(loan, vec![], add, "317195.46", end)
+    }
+}
+
+#[test]
+fn an_added_loan_payment_can_carry_its_principal_part() {
+    let store = Store::open_in_memory().unwrap();
+    let loan = mortgage(&store);
+    let f = mortgage_finish(loan, vec![tx("2026-08-01", "Payment", "2405.94")], vec![Some(dec("355.17"))], "316840.29");
+    let done = store.finish_statement_reconciliation(&f, test_now()).unwrap();
+    let payment = id_of(&store, "Payment", "2026-08-01");
+    let principal: Option<String> = store
+        .conn
+        .query_row("SELECT principal_amount FROM transactions WHERE id = ?1", params![payment], |r| r.get(0))
+        .unwrap();
+    assert_eq!(principal.as_deref(), Some("355.17"));
+    assert_eq!(settled_by(&store, payment), Some(done.reconciliation_id));
+
+    // Mixed: one added row with a principal part and one without (counted at its full amount).
+    let store = Store::open_in_memory().unwrap();
+    let loan = mortgage(&store);
+    let f = mortgage_finish(
+        loan,
+        vec![tx("2026-08-01", "Payment", "2405.94"), tx("2026-08-15", "Extra principal", "100.00")],
+        vec![Some(dec("355.17")), None],
+        "316740.29",
+    );
+    store.finish_statement_reconciliation(&f, test_now()).unwrap();
+}
+
+#[test]
+fn an_added_loan_payment_without_its_principal_part_does_not_balance() {
+    let store = Store::open_in_memory().unwrap();
+    let loan = mortgage(&store);
+    let f = mortgage_finish(loan, vec![tx("2026-08-01", "Payment", "2405.94")], vec![], "316840.29");
+    let result = store.finish_statement_reconciliation(&f, test_now());
+    assert!(matches!(result, Err(StatementFinishError::DoesNotBalance)));
+    assert_nothing_written(&store, 0);
+
+    // With the principal part but the wrong ending balance: nothing is kept, principal included.
+    let f = mortgage_finish(loan, vec![tx("2026-08-01", "Payment", "2405.94")], vec![Some(dec("355.17"))], "316000.00");
+    let result = store.finish_statement_reconciliation(&f, test_now());
+    assert!(matches!(result, Err(StatementFinishError::DoesNotBalance)));
+    assert_nothing_written(&store, 0);
+    assert_eq!(count(&store, "SELECT COUNT(*) FROM transactions WHERE principal_amount IS NOT NULL"), 0);
+}
+
+#[test]
+fn a_principal_part_that_does_not_fit_is_refused_and_writes_nothing() {
+    let store = Store::open_in_memory().unwrap();
+    let loan = mortgage(&store);
+    let payment = || vec![tx("2026-08-01", "Payment", "2405.94")];
+    let mut short = mortgage_finish(loan, payment(), vec![Some(dec("355.17"))], "316740.29");
+    short.add.push(tx("2026-08-15", "Extra principal", "100.00"));
+    let refused = [
+        (
+            "larger than the payment",
+            mortgage_finish(loan, payment(), vec![Some(dec("2405.95"))], "316840.29"),
+        ),
+        ("negative", mortgage_finish(loan, payment(), vec![Some(dec("-1.00"))], "316840.29")),
+        (
+            "more entries than rows to add",
+            mortgage_finish(loan, payment(), vec![Some(dec("355.17")), None], "316840.29"),
+        ),
+        ("fewer entries than rows to add", short),
+    ];
+    for (why, f) in refused {
+        let result = store.finish_statement_reconciliation(&f, test_now());
+        match result {
+            Err(e @ StatementFinishError::BadInput(_)) => assert_plain(&e.to_string()),
+            other => panic!("{why}: expected BadInput, got {other:?}"),
+        }
+        assert_nothing_written(&store, 0);
+    }
+
+    // A principal part on an account that is not a loan.
+    let store = Store::open_in_memory().unwrap();
+    let (acct, [_, coffee, _]) = checking(&store);
+    let mut f = finish_cash(acct, vec![coffee], vec![tx("2026-08-20", "Bank fee", "-5.00")], "1200.00", "1145.00");
+    f.add_principal = vec![Some(dec("1.00"))];
+    let result = store.finish_statement_reconciliation(&f, test_now());
+    assert!(matches!(result, Err(StatementFinishError::BadInput(_))), "{result:?}");
+    assert_nothing_written(&store, 3);
+}
+
+#[test]
+fn a_row_ticked_earlier_outside_the_statement_window_is_unticked_not_settled() {
+    let store = Store::open_in_memory().unwrap();
+    let (acct, [_, coffee, _]) = checking(&store);
+    store.save_transactions(acct, &[tx("2026-06-01", "Long ago", "-7.00")]).unwrap();
+    let long_ago = id_of(&store, "Long ago", "2026-06-01");
+    store.set_transactions_cleared(&[long_ago], true).unwrap();
+    assert!(
+        !store.statement_candidates(acct, &august()).unwrap().iter().any(|c| c.id == long_ago),
+        "the review never shows it"
+    );
+
+    store
+        .finish_statement_reconciliation(&finish_cash(acct, vec![coffee], vec![], "1200.00", "1150.00"), test_now())
+        .unwrap();
+    assert_eq!((is_ticked(&store, long_ago), settled_by(&store, long_ago)), (false, None));
+}
+
+#[test]
+fn holdings_changes_need_share_counts_to_check_them_against() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    let held = store
+        .create_holding(brokerage, "ABCD", "Alpha", dec("49"), dec("300"), dec("10000"), None)
+        .unwrap();
+    let change = vec![HoldingChange::SetShares {
+        holding_id: held,
+        shares: dec("50"),
+    }];
+    for statement_shares in [None, shares(&[])] {
+        let f = finish_investment(
+            brokerage,
+            vec![tx("2026-08-05", "Cash Dividend", "18.50")],
+            change.clone(),
+            statement_shares,
+        );
+        let result = store.finish_statement_reconciliation(&f, test_now());
+        assert!(matches!(result, Err(StatementFinishError::HoldingsNotChecked)), "{result:?}");
+        assert_nothing_written(&store, 0);
+        assert_eq!(store.list_holdings(far_future()).unwrap()[0].shares, dec("49"));
+    }
+}
+
+#[test]
+fn holdings_changes_with_impossible_values_are_refused() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    let held = store
+        .create_holding(brokerage, "ABCD", "Alpha", dec("49"), dec("300"), dec("10000"), None)
+        .unwrap();
+    let add = |symbol: &str, shares: &str, price: &str, cost_basis: &str| HoldingChange::Add {
+        symbol: symbol.into(),
+        name: "Example".into(),
+        shares: dec(shares),
+        price: dec(price),
+        cost_basis: dec(cost_basis),
+    };
+    let cases = [
+        (
+            "negative shares to set",
+            HoldingChange::SetShares {
+                holding_id: held,
+                shares: dec("-1"),
+            },
+        ),
+        ("negative shares to add", add("EFGH", "-1", "9.47", "10")),
+        ("zero price", add("EFGH", "1", "0", "10")),
+        ("negative price", add("EFGH", "1", "-9.47", "10")),
+        ("zero cost basis", add("EFGH", "1", "9.47", "0")),
+        ("negative cost basis", add("EFGH", "1", "9.47", "-10")),
+        ("empty symbol", add("   ", "1", "9.47", "10")),
+    ];
+    for (why, change) in cases {
+        let f = finish_investment(
+            brokerage,
+            vec![tx("2026-08-05", "Cash Dividend", "18.50")],
+            vec![change],
+            shares(&[("ABCD", "49")]),
+        );
+        match store.finish_statement_reconciliation(&f, test_now()) {
+            Err(e @ StatementFinishError::InvalidHolding(_)) => assert_plain(&e.to_string()),
+            other => panic!("{why}: expected InvalidHolding, got {other:?}"),
+        }
+        assert_nothing_written(&store, 0);
+        let holdings = store.list_holdings(far_future()).unwrap();
+        assert_eq!((holdings.len(), holdings[0].shares), (1, dec("49")), "{why}");
+    }
+}
+
+#[test]
+fn holdings_are_recorded_as_checked_only_when_there_were_share_counts_to_check() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    store
+        .create_holding(brokerage, "ABCD", "Alpha", dec("49"), dec("300"), dec("10000"), None)
+        .unwrap();
+    let recorded = |statement_shares| {
+        let done = store
+            .finish_statement_reconciliation(&finish_investment(brokerage, vec![], vec![], statement_shares), test_now())
+            .unwrap();
+        holdings_checked(&store, done.reconciliation_id)
+    };
+    assert_eq!(recorded(shares(&[])), Some(0), "an empty list checks nothing");
+    assert_eq!(recorded(None), Some(0));
+    assert_eq!(recorded(shares(&[("ABCD", "49")])), Some(1));
+}
+
+#[test]
+fn an_unknown_account_is_refused_as_not_this_account() {
+    let store = Store::open_in_memory().unwrap();
+    let result = store.finish_statement_reconciliation(&finish_cash(999_999, vec![], vec![], "0.00", "0.00"), test_now());
+    assert!(matches!(result, Err(StatementFinishError::NotThisAccount)), "{result:?}");
+    assert_nothing_written(&store, 0);
+}
+
+#[test]
+fn setting_one_lot_of_a_symbol_held_in_two_lots_is_checked_on_the_sum() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    let first_lot = store
+        .create_holding(brokerage, "ABCD", "Alpha", dec("30"), dec("300"), dec("6000"), None)
+        .unwrap();
+    store
+        .create_holding(brokerage, "ABCD", "Alpha", dec("19"), dec("300"), dec("4000"), None)
+        .unwrap();
+    let set_first_lot = |n: &str| {
+        finish_investment(
+            brokerage,
+            vec![],
+            vec![HoldingChange::SetShares {
+                holding_id: first_lot,
+                shares: dec(n),
+            }],
+            shares(&[("ABCD", "50")]),
+        )
+    };
+
+    let result = store.finish_statement_reconciliation(&set_first_lot("50"), test_now());
+    assert!(
+        matches!(result, Err(StatementFinishError::SharesDiffer(ref s)) if s == "ABCD"),
+        "50 + 19 is 69"
+    );
+    assert_nothing_written(&store, 0);
+
+    store.finish_statement_reconciliation(&set_first_lot("31"), test_now()).unwrap();
+    let total: Decimal = store.list_holdings(far_future()).unwrap().iter().map(|h| h.shares).sum();
+    assert_eq!(total, dec("50"));
 }
