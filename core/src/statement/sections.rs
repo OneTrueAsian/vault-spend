@@ -145,7 +145,9 @@ pub fn read_statement(lines: &[StatementLine], layout: &StatementLayout, period:
             .collect();
             // Many statements repeat an account's heading at the top of each following page. The same
             // heading again while that account is still open continues it rather than starting another.
-            if current.as_ref().is_some_and(|open| open.section.name == name) {
+            // A heading that is only the label names no account (two accounts can open with identical
+            // lines), so that case always starts a new section.
+            if !label_only && current.as_ref().is_some_and(|open| open.section.name == name) {
                 continue;
             }
             if let Some(done) = current.take() {
@@ -350,5 +352,33 @@ mod tests {
             (Some(dec!(100.00)), Some(dec!(80.00))),
             "the sentence about paying in full is not a balance: words stand between the label and any amount"
         );
+    }
+
+    #[test]
+    fn a_bare_account_summary_heading_that_repeats_starts_another_account() {
+        use crate::statement::model::StatementLine;
+        let line = |text: &str| StatementLine {
+            page: 0,
+            text: text.to_string(),
+        };
+        // Two accounts whose summaries open with the same heading and the same column captions.
+        let lines = vec![
+            line("Account Summary"),
+            line("Current Month Quarter to Date"),
+            line("Total Additions $10.00"),
+            line("Total Subtractions - $4.00"),
+            line("Account Summary"),
+            line("Current Month Quarter to Date"),
+            line("Total Additions $7.00"),
+            line("Total Subtractions - $1.00"),
+        ];
+        let period = crate::statement::model::Period::new("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap()).unwrap();
+        let sections = read_statement(&lines, &layout(GENERAL_INVESTMENT_ID), &period);
+        assert_eq!(
+            sections.len(),
+            2,
+            "a heading that is only the label names no account, so it cannot be a continuation"
+        );
+        assert_eq!(sections[1].activity_totals, Some((dec!(7.00), dec!(-1.00))));
     }
 }
