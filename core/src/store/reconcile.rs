@@ -131,14 +131,23 @@ impl Store {
     /// investment statement's record (`holdings_checked` set) is left out: it keeps the statement's total
     /// value for reference only, which is not a cash balance to continue from. `last_reconciliation`, by
     /// contrast, returns the latest record of any kind, for showing when the account was last reconciled.
+    ///
+    /// `reconcile_status` continues from this balance plus the change from any transactions that
+    /// investment statements recorded after it settled (see `change_settled_since`).
     pub fn last_balance_reconciliation(&self, account_id: i64) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
+        Ok(self.last_balance_record(account_id)?.map(|(_, date, balance)| (date, balance)))
+    }
+
+    /// `last_balance_reconciliation` with the record's id.
+    fn last_balance_record(&self, account_id: i64) -> rusqlite::Result<Option<(i64, NaiveDate, Decimal)>> {
         match self.conn.query_row(
-            "SELECT statement_date, statement_balance FROM reconciliations
+            "SELECT id, statement_date, statement_balance FROM reconciliations
              WHERE account_id = ?1 AND holdings_checked IS NULL ORDER BY statement_date DESC, id DESC LIMIT 1",
             params![account_id],
-            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)),
         ) {
-            Ok((date, balance)) => Ok(Some((
+            Ok((id, date, balance)) => Ok(Some((
+                id,
                 NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("dates stored by this crate are valid"),
                 dec(&balance),
             ))),
@@ -147,9 +156,36 @@ impl Store {
         }
     }
 
+    /// The change from every transaction settled by an investment statement's record (`holdings_checked`
+    /// set) that was recorded after the balance record `since_id` (a higher id: settling happens in the
+    /// order records are written). Those transactions moved the cash balance but are in no balance
+    /// record's ending balance, so the next balance reconciliation must continue from them too. Rows
+    /// settled by the balance records themselves are already in their ending balances and are not
+    /// counted. A settled transaction counts even if it was deleted afterwards, just as a balance record's
+    /// ending balance keeps it.
+    fn change_settled_since(&self, account_id: i64, kind: AccountKind, since_id: i64) -> rusqlite::Result<Decimal> {
+        let mut stmt = self.conn.prepare(
+            "SELECT t.amount, t.principal_amount FROM transactions t
+             JOIN reconciliations r ON r.id = t.reconciliation_id
+             WHERE r.account_id = ?1 AND r.holdings_checked IS NOT NULL AND r.id > ?2",
+        )?;
+        let rows = stmt
+            .query_map(params![account_id, since_id], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows
+            .iter()
+            .map(|(amount, principal)| balance_change(kind, dec(amount), principal.as_deref().map(dec)))
+            .sum())
+    }
+
     pub fn reconcile_status(&self, account_id: i64, statement_start: Option<Decimal>, statement_end: Decimal) -> rusqlite::Result<ReconcileStatus> {
         let kind = self.account_kind(account_id)?;
-        let last = self.last_balance_reconciliation(account_id)?.map(|(_, balance)| balance);
+        let last = match self.last_balance_record(account_id)? {
+            Some((id, _, balance)) => Some(balance + self.change_settled_since(account_id, kind, id)?),
+            None => None,
+        };
         let starting_point = last.or(statement_start);
         let (ticked_change, ticked_count) = self.unsettled_ticked_change(account_id, kind)?;
         Ok(ReconcileStatus {

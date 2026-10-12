@@ -1052,6 +1052,62 @@ fn a_cash_statement_finish_is_the_starting_point_for_the_next_reconciliation() {
     );
 }
 
+#[test]
+fn cash_rows_settled_by_a_later_investment_statement_carry_into_the_next_starting_point() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    store.save_transactions(brokerage, &[tx("2026-07-10", "Interest", "5.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Interest", "2026-07-10")], true).unwrap();
+    finish(&store, brokerage, "2026-07-31", Some("100.00"), "105.00").expect("balances");
+
+    // August's investment statement settles an added dividend of 18.50 and a matched fee of -2.00.
+    store.save_transactions(brokerage, &[tx("2026-08-20", "Fee", "-2.00")]).unwrap();
+    let fee = id_of(&store, "Fee", "2026-08-20");
+    let mut august_statement = finish_investment(brokerage, vec![tx("2026-08-05", "Cash Dividend", "18.50")], vec![], None);
+    august_statement.matched = vec![fee];
+    let done = store.finish_statement_reconciliation(&august_statement, test_now()).unwrap();
+    assert_eq!(settled_by(&store, fee), Some(done.reconciliation_id));
+
+    let status = store.reconcile_status(brokerage, Some(dec("9999.00")), dec("121.50")).unwrap();
+    assert!(!status.needs_starting_balance);
+    assert_eq!(status.starting_point, Some(dec("121.50")), "105.00 + 18.50 - 2.00");
+    assert_eq!(status.difference, Some(Decimal::ZERO));
+
+    store.save_transactions(brokerage, &[tx("2026-09-03", "Dividend", "10.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Dividend", "2026-09-03")], true).unwrap();
+    let september = finish(&store, brokerage, "2026-09-30", None, "131.50").expect("balances from 121.50");
+    let starting: Option<String> = store
+        .conn
+        .query_row("SELECT starting_balance FROM reconciliations WHERE id = ?1", params![september], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(starting.as_deref(), Some("121.50"));
+
+    // Rows the manual September reconciliation settled itself are in its ending balance, not carried twice.
+    let status = store.reconcile_status(brokerage, None, dec("131.50")).unwrap();
+    assert_eq!(status.starting_point, Some(dec("131.50")));
+}
+
+#[test]
+fn rows_settled_by_an_investment_statement_before_the_last_balance_record_are_not_carried() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    store
+        .finish_statement_reconciliation(
+            &finish_investment(brokerage, vec![tx("2026-08-05", "Cash Dividend", "18.50")], vec![], None),
+            test_now(),
+        )
+        .unwrap();
+    // The first manual reconciliation starts from its statement's own starting balance.
+    store.save_transactions(brokerage, &[tx("2026-09-03", "Dividend", "10.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Dividend", "2026-09-03")], true).unwrap();
+    finish(&store, brokerage, "2026-09-30", Some("500.00"), "510.00").expect("balances");
+
+    let status = store.reconcile_status(brokerage, None, dec("510.00")).unwrap();
+    assert_eq!(status.starting_point, Some(dec("510.00")), "the earlier dividend is not added again");
+}
+
 fn mortgage(store: &Store) -> i64 {
     store.get_or_create_account("Mortgage", AccountType::Loan).unwrap()
 }
