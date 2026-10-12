@@ -24,6 +24,7 @@ mod reports;
 mod rules;
 mod schema;
 mod settings;
+mod statement_layouts;
 mod transactions;
 mod transfers;
 

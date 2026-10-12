@@ -47,6 +47,8 @@ mod settings;
 pub use self::settings::{BackgroundSettings, BillReminder, ReminderProjection, StoredLivePriceSettings};
 mod assets;
 pub use self::assets::StoredAsset;
+mod statement_layouts;
+pub use self::statement_layouts::*;
 mod forecast;
 pub use self::forecast::{BillAwareForecast, DebtPayoffLine, DebtPayoffPlan, ForecastEvent, ForecastPoint};
 mod reports;
