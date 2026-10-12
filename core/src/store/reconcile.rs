@@ -99,7 +99,10 @@ impl Store {
         let account_type: String =
             self.conn
                 .query_row("SELECT account_type FROM accounts WHERE id = ?1", params![account_id], |r| r.get(0))?;
-        Ok(AccountKind::of(AccountType::parse(&account_type).unwrap_or(AccountType::Other)))
+        // An unknown type must not fall back to a cash sign rule: that would reconcile the account wrongly.
+        AccountType::parse(&account_type).map(AccountKind::of).ok_or_else(|| {
+            rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, format!("unknown account type `{account_type}`").into())
+        })
     }
 
     /// The change from every ticked, not-yet-settled, non-deleted transaction on the account.
@@ -134,6 +137,10 @@ impl Store {
 
     /// Records a finished reconciliation and settles every ticked, unsettled transaction on the
     /// account — only when the difference is exactly zero. `None` means nothing was written.
+    ///
+    /// This opens its own transaction, so it fails with a SQLite "cannot start a transaction within a
+    /// transaction" error if the caller already holds one. A caller that already holds a transaction must
+    /// use `insert_reconciliation` and `settle_ticked` directly, as the statement finish does.
     pub fn finish_reconciliation(&self, req: &FinishReconciliation, now: NaiveDateTime) -> rusqlite::Result<Option<i64>> {
         let tx = self.conn.unchecked_transaction()?;
         let status = self.reconcile_status(req.account_id, req.statement_start, req.statement_end)?;

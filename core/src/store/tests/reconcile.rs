@@ -183,3 +183,113 @@ fn a_deleted_ticked_transaction_stops_counting() {
     let status = store.reconcile_status(acct, Some(dec("1000.00")), dec("950.00")).unwrap();
     assert_eq!((status.ticked_change, status.ticked_count), (dec("-50.00"), 1));
 }
+
+#[test]
+fn an_unknown_stored_account_type_is_an_error_not_a_cash_account() {
+    let store = Store::open_in_memory().unwrap();
+    let (acct, _) = checking(&store);
+    store
+        .conn
+        .execute("UPDATE accounts SET account_type = 'mystery' WHERE id = ?1", params![acct])
+        .unwrap();
+
+    assert!(store.account_kind(acct).is_err());
+    assert!(store.reconcile_status(acct, Some(dec("1000.00")), dec("1000.00")).is_err());
+}
+
+#[test]
+fn finishing_while_the_caller_holds_a_transaction_fails_and_writes_nothing() {
+    let store = Store::open_in_memory().unwrap();
+    let (acct, [deposit, _, _]) = checking(&store);
+    store.set_transactions_cleared(&[deposit], true).unwrap();
+
+    let _held = store.conn.unchecked_transaction().unwrap();
+    let result = store.finish_reconciliation(
+        &FinishReconciliation {
+            account_id: acct,
+            period_start: None,
+            statement_date: day("2026-08-31"),
+            statement_start: Some(dec("1000.00")),
+            statement_end: dec("1200.00"),
+            source: ReconcileSource::Manual,
+        },
+        test_now(),
+    );
+
+    assert!(result.is_err(), "a nested transaction is refused, not silently run");
+    drop(_held);
+    let recorded: i64 = store.conn.query_row("SELECT COUNT(*) FROM reconciliations", [], |r| r.get(0)).unwrap();
+    assert_eq!(recorded, 0);
+    let linked: i64 = store
+        .conn
+        .query_row("SELECT COUNT(*) FROM transactions WHERE reconciliation_id IS NOT NULL", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(linked, 0);
+}
+
+#[test]
+fn a_first_reconciliation_without_a_statement_start_cannot_finish() {
+    let store = Store::open_in_memory().unwrap();
+    let (acct, [deposit, coffee, _]) = checking(&store);
+    store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
+
+    assert_eq!(finish(&store, acct, "2026-08-31", None, "1150.00"), None);
+    let recorded: i64 = store.conn.query_row("SELECT COUNT(*) FROM reconciliations", [], |r| r.get(0)).unwrap();
+    assert_eq!(recorded, 0);
+    let linked: i64 = store
+        .conn
+        .query_row("SELECT COUNT(*) FROM transactions WHERE reconciliation_id IS NOT NULL", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(linked, 0);
+}
+
+#[test]
+fn a_credit_card_can_be_finished_on_what_is_owed() {
+    let store = Store::open_in_memory().unwrap();
+    let card = store.get_or_create_account("Card", AccountType::Credit).unwrap();
+    store
+        .save_transactions(card, &[tx("2026-08-03", "Groceries", "-80.00"), tx("2026-08-20", "Payment", "300.00")])
+        .unwrap();
+    let groceries = id_of(&store, "Groceries", "2026-08-03");
+    let payment = id_of(&store, "Payment", "2026-08-20");
+    store.set_transactions_cleared(&[groceries, payment], true).unwrap();
+
+    let id = finish(&store, card, "2026-08-31", Some("300.00"), "80.00").expect("balances");
+    let settled = |tid: i64| -> Option<i64> {
+        store.conn.query_row("SELECT reconciliation_id FROM transactions WHERE id = ?1", params![tid], |r| r.get(0)).unwrap()
+    };
+    assert_eq!((settled(groceries), settled(payment)), (Some(id), Some(id)));
+}
+
+#[test]
+fn a_loan_can_be_finished_on_outstanding_principal() {
+    let store = Store::open_in_memory().unwrap();
+    let loan = store.get_or_create_account("Mortgage", AccountType::Loan).unwrap();
+    store.save_transactions(loan, &[tx("2026-09-01", "Payment", "2405.94")]).unwrap();
+    let payment = id_of(&store, "Payment", "2026-09-01");
+    store
+        .conn
+        .execute("UPDATE transactions SET principal_amount = '355.17' WHERE id = ?1", params![payment])
+        .unwrap();
+    store.set_transactions_cleared(&[payment], true).unwrap();
+
+    let id = finish(&store, loan, "2026-09-30", Some("317195.46"), "316840.29").expect("balances");
+    let settled: Option<i64> = store
+        .conn
+        .query_row("SELECT reconciliation_id FROM transactions WHERE id = ?1", params![payment], |r| r.get(0))
+        .unwrap();
+    assert_eq!(settled, Some(id));
+}
+
+#[test]
+fn candidates_keep_a_ticked_row_dated_after_the_statement_but_drop_settled_ones() {
+    let store = Store::open_in_memory().unwrap();
+    let (acct, [deposit, coffee, gas]) = checking(&store);
+    store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
+    finish(&store, acct, "2026-08-31", Some("1000.00"), "1150.00").unwrap();
+    // Ticked, dated after the statement date, not yet settled: stays so the tick can be undone.
+    store.set_transactions_cleared(&[gas], true).unwrap();
+
+    let candidates = store.reconcile_candidates(acct, day("2026-08-31")).unwrap();
+    assert_eq!(candidates.iter().map(|c| c.id).collect::<Vec<_>>(), vec![gas]);
+}
