@@ -6,6 +6,7 @@ pub mod fixture_pdf;
 pub mod layout;
 pub mod model;
 pub mod pdf_text;
+pub mod rows;
 pub mod text;
 pub mod tokens;
 
