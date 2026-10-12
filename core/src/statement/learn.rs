@@ -738,4 +738,15 @@ mod tests {
         let (sections, _) = read_with(&lines, &g, &aug());
         let _ = narrow(&g, &lines, &sections, &aug());
     }
+
+    #[test]
+    fn a_narrowed_layout_that_cannot_be_used_falls_back_to_the_base() {
+        let lines = lines_of(&["Opening balance 100.00", "08/03/2026 Deposit 50.00", "Closing balance 150.00"]);
+        let mut general = base(GENERAL_ID);
+        general.recognize = vec!["Account 12345678".to_string()];
+        assert!(general.validate().is_err());
+        let (sections, _) = read_with(&lines, &general, &aug());
+        // Narrowing alone would change the date formats; the fallback keeps the base unchanged.
+        assert_eq!(narrow(&general, &lines, &sections, &aug()), general);
+    }
 }
