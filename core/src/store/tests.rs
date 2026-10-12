@@ -11,6 +11,7 @@ mod assets;
 mod buckets;
 mod budgets;
 mod categories;
+mod cross_view;
 mod family;
 mod forecast;
 mod holding_import;
