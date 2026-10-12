@@ -68,10 +68,12 @@ try {
   // --- start ---------------------------------------------------------------------
   const balance = await browser.$("[data-statement-balance]");
   await balance.setValue("1120.00");
+  // The account's first reconciliation also asks where the statement started; later ones pick up from here.
+  await (await browser.$("[data-statement-start-balance]")).setValue("1000.00");
   await (await browser.$("[data-reconcile-start]")).click();
   await browser.$("[data-reconcile-summary]").waitForExist({ timeout: 10000 });
   await row("Lunch").waitForExist({ timeout: 10000 });
-  await waitForDifference("$120.00"); // statement $1,120.00 vs a $1,000.00 opening balance
+  await waitForDifference("$120.00"); // statement $1,120.00 vs the $1,000.00 the statement started from
   if (!(await (await browser.$("[data-reconcile-finish]")).getAttribute("disabled"))) throw new Error("Finish must be disabled until the difference is zero");
 
   // --- tick what's on the statement -------------------------------------------------
@@ -86,7 +88,7 @@ try {
 
   // A mistaken tick throws it off again.
   await tick("Lunch");
-  await waitForDifference("$20.00"); // clearing a $20 charge the statement doesn't have: statement 1,120 vs cleared 1,100
+  await waitForDifference("$20.00"); // ticking a $20 charge the statement doesn't have: statement 1,120 vs ticked 1,100
   if (!(await (await browser.$("[data-reconcile-finish]")).getAttribute("disabled"))) throw new Error("Finish must be disabled again");
   await tick("Lunch");
   await waitForDifference("$0.00");
@@ -105,6 +107,7 @@ try {
   if (marks.length !== 3) throw new Error(`three transactions should be marked cleared, found ${marks.length}`);
 
   // --- the next reconciliation only offers what's left ------------------------------
+  if (await (await browser.$("[data-statement-start-balance]")).isExisting()) throw new Error("the second reconciliation picks up from the first, so it must not ask for a starting balance");
   await (await browser.$("[data-statement-balance]")).setValue("1100.00");
   await (await browser.$("[data-reconcile-start]")).click();
   await row("Lunch").waitForExist({ timeout: 10000 });

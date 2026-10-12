@@ -280,46 +280,62 @@ pub fn set_transactions_cleared(ids: Vec<i64>, cleared: bool, state: tauri::Stat
 }
 
 #[derive(Serialize)]
-pub struct ReconciliationStatusDto {
-    pub cleared_balance: String,
-    pub difference: String,
-    pub cleared_count: usize,
+pub struct ReconcileStatusDto {
+    pub starting_point: Option<String>,
+    pub needs_starting_balance: bool,
+    pub ticked_change: String,
+    pub ticked_count: usize,
+    pub difference: Option<String>,
+}
+
+fn optional_amount(value: Option<String>) -> Result<Option<Decimal>, String> {
+    value.filter(|v| !v.trim().is_empty()).map(|v| parse_amount(&v)).transpose()
 }
 
 #[tauri::command]
-pub fn reconciliation_status(
+pub fn reconcile_status(
     account_id: i64,
-    statement_balance: String,
+    statement_start: Option<String>,
+    statement_end: String,
     state: tauri::State<AppStateHandle>,
-) -> Result<ReconciliationStatusDto, String> {
+) -> Result<ReconcileStatusDto, String> {
     let state = state.lock()?;
-    let statement_balance = parse_amount(&statement_balance)?;
     let status = state
         .store
-        .reconciliation_status(account_id, statement_balance)
+        .reconcile_status(account_id, optional_amount(statement_start)?, parse_amount(&statement_end)?)
         .map_err(|e| e.to_string())?;
-    Ok(ReconciliationStatusDto {
-        cleared_balance: status.cleared_balance.to_string(),
-        difference: status.difference.to_string(),
-        cleared_count: status.cleared_count,
+    Ok(ReconcileStatusDto {
+        starting_point: status.starting_point.map(|d| d.to_string()),
+        needs_starting_balance: status.needs_starting_balance,
+        ticked_change: status.ticked_change.to_string(),
+        ticked_count: status.ticked_count,
+        difference: status.difference.map(|d| d.to_string()),
     })
 }
 
-/// Records the reconciliation if it balances; `false` means the difference
-/// wasn't zero and nothing was recorded.
+/// Records the reconciliation if it balances; `false` means it didn't and nothing was recorded.
 #[tauri::command]
 pub fn finish_reconciliation(
     account_id: i64,
+    period_start: Option<String>,
     statement_date: String,
-    statement_balance: String,
+    statement_start: Option<String>,
+    statement_end: String,
     state: tauri::State<AppStateHandle>,
 ) -> Result<bool, String> {
     let state = state.lock()?;
-    let date = parse_date(&statement_date)?;
-    let balance = parse_amount(&statement_balance)?;
+    let req = budget_core::store::FinishReconciliation {
+        account_id,
+        period_start: period_start.filter(|p| !p.is_empty()).map(|p| parse_date(&p)).transpose()?,
+        statement_date: parse_date(&statement_date)?,
+        statement_start: optional_amount(statement_start)?,
+        statement_end: parse_amount(&statement_end)?,
+        source: budget_core::store::ReconcileSource::Manual,
+    };
     state
         .store
-        .finish_reconciliation(account_id, date, balance, chrono::Local::now().naive_local())
+        .finish_reconciliation(&req, chrono::Local::now().naive_local())
+        .map(|id| id.is_some())
         .map_err(|e| e.to_string())
 }
 

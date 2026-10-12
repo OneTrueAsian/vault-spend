@@ -12,7 +12,7 @@ const sources = readdirSync(sourceDir)
 
 const callPattern = /\b(?:invoke|invokeProfile|callTransaction|call|rawTransactionCall)(?:<[^>(]*>)?\(\s*["']([a-z_0-9]+)["']/g;
 const writeVerb =
-  /^(create|update|delete|set|add|commit|dismiss|rename|apply|unapply|link|unlink|import|restore|flip|save|merge|split|categorize|mark|reset|undo|remove|toggle|bulk|accept|reject|finish|reconcile|refresh|relocate)_/;
+  /^(create|update|delete|set|add|commit|dismiss|rename|apply|unapply|link|unlink|import|restore|flip|save|merge|split|categorize|mark|reset|undo|remove|toggle|bulk|accept|reject|finish|refresh|relocate)_/;
 const calledWrites = new Set(
   sources.flatMap((text) => [...text.matchAll(callPattern)].map((match) => match[1])).filter((name) => writeVerb.test(name)),
 );
@@ -30,7 +30,7 @@ const refreshesSharedSnapshot = new Set([
   "set_account_excluded_from_debt_payoff", "set_account_icon", "set_account_interest_rate",
   "set_account_starting_balance", "update_account_type", "set_auto_link_transfers", "save_rule", "delete_rule",
   "dismiss_anomaly_flag", "dismiss_transfer_candidates", "restore_transfer_candidates", "mark_auto_links_reviewed",
-  "finish_reconciliation", "set_transactions_cleared", "reconcile_candidates",
+  "finish_reconciliation", "set_transactions_cleared",
 ]);
 /** Writes that only change how a screen is offered or a reminder is remembered. Nothing computed
  *  from the financial data reads them. */

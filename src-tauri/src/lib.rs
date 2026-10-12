@@ -401,7 +401,7 @@ pub fn run() {
             commands::list_account_transactions,
             commands::reconcile_candidates,
             commands::set_transactions_cleared,
-            commands::reconciliation_status,
+            commands::reconcile_status,
             commands::finish_reconciliation,
             commands::last_reconciliation,
             commands::investment_accumulation,
