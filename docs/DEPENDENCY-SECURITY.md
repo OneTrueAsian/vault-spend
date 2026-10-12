@@ -32,11 +32,11 @@ fallback parser test does not assert equivalent rejection behavior for every nat
 fixture executable is launched. Node 22 and the explicit yauzl development dependency support the
 maintained fallback. Production application HTTPS checks remain separate compiled tests.
 
-`RUSTSEC-2026-0235` remains an optional `rkyv 0.7.46` resolution in Cargo.lock through rust_decimal.
-It is not enabled in any supported target tree. The exact advisory/package/version/target exception
-in `tools/dependency-security-policy.mjs` expires **2026-11-08**, owned by Vault Spend maintainers.
-It cannot permit a reachable dependency, a new advisory/version, or a later scan after expiry.
-Remove it when the parent resolution is fixed; reassess it before expiry. glib's unsoundness notice
+`RUSTSEC-2026-0235` (`rkyv 0.7.46`, an optional resolution through rust_decimal) was waived by a dated
+exception until `rust_decimal` 1.43.0 removed it from Cargo.lock on 2026-10-12. No advisory is waived
+now. An exception in `tools/dependency-security-policy.mjs` must name the exact advisory, package,
+version and target, carry an owner, rationale and expiry, and can never permit a reachable dependency
+or a later scan after expiry. glib's unsoundness notice
 is retained as a non-reachable platform finding; any reachable use blocks the gate. This does not
 extend support or acceptance to Linux.
 

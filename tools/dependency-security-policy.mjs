@@ -1,9 +1,7 @@
-export const exceptions = [{
-  advisory: "RUSTSEC-2026-0235", package: "rkyv", version: "0.7.46",
-  targets: ["x86_64-pc-windows-msvc", "aarch64-apple-darwin", "x86_64-apple-darwin"],
-  owner: "Vault Spend maintainers", expires: "2026-11-08",
-  rationale: "rust_decimal resolves optional rkyv 0.7 in Cargo.lock. No supported target enables it. The gate rechecks the exact resolved target tree; reachable use blocks publication. Upgrade the parent when it supports the patched archive API.",
-}];
+// No advisory is currently waived. An exception needs an exact advisory/package/version/target match,
+// an owner, a rationale and an expiry date, and can never permit a dependency that is in the tree.
+// RUSTSEC-2026-0235 (rkyv 0.7.46, optional via rust_decimal) was waived until rust_decimal 1.43 removed it.
+export const exceptions = [];
 
 export function rustFindings(audit, tree, target, today = new Date().toISOString().slice(0, 10)) {
   if (!audit.database?.['last-commit'] || !audit.vulnerabilities || !Array.isArray(audit.vulnerabilities.list) || typeof tree !== 'string' || !tree.trim()) {
