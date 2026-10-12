@@ -122,9 +122,15 @@ contain no bank names.
    next date goes to "Couldn't read" and is never guessed.
 5. **`sections`**: splits on the layout's starting/ending-balance label pairs; each section has a name, a
    starting balance, an ending balance and its rows.
-6. **`checks`**: per section, whichever the layout provides: start + rows = end, or rows = the statement's
-   activity totals (additions and subtractions) for investment-style statements; plus running-balance
-   continuity per row. Failures are shown and never block on their own.
+6. **`checks`**: per section, whichever the layout provides:
+   - **activity:** start + rows = end (a bank balance, or an investment account's beginning/ending **cash**
+     balance), or rows = the statement's activity totals (additions and subtractions, or credits and debits);
+   - **holdings (investment statements):** the market values read add up to the statement's total holdings
+     value;
+   - plus running-balance continuity per row.
+
+   Failures are shown and never block on their own. Each part (activity, holdings) is trusted, and learned,
+   only when its own check passes.
 7. **`select`**: chooses the layout for a statement (see "Choosing a layout").
 8. **`learn`**: derives a layout from a successful general read or from the user's marked examples
    (see "Learning").
@@ -147,16 +153,21 @@ executable content, a size limit, and strict validation on every load. Fields:
   lines may follow the amount.
 - **Balances and sections:** starting/ending label pairs; a section-start label; which column of a
   multi-column summary to read (by position, default the first, "current month"); and, for
-  investment-style statements, the activity-total labels (e.g. "Total Additions" / "Total Subtractions")
-  used by the check instead of start + rows = end.
+  investment-style statements, either the activity-total labels (e.g. "Total Additions" / "Total
+  Subtractions", "Total Credits" / "Total Debits") or beginning/ending cash-balance labels, used by the
+  activity check.
 - **Sections to skip:** headings whose content is ignored up to the next heading (e.g. "Cash Sweep
   Activity", a portfolio-wide summary page).
-- **Holdings table (investment layouts):** the heading that starts it and the order of symbol, quantity,
-  price and market value within an entry.
+- **Holdings table (investment layouts):** the heading that starts it; the order of symbol, name, quantity,
+  price and market value within an entry; how many decimal places quantities and prices use; and the label
+  of the total holdings value used by the holdings check (e.g. "Total Account Holdings", "Total Market
+  Value", "Total Securities").
 - **Lines to ignore:** literal phrases (e.g. "Order Number", "Continued on").
 - **Signs:** as printed or reversed, per account group (cash, credit, loan).
 
-**Built-in layouts** for the six owner institutions and a **general default layout** ship in
+**Built-in layouts** for the six owner institutions, a **general default layout** and a **general
+investment layout** (common brokerage wordings for activity totals, cash balances, holdings headings and
+total holdings value) ship in
 `core/data/statement_layouts/` (embedded at build time), each covered by a synthetic fixture test.
 Learned layouts are stored in a new `statement_layouts` table in the profile's own database (encrypted with a
 protected profile), additive `CREATE TABLE IF NOT EXISTS`.
@@ -165,24 +176,36 @@ protected profile), additive `CREATE TABLE IF NOT EXISTS`.
 
 1. **Recognised:** if a learned or built-in layout's recognition phrases all appear on page 1, use it
    (learned layouts win over built-ins).
-2. **Not recognised, or the recognised layout doesn't add up:** read with the general default layout and
-   every built-in layout, and keep the best: adds up first, then most rows, then fewest "Couldn't read" lines.
+2. **Not recognised, or the recognised layout doesn't add up:** read with the general default layout, the
+   general investment layout (for investment accounts, first) and every built-in layout, and keep the best:
+   most checks passing first, then most rows and holdings, then fewest "Couldn't read" lines.
 3. The review screen names the layout used. A recognised layout that has stopped adding up (the bank changed
    its statement) leads to the same "Teach the app" offer, and teaching updates that layout.
 
 ### Learning
 
-- **Automatic:** when a statement from an unrecognised bank is read successfully (it adds up, and nothing
-  is left in "Couldn't read" or the user has ignored those lines) and the reconciliation finishes, the app
-  saves a layout. It narrows the general options to the ones actually seen on that statement, and suggests
-  recognition phrases from page-1 text found on the statement (checked against the identity rules above).
+- **Automatic:** when a statement from an unrecognised bank or brokerage is read successfully (every check
+  the statement supports passes, and nothing is left in "Couldn't read" or the user has ignored those lines)
+  and the reconciliation finishes, the app saves a layout. It narrows the general options to the ones
+  actually seen on that statement, and suggests recognition phrases from page-1 text found on the statement
+  (checked against the identity rules above). For an investment statement, the holdings part of the layout
+  is saved only if the holdings check passed.
+- **No check available:** if a statement prints neither balances nor activity totals (or, for holdings, no
+  total holdings value), nothing is learned automatically; teaching saves the layout once the user has
+  resolved every row.
 - **Teaching** (when it doesn't add up, or on request):
   1. The app shows the statement's lines in order.
-  2. The user clicks one transaction and marks its date, description and amount, then marks the starting
-     and ending balance.
-  3. The app derives the date format, negative style, row rules and balance labels from those marks,
-     re-reads the whole statement and checks it adds up. If it still doesn't, it asks for one more example
-     row (up to three); after that it offers the CSV/OFX and by-hand fallbacks.
+  2. The user marks examples:
+     - **transactions:** one transaction's date, description and amount;
+     - **balances:** the starting and ending balance, or for an investment statement either the activity
+       totals or the beginning and ending cash balance;
+     - **holdings (investment statements):** one holding's symbol, name, share count, price and market
+       value, and the total holdings value.
+  3. The app derives the date format, negative style, row rules, balance or total labels, and holdings
+     entry order from those marks, re-reads the whole statement and runs the checks. If one still fails, it
+     asks for one more example of that kind (up to three per kind); after that it offers the CSV/OFX and
+     by-hand fallbacks (for holdings: the user can finish with activity only and update share counts in
+     Investments).
   4. On success the user confirms the name and recognition phrases, and the layout is saved.
 - **Corrections improve the layout:** fixing a "Couldn't read" line by marking its parts, or correcting a
   balance label, updates the layout in use (a learned one directly; a built-in one via a learned copy that
@@ -205,7 +228,8 @@ reconciliation instead has two parts, both on the same review screen:
 
 1. **Activity.** Every activity row (dividends, interest, buys, sells, reinvestments, deposits, withdrawals,
    fees) is matched to the account's transactions exactly as for other accounts, with the same Add / Skip /
-   possible-match handling. The self-check is rows = the statement's activity totals for the period.
+   possible-match handling. The self-check is rows = the statement's activity totals for the period, or
+   beginning cash + rows = ending cash, whichever the statement prints.
 2. **Share counts.** The holdings table is read into (symbol, name, shares, price, market value) and compared
    with the app's holdings for the account by symbol:
    - **Same shares:** shown as matching.
@@ -215,10 +239,15 @@ reconciliation instead has two parts, both on the same review screen:
      what they paid.
    - **In the app, not on the statement:** shown with "Remove from the app" or leave it.
    - Market value is displayed for reference only.
+   - If the holdings check fails (values don't add up to the total holdings value), the share-count part is
+     marked "The app couldn't read your holdings correctly" with the Teach option, and holdings are not
+     compared until it passes.
 
 **Finishing an investment reconciliation** is allowed when every activity row is resolved (matched, added,
-or explicitly skipped) and every share count matches exactly after the user's choices. The record stores the
-period, the statement's total ending value for reference, and `source`; there is no exact-balance rule.
+or explicitly skipped) and every share count matches exactly after the user's choices. If the holdings could
+not be read even after teaching, the user may choose **"Finish without checking holdings"**; the record then
+notes that holdings were not checked. The record stores the period, the statement's total ending value for
+reference, whether holdings were checked, and `source`; there is no exact-balance rule.
 Holding updates are applied in the same database transaction as the rest of the finish, through the existing
 holdings store functions.
 
@@ -324,8 +353,10 @@ All commands run on the existing FIFO command worker. Commands are exported with
 ## Testing (test-first)
 
 - **Investment units:** activity-total check, last-amount rows, multi-column summaries, skipped sections,
-  quiet out-of-period drops, holdings parsing, share-count comparison and the investment finish rule
-  (blocked until every row is resolved and every share count matches).
+  quiet out-of-period drops, holdings parsing, the holdings check (values = total holdings value), the
+  cash-balance activity check, share-count comparison, investment teaching marks (holding entry, totals,
+  cash balances), holdings learned only when their check passes, and the investment finish rule (blocked
+  until every row is resolved and every share count matches, or "Finish without checking holdings").
 - **Core units:** tokens (every date and amount form, year inference, December→January), rows (multi-line
   descriptions, running balances, points column), sections and checks, layout validation (rejects unknown
   options, oversize documents and personal-looking recognition phrases), layout selection (recognised,
@@ -340,6 +371,9 @@ All commands run on the existing FIFO command worker. Commands are exported with
   - an **investment portfolio** fixture: two accounts plus a portfolio page, prices before amounts, a
     three-column summary, a skipped sweep section, a holdings table, and a quarterly variant repeating
     earlier months;
+  - an **"unknown brokerage"** fixture with different wording ("Total Credits/Debits" or beginning/ending
+    cash balance, "Total Market Value"), holdings in a different column order and a different decimal count,
+    used to prove a first read with the general investment layout, teaching, and recognition next month;
   - **"unknown bank" fixtures** in layouts that are none of the six (e.g. `DD/MM/YYYY` dates, `CR` suffixes,
     descriptions after the amount), used to prove the general read, teaching and next-time recognition.
 - **Real-statement check (local only, never committed):** an ignored test or example reads PDFs from
@@ -355,7 +389,9 @@ All commands run on the existing FIFO command worker. Commands are exported with
   - upload a known-bank fixture, add a missing transaction, finish, then reconcile the next fixture statement
     to confirm it picks up from the previous ending balance;
   - upload an unknown-bank fixture that doesn't add up, teach it, finish, then upload that bank's next
-    statement and confirm it is recognised and read without teaching.
+    statement and confirm it is recognised and read without teaching;
+  - upload an unknown-brokerage fixture, teach one holding and the totals, fix a share count, finish, then
+    upload that brokerage's next statement and confirm activity and holdings are read without teaching.
 - **Full gate:** all frontend tests, lint/type, Rust workspace, strict Clippy/format, fresh Tauri build and
   the full parallel E2E suite (`node e2e/run-all.mjs`).
 
