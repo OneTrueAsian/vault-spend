@@ -41,14 +41,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag }}
+          # Diagnostics can validate an unpublished harness fix without changing a release tag.
+          ref: ${{ inputs.diagnostic_only && inputs.source_sha || inputs.tag }}
       - name: Validate release tag and version
         env:
           RELEASE_TAG: ${{ inputs.tag }}
           RECOVERY: ${{ inputs.recovery }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only }}
         run: |
           if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid stable release tag' }
+          if ($env:DIAGNOSTIC_ONLY -eq 'true' -and $env:RECOVERY -ne 'true') { throw 'Diagnostics require recovery mode with a pinned source SHA' }
           if ($env:RECOVERY -eq 'true') {
             if ($env:GITHUB_REF -notlike 'refs/heads/*') { throw 'Recovery must use a workflow branch' }
             if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'Recovery requires the expected tag commit' }

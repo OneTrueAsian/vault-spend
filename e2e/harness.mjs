@@ -32,6 +32,25 @@ const MSEDGEDRIVER = path.join(CARGO_BIN, "msedgedriver.exe");
 // VAULTSPEND_EXE points the suite at a build in another target directory (a running copy locks the default one).
 const APP_EXE = path.resolve(process.env.VAULTSPEND_EXE ?? "target/debug/vaultspend.exe");
 
+const wrappedScriptBrowsers = new WeakSet();
+export function wrapScriptResults(browser) {
+  if (wrappedScriptBrowsers.has(browser)) return browser;
+  wrappedScriptBrowsers.add(browser);
+  // Classic clients treat a top-level `error` result as a protocol failure, even when it is the
+  // script's expected IPC refusal. Nest only the transport result and unwrap it for existing specs.
+  // These are script literals sent to WebDriver, not eval calls inside the CSP-protected app.
+  const source = (script) => typeof script === "function" ? script.toString() : `function() { ${script}\n }`;
+  browser.overwriteCommand("execute", async (execute, script, ...args) => {
+    const result = await execute(`return Promise.resolve((${source(script)}).apply(null, arguments)).then(function(value) { return { __vaultSpendScriptResult: value }; });`, ...args);
+    return result.__vaultSpendScriptResult;
+  });
+  browser.overwriteCommand("executeAsync", async (executeAsync, script, ...args) => {
+    const result = await executeAsync(`var done = arguments[arguments.length - 1]; var args = Array.prototype.slice.call(arguments, 0, -1); args.push(function(value) { done({ __vaultSpendScriptResult: value }); }); return (${source(script)}).apply(null, args);`, ...args);
+    return result.__vaultSpendScriptResult;
+  });
+  return browser;
+}
+
 // Asks the OS for a free ephemeral port (bind to :0, read what it picked,
 // release it) rather than a hardcoded one — lets multiple specs run
 // concurrently (see run-all.mjs) each with their own tauri-driver instance
@@ -502,18 +521,16 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
       path: "/",
       capabilities: {
         browserName: "wry",
+        // tauri-driver proxies classic WebDriver to WebView2. BiDi session subscriptions are
+        // not supported reliably through that proxy (CI failed with invalid session id).
+        "wdio:enforceWebDriverClassic": true,
         "tauri:options": { application: APP_EXE },
       },
       logLevel: "silent",
       ...DRIVER_REQUEST_OPTIONS,
-      // WebdriverIO times each BiDi command out after 180 s by default, with a timer that keeps this process
-      // alive until it fires. A launch abandoned by the retry in launchApp leaves its stuck navigation command
-      // pending against a driver that has been killed, so that timer outlived a spec that had already
-      // finished and passed — long enough for run-all.mjs to kill the process as timed out (measured: the
-      // process exited 165 s after the script body finished). No healthy command takes anywhere near 30 s.
-      bidiResponseTimeout: 30_000,
     });
     mark("session created");
+    wrapScriptResults(session);
     // WebView2 automation sessions start blank by design (like a browser
     // session starting at about:blank) — Tauri does not auto-navigate under
     // TAURI_WEBVIEW_AUTOMATION, so every test must do this once up front.

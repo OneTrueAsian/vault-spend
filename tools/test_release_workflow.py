@@ -25,6 +25,7 @@ class RecoveryWorkflowTests(unittest.TestCase):
     def test_diagnostic_runs_cannot_publish_installers(self):
         source = (ROOT / '.github/workflows/release-windows.yml').read_text()
         self.assertTrue('diagnostic_only:' in source, 'missing non-publishing diagnostic input')
+        self.assertTrue('ref: ${{ inputs.diagnostic_only && inputs.source_sha || inputs.tag }}' in source, 'diagnostics must test their pinned source, normal releases their immutable tag')
         packaging = source.split('      - name: Build and publish Windows installers\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn('if: ${{ !inputs.diagnostic_only }}', packaging)
         signing = source.split('  sign-updates:\n', 1)[1]
@@ -99,6 +100,15 @@ class RecoveryWorkflowTests(unittest.TestCase):
             result = subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)], cwd=folder, env=env, capture_output=True, text=True, timeout=15)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('Dispatch must use the release tag', result.stderr)
+
+    def test_diagnostics_require_explicit_pinned_recovery(self):
+        with tempfile.TemporaryDirectory(prefix='release-diagnostic-ref-') as folder:
+            script = Path(folder) / 'validate.ps1'
+            script.write_text("$ErrorActionPreference = 'Stop'\n" + workflow_step('Validate release tag and version'), encoding='utf-8')
+            env = dict(os.environ, RELEASE_TAG='v1.3.2', RECOVERY='false', DIAGNOSTIC_ONLY='true', GITHUB_REF='refs/tags/v1.3.2')
+            result = subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)], cwd=folder, env=env, capture_output=True, text=True, timeout=15)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Diagnostics require recovery mode', result.stderr)
 
 
 if __name__ == '__main__':
