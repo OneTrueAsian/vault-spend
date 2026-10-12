@@ -123,16 +123,24 @@ pub fn read_statement(lines: &[StatementLine], layout: &StatementLayout, period:
     for (i, line) in lines.iter().enumerate() {
         let text = line.text.trim();
         if use_sections && is_start(text) {
+            // A heading that is only the label ("Account Summary") takes the account's name from the next line.
+            let label_only = layout.balances.section_start.iter().any(|label| is_label_only(text, label));
+            let name: String = match (label_only, lines.get(i + 1)) {
+                (true, Some(next)) => format!("{text} — {}", next.text.trim()),
+                _ => text.to_string(),
+            }
+            .chars()
+            .take(60)
+            .collect();
+            // Many statements repeat an account's heading at the top of each following page. The same
+            // heading again while that account is still open continues it rather than starting another.
+            if current.as_ref().is_some_and(|open| open.section.name == name) {
+                continue;
+            }
             if let Some(done) = current.take() {
                 sections.push(done.finish());
             }
-            // A heading that is only the label ("Account Summary") takes the account's name from the next line.
-            let label_only = layout.balances.section_start.iter().any(|label| is_label_only(text, label));
-            let name = match (label_only, lines.get(i + 1)) {
-                (true, Some(next)) => format!("{text} — {}", next.text.trim()),
-                _ => text.to_string(),
-            };
-            current = Some(SectionBuilder::new(name.chars().take(60).collect(), i, layout, *period));
+            current = Some(SectionBuilder::new(name, i, layout, *period));
             skipping = false;
             in_holdings = false;
             continue;
@@ -269,5 +277,37 @@ mod tests {
         l.ignore_lines = vec!["Order Number".into()];
         let s = &read_statement(&lines, &l, &period)[0];
         assert!(s.rows.iter().all(|r| !r.description.contains("Order Number")));
+    }
+
+    #[test]
+    fn an_account_header_repeated_on_the_next_page_continues_the_same_section() {
+        use crate::statement::model::StatementLine;
+        let line = |page: usize, text: &str| StatementLine {
+            page,
+            text: text.to_string(),
+        };
+        let lines = vec![
+            line(0, "SAVINGS Share Account ID 01"),
+            line(0, "Beginning Balance $10.00"),
+            line(0, "08/03/26 Deposit 5.00 15.00"),
+            line(1, "SAVINGS Share Account ID 01"),
+            line(1, "08/04/26 Deposit 5.00 20.00"),
+            line(1, "Ending Balance $20.00"),
+            line(1, "CHECKING Share Account ID 02"),
+            line(1, "Beginning Balance $1.00"),
+            line(1, "Ending Balance $1.00"),
+        ];
+        let mut l = layout(GENERAL_ID);
+        l.balances.section_start = vec!["Share Account ID".into()];
+        l.rows.running_balance = true;
+        let period = crate::statement::model::Period::new("2026-08-01".parse().unwrap(), "2026-08-31".parse().unwrap()).unwrap();
+        let sections = read_statement(&lines, &l, &period);
+        assert_eq!(sections.len(), 2, "the repeated header is the same account, not a new one");
+        assert_eq!(sections[0].rows.len(), 2);
+        assert_eq!(
+            (sections[0].starting_balance, sections[0].ending_balance),
+            (Some(dec!(10.00)), Some(dec!(20.00)))
+        );
+        assert_eq!(sections[1].name, "CHECKING Share Account ID 02");
     }
 }

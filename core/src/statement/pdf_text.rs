@@ -45,8 +45,18 @@ pub fn read_pdf_lines(bytes: Vec<u8>) -> Result<Vec<StatementLine>, PdfTextError
     }
     let mut lines = Vec::new();
     for page in 0..pages {
-        let spans = doc.extract_spans(page).map_err(classify)?;
-        lines.extend(group_into_lines(page, spans.into_iter().map(|s| (s.text, s.bbox.y, s.font_size))));
+        // Characters, not spans: the library's span extraction re-sorts text geometrically, which pulls a
+        // table apart into a column of dates, a column of descriptions and a column of amounts. The
+        // character list stays in the order the PDF draws it (date, description, amount for each row).
+        let chars = doc.extract_chars(page).map_err(classify)?;
+        let glyphs = chars.into_iter().map(|c| GlyphBox {
+            ch: c.char,
+            x: c.bbox.x,
+            width: c.bbox.width,
+            y: c.origin_y,
+            size: c.font_size,
+        });
+        lines.extend(group_chars_into_lines(page, glyphs));
     }
     if lines.is_empty() {
         return Err(PdfTextError::NoText);
@@ -63,31 +73,45 @@ fn classify(error: pdf_oxide::error::Error) -> PdfTextError {
     }
 }
 
-/// Spans arrive in the order the PDF draws them. A new line starts when the baseline moves by more
-/// than half the font size; spans on one baseline are joined with a space.
-pub(crate) fn group_into_lines(page: usize, spans: impl IntoIterator<Item = (String, f32, f32)>) -> Vec<StatementLine> {
-    let mut lines: Vec<StatementLine> = Vec::new();
-    let mut last: Option<(f32, f32)> = None;
-    for (text, y, size) in spans {
-        if text.trim().is_empty() {
-            continue;
-        }
-        let same_line = last.is_some_and(|(ly, ls)| (y - ly).abs() <= ls.max(size).max(1.0) * 0.5);
-        match lines.last_mut() {
-            Some(line) if same_line => {
-                if !line.text.ends_with(' ') && !text.starts_with(' ') {
-                    line.text.push(' ');
-                }
-                line.text.push_str(&text);
+/// One drawn character: where it starts, how wide it is, its baseline and its type size.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct GlyphBox {
+    pub ch: char,
+    pub x: f32,
+    pub width: f32,
+    pub y: f32,
+    pub size: f32,
+}
+
+/// Characters arrive in the order the PDF draws them. A new line starts when the baseline moves by more
+/// than half the type size, or when drawing jumps back to the left on the same baseline (the next table
+/// row starting again at its first column). Within a line a gap wider than a fifth of the type size is a
+/// space. Blank lines are dropped and runs of spaces collapse.
+pub(crate) fn group_chars_into_lines(page: usize, glyphs: impl IntoIterator<Item = GlyphBox>) -> Vec<StatementLine> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut last: Option<GlyphBox> = None;
+    for g in glyphs {
+        let size = g.size.max(1.0);
+        if let Some(prev) = last {
+            let same_baseline = (g.y - prev.y).abs() <= prev.size.max(size) * 0.5;
+            let jumped_back = g.x < prev.x + prev.width - size * 0.5;
+            if !same_baseline || jumped_back {
+                lines.push(std::mem::take(&mut current));
+            } else if g.x - (prev.x + prev.width) > size * 0.2 {
+                current.push(' ');
             }
-            _ => lines.push(StatementLine { page, text: text.clone() }),
         }
-        last = Some((y, size));
+        current.push(if g.ch.is_whitespace() { ' ' } else { g.ch });
+        last = Some(g);
     }
-    for line in &mut lines {
-        line.text = line.text.split_whitespace().collect::<Vec<_>>().join(" ");
-    }
+    lines.push(current);
     lines
+        .into_iter()
+        .map(|text| text.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|text| !text.is_empty())
+        .map(|text| StatementLine { page, text })
+        .collect()
 }
 
 #[cfg(test)]
@@ -95,20 +119,53 @@ mod tests {
     use super::*;
     use crate::statement::fixture_pdf::{build_pdf, fixture};
 
+    /// Glyphs of `text` laid out from `x` at baseline `y`, 5 wide each, 10 point type.
+    fn glyphs(text: &str, x: f32, y: f32) -> Vec<GlyphBox> {
+        text.chars()
+            .enumerate()
+            .map(|(i, ch)| GlyphBox {
+                ch,
+                x: x + i as f32 * 5.0,
+                width: 5.0,
+                y,
+                size: 10.0,
+            })
+            .collect()
+    }
+    fn texts(lines: &[StatementLine]) -> Vec<&str> {
+        lines.iter().map(|l| l.text.as_str()).collect()
+    }
+
     #[test]
-    fn spans_on_one_baseline_join_and_a_new_baseline_starts_a_line() {
-        let lines = group_into_lines(
-            0,
-            vec![
-                ("08/05/26".to_string(), 700.0, 9.0),
-                ("AUTOPAY".to_string(), 700.2, 9.0),
-                ("-$43.08".to_string(), 688.0, 9.0),
-            ],
-        );
-        assert_eq!(
-            lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>(),
-            vec!["08/05/26 AUTOPAY", "-$43.08"]
-        );
+    fn glyphs_on_one_baseline_make_words_and_a_gap_makes_a_space() {
+        let mut g = glyphs("08/05/26", 50.0, 700.0);
+        g.extend(glyphs("AUTOPAY", 120.0, 700.2)); // a gap wider than a letter, baseline off by a hair
+        assert_eq!(texts(&group_chars_into_lines(0, g)), vec!["08/05/26 AUTOPAY"]);
+    }
+
+    #[test]
+    fn a_new_baseline_starts_a_new_line() {
+        let mut g = glyphs("AUTOPAY", 50.0, 700.0);
+        g.extend(glyphs("-$43.08", 50.0, 688.0));
+        assert_eq!(texts(&group_chars_into_lines(0, g)), vec!["AUTOPAY", "-$43.08"]);
+    }
+
+    #[test]
+    fn drawing_order_is_kept_even_when_it_returns_to_an_earlier_column() {
+        // A date, then (same baseline) the amount at the right, then back at the left for the next row.
+        let mut g = glyphs("08/05/26", 50.0, 700.0);
+        g.extend(glyphs("-$43.08", 300.0, 700.0));
+        g.extend(glyphs("08/06/26", 50.0, 700.0)); // same baseline but jumps back to the left: a new line
+        g.extend(glyphs("$9.99", 300.0, 700.0));
+        assert_eq!(texts(&group_chars_into_lines(0, g)), vec!["08/05/26 -$43.08", "08/06/26 $9.99"]);
+    }
+
+    #[test]
+    fn space_glyphs_are_not_doubled_and_blank_lines_are_dropped() {
+        let mut g = glyphs("A B", 50.0, 700.0);
+        g.extend(glyphs("   ", 50.0, 650.0));
+        assert_eq!(texts(&group_chars_into_lines(3, g)), vec!["A B"]);
+        assert_eq!(group_chars_into_lines(3, glyphs("x", 1.0, 1.0))[0].page, 3);
     }
 
     #[test]
