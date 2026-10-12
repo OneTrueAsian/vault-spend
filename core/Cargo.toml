@@ -8,6 +8,10 @@ ring = "0.17"
 csv = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 rust_decimal = "1"
+pdf_oxide = "0.3"
+# pdf_oxide 0.3.78 does not compile against office_oxide 0.1.12 or later (DocumentIR gained `defined_names`).
+# Pinned here so `cargo update` cannot break the build; drop the pin once pdf_oxide catches up.
+office_oxide = { version = "=0.1.11", default-features = false }
 rusqlite = { version = "0.32", features = ["backup", "bundled-sqlcipher-vendored-openssl"] }
 argon2 = "0.5"
 base64 = "0.22"
