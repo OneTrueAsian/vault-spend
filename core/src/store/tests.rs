@@ -18,6 +18,7 @@ mod holding_import;
 mod imports;
 mod insights;
 mod investments;
+mod reconcile;
 mod recurring;
 mod reports;
 mod rules;
