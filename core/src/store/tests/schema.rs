@@ -93,10 +93,7 @@ fn a_fresh_store_has_the_reconciliation_link_columns_and_layout_table() {
     for column in ["period_start", "starting_balance", "source", "holdings_checked"] {
         assert!(store.table_has_column("reconciliations", column).unwrap(), "{column}");
     }
-    let count: i64 = store
-        .conn
-        .query_row("SELECT COUNT(*) FROM statement_layouts", [], |r| r.get(0))
-        .unwrap();
+    let count: i64 = store.conn.query_row("SELECT COUNT(*) FROM statement_layouts", [], |r| r.get(0)).unwrap();
     assert_eq!(count, 0);
 }
 
@@ -107,7 +104,11 @@ fn existing_reconciliations_settle_the_ticked_rows_dated_on_or_before_them() {
     store
         .save_transactions(
             acct,
-            &[tx("2026-07-10", "July rent", "-900.00"), tx("2026-08-10", "August rent", "-900.00"), tx("2026-08-12", "Unticked", "-5.00")],
+            &[
+                tx("2026-07-10", "July rent", "-900.00"),
+                tx("2026-08-10", "August rent", "-900.00"),
+                tx("2026-08-12", "Unticked", "-5.00"),
+            ],
         )
         .unwrap();
     let july = id_of(&store, "July rent", "2026-07-10");
@@ -192,8 +193,16 @@ fn an_old_database_gains_the_link_column_and_settles_its_ticked_rows_on_the_next
         assert!(store.table_has_column("reconciliations", column).unwrap(), "{column}");
     }
     let rec: i64 = store.conn.query_row("SELECT MIN(id) FROM reconciliations", [], |r| r.get(0)).unwrap();
-    assert_eq!(reconciliation_link(&store, july), Some(rec), "the ticked row on/before the statement date is linked");
-    assert_eq!(reconciliation_link(&store, later), None, "a ticked row after the statement date is not linked");
+    assert_eq!(
+        reconciliation_link(&store, july),
+        Some(rec),
+        "the ticked row on/before the statement date is linked"
+    );
+    assert_eq!(
+        reconciliation_link(&store, later),
+        None,
+        "a ticked row after the statement date is not linked"
+    );
 }
 
 #[test]

@@ -1487,7 +1487,14 @@ fn the_latest_reconciliation_is_the_one_reported() {
     let finish = |date: &str, start: Option<&str>, end: &str| {
         store
             .finish_reconciliation(
-                &FinishReconciliation { account_id: acct, period_start: None, statement_date: day(date), statement_start: start.map(dec), statement_end: dec(end), source: ReconcileSource::Manual },
+                &FinishReconciliation {
+                    account_id: acct,
+                    period_start: None,
+                    statement_date: day(date),
+                    statement_start: start.map(dec),
+                    statement_end: dec(end),
+                    source: ReconcileSource::Manual,
+                },
                 test_now(),
             )
             .unwrap()

@@ -21,9 +21,23 @@ fn finish(store: &Store, acct: i64, date: &str, start: Option<&str>, end: &str) 
 fn checking(store: &Store) -> (i64, [i64; 3]) {
     let acct = store.get_or_create_account("Statement Checking", AccountType::Checking).unwrap();
     store
-        .save_transactions(acct, &[tx("2026-07-15", "Deposit", "200.00"), tx("2026-08-10", "Coffee", "-50.00"), tx("2026-09-05", "Gas", "-30.00")])
+        .save_transactions(
+            acct,
+            &[
+                tx("2026-07-15", "Deposit", "200.00"),
+                tx("2026-08-10", "Coffee", "-50.00"),
+                tx("2026-09-05", "Gas", "-30.00"),
+            ],
+        )
         .unwrap();
-    (acct, [id_of(store, "Deposit", "2026-07-15"), id_of(store, "Coffee", "2026-08-10"), id_of(store, "Gas", "2026-09-05")])
+    (
+        acct,
+        [
+            id_of(store, "Deposit", "2026-07-15"),
+            id_of(store, "Coffee", "2026-08-10"),
+            id_of(store, "Gas", "2026-09-05"),
+        ],
+    )
 }
 
 #[test]
@@ -108,13 +122,21 @@ fn finishing_records_the_details_and_settles_the_ticked_rows() {
 
     let (period_start, starting, source): (Option<String>, Option<String>, Option<String>) = store
         .conn
-        .query_row("SELECT period_start, starting_balance, source FROM reconciliations WHERE id = ?1", params![id], |r| {
-            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-        })
+        .query_row(
+            "SELECT period_start, starting_balance, source FROM reconciliations WHERE id = ?1",
+            params![id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
         .unwrap();
-    assert_eq!((period_start.as_deref(), starting.as_deref(), source.as_deref()), (Some("2026-07-01"), Some("1000.00"), Some("manual")));
+    assert_eq!(
+        (period_start.as_deref(), starting.as_deref(), source.as_deref()),
+        (Some("2026-07-01"), Some("1000.00"), Some("manual"))
+    );
     let settled = |tid: i64| -> Option<i64> {
-        store.conn.query_row("SELECT reconciliation_id FROM transactions WHERE id = ?1", params![tid], |r| r.get(0)).unwrap()
+        store
+            .conn
+            .query_row("SELECT reconciliation_id FROM transactions WHERE id = ?1", params![tid], |r| r.get(0))
+            .unwrap()
     };
     assert_eq!((settled(deposit), settled(coffee), settled(gas)), (Some(id), Some(id), None));
 }
@@ -154,7 +176,7 @@ fn a_loan_reconciles_on_outstanding_principal() {
 
 #[test]
 fn balance_change_follows_each_account_kind() {
-    use crate::store::{balance_change, AccountKind};
+    use crate::store::{AccountKind, balance_change};
     assert_eq!(balance_change(AccountKind::Cash, dec("-5"), None), dec("-5"));
     assert_eq!(balance_change(AccountKind::Investment, dec("12"), None), dec("12"));
     assert_eq!(balance_change(AccountKind::Credit, dec("-5"), None), dec("5"));
@@ -256,7 +278,10 @@ fn a_credit_card_can_be_finished_on_what_is_owed() {
 
     let id = finish(&store, card, "2026-08-31", Some("300.00"), "80.00").expect("balances");
     let settled = |tid: i64| -> Option<i64> {
-        store.conn.query_row("SELECT reconciliation_id FROM transactions WHERE id = ?1", params![tid], |r| r.get(0)).unwrap()
+        store
+            .conn
+            .query_row("SELECT reconciliation_id FROM transactions WHERE id = ?1", params![tid], |r| r.get(0))
+            .unwrap()
     };
     assert_eq!((settled(groceries), settled(payment)), (Some(id), Some(id)));
 }

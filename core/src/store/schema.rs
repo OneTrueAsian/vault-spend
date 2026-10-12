@@ -1350,9 +1350,7 @@ impl Store {
     /// Whether `table` already has `column` — the check every additive migration makes.
     pub(crate) fn table_has_column(&self, table: &str, column: &str) -> rusqlite::Result<bool> {
         let mut stmt = self.conn.prepare(&format!("PRAGMA table_info({table})"))?;
-        let names = stmt
-            .query_map([], |row| row.get::<_, String>(1))?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let names = stmt.query_map([], |row| row.get::<_, String>(1))?.collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(names.iter().any(|name| name == column))
     }
 

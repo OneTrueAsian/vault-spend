@@ -96,9 +96,9 @@ fn dec(s: &str) -> Decimal {
 
 impl Store {
     pub fn account_kind(&self, account_id: i64) -> rusqlite::Result<AccountKind> {
-        let account_type: String =
-            self.conn
-                .query_row("SELECT account_type FROM accounts WHERE id = ?1", params![account_id], |r| r.get(0))?;
+        let account_type: String = self
+            .conn
+            .query_row("SELECT account_type FROM accounts WHERE id = ?1", params![account_id], |r| r.get(0))?;
         // An unknown type must not fall back to a cash sign rule: that would reconcile the account wrongly.
         AccountType::parse(&account_type).map(AccountKind::of).ok_or_else(|| {
             rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, format!("unknown account type `{account_type}`").into())
