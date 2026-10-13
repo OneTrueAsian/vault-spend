@@ -117,6 +117,26 @@ export async function enableProtectionThroughUI(browser, password) {
   return recoveryDisplay;
 }
 
+/** Finish starts an asynchronous encryption/conversion operation. Wait for its
+ * completion separately from subsequent Settings/banner assertions; crash tests
+ * deliberately use enableProtectionThroughUI alone to stop inside the operation.
+ * Match the existing protected-profile setup allowance in change-password.mjs.
+ */
+export async function waitForProtectionSetupCompletion(browser) {
+  const started = Date.now();
+  await browser.waitUntil(async () => {
+    const wizard = await browser.$(".protection-setup");
+    if (!(await wizard.isExisting())) return true;
+    const error = await wizard.$('[role="alert"]');
+    if (await error.isExisting()) {
+      const message = (await error.getText()).trim();
+      if (message) throw Error(`Password protection setup failed: ${message}`);
+    }
+    return false;
+  }, { timeout: 45000, timeoutMsg: "password protection conversion must complete and close its setup wizard" });
+  console.log(`[timing] password protection conversion completed ${Date.now() - started}ms after Finish returned`);
+}
+
 const FAILPOINT_WAIT_MS = 30_000;
 
 function isProcessAlive(pid) {

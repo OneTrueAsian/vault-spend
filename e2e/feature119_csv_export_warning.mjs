@@ -20,7 +20,7 @@
 
 import assert from "node:assert/strict";
 import { launchApp } from "./harness.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, waitForProtectionSetupCompletion } from "./lib/protection.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -214,6 +214,7 @@ try {
   // Turn protection on through the real wizard and wait until the app shows it.
   await (await browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(browser, PASSWORD);
+  await waitForProtectionSetupCompletion(browser);
   await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), {
     timeout: 10000,
     timeoutMsg: "expected Password protection: On after finishing setup",

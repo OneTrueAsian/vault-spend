@@ -71,6 +71,15 @@ Screenshot folders follow the same rule: set the spec's own output variable (`VS
 
 ## Running a spec
 
+`enableProtectionThroughUI` returns after clicking Finish, which starts asynchronous
+encryption/conversion. Tests asserting completed conversion must call
+`waitForProtectionSetupCompletion` before their existing Settings/banner checks.
+It waits for the setup wizard to close, bounded at the same 45-second allowance
+used by protected-profile setup in the change-password helper, and logs elapsed
+conversion time. Crash/failpoint tests must keep using the start-only helper so
+they can stop the operation before completion. Post-conversion privacy and UI
+assertions retain their own deadlines.
+
 ```
 node e2e/smoke.mjs
 ```

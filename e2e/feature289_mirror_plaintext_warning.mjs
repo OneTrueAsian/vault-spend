@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { launchApp, dismissFirstLaunchDialogs } from './harness.mjs';
-import { enableProtectionThroughUI, seedPopulatedProfile } from './lib/protection.mjs';
+import { enableProtectionThroughUI, seedPopulatedProfile, waitForProtectionSetupCompletion } from './lib/protection.mjs';
 import { freshTestDbDir } from './lib/seed.mjs';
 import { makeTempDir } from './lib/tempDir.mjs';
 const dbDir=freshTestDbDir();await seedPopulatedProfile(dbDir);
@@ -38,6 +38,7 @@ let app=await launchApp({dbDir});let live;
 try {
  const b=app.browser;await call(b,'set_backup_copy_dir',{dir:mirror});
  await settings(b);await enableProtectionThroughUI(b,password);
+ await waitForProtectionSetupCompletion(b);
  await b.$(regionSelector).waitForExist({timeout:10000});
  await b.waitUntil(()=>b.$('button=Delete plaintext copies now').isEnabled(),{timeout:10000});
  live=await call(b,'get_data_file_location');
