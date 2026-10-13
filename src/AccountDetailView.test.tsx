@@ -70,12 +70,12 @@ describe("AccountDetailView reconciling any account", () => {
     expect(host.textContent).toContain("Amount owed at the end of the statement");
   });
 
-  it("uses principal wording for a loan", async () => {
+  it("uses plain owed-on-the-loan wording for a loan", async () => {
     answer({ last_reconciliation: null });
     await showAccount({ ...account, id: 10, name: "Mortgage", account_type: "loan" });
 
-    expect(host.textContent).toContain("Principal owed at the start of the statement");
-    expect(host.textContent).toContain("Principal owed at the end of the statement");
+    expect(host.textContent).toContain("Amount you owed on the loan at the start of the statement");
+    expect(host.textContent).toContain("Amount you owed on the loan at the end of the statement");
   });
 
   it("explains that an investment account checks its cash activity", async () => {

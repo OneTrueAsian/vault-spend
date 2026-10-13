@@ -1,9 +1,9 @@
 import "./StatementReconcile.css";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ModalShell } from "./Modal";
 import { formatAmount, formatDisplayDate, isValidDecimalString } from "./format";
-import { changeFor, isZero, statementDifference, toUnits } from "./reconcileMath";
-import type { AppTransaction, FinishDecisions, ReviewRow, StatementReview } from "./statementContracts";
+import { addAmounts, changeFor, isZero, statementDifference, toUnits } from "./reconcileMath";
+import type { AppTransaction, FinishDecisions, HoldingReview, ReviewRow, StatementReview } from "./statementContracts";
 
 export type RowChoice = { kind: "match"; transactionId: number } | { kind: "add"; description: string } | { kind: "skip" };
 export type HoldingChoice = { action: "update" | "add" | "remove" | "leave"; costBasis?: string };
@@ -58,9 +58,65 @@ export function holdingsMode(review: StatementReview): "check" | "cannot_check" 
   return nothing ? "none" : "cannot_check";
 }
 
+/** A plain decimal ("-12.345") as an exact integer and its number of decimal places. */
+function parseExact(s: string): { v: bigint; scale: number } {
+  const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(s.trim());
+  if (!m) throw new Error(`Not a number: ${s}`);
+  const frac = m[3] ?? "";
+  const v = BigInt(m[2] + frac);
+  return { v: m[1] ? -v : v, scale: frac.length };
+}
+
+const atScale = (x: { v: bigint; scale: number }, scale: number) => x.v * 10n ** BigInt(scale - x.scale);
+
+/** a + b exactly, however many decimal places (share counts can have more than money's four). */
+function addExact(a: string, b: string): string {
+  const x = parseExact(a);
+  const y = parseExact(b);
+  const scale = Math.max(x.scale, y.scale);
+  const sum = atScale(x, scale) + atScale(y, scale);
+  const abs = sum < 0n ? -sum : sum;
+  const unit = 10n ** BigInt(scale);
+  const frac = scale === 0 ? "" : (abs % unit).toString().padStart(scale, "0").replace(/0+$/, "");
+  return `${sum < 0n ? "-" : ""}${abs / unit}${frac ? `.${frac}` : ""}`;
+}
+
+function sameExact(a: string, b: string): boolean {
+  const x = parseExact(a);
+  const y = parseExact(b);
+  const scale = Math.max(x.scale, y.scale);
+  return atScale(x, scale) === atScale(y, scale);
+}
+
+const symbolKey = (s: string) => s.trim().toUpperCase();
+
+/** The statement's holdings with any symbol listed more than once (in two tables, say) folded into one
+ * with its shares added together. The app checks share counts per symbol and takes one change per
+ * symbol, so the screen shows and sends one. */
+export function foldHoldings(holdings: HoldingReview[]): HoldingReview[] {
+  const groups = new Map<string, HoldingReview[]>();
+  for (const h of holdings) groups.set(symbolKey(h.symbol), [...(groups.get(symbolKey(h.symbol)) ?? []), h]);
+  return [...groups.values()].map((group) => {
+    if (group.length === 1) return group[0];
+    const first = group[0];
+    const shares = group.slice(1).reduce((sum, h) => addExact(sum, h.statement_shares), first.statement_shares);
+    const appShares = group.find((h) => h.app_shares !== null)?.app_shares ?? null;
+    return {
+      symbol: first.symbol.trim(),
+      name: group.find((h) => h.name.trim())?.name ?? "",
+      statement_shares: shares,
+      price: group.find((h) => h.price !== null)?.price ?? null,
+      market_value: addAmounts(group.map((h) => h.market_value)),
+      app_holding_id: group.find((h) => h.app_holding_id !== null)?.app_holding_id ?? null,
+      app_shares: appShares,
+      status: appShares === null ? "missing_in_app" : sameExact(appShares, shares) ? "same" : "different",
+    };
+  });
+}
+
 function initialHoldings(review: StatementReview): Map<string, HoldingChoice> {
   const out = new Map<string, HoldingChoice>();
-  for (const h of review.holdings) {
+  for (const h of foldHoldings(review.holdings)) {
     out.set(h.symbol, h.status === "different" ? { action: "update" } : h.status === "missing_in_app" ? { action: "add", costBasis: "" } : { action: "leave" });
   }
   for (const h of review.app_only_holdings) out.set(`app:${h.id}`, { action: "leave" });
@@ -116,7 +172,7 @@ export function canFinish(review: StatementReview, s: FinishState): FinishCheck 
       );
     }
     if (mode === "check") {
-      for (const h of review.holdings) {
+      for (const h of foldHoldings(review.holdings)) {
         const c = s.holdings.get(h.symbol);
         if (h.status === "different" && c?.action !== "update") return fail(`Update ${h.symbol} to match your statement first.`);
         if (h.status === "missing_in_app") {
@@ -141,7 +197,7 @@ export function canFinish(review: StatementReview, s: FinishState): FinishCheck 
 
 function balanceWords(kind: StatementReview["account_kind"]) {
   if (kind === "credit") return { start: "Amount owed at the start", end: "Amount owed at the end" };
-  if (kind === "loan") return { start: "Principal owed at the start", end: "Principal owed at the end" };
+  if (kind === "loan") return { start: "Amount you owed on the loan at the start", end: "Amount you owed on the loan at the end" };
   return { start: "Starting balance", end: "Ending balance" };
 }
 
@@ -239,6 +295,28 @@ export function StatementReviewDialog(props: {
   const canTeach = review.source === "pdf";
   const showRemember = review.learnable && review.suggested_phrases.length > 0;
   const reasonId = useId();
+  const holdings = useMemo(() => foldHoldings(review.holdings), [review]);
+  // The app refuses share-count changes when the statement lists no holdings, so none are offered then.
+  const canRemoveHoldings = mode === "check" && holdings.length > 0;
+  const earlierRows = review.rows.filter((r) => !addable(review, r));
+  const earlierUndecided = earlierRows.filter((r) => !form.choices.has(r.index));
+
+  // What stays unticked as things stand: every app transaction no line is matched to, except the
+  // possible matches of lines still being decided.
+  const chosenIds = new Set([...form.choices.values()].flatMap((c) => (c.kind === "match" ? [c.transactionId] : [])));
+  const pendingIds = new Set(review.rows.filter((r) => !form.choices.has(r.index)).flatMap((r) => [...(r.match_id !== null ? [r.match_id] : []), ...r.possible_ids]));
+  const notOnStatement = review.app_transactions.filter((t) => !chosenIds.has(t.id) && !pendingIds.has(t.id));
+
+  // When the button just pressed goes away (Not a match, or picking a line's own match back), keyboard
+  // focus moves to the row's first control instead of falling back to the page.
+  const reviewRef = useRef<HTMLDivElement>(null);
+  const focusRow = useRef<number | null>(null);
+  useEffect(() => {
+    if (focusRow.current === null) return;
+    const cell = reviewRef.current?.querySelector(`[data-statement-row="${focusRow.current}"] [data-row-choices]`);
+    focusRow.current = null;
+    cell?.querySelector<HTMLElement>("button, input")?.focus();
+  });
 
   function submit() {
     if (!status.ok || busy) return;
@@ -261,7 +339,7 @@ export function StatementReviewDialog(props: {
     }
     // Share counts change only when they were checked against the statement.
     if (mode === "check") {
-      for (const h of review.holdings) {
+      for (const h of holdings) {
         const c = form.holdings.get(h.symbol) ?? { action: "leave" };
         d.holdings.push({
           symbol: h.symbol,
@@ -275,7 +353,8 @@ export function StatementReviewDialog(props: {
       }
       for (const h of review.app_only_holdings) {
         const c = form.holdings.get(`app:${h.id}`) ?? { action: "leave" };
-        d.holdings.push({ symbol: h.symbol, action: c.action, holdingId: h.id, shares: null, price: null, costBasis: null, name: h.name });
+        const action = canRemoveHoldings ? c.action : "leave";
+        d.holdings.push({ symbol: h.symbol, action, holdingId: h.id, shares: null, price: null, costBasis: null, name: h.name });
       }
     }
     props.onFinish(d);
@@ -320,7 +399,7 @@ export function StatementReviewDialog(props: {
       dismissOnOverlayClick={false}
       footer={footer}
     >
-      <div className="statement-review" data-statement-review>
+      <div className="statement-review" ref={reviewRef} data-statement-review>
         <p className="modal-message-secondary statement-heading">
           {review.section_name} · {period}
           {review.recognized && review.layout_name ? ` · Read using: ${review.layout_name}` : ""}
@@ -357,9 +436,28 @@ export function StatementReviewDialog(props: {
           </p>
         )}
         {review.already_reconciled_through && (
-          <p className="statement-banner" data-already-reconciled>
-            You already reconciled this account through {formatDisplayDate(review.already_reconciled_through)}. Lines from before then are not offered for adding.
-          </p>
+          <div className="statement-banner" data-already-reconciled>
+            <p>
+              You already reconciled this account through {formatDisplayDate(review.already_reconciled_through)}. Lines from before then are not offered for
+              adding.
+            </p>
+            {earlierUndecided.length > 0 && (
+              <button
+                type="button"
+                className="modal-secondary"
+                onClick={() =>
+                  update((f) => {
+                    const choices = new Map(f.choices);
+                    for (const r of earlierRows) if (!choices.has(r.index)) choices.set(r.index, { kind: "skip" });
+                    return { choices };
+                  })
+                }
+                data-skip-earlier
+              >
+                Skip all of these
+              </button>
+            )}
+          </div>
         )}
         {review.suggest_flip && !review.flipped && (
           <div className="statement-banner statement-banner-actions" data-suggest-flip>
@@ -436,7 +534,7 @@ export function StatementReviewDialog(props: {
                         )}
                       </td>
                       <td className="amount-col">{formatAmount(r.amount)}</td>
-                      <td>
+                      <td data-row-choices>
                         {autoMatched ? (
                           <span className="statement-choices">
                             <span>
@@ -445,7 +543,10 @@ export function StatementReviewDialog(props: {
                             <button
                               type="button"
                               className="modal-secondary"
-                              onClick={() => setChoice(r.index, null)}
+                              onClick={() => {
+                                focusRow.current = r.index;
+                                setChoice(r.index, null);
+                              }}
                               aria-label={`Not a match: ${r.description}`}
                               data-not-a-match
                             >
@@ -460,7 +561,11 @@ export function StatementReviewDialog(props: {
                                 <Choice
                                   key={id}
                                   pressed={c?.kind === "match" && c.transactionId === id}
-                                  onClick={() => setChoice(r.index, { kind: "match", transactionId: id })}
+                                  onClick={() => {
+                                    // Picking the line's own match back shows it as matched, without these buttons.
+                                    if (r.status === "matched" && id === r.match_id) focusRow.current = r.index;
+                                    setChoice(r.index, { kind: "match", transactionId: id });
+                                  }}
                                   data-same-as={id}
                                 >
                                   Same as “{t.description}” on {formatDisplayDate(t.date)}
@@ -499,19 +604,16 @@ export function StatementReviewDialog(props: {
           </div>
         )}
 
-        {review.not_on_statement.length > 0 && (
+        {notOnStatement.length > 0 && (
           <div className="statement-section" data-not-on-statement>
             <h3>In the app, not on your statement</h3>
             <p className="modal-message-secondary">These stay unticked. They may appear on next month's statement, or they may be duplicates.</p>
             <ul>
-              {review.not_on_statement.map((id) => {
-                const t = byId.get(id);
-                return t ? (
-                  <li key={id}>
-                    {formatDisplayDate(t.date)} · {t.description} · {formatAmount(t.amount)}
-                  </li>
-                ) : null;
-              })}
+              {notOnStatement.map((t) => (
+                <li key={t.id}>
+                  {formatDisplayDate(t.date)} · {t.description} · {formatAmount(t.amount)}
+                </li>
+              ))}
             </ul>
           </div>
         )}
@@ -562,6 +664,11 @@ export function StatementReviewDialog(props: {
                 </div>
               </div>
             )}
+            {mode === "check" && !canRemoveHoldings && review.app_only_holdings.length > 0 && (
+              <p className="modal-message-secondary" data-no-statement-holdings>
+                Your statement doesn't list any holdings, so the app leaves the ones below as they are. You can change them in Investments.
+              </p>
+            )}
             {review.ending_value && (
               <p className="modal-message-secondary">
                 Value on your statement: {formatAmount(review.ending_value)}. This is for your information only; it changes with the market.
@@ -578,7 +685,7 @@ export function StatementReviewDialog(props: {
                   </tr>
                 </thead>
                 <tbody>
-                  {review.holdings.map((h) => {
+                  {holdings.map((h) => {
                     const c = form.holdings.get(h.symbol) ?? { action: "leave" };
                     return (
                       <tr key={h.symbol} data-holding={h.symbol} data-holding-status={h.status}>
@@ -648,7 +755,8 @@ export function StatementReviewDialog(props: {
                         </td>
                         <td className="amount-col">—</td>
                         <td className="amount-col">{h.shares} shares</td>
-                        {mode === "check" && (
+                        {mode === "check" && !canRemoveHoldings && <td>Left as it is</td>}
+                        {canRemoveHoldings && (
                           <td>
                             <span className="statement-choices" role="group" aria-label={`What to do with ${h.symbol}`}>
                               <Choice pressed={c.action === "remove"} onClick={() => setHolding(key, { action: "remove" })} data-remove-holding>
@@ -676,6 +784,11 @@ export function StatementReviewDialog(props: {
               Remember this statement
             </label>
             <p className="modal-message-secondary">We'll recognize statements like this next time.</p>
+            {review.unread.length > 0 && !form.ignoreUnread && (
+              <p className="field-hint" data-remember-why-off>
+                This starts off because some lines couldn't be read. To remember this statement, first tick “Ignore the lines the app couldn't read”.
+              </p>
+            )}
             {form.remember && (
               <>
                 <label className="labeled-field">
@@ -693,9 +806,6 @@ export function StatementReviewDialog(props: {
                     Recognize it by: “{p}”
                   </label>
                 ))}
-                {review.unread.length > 0 && !form.ignoreUnread && (
-                  <p className="field-hint">Tick “Ignore the lines the app couldn't read” to remember this statement.</p>
-                )}
               </>
             )}
           </div>

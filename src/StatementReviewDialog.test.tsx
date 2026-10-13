@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { StatementReviewDialog, canFinish, initialChoices, type FinishState } from "./StatementReviewDialog";
+import { StatementReviewDialog, canFinish, foldHoldings, initialChoices, type FinishState } from "./StatementReviewDialog";
 import { sampleReview } from "./statementTestUtils";
 import { formatDisplayDate } from "./format";
 import type { FinishDecisions, StatementReview } from "./statementContracts";
@@ -82,6 +82,7 @@ function investment(over: Partial<StatementReview> = {}): StatementReview {
 
 function loan(over: Partial<StatementReview> = {}): StatementReview {
   return sampleReview({
+    token: "tok-loan",
     account_kind: "loan",
     learnable: false,
     starting_balance: "1000.00",
@@ -295,8 +296,12 @@ describe("StatementReviewDialog", () => {
     await render();
     expect(text()).toContain("Amount owed at the start");
     expect(text()).toContain("Amount owed at the end");
+    // A new review (its own token) starts the form over: the loan's own balances fill the fields.
     await render(loan());
-    expect(text()).toContain("Principal owed at the start");
+    expect(text()).toContain("Amount you owed on the loan at the start");
+    expect(text()).toContain("Amount you owed on the loan at the end");
+    expect(q<HTMLInputElement>("[data-statement-review-end]")!.value).toBe("600.00");
+    expect(q<HTMLInputElement>("[data-statement-review-start]")!.value).toBe("1000.00");
   });
 
   it("picks up from the last reconciliation when there is one", async () => {
@@ -344,6 +349,29 @@ describe("StatementReviewDialog", () => {
     expect(q("[data-statement-row='1']")!.getAttribute("data-choice")).toBe("skip");
   });
 
+  it("skips every line from before an earlier reconciliation in one click", async () => {
+    const onFinish = await render(
+      sampleReview({
+        already_reconciled_through: "2026-08-20",
+        ending_balance: "45.08",
+        rows: [
+          { index: 0, date: "2026-07-24", description: "OLD ONE", amount: "-1.00", principal: null, status: "missing", match_id: null, possible_ids: [] },
+          { index: 1, date: "2026-08-20", description: "OLD TWO", amount: "-1.00", principal: null, status: "missing", match_id: null, possible_ids: [] },
+          { index: 2, date: "2026-08-21", description: "NEW", amount: "-2.00", principal: null, status: "missing", match_id: null, possible_ids: [] },
+        ],
+        app_transactions: [],
+      }),
+    );
+    await click(q("[data-skip-earlier]"));
+    expect(q("[data-statement-row='0']")!.getAttribute("data-choice")).toBe("skip");
+    expect(q("[data-statement-row='1']")!.getAttribute("data-choice")).toBe("skip");
+    // A line after the earlier reconciliation is still the person's to decide.
+    expect(q("[data-statement-row='2']")!.getAttribute("data-choice")).toBe("none");
+    await click(q("[data-statement-row='2'] [data-add-row]"));
+    await click(finishButton());
+    expect(lastDecisions(onFinish)).toMatchObject({ skip: [0, 1], add: [{ row: 2 }] });
+  });
+
   it("lets the person undo a match and pick one of the possible matches", async () => {
     const review = sampleReview({
       ending_balance: "62.47",
@@ -372,6 +400,30 @@ describe("StatementReviewDialog", () => {
       { row: 0, transactionId: 11 },
       { row: 1, transactionId: 12 },
     ]);
+  });
+
+  it("keeps keyboard focus in the row when a choice button goes away", async () => {
+    await render(sampleReview());
+    const notMatch = q<HTMLButtonElement>("[data-statement-row='0'] [data-not-a-match]")!;
+    notMatch.focus();
+    await click(notMatch);
+    // The row's first control now: the old match, offered again.
+    const same = q<HTMLButtonElement>("[data-statement-row='0'] [data-same-as='11']")!;
+    expect(document.activeElement).toBe(same);
+    await click(same);
+    expect(document.activeElement).toBe(q("[data-statement-row='0'] [data-not-a-match]"));
+  });
+
+  it("lists a transaction that is no longer matched as in the app but not on the statement", async () => {
+    await render(sampleReview());
+    expect(q("[data-not-on-statement]")).toBeNull();
+    await click(q("[data-statement-row='0'] [data-not-a-match]"));
+    // Still being decided: not listed yet.
+    expect(q("[data-not-on-statement]")).toBeNull();
+    await click(q("[data-statement-row='0'] [data-skip-row]"));
+    expect(q("[data-not-on-statement]")!.textContent).toContain("Streaming");
+    await click(q("[data-statement-row='0'] [data-same-as='11']"));
+    expect(q("[data-not-on-statement]")).toBeNull();
   });
 
   it("skips a line, or adds it under a description the person types", async () => {
@@ -431,12 +483,14 @@ describe("StatementReviewDialog", () => {
   it("lists lines it couldn't read, which must be ignored to remember the statement", async () => {
     const onFinish = await render(sampleReview({ ending_balance: "62.47", unread: [{ line: 7, text: "08/02 ??? 4.00" }] }));
     expect(q("[data-unread]")!.textContent).toContain("08/02 ??? 4.00");
-    // Remembering starts off while some lines couldn't be read.
+    // Remembering starts off while some lines couldn't be read, and says why.
     expect(q<HTMLInputElement>("[data-remember-toggle]")!.checked).toBe(false);
+    expect(q("[data-remember-why-off]")!.textContent).toContain("some lines couldn't be read");
     expect(finishButton().disabled).toBe(false);
     await click(q("[data-remember-toggle]"));
     expect(finishButton().disabled).toBe(true);
     await click(q("[data-ignore-unread]"));
+    expect(q("[data-remember-why-off]")).toBeNull();
     expect(finishButton().disabled).toBe(false);
     await click(finishButton());
     expect(lastDecisions(onFinish)).toMatchObject({ ignoreUnread: true, saveLayout: { name: "Northwind Card Services" } });
@@ -501,6 +555,47 @@ describe("StatementReviewDialog", () => {
     ]);
   });
 
+  it("doesn't offer removing holdings when the statement lists none", async () => {
+    const onFinish = await render(investment({ holdings: [], app_only_holdings: [{ id: 9, symbol: "OLDZ", name: "Old", shares: "3" }] }));
+    expect(q("[data-app-only-holding='OLDZ']")).not.toBeNull();
+    expect(q("[data-remove-holding]")).toBeNull();
+    expect(text()).toContain("Investments");
+    await click(finishButton());
+    expect(lastDecisions(onFinish).holdings.some((h) => h.action === "remove")).toBe(false);
+  });
+
+  it("treats a holding listed twice on the statement as one, with the shares added together", async () => {
+    const twice = investment({
+      holdings: [
+        { symbol: "QQQZ", name: "Tracker", statement_shares: "10.25", price: "300.25", market_value: "3077.56", app_holding_id: 4, app_shares: "10.5", status: "different" },
+        { symbol: "qqqz ", name: "Tracker", statement_shares: "0.25", price: "300.25", market_value: "75.06", app_holding_id: 4, app_shares: "10.5", status: "different" },
+      ],
+    });
+    expect(foldHoldings(twice.holdings)).toEqual([
+      { symbol: "QQQZ", name: "Tracker", statement_shares: "10.5", price: "300.25", market_value: "3152.62", app_holding_id: 4, app_shares: "10.5", status: "same" },
+    ]);
+    const onFinish = await render(twice);
+    expect(document.querySelectorAll("[data-holding]").length).toBe(1);
+    expect(q("[data-holding='QQQZ']")!.textContent).toContain("Matches");
+    await click(finishButton());
+    expect(lastDecisions(onFinish).holdings).toEqual([
+      { symbol: "QQQZ", action: "leave", holdingId: 4, shares: "10.5", price: "300.25", costBasis: null, name: "Tracker" },
+    ]);
+    // Added together exactly, however many decimal places the share counts have.
+    expect(
+      foldHoldings([
+        { ...twice.holdings[0], statement_shares: "0.123456", app_shares: "1" },
+        { ...twice.holdings[1], statement_shares: "0.876544", app_shares: "1" },
+      ])[0],
+    ).toMatchObject({ statement_shares: "1", status: "same" });
+    const missing = foldHoldings([
+      { ...twice.holdings[0], app_holding_id: null, app_shares: null, status: "missing_in_app" },
+      { ...twice.holdings[1], app_holding_id: null, app_shares: null, status: "missing_in_app" },
+    ]);
+    expect(missing).toHaveLength(1);
+    expect(missing[0]).toMatchObject({ statement_shares: "10.5", status: "missing_in_app" });
+  });
+
   it("an investment whose holdings couldn't be read only finishes once the person ticks the box", async () => {
     const onTeach = vi.fn();
     const onFinish = await render(investment({ holdings_check: { outcome: "failed", expected: "1", found: "2" } }), { onTeach });
@@ -528,6 +623,10 @@ describe("StatementReviewDialog", () => {
     await render(sampleReview({ unread: [{ line: 1, text: "x" }], not_on_statement: [11], suggest_flip: true }));
     expect(text()).not.toMatch(/\b(cleared|layout|parse|unmatched|tracked|published|recognise)\b/i);
     await render(investment({ holdings_check: { outcome: "failed", expected: "1", found: "2" } }));
+    expect(text()).not.toMatch(/\b(cleared|layout|parse|unmatched|tracked|published|recognise|principal)\b/i);
+    // A loan review explains a payment's split without the word "principal".
+    await render(loan());
+    expect(q("[data-pays-down]")).not.toBeNull();
     expect(text()).not.toMatch(/\b(cleared|layout|parse|unmatched|tracked|published|recognise|principal)\b/i);
   });
 });

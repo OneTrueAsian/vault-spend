@@ -20,7 +20,7 @@ type LastReconciliation = { statement_date: string; statement_balance: string | 
 /** What a statement calls this account's balance, in plain words. */
 function balanceWords(accountType: string): { start: string; end: string } {
   if (accountType === "credit") return { start: "Amount owed at the start of the statement", end: "Amount owed at the end of the statement" };
-  if (accountType === "loan") return { start: "Principal owed at the start of the statement", end: "Principal owed at the end of the statement" };
+  if (accountType === "loan") return { start: "Amount you owed on the loan at the start of the statement", end: "Amount you owed on the loan at the end of the statement" };
   return { start: "Starting balance on the statement", end: "Ending balance on the statement" };
 }
 
