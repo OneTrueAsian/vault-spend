@@ -47,6 +47,17 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertNotIn("Join-Path $cargoHome 'bin'", setup)
         self.assertLess(source.index('      - name: Install native Edge test driver'), source.index('      - name: Desktop WebDriver smoke preflight'))
 
+    def test_hosted_runtime_is_verified_before_install_and_driver_matching(self):
+        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        setup = workflow_step('Refresh hosted WebView2 runtime')
+        self.assertLess(setup.index('Get-AuthenticodeSignature'), setup.index('Start-Process'))
+        self.assertIn("$signature.Status -ne 'Valid'", setup)
+        self.assertIn('O=Microsoft Corporation', setup)
+        self.assertLess(source.index('      - name: Refresh hosted WebView2 runtime'), source.index('      - name: Install desktop test drivers'))
+        build = source.split('      - name: Build current desktop test app\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('CARGO_PROFILE_DEV_OPT_LEVEL: 1', build)
+        self.assertIn('npx tauri build --debug --no-bundle', build)
+
     def execute_repair(self, source):
         with tempfile.TemporaryDirectory(prefix='release-recovery-') as folder:
             root = Path(folder)
