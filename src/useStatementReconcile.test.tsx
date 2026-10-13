@@ -163,18 +163,35 @@ describe("useStatementReconcile", () => {
     root = createRoot(document.createElement("div"));
   });
 
-  it("starts again from the first part after teaching", async () => {
+  async function twoPartsThenTeach(taughtSection: number) {
     vi.mocked(invoke).mockResolvedValueOnce({ token: "a", sections: [{ index: 0, name: "A", row_count: 1, holding_count: 0 }, { index: 1, name: "B", row_count: 1, holding_count: 0 }], review: null });
     await act(async () => hook.start("2026-08-01", "2026-08-31"));
-    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "b", activity_check: failing }));
+    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "b", section_index: 1, activity_check: failing }));
     await act(async () => hook.chooseSection(1));
     vi.mocked(invoke).mockResolvedValueOnce([]);
     await act(async () => hook.openTeach());
-    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "c" }));
+    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "c", section_index: taughtSection }));
     await act(async () => hook.teach({ rows: [], balances: null, holdings: [] }));
-    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "d" }));
+    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "d", section_index: taughtSection }));
     await act(async () => hook.setFlip(true));
+  }
+
+  it("flips the part the review says it shows after teaching left fewer parts", async () => {
+    await twoPartsThenTeach(0);
     expect(invoke).toHaveBeenLastCalledWith("review_statement", { token: "c", sectionIndex: 0, flip: true, generation: 7 });
+  });
+
+  it("keeps flipping the same part when teaching kept it", async () => {
+    await twoPartsThenTeach(1);
+    expect(invoke).toHaveBeenLastCalledWith("review_statement", { token: "c", sectionIndex: 1, flip: true, generation: 7 });
+  });
+
+  it("follows the part a read opens straight into", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ token: "t", sections: [], review: sampleReview({ token: "t", section_index: 1 }) });
+    await act(async () => hook.start("2026-08-01", "2026-08-31"));
+    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "u", section_index: 1 }));
+    await act(async () => hook.setFlip(true));
+    expect(invoke).toHaveBeenLastCalledWith("review_statement", { token: "t", sectionIndex: 1, flip: true, generation: 7 });
   });
 
   it("forgets a read that came back malformed so a later finish can't use it", async () => {

@@ -148,6 +148,8 @@ pub struct StatementReviewDto {
     pub recognized_but_failed: bool,
     pub learnable: bool,
     pub section_name: String,
+    /// Which part of the statement this review shows (0 when it has only one).
+    pub section_index: usize,
     pub period_start: String,
     pub period_end: String,
     pub starting_balance: Option<String>,
@@ -610,6 +612,7 @@ fn build_review(state: &AppState, session: &Session) -> Result<StatementReviewDt
         recognized_but_failed: session.recognized_but_failed,
         learnable,
         section_name: section.name.clone(),
+        section_index: session.section,
         period_start: period.start.to_string(),
         period_end: period.end.to_string(),
         starting_balance: section.starting_balance.map(|d| d.to_string()),

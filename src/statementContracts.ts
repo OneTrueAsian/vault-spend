@@ -35,6 +35,8 @@ export type StatementReview = {
   recognized_but_failed: boolean;
   learnable: boolean;
   section_name: string;
+  /** Which part of the statement this review shows (0 when it has only one). */
+  section_index: number;
   period_start: string;
   period_end: string;
   starting_balance: string | null;
@@ -110,6 +112,7 @@ const reviewCheck = object({
   recognized_but_failed: boolean,
   learnable: boolean,
   section_name: string,
+  section_index: integer,
   period_start: date,
   period_end: date,
   starting_balance: nullable(money),

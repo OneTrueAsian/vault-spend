@@ -10,6 +10,7 @@ export function sampleReview(overrides: Partial<StatementReview> = {}): Statemen
     recognized_but_failed: false,
     learnable: true,
     section_name: "Statement",
+    section_index: 0,
     period_start: "2026-07-22",
     period_end: "2026-08-21",
     starting_balance: "43.08",

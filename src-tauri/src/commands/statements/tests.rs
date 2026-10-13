@@ -209,6 +209,7 @@ fn several_sections_are_offered_for_choosing_first() {
     let review = review_statement_for(&mut state, &sessions, 1, &read.token, 1, false).unwrap();
     assert_eq!(review.rows.len(), 5);
     assert_eq!(review.activity_check.outcome, "passed");
+    assert_eq!(review.section_index, 1, "the review says which part of the statement it shows");
     assert_ne!(review.token, read.token, "each step renews the review with a new token");
     assert_eq!(
         review_statement_for(&mut state, &sessions, 1, &read.token, 0, false).err().unwrap(),
@@ -287,6 +288,38 @@ fn every_row_needs_exactly_one_decision() {
 }
 
 #[test]
+fn teaching_keeps_the_part_being_shown_when_the_taught_statement_still_has_it() {
+    let (mut state, dir) = profile("teach-section");
+    let sessions = Sessions::default();
+    let checking = state.store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+    let (path, start, end) = write_fixture(&dir, "credit-union");
+    let read = read(&mut state, &sessions, &path, checking, &start, &end).unwrap();
+    let second = review_statement_for(&mut state, &sessions, 1, &read.token, 1, false).unwrap();
+    assert_eq!(second.section_index, 1);
+    let lines = statement_lines_for(&sessions, 1, &second.token).unwrap();
+    let marks = TeachMarks {
+        rows: vec![RowMark {
+            date: text_ref(&lines, "Aug 07", "Aug"),
+            amount: text_ref(&lines, "$65.00 $209.21", "$65.00"),
+        }],
+        balances: None,
+        holdings: vec![],
+    };
+    let taught = teach_statement_layout_for(&mut state, &sessions, 1, &second.token, marks).unwrap();
+    let shown = sections_of_taught_len(&sessions, &taught.token);
+    assert_eq!(
+        (shown, taught.section_index),
+        (2, 1),
+        "the taught layout still has that part, so the review keeps showing it"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+fn sections_of_taught_len(sessions: &Sessions, token: &str) -> usize {
+    sessions.with(token, 1, |s| Ok(sections_of(s).len())).unwrap()
+}
+
+#[test]
 fn teaching_an_unknown_bank_then_recognising_it_next_month() {
     let (mut state, dir) = profile("teach");
     let sessions = Sessions::default();
@@ -307,10 +340,18 @@ fn teaching_an_unknown_bank_then_recognising_it_next_month() {
         }),
         holdings: vec![],
     };
+    // A part that the taught reading no longer has: the review starts again at the first part.
+    sessions
+        .with(&first.token, 1, |s| {
+            s.section = 3;
+            Ok(())
+        })
+        .unwrap();
     let taught = teach_statement_layout_for(&mut state, &sessions, 1, &first.token, marks).unwrap();
     assert_eq!(taught.activity_check.outcome, "passed");
     assert!(taught.learnable);
     assert_ne!(taught.token, first.token, "teaching renews the review with a new token");
+    assert_eq!(taught.section_index, 0);
     assert_eq!(statement_lines_for(&sessions, 1, &first.token).err().unwrap(), STALE);
     finish_statement_reconciliation_for(
         &mut state,

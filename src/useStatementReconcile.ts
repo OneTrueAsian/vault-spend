@@ -100,7 +100,7 @@ export function useStatementReconcile(accountId: number) {
         }
         const read = checked(validateStatementRead, raw);
         flip.current = false;
-        section.current = 0;
+        section.current = read.review ? read.review.section_index : 0;
         attempts.current = 0;
         // A review that comes with the read carries the token to use from here on.
         token.current = read.review ? read.review.token : read.token;
@@ -118,7 +118,7 @@ export function useStatementReconcile(accountId: number) {
       }
       const r = checked(validateStatementReview, raw);
       token.current = r.token;
-      section.current = sectionIndex;
+      section.current = r.section_index;
       flip.current = flipped;
       setPhase({ kind: "review", review: r });
     },
@@ -150,8 +150,9 @@ export function useStatementReconcile(accountId: number) {
         }
         const r = checked(validateStatementReview, raw);
         token.current = r.token;
-        // The taught layout can have fewer parts than before, so the app starts again at the first.
-        section.current = 0;
+        // The app says which part it is showing now (it starts again at the first if the taught
+        // reading has fewer parts than before).
+        section.current = r.section_index;
         const stillFailing = r.activity_check.outcome === "failed" || r.holdings_check.outcome === "failed";
         if (stillFailing) attempts.current += 1;
         setPhase(stillFailing ? { kind: "teach", review: r, lines: phase.lines, attempts: attempts.current } : { kind: "review", review: r });

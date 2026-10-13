@@ -33,7 +33,7 @@ describe("statement contracts", () => {
     expect(() => validateStatementReview(missing)).toThrow(UNEXPECTED);
   });
   it("refuses a review with a missing token, bad kind, bad source or bad date", () => {
-    for (const change of [{ token: 5 }, { account_kind: "savings" }, { source: "email" }, { period_end: "2026-02-30" }, { running_balance_breaks: -1 }]) {
+    for (const change of [{ token: 5 }, { account_kind: "savings" }, { source: "email" }, { period_end: "2026-02-30" }, { running_balance_breaks: -1 }, { section_index: -1 }, { section_index: "0" }]) {
       expect(() => validateStatementReview({ ...sampleReview(), ...change })).toThrow(UNEXPECTED);
     }
   });
@@ -43,6 +43,12 @@ describe("statement contracts", () => {
     expect(() => validateStatementReview(row)).toThrow(UNEXPECTED);
     expect(() => validateStatementReview(sampleReview({ ending_balance: "1.23456" }))).toThrow(UNEXPECTED);
     expect(validateStatementReview(sampleReview({ ending_balance: "1.2345" })).ending_balance).toBe("1.2345");
+  });
+  it("requires the review to say which part of the statement it shows", () => {
+    expect(validateStatementReview(sampleReview({ section_index: 1 })).section_index).toBe(1);
+    const missing = sampleReview();
+    delete (missing as { section_index?: unknown }).section_index;
+    expect(() => validateStatementReview(missing)).toThrow(UNEXPECTED);
   });
   it("accepts holdings with every status and refuses an unknown one", () => {
     const holding = { symbol: "VTI", name: "Total Market", statement_shares: "10", price: null, market_value: "2500.00", app_holding_id: null, app_shares: null, status: "missing_in_app" };
