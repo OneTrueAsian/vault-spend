@@ -1,5 +1,5 @@
 { "schema": 1, "id": "credit-union", "name": "Credit union", "recognize": ["Share Account ID"],
   "dates": { "formats": ["mon_dd"], "second_date": true },
   "amounts": { "negatives": ["parentheses"], "currency": "optional", "thousands": "comma", "decimal": "period" },
-  "rows": { "amount": "first", "running_balance": true },
+  "rows": { "amount": "first", "running_balance": true, "principal_column": 1 },
   "balances": { "pairs": [{ "start": "Beginning Balance", "end": "Ending Balance" }], "section_start": ["Share Account ID", "Loan Account ID"] } }

@@ -2,4 +2,5 @@
   "dates": { "formats": ["mm_dd_yy"], "ignore_markers": ["*"] },
   "amounts": { "negatives": ["leading_minus"], "currency": "optional", "thousands": "comma", "decimal": "period" },
   "rows": { "amount": "first" },
-  "balances": { "pairs": [{ "start": "Previous Balance", "end": "New Balance" }] } }
+  "balances": { "amount_before_label": true, "pairs": [{ "start": "Previous Balance", "end": "New Balance" }],
+    "period_totals": [{ "label": "Total Fees for this Period", "description": "Fees" }, { "label": "Total Interest Charged for this Period", "description": "Interest charged" }] } }

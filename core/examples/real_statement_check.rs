@@ -4,7 +4,7 @@
 //! Periods come from `<folder>\periods.txt` (kept next to the statements, outside the repo), one line per
 //! file: `file name|YYYY-MM-DD|YYYY-MM-DD|kind` where kind is cash, credit, loan or investment.
 //!
-//! cargo run -p budget_core --release --example real_statement_check -- "E:\misc\Programming\Claude\Statements" [--no-builtins] [--show-unread] [--only LAYOUT_ID] [--window N A B] [--shape N] [--rows N]
+//! cargo run -p budget_core --release --example real_statement_check -- "E:\misc\Programming\Claude\Statements" [--no-builtins] [--show-unread] [--only LAYOUT_ID] [--window N A B] [--shape N] [--rows N] [--holdings N]
 //!
 //! Privacy-preserving diagnostics for tuning a layout (N is the 0-based position in periods.txt):
 //!   --window N A B  prints statement lines A..B of file N with only generic statement words shown (every
@@ -12,6 +12,7 @@
 //!               without seeing names, merchants or amounts. Line numbers match `unread line` numbers.
 //!   --shape N     prints each unread line of file N with letters shown as a/A and digits as 9.
 //!   --rows N      prints each row of file N: day offset, sign and size of the amount, masked description.
+//!   --holdings N  prints each holding of file N: line, digit counts of shares and value, masked name.
 
 use budget_core::statement::Period;
 use budget_core::statement::checks::{CheckOutcome, check_section};
@@ -314,8 +315,25 @@ fn holdings_hints(section: &budget_core::statement::StatementSection) -> String 
     if passes(&twice) {
         hints.push("counting the cash line twice".to_string());
     }
+    let off = match check_section(section).holdings {
+        CheckOutcome::Failed { expected, found } => {
+            let d = expected - found;
+            let hit = section
+                .holdings
+                .iter()
+                .position(|h| h.market_value == d.abs())
+                .map(|i| format!(", equals holding {i}"))
+                .unwrap_or_default();
+            format!(
+                " off by {}{}.dd{hit};",
+                if d.is_sign_negative() { "-" } else { "+" },
+                "9".repeat(d.abs().trunc().to_string().len())
+            )
+        }
+        _ => String::new(),
+    };
     format!(
-        "holdings read={} cash_line={} total_line={}; {}",
+        "holdings read={} cash_line={} total_line={};{off} {}",
         section.holdings.len(),
         yn(section.holdings_cash.is_some()),
         yn(section.holdings_total.is_some()),
@@ -351,6 +369,7 @@ fn main() {
     });
     let shape_for = index_arg(&args, "--shape");
     let rows_for = index_arg(&args, "--rows");
+    let holdings_for = index_arg(&args, "--holdings");
     let periods = std::fs::read_to_string(folder.join("periods.txt")).expect("periods.txt next to the statements");
     let builtins: Vec<_> = built_in_layouts()
         .into_iter()
@@ -421,6 +440,25 @@ fn main() {
                         "9".repeat(r.amount.abs().trunc().to_string().len()),
                         r.running_balance.map(|_| " (running balance)").unwrap_or_default(),
                         vocab_line(&r.description)
+                    );
+                }
+            }
+            if holdings_for == Some(n) {
+                for h in &s.holdings {
+                    println!(
+                        "    holding @{:>4} price~{}d {}| shares {}.d value {}.dd | {}",
+                        h.line,
+                        if h.shares.is_zero() {
+                            0
+                        } else {
+                            (h.market_value / h.shares).abs().trunc().to_string().len()
+                        },
+                        h.price
+                            .map(|p| format!("printed {}d ", p.abs().trunc().to_string().len()))
+                            .unwrap_or_default(),
+                        "9".repeat(h.shares.abs().trunc().to_string().len()),
+                        "9".repeat(h.market_value.abs().trunc().to_string().len()),
+                        vocab_line(&h.name)
                     );
                 }
             }

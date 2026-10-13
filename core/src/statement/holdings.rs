@@ -4,6 +4,7 @@
 
 use super::layout::{AmountRules, HoldingField, HoldingRules};
 use super::model::StatementHolding;
+use super::text::contains_phrase;
 use super::tokens::{money_token, parse_number_token};
 use rust_decimal::Decimal;
 
@@ -20,28 +21,36 @@ struct Pending {
     next: usize,
     shares: Option<Decimal>,
     price: Option<Decimal>,
+    /// Every money amount seen after the quantity, in the order printed. When the price is printed after
+    /// the market value, the market value is the amount that equals quantity times price.
+    monies: Vec<Decimal>,
 }
 
 pub struct HoldingsReader<'l> {
     rules: &'l HoldingRules,
     amounts: &'l AmountRules,
     numeric: Vec<HoldingField>,
+    /// The price is printed after the market value, so an entry stays open until its price is read.
+    price_after_value: bool,
     pending: Option<Pending>,
     done: Vec<StatementHolding>,
 }
 
 impl<'l> HoldingsReader<'l> {
     pub fn new(rules: &'l HoldingRules, amounts: &'l AmountRules) -> Self {
-        let numeric = rules
+        let numeric: Vec<HoldingField> = rules
             .order
             .iter()
             .copied()
             .filter(|f| matches!(f, HoldingField::Quantity | HoldingField::Price | HoldingField::MarketValue))
             .collect();
+        let at = |f: HoldingField| numeric.iter().position(|x| *x == f);
+        let price_after_value = matches!((at(HoldingField::MarketValue), at(HoldingField::Price)), (Some(v), Some(p)) if v < p);
         HoldingsReader {
             rules,
             amounts,
             numeric,
+            price_after_value,
             pending: None,
             done: Vec::new(),
         }
@@ -49,11 +58,24 @@ impl<'l> HoldingsReader<'l> {
 
     pub fn push_line(&mut self, index: usize, text: &str) {
         let text = text.trim();
-        if text.is_empty() || text.to_ascii_lowercase().starts_with("total") {
+        if text.is_empty() {
             return;
         }
+        // A column heading or a subtotal ends the table above it: an entry already holding its amounts is
+        // kept, and a description's leftover word is not a new holding.
+        let lower = text.to_ascii_lowercase();
+        if self.rules.headers.iter().any(|h| contains_phrase(text, h)) || lower.starts_with("total") {
+            self.close_pending();
+            return;
+        }
+        let words: Vec<&str> = text.split_whitespace().collect();
+        // While an entry waits for its price, a line starting with a ticker and holding more than one word
+        // is the next entry; a lone word is the rest of a description.
+        if self.pending.as_ref().is_some_and(|p| self.waiting_for_price(p)) && words.len() > 1 && is_ticker(words[0]) {
+            self.close_pending();
+        }
         if self.pending.is_none() {
-            let Some(first) = text.split_whitespace().next() else { return };
+            let Some(first) = words.first() else { return };
             if !is_ticker(first) {
                 return;
             }
@@ -64,12 +86,47 @@ impl<'l> HoldingsReader<'l> {
                 next: 0,
                 shares: None,
                 price: None,
+                monies: Vec::new(),
             });
             let rest = text[first.len()..].to_string();
             self.consume(&rest);
             return;
         }
         self.consume(text);
+    }
+
+    fn waiting_for_price(&self, p: &Pending) -> bool {
+        self.price_after_value && !p.monies.is_empty() && p.price.is_none()
+    }
+
+    /// Ends the entry being read: kept when it already has a quantity and a market value, else dropped.
+    fn close_pending(&mut self) {
+        if let Some(p) = self.pending.take() {
+            self.complete(p);
+        }
+    }
+
+    fn complete(&mut self, p: Pending) {
+        let Some(shares) = p.shares else { return };
+        let Some(first) = p.monies.first().copied() else { return };
+        let value = match p.price {
+            Some(price) => p
+                .monies
+                .iter()
+                .copied()
+                .min_by_key(|m| (*m - shares * price).abs())
+                .filter(|m| (*m - shares * price).abs() <= (shares * price).abs() / Decimal::from(100))
+                .unwrap_or(first),
+            None => first,
+        };
+        self.done.push(StatementHolding {
+            line: p.line,
+            symbol: p.symbol,
+            name: p.name.join(" "),
+            shares,
+            price: p.price,
+            market_value: value,
+        });
     }
 
     fn consume(&mut self, text: &str) {
@@ -87,22 +144,30 @@ impl<'l> HoldingsReader<'l> {
                     if let Some(v) = parse_number_token(tok, self.amounts, self.rules.price_decimals) {
                         p.price = Some(v);
                         p.next += 1;
+                        if self.price_after_value && !p.monies.is_empty() {
+                            let done = self.pending.take().expect("checked above");
+                            self.complete(done);
+                            return;
+                        }
+                        continue;
+                    }
+                    if self.price_after_value
+                        && !p.monies.is_empty()
+                        && let Some((v, _)) = money_token(tok, self.amounts)
+                    {
+                        p.monies.push(v);
                         continue;
                     }
                 }
                 Some(HoldingField::MarketValue) => {
                     if let Some((v, _)) = money_token(tok, self.amounts) {
-                        let p = self.pending.take().expect("checked above");
-                        if let Some(shares) = p.shares {
-                            self.done.push(StatementHolding {
-                                line: p.line,
-                                symbol: p.symbol,
-                                name: p.name.join(" "),
-                                shares,
-                                price: p.price,
-                                market_value: v,
-                            });
+                        p.monies.push(v);
+                        if self.price_after_value {
+                            p.next += 1;
+                            continue;
                         }
+                        let done = self.pending.take().expect("checked above");
+                        self.complete(done);
                         return;
                     }
                 }
@@ -114,7 +179,8 @@ impl<'l> HoldingsReader<'l> {
         }
     }
 
-    pub fn finish(self) -> Vec<StatementHolding> {
+    pub fn finish(mut self) -> Vec<StatementHolding> {
+        self.close_pending();
         self.done
     }
 }
@@ -148,6 +214,31 @@ mod tests {
         );
         assert_eq!(s.holdings_cash, Some(dec!(1936.81)));
         assert_eq!(s.holdings_total, Some(dec!(21295.70)));
+    }
+
+    #[test]
+    fn a_leftover_word_before_a_subtotal_is_not_a_holding_and_prose_after_it_adds_nothing() {
+        let lpl = built_in_layouts().into_iter().find(|l| l.id == "lpl").unwrap();
+        let (rules, amounts) = (lpl.holdings.unwrap(), lpl.amounts);
+        assert!(rules.headers.iter().any(|h| h == "Market Value"));
+        let mut reader = HoldingsReader::new(&rules, &amounts);
+        for (i, line) in [
+            "ABCD ALPHA 10.000 $500.00 $50.0000 1.00%",
+            "FUND",
+            "$1.0000 2.00%",
+            "Total $500.00 $1.00",
+            "NOTE Dividends are paid in cash.",
+            "Description Price Market Value",
+            "5.000 $60.00",
+        ]
+        .iter()
+        .enumerate()
+        {
+            reader.push_line(i, line);
+        }
+        let holdings = reader.finish();
+        assert_eq!(holdings.len(), 1);
+        assert_eq!(holdings[0].symbol, "ABCD");
     }
 
     #[test]

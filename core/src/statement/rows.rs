@@ -86,20 +86,25 @@ impl<'l> RowReader<'l> {
             }
             return;
         }
-        let (amount, running_balance) = pick(&money, self.layout);
+        let (amount, running_balance, principal) = pick(&money, self.layout);
         let rest = without_money(text, &money);
         if !rest.is_empty() {
             pending.description.push(rest);
         }
         let pending = self.pending.take().expect("checked above");
-        let amount = if self.layout.rows.reversed { -amount } else { amount };
-        if self.period.contains_with_leeway(pending.date) {
+        let (amount, principal) = if self.layout.rows.reversed {
+            (-amount, principal.map(|p| -p))
+        } else {
+            (amount, principal)
+        };
+        if self.in_period(pending.date) {
             self.rows.push(StatementRow {
                 line: pending.line,
                 date: pending.date,
                 description: pending.description.join(" ").split_whitespace().collect::<Vec<_>>().join(" "),
                 amount,
                 running_balance,
+                principal,
             });
             self.last_row_line = Some(index);
         } else {
@@ -107,10 +112,18 @@ impl<'l> RowReader<'l> {
         }
     }
 
+    fn in_period(&self, date: NaiveDate) -> bool {
+        if self.layout.rows.exact_period {
+            self.period.contains(date)
+        } else {
+            self.period.contains_with_leeway(date)
+        }
+    }
+
     /// Ends any row still waiting for its amount: it couldn't be read.
     pub fn flush(&mut self) {
         if let Some(p) = self.pending.take() {
-            if self.period.contains_with_leeway(p.date) {
+            if self.in_period(p.date) {
                 self.unread.push(UnreadLine {
                     line: p.line,
                     text: p.first_text,
@@ -122,21 +135,18 @@ impl<'l> RowReader<'l> {
     }
 }
 
-fn pick(money: &[Money], layout: &StatementLayout) -> (Decimal, Option<Decimal>) {
-    if layout.rows.running_balance && money.len() >= 2 {
-        let body = &money[..money.len() - 1];
-        let amount = match layout.rows.amount {
-            AmountPosition::First => body[0],
-            AmountPosition::Last => body[body.len() - 1],
-        };
-        (amount.value, Some(money[money.len() - 1].value))
+fn pick(money: &[Money], layout: &StatementLayout) -> (Decimal, Option<Decimal>, Option<Decimal>) {
+    let (body, running_balance) = if layout.rows.running_balance && money.len() >= 2 {
+        (&money[..money.len() - 1], Some(money[money.len() - 1].value))
     } else {
-        let amount = match layout.rows.amount {
-            AmountPosition::First => money[0],
-            AmountPosition::Last => money[money.len() - 1],
-        };
-        (amount.value, None)
-    }
+        (money, None)
+    };
+    let amount = match layout.rows.amount {
+        AmountPosition::First => body[0],
+        AmountPosition::Last => body[body.len() - 1],
+    };
+    let principal = layout.rows.principal_column.and_then(|c| body.get(c as usize)).map(|m| m.value);
+    (amount.value, running_balance, principal)
 }
 
 #[cfg(test)]
@@ -159,6 +169,36 @@ mod tests {
         }
         r.flush();
         r
+    }
+
+    #[test]
+    fn a_loan_line_reads_the_total_as_the_amount_and_the_principal_column_apart_from_it() {
+        let mut l = general();
+        l.dates.formats = vec![crate::statement::layout::DateFormat::MmDd];
+        l.rows.running_balance = true;
+        l.rows.principal_column = Some(1);
+        let r = read(
+            &l,
+            period("2026-08-01", "2026-08-31"),
+            &["08/10 Payment ($120.00) ($100.00) $15.00 $5.00 $900.00"],
+        );
+        assert_eq!(r.rows.len(), 1);
+        assert_eq!(
+            (r.rows[0].amount, r.rows[0].principal, r.rows[0].running_balance),
+            (dec!(-120.00), Some(dec!(-100.00)), Some(dec!(900.00)))
+        );
+    }
+
+    #[test]
+    fn exact_period_drops_rows_a_few_days_outside_but_leeway_keeps_them() {
+        let mut l = general();
+        l.dates.formats = vec![crate::statement::layout::DateFormat::MmDd];
+        let lines = ["09/03 Late sale 4.00"];
+        let p = period("2026-09-05", "2026-09-30");
+        assert_eq!(read(&l, p, &lines).rows.len(), 1);
+        l.rows.exact_period = true;
+        let strict = read(&l, p, &lines);
+        assert_eq!((strict.rows.len(), strict.dropped), (0, 1));
     }
 
     #[test]

@@ -138,6 +138,14 @@ pub struct RowRules {
     /// Money out is printed as a positive number (and money in negative or marked CR).
     #[serde(default)]
     pub reversed: bool,
+    /// A loan statement prints total, principal, interest and fees: which amount on the line (0 = first,
+    /// counting before any running balance) is the principal. Only that part changes the loan balance.
+    #[serde(default)]
+    pub principal_column: Option<u8>,
+    /// Only rows dated inside the statement period count (no few-days leeway). For statements that repeat
+    /// earlier rows and print totals for exactly the period.
+    #[serde(default)]
+    pub exact_period: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -155,6 +163,15 @@ pub struct TotalsPair {
     pub subtractions: String,
 }
 
+/// A charge the statement prints only as a total for the whole period (a card's fees or interest).
+/// It is read as one row dated the last day of the period.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PeriodTotal {
+    pub label: String,
+    pub description: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BalanceRules {
@@ -170,8 +187,14 @@ pub struct BalanceRules {
     /// with other text). The amount must follow the label directly, with no words in between.
     #[serde(default)]
     pub labels_anywhere: bool,
+    /// A summary prints each amount on the line just before its label (the label stands alone).
+    #[serde(default)]
+    pub amount_before_label: bool,
     #[serde(default)]
     pub activity_totals: Vec<TotalsPair>,
+    /// Charges printed only as a period total; each becomes one row.
+    #[serde(default)]
+    pub period_totals: Vec<PeriodTotal>,
     /// An investment account's total value (reference only).
     #[serde(default)]
     pub value: Option<BalancePair>,
@@ -198,6 +221,9 @@ pub struct HoldingRules {
     /// Cash lines whose amount is part of the total holdings value.
     #[serde(default)]
     pub cash: Vec<String>,
+    /// Column-heading lines repeated above each table. One ends any entry still being read.
+    #[serde(default)]
+    pub headers: Vec<String>,
 }
 
 /// Reverses the default statement → app sign conversion for an account kind.
@@ -308,6 +334,16 @@ impl StatementLayout {
             phrase(&totals.additions)?;
             phrase(&totals.subtractions)?;
         }
+        if self.balances.period_totals.len() > MAX_LIST {
+            return Err(Invalid("A statement setting has too many labels."));
+        }
+        for total in &self.balances.period_totals {
+            phrase(&total.label)?;
+            phrase(&total.description)?;
+        }
+        if self.rows.principal_column.is_some_and(|c| c > 5) {
+            return Err(Invalid("A statement setting reads a column that doesn't exist."));
+        }
         if self.balances.summary_column > 5 {
             return Err(Invalid("A statement setting reads a column that doesn't exist."));
         }
@@ -333,6 +369,7 @@ impl StatementLayout {
             phrases(&h.heading)?;
             phrases(&h.total)?;
             phrases(&h.cash)?;
+            phrases(&h.headers)?;
             let count = |f: HoldingField| h.order.iter().filter(|x| **x == f).count();
             let required_once = [HoldingField::Symbol, HoldingField::Quantity, HoldingField::MarketValue]
                 .into_iter()

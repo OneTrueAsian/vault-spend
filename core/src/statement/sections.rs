@@ -3,10 +3,11 @@
 
 use super::holdings::HoldingsReader;
 use super::layout::StatementLayout;
-use super::model::{Period, StatementLine, StatementSection};
+use super::model::{Period, StatementLine, StatementRow, StatementSection};
 use super::rows::RowReader;
 use super::text::{contains_label, contains_phrase, is_label_only, label_end, starts_with_label};
 use super::tokens::{find_money, leading_date};
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
 const LOOKAHEAD_LINES: usize = 3;
@@ -24,6 +25,11 @@ pub(crate) fn label_amount(lines: &[StatementLine], i: usize, label: &str, layou
     if !money.is_empty() {
         let column = (layout.balances.summary_column as usize).min(money.len() - 1);
         return Some(money[column].value);
+    }
+    if is_label_only(body, label) && layout.balances.amount_before_label {
+        let money = find_money(&lines.get(i.checked_sub(1)?)?.text, &layout.amounts);
+        let column = (layout.balances.summary_column as usize).min(money.len().saturating_sub(1));
+        return money.get(column).map(|m| m.value);
     }
     if is_label_only(body, label) {
         for next in lines.iter().skip(i + 1).take(LOOKAHEAD_LINES) {
@@ -52,6 +58,9 @@ struct SectionBuilder<'l> {
     section: StatementSection,
     rows: RowReader<'l>,
     holdings: Option<HoldingsReader<'l>>,
+    /// Rows for charges the statement prints only as a period total.
+    total_rows: Vec<StatementRow>,
+    period_end: NaiveDate,
 }
 
 impl<'l> SectionBuilder<'l> {
@@ -63,6 +72,8 @@ impl<'l> SectionBuilder<'l> {
                 ..Default::default()
             },
             rows: RowReader::new(layout, period),
+            total_rows: Vec::new(),
+            period_end: period.end,
             holdings: layout.holdings.as_ref().map(|h| HoldingsReader::new(h, &layout.amounts)),
         }
     }
@@ -70,6 +81,7 @@ impl<'l> SectionBuilder<'l> {
     fn finish(mut self) -> StatementSection {
         self.rows.flush();
         self.section.rows = self.rows.rows;
+        self.section.rows.append(&mut self.total_rows);
         self.section.unread = self.rows.unread;
         self.section.dropped_out_of_period = self.rows.dropped;
         if let Some(h) = self.holdings {
@@ -92,6 +104,21 @@ impl<'l> SectionBuilder<'l> {
             if let Some(v) = label_amount(lines, i, &pair.end, layout, period) {
                 s.ending_balance.get_or_insert(v);
                 hit = true;
+            }
+        }
+        for total in &layout.balances.period_totals {
+            if let Some(v) = label_amount(lines, i, &total.label, layout, period) {
+                hit = true;
+                if !v.is_zero() && !self.total_rows.iter().any(|r| r.line == i) {
+                    self.total_rows.push(StatementRow {
+                        line: i,
+                        date: self.period_end,
+                        description: total.description.clone(),
+                        amount: v,
+                        running_balance: None,
+                        principal: None,
+                    });
+                }
             }
         }
         for totals in &layout.balances.activity_totals {
@@ -213,6 +240,71 @@ mod tests {
 
     fn layout(id: &str) -> StatementLayout {
         built_in_layouts().into_iter().find(|l| l.id == id).unwrap()
+    }
+
+    #[test]
+    fn a_summary_that_prints_each_amount_before_its_label_reads_the_line_above() {
+        let lines: Vec<StatementLine> = [
+            "$100.00",
+            "Previous Balance",
+            "-$100.00",
+            "Payments and Credits",
+            "+$12.50",
+            "New Charges",
+            "$12.50",
+            "New Balance",
+        ]
+        .iter()
+        .map(|t| StatementLine {
+            page: 0,
+            text: t.to_string(),
+        })
+        .collect();
+        let period = Period::new(
+            NaiveDate::from_ymd_opt(2026, 8, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 8, 31).unwrap(),
+        )
+        .unwrap();
+        let mut l = layout("amex");
+        l.balances.amount_before_label = true;
+        let s = &read_statement(&lines, &l, &period)[0];
+        assert_eq!((s.starting_balance, s.ending_balance), (Some(dec!(100.00)), Some(dec!(12.50))));
+    }
+
+    #[test]
+    fn charges_printed_only_as_period_totals_become_rows_dated_the_last_day() {
+        let lines: Vec<StatementLine> = [
+            "Previous Balance $100.00",
+            "New Balance $112.50",
+            "Total Fees for this Period $9.00",
+            "Total Interest Charged for this Period $3.50",
+        ]
+        .iter()
+        .map(|t| StatementLine {
+            page: 0,
+            text: t.to_string(),
+        })
+        .collect();
+        let period = Period::new(
+            NaiveDate::from_ymd_opt(2026, 8, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 8, 31).unwrap(),
+        )
+        .unwrap();
+        let sections = read_statement(&lines, &layout("amex"), &period);
+        assert_eq!(sections[0].rows.len(), 2);
+        assert_eq!((sections[0].rows[0].amount, sections[0].rows[0].date), (dec!(9.00), period.end));
+        assert_eq!(sections[0].rows[1].description, "Interest charged");
+        let zero: Vec<StatementLine> = ["Total Fees for this Period $0.00"]
+            .iter()
+            .map(|t| StatementLine {
+                page: 0,
+                text: t.to_string(),
+            })
+            .collect();
+        assert!(
+            read_statement(&zero, &layout("amex"), &period)[0].rows.is_empty(),
+            "a zero total adds no row"
+        );
     }
 
     #[test]

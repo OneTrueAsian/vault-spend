@@ -233,6 +233,7 @@ pub fn from_marks(base: &StatementLayout, lines: &[StatementLine], marks: &Teach
             price_decimals: 0,
             total: vec![],
             cash: vec![],
+            headers: vec![],
         });
         if !rules.heading.contains(&heading) {
             rules.heading.insert(0, heading);

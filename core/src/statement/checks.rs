@@ -47,7 +47,8 @@ impl SectionChecks {
 }
 
 pub fn check_section(s: &StatementSection) -> SectionChecks {
-    let sum: Decimal = s.rows.iter().map(|r| r.amount).sum();
+    let effect = |r: &super::model::StatementRow| r.principal.unwrap_or(r.amount);
+    let sum: Decimal = s.rows.iter().map(effect).sum();
     let activity = match (s.activity_totals, s.starting_balance, s.ending_balance) {
         (Some((additions, subtractions)), _, _) => CheckOutcome::compare(additions + subtractions, sum),
         (None, Some(start), Some(end)) => CheckOutcome::compare(end, start + sum),
@@ -69,10 +70,13 @@ pub fn check_section(s: &StatementSection) -> SectionChecks {
     let mut previous = s.starting_balance;
     for row in &s.rows {
         if let Some(balance) = row.running_balance {
-            if previous.is_some_and(|p| p + row.amount != balance) {
+            if previous.is_some_and(|p| p + effect(row) != balance) {
                 breaks.push(row.line);
             }
             previous = Some(balance);
+        } else {
+            // A row printed without a balance still moves the balance for the next row that has one.
+            previous = previous.map(|p| p + effect(row));
         }
     }
     SectionChecks {
@@ -137,6 +141,49 @@ mod tests {
                 found: dec!(0)
             }
         );
+    }
+
+    fn row(line: usize, amount: Decimal, balance: Option<Decimal>, principal: Option<Decimal>) -> crate::statement::StatementRow {
+        crate::statement::StatementRow {
+            line,
+            date: "2026-08-10".parse().unwrap(),
+            description: String::new(),
+            amount,
+            running_balance: balance,
+            principal,
+        }
+    }
+
+    #[test]
+    fn a_row_without_a_printed_balance_still_moves_the_balance_for_the_next() {
+        use rust_decimal_macros::dec;
+        let s = StatementSection {
+            starting_balance: Some(dec!(100)),
+            ending_balance: Some(dec!(130)),
+            rows: vec![
+                row(1, dec!(10), Some(dec!(110)), None),
+                row(2, dec!(5), None, None),
+                row(3, dec!(15), Some(dec!(130)), None),
+            ],
+            ..Default::default()
+        };
+        let c = check_section(&s);
+        assert!(c.running_balance_breaks.is_empty());
+        assert_eq!(c.activity, CheckOutcome::Passed);
+    }
+
+    #[test]
+    fn a_loan_payment_changes_the_balance_by_its_principal_part_only() {
+        use rust_decimal_macros::dec;
+        let s = StatementSection {
+            starting_balance: Some(dec!(1000)),
+            ending_balance: Some(dec!(900)),
+            rows: vec![row(1, dec!(-120), Some(dec!(900)), Some(dec!(-100)))],
+            ..Default::default()
+        };
+        let c = check_section(&s);
+        assert_eq!(c.activity, CheckOutcome::Passed);
+        assert!(c.running_balance_breaks.is_empty());
     }
 
     #[test]

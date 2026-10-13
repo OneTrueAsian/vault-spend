@@ -55,6 +55,9 @@ pub struct StatementRow {
     pub description: String,
     pub amount: Decimal,
     pub running_balance: Option<Decimal>,
+    /// A loan payment's part that changes the loan balance (the statement prints total, principal,
+    /// interest and fees). The balance checks use it in place of `amount`.
+    pub principal: Option<Decimal>,
 }
 
 /// Text that looked like a transaction (it starts with a date) but had no amount.
