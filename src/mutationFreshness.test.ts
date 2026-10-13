@@ -30,7 +30,7 @@ const refreshesSharedSnapshot = new Set([
   "set_account_excluded_from_debt_payoff", "set_account_icon", "set_account_interest_rate",
   "set_account_starting_balance", "update_account_type", "set_auto_link_transfers", "save_rule", "delete_rule",
   "dismiss_anomaly_flag", "dismiss_transfer_candidates", "restore_transfer_candidates", "mark_auto_links_reviewed",
-  "finish_reconciliation", "set_transactions_cleared",
+  "finish_reconciliation", "finish_statement_reconciliation", "set_transactions_cleared",
 ]);
 /** Writes that only change how a screen is offered or a reminder is remembered. Nothing computed
  *  from the financial data reads them. */
