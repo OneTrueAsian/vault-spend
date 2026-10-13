@@ -107,4 +107,95 @@ describe("useStatementReconcile", () => {
     expect(invoke).not.toHaveBeenCalled();
     expect(hook.phase.kind).toBe("idle");
   });
+
+  const decisions = { matches: [], add: [], skip: [], startingBalance: null, endingBalance: null, holdings: [], finishWithoutHoldings: false, ignoreUnread: false, saveLayout: null };
+  const cancelCalls = () => vi.mocked(invoke).mock.calls.filter((c) => c[0] === "cancel_statement_review");
+
+  async function startReview(token = "tok") {
+    vi.mocked(invoke).mockResolvedValueOnce({ token, sections: [], review: sampleReview({ token }) });
+    await act(async () => hook.start("2026-08-01", "2026-08-31"));
+  }
+
+  it("ignores the answer of a read that finishes after cancel, and forgets that review", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    vi.mocked(invoke).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    let pending: Promise<void> = Promise.resolve();
+    await act(async () => {
+      pending = hook.start("2026-08-01", "2026-08-31") as Promise<void>;
+    });
+    await act(async () => hook.cancel());
+    await act(async () => {
+      resolve({ token: "late", sections: [], review: sampleReview({ token: "late" }) });
+      await pending;
+    });
+    expect(hook.phase.kind).toBe("idle");
+    expect(hook.busy).toBe(false);
+    expect(cancelCalls()).toEqual([["cancel_statement_review", { token: "late", generation: 7 }]]);
+  });
+
+  it("sends one request for a double click", async () => {
+    await startReview();
+    let resolve: (v: unknown) => void = () => {};
+    vi.mocked(invoke).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    await act(async () => {
+      void hook.setFlip(true);
+      void hook.setFlip(true);
+    });
+    expect(vi.mocked(invoke).mock.calls.filter((c) => c[0] === "review_statement")).toHaveLength(1);
+    await act(async () => resolve(sampleReview({ token: "t2" })));
+    expect(hook.busy).toBe(false);
+  });
+
+  it("does not tell the app to forget a review that was already finished", async () => {
+    await startReview();
+    vi.mocked(invoke).mockResolvedValueOnce({ reconciliation_id: 1, added: 0, layout_saved: null });
+    await act(async () => hook.finish(decisions));
+    await act(async () => hook.cancel());
+    expect(cancelCalls()).toHaveLength(0);
+    expect(hook.phase.kind).toBe("idle");
+  });
+
+  it("forgets the open review when the screen goes away", async () => {
+    await startReview("t9");
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    await act(async () => root.unmount());
+    expect(cancelCalls()).toEqual([["cancel_statement_review", { token: "t9", generation: 7 }]]);
+    root = createRoot(document.createElement("div"));
+  });
+
+  it("starts again from the first part after teaching", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ token: "a", sections: [{ index: 0, name: "A", row_count: 1, holding_count: 0 }, { index: 1, name: "B", row_count: 1, holding_count: 0 }], review: null });
+    await act(async () => hook.start("2026-08-01", "2026-08-31"));
+    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "b", activity_check: failing }));
+    await act(async () => hook.chooseSection(1));
+    vi.mocked(invoke).mockResolvedValueOnce([]);
+    await act(async () => hook.openTeach());
+    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "c" }));
+    await act(async () => hook.teach({ rows: [], balances: null, holdings: [] }));
+    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "d" }));
+    await act(async () => hook.setFlip(true));
+    expect(invoke).toHaveBeenLastCalledWith("review_statement", { token: "c", sectionIndex: 0, flip: true, generation: 7 });
+  });
+
+  it("forgets a read that came back malformed so a later finish can't use it", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ token: "bad", sections: [], review: { token: "bad" } });
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+    await act(async () => hook.start("2026-08-01", "2026-08-31"));
+    expect(cancelCalls()).toEqual([["cancel_statement_review", { token: "bad", generation: 7 }]]);
+    vi.mocked(invoke).mockClear();
+    await act(async () => hook.cancel());
+    expect(cancelCalls()).toHaveLength(0);
+  });
+
+  it("keeps the teaching attempt count when going back to the review and teaching again", async () => {
+    await startReview();
+    vi.mocked(invoke).mockResolvedValueOnce([]);
+    await act(async () => hook.openTeach());
+    vi.mocked(invoke).mockResolvedValueOnce(sampleReview({ token: "t2", activity_check: failing }));
+    await act(async () => hook.teach({ rows: [], balances: null, holdings: [] }));
+    await act(async () => hook.backToReview());
+    vi.mocked(invoke).mockResolvedValueOnce([]);
+    await act(async () => hook.openTeach());
+    expect(hook.phase.kind === "teach" && hook.phase.attempts).toBe(1);
+  });
 });

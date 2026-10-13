@@ -37,6 +37,13 @@ describe("statement contracts", () => {
       expect(() => validateStatementReview({ ...sampleReview(), ...change })).toThrow(UNEXPECTED);
     }
   });
+  it("refuses money with more than four decimal places, so the screen's arithmetic can't fail", () => {
+    const row = sampleReview();
+    row.rows[0].amount = "7.40001";
+    expect(() => validateStatementReview(row)).toThrow(UNEXPECTED);
+    expect(() => validateStatementReview(sampleReview({ ending_balance: "1.23456" }))).toThrow(UNEXPECTED);
+    expect(validateStatementReview(sampleReview({ ending_balance: "1.2345" })).ending_balance).toBe("1.2345");
+  });
   it("accepts holdings with every status and refuses an unknown one", () => {
     const holding = { symbol: "VTI", name: "Total Market", statement_shares: "10", price: null, market_value: "2500.00", app_holding_id: null, app_shares: null, status: "missing_in_app" };
     expect(validateStatementReview(sampleReview({ holdings: [holding as never] })).holdings).toHaveLength(1);

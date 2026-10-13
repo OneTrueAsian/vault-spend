@@ -98,7 +98,9 @@ const oneOf =
   (v) =>
     typeof v === "string" && values.includes(v);
 const ids = array(id);
-const check = object({ outcome: oneOf("passed", "failed", "not_available"), expected: nullable(decimal), found: nullable(decimal) });
+/** Money the screen adds up exactly: at most four decimal places, which is what `toUnits` can hold. */
+const money: Check = (v) => decimal(v) && ((v as string).split(".")[1] ?? "").length <= 4;
+const check = object({ outcome: oneOf("passed", "failed", "not_available"), expected: nullable(money), found: nullable(money) });
 const reviewCheck = object({
   token: string,
   account_kind: oneOf("cash", "credit", "loan", "investment"),
@@ -110,10 +112,10 @@ const reviewCheck = object({
   section_name: string,
   period_start: date,
   period_end: date,
-  starting_balance: nullable(decimal),
-  ending_balance: nullable(decimal),
-  ending_value: nullable(decimal),
-  previous_ending_balance: nullable(decimal),
+  starting_balance: nullable(money),
+  ending_balance: nullable(money),
+  ending_value: nullable(money),
+  previous_ending_balance: nullable(money),
   already_reconciled_through: nullable(date),
   nothing_in_period: boolean,
   activity_check: check,
@@ -124,14 +126,14 @@ const reviewCheck = object({
       index: integer,
       date,
       description: string,
-      amount: decimal,
-      principal: nullable(decimal),
+      amount: money,
+      principal: nullable(money),
       status: oneOf("matched", "possible", "missing"),
       match_id: nullable(id),
       possible_ids: ids,
     }),
   ),
-  app_transactions: array(object({ id, date, description: string, amount: decimal, change: decimal })),
+  app_transactions: array(object({ id, date, description: string, amount: money, change: money })),
   not_on_statement: ids,
   unread: array(object({ line: integer, text: string })),
   suggest_flip: boolean,
@@ -142,7 +144,7 @@ const reviewCheck = object({
       name: string,
       statement_shares: decimal,
       price: nullable(decimal),
-      market_value: decimal,
+      market_value: money,
       app_holding_id: nullable(id),
       app_shares: nullable(decimal),
       status: oneOf("same", "different", "missing_in_app"),

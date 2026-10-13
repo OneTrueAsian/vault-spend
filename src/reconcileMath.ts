@@ -22,9 +22,11 @@ export function fromUnits(u: bigint): string {
 
 export const addAmounts = (values: string[]) => fromUnits(values.reduce((sum, v) => sum + toUnits(v), 0n));
 
-/** How a transaction being added moves the statement's balance (mirrors `balance_change` in Rust). */
-export function changeFor(kind: AccountKind, amount: string): string {
-  return kind === "credit" || kind === "loan" ? fromUnits(-toUnits(amount)) : fromUnits(toUnits(amount));
+/** How a transaction moves the statement's balance (mirrors `balance_change` in Rust). A loan payment
+ * lowers the loan by its principal part when it has one, otherwise by the whole amount. */
+export function changeFor(kind: AccountKind, amount: string, principal?: string | null): string {
+  if (kind === "loan") return fromUnits(-toUnits(principal ?? amount));
+  return kind === "credit" ? fromUnits(-toUnits(amount)) : fromUnits(toUnits(amount));
 }
 
 /** end − (start + Σ changes). */
