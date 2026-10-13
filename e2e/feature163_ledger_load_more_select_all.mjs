@@ -66,7 +66,15 @@ async function setCategoryForSelection() {
   await withFocusRetry(browser, async () => {
     if ((await selectedCount()) === "") return; // the first attempt already applied the change
     await chooseMenuOption(await browser.$('button[aria-label^="Set category to"]'), { value: "Groceries" });
-    await waitUntilOrDiagnose(browser, async () => (await selectedCount()) === "", { timeoutMsg: "the change should clear the selection" });
+    // Applying a change to 250 of 600 rows reloads the ledger; a hosted runner has needed more than the 10 s
+    // default here. The Groceries count says whether a failure is a slow change or one that never applied.
+    const startedChange = Date.now();
+    await waitUntilOrDiagnose(browser, async () => (await selectedCount()) === "", {
+      timeout: 30000,
+      timeoutMsg: "the change should clear the selection",
+      extra: async () => ({ groceries: await categorized(), before }),
+    });
+    console.log(`[timing] the change cleared the selection in ${Date.now() - startedChange}ms`);
   });
   return (await categorized()) - before;
 }

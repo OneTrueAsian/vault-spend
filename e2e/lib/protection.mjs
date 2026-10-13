@@ -117,6 +117,8 @@ export async function enableProtectionThroughUI(browser, password) {
   return recoveryDisplay;
 }
 
+const FAILPOINT_WAIT_MS = 30_000;
+
 function isProcessAlive(pid) {
   try {
     return execSync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`).toString().includes(`"${pid}"`);
@@ -140,11 +142,16 @@ export async function killAtFailpoint(testDbDir, failpointName, pid, action) {
   const markerPath = path.join(testDbDir, "failpoint-reached.txt");
   fs.rmSync(markerPath, { force: true });
   await action();
-  const deadline = Date.now() + 5000;
+  // Reaching the marker takes two Argon2id key derivations plus the encrypted exports: about 1.5 s on a
+  // developer machine, and several times that on a hosted CI runner. The marker is a certain event, so
+  // wait for it generously; the elapsed time is logged so a slow runner shows up as a number, not a failure.
+  const startedWaiting = Date.now();
+  const deadline = startedWaiting + FAILPOINT_WAIT_MS;
   while (!fs.existsSync(markerPath) || fs.readFileSync(markerPath, "utf8").trim() !== failpointName) {
-    if (Date.now() > deadline) throw new Error(`Never saw the ${failpointName} failpoint marker within 5s`);
+    if (Date.now() > deadline) throw new Error(`Never saw the ${failpointName} failpoint marker within ${FAILPOINT_WAIT_MS / 1000}s`);
     await new Promise((r) => setTimeout(r, 20));
   }
+  console.log(`[timing] ${failpointName} failpoint reached ${Date.now() - startedWaiting}ms after the gesture returned`);
   execSync(`taskkill /PID ${pid} /F`, { stdio: "ignore" });
   const goneBy = Date.now() + 5000;
   while (isProcessAlive(pid)) {

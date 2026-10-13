@@ -110,6 +110,10 @@ node e2e/run-all.mjs --concurrency=8  # tune for a faster machine
 node e2e/run-all.mjs --concurrency=1  # one at a time, for debugging a flaky-looking failure in isolation
 ```
 
+A spec that runs longer than 60 seconds is killed as hung. A much slower machine (the hosted Windows CI
+runner) can raise that ceiling with `VAULTSPEND_E2E_SPEC_TIMEOUT_MS` (a whole number of milliseconds from
+60000 to 600000; anything else is refused). The hosted release gate sets it to 180000.
+
 Specs run concurrently by default because they're already fully isolated
 from each other: each `launchApp()` call gets its own throwaway SQLite file
 (see "Data safety" above) *and*, since `harness.mjs` asks the OS for a free

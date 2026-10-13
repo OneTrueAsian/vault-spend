@@ -137,6 +137,24 @@ jobs:
           if (-not $runtime) { throw 'WebView2 runtime missing after installation' }
           if ([version]$runtime.Name -le [version]'131.0.2903.86') { throw 'Hosted WebView2 refresh retained the stale runtime from the failed diagnostic' }
           Write-Host "Hosted WebView2 runtime: $($runtime.Name)"
+      - name: Pin hosted Edge version
+        run: |
+          # The WebView2 refresh above wakes Edge's updater, which moved Edge from 152 to 155 during a
+          # gate (run 38339761633) after the native driver for 152 had been installed. Stop it from
+          # changing the browser for the rest of this job; the job's VM is discarded afterwards.
+          $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate'
+          New-Item -Path $policy -Force | Out-Null
+          Set-ItemProperty -Path $policy -Name 'UpdateDefault' -Value 0 -Type DWord
+          Set-ItemProperty -Path $policy -Name '{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}' -Value 0 -Type DWord
+          foreach ($name in 'edgeupdate', 'edgeupdatem') {
+            $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+            if ($service) {
+              Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
+              Set-Service -Name $name -StartupType Disabled
+            }
+          }
+          Get-ScheduledTask -TaskName 'MicrosoftEdgeUpdateTaskMachine*' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null
+          Write-Host 'Edge automatic updates disabled for this job'
       - name: Install desktop test drivers
         run: |
           cargo install tauri-driver --locked
@@ -192,8 +210,17 @@ jobs:
         run: |
           & $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate smoke
           exit $LASTEXITCODE
+      - name: Verify native Edge driver still matches Edge
+        run: |
+          $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $edge) { throw 'Microsoft Edge browser not found' }
+          & tools/assert-edge-driver-match.ps1 -Edge $edge -Driver $env:MSEDGEDRIVER
       - name: Full desktop E2E release gate
         # Focus/blur and protected-profile tests share the hosted OS foreground window.
+        env:
+          # Protection specs measured 15-60 s here against about 10 s locally; the default 60 s hang
+          # ceiling is for developer machines. A genuine hang is still killed, just later.
+          VAULTSPEND_E2E_SPEC_TIMEOUT_MS: '180000'
         run: |
           & $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate full
           exit $LASTEXITCODE

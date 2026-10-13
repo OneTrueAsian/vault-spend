@@ -81,6 +81,46 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertNotIn("Join-Path $cargoHome 'bin'", setup)
         self.assertLess(source.index('      - name: Install native Edge test driver'), source.index('      - name: Desktop WebDriver smoke preflight'))
 
+    def test_hosted_edge_updates_are_pinned_before_the_driver_is_matched(self):
+        # Run 38339761633: Edge moved from 152 to 155 during the 50 minute gate, after its driver was
+        # installed, so the mobile spec could not start a session.
+        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        pin = source.split('      - name: Pin hosted Edge version\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('UpdateDefault', pin)
+        self.assertIn('{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}', pin)
+        self.assertIn('edgeupdate', pin)
+        self.assertLess(source.index('      - name: Refresh hosted WebView2 runtime'), source.index('      - name: Pin hosted Edge version'))
+        self.assertLess(source.index('      - name: Pin hosted Edge version'), source.index('      - name: Install native Edge test driver'))
+
+    def test_edge_driver_match_is_rechecked_before_the_full_gate(self):
+        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        self.assertLess(source.index('      - name: Verify native Edge driver still matches Edge'), source.index('      - name: Full desktop E2E release gate'))
+        gate = source.split('      - name: Full desktop E2E release gate\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn("VAULTSPEND_E2E_SPEC_TIMEOUT_MS: '180000'", gate)
+
+    def run_edge_match(self, driver_output, driver_exit):
+        with tempfile.TemporaryDirectory(prefix='edge-match-') as folder:
+            root = Path(folder)
+            edge = POWERSHELL  # any real executable: the helper only reads its file version
+            version = subprocess.run([str(POWERSHELL), '-NoProfile', '-Command', f"(Get-Item -LiteralPath '{edge}').VersionInfo.ProductVersion"], capture_output=True, text=True, timeout=15).stdout.strip()
+            driver = root / 'driver.cmd'
+            driver.write_text('@echo off\r\necho ' + driver_output.replace('{version}', version) + '\r\nexit /b ' + str(driver_exit) + '\r\n')
+            helper = ROOT / 'tools/assert-edge-driver-match.ps1'
+            return subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(helper), '-Edge', str(edge), '-Driver', str(driver)], capture_output=True, text=True, timeout=15)
+
+    def test_edge_driver_match_accepts_the_installed_version(self):
+        result = self.run_edge_match('Microsoft Edge WebDriver {version} (abc)', 0)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_edge_driver_match_refuses_a_driver_for_another_version(self):
+        result = self.run_edge_match('Microsoft Edge WebDriver 1.2.3.4 (abc)', 0)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('no longer matches', result.stderr)
+
+    def test_edge_driver_match_refuses_a_driver_that_fails_to_report(self):
+        result = self.run_edge_match('Microsoft Edge WebDriver {version} (abc)', 3)
+        self.assertNotEqual(result.returncode, 0)
+
     def test_hosted_runtime_is_verified_before_install_and_driver_matching(self):
         source = (ROOT / '.github/workflows/release-windows.yml').read_text()
         setup = workflow_step('Refresh hosted WebView2 runtime')

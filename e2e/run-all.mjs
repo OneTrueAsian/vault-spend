@@ -27,6 +27,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isolatedTempEnv, keepTempFiles, makeTempDir, removeDir, removeStaleDirs } from "./lib/tempDir.mjs";
+import { resolveSpecTimeout } from "./lib/specTimeout.mjs";
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -42,7 +43,7 @@ if (!Number.isInteger(concurrency) || concurrency < 1) {
 // indefinitely — one stuck worker slot, forever. Every current spec finishes
 // in single-digit-to-teens seconds, so 60s is a generous ceiling that only
 // ever fires on a genuine hang, not a slow-but-fine run.
-const SPEC_TIMEOUT_MS = 60_000;
+const SPEC_TIMEOUT_MS = resolveSpecTimeout();
 
 const allSpecs = ["smoke.mjs", ...fs.readdirSync(e2eDir).filter((f) => /^feature\d+.*\.mjs$/.test(f)).sort(
   (a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]),
