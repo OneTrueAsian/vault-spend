@@ -46,11 +46,13 @@ fn the_first_reconciliation_starts_from_the_statements_starting_balance() {
     let (acct, [deposit, coffee, _]) = checking(&store);
     store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
 
-    let without = store.reconcile_status(acct, None, dec("1150.00")).unwrap();
+    let without = store.reconcile_status(acct, day("2026-08-31"), None, dec("1150.00")).unwrap();
     assert!(without.needs_starting_balance);
     assert_eq!(without.difference, None, "no starting point yet, so no difference");
 
-    let with = store.reconcile_status(acct, Some(dec("1000.00")), dec("1150.00")).unwrap();
+    let with = store
+        .reconcile_status(acct, day("2026-08-31"), Some(dec("1000.00")), dec("1150.00"))
+        .unwrap();
     assert_eq!(with.starting_point, Some(dec("1000.00")));
     assert_eq!(with.ticked_change, dec("150.00"));
     assert_eq!(with.ticked_count, 2);
@@ -65,7 +67,9 @@ fn later_reconciliations_pick_up_from_the_last_ending_balance_and_ignore_a_typed
     assert!(finish(&store, acct, "2026-08-31", Some("1000.00"), "1150.00").is_some());
 
     store.set_transactions_cleared(&[gas], true).unwrap();
-    let status = store.reconcile_status(acct, Some(dec("9999.00")), dec("1120.00")).unwrap();
+    let status = store
+        .reconcile_status(acct, day("2026-09-30"), Some(dec("9999.00")), dec("1120.00"))
+        .unwrap();
     assert!(!status.needs_starting_balance);
     assert_eq!(status.starting_point, Some(dec("1150.00")));
     assert_eq!(status.ticked_change, dec("-30.00"), "only what the last reconciliation didn't settle");
@@ -81,7 +85,7 @@ fn a_late_item_dated_before_the_last_statement_still_counts_once() {
 
     // Coffee (08-10) only showed up on September's statement.
     store.set_transactions_cleared(&[coffee], true).unwrap();
-    let status = store.reconcile_status(acct, None, dec("1150.00")).unwrap();
+    let status = store.reconcile_status(acct, day("2026-09-30"), None, dec("1150.00")).unwrap();
     assert_eq!(status.difference, Some(Decimal::ZERO));
 }
 
@@ -152,7 +156,9 @@ fn a_credit_card_reconciles_on_what_is_owed() {
     let ids = [id_of(&store, "Groceries", "2026-08-03"), id_of(&store, "Payment", "2026-08-20")];
     store.set_transactions_cleared(&ids, true).unwrap();
 
-    let status = store.reconcile_status(card, Some(dec("300.00")), dec("80.00")).unwrap();
+    let status = store
+        .reconcile_status(card, day("2026-08-31"), Some(dec("300.00")), dec("80.00"))
+        .unwrap();
     assert_eq!(status.ticked_change, dec("-220.00"), "a charge raises what is owed; a payment lowers it");
     assert_eq!(status.difference, Some(Decimal::ZERO));
 }
@@ -169,7 +175,9 @@ fn a_loan_reconciles_on_outstanding_principal() {
         .unwrap();
     store.set_transactions_cleared(&[payment], true).unwrap();
 
-    let status = store.reconcile_status(loan, Some(dec("317195.46")), dec("316840.29")).unwrap();
+    let status = store
+        .reconcile_status(loan, day("2026-09-30"), Some(dec("317195.46")), dec("316840.29"))
+        .unwrap();
     assert_eq!(status.ticked_change, dec("-355.17"));
     assert_eq!(status.difference, Some(Decimal::ZERO));
 }
@@ -202,7 +210,9 @@ fn a_deleted_ticked_transaction_stops_counting() {
     let (acct, [deposit, coffee, _]) = checking(&store);
     store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
     store.delete_transaction(deposit, test_now()).unwrap();
-    let status = store.reconcile_status(acct, Some(dec("1000.00")), dec("950.00")).unwrap();
+    let status = store
+        .reconcile_status(acct, day("2026-08-31"), Some(dec("1000.00")), dec("950.00"))
+        .unwrap();
     assert_eq!((status.ticked_change, status.ticked_count), (dec("-50.00"), 1));
 }
 
@@ -216,7 +226,11 @@ fn an_unknown_stored_account_type_is_an_error_not_a_cash_account() {
         .unwrap();
 
     assert!(store.account_kind(acct).is_err());
-    assert!(store.reconcile_status(acct, Some(dec("1000.00")), dec("1000.00")).is_err());
+    assert!(
+        store
+            .reconcile_status(acct, day("2026-08-31"), Some(dec("1000.00")), dec("1000.00"))
+            .is_err()
+    );
 }
 
 #[test]
@@ -996,7 +1010,9 @@ fn an_investment_statement_finish_is_not_a_starting_point_for_later_reconciling(
 
     store.save_transactions(brokerage, &[tx("2026-09-03", "Dividend", "10.00")]).unwrap();
     store.set_transactions_cleared(&[id_of(&store, "Dividend", "2026-09-03")], true).unwrap();
-    let status = store.reconcile_status(brokerage, Some(dec("500.00")), dec("510.00")).unwrap();
+    let status = store
+        .reconcile_status(brokerage, day("2026-09-30"), Some(dec("500.00")), dec("510.00"))
+        .unwrap();
     assert!(status.needs_starting_balance);
     assert_eq!(status.starting_point, Some(dec("500.00")), "the typed start, not the total value");
     assert_eq!(status.difference, Some(Decimal::ZERO));
@@ -1019,7 +1035,7 @@ fn a_manual_reconciliation_stays_the_starting_point_after_an_investment_statemen
 
     store.save_transactions(brokerage, &[tx("2026-09-03", "Dividend", "10.00")]).unwrap();
     store.set_transactions_cleared(&[id_of(&store, "Dividend", "2026-09-03")], true).unwrap();
-    let status = store.reconcile_status(brokerage, None, dec("115.00")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-09-30"), None, dec("115.00")).unwrap();
     assert!(!status.needs_starting_balance);
     assert_eq!(status.starting_point, Some(dec("105.00")));
     assert_eq!(status.difference, Some(Decimal::ZERO));
@@ -1039,7 +1055,9 @@ fn a_cash_statement_finish_is_the_starting_point_for_the_next_reconciliation() {
     );
 
     store.set_transactions_cleared(&[gas], true).unwrap();
-    let status = store.reconcile_status(acct, Some(dec("9999.00")), dec("1120.00")).unwrap();
+    let status = store
+        .reconcile_status(acct, day("2026-09-30"), Some(dec("9999.00")), dec("1120.00"))
+        .unwrap();
     assert!(!status.needs_starting_balance);
     assert_eq!(status.starting_point, Some(dec("1150.00")));
     assert_eq!(status.difference, Some(Decimal::ZERO));
@@ -1068,7 +1086,9 @@ fn cash_rows_settled_by_a_later_investment_statement_carry_into_the_next_startin
     let done = store.finish_statement_reconciliation(&august_statement, test_now()).unwrap();
     assert_eq!(settled_by(&store, fee), Some(done.reconciliation_id));
 
-    let status = store.reconcile_status(brokerage, Some(dec("9999.00")), dec("121.50")).unwrap();
+    let status = store
+        .reconcile_status(brokerage, day("2026-09-30"), Some(dec("9999.00")), dec("121.50"))
+        .unwrap();
     assert!(!status.needs_starting_balance);
     assert_eq!(status.starting_point, Some(dec("121.50")), "105.00 + 18.50 - 2.00");
     assert_eq!(status.difference, Some(Decimal::ZERO));
@@ -1085,7 +1105,7 @@ fn cash_rows_settled_by_a_later_investment_statement_carry_into_the_next_startin
     assert_eq!(starting.as_deref(), Some("121.50"));
 
     // Rows the manual September reconciliation settled itself are in its ending balance, not carried twice.
-    let status = store.reconcile_status(brokerage, None, dec("131.50")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-10-31"), None, dec("131.50")).unwrap();
     assert_eq!(status.starting_point, Some(dec("131.50")));
 }
 
@@ -1104,7 +1124,7 @@ fn rows_settled_by_an_investment_statement_before_the_last_balance_record_are_no
     store.set_transactions_cleared(&[id_of(&store, "Dividend", "2026-09-03")], true).unwrap();
     finish(&store, brokerage, "2026-09-30", Some("500.00"), "510.00").expect("balances");
 
-    let status = store.reconcile_status(brokerage, None, dec("510.00")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-10-31"), None, dec("510.00")).unwrap();
     assert_eq!(status.starting_point, Some(dec("510.00")), "the earlier dividend is not added again");
 }
 
@@ -1385,7 +1405,7 @@ fn a_newer_investment_statement_finished_before_an_older_balance_record_still_ca
     store.set_transactions_cleared(&[id_of(&store, "Interest", "2026-07-10")], true).unwrap();
     finish(&store, brokerage, "2026-07-31", Some("100.00"), "105.00").expect("balances");
 
-    let status = store.reconcile_status(brokerage, None, dec("123.50")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-10-31"), None, dec("123.50")).unwrap();
     assert!(!status.needs_starting_balance);
     assert_eq!(
         status.starting_point,
@@ -1411,7 +1431,7 @@ fn an_older_investment_statement_finished_after_a_newer_balance_record_is_not_ca
         )
         .unwrap();
 
-    let status = store.reconcile_status(brokerage, None, dec("105.00")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-10-31"), None, dec("105.00")).unwrap();
     assert_eq!(
         status.starting_point,
         Some(dec("105.00")),
@@ -1425,7 +1445,7 @@ fn an_older_investment_statement_finished_after_a_newer_balance_record_is_not_ca
             test_now(),
         )
         .unwrap();
-    let status = store.reconcile_status(brokerage, None, dec("103.00")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-10-31"), None, dec("103.00")).unwrap();
     assert_eq!(status.starting_point, Some(dec("103.00")), "105.00 - 2.00");
 }
 
@@ -1446,14 +1466,14 @@ fn two_investment_statements_between_balance_records_both_carry_until_the_next_b
         )
         .unwrap();
 
-    let status = store.reconcile_status(brokerage, None, dec("121.50")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-10-31"), None, dec("121.50")).unwrap();
     assert_eq!(status.starting_point, Some(dec("121.50")), "105.00 + 18.50 - 2.00");
 
     store.save_transactions(brokerage, &[tx("2026-10-03", "Dividend", "10.00")]).unwrap();
     store.set_transactions_cleared(&[id_of(&store, "Dividend", "2026-10-03")], true).unwrap();
     finish(&store, brokerage, "2026-10-31", None, "131.50").expect("balances from 121.50");
 
-    let status = store.reconcile_status(brokerage, None, dec("131.50")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-11-30"), None, dec("131.50")).unwrap();
     assert_eq!(status.starting_point, Some(dec("131.50")), "October's balance includes both statements");
 }
 
@@ -1470,7 +1490,7 @@ fn a_row_deleted_after_an_investment_statement_settled_it_still_carries() {
     let dividend = id_of(&store, "Cash Dividend", "2026-08-05");
     store.delete_transaction(dividend, test_now()).unwrap();
 
-    let status = store.reconcile_status(brokerage, None, dec("123.50")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-09-30"), None, dec("123.50")).unwrap();
     assert_eq!(
         status.starting_point,
         Some(dec("123.50")),
@@ -1492,7 +1512,7 @@ fn editing_a_row_an_investment_statement_settled_changes_the_next_starting_point
     let dividend = id_of(&store, "Cash Dividend", "2026-08-05");
     store.update_transaction_amount(dividend, dec("20.00")).unwrap();
 
-    let status = store.reconcile_status(brokerage, None, dec("125.00")).unwrap();
+    let status = store.reconcile_status(brokerage, day("2026-09-30"), None, dec("125.00")).unwrap();
     assert_eq!(
         status.starting_point,
         Some(dec("125.00")),
@@ -1532,4 +1552,82 @@ fn a_principal_part_on_a_loan_row_that_is_not_a_payment_is_refused_and_writes_no
     // The same charge without a principal part is fine: it raises what is owed by its full amount.
     let f = mortgage_finish(loan, late_fee(), vec![None], "317245.46");
     store.finish_statement_reconciliation(&f, test_now()).unwrap();
+}
+
+// Task 19: the starting point is taken as of the statement being reconciled.
+
+#[test]
+fn reconciling_an_older_month_by_hand_after_a_newer_investment_statement_starts_before_it() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = brokerage_reconciled_in_july(&store);
+    // September's investment statement is finished before August is reconciled by hand.
+    store
+        .finish_statement_reconciliation(
+            &investment_statement(brokerage, "2026-09-01", "2026-09-30", vec![tx("2026-09-05", "Cash Dividend", "18.50")]),
+            test_now(),
+        )
+        .unwrap();
+    store.save_transactions(brokerage, &[tx("2026-08-10", "Interest", "10.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Interest", "2026-08-10")], true).unwrap();
+
+    let august = store.reconcile_status(brokerage, day("2026-08-31"), None, dec("115.00")).unwrap();
+    assert!(!august.needs_starting_balance);
+    assert_eq!(
+        august.starting_point,
+        Some(dec("105.00")),
+        "July's balance, without September's dividend, which came after August"
+    );
+    assert_eq!(august.difference, Some(Decimal::ZERO));
+    finish(&store, brokerage, "2026-08-31", None, "115.00").expect("August balances from July's 105.00");
+
+    // October continues from August's balance plus September's dividend.
+    let october = store.reconcile_status(brokerage, day("2026-10-31"), None, dec("133.50")).unwrap();
+    assert_eq!(october.starting_point, Some(dec("133.50")), "115.00 + 18.50");
+    assert_eq!(october.difference, Some(Decimal::ZERO));
+}
+
+#[test]
+fn reconciling_an_older_month_after_a_newer_balance_record_starts_from_the_balance_before_it() {
+    let store = Store::open_in_memory().unwrap();
+    let (acct, [deposit, coffee, gas]) = checking(&store);
+    store.set_transactions_cleared(&[deposit], true).unwrap();
+    finish(&store, acct, "2026-07-31", Some("1000.00"), "1200.00").expect("July balances");
+    store.set_transactions_cleared(&[gas], true).unwrap();
+    finish(&store, acct, "2026-09-30", None, "1170.00").expect("September balances from July");
+
+    // August is reconciled last, by uploading its statement.
+    let august = store.reconcile_status(acct, day("2026-08-31"), None, dec("1150.00")).unwrap();
+    assert_eq!(august.starting_point, Some(dec("1200.00")), "July's balance, not September's");
+    let done = store
+        .finish_statement_reconciliation(&finish_cash(acct, vec![coffee], vec![], "1200.00", "1150.00"), test_now())
+        .expect("August balances from July's 1200.00");
+    let starting: Option<String> = store
+        .conn
+        .query_row(
+            "SELECT starting_balance FROM reconciliations WHERE id = ?1",
+            params![done.reconciliation_id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(starting.as_deref(), Some("1200.00"));
+
+    // Later months still pick up from the latest balance, September's.
+    let october = store.reconcile_status(acct, day("2026-10-31"), None, dec("1170.00")).unwrap();
+    assert_eq!(october.starting_point, Some(dec("1170.00")));
+}
+
+#[test]
+fn a_month_before_every_balance_record_needs_its_own_starting_balance() {
+    let store = Store::open_in_memory().unwrap();
+    let (acct, [deposit, _, _]) = checking(&store);
+    finish(&store, acct, "2026-09-30", Some("1000.00"), "1000.00").expect("September balances");
+    store.set_transactions_cleared(&[deposit], true).unwrap();
+
+    let july = store.reconcile_status(acct, day("2026-07-31"), None, dec("1200.00")).unwrap();
+    assert!(july.needs_starting_balance, "nothing was reconciled before July");
+    assert_eq!(july.starting_point, None);
+    let july = store
+        .reconcile_status(acct, day("2026-07-31"), Some(dec("1000.00")), dec("1200.00"))
+        .unwrap();
+    assert_eq!(july.difference, Some(Decimal::ZERO));
 }

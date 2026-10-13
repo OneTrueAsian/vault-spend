@@ -1,8 +1,8 @@
 //! Reconciling an account against a statement: the balance rule shared by manual and statement
 //! reconciling, and the finished record.
 //!
-//! The rule picks up from last time: the last finished reconciliation's ending balance (or, the first
-//! time, the statement's own starting balance) plus the change from every ticked transaction that no
+//! The rule picks up from last time: the ending balance of the last finished reconciliation dated on or
+//! before the statement's end date (or, the first time, the statement's own starting balance) plus the change from every ticked transaction that no
 //! finished reconciliation has settled yet must equal the statement's ending balance exactly. Balances
 //! are in the statement's terms: cash in the account, what is owed on a card, or the principal still
 //! owed on a loan. Which reconciliation settled a transaction is stored on it (`reconciliation_id`),
@@ -132,18 +132,21 @@ impl Store {
     /// value for reference only, which is not a cash balance to continue from. `last_reconciliation`, by
     /// contrast, returns the latest record of any kind, for showing when the account was last reconciled.
     ///
-    /// `reconcile_status` continues from this balance plus the change from any transactions settled by
-    /// investment statements that come after it (see `change_settled_since`).
+    /// `reconcile_status` continues from the latest such balance dated on or before the statement being
+    /// reconciled, plus the change from any transactions settled by investment statements that come
+    /// after it up to that date (see `change_settled_since`).
     pub fn last_balance_reconciliation(&self, account_id: i64) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
-        Ok(self.last_balance_record(account_id)?.map(|(_, date, balance)| (date, balance)))
+        Ok(self.last_balance_record(account_id, None)?.map(|(_, date, balance)| (date, balance)))
     }
 
-    /// `last_balance_reconciliation` with the record's id.
-    fn last_balance_record(&self, account_id: i64) -> rusqlite::Result<Option<(i64, NaiveDate, Decimal)>> {
+    /// `last_balance_reconciliation` with the record's id, limited to records dated on or before `as_of`
+    /// when one is given.
+    fn last_balance_record(&self, account_id: i64, as_of: Option<NaiveDate>) -> rusqlite::Result<Option<(i64, NaiveDate, Decimal)>> {
         match self.conn.query_row(
             "SELECT id, statement_date, statement_balance FROM reconciliations
-             WHERE account_id = ?1 AND holdings_checked IS NULL ORDER BY statement_date DESC, id DESC LIMIT 1",
-            params![account_id],
+             WHERE account_id = ?1 AND holdings_checked IS NULL AND (?2 IS NULL OR statement_date <= ?2)
+             ORDER BY statement_date DESC, id DESC LIMIT 1",
+            params![account_id, as_of.map(|d| d.to_string())],
             |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)),
         ) {
             Ok((id, date, balance)) => Ok(Some((
@@ -163,7 +166,9 @@ impl Store {
     /// balance, but are in no balance record's ending balance, so the next balance reconciliation must
     /// continue from them too. An investment statement dated before the balance record is already covered
     /// by that balance, whichever was finished first, so it is not counted again. Rows settled by the
-    /// balance records themselves are already in their ending balances and are not counted.
+    /// balance records themselves are already in their ending balances and are not counted. Investment
+    /// statements dated after `as_of` (the statement being reconciled) come after it, so they are not
+    /// counted either: they are carried into a later month's starting point instead.
     ///
     /// The change is read from the settled transactions as they are now, not stored when the investment
     /// statement was finished. So:
@@ -173,15 +178,23 @@ impl Store {
     ///   next starting point by the same amount. This is deliberate: a balance record's ending balance is
     ///   the statement's own figure, but an investment statement states no cash balance, so its
     ///   transactions are the only record of how it moved the cash.
-    fn change_settled_since(&self, account_id: i64, kind: AccountKind, since_date: NaiveDate, since_id: i64) -> rusqlite::Result<Decimal> {
+    fn change_settled_since(
+        &self,
+        account_id: i64,
+        kind: AccountKind,
+        since_date: NaiveDate,
+        since_id: i64,
+        as_of: NaiveDate,
+    ) -> rusqlite::Result<Decimal> {
         let mut stmt = self.conn.prepare(
             "SELECT t.amount, t.principal_amount FROM transactions t
              JOIN reconciliations r ON r.id = t.reconciliation_id
              WHERE r.account_id = ?1 AND r.holdings_checked IS NOT NULL
-               AND (r.statement_date > ?2 OR (r.statement_date = ?2 AND r.id > ?3))",
+               AND (r.statement_date > ?2 OR (r.statement_date = ?2 AND r.id > ?3))
+               AND r.statement_date <= ?4",
         )?;
         let rows = stmt
-            .query_map(params![account_id, since_date.to_string(), since_id], |r| {
+            .query_map(params![account_id, since_date.to_string(), since_id, as_of.to_string()], |r| {
                 Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -191,12 +204,30 @@ impl Store {
             .sum())
     }
 
-    pub fn reconcile_status(&self, account_id: i64, statement_start: Option<Decimal>, statement_end: Decimal) -> rusqlite::Result<ReconcileStatus> {
+    /// Where a statement ending `as_of` picks up from: the latest balance record dated on or before
+    /// `as_of`, plus the cash moved by investment statements after it up to `as_of`. `None` when nothing
+    /// was reconciled on or before `as_of` (the statement's own starting balance is needed). Taking it as
+    /// of the statement's date means an older month reconciled after a newer one still starts from the
+    /// month before it.
+    pub fn reconcile_starting_point(&self, account_id: i64, as_of: NaiveDate) -> rusqlite::Result<Option<Decimal>> {
         let kind = self.account_kind(account_id)?;
-        let last = match self.last_balance_record(account_id)? {
-            Some((id, date, balance)) => Some(balance + self.change_settled_since(account_id, kind, date, id)?),
-            None => None,
-        };
+        match self.last_balance_record(account_id, Some(as_of))? {
+            Some((id, date, balance)) => Ok(Some(balance + self.change_settled_since(account_id, kind, date, id, as_of)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// The balance check for a statement ending `as_of` with ending balance `statement_end` (see
+    /// `reconcile_starting_point` for where it starts).
+    pub fn reconcile_status(
+        &self,
+        account_id: i64,
+        as_of: NaiveDate,
+        statement_start: Option<Decimal>,
+        statement_end: Decimal,
+    ) -> rusqlite::Result<ReconcileStatus> {
+        let kind = self.account_kind(account_id)?;
+        let last = self.reconcile_starting_point(account_id, as_of)?;
         let starting_point = last.or(statement_start);
         let (ticked_change, ticked_count) = self.unsettled_ticked_change(account_id, kind)?;
         Ok(ReconcileStatus {
@@ -216,7 +247,7 @@ impl Store {
     /// use `insert_reconciliation` and `settle_ticked` directly, as the statement finish does.
     pub fn finish_reconciliation(&self, req: &FinishReconciliation, now: NaiveDateTime) -> rusqlite::Result<Option<i64>> {
         let tx = self.conn.unchecked_transaction()?;
-        let status = self.reconcile_status(req.account_id, req.statement_start, req.statement_end)?;
+        let status = self.reconcile_status(req.account_id, req.statement_date, req.statement_start, req.statement_end)?;
         if status.difference != Some(Decimal::ZERO) {
             return Ok(None);
         }
@@ -655,7 +686,7 @@ impl Store {
             (f.ending_value.unwrap_or_default(), None, Some(shares_checked))
         } else {
             let end = f.statement_end.ok_or(StatementFinishError::DoesNotBalance)?;
-            let status = self.reconcile_status(f.account_id, f.statement_start, end)?;
+            let status = self.reconcile_status(f.account_id, f.period.end, f.statement_start, end)?;
             if status.difference != Some(Decimal::ZERO) {
                 return Err(StatementFinishError::DoesNotBalance);
             }

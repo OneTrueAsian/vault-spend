@@ -106,4 +106,29 @@ describe("AccountDetailView reconciling any account", () => {
     await type("[data-statement-start-balance]", "1000.00");
     expect(start().disabled).toBe(false);
   });
+
+  it("checks the balance as of the statement's end date, so an older month starts from the month before it", async () => {
+    answer({
+      last_reconciliation: { statement_date: "2026-09-30", statement_balance: "1170.00" },
+      reconcile_status: { starting_point: "1200.00", needs_starting_balance: false, ticked_change: "-50.00", ticked_count: 1, difference: "0.00" },
+    });
+    await showAccount(account);
+    await act(async () => {
+      const date = host.querySelector<HTMLInputElement>("[data-statement-date]")!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(date, "2026-08-31");
+      date.dispatchEvent(new Event("input", { bubbles: true }));
+      date.dispatchEvent(new Event("change", { bubbles: true }));
+      const end = host.querySelector<HTMLInputElement>("[data-statement-balance]")!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(end, "1150.00");
+      end.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => host.querySelector<HTMLButtonElement>("[data-reconcile-start]")!.click());
+
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("reconcile_status", {
+      accountId: account.id,
+      statementDate: "2026-08-31",
+      statementStart: null,
+      statementEnd: "1150.00",
+    });
+  });
 });

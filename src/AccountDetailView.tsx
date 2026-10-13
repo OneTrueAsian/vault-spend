@@ -84,6 +84,7 @@ export function AccountDetailView({
     setStatus(
       await invoke<ReconcileStatus>("reconcile_status", {
         accountId: account.id,
+        statementDate,
         statementStart: lastRec ? null : statementStart,
         statementEnd: statementBalance,
       }),

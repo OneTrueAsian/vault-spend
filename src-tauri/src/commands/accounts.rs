@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Serialize)]
 pub struct AccountDto {
     pub id: i64,
@@ -292,17 +295,37 @@ fn optional_amount(value: Option<String>) -> Result<Option<Decimal>, String> {
     value.filter(|v| !v.trim().is_empty()).map(|v| parse_amount(&v)).transpose()
 }
 
+/// The balance check for the statement ending `statement_date`: it picks up from the last
+/// reconciliation on or before that date, so an older month reconciled late still starts from the
+/// month before it.
 #[tauri::command]
 pub fn reconcile_status(
     account_id: i64,
+    statement_date: String,
     statement_start: Option<String>,
     statement_end: String,
     state: tauri::State<AppStateHandle>,
 ) -> Result<ReconcileStatusDto, String> {
     let state = state.lock()?;
+    reconcile_status_for(&state, account_id, &statement_date, statement_start.as_deref(), &statement_end)
+}
+
+fn reconcile_status_for(
+    state: &AppState,
+    account_id: i64,
+    statement_date: &str,
+    statement_start: Option<&str>,
+    statement_end: &str,
+) -> Result<ReconcileStatusDto, String> {
+    let as_of = parse_date(statement_date)?;
     let status = state
         .store
-        .reconcile_status(account_id, optional_amount(statement_start)?, parse_amount(&statement_end)?)
+        .reconcile_status(
+            account_id,
+            as_of,
+            optional_amount(statement_start.map(str::to_string))?,
+            parse_amount(statement_end)?,
+        )
         .map_err(|e| e.to_string())?;
     Ok(ReconcileStatusDto {
         starting_point: status.starting_point.map(|d| d.to_string()),
@@ -348,7 +371,13 @@ pub struct LastReconciliationDto {
 #[tauri::command]
 pub fn last_reconciliation(account_id: i64, state: tauri::State<AppStateHandle>) -> Result<Option<LastReconciliationDto>, String> {
     let state = state.lock()?;
-    let last = state.store.last_reconciliation(account_id).map_err(|e| e.to_string())?;
+    last_reconciliation_for(&state, account_id)
+}
+
+/// The last reconciliation that states a balance, which the next one picks up from. An investment
+/// statement's record is left out: it keeps the statement's total value (or 0), not a balance.
+fn last_reconciliation_for(state: &AppState, account_id: i64) -> Result<Option<LastReconciliationDto>, String> {
+    let last = state.store.last_balance_reconciliation(account_id).map_err(|e| e.to_string())?;
     Ok(last.map(|(date, balance)| LastReconciliationDto {
         statement_date: date.to_string(),
         statement_balance: balance.to_string(),
