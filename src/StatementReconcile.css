@@ -1,0 +1,142 @@
+/* The statement review (and teach) screens. Colors come from the app's tokens, so the dark theme and the
+   other palettes follow without overrides here. */
+.statement-review {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.statement-heading {
+  margin: 0;
+}
+
+.statement-banner {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.statement-banner p {
+  margin: 0 0 8px;
+}
+
+.statement-banner-warning {
+  background: var(--warning-soft);
+  border: 1px solid var(--border-strong);
+}
+
+.statement-banner-actions,
+.statement-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.statement-banner-actions {
+  margin-bottom: 8px;
+}
+
+.statement-banner-actions:last-child {
+  margin-bottom: 0;
+}
+
+.statement-balances {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+/* Content-sized columns: each line's choices need room. Narrow windows scroll inside .modal-table-scroll. */
+table.ledger.statement-rows {
+  table-layout: auto;
+}
+
+.statement-row-note {
+  display: block;
+}
+
+.statement-choice-on {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.statement-add-description {
+  min-width: 160px;
+}
+
+.statement-section h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.statement-section ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.statement-unread-lines li {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.statement-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 4px 0;
+}
+
+.statement-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.statement-difference {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.statement-reason {
+  flex: 1 1 200px;
+}
+
+.statement-footer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.statement-error {
+  margin: 0;
+}
+
+.statement-teach-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.statement-teach-word {
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.statement-teach-word[data-marked] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+}
