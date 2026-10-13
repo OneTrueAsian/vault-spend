@@ -297,17 +297,18 @@ fn optional_amount(value: Option<String>) -> Result<Option<Decimal>, String> {
 
 /// The balance check for the statement ending `statement_date`: it picks up from the last
 /// reconciliation on or before that date, so an older month reconciled late still starts from the
-/// month before it.
+/// month before it. Without an ending balance (the page asking where a statement picks up from, before
+/// the person has typed it) there is no difference yet.
 #[tauri::command]
 pub fn reconcile_status(
     account_id: i64,
     statement_date: String,
     statement_start: Option<String>,
-    statement_end: String,
+    statement_end: Option<String>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<ReconcileStatusDto, String> {
     let state = state.lock()?;
-    reconcile_status_for(&state, account_id, &statement_date, statement_start.as_deref(), &statement_end)
+    reconcile_status_for(&state, account_id, &statement_date, statement_start.as_deref(), statement_end.as_deref())
 }
 
 fn reconcile_status_for(
@@ -315,16 +316,17 @@ fn reconcile_status_for(
     account_id: i64,
     statement_date: &str,
     statement_start: Option<&str>,
-    statement_end: &str,
+    statement_end: Option<&str>,
 ) -> Result<ReconcileStatusDto, String> {
     let as_of = parse_date(statement_date)?;
+    let end = optional_amount(statement_end.map(str::to_string))?;
     let status = state
         .store
         .reconcile_status(
             account_id,
             as_of,
             optional_amount(statement_start.map(str::to_string))?,
-            parse_amount(statement_end)?,
+            end.unwrap_or_default(),
         )
         .map_err(|e| e.to_string())?;
     Ok(ReconcileStatusDto {
@@ -332,7 +334,7 @@ fn reconcile_status_for(
         needs_starting_balance: status.needs_starting_balance,
         ticked_change: status.ticked_change.to_string(),
         ticked_count: status.ticked_count,
-        difference: status.difference.map(|d| d.to_string()),
+        difference: end.and(status.difference).map(|d| d.to_string()),
     })
 }
 
@@ -364,8 +366,11 @@ pub fn finish_reconciliation(
 
 #[derive(Serialize)]
 pub struct LastReconciliationDto {
+    /// When the account was last reconciled, by any kind of reconciliation (shown as "Last reconciled").
     pub statement_date: String,
-    pub statement_balance: String,
+    /// The ending balance of the last reconciliation that states one. An investment statement's record
+    /// never does: it keeps the statement's total value (or 0), which is not a balance.
+    pub statement_balance: Option<String>,
 }
 
 #[tauri::command]
@@ -374,12 +379,11 @@ pub fn last_reconciliation(account_id: i64, state: tauri::State<AppStateHandle>)
     last_reconciliation_for(&state, account_id)
 }
 
-/// The last reconciliation that states a balance, which the next one picks up from. An investment
-/// statement's record is left out: it keeps the statement's total value (or 0), not a balance.
 fn last_reconciliation_for(state: &AppState, account_id: i64) -> Result<Option<LastReconciliationDto>, String> {
-    let last = state.store.last_balance_reconciliation(account_id).map_err(|e| e.to_string())?;
-    Ok(last.map(|(date, balance)| LastReconciliationDto {
+    let last = state.store.last_reconciliation(account_id).map_err(|e| e.to_string())?;
+    let balance = state.store.last_balance_reconciliation(account_id).map_err(|e| e.to_string())?;
+    Ok(last.map(|(date, _)| LastReconciliationDto {
         statement_date: date.to_string(),
-        statement_balance: balance.to_string(),
+        statement_balance: balance.map(|(_, b)| b.to_string()),
     }))
 }

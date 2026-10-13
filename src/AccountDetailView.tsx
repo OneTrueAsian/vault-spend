@@ -13,7 +13,9 @@ const AccountAccumulationSection = lazy(() => import("./AccumulationSection").th
 
 type BalancePoint = { date: string; balance: string };
 type ReconcileStatus = { starting_point: string | null; needs_starting_balance: boolean; ticked_change: string; ticked_count: number; difference: string | null };
-type LastReconciliation = { statement_date: string; statement_balance: string };
+/** `statement_date`: the last reconciliation of any kind; `statement_balance`: the ending balance of the
+ * last one that states a balance (an investment statement's record never does). */
+type LastReconciliation = { statement_date: string; statement_balance: string | null };
 
 /** What a statement calls this account's balance, in plain words. */
 function balanceWords(accountType: string): { start: string; end: string } {
@@ -57,6 +59,10 @@ export function AccountDetailView({
   const [reconciling, setReconciling] = useState(false);
   const [candidates, setCandidates] = useState<AccountTransaction[]>([]);
   const [status, setStatus] = useState<ReconcileStatus | null>(null);
+  /** Where a statement ending on `statementDate` picks up from, before any balance is typed. */
+  const [preview, setPreview] = useState<ReconcileStatus | null>(null);
+  const statementDateRef = useRef(statementDate);
+  statementDateRef.current = statementDate;
 
   const reconcileCardRef = useRef<HTMLDivElement>(null);
   const statementBalanceRef = useRef<HTMLInputElement>(null);
@@ -68,16 +74,52 @@ export function AccountDetailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const fetchPreview = useCallback(
+    async (date: string): Promise<ReconcileStatus | null> =>
+      date
+        ? invoke<ReconcileStatus>("reconcile_status", { accountId: account.id, statementDate: date, statementStart: null, statementEnd: null })
+        : null,
+    [account.id],
+  );
+
+  // Everything is fetched first and set together, so the page never shows a new last reconciliation
+  // with an old answer to whether the next statement needs its starting balance.
   const loadOverview = useCallback(async () => {
-    setHistory(await invoke<BalancePoint[]>("account_balance_history", { accountId: account.id, months: 12 }));
-    setTransactions(await invoke<AccountTransaction[]>("list_account_transactions", { accountId: account.id, limit: 200 }));
-    setLastRec(await invoke<LastReconciliation | null>("last_reconciliation", { accountId: account.id }));
-  }, [account.id]);
+    const [nextHistory, nextTransactions, nextLastRec, nextPreview] = await Promise.all([
+      invoke<BalancePoint[]>("account_balance_history", { accountId: account.id, months: 12 }),
+      invoke<AccountTransaction[]>("list_account_transactions", { accountId: account.id, limit: 200 }),
+      invoke<LastReconciliation | null>("last_reconciliation", { accountId: account.id }),
+      fetchPreview(statementDateRef.current),
+    ]);
+    setHistory(nextHistory);
+    setTransactions(nextTransactions);
+    setLastRec(nextLastRec);
+    setPreview(nextPreview);
+  }, [account.id, fetchPreview]);
 
   useEffect(() => {
     loadOverview().catch((e) => onMessage(errorMessage(e), "error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadOverview]);
+
+  // A different statement date can pick up from a different reconciliation (an older month starts
+  // from the one before it), or need its own starting balance.
+  const previewedDate = useRef(statementDate);
+  useEffect(() => {
+    if (statementDate === previewedDate.current) return;
+    let live = true;
+    previewedDate.current = statementDate;
+    fetchPreview(statementDate)
+      .then((next) => live && setPreview(next))
+      .catch((e) => live && onMessage(errorMessage(e), "error"));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchPreview, statementDate]);
+
+  // Until the app has said otherwise, ask for the starting balance (an account's first reconciliation).
+  const needsStart = preview?.needs_starting_balance ?? true;
 
   const loadReconciliation = useCallback(async () => {
     setCandidates(await invoke<AccountTransaction[]>("reconcile_candidates", { accountId: account.id, statementDate }));
@@ -85,17 +127,17 @@ export function AccountDetailView({
       await invoke<ReconcileStatus>("reconcile_status", {
         accountId: account.id,
         statementDate,
-        statementStart: lastRec ? null : statementStart,
+        statementStart: needsStart ? statementStart : null,
         statementEnd: statementBalance,
       }),
     );
-  }, [account.id, statementDate, statementStart, statementBalance, lastRec]);
+  }, [account.id, statementDate, statementStart, statementBalance, needsStart]);
 
   const words = balanceWords(account.account_type);
   const balanceValid =
     statementBalance.trim() !== "" &&
     isValidDecimalString(statementBalance) &&
-    (lastRec !== null || (statementStart.trim() !== "" && isValidDecimalString(statementStart)));
+    (!needsStart || (statementStart.trim() !== "" && isValidDecimalString(statementStart)));
 
   async function startReconciling() {
     if (!balanceValid) return;
@@ -122,7 +164,7 @@ export function AccountDetailView({
         accountId: account.id,
         periodStart: periodStart || null,
         statementDate,
-        statementStart: lastRec ? null : statementStart,
+        statementStart: needsStart ? statementStart : null,
         statementEnd: statementBalance,
       });
       if (!ok) {
@@ -224,10 +266,12 @@ export function AccountDetailView({
                 <span className="labeled-field-label">Statement end date</span>
                 <DateField value={statementDate} onChange={setStatementDate} ariaLabel="Statement end date" data-statement-date />
               </label>
-              {lastRec ? (
-                <p className="modal-message-secondary">
-                  Picks up from your last reconciliation on {formatDisplayDate(lastRec.statement_date)} ({formatAmount(lastRec.statement_balance)}).
-                </p>
+              {!needsStart ? (
+                preview?.starting_point != null && (
+                  <p className="modal-message-secondary" data-reconcile-picks-up>
+                    Picks up from your last reconciliation before this statement: {formatAmount(preview.starting_point)}.
+                  </p>
+                )
               ) : (
                 <label className="labeled-field">
                   <span className="labeled-field-label">{words.start}</span>

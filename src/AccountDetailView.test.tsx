@@ -11,6 +11,9 @@ import type { Account } from "./types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve([])) }));
+// The investment chart section loads on its own and has its own tests; here it would only race the
+// mocked answers (it reads its own commands), so it is left out.
+vi.mock("./AccumulationSection", () => ({ AccountAccumulationSection: () => null }));
 
 const account: Account = { id: 7, name: "Everyday Checking", account_type: "checking", starting_balance: "100", current_balance: "123.45", institution: null, mask: null, interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null };
 
@@ -82,12 +85,47 @@ describe("AccountDetailView reconciling any account", () => {
     expect(host.textContent).toContain("For an investment account this checks its cash activity.");
   });
 
-  it("hides the starting balance after a previous reconciliation", async () => {
-    answer({ last_reconciliation: { statement_date: "2026-08-31", statement_balance: "1150.00" } });
+  it("hides the starting balance after a previous reconciliation and says where it picks up from", async () => {
+    answer({
+      last_reconciliation: { statement_date: "2026-08-31", statement_balance: "1150.00" },
+      reconcile_status: { starting_point: "1180.25", needs_starting_balance: false, ticked_change: "0", ticked_count: 0, difference: null },
+    });
     await showAccount(account);
 
     expect(host.querySelector("[data-statement-start-balance]")).toBeNull();
-    expect(host.textContent).toContain("Picks up from your last reconciliation");
+    // The amount comes from the balance check for this statement's date, not the last record.
+    expect(host.querySelector("[data-reconcile-picks-up]")?.textContent).toBe(
+      "Picks up from your last reconciliation before this statement: $1,180.25.",
+    );
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("reconcile_status", {
+      accountId: account.id,
+      statementDate: expect.any(String),
+      statementStart: null,
+      statementEnd: null,
+    });
+  });
+
+  it("asks for a starting balance when the statement is older than every reconciliation", async () => {
+    answer({
+      last_reconciliation: { statement_date: "2026-09-30", statement_balance: "1170.00" },
+      reconcile_status: { starting_point: null, needs_starting_balance: true, ticked_change: "0", ticked_count: 0, difference: null },
+    });
+    await showAccount(account);
+
+    expect(host.querySelector("[data-statement-start-balance]")).not.toBeNull();
+    expect(host.querySelector("[data-reconcile-picks-up]")).toBeNull();
+  });
+
+  it("shows when an investment account was last reconciled by its statement", async () => {
+    answer({
+      last_reconciliation: { statement_date: "2026-09-30", statement_balance: null },
+      reconcile_status: { starting_point: null, needs_starting_balance: true, ticked_change: "0", ticked_count: 0, difference: null },
+    });
+    await showAccount({ ...account, id: 11, name: "Brokerage", account_type: "investment" });
+
+    expect(host.querySelector("[data-last-reconciled]")?.getAttribute("data-last-reconciled")).toBe("2026-09-30");
+    expect(host.querySelector("[data-last-reconciled] .stat-value")?.textContent).not.toBe("Never");
+    expect(host.querySelector("[data-statement-start-balance]")).not.toBeNull();
   });
 
   it("will not start until the first reconciliation has a starting balance", async () => {
@@ -121,6 +159,13 @@ describe("AccountDetailView reconciling any account", () => {
       const end = host.querySelector<HTMLInputElement>("[data-statement-balance]")!;
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(end, "1150.00");
       end.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    // A new end date asks again where that statement picks up from.
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("reconcile_status", {
+      accountId: account.id,
+      statementDate: "2026-08-31",
+      statementStart: null,
+      statementEnd: null,
     });
     await act(async () => host.querySelector<HTMLButtonElement>("[data-reconcile-start]")!.click());
 
