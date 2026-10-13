@@ -7,6 +7,14 @@ Publication and real installation acceptance must still complete before producti
 activation is considered finished. Older builds without this public key continue
 to use the official release page for manual installation.
 
+The implementation and production public key apply to version **1.3.1** on
+`release-1.3.1` and subsequent releases. Pipeline validation, key setup, signing,
+and release preparation do not authorize public publication. Obtain separate
+owner approval for the prepared release before publishing it. The current manual
+release workflows publish installers during packaging, before the signing review;
+dispatch those publishing workflows only for an explicitly approved publication.
+Use the Windows non-publishing diagnostic mode for pipeline validation.
+
 ## Generate and protect the key
 
 Use Node 22 and PowerShell 7 on a trusted machine. Choose a **new directory outside

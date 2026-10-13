@@ -5,14 +5,6 @@
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, string[]> = {
-  "1.3.3": [
-    "Signed updates are now available for Windows, with installer verification before setup opens.",
-  ],
-  "1.3.2": [
-    "Updates can now download verified installers from the official release, with progress, cancellation and confirmation before opening the installer.",
-    "Update authenticity is checked against a publisher public key embedded in the app; unavailable or invalid metadata keeps the manual release link available.",
-  ],
-  // The 1.3.1 tag failed its macOS signing-contract gate before publication.
   "1.3.1": [
     "Updates can now download verified installers from the official release, with progress, cancellation and confirmation before opening the installer.",
     "Update authenticity is checked against a publisher public key embedded in the app; unavailable or invalid metadata keeps the manual release link available.",
