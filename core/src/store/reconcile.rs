@@ -132,8 +132,8 @@ impl Store {
     /// value for reference only, which is not a cash balance to continue from. `last_reconciliation`, by
     /// contrast, returns the latest record of any kind, for showing when the account was last reconciled.
     ///
-    /// `reconcile_status` continues from this balance plus the change from any transactions that
-    /// investment statements recorded after it settled (see `change_settled_since`).
+    /// `reconcile_status` continues from this balance plus the change from any transactions settled by
+    /// investment statements that come after it (see `change_settled_since`).
     pub fn last_balance_reconciliation(&self, account_id: i64) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
         Ok(self.last_balance_record(account_id)?.map(|(_, date, balance)| (date, balance)))
     }
@@ -157,20 +157,31 @@ impl Store {
     }
 
     /// The change from every transaction settled by an investment statement's record (`holdings_checked`
-    /// set) that was recorded after the balance record `since_id` (a higher id: settling happens in the
-    /// order records are written). Those transactions moved the cash balance but are in no balance
-    /// record's ending balance, so the next balance reconciliation must continue from them too. Rows
-    /// settled by the balance records themselves are already in their ending balances and are not
-    /// counted. A settled transaction counts even if it was deleted afterwards, just as a balance record's
-    /// ending balance keeps it.
-    fn change_settled_since(&self, account_id: i64, kind: AccountKind, since_id: i64) -> rusqlite::Result<Decimal> {
+    /// set) that comes after the balance record (`since_date`, `since_id`) in the same order
+    /// `last_balance_record` picks the starting point by: a later statement date, or the same statement
+    /// date and a higher id (recorded later). Those transactions moved the cash balance after that
+    /// balance, but are in no balance record's ending balance, so the next balance reconciliation must
+    /// continue from them too. An investment statement dated before the balance record is already covered
+    /// by that balance, whichever was finished first, so it is not counted again. Rows settled by the
+    /// balance records themselves are already in their ending balances and are not counted.
+    ///
+    /// The change is read from the settled transactions as they are now, not stored when the investment
+    /// statement was finished. So:
+    /// - a settled transaction counts even if it was deleted afterwards, just as a balance record's
+    ///   ending balance keeps it;
+    /// - editing a transaction an investment statement settled (its amount or principal part) changes the
+    ///   next starting point by the same amount. This is deliberate: a balance record's ending balance is
+    ///   the statement's own figure, but an investment statement states no cash balance, so its
+    ///   transactions are the only record of how it moved the cash.
+    fn change_settled_since(&self, account_id: i64, kind: AccountKind, since_date: NaiveDate, since_id: i64) -> rusqlite::Result<Decimal> {
         let mut stmt = self.conn.prepare(
             "SELECT t.amount, t.principal_amount FROM transactions t
              JOIN reconciliations r ON r.id = t.reconciliation_id
-             WHERE r.account_id = ?1 AND r.holdings_checked IS NOT NULL AND r.id > ?2",
+             WHERE r.account_id = ?1 AND r.holdings_checked IS NOT NULL
+               AND (r.statement_date > ?2 OR (r.statement_date = ?2 AND r.id > ?3))",
         )?;
         let rows = stmt
-            .query_map(params![account_id, since_id], |r| {
+            .query_map(params![account_id, since_date.to_string(), since_id], |r| {
                 Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -183,7 +194,7 @@ impl Store {
     pub fn reconcile_status(&self, account_id: i64, statement_start: Option<Decimal>, statement_end: Decimal) -> rusqlite::Result<ReconcileStatus> {
         let kind = self.account_kind(account_id)?;
         let last = match self.last_balance_record(account_id)? {
-            Some((id, _, balance)) => Some(balance + self.change_settled_since(account_id, kind, id)?),
+            Some((id, date, balance)) => Some(balance + self.change_settled_since(account_id, kind, date, id)?),
             None => None,
         };
         let starting_point = last.or(statement_start);
@@ -298,7 +309,8 @@ pub struct StatementFinish {
     /// Statement rows to add, already in the app's sign and categorised.
     pub add: Vec<Transaction>,
     /// Loan accounts only: the principal part of each row in `add` (same order and length), or empty for
-    /// none. A row with `None` counts at its full amount, as any loan payment without a principal part.
+    /// none. Only a payment (an amount above zero) can have `Some`. A row with `None` counts at its full
+    /// amount, as any loan payment without a principal part.
     pub add_principal: Vec<Option<Decimal>>,
     /// Investment accounts only.
     pub holdings: Vec<HoldingChange>,
@@ -393,7 +405,9 @@ fn validate_holding_change(change: &HoldingChange) -> Result<(), StatementFinish
 }
 
 /// Refuses principal parts that don't fit: a list that isn't empty or one per row to add, a principal
-/// part on an account that isn't a loan, or one below zero or above the payment's amount.
+/// part on an account that isn't a loan or on a loan row that isn't a payment (a payment is stored
+/// above zero; a charge such as a fee or interest raises what is owed by its full amount), or one below
+/// zero or above the payment's amount.
 fn validate_principals(kind: AccountKind, add: &[Transaction], principals: &[Option<Decimal>]) -> Result<(), StatementFinishError> {
     if !principals.is_empty() && principals.len() != add.len() {
         return Err(StatementFinishError::BadInput(
@@ -405,7 +419,12 @@ fn validate_principals(kind: AccountKind, add: &[Transaction], principals: &[Opt
         if kind != AccountKind::Loan {
             return Err(StatementFinishError::BadInput("Only a loan payment can have a principal part."));
         }
-        if *principal < Decimal::ZERO || *principal > tx.amount.abs() {
+        if tx.amount <= Decimal::ZERO {
+            return Err(StatementFinishError::BadInput(
+                "Only a payment toward the loan can have a principal part. A charge, like a fee or interest, can't.",
+            ));
+        }
+        if *principal < Decimal::ZERO || *principal > tx.amount {
             return Err(StatementFinishError::BadInput(
                 "The principal part of a payment has to be between $0.00 and the payment's amount.",
             ));

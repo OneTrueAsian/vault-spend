@@ -1349,3 +1349,187 @@ fn setting_one_lot_of_a_symbol_held_in_two_lots_is_checked_on_the_sum() {
     let total: Decimal = store.list_holdings(far_future()).unwrap().iter().map(|h| h.shares).sum();
     assert_eq!(total, dec("50"));
 }
+
+// Review round 3.
+
+/// An investment statement for `start..=end` that adds `add`, without checking share counts.
+fn investment_statement(acct: i64, start: &str, end: &str, add: Vec<Transaction>) -> StatementFinish {
+    StatementFinish {
+        period: Period::new(day(start), day(end)).unwrap(),
+        ..finish_investment(acct, add, vec![], None)
+    }
+}
+
+/// A brokerage account whose July statement was reconciled by hand from 100.00 to 105.00.
+fn brokerage_reconciled_in_july(store: &Store) -> i64 {
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    store.save_transactions(brokerage, &[tx("2026-07-10", "Interest", "5.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(store, "Interest", "2026-07-10")], true).unwrap();
+    finish(store, brokerage, "2026-07-31", Some("100.00"), "105.00").expect("balances");
+    brokerage
+}
+
+#[test]
+fn a_newer_investment_statement_finished_before_an_older_balance_record_still_carries() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    // September's investment statement is finished first.
+    store
+        .finish_statement_reconciliation(
+            &investment_statement(brokerage, "2026-09-01", "2026-09-30", vec![tx("2026-09-05", "Cash Dividend", "18.50")]),
+            test_now(),
+        )
+        .unwrap();
+    // Then July's statement is reconciled by hand (the account's first balance).
+    store.save_transactions(brokerage, &[tx("2026-07-10", "Interest", "5.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Interest", "2026-07-10")], true).unwrap();
+    finish(&store, brokerage, "2026-07-31", Some("100.00"), "105.00").expect("balances");
+
+    let status = store.reconcile_status(brokerage, None, dec("123.50")).unwrap();
+    assert!(!status.needs_starting_balance);
+    assert_eq!(
+        status.starting_point,
+        Some(dec("123.50")),
+        "September's dividend came after July's balance: 105.00 + 18.50"
+    );
+    assert_eq!(status.difference, Some(Decimal::ZERO));
+}
+
+#[test]
+fn an_older_investment_statement_finished_after_a_newer_balance_record_is_not_carried() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    // September's statement is reconciled by hand first.
+    store.save_transactions(brokerage, &[tx("2026-09-10", "Interest", "5.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Interest", "2026-09-10")], true).unwrap();
+    finish(&store, brokerage, "2026-09-30", Some("100.00"), "105.00").expect("balances");
+    // Then August's investment statement is finished.
+    store
+        .finish_statement_reconciliation(
+            &investment_statement(brokerage, "2026-08-01", "2026-08-31", vec![tx("2026-08-05", "Cash Dividend", "18.50")]),
+            test_now(),
+        )
+        .unwrap();
+
+    let status = store.reconcile_status(brokerage, None, dec("105.00")).unwrap();
+    assert_eq!(
+        status.starting_point,
+        Some(dec("105.00")),
+        "September's balance already covers August: the dividend is not counted twice"
+    );
+
+    // An investment statement on the same date as the balance, finished after it, does carry.
+    store
+        .finish_statement_reconciliation(
+            &investment_statement(brokerage, "2026-09-01", "2026-09-30", vec![tx("2026-09-20", "Fee", "-2.00")]),
+            test_now(),
+        )
+        .unwrap();
+    let status = store.reconcile_status(brokerage, None, dec("103.00")).unwrap();
+    assert_eq!(status.starting_point, Some(dec("103.00")), "105.00 - 2.00");
+}
+
+#[test]
+fn two_investment_statements_between_balance_records_both_carry_until_the_next_balance() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = brokerage_reconciled_in_july(&store);
+    store
+        .finish_statement_reconciliation(
+            &investment_statement(brokerage, "2026-08-01", "2026-08-31", vec![tx("2026-08-05", "Cash Dividend", "18.50")]),
+            test_now(),
+        )
+        .unwrap();
+    store
+        .finish_statement_reconciliation(
+            &investment_statement(brokerage, "2026-09-01", "2026-09-30", vec![tx("2026-09-20", "Fee", "-2.00")]),
+            test_now(),
+        )
+        .unwrap();
+
+    let status = store.reconcile_status(brokerage, None, dec("121.50")).unwrap();
+    assert_eq!(status.starting_point, Some(dec("121.50")), "105.00 + 18.50 - 2.00");
+
+    store.save_transactions(brokerage, &[tx("2026-10-03", "Dividend", "10.00")]).unwrap();
+    store.set_transactions_cleared(&[id_of(&store, "Dividend", "2026-10-03")], true).unwrap();
+    finish(&store, brokerage, "2026-10-31", None, "131.50").expect("balances from 121.50");
+
+    let status = store.reconcile_status(brokerage, None, dec("131.50")).unwrap();
+    assert_eq!(status.starting_point, Some(dec("131.50")), "October's balance includes both statements");
+}
+
+#[test]
+fn a_row_deleted_after_an_investment_statement_settled_it_still_carries() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = brokerage_reconciled_in_july(&store);
+    store
+        .finish_statement_reconciliation(
+            &investment_statement(brokerage, "2026-08-01", "2026-08-31", vec![tx("2026-08-05", "Cash Dividend", "18.50")]),
+            test_now(),
+        )
+        .unwrap();
+    let dividend = id_of(&store, "Cash Dividend", "2026-08-05");
+    store.delete_transaction(dividend, test_now()).unwrap();
+
+    let status = store.reconcile_status(brokerage, None, dec("123.50")).unwrap();
+    assert_eq!(
+        status.starting_point,
+        Some(dec("123.50")),
+        "the statement settled it, so it stays in the balance, just as a balance record keeps it"
+    );
+    assert_eq!(status.ticked_count, 0);
+}
+
+#[test]
+fn editing_a_row_an_investment_statement_settled_changes_the_next_starting_point() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = brokerage_reconciled_in_july(&store);
+    store
+        .finish_statement_reconciliation(
+            &investment_statement(brokerage, "2026-08-01", "2026-08-31", vec![tx("2026-08-05", "Cash Dividend", "18.50")]),
+            test_now(),
+        )
+        .unwrap();
+    let dividend = id_of(&store, "Cash Dividend", "2026-08-05");
+    store.update_transaction_amount(dividend, dec("20.00")).unwrap();
+
+    let status = store.reconcile_status(brokerage, None, dec("125.00")).unwrap();
+    assert_eq!(
+        status.starting_point,
+        Some(dec("125.00")),
+        "the carried change is read from the row as it is now"
+    );
+}
+
+#[test]
+fn a_principal_part_on_a_loan_row_that_is_not_a_payment_is_refused_and_writes_nothing() {
+    let store = Store::open_in_memory().unwrap();
+    let loan = mortgage(&store);
+    let late_fee = || vec![tx("2026-08-01", "Late fee", "-50.00")];
+    let refused = [
+        ("a charge", mortgage_finish(loan, late_fee(), vec![Some(dec("10.00"))], "317245.46")),
+        (
+            "a charge with a zero principal part",
+            mortgage_finish(loan, late_fee(), vec![Some(Decimal::ZERO)], "317245.46"),
+        ),
+        (
+            "a zero amount",
+            mortgage_finish(loan, vec![tx("2026-08-01", "Adjustment", "0.00")], vec![Some(Decimal::ZERO)], "317195.46"),
+        ),
+    ];
+    for (why, f) in refused {
+        let result = store.finish_statement_reconciliation(&f, test_now());
+        match result {
+            Err(e @ StatementFinishError::BadInput(_)) => {
+                let message = e.to_string();
+                assert_plain(&message);
+                assert!(message.contains("payment"), "{why}: {message:?}");
+            }
+            other => panic!("{why}: expected BadInput, got {other:?}"),
+        }
+        assert_nothing_written(&store, 0);
+    }
+
+    // The same charge without a principal part is fine: it raises what is owed by its full amount.
+    let f = mortgage_finish(loan, late_fee(), vec![None], "317245.46");
+    store.finish_statement_reconciliation(&f, test_now()).unwrap();
+}
