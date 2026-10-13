@@ -34,7 +34,9 @@ jobs:
     outputs:
       source-sha: ${{ steps.provenance.outputs.source_sha }}
       installer-digests: ${{ steps.provenance.outputs.digests }}
-    timeout-minutes: 90
+    # A measured serial gate took 50 minutes and a fresh optimized build took 41;
+    # leave room for the final release build and installer packaging as well.
+    timeout-minutes: 150
     defaults:
       run:
         shell: pwsh
