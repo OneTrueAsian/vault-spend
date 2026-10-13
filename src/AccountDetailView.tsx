@@ -39,6 +39,7 @@ export function AccountDetailView({
   onOpenTransactions,
   onOpenPayment,
   onMessage,
+  onDataChanged,
   focus = null,
 }: {
   account: Account;
@@ -48,6 +49,9 @@ export function AccountDetailView({
   onOpenTransactions: () => void;
   onOpenPayment: (sourceId: number) => void;
   onMessage: (text: string, kind: "success" | "error" | "info") => void;
+  /** Called after a statement was finished: it can add transactions and change holdings, so the rest of the
+   * app reloads its shared data. */
+  onDataChanged?: () => Promise<void>;
   /** "reconcile": opened from an account row's "Reconcile with a statement…", so the page starts at
    * the reconcile card with its first field ready to type in. */
   focus?: "reconcile" | null;
@@ -198,6 +202,7 @@ export function AccountDetailView({
     const added = finished.added ? ` Added ${finished.added} transaction${finished.added === 1 ? "" : "s"}.` : "";
     const learned = finished.layout_saved ? ` The app will recognize ${finished.layout_saved} statements next time.` : "";
     loadOverview().catch((e) => onMessage(errorMessage(e), "error"));
+    Promise.resolve(onDataChanged?.()).catch((e) => onMessage(`The statement was saved, but the rest of the app couldn't reload: ${errorMessage(e)}`, "error"));
     onMessage(`Reconciled ${account.name} through ${formatDisplayDate(statementDateRef.current)}.${added}${learned}`, "success");
     closeStatement();
     // eslint-disable-next-line react-hooks/exhaustive-deps

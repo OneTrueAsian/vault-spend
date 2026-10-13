@@ -202,9 +202,12 @@ describe("AccountDetailView statement upload", () => {
 
   it("reads the chosen statement, shows its review, and says what happened when it is finished", async () => {
     const messages: string[] = [];
+    const onDataChanged = vi.fn(() => Promise.resolve());
     answer({ last_reconciliation: null });
     await act(async () =>
-      root.render(<AccountDetailView account={account} onBack={() => {}} onOpenTransactions={() => {}} onOpenPayment={() => {}} onMessage={(t) => messages.push(t)} />),
+      root.render(
+        <AccountDetailView account={account} onBack={() => {}} onOpenTransactions={() => {}} onOpenPayment={() => {}} onMessage={(t) => messages.push(t)} onDataChanged={onDataChanged} />,
+      ),
     );
     await act(async () => setInput("[data-statement-period-start]", "2026-07-22"));
     await act(async () => setInput("[data-statement-date]", "2026-08-21"));
@@ -231,6 +234,8 @@ describe("AccountDetailView statement upload", () => {
     expect(vi.mocked(invoke)).toHaveBeenCalledWith("finish_statement_reconciliation", expect.objectContaining({ token: "tok", generation: 7 }));
     expect(messages.at(-1)).toMatch(/^Reconciled Everyday Checking through Aug 21(, 2026)?\. Added 2 transactions\. The app will recognize Riverbend statements next time\.$/);
     expect(document.body.querySelector("[data-statement-review]")).toBeNull();
+    // Finishing can add transactions and change holdings, so every other view is refreshed.
+    expect(onDataChanged).toHaveBeenCalledTimes(1);
   });
 
   it("asks which part of a statement belongs to this account when it holds several", async () => {
