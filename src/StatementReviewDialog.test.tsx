@@ -426,6 +426,27 @@ describe("StatementReviewDialog", () => {
     expect(q("[data-not-on-statement]")).toBeNull();
   });
 
+  it("lists only transactions dated inside the statement's dates as not on the statement", async () => {
+    await render(
+      sampleReview({
+        app_transactions: [
+          ...sampleReview().app_transactions,
+          // Within the few days around the statement the app looks at for matches, but outside its dates.
+          { id: 20, date: "2026-07-18", description: "Before the statement", amount: "-2.00", change: "2.00" },
+          { id: 21, date: "2026-08-25", description: "After the statement", amount: "-3.00", change: "3.00" },
+        ],
+      }),
+    );
+    expect(q("[data-not-on-statement]")).toBeNull();
+    // Inside the dates and no longer matched: listed.
+    await click(q("[data-statement-row='0'] [data-not-a-match]"));
+    await click(q("[data-statement-row='0'] [data-skip-row]"));
+    const list = q("[data-not-on-statement]")!.textContent;
+    expect(list).toContain("Streaming");
+    expect(list).not.toContain("Before the statement");
+    expect(list).not.toContain("After the statement");
+  });
+
   it("skips a line, or adds it under a description the person types", async () => {
     const onFinish = await render(sampleReview({ ending_balance: "50.48" }));
     await click(q("[data-statement-row='1'] [data-skip-row]"));

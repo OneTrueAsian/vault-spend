@@ -301,11 +301,14 @@ export function StatementReviewDialog(props: {
   const earlierRows = review.rows.filter((r) => !addable(review, r));
   const earlierUndecided = earlierRows.filter((r) => !form.choices.has(r.index));
 
-  // What stays unticked as things stand: every app transaction no line is matched to, except the
-  // possible matches of lines still being decided.
+  // What stays unticked as things stand: every app transaction dated inside the statement's dates that no
+  // line is matched to, except the possible matches of lines still being decided. (The app also offers
+  // transactions from a few days either side for matching; those aren't expected on this statement.)
   const chosenIds = new Set([...form.choices.values()].flatMap((c) => (c.kind === "match" ? [c.transactionId] : [])));
   const pendingIds = new Set(review.rows.filter((r) => !form.choices.has(r.index)).flatMap((r) => [...(r.match_id !== null ? [r.match_id] : []), ...r.possible_ids]));
-  const notOnStatement = review.app_transactions.filter((t) => !chosenIds.has(t.id) && !pendingIds.has(t.id));
+  const notOnStatement = review.app_transactions.filter(
+    (t) => t.date >= review.period_start && t.date <= review.period_end && !chosenIds.has(t.id) && !pendingIds.has(t.id),
+  );
 
   // When the button just pressed goes away (Not a match, or picking a line's own match back), keyboard
   // focus moves to the row's first control instead of falling back to the page.
