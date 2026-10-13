@@ -44,6 +44,8 @@ mod holding_import;
 pub use self::holding_import::*;
 mod assets;
 pub use self::assets::*;
+mod statements;
+pub use self::statements::*;
 
 /// The data file path this session is actually using right now — may
 /// differ from what `startup::open_from_disk` opened at launch, since

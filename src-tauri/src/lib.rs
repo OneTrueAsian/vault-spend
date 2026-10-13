@@ -35,6 +35,7 @@ mod protection_transition;
 mod request_session;
 mod runtime;
 mod startup;
+mod statement_review;
 mod stockdata;
 mod system_session;
 mod twelve_data;
@@ -50,6 +51,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(command_thread::CommandQueue::start())
         .manage(holding_import::Sessions::default())
+        .manage(statement_review::Sessions::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -404,6 +406,15 @@ pub fn run() {
             commands::reconcile_status,
             commands::finish_reconciliation,
             commands::last_reconciliation,
+            commands::read_statement,
+            commands::review_statement,
+            commands::statement_lines,
+            commands::teach_statement_layout,
+            commands::finish_statement_reconciliation,
+            commands::cancel_statement_review,
+            commands::list_statement_layouts,
+            commands::rename_statement_layout,
+            commands::delete_statement_layout,
             commands::investment_accumulation,
             commands::list_investment_accumulation,
             commands::account_value_history,
