@@ -140,3 +140,18 @@ table.ledger.statement-rows {
   background: var(--accent-soft);
   color: var(--accent-soft-text);
 }
+
+/* The upload buttons under "Start reconciling" on an account's page. */
+.reconcile-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.reconcile-upload > p {
+  flex: 1 1 100%;
+  margin: 0;
+}

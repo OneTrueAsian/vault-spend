@@ -38,6 +38,8 @@ const presentationOnly = new Set([
   "set_apply_to_debt_enabled", "set_split_purchases_enabled", "set_month_reviewed", "set_investment_plan",
   "set_profile_ui_state", "mark_ui_state_migrated", "set_profile_icon", "set_tray_enabled", "set_autostart_enabled",
   "set_auto_lock_settings", "set_backup_copy_dir", "create_backup_now",
+  // The banks whose statements the app has learned to read: only Settings and the next statement upload read them.
+  "rename_statement_layout", "delete_statement_layout",
 ]);
 /** Profile, protection and file-location changes replace or remount the whole profile, so every view
  *  starts from a new session instead of being told to refresh. */

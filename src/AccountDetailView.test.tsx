@@ -8,11 +8,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountDetailView } from "./AccountDetailView";
 import type { Account } from "./types";
+import { sampleReview } from "./statementTestUtils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve([])) }));
 // The investment chart section loads on its own and has its own tests; here it would only race the
 // mocked answers (it reads its own commands), so it is left out.
+vi.mock("./nativeDialog", () => ({ open: vi.fn(() => Promise.resolve("C:/statements/aug.pdf")) }));
+vi.mock("./profileUiState", () => ({ getCurrentGeneration: () => Promise.resolve(7) }));
 vi.mock("./AccumulationSection", () => ({ AccountAccumulationSection: () => null }));
 
 const account: Account = { id: 7, name: "Everyday Checking", account_type: "checking", starting_balance: "100", current_balance: "123.45", institution: null, mask: null, interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null };
@@ -175,5 +178,83 @@ describe("AccountDetailView reconciling any account", () => {
       statementStart: null,
       statementEnd: "1150.00",
     });
+  });
+});
+
+const setInput = (selector: string, value: string) => {
+  const el = host.querySelector<HTMLInputElement>(selector)!;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+};
+
+describe("AccountDetailView statement upload", () => {
+  it("offers uploading a statement next to reconciling by hand, once the start date is known", async () => {
+    answer({ last_reconciliation: null });
+    await showAccount(account);
+    const upload = host.querySelector<HTMLButtonElement>("[data-upload-statement]");
+    expect(upload?.textContent).toBe("Upload a statement");
+    expect(host.querySelector("[data-upload-download]")?.textContent).toBe("Use a CSV or OFX download");
+    expect(upload!.disabled).toBe(true);
+    await act(async () => setInput("[data-statement-period-start]", "2026-07-22"));
+    expect(host.querySelector<HTMLButtonElement>("[data-upload-statement]")!.disabled).toBe(false);
+  });
+
+  it("reads the chosen statement, shows its review, and says what happened when it is finished", async () => {
+    const messages: string[] = [];
+    answer({ last_reconciliation: null });
+    await act(async () =>
+      root.render(<AccountDetailView account={account} onBack={() => {}} onOpenTransactions={() => {}} onOpenPayment={() => {}} onMessage={(t) => messages.push(t)} />),
+    );
+    await act(async () => setInput("[data-statement-period-start]", "2026-07-22"));
+    await act(async () => setInput("[data-statement-date]", "2026-08-21"));
+    // One line, already matched to a transaction, and the figures agree: the person can finish.
+    const review = sampleReview({
+      account_kind: "cash",
+      learnable: false,
+      starting_balance: "100.00",
+      ending_balance: "92.60",
+      rows: [{ index: 0, date: "2026-07-24", description: "STREAMING SERVICE", amount: "-7.40", principal: null, status: "matched", match_id: 11, possible_ids: [] }],
+      app_transactions: [{ id: 11, date: "2026-07-24", description: "Streaming", amount: "-7.40", change: "-7.40" }],
+    });
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === "read_statement") return { token: "tok", sections: [{ index: 0, name: "Statement", row_count: 1, holding_count: 0 }], review };
+      if (command === "finish_statement_reconciliation") return { reconciliation_id: 1, added: 2, layout_saved: "Riverbend" };
+      if (command === "cancel_statement_review") return null;
+      return [];
+    });
+    await act(async () => host.querySelector<HTMLButtonElement>("[data-upload-statement]")!.click());
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("read_statement", { path: "C:/statements/aug.pdf", accountId: account.id, periodStart: "2026-07-22", periodEnd: "2026-08-21", generation: 7 });
+    expect(document.body.querySelector("[data-statement-review]")).not.toBeNull();
+
+    await act(async () => document.body.querySelector<HTMLButtonElement>("[data-statement-finish]")!.click());
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("finish_statement_reconciliation", expect.objectContaining({ token: "tok", generation: 7 }));
+    expect(messages.at(-1)).toMatch(/^Reconciled Everyday Checking through Aug 21(, 2026)?\. Added 2 transactions\. The app will recognize Riverbend statements next time\.$/);
+    expect(document.body.querySelector("[data-statement-review]")).toBeNull();
+  });
+
+  it("asks which part of a statement belongs to this account when it holds several", async () => {
+    answer({ last_reconciliation: null });
+    await showAccount(account);
+    await act(async () => setInput("[data-statement-period-start]", "2026-08-01"));
+    vi.mocked(invoke).mockImplementation(async (command: string) =>
+      command === "read_statement"
+        ? { token: "tok", sections: [{ index: 0, name: "Savings", row_count: 0, holding_count: 0 }, { index: 1, name: "Checking", row_count: 5, holding_count: 0 }], review: null }
+        : [],
+    );
+    await act(async () => host.querySelector<HTMLButtonElement>("[data-upload-statement]")!.click());
+    expect(document.body.querySelector("[data-statement-section='1']")?.textContent).toContain("Checking (5 transactions)");
+  });
+
+  it("shows why reading failed under the buttons and stays on the page", async () => {
+    answer({ last_reconciliation: null });
+    await showAccount(account);
+    await act(async () => setInput("[data-statement-period-start]", "2026-08-01"));
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === "read_statement") throw "This PDF is a picture of the statement, so the app can't read its text.";
+      return [];
+    });
+    await act(async () => host.querySelector<HTMLButtonElement>("[data-upload-statement]")!.click());
+    expect(host.querySelector("[data-statement-error]")?.textContent).toContain("picture of the statement");
   });
 });

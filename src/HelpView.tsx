@@ -175,6 +175,14 @@ export const TAB_HELP: TabHelp[] = [
         ],
       },
       {
+        question: "How do I check an account against my statement file?",
+        steps: [
+          <>Open the account's page and enter the statement's start and end dates under <strong>Reconcile with a statement</strong>.</>,
+          <>Choose <strong>Upload a statement</strong> and pick the PDF. The app checks each line against your transactions, and anything missing can be added with one click.</>,
+          <>If the app hasn't seen your bank's statements before, it may ask you to click a few examples. It remembers them for next time. A picture-only PDF can't be read, so use your bank's CSV or OFX download instead (<strong>Use a CSV or OFX download</strong>).</>,
+        ],
+      },
+      {
         question: "How do I see what changed in my net worth?",
         steps: [
           <>Click <strong>What you own</strong>, <strong>What you owe</strong> or <strong>Net worth</strong>.</>,
@@ -1366,6 +1374,8 @@ const FAQ_ENTRIES: FaqEntry[] = [
         finish and Vault Spend records the reconciliation. Ticked rows stay
         marked on the account's page, and a difference that won't close
         usually means a missing, mistyped, or wrongly dated transaction.
+        You can also upload the statement itself: choose Upload a statement
+        instead of ticking, and Vault Spend checks each line for you.
       </p>
     ),
   },

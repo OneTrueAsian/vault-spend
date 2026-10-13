@@ -5,7 +5,11 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";
 import { LineChart } from "./charts";
 import { formatAmount, formatDisplayDate, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
-import { sumMoney } from "./money";
+import { addAmounts } from "./reconcileMath";
+import { ModalShell } from "./Modal";
+import { StatementReviewDialog } from "./StatementReviewDialog";
+import { StatementTeachDialog } from "./StatementTeachDialog";
+import { useStatementReconcile } from "./useStatementReconcile";
 import { DateField } from "./DateField";
 import { errorMessage } from "./errorMessage";
 // Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
@@ -65,6 +69,7 @@ export function AccountDetailView({
   statementDateRef.current = statementDate;
 
   const reconcileCardRef = useRef<HTMLDivElement>(null);
+  const statement = useStatementReconcile(account.id);
   const statementBalanceRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (focus !== "reconcile") return;
@@ -185,6 +190,19 @@ export function AccountDetailView({
   const difference = status && status.difference !== null ? parseFloat(status.difference) : null;
   const balances = history.map((p) => parseFloat(p.balance));
 
+  // A finished statement: refresh the page, say what happened, and close the flow.
+  const finished = statement.phase.kind === "done" ? statement.phase.finished : null;
+  const closeStatement = statement.cancel;
+  useEffect(() => {
+    if (!finished) return;
+    const added = finished.added ? ` Added ${finished.added} transaction${finished.added === 1 ? "" : "s"}.` : "";
+    const learned = finished.layout_saved ? ` The app will recognize ${finished.layout_saved} statements next time.` : "";
+    loadOverview().catch((e) => onMessage(errorMessage(e), "error"));
+    onMessage(`Reconciled ${account.name} through ${formatDisplayDate(statementDateRef.current)}.${added}${learned}`, "success");
+    closeStatement();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished]);
+
   return (
     <div className="account-detail" data-account-detail={account.id}>
       <div className="page-top">
@@ -297,6 +315,33 @@ export function AccountDetailView({
                 Start reconciling
               </button>
             </form>
+            <div className="reconcile-upload">
+              <p className="modal-message-secondary">
+                Or let the app check your statement for you. Enter the statement's start and end dates above, then upload it.
+              </p>
+              <button
+                type="button"
+                disabled={!periodStart || statement.busy}
+                onClick={() => void statement.start(periodStart, statementDate)}
+                data-upload-statement
+              >
+                Upload a statement
+              </button>
+              <button
+                type="button"
+                className="modal-secondary"
+                disabled={!periodStart || statement.busy}
+                onClick={() => void statement.start(periodStart, statementDate, "download")}
+                data-upload-download
+              >
+                Use a CSV or OFX download
+              </button>
+              {statement.error && statement.phase.kind === "idle" && (
+                <p className="statement-error" role="alert" data-statement-error>
+                  {statement.error}
+                </p>
+              )}
+            </div>
           </>
         ) : (
           <>
@@ -308,7 +353,7 @@ export function AccountDetailView({
               <div>
                 <span className="reconcile-label">Ticked so far</span>
                 <span className="reconcile-figure" data-cleared-balance>
-                  {status && status.starting_point !== null ? formatAmount(String(sumMoney([status.starting_point, status.ticked_change]))) : "—"}
+                  {status && status.starting_point !== null ? formatAmount(addAmounts([status.starting_point, status.ticked_change])) : "—"}
                 </span>
               </div>
               <div>
@@ -362,6 +407,66 @@ export function AccountDetailView({
           </>
         )}
       </div>
+
+      {statement.phase.kind === "choose_section" && (
+        <ModalShell title="Which account is this?" onCancel={statement.cancel}>
+          <p className="modal-message-secondary">This statement covers more than one account. Choose the part for {account.name}.</p>
+          {statement.error && (
+            <p className="statement-error" role="alert">
+              {statement.error}
+            </p>
+          )}
+          {statement.phase.read.sections.map((section) => (
+            <button
+              key={section.index}
+              type="button"
+              className="modal-secondary"
+              disabled={statement.busy}
+              onClick={() => void statement.chooseSection(section.index)}
+              data-statement-section={section.index}
+            >
+              {section.name} ({section.row_count} transactions{section.holding_count ? `, ${section.holding_count} holdings` : ""})
+            </button>
+          ))}
+        </ModalShell>
+      )}
+      {statement.phase.kind === "review" && (
+        <StatementReviewDialog
+          key={statement.phase.review.token}
+          review={statement.phase.review}
+          accountName={account.name}
+          busy={statement.busy}
+          error={statement.error}
+          onFlip={(flip) => void statement.setFlip(flip)}
+          onTeach={() => void statement.openTeach()}
+          onUseDownload={() => {
+            statement.cancel();
+            void statement.start(periodStart, statementDate, "download");
+          }}
+          onReconcileByHand={() => {
+            statement.cancel();
+            reconcileCardRef.current?.scrollIntoView({ block: "start" });
+          }}
+          onFinish={(decisions) => void statement.finish(decisions)}
+          onCancel={statement.cancel}
+        />
+      )}
+      {statement.phase.kind === "teach" && (
+        <StatementTeachDialog
+          lines={statement.phase.lines}
+          kind={statement.phase.review.account_kind}
+          attempts={statement.phase.attempts}
+          busy={statement.busy}
+          error={statement.error}
+          needs={{
+            rows: statement.phase.review.activity_check.outcome !== "passed",
+            holdings: statement.phase.review.account_kind === "investment" && statement.phase.review.holdings_check.outcome === "failed",
+          }}
+          onTeach={(marks) => void statement.teach(marks)}
+          onBack={statement.backToReview}
+          onGiveUp={statement.backToReview}
+        />
+      )}
 
       <div className="card">
         <div className="card-head">
