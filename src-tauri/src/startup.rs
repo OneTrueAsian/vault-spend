@@ -399,6 +399,19 @@ pub fn activate(app: &tauri::AppHandle, opened: OpenedProfile) {
     crate::background::sync_tray_with_settings(app);
 }
 
+/// Ends every review held in memory (holding import previews and the statement review, with the
+/// statement's text) when the profile locks, unlocks or changes: none of them may outlive it.
+fn end_open_reviews(holdings: Option<&crate::holding_import::Sessions>, statements: Option<&crate::statement_review::Sessions>) {
+    if let Some(sessions) = holdings {
+        if let Ok(mut cache) = sessions.0.lock() {
+            cache.clear();
+        }
+    }
+    if let Some(sessions) = statements {
+        sessions.clear();
+    }
+}
+
 /// Tells the frontend the coarse startup state changed, for a transition that does not happen
 /// during the normal launch fetch (manual lock, unlock, an in-app select, enabling protection).
 /// `StartupGate` subscribes to this before its own initial fetch (Task 7's header explains why that
@@ -406,11 +419,10 @@ pub fn activate(app: &tauri::AppHandle, opened: OpenedProfile) {
 /// above does — so a caller never needs to thread `device`/`status` through just for this.
 pub fn broadcast_state(app: &tauri::AppHandle) {
     use tauri::{Emitter, Manager};
-    if let Some(sessions) = app.try_state::<crate::holding_import::Sessions>() {
-        if let Ok(mut cache) = sessions.0.lock() {
-            cache.clear();
-        }
-    }
+    end_open_reviews(
+        app.try_state::<crate::holding_import::Sessions>().as_deref(),
+        app.try_state::<crate::statement_review::Sessions>().as_deref(),
+    );
     let paths = app.state::<config::AppPaths>();
     let runtime = app.state::<AppStateHandle>();
     let status = app.state::<LaunchStatus>();
@@ -1017,5 +1029,31 @@ mod tests {
 
         assert!(!dir.join("profiles.json").exists());
         assert_eq!(std::fs::read(dir.join("profiles.json.damaged")).unwrap(), b"garbage");
+    }
+
+    #[test]
+    fn open_reviews_end_when_the_profile_locks_or_changes() {
+        let holdings = crate::holding_import::Sessions::default();
+        let source = budget_core::holding_import::parse_source("S,Q,P,C\nA,1,10,5\n", "csv").unwrap();
+        holdings.0.lock().unwrap().insert(
+            "preview".into(),
+            crate::holding_import::Session {
+                generation: 1,
+                created: std::time::Instant::now(),
+                source,
+                account_id: None,
+                rows: vec![],
+            },
+        );
+        let statements = crate::statement_review::Sessions::default();
+        statements
+            .replace(crate::statement_review::tests::session("review", 1, std::time::Instant::now()))
+            .unwrap();
+
+        end_open_reviews(Some(&holdings), Some(&statements));
+
+        assert!(holdings.0.lock().unwrap().is_empty());
+        assert!(statements.0.lock().unwrap().is_none(), "the statement review and its text are dropped");
+        end_open_reviews(None, None); // Nothing managed yet: nothing to do.
     }
 }

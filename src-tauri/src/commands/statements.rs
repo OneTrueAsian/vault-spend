@@ -3,16 +3,17 @@
 //! docs/STATEMENT-RECONCILE.md.
 
 use super::*;
-use crate::statement_review::{Session, Source};
+use crate::statement_review::{new_token, Session, Source};
 pub use crate::statement_review::{Sessions, STALE};
-use budget_core::import_resolution::{is_sure, Suggestion};
+use budget_core::csv_loader::LoadResult;
+use budget_core::import_resolution::{automatic, effective_panel_choices, row_facts, Automatic};
 use budget_core::statement::checks::{check_section, CheckOutcome, SectionChecks};
 use budget_core::statement::layout::{built_in_layouts, StatementLayout, GENERAL_ID, GENERAL_INVESTMENT_ID};
 use budget_core::statement::learn::{self, TeachMarks};
 use budget_core::statement::matching::{match_items, suggest_flip, to_app_amount, AccountKind, AppItem, StatementItem};
 use budget_core::statement::pdf_text::{read_pdf_lines, MAX_STATEMENT_BYTES};
 use budget_core::statement::select::{choose, read_with, recognizes, LayoutOrigin};
-use budget_core::statement::{Period, StatementRow, StatementSection};
+use budget_core::statement::{Period, StatementLine, StatementRow, StatementSection};
 use budget_core::store::{HoldingChange, ReconcileSource, StatementFinish, StoredHolding};
 use std::io::Read;
 
@@ -23,6 +24,13 @@ const PROFILE_CHANGED: &str = "The profile changed. Close this statement and sta
 const NO_SUCH_PART: &str = "That part of the statement doesn't exist. Read the statement again.";
 const EVERY_LINE: &str = "Choose what to do with every line on your statement first.";
 const CANNOT_OPEN: &str = "Could not open this statement. Check its location and access.";
+const ONE_CHANGE: &str = "Choose one change for each holding.";
+
+/// A database error in plain words. Statement reading and the checks before finishing only read, so
+/// nothing was changed; the finish itself reports its own errors (see `StatementFinishError`).
+fn db(_: budget_core::store::StoreError) -> String {
+    "Something went wrong reading your data. Nothing was changed. Please try again.".into()
+}
 
 fn ensure_generation(paths: &crate::config::AppPaths, generation: u64) -> Result<(), String> {
     if paths.current_generation() == generation {
@@ -237,6 +245,7 @@ pub struct StatementLayoutDto {
     pub updated_at: String,
 }
 
+#[cfg(test)]
 pub struct ReadStatementArgs {
     pub path: String,
     pub account_id: i64,
@@ -293,29 +302,83 @@ fn no_failures(checks: &SectionChecks) -> bool {
     !matches!(checks.activity, CheckOutcome::Failed { .. }) && !matches!(checks.holdings, CheckOutcome::Failed { .. })
 }
 
-pub fn read_statement_for(state: &mut AppState, sessions: &Sessions, generation: u64, args: ReadStatementArgs) -> Result<StatementReadDto, String> {
-    let period = Period::new(parse_date(&args.period_start)?, parse_date(&args.period_end)?).map_err(str::to_string)?;
-    let kind = state.store.account_kind(args.account_id).map_err(|e| e.to_string())?;
-    let file = std::path::Path::new(&args.path);
-    let extension = file.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-    if !file.is_file() {
+fn parse_period(start: &str, end: &str) -> Result<Period, String> {
+    Period::new(parse_date(start)?, parse_date(end)?).map_err(str::to_string)
+}
+
+/// A statement file, read and parsed. Done before the profile is locked, since a large PDF can take a
+/// while and needs nothing from the profile.
+pub enum LoadedStatement {
+    Pdf(Vec<StatementLine>),
+    Download(LoadResult),
+}
+
+pub fn load_statement_file(path: &str) -> Result<LoadedStatement, String> {
+    let file = std::path::Path::new(path);
+    if file.is_dir() {
         return Err("Choose one statement file, not a folder.".into());
+    }
+    if !file.is_file() {
+        return Err("That file isn't there anymore. Choose your statement again.".into());
+    }
+    let extension = file.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    if !matches!(extension.as_str(), "pdf" | "csv" | "ofx" | "qfx" | "qif") {
+        return Err("Choose a PDF statement or your bank's CSV, OFX, QFX or QIF download.".into());
     }
     if std::fs::metadata(file).map(|m| m.len() > MAX_STATEMENT_BYTES as u64).unwrap_or(false) {
         return Err("This file is too large to be a monthly statement.".into());
     }
+    if extension == "pdf" {
+        let mut bytes = Vec::new();
+        std::fs::File::open(file)
+            .map_err(|_| CANNOT_OPEN)?
+            .take(MAX_STATEMENT_BYTES as u64 + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| CANNOT_OPEN)?;
+        Ok(LoadedStatement::Pdf(read_pdf_lines(bytes).map_err(|e| e.to_string())?))
+    } else {
+        Ok(LoadedStatement::Download(
+            budget_core::importer::load_transactions(file, false).map_err(|_| CANNOT_OPEN)?,
+        ))
+    }
+}
 
+/// Reads, then reviews: what the command does in two steps, reading before it takes the profile lock.
+#[cfg(test)]
+pub fn read_statement_for(state: &mut AppState, sessions: &Sessions, generation: u64, args: ReadStatementArgs) -> Result<StatementReadDto, String> {
+    let period = parse_period(&args.period_start, &args.period_end)?;
+    let loaded = load_statement_file(&args.path)?;
+    review_loaded_statement(state, sessions, generation, args.account_id, period, loaded)
+}
+
+fn account_kind(state: &AppState, account_id: i64) -> Result<AccountKind, String> {
+    state.store.account_kind(account_id).map_err(|e| match e {
+        budget_core::store::StoreError::QueryReturnedNoRows => "That account isn't in the app anymore. Choose another account.".into(),
+        other => db(other),
+    })
+}
+
+pub fn review_loaded_statement(
+    state: &mut AppState,
+    sessions: &Sessions,
+    generation: u64,
+    account_id: i64,
+    period: Period,
+    loaded: LoadedStatement,
+) -> Result<StatementReadDto, String> {
+    let kind = account_kind(state, account_id)?;
     let mut session = Session {
         token: new_token()?,
         generation,
         created: std::time::Instant::now(),
-        signature: state.store.reconcile_signature(args.account_id).map_err(|e| e.to_string())?,
-        account_id: args.account_id,
+        signature: state.store.reconcile_signature(account_id).map_err(db)?,
+        account_id,
         kind,
         period,
         source: Source::Pdf,
         lines: vec![],
         download_rows: vec![],
+        download_categories: vec![],
         download_dropped: 0,
         layout: None,
         origin: None,
@@ -326,19 +389,13 @@ pub fn read_statement_for(state: &mut AppState, sessions: &Sessions, generation:
         flip: false,
     };
 
-    match extension.as_str() {
-        "pdf" => {
-            let mut bytes = Vec::new();
-            std::fs::File::open(file)
-                .map_err(|_| CANNOT_OPEN)?
-                .take(MAX_STATEMENT_BYTES as u64 + 1)
-                .read_to_end(&mut bytes)
-                .map_err(|_| CANNOT_OPEN)?;
-            session.lines = read_pdf_lines(bytes).map_err(|e| e.to_string())?;
+    match loaded {
+        LoadedStatement::Pdf(lines) => {
+            session.lines = lines;
             let learned: Vec<(i64, StatementLayout)> = state
                 .store
                 .list_statement_layouts()
-                .map_err(|e| e.to_string())?
+                .map_err(db)?
                 .into_iter()
                 .map(|l| (l.id, l.layout))
                 .collect();
@@ -348,15 +405,14 @@ pub fn read_statement_for(state: &mut AppState, sessions: &Sessions, generation:
             session.origin = Some(reading.origin);
             session.layout = Some(reading.layout);
         }
-        "csv" | "ofx" | "qfx" | "qif" => {
-            let loaded = budget_core::importer::load_transactions(file, false).map_err(|_| CANNOT_OPEN)?;
+        LoadedStatement::Download(loaded) => {
             let today = chrono::Local::now().date_naive();
             let flip = state
                 .store
                 .list_accounts(today)
-                .map_err(|e| e.to_string())?
+                .map_err(db)?
                 .into_iter()
-                .find(|a| a.id == args.account_id)
+                .find(|a| a.id == account_id)
                 .and_then(|a| a.import_flip_signs)
                 .unwrap_or(false);
             session.source = Source::Download { flip };
@@ -370,12 +426,12 @@ pub fn read_statement_for(state: &mut AppState, sessions: &Sessions, generation:
                         running_balance: None,
                         principal: None,
                     });
+                    session.download_categories.push(t.category.clone());
                 } else {
                     session.download_dropped += 1;
                 }
             }
         }
-        _ => return Err("Choose a PDF statement or your bank's CSV, OFX, QFX or QIF download.".into()),
     }
 
     let sections = sections_of(&session);
@@ -403,12 +459,6 @@ pub fn read_statement_for(state: &mut AppState, sessions: &Sessions, generation:
     })
 }
 
-fn new_token() -> Result<String, String> {
-    let mut bytes = [0u8; 32];
-    getrandom::fill(&mut bytes).map_err(|_| "Could not start a safe statement review.")?;
-    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
-}
-
 fn symbol_key(s: &str) -> String {
     s.trim().to_uppercase()
 }
@@ -419,7 +469,7 @@ fn account_holdings(state: &AppState, account_id: i64) -> Result<Vec<StoredHoldi
     Ok(state
         .store
         .list_holdings(today)
-        .map_err(|e| e.to_string())?
+        .map_err(db)?
         .into_iter()
         .filter(|h| h.account_id == account_id)
         .collect())
@@ -442,7 +492,7 @@ fn build_review(state: &AppState, session: &Session) -> Result<StatementReviewDt
             amount: to_app(session, r.amount),
         })
         .collect();
-    let candidates = state.store.statement_candidates(session.account_id, period).map_err(|e| e.to_string())?;
+    let candidates = state.store.statement_candidates(session.account_id, period).map_err(db)?;
     let app_items: Vec<AppItem> = candidates
         .iter()
         .map(|c| AppItem {
@@ -528,20 +578,17 @@ fn build_review(state: &AppState, session: &Session) -> Result<StatementReviewDt
     let previous_ending_balance = if session.kind == AccountKind::Investment {
         None
     } else {
-        state
-            .store
-            .reconcile_starting_point(session.account_id, period.end)
-            .map_err(|e| e.to_string())?
+        state.store.reconcile_starting_point(session.account_id, period.end).map_err(db)?
     };
-    let last = state.store.last_reconciliation(session.account_id).map_err(|e| e.to_string())?;
+    let last = state.store.last_reconciliation(session.account_id).map_err(db)?;
     let today = chrono::Local::now().date_naive();
     let avoid: Vec<String> = state
         .store
         .list_accounts(today)
-        .map_err(|e| e.to_string())?
+        .map_err(db)?
         .into_iter()
         .map(|a| a.account.name)
-        .chain(state.store.list_family_members().map_err(|e| e.to_string())?.into_iter().map(|m| m.name))
+        .chain(state.store.list_family_members().map_err(db)?.into_iter().map(|m| m.name))
         .collect();
     let (suggested_name, suggested_phrases) = learn::suggest_name_and_phrases(&session.lines, &avoid);
     let learnable = matches!(session.source, Source::Pdf) && !session.recognized && (session.taught || no_failures(&checks));
@@ -603,6 +650,8 @@ fn build_review(state: &AppState, session: &Session) -> Result<StatementReviewDt
     })
 }
 
+/// Shows another part of the statement, or the same part with its signs flipped. The review gets a new
+/// token and a fresh 10 minutes (see `Session::renew`).
 pub fn review_statement_for(
     state: &mut AppState,
     sessions: &Sessions,
@@ -617,8 +666,15 @@ pub fn review_statement_for(
         }
         session.section = section_index;
         session.flip = flip;
-        build_review(state, session)
+        renewed_review(state, session)
     })
+}
+
+fn renewed_review(state: &AppState, session: &mut Session) -> Result<StatementReviewDto, String> {
+    let mut review = build_review(state, session)?;
+    session.renew()?;
+    review.token = session.token.clone();
+    Ok(review)
 }
 
 pub fn statement_lines_for(sessions: &Sessions, generation: u64, token: &str) -> Result<Vec<StatementLineDto>, String> {
@@ -636,6 +692,8 @@ pub fn statement_lines_for(sessions: &Sessions, generation: u64, token: &str) ->
     })
 }
 
+/// Rereads the statement with what the person marked. The review gets a new token and a fresh 10
+/// minutes, so teaching a few examples never runs the review out of time.
 pub fn teach_statement_layout_for(
     state: &mut AppState,
     sessions: &Sessions,
@@ -656,17 +714,17 @@ pub fn teach_statement_layout_for(
         if sections_of(session).len() <= session.section {
             session.section = 0;
         }
-        build_review(state, session)
+        renewed_review(state, session)
     })
 }
 
 /// What teaching starts from, and what saving it then updates: the learned (else built-in) layout that
-/// recognises this statement, so teaching a bank whose statement changed updates how the app reads it;
+/// recognizes this statement, so teaching a bank whose statement changed updates how the app reads it;
 /// otherwise the general layout for this kind of account. Never the best guess from reading, which may
 /// be another bank's layout with rules that don't apply here. Every call starts from the same base, so
 /// the marks sent each time are all the examples the person has marked so far.
 fn teaching_base(state: &AppState, session: &Session) -> Result<(StatementLayout, LayoutOrigin), String> {
-    let learned = state.store.list_statement_layouts().map_err(|e| e.to_string())?;
+    let learned = state.store.list_statement_layouts().map_err(db)?;
     if let Some(l) = learned.into_iter().find(|l| recognizes(&l.layout, &session.lines)) {
         return Ok((l.layout, LayoutOrigin::Learned { id: l.id }));
     }
@@ -686,59 +744,75 @@ fn teaching_base(state: &AppState, session: &Session) -> Result<(StatementLayout
     Ok((base, origin))
 }
 
-/// The category to file an added row under: only a sure guess, and only under a category the person
-/// already has (a guess never adds one to their list).
-fn sure_category(
-    state: &AppState,
-    history: &[(String, String)],
-    classifier: &budget_core::classifier::Classifier,
-    description: &str,
-) -> Result<Option<String>, String> {
-    let guess = categorizer::categorize(description, &state.rules, history, Some(classifier))
-        .map(|(category, source, confidence)| Suggestion {
-            category,
-            source,
-            confidence,
+/// The category for each row to add, decided the way an import decides it without asking: the
+/// download's own category when it is one of the person's; else what the person said that file
+/// category means last time (the import category memory); else a sure rule or auto-categorizer answer.
+/// Only ever one of the person's own categories, so adding rows never adds a category.
+fn categories_for(state: &AppState, rows: &[budget_core::models::Transaction]) -> Result<Vec<Option<String>>, String> {
+    let (history, classifier) = build_classifier(state)?;
+    let facts = row_facts(&state.store, rows, &state.rules, &history, Some(&classifier)).map_err(db)?;
+    let remembered = state.store.import_category_mappings().map_err(db)?;
+    let panel = effective_panel_choices(&std::collections::HashMap::new(), &remembered).map_err(|e| e.to_string())?;
+    facts
+        .iter()
+        .map(|f| match automatic(f, &panel) {
+            Some(Automatic::File(name)) => state.store.find_category(&name).map_err(db),
+            Some(Automatic::Guess(s)) => state.store.find_category(&s.category).map_err(db),
+            None => Ok(None),
         })
-        .filter(is_sure);
-    match guess {
-        Some(s) => state.store.find_category(&s.category).map_err(|e| e.to_string()),
-        None => Ok(None),
-    }
+        .collect()
 }
 
-/// The holdings changes the person chose. An update sets the symbol's total across every lot the app
-/// holds by changing the chosen lot by the difference, because the statement check compares totals.
-fn holding_changes(
-    state: &AppState,
-    session: &Session,
-    section: &StatementSection,
-    decisions: &[HoldingDecision],
-) -> Result<Vec<HoldingChange>, String> {
+/// The holdings changes the person chose, at most one per symbol. An update sets the symbol's total
+/// across every lot the app holds, because the statement check compares totals: a rise goes on the
+/// chosen lot; a fall comes off the chosen lot first, then the others, none below zero.
+fn holding_changes(app: &[StoredHolding], section: &StatementSection, decisions: &[HoldingDecision]) -> Result<Vec<HoldingChange>, String> {
     const SHARES: &str = "Enter the share count.";
-    let app = if decisions.is_empty() {
-        vec![]
-    } else {
-        account_holdings(state, session.account_id)?
-    };
+    let mut decided = std::collections::HashSet::new();
     let mut changes = Vec::new();
     for h in decisions {
+        if matches!(h.action.as_str(), "update" | "add") && !decided.insert(symbol_key(&h.symbol)) {
+            return Err(ONE_CHANGE.into());
+        }
         let shares = h.shares.as_deref().filter(|s| !s.trim().is_empty()).map(parse_amount).transpose()?;
         let on_statement = section.holdings.iter().find(|s| symbol_key(&s.symbol) == symbol_key(&h.symbol));
         match h.action.as_str() {
             "update" => {
                 let id = h.holding_id.ok_or(STALE)?;
-                let lot = app.iter().find(|a| a.id == id).ok_or(STALE)?;
+                let chosen = app.iter().find(|a| a.id == id).ok_or(STALE)?;
+                if symbol_key(&chosen.symbol) != symbol_key(&h.symbol) {
+                    return Err(STALE.into());
+                }
                 let target = shares.or(on_statement.map(|s| s.shares)).ok_or(SHARES)?;
-                let held: Decimal = app
-                    .iter()
-                    .filter(|a| symbol_key(&a.symbol) == symbol_key(&lot.symbol))
-                    .map(|a| a.shares)
-                    .sum();
-                changes.push(HoldingChange::SetShares {
-                    holding_id: id,
-                    shares: lot.shares + (target - held),
-                });
+                if target < Decimal::ZERO {
+                    return Err("A share count can't be below zero.".into());
+                }
+                // The chosen lot first, then the symbol's other lots in the order they were added.
+                let lots: Vec<&StoredHolding> = std::iter::once(chosen)
+                    .chain(app.iter().filter(|a| a.id != id && symbol_key(&a.symbol) == symbol_key(&chosen.symbol)))
+                    .collect();
+                let held: Decimal = lots.iter().map(|a| a.shares).sum();
+                if target >= held {
+                    changes.push(HoldingChange::SetShares {
+                        holding_id: id,
+                        shares: chosen.shares + (target - held),
+                    });
+                } else {
+                    let mut excess = held - target;
+                    for lot in lots {
+                        if excess <= Decimal::ZERO {
+                            break;
+                        }
+                        let cut = lot.shares.min(excess);
+                        if cut > Decimal::ZERO {
+                            changes.push(HoldingChange::SetShares {
+                                holding_id: lot.id,
+                                shares: lot.shares - cut,
+                            });
+                            excess -= cut;
+                        }
+                    }
+                }
             }
             "add" => {
                 let shares = shares.or(on_statement.map(|s| s.shares)).ok_or(SHARES)?;
@@ -785,6 +859,21 @@ fn optional_amount(value: Option<&str>) -> Result<Option<Decimal>, String> {
     value.filter(|s| !s.trim().is_empty()).map(parse_amount).transpose()
 }
 
+/// A loan row's principal part to pass on with `amount` (in the app's sign): only a real split. A
+/// principal part equal to the whole amount says nothing more (a charge such as a fee counts in full
+/// anyway).
+fn principal_to_pass(session: &Session, row: &StatementRow, amount: Decimal) -> Option<Decimal> {
+    app_principal(session, row).filter(|p| *p != amount)
+}
+
+fn none_if_all_none(parts: Vec<Option<Decimal>>) -> Vec<Option<Decimal>> {
+    if parts.iter().all(Option::is_none) {
+        vec![]
+    } else {
+        parts
+    }
+}
+
 pub fn finish_statement_reconciliation_for(
     state: &mut AppState,
     sessions: &Sessions,
@@ -793,7 +882,7 @@ pub fn finish_statement_reconciliation_for(
     d: FinishDecisionsDto,
 ) -> Result<StatementFinishedDto, String> {
     let result = sessions.with(token, generation, |session| {
-        if state.store.reconcile_signature(session.account_id).map_err(|e| e.to_string())? != session.signature {
+        if state.store.reconcile_signature(session.account_id).map_err(db)? != session.signature {
             return Err(STALE.into());
         }
         let sections = sections_of(session);
@@ -815,7 +904,19 @@ pub fn finish_statement_reconciliation_for(
             return Err(EVERY_LINE.into());
         }
 
-        let (history, classifier) = build_classifier(state)?;
+        // A match pairs a statement line with an app transaction of exactly the same amount.
+        let candidates = state.store.statement_candidates(session.account_id, &session.period).map_err(db)?;
+        let mut matched_principal = Vec::with_capacity(d.matches.len());
+        for m in &d.matches {
+            let row = &section.rows[m.row];
+            let amount = to_app(session, row.amount);
+            let candidate = candidates.iter().find(|c| c.id == m.transaction_id).ok_or(STALE)?;
+            if candidate.amount != amount {
+                return Err("A transaction you matched has a different amount from its line on your statement. Choose its match again.".into());
+            }
+            matched_principal.push(principal_to_pass(session, row, amount));
+        }
+
         let mut add = Vec::with_capacity(d.add.len());
         let mut add_principal = Vec::with_capacity(d.add.len());
         for a in &d.add {
@@ -824,29 +925,39 @@ pub fn finish_statement_reconciliation_for(
                 return Err("Every transaction you add needs a description.".into());
             }
             let amount = parse_amount(&a.amount)?;
-            // A principal part equal to the whole amount says nothing more (a charge such as a fee
-            // counts in full anyway), so only a real split is passed on.
-            add_principal.push(app_principal(session, &section.rows[a.row]).filter(|p| *p != amount));
+            add_principal.push(principal_to_pass(session, &section.rows[a.row], amount));
             add.push(budget_core::models::Transaction {
                 date: parse_date(&a.date)?,
                 description: description.to_string(),
                 amount,
-                category: sure_category(state, &history, &classifier, description)?,
+                // The download's own category, read by `categories_for` below.
+                category: match session.source {
+                    Source::Download { .. } => session.download_categories.get(a.row).cloned().flatten(),
+                    Source::Pdf => None,
+                },
             });
         }
-        if add_principal.iter().all(Option::is_none) {
-            add_principal.clear();
+        let categories = categories_for(state, &add)?;
+        for (tx, category) in add.iter_mut().zip(categories) {
+            tx.category = category;
         }
 
         let investment = session.kind == AccountKind::Investment;
-        let holdings = holding_changes(state, session, section, &d.holdings)?;
+        let app_holdings = if investment {
+            account_holdings(state, session.account_id)?
+        } else {
+            vec![]
+        };
+        let holdings = holding_changes(&app_holdings, section, &d.holdings)?;
         let holdings_readable = checks.holdings == CheckOutcome::Passed;
         if d.finish_without_holdings && holdings_readable {
             return Err("Your holdings were read correctly, so check their share counts before finishing.".into());
         }
-        // Holdings that were read but don't add up (or can't be checked) are not compared with the app.
-        let holdings_unchecked = matches!(checks.holdings, CheckOutcome::Failed { .. }) || (!holdings_readable && !section.holdings.is_empty());
-        if investment && holdings_unchecked && !d.finish_without_holdings {
+        // Share counts are compared only when the statement's holdings were read and add up. Otherwise
+        // the person says so by finishing without checking them, unless there are none to check: the
+        // statement lists none (and prints no holdings total) and neither does the app.
+        let nothing_to_check = section.holdings.is_empty() && section.holdings_total.is_none() && app_holdings.is_empty();
+        if investment && !holdings_readable && !d.finish_without_holdings && !nothing_to_check {
             return Err("The app couldn't read your holdings correctly. Teach it how to read them, or finish without checking holdings.".into());
         }
         let statement_shares = (investment && holdings_readable && !d.finish_without_holdings)
@@ -868,7 +979,7 @@ pub fn finish_statement_reconciliation_for(
                 };
                 l.recognize = save.phrases.iter().map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect();
                 if l.recognize.is_empty() {
-                    return Err("Choose at least one phrase from your statement so the app can recognise it.".into());
+                    return Err("Choose at least one phrase from your statement so the app can recognize it.".into());
                 }
                 if !holdings_readable {
                     l.holdings = None;
@@ -905,8 +1016,8 @@ pub fn finish_statement_reconciliation_for(
             },
             matched: d.matches.iter().map(|m| m.transaction_id).collect(),
             add,
-            add_principal,
-            matched_principal: vec![],
+            add_principal: none_if_all_none(add_principal),
+            matched_principal: none_if_all_none(matched_principal),
             holdings,
             statement_shares,
             layout: layout.clone(),
@@ -927,11 +1038,19 @@ pub fn finish_statement_reconciliation_for(
     result
 }
 
-fn list_statement_layouts_for(state: &AppState) -> Result<Vec<StatementLayoutDto>, String> {
+/// Ends the review `token` belongs to.
+fn cancel_statement_review_for(paths: &crate::config::AppPaths, sessions: &Sessions, generation: u64, token: &str) -> Result<(), String> {
+    ensure_generation(paths, generation)?;
+    sessions.cancel(token);
+    Ok(())
+}
+
+fn list_statement_layouts_for(state: &AppState, paths: &crate::config::AppPaths, generation: u64) -> Result<Vec<StatementLayoutDto>, String> {
+    ensure_generation(paths, generation)?;
     Ok(state
         .store
         .list_statement_layouts()
-        .map_err(|e| e.to_string())?
+        .map_err(db)?
         .into_iter()
         .map(|l| StatementLayoutDto {
             id: l.id,
@@ -942,19 +1061,26 @@ fn list_statement_layouts_for(state: &AppState) -> Result<Vec<StatementLayoutDto
         .collect())
 }
 
-fn rename_statement_layout_for(state: &AppState, id: i64, name: &str) -> Result<(), String> {
+fn rename_statement_layout_for(state: &AppState, paths: &crate::config::AppPaths, generation: u64, id: i64, name: &str) -> Result<(), String> {
+    ensure_generation(paths, generation)?;
     state
         .store
         .rename_statement_layout(id, name, chrono::Local::now().naive_local())
         .map_err(|e| e.to_string())
 }
 
-fn delete_statement_layout_for(state: &AppState, id: i64) -> Result<(), String> {
-    state.store.delete_statement_layout(id).map_err(|e| e.to_string())
+fn delete_statement_layout_for(state: &AppState, paths: &crate::config::AppPaths, generation: u64, id: i64) -> Result<(), String> {
+    ensure_generation(paths, generation)?;
+    state
+        .store
+        .delete_statement_layout(id)
+        .map_err(|_| "Something went wrong removing this. Nothing was changed. Please try again.".to_string())
 }
 
 // ---------- Tauri wrappers ----------
 
+/// Reads and parses the file before taking the profile lock (a large PDF takes a while and needs
+/// nothing from the profile), then reviews it under the lock.
 // One argument per field the page sends, plus the managed state every command takes.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
@@ -968,19 +1094,12 @@ pub fn read_statement(
     paths: tauri::State<crate::config::AppPaths>,
     sessions: tauri::State<Sessions>,
 ) -> Result<StatementReadDto, String> {
+    ensure_generation(&paths, generation)?;
+    let period = parse_period(&period_start, &period_end)?;
+    let loaded = load_statement_file(&path)?;
     let mut state = state.lock()?;
     ensure_generation(&paths, generation)?;
-    read_statement_for(
-        &mut state,
-        &sessions,
-        generation,
-        ReadStatementArgs {
-            path,
-            account_id,
-            period_start,
-            period_end,
-        },
-    )
+    review_loaded_statement(&mut state, &sessions, generation, account_id, period, loaded)
 }
 
 #[tauri::command]
@@ -1040,24 +1159,46 @@ pub fn finish_statement_reconciliation(
 }
 
 #[tauri::command]
-pub fn cancel_statement_review(sessions: tauri::State<Sessions>) {
-    sessions.clear();
+pub fn cancel_statement_review(
+    token: String,
+    generation: u64,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+    sessions: tauri::State<Sessions>,
+) -> Result<(), String> {
+    let _state = state.lock()?;
+    cancel_statement_review_for(&paths, &sessions, generation, &token)
 }
 
 #[tauri::command]
-pub fn list_statement_layouts(state: tauri::State<AppStateHandle>) -> Result<Vec<StatementLayoutDto>, String> {
+pub fn list_statement_layouts(
+    generation: u64,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+) -> Result<Vec<StatementLayoutDto>, String> {
     let state = state.lock()?;
-    list_statement_layouts_for(&state)
+    list_statement_layouts_for(&state, &paths, generation)
 }
 
 #[tauri::command]
-pub fn rename_statement_layout(id: i64, name: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn rename_statement_layout(
+    id: i64,
+    name: String,
+    generation: u64,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+) -> Result<(), String> {
     let state = state.lock()?;
-    rename_statement_layout_for(&state, id, &name)
+    rename_statement_layout_for(&state, &paths, generation, id, &name)
 }
 
 #[tauri::command]
-pub fn delete_statement_layout(id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+pub fn delete_statement_layout(
+    id: i64,
+    generation: u64,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+) -> Result<(), String> {
     let state = state.lock()?;
-    delete_statement_layout_for(&state, id)
+    delete_statement_layout_for(&state, &paths, generation, id)
 }

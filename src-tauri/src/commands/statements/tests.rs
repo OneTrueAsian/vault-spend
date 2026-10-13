@@ -10,6 +10,15 @@ fn profile(name: &str) -> (AppState, std::path::PathBuf) {
     (AppState::open(dir.join("profile.db")).unwrap(), dir)
 }
 
+/// The app's paths for a profile in generation 1 (what every test's review is bound to).
+fn paths(dir: &std::path::Path) -> crate::config::AppPaths {
+    crate::config::AppPaths {
+        config_path: dir.join("config.json"),
+        db_path: std::sync::Mutex::new(dir.join("profile.db")),
+        generation: std::sync::atomic::AtomicU64::new(1),
+    }
+}
+
 fn write_fixture(dir: &std::path::Path, name: &str) -> (String, String, String) {
     let (pages, (start, end)) = fixture(name).unwrap();
     let path = dir.join(format!("{name}.pdf"));
@@ -200,8 +209,14 @@ fn several_sections_are_offered_for_choosing_first() {
     let review = review_statement_for(&mut state, &sessions, 1, &read.token, 1, false).unwrap();
     assert_eq!(review.rows.len(), 5);
     assert_eq!(review.activity_check.outcome, "passed");
+    assert_ne!(review.token, read.token, "each step renews the review with a new token");
     assert_eq!(
-        review_statement_for(&mut state, &sessions, 1, &read.token, 2, false).err().unwrap(),
+        review_statement_for(&mut state, &sessions, 1, &read.token, 0, false).err().unwrap(),
+        STALE,
+        "the token from before that step no longer works"
+    );
+    assert_eq!(
+        review_statement_for(&mut state, &sessions, 1, &review.token, 2, false).err().unwrap(),
         "That part of the statement doesn't exist. Read the statement again."
     );
     let _ = std::fs::remove_dir_all(dir);
@@ -214,11 +229,15 @@ fn a_stale_token_or_another_profile_generation_is_refused() {
     let card = state.store.get_or_create_account("Card", AccountType::Credit).unwrap();
     let (path, start, end) = write_fixture(&dir, "card-a");
     let token = read(&mut state, &sessions, &path, card, &start, &end).unwrap().token;
-    assert_eq!(review_statement_for(&mut state, &sessions, 2, &token, 0, false).err().unwrap(), STALE);
+    // Another token (an old screen) is refused but leaves the open review alone.
     assert_eq!(
         review_statement_for(&mut state, &sessions, 1, "not-the-token", 0, false).err().unwrap(),
         STALE
     );
+    assert!(statement_lines_for(&sessions, 1, &token).is_ok());
+    // Another profile generation ends the review.
+    assert_eq!(review_statement_for(&mut state, &sessions, 2, &token, 0, false).err().unwrap(), STALE);
+    assert_eq!(statement_lines_for(&sessions, 1, &token).err().unwrap(), STALE);
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -291,6 +310,8 @@ fn teaching_an_unknown_bank_then_recognising_it_next_month() {
     let taught = teach_statement_layout_for(&mut state, &sessions, 1, &first.token, marks).unwrap();
     assert_eq!(taught.activity_check.outcome, "passed");
     assert!(taught.learnable);
+    assert_ne!(taught.token, first.token, "teaching renews the review with a new token");
+    assert_eq!(statement_lines_for(&sessions, 1, &first.token).err().unwrap(), STALE);
     finish_statement_reconciliation_for(
         &mut state,
         &sessions,
@@ -380,6 +401,30 @@ fn other_files_and_folders_are_refused_plainly() {
             .err()
             .unwrap(),
         "The statement's start date must be on or before its end date."
+    );
+    assert_eq!(
+        read(
+            &mut state,
+            &sessions,
+            &dir.join("gone.pdf").to_string_lossy(),
+            checking,
+            "2026-08-01",
+            "2026-08-31"
+        )
+        .err()
+        .unwrap(),
+        "That file isn't there anymore. Choose your statement again."
+    );
+    assert_eq!(
+        read(&mut state, &sessions, &text.to_string_lossy(), checking, "2026-08-01", "2026-13-01")
+            .err()
+            .unwrap(),
+        "\"2026-13-01\" isn't a date the app can use. Choose a date from the calendar."
+    );
+    let (path, start, end) = write_fixture(&dir, "card-a");
+    assert_eq!(
+        read(&mut state, &sessions, &path, checking + 1000, &start, &end).err().unwrap(),
+        "That account isn't in the app anymore. Choose another account."
     );
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -669,15 +714,16 @@ fn an_accepted_sign_flip_is_remembered_in_the_learned_statement() {
 #[test]
 fn saved_statements_are_listed_renamed_and_removed() {
     let (state, dir) = profile("layouts");
+    let paths = paths(&dir);
     learn_home_loan_with_principal(&state);
-    let listed = list_statement_layouts_for(&state).unwrap();
+    let listed = list_statement_layouts_for(&state, &paths, 1).unwrap();
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].name, "Home loan");
-    rename_statement_layout_for(&state, listed[0].id, "My mortgage").unwrap();
-    assert_eq!(list_statement_layouts_for(&state).unwrap()[0].name, "My mortgage");
-    assert!(rename_statement_layout_for(&state, listed[0].id, "1234-5678 account").is_err());
-    delete_statement_layout_for(&state, listed[0].id).unwrap();
-    assert!(list_statement_layouts_for(&state).unwrap().is_empty());
+    rename_statement_layout_for(&state, &paths, 1, listed[0].id, "My mortgage").unwrap();
+    assert_eq!(list_statement_layouts_for(&state, &paths, 1).unwrap()[0].name, "My mortgage");
+    assert!(rename_statement_layout_for(&state, &paths, 1, listed[0].id, "1234-5678 account").is_err());
+    delete_statement_layout_for(&state, &paths, 1, listed[0].id).unwrap();
+    assert!(list_statement_layouts_for(&state, &paths, 1).unwrap().is_empty());
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -786,5 +832,343 @@ fn teaching_a_learned_statement_that_stopped_adding_up_updates_it() {
         budget_core::statement::layout::DateFormat::DdMmYyyy,
         "it now reads day-first dates first"
     );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn every_statement_command_refuses_another_profile_generation() {
+    let (mut state, dir) = profile("generations");
+    let paths = paths(&dir);
+    let sessions = Sessions::default();
+    let card = state.store.get_or_create_account("Card", AccountType::Credit).unwrap();
+    learn_home_loan_with_principal(&state);
+    let id = list_statement_layouts_for(&state, &paths, 1).unwrap()[0].id;
+    let (path, start, end) = write_fixture(&dir, "card-a");
+    let token = read(&mut state, &sessions, &path, card, &start, &end).unwrap().token;
+
+    paths.bump_generation(); // The person switched profile.
+    assert_eq!(list_statement_layouts_for(&state, &paths, 1).err().unwrap(), PROFILE_CHANGED);
+    assert_eq!(
+        rename_statement_layout_for(&state, &paths, 1, id, "Other").err().unwrap(),
+        PROFILE_CHANGED
+    );
+    assert_eq!(delete_statement_layout_for(&state, &paths, 1, id).err().unwrap(), PROFILE_CHANGED);
+    assert_eq!(cancel_statement_review_for(&paths, &sessions, 1, &token).err().unwrap(), PROFILE_CHANGED);
+    assert_eq!(state.store.list_statement_layouts().unwrap()[0].name, "Home loan", "nothing was changed");
+
+    // In the current generation they work.
+    assert_eq!(list_statement_layouts_for(&state, &paths, 2).unwrap().len(), 1);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn cancelling_ends_only_the_review_it_names() {
+    let (mut state, dir) = profile("cancel");
+    let paths = paths(&dir);
+    let sessions = Sessions::default();
+    let card = state.store.get_or_create_account("Card", AccountType::Credit).unwrap();
+    let (path, start, end) = write_fixture(&dir, "card-a");
+    let token = read(&mut state, &sessions, &path, card, &start, &end).unwrap().token;
+    cancel_statement_review_for(&paths, &sessions, 1, "an-old-screen").unwrap();
+    assert!(statement_lines_for(&sessions, 1, &token).is_ok());
+    cancel_statement_review_for(&paths, &sessions, 1, &token).unwrap();
+    assert_eq!(statement_lines_for(&sessions, 1, &token).err().unwrap(), STALE);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A CSV download for August with one row, into `account`.
+fn read_download(state: &mut AppState, sessions: &Sessions, dir: &std::path::Path, account: i64, csv: &str) -> StatementReviewDto {
+    let file = dir.join("download.csv");
+    std::fs::write(&file, csv).unwrap();
+    read(state, sessions, &file.to_string_lossy(), account, "2026-08-01", "2026-08-31")
+        .unwrap()
+        .review
+        .unwrap()
+}
+
+#[test]
+fn an_investment_statement_without_readable_holdings_needs_finishing_without_checking_them() {
+    let (mut state, dir) = profile("investment-unchecked");
+    let sessions = Sessions::default();
+    let account = state.store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    state
+        .store
+        .create_holding(
+            account,
+            "QQQZ",
+            "Tracker",
+            "10".parse().unwrap(),
+            "300".parse().unwrap(),
+            "2500".parse().unwrap(),
+            None,
+        )
+        .unwrap();
+    // A download lists no holdings, but the app holds some: their share counts can't be checked.
+    let review = read_download(
+        &mut state,
+        &sessions,
+        &dir,
+        account,
+        "Date,Description,Amount\n2026-08-03,Dividend,12.50\n",
+    );
+    let decisions = || FinishDecisionsDto {
+        add: add_every_row(&review),
+        starting_balance: Some("100.00".into()),
+        ending_balance: Some("112.50".into()),
+        ..Default::default()
+    };
+    assert_eq!(
+        finish_statement_reconciliation_for(&mut state, &sessions, 1, &review.token, decisions())
+            .err()
+            .unwrap(),
+        "The app couldn't read your holdings correctly. Teach it how to read them, or finish without checking holdings."
+    );
+    finish_statement_reconciliation_for(
+        &mut state,
+        &sessions,
+        1,
+        &review.token,
+        FinishDecisionsDto {
+            finish_without_holdings: true,
+            ..decisions()
+        },
+    )
+    .unwrap();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_investment_statement_finishes_when_neither_it_nor_the_app_lists_holdings() {
+    let (mut state, dir) = profile("investment-none");
+    let sessions = Sessions::default();
+    let account = state.store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    let review = read_download(
+        &mut state,
+        &sessions,
+        &dir,
+        account,
+        "Date,Description,Amount\n2026-08-03,Dividend,12.50\n",
+    );
+    finish_statement_reconciliation_for(
+        &mut state,
+        &sessions,
+        1,
+        &review.token,
+        FinishDecisionsDto {
+            add: add_every_row(&review),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_lower_share_count_comes_off_several_lots_without_any_going_below_zero() {
+    let (mut state, dir) = profile("holdings-reduce");
+    let sessions = Sessions::default();
+    let account = state.store.get_or_create_account("Brokerage", AccountType::Investment).unwrap();
+    let lot = |shares: &str| {
+        state
+            .store
+            .create_holding(
+                account,
+                "QQQZ",
+                "Tracker",
+                shares.parse().unwrap(),
+                "300".parse().unwrap(),
+                "1000".parse().unwrap(),
+                None,
+            )
+            .unwrap()
+    };
+    let big = lot("11");
+    let small = lot("1");
+    let (path, start, end) = write_fixture(&dir, "unknown-brokerage");
+    let first = read(&mut state, &sessions, &path, account, &start, &end).unwrap().review.unwrap();
+    let taught = teach_unknown_brokerage_holdings(&mut state, &sessions, &first.token);
+    let update = |holding_id: i64| HoldingDecision {
+        symbol: "QQQZ".into(),
+        action: "update".into(),
+        holding_id: Some(holding_id),
+        shares: Some("10.5".into()),
+        ..Default::default()
+    };
+    let vtiz = || HoldingDecision {
+        symbol: "VTIZ".into(),
+        action: "add".into(),
+        cost_basis: Some("900".into()),
+        ..Default::default()
+    };
+
+    // Two changes for one symbol would apply the difference twice.
+    assert_eq!(
+        finish_statement_reconciliation_for(
+            &mut state,
+            &sessions,
+            1,
+            &taught.token,
+            FinishDecisionsDto {
+                add: add_every_row(&taught),
+                holdings: vec![update(small), update(big), vtiz()],
+                ..Default::default()
+            },
+        )
+        .err()
+        .unwrap(),
+        "Choose one change for each holding."
+    );
+
+    // 12 held, 10.5 on the statement: the chosen 1-share lot goes to 0, the other loses the last 0.5.
+    finish_statement_reconciliation_for(
+        &mut state,
+        &sessions,
+        1,
+        &taught.token,
+        FinishDecisionsDto {
+            add: add_every_row(&taught),
+            holdings: vec![update(small), vtiz()],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let today = chrono::Local::now().date_naive();
+    let shares_of = |id: i64| {
+        state
+            .store
+            .list_holdings(today)
+            .unwrap()
+            .into_iter()
+            .find(|h| h.id == id)
+            .unwrap()
+            .shares
+            .normalize()
+            .to_string()
+    };
+    assert_eq!((shares_of(big), shares_of(small)), ("10.5".to_string(), "0".to_string()));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_matched_loan_payment_without_its_principal_part_gets_it_from_the_statement() {
+    let (mut state, dir) = profile("loan-matched");
+    let sessions = Sessions::default();
+    let loan = state.store.get_or_create_account("Mortgage", AccountType::Loan).unwrap();
+    let payment = state
+        .store
+        .save_transactions_with_ids(loan, &[tx("2026-09-01", "Mortgage payment", "2405.94")])
+        .unwrap()[0];
+    learn_home_loan_with_principal(&state);
+    let (path, start, end) = write_fixture(&dir, "mortgage");
+    let review = read(&mut state, &sessions, &path, loan, &start, &end).unwrap().review.unwrap();
+    let row = &review.rows[0];
+    assert_eq!((row.status, row.match_id), ("matched", Some(payment)));
+
+    finish_statement_reconciliation_for(
+        &mut state,
+        &sessions,
+        1,
+        &review.token,
+        FinishDecisionsDto {
+            matches: vec![MatchDecision {
+                row: 0,
+                transaction_id: payment,
+            }],
+            add: add_every_row(&review).into_iter().filter(|a| a.row != 0).collect(),
+            starting_balance: Some("317110.34".into()),
+            ending_balance: Some("316840.29".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let stored = state.store.all_transactions().unwrap().into_iter().find(|t| t.id == payment).unwrap();
+    assert_eq!(stored.principal_amount, Some("355.17".parse().unwrap()));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_match_must_have_exactly_the_lines_amount() {
+    let (mut state, dir) = profile("match-amount");
+    let sessions = Sessions::default();
+    let card = state.store.get_or_create_account("Card", AccountType::Credit).unwrap();
+    let streaming = state
+        .store
+        .save_transactions_with_ids(card, &[tx("2026-07-24", "Streaming", "-7.40")])
+        .unwrap()[0];
+    let (path, start, end) = write_fixture(&dir, "card-a");
+    let review = read(&mut state, &sessions, &path, card, &start, &end).unwrap().review.unwrap();
+    let other = review.rows.iter().find(|r| r.amount == "-2.99").unwrap().index;
+    let err = finish_statement_reconciliation_for(
+        &mut state,
+        &sessions,
+        1,
+        &review.token,
+        FinishDecisionsDto {
+            matches: vec![MatchDecision {
+                row: other,
+                transaction_id: streaming,
+            }],
+            add: add_every_row(&review).into_iter().filter(|a| a.row != other).collect(),
+            starting_balance: Some("43.08".into()),
+            ending_balance: Some("52.36".into()),
+            ..Default::default()
+        },
+    )
+    .err()
+    .unwrap();
+    assert_eq!(
+        err,
+        "A transaction you matched has a different amount from its line on your statement. Choose its match again."
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_downloads_own_categories_are_used_through_the_import_category_memory() {
+    let (mut state, dir) = profile("download-categories");
+    let sessions = Sessions::default();
+    let checking = state.store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+    state.store.create_category("Dining", None).unwrap();
+    state.store.create_category("Groceries", None).unwrap();
+    state.store.set_import_category_mapping("Coffee Shops", "Dining").unwrap();
+    let review = read_download(
+        &mut state,
+        &sessions,
+        &dir,
+        checking,
+        "Date,Description,Amount,Category\n2026-08-03,ZZQX CAFE,-4.50,Coffee Shops\n2026-08-04,ZZQX MART,-20.00,groceries\n2026-08-05,ZZQX THING,-1.00,Unknown Stuff\n",
+    );
+    finish_statement_reconciliation_for(
+        &mut state,
+        &sessions,
+        1,
+        &review.token,
+        FinishDecisionsDto {
+            add: add_every_row(&review),
+            starting_balance: Some("100.00".into()),
+            ending_balance: Some("74.50".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let category_of = |word: &str| {
+        state
+            .store
+            .all_transactions()
+            .unwrap()
+            .into_iter()
+            .find(|t| t.transaction.description.contains(word))
+            .unwrap()
+            .transaction
+            .category
+    };
+    assert_eq!(category_of("CAFE").as_deref(), Some("Dining"), "remembered from an earlier import");
+    assert_eq!(
+        category_of("MART").as_deref(),
+        Some("Groceries"),
+        "the file's own category, in the person's spelling"
+    );
+    assert_eq!(category_of("THING"), None, "a file category the person doesn't have is never added");
+    assert!(state.store.find_category("Unknown Stuff").unwrap().is_none());
     let _ = std::fs::remove_dir_all(dir);
 }

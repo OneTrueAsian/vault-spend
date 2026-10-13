@@ -106,14 +106,17 @@ fn validate_protected_package(
 }
 
 fn parse_amount(amount: &str) -> Result<Decimal, String> {
-    amount.parse().map_err(|_| format!("invalid amount: {amount}"))
+    amount
+        .parse()
+        .map_err(|_| format!("\"{amount}\" isn't an amount the app can use. Enter a number like 12.34."))
 }
 
 /// A date typed into the app. Kept to the years 1900-2100, the same range the date fields allow
 /// (`src/dateRange.ts`), so a typo like year 9643 is refused instead of saved.
 fn parse_date(date: &str) -> Result<chrono::NaiveDate, String> {
     use chrono::Datelike;
-    let parsed = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| format!("invalid date: {date}"))?;
+    let parsed = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map_err(|_| format!("\"{date}\" isn't a date the app can use. Choose a date from the calendar."))?;
     if !(1900..=2100).contains(&parsed.year()) {
         return Err("Choose a date between 1900 and 2100.".to_string());
     }
@@ -233,7 +236,16 @@ fn refresh_open_reminders(store: &Store, paths: &crate::config::AppPaths, device
 
 #[cfg(test)]
 mod parse_date_tests {
-    use super::parse_date;
+    use super::{parse_amount, parse_date};
+
+    #[test]
+    fn an_amount_that_is_not_a_number_is_refused_in_plain_words() {
+        assert_eq!(
+            parse_amount("12,34x").unwrap_err(),
+            "\"12,34x\" isn't an amount the app can use. Enter a number like 12.34."
+        );
+        assert_eq!(parse_amount("12.34").unwrap().to_string(), "12.34");
+    }
 
     #[test]
     fn accepts_dates_from_1900_to_2100() {
@@ -251,6 +263,9 @@ mod parse_date_tests {
 
     #[test]
     fn still_refuses_text_that_is_not_a_date() {
-        assert_eq!(parse_date("2026-02-30").unwrap_err(), "invalid date: 2026-02-30");
+        assert_eq!(
+            parse_date("2026-02-30").unwrap_err(),
+            "\"2026-02-30\" isn't a date the app can use. Choose a date from the calendar."
+        );
     }
 }
