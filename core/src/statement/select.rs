@@ -44,12 +44,19 @@ pub fn read_with(lines: &[StatementLine], layout: &StatementLayout, period: &Per
     (sections, checks)
 }
 
-fn score(sections: &[StatementSection], checks: &[SectionChecks]) -> (usize, i64, usize, i64) {
+/// How good a reading is: checks passed, then how many sections it found balances for (a reading that
+/// finds nothing at all must not beat one that found the balances and can see they don't add up), then
+/// fewer failures, more rows and holdings, fewer unread lines.
+fn score(sections: &[StatementSection], checks: &[SectionChecks]) -> (usize, usize, i64, usize, i64) {
     let passed = checks.iter().map(SectionChecks::passed).sum();
+    let with_balances = sections
+        .iter()
+        .filter(|s| s.ending_balance.is_some() || s.ending_value.is_some() || s.holdings_total.is_some() || s.activity_totals.is_some())
+        .count();
     let failed = checks.iter().map(SectionChecks::failed).sum::<usize>() as i64;
     let items = sections.iter().map(|s| s.rows.len() + s.holdings.len()).sum();
     let unread = sections.iter().map(|s| s.unread.len()).sum::<usize>() as i64;
-    (passed, -failed, items, -unread)
+    (passed, with_balances, -failed, items, -unread)
 }
 
 fn acceptable(sections: &[StatementSection], checks: &[SectionChecks]) -> bool {
@@ -168,6 +175,16 @@ mod tests {
         let general = builtins().into_iter().filter(|l| l.id == GENERAL_ID).collect::<Vec<_>>();
         let r = choose(&lines, &period, &[(3, broken)], &general, false);
         assert!(r.recognized_but_failed);
+    }
+
+    #[test]
+    fn a_statement_that_cannot_be_read_is_reported_as_failing_rather_than_as_empty() {
+        // The day-first dates fall outside the period under every built-in reading. A layout that finds
+        // nothing at all must not beat one that found the balances and can see they don't add up.
+        let (lines, period) = fixture_lines("unknown-bank");
+        let r = choose(&lines, &period, &[], &builtins(), false);
+        assert!(r.sections.iter().any(|s| s.starting_balance.is_some() && s.ending_balance.is_some()));
+        assert!(r.checks.iter().any(|c| c.failed() > 0), "the reading should say it doesn't add up");
     }
 
     #[test]

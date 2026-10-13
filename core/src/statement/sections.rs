@@ -272,6 +272,32 @@ mod tests {
     }
 
     #[test]
+    fn a_rewards_table_repeating_a_purchase_is_not_read_as_a_second_transaction() {
+        let lines: Vec<StatementLine> = [
+            "Previous Balance $100.00",
+            "08/10 Hardware store 25.00",
+            "New Balance $125.00",
+            "Date of",
+            "Transaction Merchant Name or Transaction Description $ Amount Rewards",
+            "PURCHASES AND ADJUSTMENTS",
+            "08/10 Hardware store 25.00 25",
+        ]
+        .iter()
+        .map(|t| StatementLine {
+            page: 0,
+            text: t.to_string(),
+        })
+        .collect();
+        let period = Period::new(
+            NaiveDate::from_ymd_opt(2026, 8, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 8, 31).unwrap(),
+        )
+        .unwrap();
+        let s = &read_statement(&lines, &layout("chase-card"), &period)[0];
+        assert_eq!(s.rows.len(), 1, "only the real transaction counts");
+    }
+
+    #[test]
     fn charges_printed_only_as_period_totals_become_rows_dated_the_last_day() {
         let lines: Vec<StatementLine> = [
             "Previous Balance $100.00",

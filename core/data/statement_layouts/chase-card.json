@@ -3,5 +3,5 @@
   "amounts": { "negatives": ["leading_minus"], "currency": "optional", "thousands": "comma", "decimal": "period" },
   "rows": { "amount": "first" },
   "balances": { "pairs": [{ "start": "Previous Balance", "end": "New Balance" }] },
-  "skip_sections": ["Rewards Activity"],
+  "skip_sections": ["Rewards Activity", "Transaction Merchant Name or Transaction Description $ Amount Rewards"],
   "ignore_lines": ["Order Number"] }
