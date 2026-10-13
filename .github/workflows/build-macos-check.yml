@@ -18,20 +18,24 @@ on:
       source_sha:
         description: 'Exact release-1.3.1 commit, required for signed preparation'
         type: string
+      sign_prepared_run:
+        description: 'Sign an already validated preparation run without rebuilding or publishing'
+        type: string
   push:
     branches:
       - profile-password-protection
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: macos-check-${{ github.ref }}
-  cancel-in-progress: ${{ !inputs.prepare_signed }}
+  cancel-in-progress: ${{ !inputs.prepare_signed && !inputs.sign_prepared_run }}
 
 jobs:
   macos-check:
-    if: ${{ !inputs.prepare_signed }}
+    if: ${{ !inputs.prepare_signed && !inputs.sign_prepared_run }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +91,77 @@ jobs:
           if-no-files-found: error
 
   prepare-signed:
-    if: ${{ inputs.prepare_signed }}
+    if: ${{ inputs.prepare_signed && !inputs.sign_prepared_run }}
     uses: ./.github/workflows/prepare-signed-installers.yml
+    secrets:
+      UPDATE_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+      UPDATE_SIGNING_PASSWORD: ${{ secrets.UPDATE_SIGNING_PASSWORD }}
     with:
       source_sha: ${{ inputs.source_sha }}
+
+  validate-prepared:
+    if: ${{ inputs.sign_prepared_run }}
+    runs-on: ubuntu-latest
+    outputs:
+      source-sha: ${{ steps.validate.outputs.source_sha }}
+      windows-digests: ${{ steps.validate.outputs.windows_digests }}
+      macos-digests: ${{ steps.validate.outputs.macos_digests }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: node --test tools/validate-prepared-build.test.mjs tools/prepare-update-artifacts.test.mjs tools/update-signing-workflow.test.mjs
+      - name: Validate existing packaging gates and recorded byte hashes
+        id: validate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREPARED_RUN_ID: ${{ inputs.sign_prepared_run }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PREPARE_SIGNED: ${{ inputs.prepare_signed }}
+        run: node tools/validate-prepared-build.mjs
+
+  sign-prepared:
+    needs: validate-prepared
+    runs-on: ubuntu-latest
+    environment: release-signing
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [windows-x86_64, macos-universal]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-prepared.outputs.source-sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: unsigned-${{ matrix.target }}
+          path: prepared-input
+          run-id: ${{ inputs.sign_prepared_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sign exact validated installer bytes
+        env:
+          VAULTSPEND_UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+          VAULTSPEND_UPDATE_SIGNING_PASSWORD: ${{ secrets.UPDATE_SIGNING_PASSWORD }}
+          VAULTSPEND_UPDATE_SIGNING_KEY_ID: ${{ vars.UPDATE_SIGNING_KEY_ID }}
+          VAULTSPEND_UPDATE_EXPECTED_DIGESTS: ${{ matrix.target == 'windows-x86_64' && needs.validate-prepared.outputs.windows-digests || needs.validate-prepared.outputs.macos-digests }}
+          PREPARATION_TARGET: ${{ matrix.target }}
+        run: node tools/prepare-update-artifacts.mjs sign
+      - name: Independently verify exact signatures and hashes
+        env:
+          PREPARATION_TARGET: ${{ matrix.target }}
+        run: node tools/prepare-update-artifacts.mjs verify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-1.3.1-${{ matrix.target }}
+          path: prepared-signed/
+          if-no-files-found: error
+          retention-days: 14

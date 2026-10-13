@@ -3,6 +3,11 @@ run-name: Prepare signed ${{ inputs.source_sha }}
 
 on:
   workflow_call:
+    secrets:
+      UPDATE_SIGNING_PRIVATE_KEY:
+        required: true
+      UPDATE_SIGNING_PASSWORD:
+        required: true
     inputs:
       source_sha:
         required: true

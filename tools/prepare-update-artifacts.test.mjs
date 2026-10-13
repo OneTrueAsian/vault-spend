@@ -59,9 +59,23 @@ test("preparation workflow cannot publish and retains protected signing and comp
   assert.ok(secretSteps[0].env.VAULTSPEND_UPDATE_EXPECTED_DIGESTS);
   assert.ok(workflow.jobs["sign-updates"].steps.find(step => step.run === "node tools/prepare-update-artifacts.mjs verify"));
   const entry = yaml.load(fs.readFileSync(new URL("../.github/workflows/build-macos-check.yml", import.meta.url), "utf8"));
-  assert.deepEqual(entry.permissions, { contents: "read" });
+  assert.deepEqual(entry.permissions, { contents: "read", actions: "read" });
   assert.equal(entry.on.workflow_dispatch.inputs.prepare_signed.default, false);
   assert.equal(entry.jobs["prepare-signed"].uses, "./.github/workflows/prepare-signed-installers.yml");
-  assert.equal(entry.jobs["prepare-signed"].if, "${{ inputs.prepare_signed }}");
-  assert.equal(entry.jobs["macos-check"].if, "${{ !inputs.prepare_signed }}");
+  assert.equal(entry.jobs["prepare-signed"].if, "${{ inputs.prepare_signed && !inputs.sign_prepared_run }}");
+  assert.equal(entry.jobs["macos-check"].if, "${{ !inputs.prepare_signed && !inputs.sign_prepared_run }}");
+  for (const name of ["UPDATE_SIGNING_PRIVATE_KEY", "UPDATE_SIGNING_PASSWORD"]) {
+    assert.equal(workflow.on.workflow_call.secrets[name].required, true);
+    assert.equal(entry.jobs["prepare-signed"].secrets[name], "${{ secrets." + name + " }}");
+  }
+  assert.equal(entry.jobs["sign-prepared"].environment, "release-signing");
+  assert.equal(entry.jobs["sign-prepared"].needs, "validate-prepared");
+  const download = entry.jobs["sign-prepared"].steps.find(step => step.uses === "actions/download-artifact@v4");
+  assert.equal(download.with["run-id"], "${{ inputs.sign_prepared_run }}");
+  assert.equal(download.with["github-token"], "${{ secrets.GITHUB_TOKEN }}");
+  const scope = entry.jobs["sign-prepared"].steps.filter(step => JSON.stringify(step).includes("secrets.UPDATE_SIGNING"));
+  assert.equal(scope.length, 1);
+  assert.ok(scope[0].env.VAULTSPEND_UPDATE_EXPECTED_DIGESTS);
+  assert.doesNotMatch(JSON.stringify(scope[0]), /GITHUB_TOKEN|github-token|upload-artifact/);
+  assert.doesNotMatch(JSON.stringify(entry), /gh release|contents.*write|tagName|releaseName|releaseId|git push/);
 });

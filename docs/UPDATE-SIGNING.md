@@ -45,6 +45,22 @@ are public, so no private credentials or financial data may appear in them.
 These artifacts do not enable live update discovery until a separately approved
 release is published.
 
+The reusable caller explicitly passes the two signing secret names and the called
+workflow declares them required. The protected environment supplies their values;
+omitting that caller wiring causes GitHub to provide empty strings.
+
+If packaging passes but signing fails, dispatch `build-macos-check.yml` with
+`sign_prepared_run=<original run ID>`, `source_sha=<original build commit>`, and
+`prepare_signed=false`. This read-only recovery verifies both original packaging
+jobs, their required successful gates, the actual full Windows log, and the
+packaging digests recorded in the original signing logs. The build commit must be
+an ancestor of the current workflow commit; application or E2E changes require a
+fresh build. Only the explicitly allowed preparation workflow/tooling/docs fixes
+may differ. The protected top-level signing matrix then checks out the original
+build SHA, downloads those exact run artifacts and verifies their recorded bytes
+before signing. Signing recovery creates neither tags nor releases. Keep build
+and signing-run provenance separately in the QA receipt.
+
 ## Generate and protect the key
 
 Use Node 22 and PowerShell 7 on a trusted machine. Choose a **new directory outside
