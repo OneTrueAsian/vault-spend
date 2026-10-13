@@ -906,6 +906,7 @@ pub fn finish_statement_reconciliation_for(
             matched: d.matches.iter().map(|m| m.transaction_id).collect(),
             add,
             add_principal,
+            matched_principal: vec![],
             holdings,
             statement_shares,
             layout: layout.clone(),

@@ -52,6 +52,7 @@ fn finish_september_investment_statement(state: &AppState, account: i64) {
                 matched: vec![],
                 add: vec![tx("2026-09-05", "Cash Dividend", "18.50")],
                 add_principal: vec![],
+                matched_principal: vec![],
                 holdings: vec![],
                 statement_shares: None,
                 layout: None,

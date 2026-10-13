@@ -343,6 +343,10 @@ pub struct StatementFinish {
     /// none. Only a payment (an amount above zero) can have `Some`. A row with `None` counts at its full
     /// amount, as any loan payment without a principal part.
     pub add_principal: Vec<Option<Decimal>>,
+    /// Loan accounts only: the principal part the statement prints for each transaction in `matched`
+    /// (same order and length), or empty for none. A `Some` replaces the matched payment's principal
+    /// part, inside the finish; it follows the same rules as `add_principal`.
+    pub matched_principal: Vec<Option<Decimal>>,
     /// Investment accounts only.
     pub holdings: Vec<HoldingChange>,
     /// Investment statements: the share counts the app must hold afterwards; `None` = not checked.
@@ -446,20 +450,27 @@ fn validate_principals(kind: AccountKind, add: &[Transaction], principals: &[Opt
         ));
     }
     for (tx, principal) in add.iter().zip(principals) {
-        let Some(principal) = principal else { continue };
-        if kind != AccountKind::Loan {
-            return Err(StatementFinishError::BadInput("Only a loan payment can have a principal part."));
+        if let Some(principal) = principal {
+            validate_principal(kind, tx.amount, *principal)?;
         }
-        if tx.amount <= Decimal::ZERO {
-            return Err(StatementFinishError::BadInput(
-                "Only a payment toward the loan can have a principal part. A charge, like a fee or interest, can't.",
-            ));
-        }
-        if *principal < Decimal::ZERO || *principal > tx.amount {
-            return Err(StatementFinishError::BadInput(
-                "The principal part of a payment has to be between $0.00 and the payment's amount.",
-            ));
-        }
+    }
+    Ok(())
+}
+
+/// One principal part against the amount of the payment it belongs to (see `validate_principals`).
+fn validate_principal(kind: AccountKind, amount: Decimal, principal: Decimal) -> Result<(), StatementFinishError> {
+    if kind != AccountKind::Loan {
+        return Err(StatementFinishError::BadInput("Only a loan payment can have a principal part."));
+    }
+    if amount <= Decimal::ZERO {
+        return Err(StatementFinishError::BadInput(
+            "Only a payment toward the loan can have a principal part. A charge, like a fee or interest, can't.",
+        ));
+    }
+    if principal < Decimal::ZERO || principal > amount {
+        return Err(StatementFinishError::BadInput(
+            "The principal part of a payment has to be between $0.00 and the payment's amount.",
+        ));
     }
     Ok(())
 }
@@ -573,7 +584,8 @@ impl Store {
     }
 
     /// Finishes a statement reconciliation in one database transaction: unticks what is not on the
-    /// statement, adds the statement's new transactions (with any loan principal parts), ticks the matched
+    /// statement, adds the statement's new transactions (with any loan principal parts), sets the principal
+    /// parts the statement prints for matched loan payments, ticks the matched
     /// and added ones, applies the holdings changes, checks the statement (the exact $0.00 rule, or for
     /// investment accounts the share counts), records the reconciliation, settles the ticked transactions
     /// and saves the learned layout. Any error writes nothing: returning early drops the open transaction,
@@ -606,6 +618,11 @@ impl Store {
         }
         f.holdings.iter().try_for_each(validate_holding_change)?;
         validate_principals(kind, &f.add, &f.add_principal)?;
+        if !f.matched_principal.is_empty() && f.matched_principal.len() != f.matched.len() {
+            return Err(StatementFinishError::BadInput(
+                "The matched transactions don't line up with their details. Please read the statement again.",
+            ));
+        }
         let mut matched = f.matched.clone();
         matched.sort_unstable();
         matched.dedup();
@@ -622,6 +639,14 @@ impl Store {
                 return Err(StatementFinishError::NotThisAccount);
             }
         }
+        for (id, principal) in f.matched.iter().zip(&f.matched_principal) {
+            if let Some(principal) = principal {
+                let amount: String = self
+                    .conn
+                    .query_row("SELECT amount FROM transactions WHERE id = ?1", params![id], |r| r.get(0))?;
+                validate_principal(kind, dec(&amount), *principal)?;
+            }
+        }
         self.refuse_already_in_app(f.account_id, &f.add, &matched)?;
 
         // The statement decides what is ticked: anything ticked earlier but not on it waits for next time.
@@ -636,6 +661,11 @@ impl Store {
         for (id, principal) in added.iter().zip(&f.add_principal) {
             if let Some(principal) = principal {
                 // A plain UPDATE (no transaction of its own), so it stays inside this one.
+                self.update_transaction_principal_amount(*id, Some(*principal))?;
+            }
+        }
+        for (id, principal) in f.matched.iter().zip(&f.matched_principal) {
+            if let Some(principal) = principal {
                 self.update_transaction_principal_amount(*id, Some(*principal))?;
             }
         }

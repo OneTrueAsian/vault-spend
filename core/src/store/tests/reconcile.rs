@@ -353,6 +353,7 @@ fn finish_cash(acct: i64, matched: Vec<i64>, add: Vec<Transaction>, start: &str,
         matched,
         add,
         add_principal: vec![],
+        matched_principal: vec![],
         holdings: vec![],
         statement_shares: None,
         layout: None,
@@ -376,6 +377,7 @@ fn finish_investment(
         matched: vec![],
         add,
         add_principal: vec![],
+        matched_principal: vec![],
         holdings,
         statement_shares,
         layout: None,
@@ -647,6 +649,7 @@ fn a_failing_holdings_change_rolls_back_the_added_transactions_and_other_holding
         matched: vec![],
         add: vec![tx("2026-08-05", "Cash Dividend", "18.50")],
         add_principal: vec![],
+        matched_principal: vec![],
         holdings: vec![
             HoldingChange::SetShares {
                 holding_id: held,
@@ -709,6 +712,7 @@ fn an_investment_finish_fixes_share_counts_and_requires_them_to_match() {
         matched: vec![],
         add: vec![tx("2026-08-05", "Cash Dividend", "18.50")],
         add_principal: vec![],
+        matched_principal: vec![],
         holdings: vec![],
         statement_shares: Some(vec![("ABCD".into(), dec("50.000")), ("EFGH".into(), dec("252.523"))]),
         layout: None,
@@ -772,6 +776,7 @@ fn an_investment_finish_allows_app_only_holdings_and_records_when_holdings_were_
         matched: vec![],
         add: vec![],
         add_principal: vec![],
+        matched_principal: vec![],
         holdings: vec![],
         statement_shares: Some(vec![("abcd ".into(), dec("20")), ("ABCD".into(), dec("29.0"))]),
         layout: None,
@@ -1630,4 +1635,103 @@ fn a_month_before_every_balance_record_needs_its_own_starting_balance() {
         .reconcile_status(acct, day("2026-07-31"), Some(dec("1000.00")), dec("1200.00"))
         .unwrap();
     assert_eq!(july.difference, Some(Decimal::ZERO));
+}
+
+#[test]
+fn an_investment_statement_dated_the_same_day_as_the_statement_being_reconciled_counts_toward_it() {
+    let store = Store::open_in_memory().unwrap();
+    let brokerage = brokerage_reconciled_in_july(&store);
+    store
+        .finish_statement_reconciliation(
+            &investment_statement(brokerage, "2026-09-01", "2026-09-30", vec![tx("2026-09-05", "Cash Dividend", "18.50")]),
+            test_now(),
+        )
+        .unwrap();
+    let same_day = store.reconcile_status(brokerage, day("2026-09-30"), None, dec("123.50")).unwrap();
+    assert_eq!(
+        same_day.starting_point,
+        Some(dec("123.50")),
+        "dated on the statement's end date, so it is included"
+    );
+    let day_before = store.reconcile_status(brokerage, day("2026-09-29"), None, dec("105.00")).unwrap();
+    assert_eq!(day_before.starting_point, Some(dec("105.00")), "dated after this statement, so it is not");
+}
+
+/// A mortgage whose 2,405.94 payment is already in the app, saved without its principal part.
+fn mortgage_with_a_payment(store: &Store) -> (i64, i64) {
+    let loan = mortgage(store);
+    let ids = store.save_transactions_with_ids(loan, &[tx("2026-08-01", "Payment", "2405.94")]).unwrap();
+    (loan, ids[0])
+}
+
+fn principal_of(store: &Store, id: i64) -> Option<String> {
+    store
+        .conn
+        .query_row("SELECT principal_amount FROM transactions WHERE id = ?1", params![id], |r| r.get(0))
+        .unwrap()
+}
+
+#[test]
+fn a_matched_loan_payment_takes_its_principal_part_from_the_statement() {
+    let store = Store::open_in_memory().unwrap();
+    let (loan, payment) = mortgage_with_a_payment(&store);
+    let without = finish_cash(loan, vec![payment], vec![], "317195.46", "316840.29");
+    assert!(matches!(
+        store.finish_statement_reconciliation(&without, test_now()),
+        Err(StatementFinishError::DoesNotBalance)
+    ));
+    let f = StatementFinish {
+        matched_principal: vec![Some(dec("355.17"))],
+        ..finish_cash(loan, vec![payment], vec![], "317195.46", "316840.29")
+    };
+    let done = store.finish_statement_reconciliation(&f, test_now()).unwrap();
+    assert_eq!(principal_of(&store, payment).as_deref(), Some("355.17"));
+    assert_eq!(settled_by(&store, payment), Some(done.reconciliation_id));
+}
+
+#[test]
+fn a_matched_principal_part_that_does_not_fit_is_refused_and_changes_nothing() {
+    let store = Store::open_in_memory().unwrap();
+    let (loan, payment) = mortgage_with_a_payment(&store);
+    let fee = store.save_transactions_with_ids(loan, &[tx("2026-08-10", "Late fee", "-50.00")]).unwrap()[0];
+    let with = |matched: Vec<i64>, principal: Vec<Option<Decimal>>| StatementFinish {
+        matched_principal: principal,
+        ..finish_cash(loan, matched, vec![], "317195.46", "316840.29")
+    };
+    let refused = [
+        ("larger than the payment", with(vec![payment], vec![Some(dec("2405.95"))])),
+        ("negative", with(vec![payment], vec![Some(dec("-1.00"))])),
+        ("not one per match", with(vec![payment], vec![Some(dec("355.17")), None])),
+        ("on a charge", with(vec![payment, fee], vec![Some(dec("355.17")), Some(dec("-50.00"))])),
+    ];
+    for (why, f) in refused {
+        match store.finish_statement_reconciliation(&f, test_now()) {
+            Err(e @ StatementFinishError::BadInput(_)) => assert_plain(&e.to_string()),
+            other => panic!("{why}: expected BadInput, got {other:?}"),
+        }
+        assert_eq!(principal_of(&store, payment), None, "{why}");
+        assert_eq!(count(&store, "SELECT COUNT(*) FROM reconciliations"), 0);
+    }
+
+    // A balance that doesn't come out rolls the principal part back too.
+    let wrong_end = StatementFinish {
+        matched_principal: vec![Some(dec("355.17"))],
+        ..finish_cash(loan, vec![payment], vec![], "317195.46", "316000.00")
+    };
+    assert!(matches!(
+        store.finish_statement_reconciliation(&wrong_end, test_now()),
+        Err(StatementFinishError::DoesNotBalance)
+    ));
+    assert_eq!(principal_of(&store, payment), None);
+
+    // Only a loan payment can have one.
+    let (acct, [_, coffee, _]) = checking(&store);
+    let f = StatementFinish {
+        matched_principal: vec![Some(dec("1.00"))],
+        ..finish_cash(acct, vec![coffee], vec![], "1200.00", "1150.00")
+    };
+    assert!(matches!(
+        store.finish_statement_reconciliation(&f, test_now()),
+        Err(StatementFinishError::BadInput(_))
+    ));
 }

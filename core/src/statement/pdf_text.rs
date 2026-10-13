@@ -5,6 +5,8 @@ use super::model::StatementLine;
 
 pub const MAX_STATEMENT_BYTES: usize = 20 * 1024 * 1024;
 pub const MAX_STATEMENT_PAGES: usize = 200;
+/// Longest the app waits for a statement's text. A damaged or hostile PDF must not hang the review.
+pub const MAX_READ_TIME: std::time::Duration = std::time::Duration::from_secs(30);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PdfTextError {
@@ -13,6 +15,7 @@ pub enum PdfTextError {
     Encrypted,
     NoText,
     Unreadable,
+    TooSlow,
 }
 
 impl std::fmt::Display for PdfTextError {
@@ -21,6 +24,9 @@ impl std::fmt::Display for PdfTextError {
             PdfTextError::TooLarge | PdfTextError::TooManyPages => "This file is too large to be a monthly statement.",
             PdfTextError::Encrypted | PdfTextError::Unreadable => {
                 "This PDF can't be opened. If it has a password, save an unlocked copy from your bank's website."
+            }
+            PdfTextError::TooSlow => {
+                "This PDF took too long to read. You can use your bank's CSV or OFX download, or reconcile by hand."
             }
             PdfTextError::NoText => {
                 "This PDF is a picture of the statement, so the app can't read its text. You can use your bank's CSV or OFX download, or reconcile by hand."
@@ -31,10 +37,34 @@ impl std::fmt::Display for PdfTextError {
 
 impl std::error::Error for PdfTextError {}
 
+/// The statement's text lines, giving up after `MAX_READ_TIME`.
 pub fn read_pdf_lines(bytes: Vec<u8>) -> Result<Vec<StatementLine>, PdfTextError> {
+    read_pdf_lines_within(bytes, MAX_READ_TIME)
+}
+
+/// Reads on a worker thread and waits at most `limit`. The page count is checked before any page is
+/// read, and the worker stops at the next page once the time is up, so a slow file is abandoned
+/// rather than left running. A panic inside the PDF library reads as an unreadable file.
+pub fn read_pdf_lines_within(bytes: Vec<u8>, limit: std::time::Duration) -> Result<Vec<StatementLine>, PdfTextError> {
     if bytes.len() > MAX_STATEMENT_BYTES {
         return Err(PdfTextError::TooLarge);
     }
+    let deadline = std::time::Instant::now() + limit;
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("statement-pdf".into())
+        .spawn(move || {
+            let _ = sender.send(extract_lines(bytes, deadline));
+        })
+        .map_err(|_| PdfTextError::Unreadable)?;
+    match receiver.recv_timeout(limit) {
+        Ok(result) => result,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(PdfTextError::TooSlow),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(PdfTextError::Unreadable),
+    }
+}
+
+fn extract_lines(bytes: Vec<u8>, deadline: std::time::Instant) -> Result<Vec<StatementLine>, PdfTextError> {
     let doc = pdf_oxide::PdfDocument::from_bytes(bytes).map_err(classify)?;
     if doc.is_encrypted() && !doc.authenticate(b"").unwrap_or(false) {
         return Err(PdfTextError::Encrypted);
@@ -45,6 +75,9 @@ pub fn read_pdf_lines(bytes: Vec<u8>) -> Result<Vec<StatementLine>, PdfTextError
     }
     let mut lines = Vec::new();
     for page in 0..pages {
+        if std::time::Instant::now() >= deadline {
+            return Err(PdfTextError::TooSlow);
+        }
         // Characters, not spans: the library's span extraction re-sorts text geometrically, which pulls a
         // table apart into a column of dates, a column of descriptions and a column of amounts. The
         // character list stays in the order the PDF draws it (date, description, amount for each row).
@@ -192,6 +225,24 @@ mod tests {
     fn garbage_is_unreadable_and_huge_files_are_refused_first() {
         assert_eq!(read_pdf_lines(b"not a pdf at all".to_vec()), Err(PdfTextError::Unreadable));
         assert_eq!(read_pdf_lines(vec![0u8; MAX_STATEMENT_BYTES + 1]), Err(PdfTextError::TooLarge));
+    }
+
+    #[test]
+    fn too_many_pages_are_refused_before_any_page_is_read() {
+        let pages = vec![vec!["Page".to_string()]; MAX_STATEMENT_PAGES + 1];
+        assert_eq!(read_pdf_lines(build_pdf(&pages)), Err(PdfTextError::TooManyPages));
+        let pages = vec![vec!["Page".to_string()]; MAX_STATEMENT_PAGES];
+        assert_eq!(read_pdf_lines(build_pdf(&pages)).unwrap().len(), MAX_STATEMENT_PAGES);
+    }
+
+    #[test]
+    fn reading_that_takes_too_long_stops_with_a_plain_message() {
+        let (pages, _) = fixture("card-a").unwrap();
+        assert_eq!(
+            read_pdf_lines_within(build_pdf(&pages), std::time::Duration::ZERO),
+            Err(PdfTextError::TooSlow)
+        );
+        assert!(PdfTextError::TooSlow.to_string().contains("took too long"));
     }
 
     #[test]
