@@ -37,7 +37,41 @@ class RecoveryWorkflowTests(unittest.TestCase):
         # and protection flows (171/202); isolate these real UI checks rather than skip assertions.
         source = (ROOT / '.github/workflows/release-windows.yml').read_text()
         gate = source.split('      - name: Full desktop E2E release gate\n', 1)[1].split('      - name:', 1)[0]
-        self.assertIn('run: npm run e2e -- --concurrency=1', gate)
+        self.assertIn('--integrity Medium', gate)
+        self.assertIn('-Gate full', gate)
+
+    def execute_desktop_gate(self, integrity, gate, code):
+        with tempfile.TemporaryDirectory(prefix='release-desktop-gate-') as folder:
+            root = Path(folder)
+            commands = root / 'commands.json'
+            helper = ROOT / 'tools/run-hosted-desktop-tests.ps1'
+            script = root / 'gate.ps1'
+            script.write_text(
+                "$ErrorActionPreference = 'Stop'\nfunction whoami.exe { $global:LASTEXITCODE = 0; '" + integrity + "' }\n"
+                "function npm.cmd { ConvertTo-Json -InputObject @($args) | Set-Content -LiteralPath '" + str(commands).replace("'", "''") + "'; $global:LASTEXITCODE = " + str(code) + " }\n"
+                "& '" + str(helper).replace("'", "''") + "' -Gate " + gate + "\nexit $LASTEXITCODE\n",
+                encoding='utf-8',
+            )
+            result = subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', str(script)], env=dict(os.environ, GITHUB_ACTIONS='true'), capture_output=True, text=True, timeout=15)
+            return result, commands.read_text() if commands.exists() else None
+
+    def test_desktop_gate_refuses_elevated_context_before_starting_tests(self):
+        result, commands = self.execute_desktop_gate('S-1-16-12288', 'full', 0)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('medium integrity', result.stderr)
+        self.assertIsNone(commands)
+
+    def test_desktop_gate_preserves_full_coverage_and_failure_exit(self):
+        import json
+        result, commands = self.execute_desktop_gate('S-1-16-8192', 'full', 17)
+        self.assertEqual(result.returncode, 17, result.stderr)
+        self.assertEqual(json.loads(commands), ['run', 'e2e', '--', '--concurrency=1'])
+
+    def test_desktop_gate_smoke_success_is_forwarded(self):
+        import json
+        result, commands = self.execute_desktop_gate('S-1-16-8192', 'smoke', 0)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(commands), ['run', 'e2e:smoke'])
 
     def test_native_browser_driver_is_separate_from_webview_driver(self):
         source = (ROOT / '.github/workflows/release-windows.yml').read_text()
