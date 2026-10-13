@@ -128,12 +128,30 @@ jobs:
           Invoke-WebRequest "https://msedgedriver.microsoft.com/$($runtime.Name)/edgedriver_win64.zip" -OutFile $zip
           $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
           Expand-Archive $zip -DestinationPath (Join-Path $cargoHome 'bin') -Force
+      - name: Install native Edge test driver
+        run: |
+          # WebView2 and Edge have independent versions on hosted images. Keep Tauri's
+          # runtime-matched driver in cargo/bin and use a separate driver for native Edge.
+          $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $edge) { throw 'Microsoft Edge browser not found' }
+          $version = (Get-Item -LiteralPath $edge).VersionInfo.ProductVersion
+          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw 'Invalid Microsoft Edge browser version' }
+          $directory = Join-Path $env:RUNNER_TEMP 'native-edge-driver'
+          $zip = Join-Path $env:RUNNER_TEMP 'native-edge-driver.zip'
+          Invoke-WebRequest "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $directory -Force
+          $driver = Join-Path $directory 'msedgedriver.exe'
+          $reported = & $driver --version
+          if ($LASTEXITCODE -ne 0 -or $reported -notmatch [regex]::Escape($version)) { throw 'Native Edge driver version mismatch' }
+          Write-Host "Native Edge $version; $reported"
+          "MSEDGEDRIVER=$driver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build current desktop test app
         run: npx tauri build --debug --no-bundle
       - name: Desktop WebDriver smoke preflight
         run: npm run e2e:smoke
       - name: Full desktop E2E release gate
-        run: npm run e2e -- --concurrency=3
+        # Focus/blur and protected-profile tests share the hosted OS foreground window.
+        run: npm run e2e -- --concurrency=1
       - name: Build and publish Windows installers
         if: ${{ !inputs.diagnostic_only }}
         id: package

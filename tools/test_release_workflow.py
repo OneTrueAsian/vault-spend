@@ -33,11 +33,19 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertLess(source.index('      - name: Desktop WebDriver smoke preflight'), source.index('      - name: Full desktop E2E release gate'))
 
     def test_hosted_runner_gate_limits_concurrent_app_launches(self):
-        # The hosted Windows runner stalled WebView launches at the harness default of 6 (118/202 passed,
-        # 45 launch retries) while the single-spec smoke preflight passed; the full gate must stay lower.
+        # The hosted desktop has one OS foreground window. Concurrency 3 still failed focus checks
+        # and protection flows (171/202); isolate these real UI checks rather than skip assertions.
         source = (ROOT / '.github/workflows/release-windows.yml').read_text()
         gate = source.split('      - name: Full desktop E2E release gate\n', 1)[1].split('      - name:', 1)[0]
-        self.assertIn('run: npm run e2e -- --concurrency=3', gate)
+        self.assertIn('run: npm run e2e -- --concurrency=1', gate)
+
+    def test_native_browser_driver_is_separate_from_webview_driver(self):
+        source = (ROOT / '.github/workflows/release-windows.yml').read_text()
+        setup = source.split('      - name: Install native Edge test driver\n', 1)[1].split('      - name:', 1)[0]
+        self.assertIn('VersionInfo.ProductVersion', setup)
+        self.assertIn('MSEDGEDRIVER=', setup)
+        self.assertNotIn("Join-Path $cargoHome 'bin'", setup)
+        self.assertLess(source.index('      - name: Install native Edge test driver'), source.index('      - name: Desktop WebDriver smoke preflight'))
 
     def execute_repair(self, source):
         with tempfile.TemporaryDirectory(prefix='release-recovery-') as folder:
