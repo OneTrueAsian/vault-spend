@@ -15,6 +15,36 @@ release workflows publish installers during packaging, before the signing review
 dispatch those publishing workflows only for an explicitly approved publication.
 Use the Windows non-publishing diagnostic mode for pipeline validation.
 
+## Prepare installers without publishing
+
+Dispatch the existing `build-macos-check.yml` on `release-1.3.1` with
+`prepare_signed=true` and the exact current commit as `source_sha`. It calls
+`prepare-signed-installers.yml` from the same commit, allowing preparation without
+adding a new dispatch workflow to `main`. The ordinary macOS check remains the
+default when `prepare_signed` is false. Preparation rejects a different dispatch ref, moved branch commit,
+or version mismatch. This separate workflow has only `contents: read`, creates no
+tag or release, and omits all Tauri release inputs. Windows retains the complete
+frontend, Rust, audit, smoke and full compiled desktop gates. macOS builds the
+universal DMG after its unit, Rust and dependency gates.
+
+The protected `release-signing` environment must allow the exact preparation
+branch in addition to approved release tags. Preserve reviewer requirements and
+disabled administrator bypass; remove a temporary branch allowance after the
+preparation run finishes. Review both successful packaging jobs and their recorded
+source SHA before approving signing. Environment review authorizes signing only;
+this workflow has no publication step.
+
+The signing jobs download same-run artifacts, compare installer hashes to packaging
+outputs, check out the exact common build commit, sign the final bytes, and verify
+with the embedded public key. The `signed-1.3.1-windows-x86_64` and
+`signed-1.3.1-macos-universal` Actions artifacts retain installers, manifests,
+signatures and verification provenance for 14 days. Download them to the external
+QA evidence folder for durable review and isolated installation checks. Actions
+artifacts require authenticated download; workflow logs in this public repository
+are public, so no private credentials or financial data may appear in them.
+These artifacts do not enable live update discovery until a separately approved
+release is published.
+
 ## Generate and protect the key
 
 Use Node 22 and PowerShell 7 on a trusted machine. Choose a **new directory outside
