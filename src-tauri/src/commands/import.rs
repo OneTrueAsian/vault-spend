@@ -170,13 +170,18 @@ pub fn inspect_import_columns(path: String, account_id: i64, state: tauri::State
     inspect_import_columns_for(&state, &path, account_id)
 }
 
-fn inspect_import_columns_for(state: &AppState, path: &str, account_id: i64) -> Result<ColumnInspectionDto, String> {
+/// Whether the importer reads this file as a CSV: anything that isn't `ofx`/`qfx`/`qif`, as in `importer::load_transactions`.
+fn is_csv_path(path: &str) -> bool {
     let extension = std::path::Path::new(path)
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
-    if matches!(extension.as_str(), "ofx" | "qfx" | "qif") {
+    !matches!(extension.as_str(), "ofx" | "qfx" | "qif")
+}
+
+fn inspect_import_columns_for(state: &AppState, path: &str, account_id: i64) -> Result<ColumnInspectionDto, String> {
+    if !is_csv_path(path) {
         return Ok(ColumnInspectionDto {
             status: "ok".to_string(),
             headers: Vec::new(),
@@ -469,9 +474,11 @@ fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<I
     };
     // Remember the person's column choice for the account, by header name. A choice that can't be
     // named (a blank header) is simply not remembered; the import still goes ahead.
-    if let Some(map) = &req.column_map {
+    // Only a CSV has columns, and only a choice the names reproduce exactly (a repeated header would
+    // otherwise find a different column next time) is remembered.
+    if let Some(map) = req.column_map.as_ref().filter(|_| is_csv_path(&req.path)) {
         let headers = csv_loader::inspect_csv(&req.path).map_err(|e| e.to_string())?.headers;
-        if let Some(names) = map.names(&headers) {
+        if let Some(names) = map.names(&headers).filter(|names| names.resolve(&headers).as_ref() == Some(map)) {
             batch.column_names = Some((req.default_account_id, names));
         }
     }

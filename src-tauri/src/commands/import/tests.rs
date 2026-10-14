@@ -606,13 +606,12 @@ fn inspect_applies_a_saved_choice_when_the_headers_still_match() {
 
 #[test]
 fn inspect_treats_other_file_types_as_ok() {
-    let (state, file, dir, account) = review_state("inspect-ofx", ODD_CSV);
+    let (state, _csv, dir, account) = review_state("inspect-ofx", "Date,Description,Amount\n");
     let ofx = dir.join("bank.ofx");
     std::fs::write(&ofx, "not read at all").unwrap();
     let dto = inspect_import_columns_for(&state, ofx.to_str().unwrap(), account).unwrap();
     assert_eq!(dto.status, "ok");
     assert!(dto.map.is_none());
-    let _ = file;
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -664,4 +663,90 @@ fn committing_with_a_map_saves_it_for_the_account() {
     assert_eq!(stale.store.account_import_columns(account2).unwrap(), None);
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&dir2);
+}
+
+fn request_with_map(
+    state: &mut AppState,
+    file: &std::path::Path,
+    account: i64,
+    map: budget_core::csv_loader::ColumnMap,
+    included: &[usize],
+) -> CommitImportRequest {
+    let review_token = preview_import_for(state, file.to_str().unwrap(), false, account, Some(&map))
+        .unwrap()
+        .review_token;
+    CommitImportRequest {
+        path: file.to_str().unwrap().to_string(),
+        invert_amounts: false,
+        default_account_id: account,
+        review_token,
+        included_indices: included.to_vec(),
+        account_overrides: std::collections::HashMap::new(),
+        category_choices: None,
+        row_choices: picks(&[]),
+        column_map: Some(map),
+    }
+}
+
+#[test]
+fn a_map_sent_with_an_ofx_file_imports_normally_and_saves_nothing() {
+    let (mut state, _csv, dir, account) = review_state("map-ofx", ODD_CSV);
+    let ofx = dir.join("bank.ofx");
+    std::fs::write(
+        &ofx,
+        "<OFX>\n<BANKMSGSRSV1>\n<STMTTRNRS>\n<STMTRS>\n<BANKTRANLIST>\n<STMTTRN>\n<TRNTYPE>DEBIT\n<DTPOSTED>20260105\n\
+         <TRNAMT>-5.00\n<FITID>1\n<NAME>COFFEE\n</STMTTRN>\n</BANKTRANLIST>\n</STMTRS>\n</STMTTRNRS>\n</BANKMSGSRSV1>\n</OFX>\n",
+    )
+    .unwrap();
+    let req = request_with_map(&mut state, &ofx, account, odd_map(), &[0]);
+    let summary = commit_import_for(&mut state, req).unwrap();
+    assert_eq!(summary.inserted, 1);
+    assert_eq!(state.store.account_import_columns(account).unwrap(), None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_map_whose_names_would_pick_another_column_saves_nothing_but_still_imports() {
+    // Two columns are both called "Memo": the name alone would find the first, not the chosen one.
+    let csv = "Posted,Memo,Amt,Memo\n2026-01-05,x,-20.00,SUNNY MARKET\n2026-01-06,y,-45.00,HOMEGOODS\n";
+    let (mut state, file, dir, account) = review_state("map-dup", csv);
+    let map = budget_core::csv_loader::ColumnMap {
+        date: 0,
+        description: 3,
+        amount: budget_core::csv_loader::AmountColumns::Single { column: 2 },
+        category: None,
+    };
+    let req = request_with_map(&mut state, &file, account, map, &[]);
+    commit_import_for(&mut state, req).unwrap();
+    assert_eq!(state.store.account_import_columns(account).unwrap(), None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_map_pointing_past_the_end_of_the_file_is_a_plain_error_and_changes_nothing() {
+    let (mut state, file, dir, account) = review_state("map-range", ODD_CSV);
+    let map = budget_core::csv_loader::ColumnMap {
+        date: 0,
+        description: 1,
+        amount: budget_core::csv_loader::AmountColumns::Single { column: 9 },
+        category: None,
+    };
+    let path = file.to_str().unwrap();
+    assert!(preview_import_for(&mut state, path, false, account, Some(&map)).is_err());
+    let mut req = request_with_map(&mut state, &file, account, odd_map(), &[]);
+    req.column_map = Some(map);
+    assert!(commit_import_for(&mut state, req).is_err());
+    assert!(state.store.all_transactions().unwrap().is_empty());
+    assert_eq!(state.store.account_import_columns(account).unwrap(), None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_map_using_a_blank_header_still_imports_and_saves_nothing() {
+    let csv = "Posted,,Amt\n2026-01-05,SUNNY MARKET,-20.00\n";
+    let (mut state, file, dir, account) = review_state("map-blank", csv);
+    let req = request_with_map(&mut state, &file, account, odd_map(), &[]);
+    commit_import_for(&mut state, req).unwrap();
+    assert_eq!(state.store.account_import_columns(account).unwrap(), None);
+    let _ = std::fs::remove_dir_all(&dir);
 }
