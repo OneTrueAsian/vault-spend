@@ -97,6 +97,68 @@ impl ColumnMap {
         };
         amount_ok && self.date < width && self.description < width && self.category.is_none_or(|c| c < width)
     }
+
+    /// The header names this map points at, so the choice can be remembered by name and found again when a
+    /// later file has the same headers in another order. `None` when any index is outside `headers`.
+    pub fn names(&self, headers: &[String]) -> Option<ColumnNames> {
+        let name = |i: usize| headers.get(i).cloned();
+        Some(ColumnNames {
+            date: name(self.date)?,
+            description: name(self.description)?,
+            amount: match self.amount {
+                AmountColumns::Single { column } => AmountNames::Single { column: name(column)? },
+                AmountColumns::DebitCredit { debit, credit } => AmountNames::DebitCredit {
+                    debit: name(debit)?,
+                    credit: name(credit)?,
+                },
+            },
+            category: match self.category {
+                Some(c) => Some(name(c)?),
+                None => None,
+            },
+        })
+    }
+}
+
+/// Where the amount comes from, by header name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AmountNames {
+    Single { column: String },
+    DebitCredit { debit: String, credit: String },
+}
+
+/// A column choice by header name rather than position: what an account remembers between imports.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ColumnNames {
+    pub date: String,
+    pub description: String,
+    pub amount: AmountNames,
+    #[serde(default)]
+    pub category: Option<String>,
+}
+
+impl ColumnNames {
+    /// Finds each name among `headers` (ignoring case and surrounding spaces; the first match wins).
+    /// `None` unless every name is found.
+    pub fn resolve(&self, headers: &[String]) -> Option<ColumnMap> {
+        let find = |name: &str| headers.iter().position(|h| h.trim().eq_ignore_ascii_case(name.trim()));
+        Some(ColumnMap {
+            date: find(&self.date)?,
+            description: find(&self.description)?,
+            amount: match &self.amount {
+                AmountNames::Single { column } => AmountColumns::Single { column: find(column)? },
+                AmountNames::DebitCredit { debit, credit } => AmountColumns::DebitCredit {
+                    debit: find(debit)?,
+                    credit: find(credit)?,
+                },
+            },
+            category: match &self.category {
+                Some(c) => Some(find(c)?),
+                None => None,
+            },
+        })
+    }
 }
 
 /// Best guesses at which header is which, for pre-filling the picker.

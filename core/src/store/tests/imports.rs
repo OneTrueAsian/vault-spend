@@ -180,6 +180,43 @@ fn a_batch_remembers_and_forgets_file_categories_and_the_sign_answer() {
     assert_eq!(stored.import_flip_signs, Some(true));
 }
 
+fn matched_columns() -> crate::csv_loader::ColumnNames {
+    use crate::csv_loader::{AmountNames, ColumnNames};
+    ColumnNames {
+        date: "Posted".into(),
+        description: "Memo".into(),
+        amount: AmountNames::Single { column: "Amt".into() },
+        category: None,
+    }
+}
+
+#[test]
+fn a_committed_batch_stores_the_matched_columns_on_the_account() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    store
+        .commit_import_batch(&ImportBatch {
+            rows: vec![row(ImportAccount::Existing(account), "ROW", RowCategory::LeaveUncategorized)],
+            column_names: Some((account, matched_columns())),
+            ..ImportBatch::default()
+        })
+        .unwrap();
+    assert_eq!(store.account_import_columns(account).unwrap(), Some(matched_columns()));
+}
+
+#[test]
+fn a_failed_batch_stores_no_matched_columns() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    let result = store.commit_import_batch(&ImportBatch {
+        rows: vec![row(ImportAccount::Existing(account), "ROW", RowCategory::Chosen("Nope".into()))],
+        column_names: Some((account, matched_columns())),
+        ..ImportBatch::default()
+    });
+    assert!(matches!(result, Err(ImportBatchError::UnknownCategory(_))), "got {result:?}");
+    assert_eq!(store.account_import_columns(account).unwrap(), None);
+}
+
 #[test]
 fn a_batch_naming_an_account_that_does_not_exist_writes_nothing() {
     let store = Store::open_in_memory().unwrap();

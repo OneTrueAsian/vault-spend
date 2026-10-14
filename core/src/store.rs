@@ -10,6 +10,7 @@ mod encryption;
 pub use self::encryption::{DatabaseKey, StoreOpenError, file_looks_encrypted};
 mod comparison_setup;
 mod comparison_snapshot;
+mod import_columns;
 mod sign_flip;
 pub use self::sign_flip::{FlipSignsError, FlipSignsSummary};
 mod profile_ui_state;

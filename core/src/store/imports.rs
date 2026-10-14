@@ -2,6 +2,7 @@
 
 use super::transactions::{NotesError, normalize_notes};
 use super::{CategorySource, Store};
+use crate::csv_loader::ColumnNames;
 use crate::models::{AccountType, Transaction};
 use rusqlite::params;
 
@@ -53,6 +54,8 @@ pub struct ImportBatch {
     pub forget: Vec<String>,
     /// The account the import was started from and its "Flip the signs" answer, offered again next time.
     pub sign_preference: Option<(i64, bool)>,
+    /// The account the import was started from and the CSV columns the person matched, offered again next time.
+    pub column_names: Option<(i64, ColumnNames)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -182,6 +185,9 @@ impl Store {
         }
         if let Some((account_id, flip)) = batch.sign_preference {
             self.set_account_import_flip_signs(account_id, flip)?;
+        }
+        if let Some((account_id, names)) = &batch.column_names {
+            self.set_account_import_columns(*account_id, names)?;
         }
         Ok(outcome)
     }
