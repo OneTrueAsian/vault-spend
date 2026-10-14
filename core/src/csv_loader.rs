@@ -352,15 +352,15 @@ fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&
             AmountColumns::Single { column } => taken.push(column),
             AmountColumns::DebitCredit { debit, credit } => taken.extend([debit, credit]),
         }
-        let category = map
-            .category
-            .or_else(|| find_column_exact(first_row, "category").filter(|c| !taken.contains(c)));
+        taken.extend(map.category);
+        let free = |name: &str| find_column_exact(first_row, name).filter(|c| !taken.contains(c));
+        let category = map.category.or_else(|| free("category"));
         // No Account column is read: every row goes to the account the person is importing into.
         let extra = ExtraColumns {
             account: None,
             category,
-            tags: find_column_exact(first_row, "tags"),
-            notes: find_column_exact(first_row, "notes"),
+            tags: free("tags"),
+            notes: free("notes"),
         };
         (map.date, map.description, amount_source, extra, &rows[1..], 2, true)
     } else if first_row_is_plain_data(first_row) {
@@ -1008,6 +1008,22 @@ mod tests {
         let result = load_from_reader_with(csv.as_bytes(), false, Some(&single_map(0, 1, 2))).unwrap();
         assert_eq!(result.transactions[0].description, "Coffee");
         assert_eq!(result.transactions[0].category, None);
+    }
+
+    #[test]
+    fn a_column_picked_as_the_description_is_not_also_read_as_notes_or_tags() {
+        let csv = "Posted,Notes,Amt\n2026-08-05,Coffee,-4.50\n";
+        let result = load_from_reader_with(csv.as_bytes(), false, Some(&single_map(0, 1, 2))).unwrap();
+        assert_eq!(result.transactions[0].description, "Coffee");
+        assert_eq!(result.notes, vec![None]);
+        let csv = "Posted,Tags,Amt\n2026-08-05,Coffee,-4.50\n";
+        let result = load_from_reader_with(csv.as_bytes(), false, Some(&single_map(0, 1, 2))).unwrap();
+        assert_eq!(result.tags, vec![Vec::<String>::new()]);
+        // Still read when they are separate columns.
+        let csv = "Posted,Memo,Amt,Notes,Tags\n2026-08-05,Coffee,-4.50,hi,a; b\n";
+        let result = load_from_reader_with(csv.as_bytes(), false, Some(&single_map(0, 1, 2))).unwrap();
+        assert_eq!(result.notes, vec![Some("hi".to_string())]);
+        assert_eq!(result.tags, vec![vec!["a".to_string(), "b".to_string()]]);
     }
 
     #[test]

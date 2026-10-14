@@ -798,6 +798,22 @@ fn a_choice_made_from_other_headers_is_refused_on_preview_and_commit() {
 }
 
 #[test]
+fn the_header_check_ignores_a_bom_and_padding_but_not_a_real_difference() {
+    let csv = "\u{feff}Posted ,Memo,Amt\n2026-01-05,SUNNY MARKET,-20.00\n";
+    let (mut state, file, dir, account) = review_state("map-bom", csv);
+    let path = file.to_str().unwrap();
+    // What the screen sends: the headers inspection reported for this same file.
+    let from_inspection = budget_core::csv_loader::inspect_csv(path).unwrap().headers;
+    assert!(preview_import_for(&mut state, path, false, account, Some(&odd_map()), Some(&from_inspection)).is_ok());
+    let different: Vec<String> = ["Posted", "Other", "Amt"].iter().map(|h| h.to_string()).collect();
+    let err = preview_import_for(&mut state, path, false, account, Some(&odd_map()), Some(&different))
+        .err()
+        .unwrap();
+    assert_eq!(err, "This file changed. Start the import again.");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn commit_remembers_the_choice_by_the_headers_of_the_file_it_loaded() {
     let (mut state, file, dir, account) = review_state("map-names-from-load", ODD_CSV);
     let mut req = mapped_request(&mut state, &file, account);
