@@ -11,8 +11,12 @@ impl Store {
     /// Records the column choice of the last import into this account, offered again next time.
     pub fn set_account_import_columns(&self, account_id: i64, names: &ColumnNames) -> rusqlite::Result<()> {
         let json = serde_json::to_string(names).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-        self.conn
+        let updated = self
+            .conn
             .execute("UPDATE accounts SET import_columns = ?1 WHERE id = ?2", params![json, account_id])?;
+        if updated == 0 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
         Ok(())
     }
 
@@ -55,6 +59,100 @@ mod tests {
 
     fn headers(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn a_blank_saved_name_never_matches_a_blank_header() {
+        let h = headers(&["Posted", "Memo", "  ", "Amt"]);
+        let blank_date = ColumnNames {
+            date: " ".into(),
+            ..single()
+        };
+        assert_eq!(blank_date.resolve(&h), None);
+        let blank_desc = ColumnNames {
+            description: "".into(),
+            ..single()
+        };
+        assert_eq!(blank_desc.resolve(&h), None);
+        let blank_amount = ColumnNames {
+            amount: AmountNames::Single { column: "".into() },
+            ..single()
+        };
+        assert_eq!(blank_amount.resolve(&h), None);
+        let blank_debit = ColumnNames {
+            amount: AmountNames::DebitCredit {
+                debit: " ".into(),
+                credit: "Amt".into(),
+            },
+            ..single()
+        };
+        assert_eq!(blank_debit.resolve(&h), None);
+        let blank_credit = ColumnNames {
+            amount: AmountNames::DebitCredit {
+                debit: "Amt".into(),
+                credit: "".into(),
+            },
+            ..single()
+        };
+        assert_eq!(blank_credit.resolve(&h), None);
+        let blank_category = ColumnNames {
+            category: Some("  ".into()),
+            ..single()
+        };
+        assert_eq!(blank_category.resolve(&h), None);
+    }
+
+    #[test]
+    fn a_column_with_a_blank_header_is_never_saved() {
+        let h = headers(&["Date", "Memo", " ", "Amt"]);
+        let ok = ColumnMap {
+            date: 0,
+            description: 1,
+            amount: AmountColumns::Single { column: 3 },
+            category: None,
+        };
+        assert!(ok.names(&h).is_some());
+        assert_eq!(ColumnMap { date: 2, ..ok.clone() }.names(&h), None);
+        assert_eq!(
+            ColumnMap {
+                description: 2,
+                ..ok.clone()
+            }
+            .names(&h),
+            None
+        );
+        assert_eq!(
+            ColumnMap {
+                amount: AmountColumns::Single { column: 2 },
+                ..ok.clone()
+            }
+            .names(&h),
+            None
+        );
+        assert_eq!(
+            ColumnMap {
+                amount: AmountColumns::DebitCredit { debit: 2, credit: 3 },
+                ..ok.clone()
+            }
+            .names(&h),
+            None
+        );
+        assert_eq!(
+            ColumnMap {
+                amount: AmountColumns::DebitCredit { debit: 3, credit: 2 },
+                ..ok.clone()
+            }
+            .names(&h),
+            None
+        );
+        assert_eq!(ColumnMap { category: Some(2), ..ok }.names(&h), None);
+    }
+
+    #[test]
+    fn saving_for_an_account_that_does_not_exist_is_an_error() {
+        let store = Store::open_in_memory().unwrap();
+        let result = store.set_account_import_columns(999, &single());
+        assert!(matches!(result, Err(rusqlite::Error::QueryReturnedNoRows)), "got {result:?}");
     }
 
     #[test]

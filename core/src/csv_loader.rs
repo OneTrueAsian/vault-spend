@@ -101,7 +101,7 @@ impl ColumnMap {
     /// The header names this map points at, so the choice can be remembered by name and found again when a
     /// later file has the same headers in another order. `None` when any index is outside `headers`.
     pub fn names(&self, headers: &[String]) -> Option<ColumnNames> {
-        let name = |i: usize| headers.get(i).cloned();
+        let name = |i: usize| headers.get(i).filter(|h| !h.trim().is_empty()).cloned();
         Some(ColumnNames {
             date: name(self.date)?,
             description: name(self.description)?,
@@ -142,7 +142,14 @@ impl ColumnNames {
     /// Finds each name among `headers` (ignoring case and surrounding spaces; the first match wins).
     /// `None` unless every name is found.
     pub fn resolve(&self, headers: &[String]) -> Option<ColumnMap> {
-        let find = |name: &str| headers.iter().position(|h| h.trim().eq_ignore_ascii_case(name.trim()));
+        // A blank name would otherwise match a blank header cell.
+        let find = |name: &str| {
+            let name = name.trim();
+            if name.is_empty() {
+                return None;
+            }
+            headers.iter().position(|h| h.trim().eq_ignore_ascii_case(name))
+        };
         Some(ColumnMap {
             date: find(&self.date)?,
             description: find(&self.description)?,
