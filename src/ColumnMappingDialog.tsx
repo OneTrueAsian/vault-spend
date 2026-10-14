@@ -89,7 +89,7 @@ export function ColumnMappingDialog({
             <thead>
               <tr>
                 {headers.map((_, index) => (
-                  <th key={index}>{headers[index]}</th>
+                  <th key={index}>{columnLabel(headers, index)}</th>
                 ))}
               </tr>
             </thead>

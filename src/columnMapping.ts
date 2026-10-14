@@ -56,3 +56,8 @@ export function columnLabel(headers: string[], index: number): string {
   const repeated = headers.filter((h) => h.trim() === text).length > 1;
   return repeated ? `${text} (column ${index + 1})` : text;
 }
+
+/** Whether the window should open: the file needs matching, or a remembered choice was reported without its columns. */
+export function needsMapping(inspection: ColumnInspection): boolean {
+  return inspection.status === "needs_mapping" || (inspection.status === "saved" && inspection.map === null);
+}

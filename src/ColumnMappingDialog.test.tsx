@@ -146,3 +146,23 @@ describe("ColumnMappingDialog", () => {
     expect(document.activeElement).toBe(field("date"));
   });
 });
+
+describe("ColumnMappingDialog preview headers", () => {
+  it("labels preview columns the same way as the dropdowns", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <ColumnMappingDialog
+          inspection={{ ...INSPECTION, headers: ["Amount", "", "Amount"], sample_rows: [["1", "2", "3"]] }}
+          onCancel={() => undefined}
+          onConfirm={() => undefined}
+        />,
+      );
+    });
+    expect([...document.querySelectorAll("table th")].map((t) => t.textContent)).toEqual(["Amount (column 1)", "Column 2", "Amount (column 3)"]);
+    act(() => root.unmount());
+    container.remove();
+  });
+});

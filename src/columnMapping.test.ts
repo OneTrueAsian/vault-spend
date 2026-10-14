@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { columnLabel, draftFromGuess, draftProblem, toColumnMap, type ColumnInspection, type Draft } from "./columnMapping";
+import { columnLabel, draftFromGuess, draftProblem, needsMapping, toColumnMap, type ColumnInspection, type Draft } from "./columnMapping";
 
 const inspection = (guess: Partial<ColumnInspection["guess"]>): ColumnInspection => ({
   status: "needs_mapping",
@@ -78,5 +78,21 @@ describe("columnLabel", () => {
     const headers = ["Date", "Memo", "Amount", "Fee", "Amount"];
     expect(columnLabel(headers, 2)).toBe("Amount (column 3)");
     expect(columnLabel(headers, 4)).toBe("Amount (column 5)");
+  });
+});
+
+describe("needsMapping", () => {
+  it("asks when the file needs matching", () => {
+    expect(needsMapping(inspection({}))).toBe(true);
+  });
+
+  it("asks when a saved choice came back without its columns", () => {
+    expect(needsMapping({ ...inspection({}), status: "saved", map: null })).toBe(true);
+  });
+
+  it("does not ask when the saved choice is there or nothing needs matching", () => {
+    const map = { date: 0, description: 1, amount: { kind: "single", column: 2 } } as const;
+    expect(needsMapping({ ...inspection({}), status: "saved", map })).toBe(false);
+    expect(needsMapping({ ...inspection({}), status: "ok" })).toBe(false);
   });
 });

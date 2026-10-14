@@ -88,7 +88,7 @@ import {
 } from "./Modal";
 import { TransactionNotesDialog } from "./TransactionNotesDialog";
 import { ColumnMappingDialog } from "./ColumnMappingDialog";
-import type { ColumnInspection, ColumnMap } from "./columnMapping";
+import { needsMapping, type ColumnInspection, type ColumnMap } from "./columnMapping";
 import { importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
 import {
   DEFAULT_LAYOUT,
@@ -2606,8 +2606,8 @@ function App({
     // If the look-ahead itself fails, the import below reports the problem the way it always did.
     let columnMap: ColumnMap | null = null;
     const inspection = await invoke<ColumnInspection>("inspect_import_columns", { path, accountId }).catch(() => null);
-    if (inspection?.status === "saved") columnMap = inspection.map;
-    if (inspection?.status === "needs_mapping") {
+    if (inspection && !needsMapping(inspection)) columnMap = inspection.map;
+    if (inspection && needsMapping(inspection)) {
       columnMap = await askColumnMap(inspection, account?.name);
       if (!columnMap) return; // cancelled: nothing read, nothing saved
     }
