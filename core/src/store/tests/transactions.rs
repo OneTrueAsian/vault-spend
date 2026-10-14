@@ -1135,6 +1135,25 @@ fn update_transaction_account_moves_it_to_the_new_account() {
 }
 
 #[test]
+fn moving_a_transaction_clears_its_tick_and_settled_ones_are_reported() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
+    let savings = store.get_or_create_account("Nest Egg", AccountType::Savings).unwrap();
+    store
+        .save_transactions(checking, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")])
+        .unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    store.set_transactions_cleared(&[id], true).unwrap();
+    assert!(!store.transaction_is_settled(id).unwrap());
+    store.update_transaction_account(id, savings).unwrap();
+    let ticked: bool = store
+        .conn
+        .query_row("SELECT cleared FROM transactions WHERE id = ?1", [id], |r| r.get(0))
+        .unwrap();
+    assert!(!ticked, "it arrives unticked");
+}
+
+#[test]
 fn update_transaction_account_on_an_unknown_id_is_a_harmless_no_op() {
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);

@@ -667,9 +667,16 @@ pub fn review_statement_for(
         if sections_of(session).len() <= section_index {
             return Err(NO_SUCH_PART.into());
         }
+        // A failed rebuild leaves the session as the page still shows it.
+        let (section, flipped) = (session.section, session.flip);
         session.section = section_index;
         session.flip = flip;
-        renewed_review(state, session)
+        let review = renewed_review(state, session);
+        if review.is_err() {
+            session.section = section;
+            session.flip = flipped;
+        }
+        review
     })
 }
 
@@ -710,6 +717,14 @@ pub fn teach_statement_layout_for(
         }
         let (base, origin) = teaching_base(state, session)?;
         let taught = learn::from_marks(&base, &session.lines, &marks, &session.period).map_err(|e| e.to_string())?;
+        // A failed rebuild leaves the session as the page still shows it.
+        let before = (
+            session.layout.clone(),
+            session.origin.clone(),
+            session.taught,
+            session.recognized,
+            session.section,
+        );
         session.layout = Some(taught);
         session.origin = Some(origin);
         session.taught = true;
@@ -717,7 +732,11 @@ pub fn teach_statement_layout_for(
         if sections_of(session).len() <= session.section {
             session.section = 0;
         }
-        renewed_review(state, session)
+        let review = renewed_review(state, session);
+        if review.is_err() {
+            (session.layout, session.origin, session.taught, session.recognized, session.section) = before;
+        }
+        review
     })
 }
 
@@ -866,7 +885,8 @@ fn optional_amount(value: Option<&str>) -> Result<Option<Decimal>, String> {
 /// principal part equal to the whole amount says nothing more (a charge such as a fee counts in full
 /// anyway).
 fn principal_to_pass(session: &Session, row: &StatementRow, amount: Decimal) -> Option<Decimal> {
-    app_principal(session, row).filter(|p| *p != amount)
+    // Only a payment toward the loan can have a principal part; a fee or interest charge can't.
+    app_principal(session, row).filter(|p| *p != amount && amount > Decimal::ZERO)
 }
 
 fn none_if_all_none(parts: Vec<Option<Decimal>>) -> Vec<Option<Decimal>> {
@@ -927,10 +947,17 @@ pub fn finish_statement_reconciliation_for(
             if description.is_empty() {
                 return Err("Every transaction you add needs a description.".into());
             }
-            let amount = parse_amount(&a.amount)?;
-            add_principal.push(principal_to_pass(session, &section.rows[a.row], amount));
+            // The date and amount come from the statement line held here, never from the page; the
+            // page's copy must agree with it (it won't when the page is out of step, for example after
+            // a failed flip).
+            let row = &section.rows[a.row];
+            let amount = to_app(session, row.amount);
+            if parse_amount(&a.amount)? != amount || parse_date(&a.date)? != row.date {
+                return Err(STALE.into());
+            }
+            add_principal.push(principal_to_pass(session, row, amount));
             add.push(budget_core::models::Transaction {
-                date: parse_date(&a.date)?,
+                date: row.date,
                 description: description.to_string(),
                 amount,
                 // The download's own category, read by `categories_for` below.

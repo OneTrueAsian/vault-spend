@@ -73,7 +73,11 @@ export function AccountDetailView({
   statementDateRef.current = statementDate;
 
   const reconcileCardRef = useRef<HTMLDivElement>(null);
-  const statement = useStatementReconcile(account.id);
+  const statement = useStatementReconcile(account.id, (done) => {
+    // The page was left while the statement saved: reload the rest of the app and say it finished.
+    Promise.resolve(onDataChanged?.()).catch(() => {});
+    onMessage(`Reconciled ${account.name}.${done.added ? ` Added ${done.added} transaction${done.added === 1 ? "" : "s"}.` : ""}`, "success");
+  });
   const statementBalanceRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (focus !== "reconcile") return;

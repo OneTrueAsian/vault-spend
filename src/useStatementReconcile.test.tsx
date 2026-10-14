@@ -13,8 +13,9 @@ vi.mock("./nativeDialog", () => ({ open: vi.fn(() => Promise.resolve("C:/stateme
 vi.mock("./profileUiState", () => ({ getCurrentGeneration: () => Promise.resolve(7) }));
 
 let hook: ReturnType<typeof useStatementReconcile>;
+const afterLeaving = vi.fn();
 function Probe() {
-  hook = useStatementReconcile(5);
+  hook = useStatementReconcile(5, afterLeaving);
   return null;
 }
 
@@ -29,6 +30,7 @@ describe("useStatementReconcile", () => {
   afterEach(() => {
     act(() => root.unmount());
     vi.mocked(invoke).mockReset();
+    afterLeaving.mockReset();
   });
 
   it("reads the chosen file for the period and opens the review", async () => {
@@ -153,6 +155,23 @@ describe("useStatementReconcile", () => {
     await act(async () => hook.cancel());
     expect(cancelCalls()).toHaveLength(0);
     expect(hook.phase.kind).toBe("idle");
+  });
+
+  it("still reports a statement that finished saving after the screen went away", async () => {
+    await startReview();
+    let resolve: (v: unknown) => void = () => {};
+    vi.mocked(invoke).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    let pending: Promise<void> = Promise.resolve();
+    await act(async () => {
+      pending = hook.finish(decisions) as Promise<void>;
+    });
+    act(() => root.unmount());
+    await act(async () => {
+      resolve({ reconciliation_id: 1, added: 2, layout_saved: null });
+      await pending;
+    });
+    expect(afterLeaving).toHaveBeenCalledWith({ reconciliation_id: 1, added: 2, layout_saved: null });
+    root = createRoot(document.createElement("div"));
   });
 
   it("forgets the open review when the screen goes away", async () => {

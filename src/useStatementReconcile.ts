@@ -26,7 +26,7 @@ export type StatementPhase =
 /** Owns the upload, review, (teach), finish flow for one account. Every call carries the profile
  * generation, so a profile switch mid-review is refused by the backend. Every review and teach step
  * hands back a new token that replaces the old one; the hook always uses the newest. */
-export function useStatementReconcile(accountId: number) {
+export function useStatementReconcile(accountId: number, onFinishedAfterLeaving?: (finished: StatementFinished) => void) {
   const [phase, setPhase] = useState<StatementPhase>({ kind: "idle" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,6 +38,9 @@ export function useStatementReconcile(accountId: number) {
   /** Bumped by cancel and unmount: a step still waiting for the backend then ignores its answer. */
   const runId = useRef(0);
   const working = useRef(false);
+  const unmounted = useRef(false);
+  const afterLeaving = useRef(onFinishedAfterLeaving);
+  afterLeaving.current = onFinishedAfterLeaving;
 
   /** Runs one step. Steps do not overlap (a second click while one is running is ignored). */
   const run = useCallback(async (work: (id: number) => Promise<void>) => {
@@ -162,12 +165,17 @@ export function useStatementReconcile(accountId: number) {
 
   const finish = useCallback(
     (decisions: FinishDecisions) =>
-      run(async (id) => {
+      run(async () => {
         const finished = validateStatementFinished(
           await invoke("finish_statement_reconciliation", { token: token.current, decisions, generation: generation.current }),
         );
-        if (runId.current !== id) return;
+        // The backend has already saved the statement, so the answer is never dropped: a person who
+        // closed the screen while it saved still gets told, and the rest of the app still reloads.
         token.current = null;
+        if (unmounted.current) {
+          afterLeaving.current?.(finished);
+          return;
+        }
         setPhase({ kind: "done", finished });
       }),
     [run],
@@ -184,17 +192,18 @@ export function useStatementReconcile(accountId: number) {
     forget(openToken);
   }, [forget]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    unmounted.current = false;
+    return () => {
+      unmounted.current = true;
       runId.current += 1;
       const openToken = token.current;
       token.current = null;
       if (openToken) {
         void Promise.resolve(invoke("cancel_statement_review", { token: openToken, generation: generation.current })).catch(() => {});
       }
-    },
-    [],
-  );
+    };
+  }, []);
 
   const backToReview = useCallback(() => {
     if (phase.kind === "teach") setPhase({ kind: "review", review: phase.review });

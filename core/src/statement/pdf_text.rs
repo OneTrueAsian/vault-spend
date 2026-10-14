@@ -42,24 +42,49 @@ pub fn read_pdf_lines(bytes: Vec<u8>) -> Result<Vec<StatementLine>, PdfTextError
     read_pdf_lines_within(bytes, MAX_READ_TIME)
 }
 
+/// Readers abandoned after their time was up and not yet finished. A page that never returns can't be
+/// interrupted, so its thread runs until the library lets go; reading is refused while too many are
+/// still stuck, so repeated tries can't pile up threads and memory.
+static ABANDONED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+const MAX_ABANDONED: usize = 3;
+
 /// Reads on a worker thread and waits at most `limit`. The page count is checked before any page is
 /// read, and the worker stops at the next page once the time is up, so a slow file is abandoned
-/// rather than left running. A panic inside the PDF library reads as an unreadable file.
+/// rather than left running. A single page that never returns can't be stopped, so its thread is left
+/// to finish on its own (see `ABANDONED`). A panic inside the PDF library reads as an unreadable file.
 pub fn read_pdf_lines_within(bytes: Vec<u8>, limit: std::time::Duration) -> Result<Vec<StatementLine>, PdfTextError> {
+    use std::sync::atomic::Ordering;
     if bytes.len() > MAX_STATEMENT_BYTES {
         return Err(PdfTextError::TooLarge);
     }
+    if ABANDONED.load(Ordering::SeqCst) >= MAX_ABANDONED {
+        return Err(PdfTextError::TooSlow);
+    }
     let deadline = std::time::Instant::now() + limit;
     let (sender, receiver) = std::sync::mpsc::channel();
+    // 0 running, 1 abandoned by the waiting side, 2 finished.
+    let state = std::sync::Arc::new(std::sync::atomic::AtomicU8::new(0));
+    let worker_state = state.clone();
     std::thread::Builder::new()
         .name("statement-pdf".into())
         .spawn(move || {
-            let _ = sender.send(extract_lines(bytes, deadline));
+            let result = extract_lines(bytes, deadline);
+            if worker_state.swap(2, Ordering::SeqCst) == 1 {
+                ABANDONED.fetch_sub(1, Ordering::SeqCst);
+            }
+            let _ = sender.send(result);
         })
         .map_err(|_| PdfTextError::Unreadable)?;
     match receiver.recv_timeout(limit) {
         Ok(result) => result,
-        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(PdfTextError::TooSlow),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            ABANDONED.fetch_add(1, Ordering::SeqCst);
+            if state.compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+                // The worker finished in the meantime; nothing is stuck.
+                ABANDONED.fetch_sub(1, Ordering::SeqCst);
+            }
+            Err(PdfTextError::TooSlow)
+        }
         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(PdfTextError::Unreadable),
     }
 }

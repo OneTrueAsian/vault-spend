@@ -515,6 +515,18 @@ fn a_statement_finish_that_does_not_balance_writes_nothing_at_all() {
 }
 
 #[test]
+fn finishing_the_same_statement_twice_is_refused() {
+    let store = Store::open_in_memory().unwrap();
+    let (acct, [_, coffee, _]) = checking(&store);
+    let f = finish_cash(acct, vec![coffee], vec![], "1200.00", "1150.00");
+    store.finish_statement_reconciliation(&f, test_now()).unwrap();
+    let again = store.finish_statement_reconciliation(&f, test_now());
+    assert!(matches!(again, Err(StatementFinishError::AlreadyReconciled)));
+    let records: i64 = store.conn.query_row("SELECT COUNT(*) FROM reconciliations", [], |r| r.get(0)).unwrap();
+    assert_eq!(records, 1);
+}
+
+#[test]
 fn a_cash_finish_without_an_ending_balance_does_not_balance() {
     let store = Store::open_in_memory().unwrap();
     let (acct, [_, coffee, _]) = checking(&store);

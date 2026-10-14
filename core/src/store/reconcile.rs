@@ -364,6 +364,8 @@ pub enum StatementFinishError {
     NotThisAccount,
     /// A transaction to add is already in the app (same account, date, description and amount).
     AlreadyInApp,
+    /// A balance account already has a reconciliation for this statement's end date.
+    AlreadyReconciled,
     /// The finish's own details don't fit together (the message says how).
     BadInput(&'static str),
     /// A holding to change has an impossible value (the message says which).
@@ -386,6 +388,12 @@ impl std::fmt::Display for StatementFinishError {
             StatementFinishError::DoesNotBalance => write!(f, "That doesn't balance yet — the difference has to be $0.00."),
             StatementFinishError::SharesDiffer(symbol) => write!(f, "The share count for {symbol} still differs from your statement."),
             StatementFinishError::NotThisAccount => write!(f, "Your data changed while you were reviewing. Please read the statement again."),
+            StatementFinishError::AlreadyReconciled => {
+                write!(
+                    f,
+                    "You already reconciled this account through the end date of this statement. Nothing was changed."
+                )
+            }
             StatementFinishError::AlreadyInApp => {
                 write!(f, "One of the transactions to add is already in the app. Read the statement again.")
             }
@@ -607,6 +615,18 @@ impl Store {
         };
 
         // Checks that only read come first.
+        // A balance statement for an end date already reconciled would record an empty second
+        // reconciliation. (An investment statement can be finished again to correct share counts.)
+        if kind != AccountKind::Investment {
+            let already: i64 = self.conn.query_row(
+                "SELECT COUNT(*) FROM reconciliations WHERE account_id = ?1 AND statement_date = ?2 AND holdings_checked IS NULL",
+                params![f.account_id, f.period.end.to_string()],
+                |r| r.get(0),
+            )?;
+            if already > 0 {
+                return Err(StatementFinishError::AlreadyReconciled);
+            }
+        }
         if kind != AccountKind::Investment && !f.holdings.is_empty() {
             return Err(StatementFinishError::NotThisAccount);
         }

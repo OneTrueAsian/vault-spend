@@ -7,6 +7,20 @@ use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use std::str::FromStr;
 
+const FULL_MONTHS: [&str; 12] = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+];
 const MONTHS: [&str; 12] = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
 /// A date at the very start of a line, and what follows it.
@@ -94,6 +108,11 @@ fn month_name(b: &[u8]) -> Option<(u32, usize)> {
     let mut i = 3;
     while i < b.len() && b[i].is_ascii_alphabetic() {
         i += 1;
+    }
+    // "Mar" or "March" or "Sept", but not a word that merely starts with a month ("Market", "Marriott").
+    let word = std::str::from_utf8(&b[..i]).ok()?.to_ascii_lowercase();
+    if !(word == head || word == "sept" || FULL_MONTHS[month as usize - 1] == word) {
+        return None;
     }
     if b.get(i) == Some(&b'.') {
         i += 1;
@@ -445,6 +464,21 @@ mod date_tests {
         let p = period("2026-07-25", "2026-08-24");
         let found = leading_date("Aug 1 Aug 3 STARBUCKS 800-782-7282 WA $10.00", &rules(&[MonDd], true), &p).unwrap();
         assert_eq!((found.date, found.rest), (d("2026-08-01"), "STARBUCKS 800-782-7282 WA $10.00"));
+    }
+
+    #[test]
+    fn a_word_that_only_starts_with_a_month_is_not_a_date() {
+        let p = period("2026-03-01", "2026-03-31");
+        let r = rules(&[MonDd], false);
+        assert!(leading_date("Marriott 12 nights 100.00", &r, &p).is_none());
+        assert!(leading_date("Market 25 pcs", &r, &p).is_none());
+        assert_eq!(leading_date("March 12 Rent 5.00", &r, &p).unwrap().date, d("2026-03-12"));
+        assert_eq!(
+            leading_date("Sept. 3 Rent 5.00", &rules(&[MonDd], false), &period("2026-09-01", "2026-09-30"))
+                .unwrap()
+                .date,
+            d("2026-09-03")
+        );
     }
 
     #[test]
