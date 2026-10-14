@@ -615,6 +615,14 @@ impl Store {
         Ok(())
     }
 
+    /// Sets a holding's share count (reconciling against a statement). An unknown id is a harmless no-op,
+    /// matching `delete_holding`; the statement finish checks the holding belongs to the account first.
+    pub fn update_holding_shares(&self, id: i64, shares: Decimal) -> rusqlite::Result<()> {
+        self.conn
+            .execute("UPDATE holdings SET shares = ?1 WHERE id = ?2", params![shares.to_string(), id])?;
+        Ok(())
+    }
+
     /// Every distinct symbol currently held, across every account — the
     /// list a live-price refresh fetches one quote per, regardless of how
     /// many holdings (or accounts) share that symbol.

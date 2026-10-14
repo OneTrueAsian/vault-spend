@@ -169,9 +169,17 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I reconcile an account against a statement?",
         steps: [
-          <>Open the <strong>⋯</strong> menu on a checking or savings account's row and choose <strong>Reconcile with a statement…</strong>.</>,
+          <>Open the <strong>⋯</strong> menu on an account's row and choose <strong>Reconcile with a statement…</strong>.</>,
           <>Enter the statement's ending balance and tick each transaction that appears on it.</>,
           <>Finish once the difference reaches $0.00 (see FAQ).</>,
+        ],
+      },
+      {
+        question: "How do I check an account against my statement file?",
+        steps: [
+          <>Open the account's page and enter the statement's start and end dates under <strong>Reconcile with a statement</strong>.</>,
+          <>Choose <strong>Upload a statement</strong> and pick the PDF. The app checks each line against your transactions, and anything missing can be added with one click.</>,
+          <>If the app hasn't seen your bank's statements before, it may ask you to click a few examples. It remembers them for next time. A picture-only PDF can't be read, so use your bank's CSV or OFX download instead (<strong>Use a CSV or OFX download</strong>).</>,
         ],
       },
       {
@@ -1353,18 +1361,21 @@ const FAQ_ENTRIES: FaqEntry[] = [
   },
   {
     question: "How do I reconcile an account against a statement?",
-    tags: ["reconcile", "reconciliation", "statement", "cleared", "balance", "checking", "savings", "account details", "ending balance"],
+    tags: ["reconcile", "reconciliation", "statement", "ticked", "cleared", "balance", "checking", "savings", "credit card", "loan", "account details", "ending balance"],
     answer: (
       <p>
-        On Accounts, click a checking or savings account's row (or choose
-        Details in its ⋯ menu), enter the statement's ending balance under
-        Reconcile with a statement, and start. Tick each
-        transaction that appears on the statement; the page shows the
-        difference between your cleared balance and the statement, and once
-        it reaches $0.00 you can finish and Vault Spend records the
-        reconciliation. Ticked rows stay marked as cleared, and a difference
-        that won't close usually means a missing, mistyped, or wrongly dated
-        transaction.
+        On Accounts, click an account's row (or choose Details in its ⋯
+        menu), enter the statement's dates and balances under Reconcile with
+        a statement, and start. The first time you reconcile an account you
+        also enter the balance its statement started from; after that it
+        picks up from your last reconciliation. Tick each transaction that
+        appears on the statement; the page shows the difference between what
+        you've ticked and the statement, and once it reaches $0.00 you can
+        finish and Vault Spend records the reconciliation. Ticked rows stay
+        marked on the account's page, and a difference that won't close
+        usually means a missing, mistyped, or wrongly dated transaction.
+        You can also upload the statement itself: choose Upload a statement
+        instead of ticking, and Vault Spend checks each line for you.
       </p>
     ),
   },

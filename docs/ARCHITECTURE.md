@@ -12,6 +12,7 @@ changing its owner, inclusion rule or lifecycle boundary.
 | Financial model | [core Store](../core/src/store.rs), split into feature modules: SQLite/SQLCipher data, exact arithmetic, inclusion rules and mutations; no Tauri dependency |
 | Desktop service | [command worker](../src-tauri/src/command_thread.rs), [runtime](../src-tauri/src/runtime.rs) and [commands](../src-tauri/src/commands.rs): IPC dispatch, open-session access and profile lifecycle |
 | Desktop UI | [App](../src/App.tsx): composition, navigation and shared consumers; transaction feature owners are mapped in [Transactions ownership](TRANSACTIONS-OWNERSHIP.md) |
+| Statement reconciling | [Statement reconciling](STATEMENT-RECONCILE.md): reading statements, layouts, matching, the shared balance rule, the review session and privacy; [reader](../core/src/statement/mod.rs), [store rules](../core/src/store/reconcile.rs), [commands](../src-tauri/src/commands/statements.rs) |
 | Mobile | [HTTPS service](../src-tauri/src/mobile_server.rs), [connection](../src/mobileConnection.ts), [repository](../src/mobileRepository.ts) and [offline UI](../src/MobileOfflineApp.tsx): approved read-only projections and separately saved copies |
 
 Commands use glob re-exports: Tauri's generated command macros must remain

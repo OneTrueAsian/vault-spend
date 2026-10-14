@@ -1480,83 +1480,31 @@ fn reconcilable(store: &Store, start: &str) -> (i64, [i64; 3]) {
 }
 
 #[test]
-fn the_cleared_balance_is_the_opening_balance_plus_the_transactions_marked_cleared() {
-    let store = Store::open_in_memory().unwrap();
-    let (acct, [deposit, coffee, _gas]) = reconcilable(&store, "1000.00");
-    store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
-
-    let status = store.reconciliation_status(acct, dec("1150.00")).unwrap();
-
-    assert_eq!(status.cleared_balance, dec("1150.00"));
-    assert_eq!(status.difference, Decimal::ZERO);
-    assert_eq!(status.cleared_count, 2);
-}
-
-#[test]
-fn the_difference_is_what_the_statement_says_minus_what_has_cleared() {
-    let store = Store::open_in_memory().unwrap();
-    let (acct, [deposit, _coffee, _gas]) = reconcilable(&store, "1000.00");
-    store.set_transactions_cleared(&[deposit], true).unwrap();
-
-    let status = store.reconciliation_status(acct, dec("1150.00")).unwrap();
-
-    assert_eq!(status.cleared_balance, dec("1200.00"));
-    assert_eq!(status.difference, dec("-50.00"));
-}
-
-#[test]
-fn clearing_can_be_undone_and_a_deleted_transaction_stops_counting() {
-    let store = Store::open_in_memory().unwrap();
-    let (acct, [deposit, coffee, _gas]) = reconcilable(&store, "1000.00");
-    store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
-
-    store.set_transactions_cleared(&[coffee], false).unwrap();
-    assert_eq!(store.reconciliation_status(acct, dec("0")).unwrap().cleared_balance, dec("1200.00"));
-
-    store.delete_transaction(deposit, test_now()).unwrap();
-    assert_eq!(store.reconciliation_status(acct, dec("0")).unwrap().cleared_balance, dec("1000.00"));
-}
-
-#[test]
-fn a_reconciliation_can_only_be_finished_when_the_difference_is_zero() {
-    let store = Store::open_in_memory().unwrap();
-    let (acct, [deposit, coffee, _gas]) = reconcilable(&store, "1000.00");
-    store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
-
-    let refused = store.finish_reconciliation(acct, day("2026-08-31"), dec("1200.00"), test_now()).unwrap();
-    assert!(!refused);
-    assert_eq!(store.last_reconciliation(acct).unwrap(), None);
-
-    let accepted = store.finish_reconciliation(acct, day("2026-08-31"), dec("1150.00"), test_now()).unwrap();
-    assert!(accepted);
-    assert_eq!(store.last_reconciliation(acct).unwrap(), Some((day("2026-08-31"), dec("1150.00"))));
-}
-
-#[test]
 fn the_latest_reconciliation_is_the_one_reported() {
+    use crate::store::{FinishReconciliation, ReconcileSource};
     let store = Store::open_in_memory().unwrap();
     let (acct, [deposit, coffee, gas]) = reconcilable(&store, "1000.00");
+    let finish = |date: &str, start: Option<&str>, end: &str| {
+        store
+            .finish_reconciliation(
+                &FinishReconciliation {
+                    account_id: acct,
+                    period_start: None,
+                    statement_date: day(date),
+                    statement_start: start.map(dec),
+                    statement_end: dec(end),
+                    source: ReconcileSource::Manual,
+                },
+                test_now(),
+            )
+            .unwrap()
+    };
     store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
-    store.finish_reconciliation(acct, day("2026-08-31"), dec("1150.00"), test_now()).unwrap();
+    finish("2026-08-31", Some("1000.00"), "1150.00").unwrap();
     store.set_transactions_cleared(&[gas], true).unwrap();
-    store.finish_reconciliation(acct, day("2026-09-30"), dec("1120.00"), test_now()).unwrap();
+    finish("2026-09-30", None, "1120.00").unwrap();
 
     assert_eq!(store.last_reconciliation(acct).unwrap(), Some((day("2026-09-30"), dec("1120.00"))));
-}
-
-#[test]
-fn reconcile_candidates_are_uncleared_rows_plus_anything_cleared_since_the_last_reconciliation() {
-    let store = Store::open_in_memory().unwrap();
-    let (acct, [deposit, coffee, gas]) = reconcilable(&store, "1000.00");
-    store.set_transactions_cleared(&[deposit, coffee], true).unwrap();
-    store.finish_reconciliation(acct, day("2026-08-31"), dec("1150.00"), test_now()).unwrap();
-    store.set_transactions_cleared(&[gas], true).unwrap();
-
-    // Everything up to Sep 30: the reconciled July/Aug rows are settled and drop out; September's shows.
-    let candidates = store.reconcile_candidates(acct, day("2026-09-30")).unwrap();
-
-    assert_eq!(candidates.iter().map(|c| c.id).collect::<Vec<_>>(), vec![gas]);
-    assert!(candidates[0].cleared);
 }
 
 #[test]

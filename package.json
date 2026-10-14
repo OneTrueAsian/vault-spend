@@ -13,6 +13,7 @@
     "e2e:smoke": "node e2e/run-all.mjs --spec=smoke",
     "demo": "node e2e/demo.mjs",
     "demo:household": "node e2e/household-demo.mjs",
+    "demo:statements": "node e2e/statements-demo.mjs",
     "tauri": "tauri",
     "tauri:dev:sandbox": "cross-env VAULTSPEND_DB_DIR=$INIT_CWD/.dev-sandbox tauri dev",
     "mobile:dev": "vite --config vite.mobile.config.ts",

@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AppSettings, Backup, BackgroundSettings, LivePriceProviderId, LivePriceSettings, Profile, ThemeStyle } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { RulesManager } from "./RulesManager";
+import { StatementLayoutsSection } from "./StatementLayoutsSection";
 import { CHANGELOG } from "./changelog";
 import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
 import { ProfileProtectionSection } from "./ProfileProtectionSection";
@@ -1327,6 +1328,7 @@ export function SettingsView({
         onSetSafeToSpendEnabled={onSetSafeToSpendEnabled}
       />
       <RulesManager categories={categories} onRulesApplied={onRulesApplied} onMessage={onMessage} />
+      <StatementLayoutsSection onMessage={onMessage} />
       <ReleaseNotesSection currentVersion={appVersion} />
       <IconCreditsSection />
       <AboutSection />

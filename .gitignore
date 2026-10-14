@@ -51,6 +51,7 @@ db-backups/
 
 # Rebuilt from scratch by `npm run demo:household` (e2e/household-demo.mjs).
 .demo-household/
+.demo-statements/
 
 # Code-signing material — never commit a private key/certificate
 *.pfx

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "id": "general",
+  "name": "General",
+  "dates": { "formats": ["mm_dd_yy", "mm_dd_yyyy", "mm_dd", "mon_dd", "mon_dd_yyyy", "yyyy_mm_dd"], "second_date": true, "ignore_markers": ["*"] },
+  "amounts": { "negatives": ["leading_minus", "spaced_minus", "parentheses", "trailing_minus", "cr_suffix"], "currency": "optional", "thousands": "comma", "decimal": "period" },
+  "rows": { "amount": "first" },
+  "balances": {
+    "pairs": [
+      { "start": "Previous Balance", "end": "New Balance" },
+      { "start": "Beginning Balance", "end": "Ending Balance" },
+      { "start": "Opening Balance", "end": "Closing Balance" },
+      { "start": "Starting Balance", "end": "Ending Balance" },
+      { "start": "Balance Forward", "end": "Ending Balance" }
+    ]
+  }
+}

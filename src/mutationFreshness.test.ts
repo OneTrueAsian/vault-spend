@@ -12,7 +12,7 @@ const sources = readdirSync(sourceDir)
 
 const callPattern = /\b(?:invoke|invokeProfile|callTransaction|call|rawTransactionCall)(?:<[^>(]*>)?\(\s*["']([a-z_0-9]+)["']/g;
 const writeVerb =
-  /^(create|update|delete|set|add|commit|dismiss|rename|apply|unapply|link|unlink|import|restore|flip|save|merge|split|categorize|mark|reset|undo|remove|toggle|bulk|accept|reject|finish|reconcile|refresh|relocate)_/;
+  /^(create|update|delete|set|add|commit|dismiss|rename|apply|unapply|link|unlink|import|restore|flip|save|merge|split|categorize|mark|reset|undo|remove|toggle|bulk|accept|reject|finish|refresh|relocate)_/;
 const calledWrites = new Set(
   sources.flatMap((text) => [...text.matchAll(callPattern)].map((match) => match[1])).filter((name) => writeVerb.test(name)),
 );
@@ -30,7 +30,7 @@ const refreshesSharedSnapshot = new Set([
   "set_account_excluded_from_debt_payoff", "set_account_icon", "set_account_interest_rate",
   "set_account_starting_balance", "update_account_type", "set_auto_link_transfers", "save_rule", "delete_rule",
   "dismiss_anomaly_flag", "dismiss_transfer_candidates", "restore_transfer_candidates", "mark_auto_links_reviewed",
-  "finish_reconciliation", "set_transactions_cleared", "reconcile_candidates",
+  "finish_reconciliation", "finish_statement_reconciliation", "set_transactions_cleared",
 ]);
 /** Writes that only change how a screen is offered or a reminder is remembered. Nothing computed
  *  from the financial data reads them. */
@@ -38,6 +38,8 @@ const presentationOnly = new Set([
   "set_apply_to_debt_enabled", "set_split_purchases_enabled", "set_month_reviewed", "set_investment_plan",
   "set_profile_ui_state", "mark_ui_state_migrated", "set_profile_icon", "set_tray_enabled", "set_autostart_enabled",
   "set_auto_lock_settings", "set_backup_copy_dir", "create_backup_now",
+  // The banks whose statements the app has learned to read: only Settings and the next statement upload read them.
+  "rename_statement_layout", "delete_statement_layout",
 ]);
 /** Profile, protection and file-location changes replace or remount the whole profile, so every view
  *  starts from a new session instead of being told to refresh. */

@@ -18,6 +18,7 @@ pub mod protection;
 pub mod qif_loader;
 pub mod rules;
 pub mod setup_import;
+pub mod statement;
 pub mod store;
 pub mod update_manifest;
 

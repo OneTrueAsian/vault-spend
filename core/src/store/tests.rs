@@ -18,11 +18,13 @@ mod holding_import;
 mod imports;
 mod insights;
 mod investments;
+mod reconcile;
 mod recurring;
 mod reports;
 mod rules;
 mod schema;
 mod settings;
+mod statement_layouts;
 mod transactions;
 mod transfers;
 

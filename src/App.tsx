@@ -3482,6 +3482,10 @@ function App({
               onOpenTransactions={() => setActiveTab("ledger")}
               onOpenPayment={openPayment}
               onMessage={(text, kind) => setStatus(text, kind)}
+              onDataChanged={async () => {
+                await refresh();
+                await refreshHoldings();
+              }}
               focus={detailFocus}
             />
           )}

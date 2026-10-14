@@ -44,6 +44,13 @@ The direct rustls-pemfile dependency was removed. Certificate/key PEM parsing no
 `rustls::pki_types::pem::PemObject` with the existing certificate integrity, key-match, bootstrap and
 HTTPS tests. Transitive maintenance findings are recorded separately rather than silently ignored.
 
+The statement reader reads PDF text with `pdf_oxide` (MIT OR Apache-2.0, default features, which add its
+`image`, layout and XML helper crates; none of its OCR or machine-learning features are enabled). Its
+`office_oxide` dependency is pinned to `=0.1.11` in `core/Cargo.toml` because `pdf_oxide` 0.3.78 does not
+compile against 0.1.12 or later; remove the pin once `pdf_oxide` catches up. The one maintenance notice it
+added is `ttf-parser` (RUSTSEC-2026-0192, unmaintained), reached through font handling; it stays visible in
+the audit output like the other maintenance notices and is not an exception.
+
 Sources verified on 2026-10-09:
 
 - [RustSec TLS advisory and patched version](https://rustsec.org/advisories/RUSTSEC-2026-0285.html)

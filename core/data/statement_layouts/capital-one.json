@@ -1,0 +1,6 @@
+{ "schema": 1, "id": "capital-one", "name": "Capital One", "recognize": ["Capital One"],
+  "dates": { "formats": ["mon_dd"], "second_date": true },
+  "amounts": { "negatives": ["spaced_minus", "leading_minus"], "currency": "optional", "thousands": "comma", "decimal": "period" },
+  "rows": { "amount": "first" },
+  "balances": { "pairs": [{ "start": "Previous Balance", "end": "New Balance" }], "labels_anywhere": true },
+  "ignore_lines": ["days in Billing Cycle"] }

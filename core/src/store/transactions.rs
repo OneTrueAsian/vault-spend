@@ -556,9 +556,20 @@ impl Store {
         Ok(())
     }
 
+    /// Whether a reconciliation has already counted this transaction (see `settle_ticked`).
+    pub fn transaction_is_settled(&self, id: i64) -> rusqlite::Result<bool> {
+        let n: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM transactions WHERE id = ?1 AND reconciliation_id IS NOT NULL",
+            params![id],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
     /// Moves a transaction to a different account after the fact (it was
     /// imported into the wrong one). The fingerprint is recomputed since it
-    /// includes `account_id`. An unknown id is a harmless no-op.
+    /// includes `account_id`, and the tick for reconciling is cleared so it
+    /// doesn't change the new account's difference. An unknown id is a harmless no-op.
     pub fn update_transaction_account(&self, id: i64, account_id: i64) -> rusqlite::Result<()> {
         let existing = self.conn.query_row(
             "SELECT account_id, date, description, amount FROM transactions WHERE id = ?1",
@@ -592,7 +603,7 @@ impl Store {
         let before_old = self.displayed_balance_for_log(old_account_id);
         let before_new = self.displayed_balance_for_log(account_id);
         self.conn.execute(
-            "UPDATE transactions SET account_id = ?1, fingerprint = ?2 WHERE id = ?3",
+            "UPDATE transactions SET account_id = ?1, fingerprint = ?2, cleared = 0 WHERE id = ?3",
             params![account_id, fp, id],
         )?;
         let old_snapshot = Self::describe_balance_snapshot(before_old, self.displayed_balance_for_log(old_account_id));
