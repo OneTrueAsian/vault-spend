@@ -42,6 +42,59 @@ try {
   assert.equal(actual.stale, "stale_profile");
   assert.equal(actual.invalid, "invalid_argument");
 
+  const ask = await b.executeAsync((today, done) => {
+    const invoke = window.__TAURI_INTERNALS__.invoke;
+    (async () => {
+      const context = await invoke("get_transaction_context");
+      const origin = { expectedGeneration: context.generation, expectedSessionRevision: context.sessionRevision };
+      const request = { kind: "rank-purchases", periods: [{ from: today, to: today }], categories: ["Groceries"], limit: 1 };
+      const answer = await invoke("get_ask_vault_snapshot", { ...origin, request });
+      // A store filter on the same purchase: the first word of its recorded description, and a name nothing matches.
+      const description = answer.periods[0].purchases[0].description;
+      const vendor = description.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ")[0].slice(0, 12);
+      const byStore = await invoke("get_ask_vault_snapshot", { ...origin, request: { ...request, kind: "total", vendors: [vendor], limit: 5 } });
+      const noStore = await invoke("get_ask_vault_snapshot", { ...origin, request: { ...request, kind: "total", vendors: ["zzyzxq"], limit: 5 } });
+      let oneLetter; try { await invoke("get_ask_vault_snapshot", { ...origin, request: { ...request, kind: "total", vendors: ["a"], limit: 5 } }); } catch (error) { oneLetter = error.code; }
+      // Several stores with a per-store breakdown, and things left out.
+      const noCategory = { ...request, kind: "total", categories: [], limit: 5 };
+      const several = await invoke("get_ask_vault_snapshot", { ...origin, request: { ...noCategory, vendors: [vendor, "zzyzxq"] } });
+      const leftStore = await invoke("get_ask_vault_snapshot", { ...origin, request: { ...noCategory, excludeVendors: [vendor] } });
+      const leftCategory = await invoke("get_ask_vault_snapshot", { ...origin, request: { ...noCategory, excludeCategories: ["Groceries"] } });
+      let conflict; try { await invoke("get_ask_vault_snapshot", { ...origin, request: { ...noCategory, vendors: [vendor], excludeVendors: [vendor] } }); } catch (error) { conflict = error.code; }
+      const errors = [];
+      for (const args of [
+        { ...origin, request: { ...request, limit: 51 } },
+        { ...origin, expectedGeneration: context.generation + 1, request },
+      ]) {
+        try { await invoke("get_ask_vault_snapshot", args); errors.push("allowed"); } catch (error) { errors.push(error.code); }
+      }
+      await invoke("create_category", { name: "Ask revision fixture", iconKey: null });
+      try { await invoke("get_ask_vault_snapshot", { ...origin, request: { ...request, expectedRevision: answer.revision } }); errors.push("allowed"); }
+      catch (error) { errors.push(error.code); }
+      done({ answer, errors, description, byStore, noStore, oneLetter, several, leftStore, leftCategory, conflict });
+    })().catch(error => done({ fatal: JSON.stringify(error) }));
+  }, today);
+  assert.equal(ask.fatal, undefined);
+  assert.equal(ask.answer.contractVersion, 1);
+  assert.equal(ask.answer.periods[0].total, "12.34");
+  assert.equal(ask.answer.periods[0].purchaseCount, 1);
+  assert.equal(ask.answer.periods[0].purchases[0].amount, "12.34");
+  assert.equal(ask.answer.periods[0].historyCoverage, "unknown");
+  assert.deepEqual(ask.errors, ["invalid_argument", "stale_profile", "stale_data"]);
+  assert.equal(ask.byStore.periods[0].total, "12.34");
+  assert.equal(ask.byStore.periods[0].vendors[0].description, ask.description);
+  assert.equal(ask.byStore.periods[0].vendorNameCount, 1);
+  assert.equal(ask.noStore.periods[0].total, "0");
+  assert.deepEqual(ask.noStore.periods[0].vendors, []);
+  assert.equal(ask.oneLetter, "invalid_argument");
+  assert.deepEqual(ask.several.periods[0].vendorTotals.map((l) => [l.total, l.purchaseCount]), [["12.34", 1], ["0", 0]]);
+  assert.equal(ask.leftStore.periods[0].total, "0");
+  assert.equal(ask.leftStore.periods[0].leftOut.total, "12.34");
+  assert.equal(ask.leftStore.periods[0].leftOut.vendors[0].description, ask.description);
+  assert.equal(ask.leftCategory.periods[0].leftOut.categories[0].category, "Groceries");
+  assert.equal(ask.leftCategory.periods[0].leftOut.categories[0].amount, "12.34");
+  assert.equal(ask.conflict, "invalid_argument");
+
   await nav("Budget");
   await b.$("[data-budget-summary]").waitForExist({ timeout: 10000 });
   assert.match(await b.$("[data-budget-summary]").getText(), /12\.34/);
@@ -95,14 +148,14 @@ try {
       await invoke("create_profile", { name: "Aggregate second fixture" });
       const fresh = await invoke("get_transaction_context");
       const errors = [];
-      for (const [command, args] of [["get_budget_snapshot", { year, month }], ["get_report_range_snapshot", { fromYear: year, fromMonth: month, toYear: year, toMonth: month }]]) {
+      for (const [command, args] of [["get_budget_snapshot", { year, month }], ["get_report_range_snapshot", { fromYear: year, fromMonth: month, toYear: year, toMonth: month }], ["get_ask_vault_snapshot", { request: { kind: "total", periods: [{ from: `${year}-${String(month).padStart(2, "0")}-01`, to: `${year}-${String(month).padStart(2, "0")}-01` }], limit: 5 } }]]) {
         try { await invoke(command, { ...args, expectedGeneration: retired.generation, expectedSessionRevision: retired.sessionRevision }); errors.push("allowed"); } catch (error) { errors.push(error.code); }
       }
       const report = await invoke("get_report_range_snapshot", { fromYear: year, fromMonth: month, toYear: year, toMonth: month, expectedGeneration: fresh.generation, expectedSessionRevision: fresh.sessionRevision });
       done({ errors, empty: report.cells.length === 0, advanced: fresh.sessionRevision > retired.sessionRevision });
     })().catch(error => done({ fatal: String(error) }));
   }, year, month);
-  assert.equal(switched.fatal, undefined); assert.deepEqual(switched.errors, ["stale_profile", "stale_profile"]);
+  assert.equal(switched.fatal, undefined); assert.deepEqual(switched.errors, ["stale_profile", "stale_profile", "stale_profile"]);
   assert.equal(switched.empty, true); assert.equal(switched.advanced, true);
   console.log("FEATURE 291 FINANCIAL SNAPSHOT LIFECYCLE PASSED");
 } finally {

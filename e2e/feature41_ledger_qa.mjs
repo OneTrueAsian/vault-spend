@@ -85,9 +85,72 @@ try {
     throw new Error(`expected the bucket answer to mention Vacation Fund and $500.00, got "${bucketAnswer}"`);
   }
 
+  // Spending questions are read exactly from the profile's data by the native side (not by the older matcher).
+  // A store, several stores, and a store left out.
+  const storeAnswer = await ask(app, `how much did I spend at sushi place in ${DINING_MONTH}`);
+  console.log("store question:", storeAnswer);
+  if (!storeAnswer.includes("$60.00") || !storeAnswer.includes("Sushi Place")) {
+    throw new Error(`expected the store answer to say $60.00 at Sushi Place, got "${storeAnswer}"`);
+  }
+  const manyAnswer = await ask(app, `how much did I spend at sushi place and pizza night in ${DINING_MONTH}`);
+  console.log("several stores question:", manyAnswer);
+  if (!manyAnswer.includes("$95.00") || !manyAnswer.includes("Sushi Place") || !manyAnswer.includes("Pizza Night") || !manyAnswer.includes("$35.00")) {
+    throw new Error(`expected $95.00 with a line for each store, got "${manyAnswer}"`);
+  }
+  const leftOutAnswer = await ask(app, `dining out in ${DINING_MONTH} without pizza night`);
+  console.log("left out question:", leftOutAnswer);
+  if (!leftOutAnswer.includes("$60.00") || !leftOutAnswer.includes("excluding Pizza Night")) {
+    throw new Error(`expected $60.00 excluding Pizza Night, got "${leftOutAnswer}"`);
+  }
+
+  // The purchases behind a total open in a dialog and close again.
+  await ask(app, `how much did I spend on dining out in ${DINING_MONTH}`);
+  await (await app.browser.$("button=View 2 purchases")).click();
+  const dialog = await app.browser.$("[role='dialog']");
+  await dialog.waitForExist({ timeout: 5000 });
+  let dialogText = "";
+  await app.browser.waitUntil(async () => ((dialogText = await dialog.getText()), dialogText.includes("Sushi Place") && dialogText.includes("Pizza Night")), {
+    timeout: 8000,
+    timeoutMsg: "the dialog should list both purchases",
+  });
+  if (!dialogText.includes("$60.00") || !dialogText.includes("$35.00")) throw new Error(`expected both amounts in the dialog, got "${dialogText}"`);
+  await (await dialog.$("button=Close")).click();
+  await app.browser.waitUntil(async () => !(await (await app.browser.$("[role='dialog']")).isExisting()), { timeout: 5000, timeoutMsg: "the dialog should close" });
+
+  // The same purchases can be opened in the Transactions tab, filtered by the category and dates of the answer.
+  await (await app.browser.$("button=View 2 purchases")).click();
+  const openDialog = await app.browser.$("[role='dialog']");
+  await openDialog.waitForExist({ timeout: 5000 });
+  await (await openDialog.$("button=Open in Transactions")).click();
+  let ledgerText = "";
+  await app.browser.waitUntil(async () => ((ledgerText = await (await app.browser.$(".main")).getText()), ledgerText.includes("Sushi Place") && ledgerText.includes("Pizza Night")), {
+    timeout: 8000,
+    timeoutMsg: "Open in Transactions should show the two purchases in the Transactions tab",
+  });
+  if (!ledgerText.includes("Transactions") || ledgerText.includes("Recent runway fixture")) {
+    throw new Error(`expected only the two Dining Out purchases in Transactions, got "${ledgerText}"`);
+  }
+  await (await app.browser.$(".nav-item[data-tab=dashboard]")).click();
+  await (await app.browser.$(".ledger-qa-card input")).waitForExist({ timeout: 5000 });
+
+  // A question with no period asks which one, and a click answers it.
+  const periodInput = await app.browser.$(".ledger-qa-card input");
+  await periodInput.click();
+  await app.browser.keys(["Control", "a"]);
+  await app.browser.keys("Backspace");
+  await periodInput.addValue("how much did I spend on dining out");
+  await (await (await app.browser.$(".ledger-qa-card")).$("button=Ask")).click();
+  const clarify = await app.browser.$(".ledger-qa-clarify");
+  await clarify.waitForExist({ timeout: 5000 });
+  if (!(await clarify.getText()).includes("Which time period")) throw new Error("expected a question about the time period");
+  await (await app.browser.$("button=This year so far")).click();
+  await app.browser.waitUntil(async () => (await app.browser.$(".ledger-qa-answer")).isExisting(), { timeout: 5000, timeoutMsg: "choosing a period should answer" });
+  const afterChoice = await (await app.browser.$(".ledger-qa-answer")).getText();
+  if (!afterChoice.includes("Dining Out")) throw new Error(`expected an answer about Dining Out after choosing a period, got "${afterChoice}"`);
+
   const unmatchedAnswer = await ask(app, "who let the dogs out");
   console.log("unmatched question:", unmatchedAnswer);
-  if (!unmatchedAnswer.includes("Try something like")) {
+  if (!unmatchedAnswer.includes("I don't understand") || !unmatchedAnswer.includes("Try something like")) {
     throw new Error(`expected the graceful fallback for an unmatched question, got "${unmatchedAnswer}"`);
   }
   const unmatchedClass = await (await app.browser.$(".ledger-qa-answer")).getAttribute("class");

@@ -26,6 +26,8 @@ mod transaction_snapshot;
 pub use self::transaction_snapshot::*;
 mod financial_snapshot;
 pub use self::financial_snapshot::*;
+mod ask_vault;
+pub use self::ask_vault::*;
 mod transactions;
 pub use self::transactions::*;
 mod categories;

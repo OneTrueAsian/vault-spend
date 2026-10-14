@@ -51,7 +51,9 @@ mod statement_layouts;
 pub use self::statement_layouts::*;
 mod forecast;
 pub use self::forecast::{BillAwareForecast, DebtPayoffLine, DebtPayoffPlan, ForecastEvent, ForecastPoint};
+mod ask_vault;
 mod reports;
+pub use self::ask_vault::{AskCategorySpend, AskPurchaseSpend, AskSpendFilter, AskSpendResult, AskSpendThreshold, AskVendorSpend, AskVendorTotal};
 pub use self::reports::{AccountContributionDelta, CategoryMonthAmount, DailySpendAmount, NetWorthBreakdown};
 mod mobile_snapshot;
 pub use self::mobile_snapshot::{

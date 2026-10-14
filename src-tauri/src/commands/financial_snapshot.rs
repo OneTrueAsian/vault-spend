@@ -366,6 +366,170 @@ pub fn get_report_summary_snapshot(
 mod tests {
     use super::*;
     #[test]
+    fn ask_vault_session_guard_refuses_locked_empty_and_retired_origins() {
+        use super::super::ask_vault::{read_for_session, AskRequest};
+        let request: AskRequest =
+            serde_json::from_value(serde_json::json!({"kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],"limit":5})).unwrap();
+        let runtime = crate::runtime::AppRuntime::no_profile_open();
+        let paths = crate::config::AppPaths {
+            config_path: "unused-test-config".into(),
+            db_path: std::sync::Mutex::new("unused-test-db".into()),
+            generation: std::sync::atomic::AtomicU64::new(4),
+        };
+        let code =
+            |result: Result<super::super::ask_vault::AskSnapshot, ReadError>| serde_json::to_value(result.unwrap_err()).unwrap()["code"].clone();
+        assert_eq!(code(read_for_session(&request, 4, 0, &runtime, &paths)), "no_profile_open");
+        let make_state = || AppState {
+            store: Store::open_in_memory().unwrap(),
+            rules: RuleSet::new(vec![]),
+            import_review: None,
+        };
+        runtime.install(make_state());
+        let revision = runtime.current_revision();
+        assert!(read_for_session(&request, 4, revision, &runtime, &paths).is_ok());
+        assert_eq!(code(read_for_session(&request, 3, revision, &runtime, &paths)), "stale_profile");
+        runtime.lock_profile("synthetic");
+        assert_eq!(code(read_for_session(&request, 4, revision, &runtime, &paths)), "profile_locked");
+        runtime.install(make_state());
+        assert_eq!(code(read_for_session(&request, 4, revision, &runtime, &paths)), "stale_profile");
+    }
+    #[test]
+    fn ask_vault_contract_preserves_exact_money_and_rejects_stale_data() {
+        let (store, account, _) = fixture();
+        let request = serde_json::from_value::<super::super::ask_vault::AskRequest>(serde_json::json!({
+            "kind":"total", "periods":[{"from":"2026-10-01","to":"2026-10-08"}],
+            "accountIds":[account], "categories":["Fixture"], "limit":5
+        }))
+        .unwrap();
+        let today = "2026-10-08".parse().unwrap();
+        let answer = super::super::ask_vault::snapshot(&store, 2, 7, &request, today).unwrap();
+        let json = serde_json::to_value(answer).unwrap();
+        assert_eq!(json["periods"][0]["total"], "12.34");
+        assert_eq!(json["context"]["sessionRevision"], 7);
+        assert_eq!(json["context"]["generation"], 2);
+        let mut stale = request;
+        stale.expected_revision = Some(serde_json::from_value(json["revision"].clone()).unwrap());
+        store.create_category("Changed", None).unwrap();
+        let error = super::super::ask_vault::snapshot(&store, 2, 7, &stale, today).unwrap_err();
+        assert_eq!(serde_json::to_value(error).unwrap()["code"], "stale_data");
+    }
+    #[test]
+    fn ask_vault_refuses_unknown_fields_and_invalid_request_shapes() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let store = Store::open_in_memory().unwrap();
+        let today = "2026-10-08".parse().unwrap();
+        let base = serde_json::json!({"kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],"limit":5});
+        let mut injected = base.clone();
+        injected["sql"] = serde_json::json!("DELETE FROM transactions");
+        assert!(serde_json::from_value::<AskRequest>(injected).is_err());
+        for (key, value) in [
+            ("limit", serde_json::json!(0)),
+            ("limit", serde_json::json!(51)),
+            ("periods", serde_json::json!([])),
+            ("periods", serde_json::json!([{"from":"2026-10-09","to":"2026-10-08"}])),
+            ("periods", serde_json::json!([{"from":"2026-02-30","to":"2026-10-08"}])),
+            ("minimumPurchase", serde_json::json!({"amount":"1.001","inclusive":true})),
+            ("minimumPurchase", serde_json::json!({"amount":"1e2","inclusive":true})),
+            (
+                "minimumPurchase",
+                serde_json::json!({"amount":"79228162514264337593543950335.01","inclusive":true}),
+            ),
+        ] {
+            let mut value_json = base.clone();
+            value_json[key] = value;
+            let request = serde_json::from_value::<AskRequest>(value_json).unwrap();
+            let error = snapshot(&store, 2, 7, &request, today).unwrap_err();
+            assert_eq!(serde_json::to_value(error).unwrap()["code"], "invalid_argument");
+        }
+    }
+    #[test]
+    fn ask_vault_comparison_keeps_exact_scope_and_unequal_calendar_lengths() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let (store, account, _) = fixture();
+        let request: AskRequest = serde_json::from_value(serde_json::json!({
+            "kind":"compare","periods":[{"from":"2026-10-01","to":"2026-10-08"},{"from":"2026-09-01","to":"2026-09-30"}],
+            "accountIds":[account],"categories":["Fixture"],"limit":5
+        }))
+        .unwrap();
+        let result = serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap()).unwrap();
+        assert_eq!(result["difference"], "12.34");
+        assert_eq!(result["periods"][0]["dayCount"], 8);
+        assert_eq!(result["periods"][1]["dayCount"], 30);
+        assert_eq!(result["periods"][0]["endsToday"], true);
+        assert_eq!(result["periods"][1]["endsToday"], false);
+        assert_eq!(result["periods"][1]["purchaseCount"], 0);
+        assert_eq!(result["periods"][1]["historyCoverage"], "unknown");
+        assert!(result["periods"][0]["purchases"].as_array().unwrap().is_empty());
+    }
+    #[test]
+    fn ask_vault_vendor_requests_return_exact_totals_and_the_names_matched() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let (store, account, _) = fixture();
+        let today = "2026-10-08".parse().unwrap();
+        let ask = |vendor: serde_json::Value| -> Result<serde_json::Value, serde_json::Value> {
+            let request: AskRequest = serde_json::from_value(serde_json::json!({
+                "kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],
+                "accountIds":[account],"categories":[],"vendors":if vendor.is_null() { serde_json::json!([]) } else { serde_json::json!([vendor]) },"limit":5
+            }))
+            .unwrap();
+            snapshot(&store, 2, 7, &request, today)
+                .map(|ok| serde_json::to_value(ok).unwrap())
+                .map_err(|e| serde_json::to_value(e).unwrap())
+        };
+        let found = ask(serde_json::json!("synth")).unwrap();
+        assert_eq!(found["periods"][0]["total"], "12.34");
+        assert_eq!(found["periods"][0]["vendorNameCount"], 1);
+        assert_eq!(found["periods"][0]["vendors"][0]["description"], "Synthetic");
+        assert_eq!(found["periods"][0]["vendors"][0]["purchaseCount"], 1);
+        let none = ask(serde_json::json!("walmart")).unwrap();
+        assert_eq!(none["periods"][0]["total"], "0");
+        assert!(none["periods"][0]["vendors"].as_array().unwrap().is_empty());
+        let without = ask(serde_json::Value::Null).unwrap();
+        assert_eq!(without["periods"][0]["vendorTotals"].as_array().unwrap().len(), 0);
+        assert_eq!(without["periods"][0]["leftOut"]["purchaseCount"], 0);
+        assert_eq!(without["periods"][0]["vendorNameCount"], 0);
+        assert!(without["periods"][0]["vendors"].as_array().unwrap().is_empty());
+        for bad in ["", "a", "!!"] {
+            assert_eq!(ask(serde_json::json!(bad)).unwrap_err()["code"], "invalid_argument", "{bad:?}");
+        }
+    }
+    #[test]
+    fn ask_vault_lists_of_stores_and_exclusions_return_breakdowns_and_what_was_left_out() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let (store, account, _) = fixture();
+        let today = "2026-10-08".parse().unwrap();
+        let ask = |extra: serde_json::Value| -> Result<serde_json::Value, serde_json::Value> {
+            let mut body = serde_json::json!({"kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],"accountIds":[account],"limit":5});
+            body.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            let request: AskRequest = serde_json::from_value(body).unwrap();
+            snapshot(&store, 2, 7, &request, today)
+                .map(|ok| serde_json::to_value(ok).unwrap())
+                .map_err(|e| serde_json::to_value(e).unwrap())
+        };
+        let many = ask(serde_json::json!({"vendors":["synth","walmart"]})).unwrap();
+        assert_eq!(many["periods"][0]["total"], "12.34");
+        assert_eq!(many["periods"][0]["vendorTotals"][0]["term"], "synth");
+        assert_eq!(many["periods"][0]["vendorTotals"][0]["total"], "12.34");
+        assert_eq!(many["periods"][0]["vendorTotals"][1]["term"], "walmart");
+        assert_eq!(many["periods"][0]["vendorTotals"][1]["total"], "0");
+        let left = ask(serde_json::json!({"excludeVendors":["synth"]})).unwrap();
+        assert_eq!(left["periods"][0]["total"], "0");
+        assert_eq!(left["periods"][0]["leftOut"]["total"], "12.34");
+        assert_eq!(left["periods"][0]["leftOut"]["purchaseCount"], 1);
+        assert_eq!(left["periods"][0]["leftOut"]["vendors"][0]["description"], "Synthetic");
+        let by_category = ask(serde_json::json!({"excludeCategories":["Fixture"]})).unwrap();
+        assert_eq!(by_category["periods"][0]["leftOut"]["categories"][0]["category"], "Fixture");
+        assert_eq!(by_category["periods"][0]["leftOut"]["categories"][0]["amount"], "12.34");
+        for bad in [
+            serde_json::json!({"vendors":["synth"],"excludeVendors":["synth"]}),
+            serde_json::json!({"categories":["Fixture"],"excludeCategories":["Fixture"]}),
+            serde_json::json!({"excludeVendors":["a"]}),
+            serde_json::json!({"excludeCategories":["Missing"]}),
+        ] {
+            assert_eq!(ask(bad.clone()).unwrap_err()["code"], "invalid_argument", "{bad}");
+        }
+    }
+    #[test]
     fn untouched_month_is_initialized_before_coherent_reads_without_resurrecting_deleted_lines() {
         let store = Store::open_in_memory().unwrap();
         let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 8).unwrap();

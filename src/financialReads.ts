@@ -7,11 +7,13 @@ import {
   validateReportSummarySnapshot,
 } from "./financialContracts";
 import { toLocalIsoDate } from "./format";
+import { validateAskVaultSnapshot } from "./askVault/contract";
+import type { AskVaultRequest } from "./askVault/types";
 export function createFinancialClient() {
   const client = createTransactionClient();
   async function read<T extends { context: { generation: number; sessionRevision: number } }>(
     command: string,
-    args: Record<string, number>,
+    args: Record<string, unknown>,
     validate: (value: unknown) => T,
   ): Promise<T> {
     const origin = await client.context();
@@ -56,6 +58,14 @@ export function createFinancialClient() {
         result.toMonth !== toMonth
       )
         throw new TransactionError("invalid_response", "The report response belongs to another range.");
+      return result;
+    },
+    /** One exact spending read for Ask the Vault. The request is typed data only, never question text. */
+    askVault: async (request: AskVaultRequest) => {
+      const today = toLocalIsoDate();
+      const result = await read("get_ask_vault_snapshot", { request }, (value) => validateAskVaultSnapshot(value, request));
+      if (result.asOf !== today)
+        throw new TransactionError("invalid_response", "The answer belongs to another date.");
       return result;
     },
     dispose: client.dispose,

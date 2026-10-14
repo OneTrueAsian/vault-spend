@@ -1615,12 +1615,18 @@ const FAQ_ENTRIES: FaqEntry[] = [
         Yes — the "Ask the Vault" box at the top of the Dashboard answers
         questions like "how much did I spend on dining out in July" or
         "what's my net worth" directly from your own data, with no internet
-        connection or account required. It matches a set of question shapes
-        rather than truly understanding free-form English, so it works best
-        one question at a time, using the exact category, account, goal,
-        or merchant names you use elsewhere in the app. Click "Tips &amp;
-        examples" on the box itself for phrasing guidance and the full list
-        of what it understands.
+        connection or account required. For spending it can total a
+        category, account or store ("how much did I spend at Meijer and
+        Target last month"), leave things out ("groceries last month without
+        Costco"), rank your biggest categories or purchases, and compare two
+        periods. It tells you what it understood and shows the purchases
+        behind a total. It matches a set of question shapes rather than truly
+        understanding free-form English, so it works best one question at a
+        time, using the category, account or store names you see elsewhere in
+        the app. If it is unsure, or a word looks misspelled, it asks you to
+        choose instead of guessing. Click "Tips &amp; examples" on the box
+        itself for phrasing guidance and the full list of what it
+        understands.
       </p>
     ),
   },
