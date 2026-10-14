@@ -52,3 +52,18 @@
   top: 0;
   background: var(--surface, Canvas);
 }
+
+/* Continue is plainly off until each column is chosen: grey, no hover change, a "not allowed" pointer. */
+[data-column-continue]:disabled,
+[data-column-continue]:disabled:hover {
+  opacity: 1;
+  cursor: not-allowed;
+  background-color: var(--surface-hover);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.column-mapping-problem {
+  margin: 0 0 8px;
+  text-align: right;
+}

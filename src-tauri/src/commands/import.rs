@@ -209,12 +209,14 @@ fn inspect_import_columns_for(state: &AppState, path: &str, account_id: i64) -> 
                 // Some remembered names may still be in this file: start the picker from those.
                 if let Some(names) = &saved {
                     let remembered = names.partial_guess(&inspection.headers);
+                    // Keep to the remembered kind of amount: one column, or separate money out / money in.
+                    let split = matches!(names.amount, csv_loader::AmountNames::DebitCredit { .. });
                     guess = ColumnGuess {
                         date: remembered.date.or(guess.date),
                         description: remembered.description.or(guess.description),
-                        amount: remembered.amount.or(guess.amount),
-                        debit: remembered.debit.or(guess.debit),
-                        credit: remembered.credit.or(guess.credit),
+                        amount: if split { None } else { remembered.amount.or(guess.amount) },
+                        debit: if split { remembered.debit.or(guess.debit) } else { None },
+                        credit: if split { remembered.credit.or(guess.credit) } else { None },
                     };
                 }
                 ("needs_mapping", None)

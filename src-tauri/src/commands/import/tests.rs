@@ -609,6 +609,56 @@ fn inspect_applies_a_saved_choice_when_the_headers_still_match() {
 }
 
 #[test]
+fn inspect_prefills_only_the_kind_of_amount_that_was_remembered() {
+    use budget_core::csv_loader::{AmountNames, ColumnNames};
+    // A file with a header the importer itself would guess as "Amount" next to the renamed ones.
+    let csv = "Posted,Memo,Amount,Out,In\n2026-01-05,SUNNY MARKET,-20.00,20.00,\n";
+    let (state, file, dir, account) = review_state("inspect-kind", csv);
+    let names = |amount| ColumnNames {
+        date: "Posted".to_string(),
+        description: "Notes".to_string(),
+        amount,
+        category: None,
+    };
+
+    state
+        .store
+        .set_account_import_columns(
+            account,
+            &names(AmountNames::DebitCredit {
+                debit: "Out".to_string(),
+                credit: "In".to_string(),
+            }),
+        )
+        .unwrap();
+    let dto = inspect_import_columns_for(&state, file.to_str().unwrap(), account).unwrap();
+    assert_eq!(dto.status, "needs_mapping");
+    assert_eq!((dto.guess.debit, dto.guess.credit), (Some(3), Some(4)));
+    assert_eq!(
+        dto.guess.amount, None,
+        "a remembered debit/credit choice does not pre-fill a single amount"
+    );
+
+    state
+        .store
+        .set_account_import_columns(
+            account,
+            &names(AmountNames::Single {
+                column: "Amount".to_string(),
+            }),
+        )
+        .unwrap();
+    let dto = inspect_import_columns_for(&state, file.to_str().unwrap(), account).unwrap();
+    assert_eq!(dto.guess.amount, Some(2));
+    assert_eq!(
+        (dto.guess.debit, dto.guess.credit),
+        (None, None),
+        "a remembered single choice does not pre-fill debit/credit"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn inspect_treats_other_file_types_as_ok() {
     let (state, _csv, dir, account) = review_state("inspect-ofx", "Date,Description,Amount\n");
     let ofx = dir.join("bank.ofx");

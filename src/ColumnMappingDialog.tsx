@@ -105,7 +105,7 @@ export function ColumnMappingDialog({
           </table>
         </div>
         {problem && (
-          <p className="modal-message modal-message-secondary" role="status" data-column-problem>
+          <p className="modal-message modal-message-secondary column-mapping-problem" role="status" data-column-problem>
             {problem}
           </p>
         )}

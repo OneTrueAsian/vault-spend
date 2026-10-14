@@ -38,7 +38,8 @@ const first = write("first.csv", "Posted,Memo,Amt", [
   `${dateInMonth(-1, 5)},QQXZ CHARLIE PAYROLL,1500.00`,
 ]);
 const second = write("second.csv", "Posted,Memo,Amt", [`${dateInMonth(-1, 6)},QQXZ DELTA GAS,-30.25`]);
-const third = write("third.csv", "Posted,Details,Amt", [`${dateInMonth(-1, 7)},QQXZ ECHO BOOKS,-18.75`]);
+const fifth = write("fifth.csv", "Posted,Memo,Amt", [`${dateInMonth(-1, 9)},QQXZ GOLF HARDWARE,-22.00`]);
+const third =write("third.csv", "Posted,Details,Amt", [`${dateInMonth(-1, 7)},QQXZ ECHO BOOKS,-18.75`]);
 
 const app = await launchApp({ dbDir });
 const { browser } = app;
@@ -79,6 +80,8 @@ async function reachReview() {
   );
 }
 const reviewText = () => browser.execute(() => document.querySelector("[role='dialog']")?.innerText ?? "");
+/** The text of each row of the review's table, one string per row. */
+const reviewRows = () => browser.execute(() => [...document.querySelectorAll("[role='dialog'] table.dup-review-table tbody tr")].map((tr) => tr.innerText));
 async function confirmImport() {
   const leaveRest = await browser.$("button=Leave the rest uncategorized");
   if (await leaveRest.isExisting()) await leaveRest.click();
@@ -113,10 +116,15 @@ try {
   await shot("window-filled");
   await (await continueButton()).click();
   await reachReview();
-  const review = await reviewText();
+  const rows = await reviewRows();
+  assert.equal(rows.length, 3, `the review should list exactly the file's three rows, got: ${JSON.stringify(rows)}`);
   for (const [desc, amount] of [["QQXZ ALPHA CAFE", "12.50"], ["QQXZ BRAVO MARKET", "40.00"], ["QQXZ CHARLIE PAYROLL", "1,500.00"]]) {
-    assert.ok(review.includes(desc), `the review should list ${desc}`);
-    assert.ok(review.includes(amount), `the review should show ${amount}`);
+    const row = rows.filter((text) => text.includes(desc));
+    assert.equal(row.length, 1, `the review should list ${desc} once`);
+    assert.ok(row[0].includes(amount), `${desc}'s own row should show ${amount}, but reads: ${row[0]}`);
+    for (const other of ["12.50", "40.00", "1,500.00"]) {
+      if (other !== amount) assert.ok(!row[0].includes(other), `${desc}'s row should not show ${other}: ${row[0]}`);
+    }
   }
   await confirmImport();
   const afterFirst = await qqxz();
@@ -151,6 +159,19 @@ try {
   await browser.pause(500);
   assert.equal(await browser.execute(() => !!document.querySelector("button[data-import-confirm]")), false, "no review after Cancel");
   assert.equal((await qqxz()).length, 4, "Cancel imports nothing");
+
+  // ---- 6. The cancelled file changed nothing that was remembered ---------------------------------------
+  await browser.execute((file) => window.__pickedFiles.unshift(file), fifth);
+  await startImport();
+  await reachReview();
+  assert.equal(await windowOpen(), false, "the original headers still skip the window after a cancelled import");
+  const lastRows = await reviewRows();
+  assert.equal(lastRows.length, 1);
+  assert.ok(lastRows[0].includes("QQXZ GOLF HARDWARE") && lastRows[0].includes("22.00"), `the last file's row is in the review: ${lastRows[0]}`);
+  await confirmImport();
+  const final = await qqxz();
+  assert.equal(final.length, 5, "the last file's row is imported");
+  assert.equal(final.some((t) => t.description === "QQXZ ECHO BOOKS"), false, "the cancelled file's row never arrived");
 
   console.log("FEATURE 303 E2E TEST PASSED");
 } finally {

@@ -944,4 +944,57 @@ mod tests {
 
         assert_eq!(result.notes, vec![None]);
     }
+
+    fn headers(names: &[&str]) -> Vec<String> {
+        names.iter().map(|n| n.to_string()).collect()
+    }
+
+    fn single_names(date: &str, description: &str, amount: &str) -> ColumnNames {
+        ColumnNames {
+            date: date.to_string(),
+            description: description.to_string(),
+            amount: AmountNames::Single { column: amount.to_string() },
+            category: None,
+        }
+    }
+
+    #[test]
+    fn partial_guess_finds_the_single_amount_names_that_are_still_there() {
+        let guess = single_names("Posted", "Memo", "Amt").partial_guess(&headers(&["Posted", "Details", "Amt"]));
+        assert_eq!(guess.date, Some(0));
+        assert_eq!(guess.description, None);
+        assert_eq!(guess.amount, Some(2));
+        assert_eq!((guess.debit, guess.credit), (None, None));
+    }
+
+    #[test]
+    fn partial_guess_finds_debit_and_credit_names() {
+        let names = ColumnNames {
+            date: "Posted".to_string(),
+            description: "Memo".to_string(),
+            amount: AmountNames::DebitCredit {
+                debit: "Out".to_string(),
+                credit: "In".to_string(),
+            },
+            category: None,
+        };
+        let guess = names.partial_guess(&headers(&["Posted", "Memo", "Out", "Total"]));
+        assert_eq!((guess.date, guess.description), (Some(0), Some(1)));
+        assert_eq!((guess.debit, guess.credit), (Some(2), None));
+        assert_eq!(guess.amount, None);
+    }
+
+    #[test]
+    fn partial_guess_ignores_blank_names_and_ignores_case_and_spaces() {
+        let guess = single_names("  posted ", "", "AMT").partial_guess(&headers(&["", "Posted", " amt "]));
+        assert_eq!(guess.date, Some(1));
+        assert_eq!(guess.description, None, "a blank name never matches a blank header");
+        assert_eq!(guess.amount, Some(2));
+    }
+
+    #[test]
+    fn partial_guess_takes_the_first_of_two_matching_headers() {
+        let guess = single_names("Date", "Memo", "Amt").partial_guess(&headers(&["Date", "Memo", "Amt", "Date", "Amt"]));
+        assert_eq!((guess.date, guess.amount), (Some(0), Some(2)));
+    }
 }
