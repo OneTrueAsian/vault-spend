@@ -64,6 +64,7 @@ describe("HelpView", () => {
     expect(text).toContain("Importing a file with unfamiliar headers");
     expect(text).toContain("Match your columns");
     expect(text).toContain("remembers your choice for that account");
+    expect(text).toContain("Change columns");
   });
 
   it("explains that unsure import rows wait for a choice and that file category choices are remembered", () => {

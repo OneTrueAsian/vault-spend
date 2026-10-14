@@ -39,7 +39,8 @@ const first = write("first.csv", "Posted,Memo,Amt", [
 ]);
 const second = write("second.csv", "Posted,Memo,Amt", [`${dateInMonth(-1, 6)},QQXZ DELTA GAS,-30.25`]);
 const fifth = write("fifth.csv", "Posted,Memo,Amt", [`${dateInMonth(-1, 9)},QQXZ GOLF HARDWARE,-22.00`]);
-const third =write("third.csv", "Posted,Details,Amt", [`${dateInMonth(-1, 7)},QQXZ ECHO BOOKS,-18.75`]);
+const sixth = write("sixth.csv", "Posted,Memo,Amt,Fee", [`${dateInMonth(-1, 10)},QQXZ HOTEL SHOP,-50.00,-3.00`]);
+const third = write("third.csv", "Posted,Details,Amt", [`${dateInMonth(-1, 7)},QQXZ ECHO BOOKS,-18.75`]);
 
 const app = await launchApp({ dbDir });
 const { browser } = app;
@@ -172,6 +173,39 @@ try {
   const final = await qqxz();
   assert.equal(final.length, 5, "the last file's row is imported");
   assert.equal(final.some((t) => t.description === "QQXZ ECHO BOOKS"), false, "the cancelled file's row never arrived");
+
+  // ---- 7. A remembered choice can be changed from the review -----------------------------------------
+  await browser.execute((file) => window.__pickedFiles.unshift(file), sixth);
+  await startImport();
+  await reachReview();
+  assert.equal(await windowOpen(), false, "the remembered columns skip the window");
+  const note = await browser.execute(() => document.querySelector("[data-import-columns-note]")?.innerText ?? "");
+  assert.ok(note.includes("Using the columns you picked last time."), `the review says which columns it used: ${note}`);
+  assert.ok((await reviewRows())[0].includes("50.00"), "the remembered amount column is used first");
+  await browser.pause(400);
+  await shot("review-columns-note");
+  // Cancel on the window keeps the review as it was.
+  await (await browser.$("button[data-change-columns]")).click();
+  await waitUntilOrDiagnose(browser, windowOpen, { timeoutMsg: "Change columns should open the window" });
+  assert.equal(await menuSelectValue(await field("amount")), "2", "the window starts from the columns in use");
+  assert.equal(await menuSelectValue(await field("description")), "1");
+  await (await browser.$("button[data-column-cancel]")).click();
+  await waitUntilOrDiagnose(browser, async () => !(await windowOpen()), { timeoutMsg: "Cancel should close the window" });
+  assert.ok((await reviewRows())[0].includes("50.00"), "cancelling the change keeps the review");
+  // Picking another amount column reads the file again.
+  await (await browser.$("button[data-change-columns]")).click();
+  await waitUntilOrDiagnose(browser, windowOpen, { timeoutMsg: "Change columns should open the window again" });
+  await chooseMenuOption(await field("amount"), { label: "Fee" });
+  await (await continueButton()).click();
+  await waitUntilOrDiagnose(browser, async () => (await reviewRows()).some((r) => r.includes("3.00") && !r.includes("50.00")), {
+    timeoutMsg: "the review should show the new amount column",
+    extra: reviewRows,
+  });
+  assert.ok((await reviewText()).includes("Using the columns you picked."), "a choice made now is not called 'last time'");
+  assert.ok(!(await reviewText()).includes("last time"));
+  await confirmImport();
+  const hotel = (await qqxz()).find((t) => t.description === "QQXZ HOTEL SHOP");
+  assert.equal(Number(hotel.amount), -3, "the changed column is what was imported");
 
   console.log("FEATURE 303 E2E TEST PASSED");
 } finally {

@@ -13,7 +13,7 @@ import {
 } from "./importResolution";
 import { errorMessage } from "./errorMessage";
 import type { ImportSummary, PendingImport, StatusKind } from "./appTypes";
-import type { ColumnMap } from "./columnMapping";
+import { inspectionWithMap, type ColumnInspection, type ColumnMap, type ColumnMapSource } from "./columnMapping";
 import type { Account } from "./types";
 
 /** The Transactions tab's import review: the file being reviewed, which rows are checked, any
@@ -53,16 +53,22 @@ export function useImportReview({
   // the dialog's dimmed backdrop, out of sight.
   const [notice, setNotice] = useState<string | null>(null);
 
-  /** Reads `path` and opens its review. */
-  async function begin(path: string, invertAmounts: boolean, accountId: number, columnMap: ColumnMap | null = null) {
-    setBusy(true);
-    setStatus("Reading file…", "info");
+  /** Reads `path` and opens its review. `columns` says which look-ahead the column choice was made from, and
+   * whether the account remembered it or the person just made it. Returns why it could not, or null. */
+  async function openReview(
+    path: string,
+    invertAmounts: boolean,
+    accountId: number,
+    columnMap: ColumnMap | null,
+    columns: { inspection: ColumnInspection; source: ColumnMapSource } | null,
+  ): Promise<string | null> {
     try {
       const preview = await call<ImportPreview>("preview_import", {
         path,
         invertAmounts,
         accountId,
         columnMap,
+        columnHeaders: columnMap && columns ? columns.inspection.headers : null,
       });
       // duplicates default to excluded (matches the old behavior), everything
       // else defaults to included; the user can flip any row either way
@@ -78,13 +84,44 @@ export function useImportReview({
       setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories));
       setImportRowChoices(new Map());
       setNotice(null);
-      setPendingImport({ path, invertAmounts, defaultAccountId: accountId, columnMap, preview });
-      setStatus("");
+      setPendingImport({ path, invertAmounts, defaultAccountId: accountId, columnMap, columns: columnMap ? columns : null, preview });
+      return null;
     } catch (e) {
-      setStatus(errorMessage(e));
-    } finally {
-      setBusy(false);
+      return errorMessage(e);
     }
+  }
+
+  async function begin(
+    path: string,
+    invertAmounts: boolean,
+    accountId: number,
+    columnMap: ColumnMap | null = null,
+    columns: { inspection: ColumnInspection; source: ColumnMapSource } | null = null,
+  ) {
+    setBusy(true);
+    setStatus("Reading file…", "info");
+    const problem = await openReview(path, invertAmounts, accountId, columnMap, columns);
+    setStatus(problem ?? "");
+    setBusy(false);
+  }
+
+  /** The look-ahead to show again when the person wants to change the columns in use (their picks as the starting point). */
+  function columnsToChange(): ColumnInspection | null {
+    if (!pendingImport?.columns || !pendingImport.columnMap) return null;
+    return inspectionWithMap(pendingImport.columns.inspection, pendingImport.columnMap);
+  }
+
+  /** Reads the same file again with other columns. The account and the sign choice stay; the review starts
+   * over for the new rows. If the new columns can't be read, the review stays as it was and says why. */
+  async function changeColumns(columnMap: ColumnMap) {
+    if (!pendingImport?.columns || busy) return;
+    setBusy(true);
+    const problem = await openReview(pendingImport.path, pendingImport.invertAmounts, pendingImport.defaultAccountId, columnMap, {
+      inspection: pendingImport.columns.inspection,
+      source: "chosen",
+    });
+    if (problem) setNotice(problem);
+    setBusy(false);
   }
 
   function toggleIncluded(index: number) {
@@ -162,6 +199,7 @@ export function useImportReview({
         invertAmounts: pendingImport.invertAmounts,
         defaultAccountId: pendingImport.defaultAccountId,
         columnMap: pendingImport.columnMap,
+        columnHeaders: pendingImport.columnMap && pendingImport.columns ? pendingImport.columns.inspection.headers : null,
         reviewToken: pendingImport.preview.review_token,
         includedIndices: Array.from(includedIndices),
         accountOverrides: Object.fromEntries(accountOverrides),
@@ -179,6 +217,7 @@ export function useImportReview({
           invertAmounts: pendingImport.invertAmounts,
           accountId: pendingImport.defaultAccountId,
           columnMap: pendingImport.columnMap,
+          columnHeaders: pendingImport.columnMap && pendingImport.columns ? pendingImport.columns.inspection.headers : null,
         });
         const categories = await call<string[]>("list_categories");
         const carried = carryOverReview(
@@ -244,6 +283,8 @@ export function useImportReview({
     importRowChoices,
     setImportRowChoices,
     begin,
+    columnsToChange,
+    changeColumns,
     toggleIncluded,
     toggleSelectAllImportRows,
     setImportRowAccount,

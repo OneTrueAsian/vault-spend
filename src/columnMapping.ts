@@ -24,6 +24,32 @@ export type Draft = {
   credit: number | null;
 };
 
+/** Where a column choice came from: the account's remembered one, or one made in this import. */
+export type ColumnMapSource = "saved" | "chosen";
+
+/** The same look at a file, but with the columns already in use as the starting picks (to change them). */
+export function inspectionWithMap(inspection: ColumnInspection, map: ColumnMap): ColumnInspection {
+  const split = map.amount.kind === "debit_credit";
+  return {
+    ...inspection,
+    map,
+    guess: {
+      date: map.date,
+      description: map.description,
+      amount: map.amount.kind === "single" ? map.amount.column : null,
+      debit: split && map.amount.kind === "debit_credit" ? map.amount.debit : null,
+      credit: split && map.amount.kind === "debit_credit" ? map.amount.credit : null,
+    },
+  };
+}
+
+/** "the date", "the date and the amount", "the date, the description and the amount". */
+export function listMissing(missing: string[]): string {
+  const named = missing.map((m) => `the ${m}`);
+  if (named.length <= 1) return named.join("");
+  return `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
+}
+
 export function draftFromGuess(inspection: ColumnInspection): Draft {
   const { date, description, amount, debit, credit } = inspection.guess;
   return { date, description, split: amount === null && debit !== null && credit !== null, amount, debit, credit };
@@ -33,10 +59,15 @@ export function draftFromGuess(inspection: ColumnInspection): Draft {
 export function draftProblem(draft: Draft): string | null {
   if (draft.date === null) return "Pick the column that has the date.";
   if (draft.description === null) return "Pick the column that has the description.";
+  if (draft.split) {
+    if (draft.debit === null) return "Pick the column that has the money out.";
+    if (draft.credit === null) return "Pick the column that has the money in.";
+  } else if (draft.amount === null) {
+    return "Pick the column that has the amount.";
+  }
   const money = draft.split ? [draft.debit, draft.credit] : [draft.amount];
-  if (money.some((column) => column === null)) return "Pick the column that has the amount.";
   const used = [draft.date, draft.description, ...money];
-  if (new Set(used).size !== used.length) return "Each field needs its own column.";
+  if (new Set(used).size !== used.length) return "Pick a different column for each question.";
   return null;
 }
 

@@ -63,6 +63,37 @@ describe("ColumnMappingDialog", () => {
     expect(field("amount").getAttribute("aria-label")).toBe("Which column has the amount?");
   });
 
+  it("names only the columns that could not be found", () => {
+    show({ ...INSPECTION, missing: ["description"], guess: { date: 0, description: null, amount: 2, debit: null, credit: null } });
+    expect(document.body.textContent).toContain("We couldn't find the description column in this file.");
+    expect(document.body.textContent).not.toContain("the date, the description and the amount");
+    show({ ...INSPECTION, missing: ["date", "amount"] });
+    expect(document.body.textContent).toContain("We couldn't find the date and the amount columns in this file.");
+  });
+
+  it("reads differently when reopened to change the columns in use", () => {
+    act(() => {
+      root.render(<ColumnMappingDialog inspection={{ ...INSPECTION, missing: [] }} accountName="Checking" changing onCancel={onCancel} onConfirm={onConfirm} />);
+    });
+    expect(document.body.textContent).toContain("Pick which columns in this file are the date, the description and the amount.");
+    expect(document.body.textContent).not.toContain("couldn't");
+  });
+
+  it("keeps one live region mounted and only changes its text, and names the preview table", () => {
+    show();
+    const region = document.querySelector("[data-column-problem]")!;
+    expect(region.getAttribute("role")).toBe("status");
+    expect(region.textContent).toBe("Pick the column that has the date.");
+    pick("date", 0);
+    pick("description", 1);
+    pick("amount", 2);
+    expect(document.querySelector("[data-column-problem]")).toBe(region);
+    expect(region.textContent).toBe("");
+    const table = document.querySelector("table")!;
+    const label = document.getElementById(table.getAttribute("aria-labelledby")!);
+    expect(label?.textContent).toContain("The first rows of your file");
+  });
+
   it("shows the file's headers and first rows", () => {
     show();
     expect(document.body.textContent).toContain("The first rows of your file");
@@ -113,7 +144,8 @@ describe("ColumnMappingDialog", () => {
     pick("description", 1);
     pick("debit", 2);
     expect(cont().disabled).toBe(true);
-    expect(document.body.textContent).toContain("Pick the column that has the amount.");
+    expect(document.body.textContent).toContain("Pick the column that has the money in.");
+    expect(document.body.textContent).not.toContain("Pick the column that has the amount.");
   });
 
   it("builds a separate-columns map", () => {
@@ -128,7 +160,7 @@ describe("ColumnMappingDialog", () => {
     pick("date", 1);
     pick("description", 1);
     pick("amount", 2);
-    expect(document.body.textContent).toContain("Each field needs its own column.");
+    expect(document.body.textContent).toContain("Pick a different column for each question.");
     expect(cont().disabled).toBe(true);
   });
 

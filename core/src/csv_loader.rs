@@ -39,6 +39,9 @@ pub struct LoadResult {
     pub account_names: Vec<Option<String>>,
     pub tags: Vec<Vec<String>>,
     pub notes: Vec<Option<String>>,
+    /// The file's header row (trimmed) when it has one, so a caller can name a column choice from the very
+    /// read that loaded the rows. Empty for a headerless file and for the other file types.
+    pub headers: Vec<String>,
 }
 
 /// Loads transactions from a CSV file at `path`. A header row is required;
@@ -96,6 +99,20 @@ impl ColumnMap {
             AmountColumns::DebitCredit { debit, credit } => debit < width && credit < width,
         };
         amount_ok && self.date < width && self.description < width && self.category.is_none_or(|c| c < width)
+    }
+
+    /// True when the same column is used for two different questions.
+    fn repeats_a_column(&self) -> bool {
+        let mut used = vec![self.date, self.description];
+        match self.amount {
+            AmountColumns::Single { column } => used.push(column),
+            AmountColumns::DebitCredit { debit, credit } => used.extend([debit, credit]),
+        }
+        used.extend(self.category);
+        let count = used.len();
+        used.sort_unstable();
+        used.dedup();
+        used.len() != count
     }
 
     /// The header names this map points at, so the choice can be remembered by name and found again when a
@@ -220,8 +237,9 @@ pub fn inspect_csv(path: impl AsRef<Path>) -> std::io::Result<CsvInspection> {
 
 fn inspect_reader<R: Read>(reader: R) -> std::io::Result<CsvInspection> {
     let mut csv_reader = csv::ReaderBuilder::new().has_headers(false).from_reader(reader);
+    // The header and five sample rows are all that is shown; a bad row further down is the real loader's to report.
     let mut rows = Vec::new();
-    for record in csv_reader.records() {
+    for record in csv_reader.records().take(6) {
         rows.push(record?);
     }
 
@@ -308,29 +326,45 @@ fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&
     // amount pair; a headerless export's first row always does. A
     // headerless file has no named columns at all, so it can never carry
     // Account/Category/Tags either — those stay None.
-    let (date_col, description_col, amount_source, extra, data_rows, first_row_number) = if let Some(map) = map {
+    let (date_col, description_col, amount_source, extra, data_rows, first_row_number, has_header) = if let Some(map) = map {
         // The person chose the columns from a header list, so row 1 is
-        // always the header and nothing is looked up by name (apart from
-        // the app's own Account/Tags/Notes columns).
+        // always the header and the three questions are not looked up by
+        // name (Category, Tags and Notes still are; Account never is).
         if !map.fits_within(first_row.len()) {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                "The columns you picked aren't all in this file. Pick them again.",
+                "The columns you picked aren't all in this file. Start the import again and pick them.",
+            ));
+        }
+        if map.repeats_a_column() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Pick a different column for each question.",
             ));
         }
         let amount_source = match map.amount {
             AmountColumns::Single { column } => AmountSource::Single(column),
             AmountColumns::DebitCredit { debit, credit } => AmountSource::DebitCredit { debit, credit },
         };
+        // The file's own Category column still counts, unless the person pointed another question at it.
+        let mut taken = vec![map.date, map.description];
+        match map.amount {
+            AmountColumns::Single { column } => taken.push(column),
+            AmountColumns::DebitCredit { debit, credit } => taken.extend([debit, credit]),
+        }
+        let category = map
+            .category
+            .or_else(|| find_column_exact(first_row, "category").filter(|c| !taken.contains(c)));
+        // No Account column is read: every row goes to the account the person is importing into.
         let extra = ExtraColumns {
-            account: find_column_exact(first_row, "account"),
-            category: map.category,
+            account: None,
+            category,
             tags: find_column_exact(first_row, "tags"),
             notes: find_column_exact(first_row, "notes"),
         };
-        (map.date, map.description, amount_source, extra, &rows[1..], 2)
+        (map.date, map.description, amount_source, extra, &rows[1..], 2, true)
     } else if first_row_is_plain_data(first_row) {
-        (0, 1, AmountSource::Single(2), ExtraColumns::default(), &rows[..], 1)
+        (0, 1, AmountSource::Single(2), ExtraColumns::default(), &rows[..], 1, false)
     } else {
         let date_col = find_date_column(first_row)?;
         let description_col = find_column_exact(first_row, "description").ok_or_else(|| missing_column("description"))?;
@@ -341,10 +375,13 @@ fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&
             tags: find_column_exact(first_row, "tags"),
             notes: find_column_exact(first_row, "notes"),
         };
-        (date_col, description_col, amount_source, extra, &rows[1..], 2)
+        (date_col, description_col, amount_source, extra, &rows[1..], 2, true)
     };
 
     let mut result = LoadResult::default();
+    if has_header {
+        result.headers = first_row.iter().map(|h| h.trim().to_string()).collect();
+    }
     for (idx, record) in data_rows.iter().enumerate() {
         let row_number = first_row_number + idx;
         match parse_row(record, date_col, description_col, &amount_source, &extra, invert_amounts) {
@@ -943,6 +980,122 @@ mod tests {
         let result = load_str("date,description,amount\n2026-08-20,Union Realty,-1850.00\n");
 
         assert_eq!(result.notes, vec![None]);
+    }
+
+    fn single_map(date: usize, description: usize, amount: usize) -> ColumnMap {
+        ColumnMap {
+            date,
+            description,
+            amount: AmountColumns::Single { column: amount },
+            category: None,
+        }
+    }
+
+    #[test]
+    fn a_mapped_file_keeps_its_own_category_column() {
+        let csv = "Posted,Memo,Amt,Category
+2026-08-05,Coffee,-4.50,Dining
+";
+        let result = load_from_reader_with(csv.as_bytes(), false, Some(&single_map(0, 1, 2))).unwrap();
+        assert_eq!(result.transactions[0].category.as_deref(), Some("Dining"));
+    }
+
+    #[test]
+    fn a_category_header_the_person_used_for_something_else_is_not_the_category() {
+        let csv = "Posted,Category,Amt
+2026-08-05,Coffee,-4.50
+";
+        let result = load_from_reader_with(csv.as_bytes(), false, Some(&single_map(0, 1, 2))).unwrap();
+        assert_eq!(result.transactions[0].description, "Coffee");
+        assert_eq!(result.transactions[0].category, None);
+    }
+
+    #[test]
+    fn a_mapped_file_never_reads_an_account_column() {
+        let csv = "Posted,Memo,Amt,Account
+2026-08-05,Coffee,-4.50,XXXX1234
+";
+        let result = load_from_reader_with(csv.as_bytes(), false, Some(&single_map(0, 1, 2))).unwrap();
+        assert_eq!(result.account_names, vec![None]);
+    }
+
+    #[test]
+    fn a_map_that_uses_one_column_twice_is_refused() {
+        let csv = "Posted,Memo,Amt
+2026-08-05,Coffee,-4.50
+";
+        let err = load_from_reader_with(csv.as_bytes(), false, Some(&single_map(0, 0, 2))).unwrap_err();
+        assert_eq!(err.to_string(), "Pick a different column for each question.");
+        let split = ColumnMap {
+            date: 0,
+            description: 1,
+            amount: AmountColumns::DebitCredit { debit: 2, credit: 2 },
+            category: None,
+        };
+        assert!(load_from_reader_with(csv.as_bytes(), false, Some(&split)).is_err());
+        let category = ColumnMap {
+            category: Some(1),
+            ..single_map(0, 1, 2)
+        };
+        assert!(load_from_reader_with(csv.as_bytes(), false, Some(&category)).is_err());
+    }
+
+    #[test]
+    fn a_column_outside_the_file_says_to_start_again() {
+        let csv = "Posted,Memo,Amt
+2026-08-05,Coffee,-4.50
+";
+        let err = load_from_reader_with(csv.as_bytes(), false, Some(&single_map(0, 1, 9))).unwrap_err();
+        assert!(err.to_string().ends_with("Start the import again and pick them."), "{err}");
+    }
+
+    #[test]
+    fn the_loaded_result_carries_the_header_row() {
+        let result = load_str(
+            "Date, Description ,Amount
+2026-08-05,Coffee,-4.50
+",
+        );
+        assert_eq!(result.headers, vec!["Date", "Description", "Amount"]);
+        assert!(
+            load_str(
+                "2026-08-05,Coffee,-4.50
+"
+            )
+            .headers
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn inspecting_reads_only_the_first_rows() {
+        let mut csv = String::from(
+            "Posted,Memo,Amt
+",
+        );
+        for i in 0..5 {
+            csv.push_str(&format!(
+                "2026-08-0{},Row {i},-1.00
+",
+                i + 1
+            ));
+        }
+        csv.push_str(
+            "2026-08-09,Fine,-1.00
+",
+        );
+        csv.push_str(
+            "\"unterminated,quote
+",
+        );
+        csv.push_str(
+            "a,b
+c,d,e,f
+",
+        );
+        let inspection = inspect_reader(csv.as_bytes()).unwrap();
+        assert_eq!(inspection.headers, vec!["Posted", "Memo", "Amt"]);
+        assert_eq!(inspection.sample_rows.len(), 5);
     }
 
     fn headers(names: &[&str]) -> Vec<String> {

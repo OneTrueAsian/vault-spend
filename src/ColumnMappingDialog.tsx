@@ -2,7 +2,7 @@ import "./ColumnMappingDialog.css";
 import { useEffect, useRef, useState } from "react";
 import { ModalShell } from "./Modal";
 import { MenuSelect } from "./MenuSelect";
-import { columnLabel, draftFromGuess, draftProblem, toColumnMap, type ColumnInspection, type ColumnMap, type Draft } from "./columnMapping";
+import { columnLabel, draftFromGuess, draftProblem, listMissing, toColumnMap, type ColumnInspection, type ColumnMap, type Draft } from "./columnMapping";
 
 type Field = "date" | "description" | "amount" | "debit" | "credit";
 
@@ -19,11 +19,14 @@ const QUESTIONS: Record<Field, string> = {
 export function ColumnMappingDialog({
   inspection,
   accountName,
+  changing = false,
   onCancel,
   onConfirm,
 }: {
   inspection: ColumnInspection;
   accountName?: string;
+  /** Reopened from the review to change columns already in use, rather than because some were missing. */
+  changing?: boolean;
   onCancel: () => void;
   onConfirm: (map: ColumnMap) => void;
 }) {
@@ -31,6 +34,11 @@ export function ColumnMappingDialog({
   const bodyRef = useRef<HTMLDivElement>(null);
   const problem = draftProblem(draft);
   const { headers, sample_rows: rows } = inspection;
+  const intro = changing
+    ? "Pick which columns in this file are the date, the description and the amount."
+    : inspection.missing.length > 0
+      ? `We couldn't find ${listMissing(inspection.missing)} ${inspection.missing.length === 1 ? "column" : "columns"} in this file. Pick them below.`
+      : "We couldn't use the columns remembered for this account. Pick them below.";
   const options = headers.map((_, index) => ({ value: String(index), label: columnLabel(headers, index) }));
 
   // The first dropdown takes focus once the dialog has settled (the shell focuses its own panel first).
@@ -59,8 +67,7 @@ export function ColumnMappingDialog({
     <ModalShell title="Match your columns" onCancel={onCancel} wide dismissOnOverlayClick={false} panelAttrs={{ "data-column-mapping": true }}>
       <div ref={bodyRef}>
         <p className="modal-message">
-          We couldn't tell which columns in this file are the date, the description and the amount. Pick them below. We'll remember your
-          choice for {accountName ?? "this account"}.
+          {intro} We'll remember your choice for {accountName ?? "this account"}.
         </p>
         <div className="column-mapping-fields">
           {select("date")}
@@ -83,9 +90,11 @@ export function ColumnMappingDialog({
           />
           <span>Money in and money out are in separate columns</span>
         </label>
-        <p className="modal-message modal-message-secondary column-mapping-caption">The first rows of your file</p>
+        <p id="column-mapping-caption" className="modal-message modal-message-secondary column-mapping-caption">
+          The first rows of your file
+        </p>
         <div className="column-mapping-preview">
-          <table>
+          <table aria-labelledby="column-mapping-caption">
             <thead>
               <tr>
                 {headers.map((_, index) => (
@@ -104,11 +113,9 @@ export function ColumnMappingDialog({
             </tbody>
           </table>
         </div>
-        {problem && (
-          <p className="modal-message modal-message-secondary column-mapping-problem" role="status" data-column-problem>
-            {problem}
-          </p>
-        )}
+        <p className="modal-message modal-message-secondary column-mapping-problem" role="status" data-column-problem>
+          {problem ?? ""}
+        </p>
         <div className="modal-actions">
           <button type="button" className="modal-secondary" data-column-cancel onClick={onCancel}>
             Cancel

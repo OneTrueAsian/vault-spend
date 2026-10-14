@@ -67,3 +67,7 @@
   margin: 0 0 8px;
   text-align: right;
 }
+
+.column-mapping-problem:empty {
+  margin: 0;
+}

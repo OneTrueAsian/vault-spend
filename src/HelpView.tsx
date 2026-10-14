@@ -720,7 +720,9 @@ const IMPORTING_ENTRY: HelpEntry = {
         Vault Spend remembers your choice for that account, so the next
         file with the same headers skips the window. If a header changes,
         the window opens again with your earlier picks filled in. Cancel
-        and nothing is imported.
+        and nothing is imported. If the review shows the wrong amounts, use{" "}
+        <strong>Change columns</strong> at the top of it to pick again before
+        you import.
       </p>
     </>
   ),

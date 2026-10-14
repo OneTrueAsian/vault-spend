@@ -72,9 +72,11 @@ describe("ImportReviewDialog", () => {
     container.remove();
   });
 
-  function show(r: ImportReview, busy = false) {
+  function show(r: ImportReview, busy = false, onChangeColumns?: () => void) {
     act(() => {
-      root.render(<ImportReviewDialog review={r} accounts={accounts} categoryOptions={["Groceries", "Shopping"]} busy={busy} />);
+      root.render(
+        <ImportReviewDialog review={r} accounts={accounts} categoryOptions={["Groceries", "Shopping"]} busy={busy} onChangeColumns={onChangeColumns} />,
+      );
     });
   }
   const dialog = () => document.querySelector<HTMLElement>("[role='dialog']");
@@ -90,6 +92,46 @@ describe("ImportReviewDialog", () => {
     expect(dialog()).not.toBeNull();
     expect(dialog()!.querySelector(".modal-title")?.textContent).toBe("Import 3 transactions into Joint Checking");
     expect(dialog()!.textContent).toContain("Untick anything you don't want. You can change the account on any row.");
+  });
+
+  describe("Change columns", () => {
+    const inspection = {
+      status: "needs_mapping" as const,
+      headers: ["Posted", "Memo", "Amt"],
+      sample_rows: [],
+      missing: [],
+      guess: { date: 0, description: 1, amount: 2, debit: null, credit: null },
+      map: null,
+    };
+    const map = { date: 0, description: 1, amount: { kind: "single" as const, column: 2 } };
+    const withColumns = (source: "saved" | "chosen") => {
+      const r = review([row(0)]);
+      Object.assign(r.pendingImport!, { columnMap: map, columns: { inspection, source } });
+      return r;
+    };
+    const change = () => document.querySelector<HTMLButtonElement>("button[data-change-columns]");
+
+    it("says the remembered columns are in use and lets the person change them", () => {
+      const onChange = vi.fn();
+      show(withColumns("saved"), false, onChange);
+      expect(dialog()!.textContent).toContain("Using the columns you picked last time.");
+      act(() => change()!.click());
+      expect(onChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("offers the same for columns chosen in this import, without the 'last time' wording", () => {
+      show(withColumns("chosen"), false, vi.fn());
+      expect(dialog()!.textContent).toContain("Using the columns you picked.");
+      expect(dialog()!.textContent).not.toContain("last time");
+      expect(change()).not.toBeNull();
+    });
+
+    it("is off while busy, and absent when no columns were chosen", () => {
+      show(withColumns("saved"), true, vi.fn());
+      expect(change()!.disabled).toBe(true);
+      show(review([row(0)]), false, vi.fn());
+      expect(change()).toBeNull();
+    });
   });
 
   it("uses the singular for one row, and says how many rows couldn't be read", () => {

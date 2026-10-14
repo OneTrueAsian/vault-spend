@@ -386,6 +386,7 @@ mod tests {
             account_names: vec![None; n],
             tags: vec![Vec::new(); n],
             notes: vec![None; n],
+            headers: Vec::new(),
         }
     }
 

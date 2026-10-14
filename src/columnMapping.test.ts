@@ -36,13 +36,14 @@ describe("draftProblem", () => {
 
   it("needs both money columns when they are separate", () => {
     const split = { ...complete, split: true, amount: null };
-    expect(draftProblem({ ...split, debit: 2, credit: null })).toBe("Pick the column that has the amount.");
+    expect(draftProblem({ ...split, debit: null, credit: 3 })).toBe("Pick the column that has the money out.");
+    expect(draftProblem({ ...split, debit: 2, credit: null })).toBe("Pick the column that has the money in.");
     expect(draftProblem({ ...split, debit: 2, credit: 3 })).toBeNull();
   });
 
-  it("says each field needs its own column when two share one", () => {
-    expect(draftProblem({ ...complete, date: 1, description: 1 })).toBe("Each field needs its own column.");
-    expect(draftProblem({ ...complete, split: true, debit: 2, credit: 2 })).toBe("Each field needs its own column.");
+  it("asks for a different column for each question when two share one", () => {
+    expect(draftProblem({ ...complete, date: 1, description: 1 })).toBe("Pick a different column for each question.");
+    expect(draftProblem({ ...complete, split: true, debit: 2, credit: 2 })).toBe("Pick a different column for each question.");
   });
 
   it("is null for a complete draft", () => {

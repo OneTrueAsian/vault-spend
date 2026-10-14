@@ -63,7 +63,7 @@ fn the_preview_tells_the_screen_each_rows_match_guess_and_remembered_choice() {
     state.store.set_import_category_mapping("MERCHANDISE", "Shopping").unwrap();
     let account = checking(&state);
 
-    let preview = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None).unwrap();
+    let preview = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None, None).unwrap();
 
     assert_eq!(preview.rows[0].matched_category.as_deref(), Some("Groceries"));
     assert!(preview.rows[0].suggestion.is_none());
@@ -104,7 +104,7 @@ fn previewing_an_import_changes_nothing() {
     let accounts_before = state.store.list_accounts(today).unwrap().len();
     let rules_before = format!("{:?}", state.store.load_rules().unwrap());
 
-    preview_import_for(&mut state, file.to_str().unwrap(), true, account, None).unwrap();
+    preview_import_for(&mut state, file.to_str().unwrap(), true, account, None, None).unwrap();
 
     assert_eq!(state.store.list_categories().unwrap(), categories_before);
     assert_eq!(state.store.list_accounts(today).unwrap().len(), accounts_before);
@@ -118,15 +118,15 @@ fn previewing_an_import_changes_nothing() {
 fn the_review_token_changes_when_the_file_changes() {
     let (mut state, file, dir) = import_fixture("preview-token", BANK_CSV);
     let account = checking(&state);
-    let first = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None)
+    let first = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None, None)
         .unwrap()
         .review_token;
-    let again = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None)
+    let again = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None, None)
         .unwrap()
         .review_token;
     assert_eq!(first, again);
     std::fs::write(&file, BANK_CSV.replace("SUNNY MARKET", "SUNNY MART")).unwrap();
-    let changed = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None)
+    let changed = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None, None)
         .unwrap()
         .review_token;
     assert_ne!(first, changed);
@@ -179,7 +179,7 @@ fn request(
     category_choices: Option<std::collections::HashMap<String, CategoryChoiceDto>>,
     row_choices: std::collections::HashMap<usize, Option<String>>,
 ) -> CommitImportRequest {
-    let review_token = preview_import_for(state, file.to_str().unwrap(), false, account, None)
+    let review_token = preview_import_for(state, file.to_str().unwrap(), false, account, None, None)
         .unwrap()
         .review_token;
     CommitImportRequest {
@@ -192,6 +192,7 @@ fn request(
         category_choices,
         row_choices,
         column_map: None,
+        column_headers: None,
     }
 }
 
@@ -671,7 +672,7 @@ fn inspect_treats_other_file_types_as_ok() {
 
 fn mapped_request(state: &mut AppState, file: &std::path::Path, account: i64) -> CommitImportRequest {
     let map = odd_map();
-    let review_token = preview_import_for(state, file.to_str().unwrap(), false, account, Some(&map))
+    let review_token = preview_import_for(state, file.to_str().unwrap(), false, account, Some(&map), None)
         .unwrap()
         .review_token;
     CommitImportRequest {
@@ -684,6 +685,7 @@ fn mapped_request(state: &mut AppState, file: &std::path::Path, account: i64) ->
         category_choices: None,
         row_choices: picks(&[(1, None)]),
         column_map: Some(map),
+        column_headers: None,
     }
 }
 
@@ -726,7 +728,7 @@ fn request_with_map(
     map: budget_core::csv_loader::ColumnMap,
     included: &[usize],
 ) -> CommitImportRequest {
-    let review_token = preview_import_for(state, file.to_str().unwrap(), false, account, Some(&map))
+    let review_token = preview_import_for(state, file.to_str().unwrap(), false, account, Some(&map), None)
         .unwrap()
         .review_token;
     CommitImportRequest {
@@ -739,7 +741,93 @@ fn request_with_map(
         category_choices: None,
         row_choices: picks(&[]),
         column_map: Some(map),
+        column_headers: None,
     }
+}
+
+#[test]
+fn a_mapped_file_with_an_account_column_imports_into_the_chosen_account() {
+    let csv: String = ODD_CSV
+        .lines()
+        .enumerate()
+        .map(|(i, line)| {
+            format!(
+                "{line},{}
+",
+                if i == 0 { "Account" } else { "XXXX1234" }
+            )
+        })
+        .collect();
+    let (mut state, file, dir, account) = review_state("map-account-column", &csv);
+    let today = chrono::Local::now().date_naive();
+    let accounts_before = state.store.list_accounts(today).unwrap().len();
+    let loaded = budget_core::importer::load_transactions(&file, false, Some(&odd_map())).unwrap();
+    assert!(loaded.account_names.iter().all(Option::is_none));
+    let req = mapped_request(&mut state, &file, account);
+    let summary = commit_import_for(&mut state, req).unwrap();
+    assert_eq!(summary.inserted, 2);
+    assert_eq!(
+        state.store.list_accounts(today).unwrap().len(),
+        accounts_before,
+        "no account was created from the file's Account column"
+    );
+    assert!(state.store.all_transactions().unwrap().iter().all(|t| t.account_id == account));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_choice_made_from_other_headers_is_refused_on_preview_and_commit() {
+    let (mut state, file, dir, account) = review_state("map-headers-changed", ODD_CSV);
+    let chosen_from: Vec<String> = ["Posted", "Memo", "Amt"].iter().map(|h| h.to_string()).collect();
+    let path = file.to_str().unwrap();
+    // The same headers: fine.
+    assert!(preview_import_for(&mut state, path, false, account, Some(&odd_map()), Some(&chosen_from)).is_ok());
+    let mut req = request_with_map(&mut state, &file, account, odd_map(), &[0]);
+    req.column_headers = Some(chosen_from.clone());
+    req.row_choices = picks(&[(0, None)]);
+    // The file's header row is edited after the choice was made.
+    std::fs::write(&file, ODD_CSV.replace("Memo", "Details")).unwrap();
+    let err = preview_import_for(&mut state, path, false, account, Some(&odd_map()), Some(&chosen_from))
+        .err()
+        .unwrap();
+    assert_eq!(err, "This file changed. Start the import again.");
+    let err = commit_import_for(&mut state, req).unwrap_err();
+    assert_eq!(err, "This file changed. Start the import again.");
+    assert!(state.store.all_transactions().unwrap().is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn commit_remembers_the_choice_by_the_headers_of_the_file_it_loaded() {
+    let (mut state, file, dir, account) = review_state("map-names-from-load", ODD_CSV);
+    let mut req = mapped_request(&mut state, &file, account);
+    req.column_headers = Some(["Posted", "Memo", "Amt"].iter().map(|h| h.to_string()).collect());
+    commit_import_for(&mut state, req).unwrap();
+    assert_eq!(state.store.account_import_columns(account).unwrap(), Some(odd_names()));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_map_that_reuses_a_column_is_refused_by_preview_and_commit() {
+    let (mut state, file, dir, account) = review_state("map-reused-column", ODD_CSV);
+    let map = budget_core::csv_loader::ColumnMap {
+        date: 0,
+        description: 0,
+        amount: budget_core::csv_loader::AmountColumns::Single { column: 2 },
+        category: None,
+    };
+    let err = preview_import_for(&mut state, file.to_str().unwrap(), false, account, Some(&map), None)
+        .err()
+        .unwrap();
+    assert_eq!(err, "Pick a different column for each question.");
+    let mut req = request_with_map(&mut state, &file, account, odd_map(), &[]);
+    req.column_map = Some(map);
+    assert_eq!(
+        commit_import_for(&mut state, req).unwrap_err(),
+        "Pick a different column for each question."
+    );
+    assert_eq!(state.store.account_import_columns(account).unwrap(), None);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -786,7 +874,7 @@ fn a_map_pointing_past_the_end_of_the_file_is_a_plain_error_and_changes_nothing(
         category: None,
     };
     let path = file.to_str().unwrap();
-    assert!(preview_import_for(&mut state, path, false, account, Some(&map)).is_err());
+    assert!(preview_import_for(&mut state, path, false, account, Some(&map), None).is_err());
     let mut req = request_with_map(&mut state, &file, account, odd_map(), &[]);
     req.column_map = Some(map);
     assert!(commit_import_for(&mut state, req).is_err());
