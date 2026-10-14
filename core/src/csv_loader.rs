@@ -1,6 +1,7 @@
 use crate::models::Transaction;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
@@ -59,7 +60,124 @@ pub struct LoadResult {
 /// `invert_amounts` to flip every parsed amount for exports like that; the
 /// caller (ultimately the user, at import time) has to know which this is.
 pub fn load_csv(path: impl AsRef<Path>, invert_amounts: bool) -> std::io::Result<LoadResult> {
-    load_from_reader(File::open(path)?, invert_amounts)
+    load_csv_with(path, invert_amounts, None)
+}
+
+/// Like `load_csv`, but when `map` is given the columns are read by position
+/// instead of being found by name.
+pub fn load_csv_with(path: impl AsRef<Path>, invert_amounts: bool, map: Option<&ColumnMap>) -> std::io::Result<LoadResult> {
+    load_from_reader_with(File::open(path)?, invert_amounts, map)
+}
+
+/// Where the amount comes from: one signed column, or separate money-out and
+/// money-in columns.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AmountColumns {
+    Single { column: usize },
+    DebitCredit { debit: usize, credit: usize },
+}
+
+/// Which column (by 0-based position) holds what, as picked by the person.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ColumnMap {
+    pub date: usize,
+    pub description: usize,
+    pub amount: AmountColumns,
+    #[serde(default)]
+    pub category: Option<usize>,
+}
+
+impl ColumnMap {
+    /// True when every mapped column exists in a row `width` cells wide.
+    fn fits_within(&self, width: usize) -> bool {
+        let amount_ok = match self.amount {
+            AmountColumns::Single { column } => column < width,
+            AmountColumns::DebitCredit { debit, credit } => debit < width && credit < width,
+        };
+        amount_ok && self.date < width && self.description < width && self.category.is_none_or(|c| c < width)
+    }
+}
+
+/// Best guesses at which header is which, for pre-filling the picker.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ColumnGuess {
+    pub date: Option<usize>,
+    pub description: Option<usize>,
+    pub amount: Option<usize>,
+    pub debit: Option<usize>,
+    pub credit: Option<usize>,
+}
+
+/// A quick look at a CSV: its headers, the first few rows, and which of the
+/// required columns couldn't be found by name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CsvInspection {
+    pub headers: Vec<String>,
+    pub sample_rows: Vec<Vec<String>>,
+    pub missing: Vec<String>,
+    pub guess: ColumnGuess,
+}
+
+pub fn inspect_csv(path: impl AsRef<Path>) -> std::io::Result<CsvInspection> {
+    inspect_reader(File::open(path)?)
+}
+
+fn inspect_reader<R: Read>(reader: R) -> std::io::Result<CsvInspection> {
+    let mut csv_reader = csv::ReaderBuilder::new().has_headers(false).from_reader(reader);
+    let mut rows = Vec::new();
+    for record in csv_reader.records() {
+        rows.push(record?);
+    }
+
+    let nothing_guessed = ColumnGuess {
+        date: None,
+        description: None,
+        amount: None,
+        debit: None,
+        credit: None,
+    };
+    let empty = |guess| CsvInspection {
+        headers: Vec::new(),
+        sample_rows: Vec::new(),
+        missing: Vec::new(),
+        guess,
+    };
+    let Some(first_row) = rows.first() else {
+        return Ok(empty(nothing_guessed));
+    };
+    if first_row_is_plain_data(first_row) {
+        return Ok(empty(nothing_guessed));
+    }
+
+    let guess = ColumnGuess {
+        date: find_date_column(first_row).ok(),
+        description: find_column_exact(first_row, "description"),
+        amount: find_column_exact(first_row, "amount"),
+        debit: find_column_exact(first_row, "debit"),
+        credit: find_column_exact(first_row, "credit"),
+    };
+    let mut missing = Vec::new();
+    if guess.date.is_none() {
+        missing.push("date".to_string());
+    }
+    if guess.description.is_none() {
+        missing.push("description".to_string());
+    }
+    if guess.amount.is_none() && !(guess.debit.is_some() && guess.credit.is_some()) {
+        missing.push("amount".to_string());
+    }
+
+    Ok(CsvInspection {
+        headers: first_row.iter().map(|h| h.trim().to_string()).collect(),
+        sample_rows: rows[1..]
+            .iter()
+            .take(5)
+            .map(|r| r.iter().map(|c| c.trim().to_string()).collect())
+            .collect(),
+        missing,
+        guess,
+    })
 }
 
 /// The optional columns (found by name, same as `date`/`description`) that
@@ -73,7 +191,12 @@ struct ExtraColumns {
     notes: Option<usize>,
 }
 
+#[cfg(test)]
 fn load_from_reader<R: Read>(reader: R, invert_amounts: bool) -> std::io::Result<LoadResult> {
+    load_from_reader_with(reader, invert_amounts, None)
+}
+
+fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&ColumnMap>) -> std::io::Result<LoadResult> {
     // Read without letting the csv crate consume row 1 as a header — some
     // real exports have no header at all, and we can only tell by looking.
     let mut csv_reader = csv::ReaderBuilder::new().has_headers(false).from_reader(reader);
@@ -90,7 +213,28 @@ fn load_from_reader<R: Read>(reader: R, invert_amounts: bool) -> std::io::Result
     // amount pair; a headerless export's first row always does. A
     // headerless file has no named columns at all, so it can never carry
     // Account/Category/Tags either — those stay None.
-    let (date_col, description_col, amount_source, extra, data_rows, first_row_number) = if first_row_is_plain_data(first_row) {
+    let (date_col, description_col, amount_source, extra, data_rows, first_row_number) = if let Some(map) = map {
+        // The person chose the columns from a header list, so row 1 is
+        // always the header and nothing is looked up by name (apart from
+        // the app's own Account/Tags/Notes columns).
+        if !map.fits_within(first_row.len()) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "The columns you picked aren't all in this file. Pick them again.",
+            ));
+        }
+        let amount_source = match map.amount {
+            AmountColumns::Single { column } => AmountSource::Single(column),
+            AmountColumns::DebitCredit { debit, credit } => AmountSource::DebitCredit { debit, credit },
+        };
+        let extra = ExtraColumns {
+            account: find_column_exact(first_row, "account"),
+            category: map.category,
+            tags: find_column_exact(first_row, "tags"),
+            notes: find_column_exact(first_row, "notes"),
+        };
+        (map.date, map.description, amount_source, extra, &rows[1..], 2)
+    } else if first_row_is_plain_data(first_row) {
         (0, 1, AmountSource::Single(2), ExtraColumns::default(), &rows[..], 1)
     } else {
         let date_col = find_date_column(first_row)?;
@@ -295,6 +439,93 @@ mod tests {
 
     fn load_str(csv_text: &str) -> LoadResult {
         load_from_reader(Cursor::new(csv_text), false).expect("reader itself should not fail")
+    }
+
+    #[test]
+    fn a_map_replaces_the_by_name_lookup() {
+        let csv = "Posted,Memo,Amt\n2026-08-05,Coffee,-4.50\n2026-08-06,Pay,100.00\n";
+        let map = ColumnMap {
+            date: 0,
+            description: 1,
+            amount: AmountColumns::Single { column: 2 },
+            category: None,
+        };
+        let result = load_from_reader_with(csv.as_bytes(), false, Some(&map)).unwrap();
+        assert_eq!(result.transactions.len(), 2);
+        assert_eq!(result.transactions[0].description, "Coffee");
+        assert_eq!(result.transactions[1].amount, Decimal::from_str("100.00").unwrap());
+    }
+
+    #[test]
+    fn a_map_can_use_separate_debit_and_credit_columns() {
+        let csv = "When,What,Out,In\n2026-08-05,Coffee,4.50,\n2026-08-06,Pay,,100.00\n";
+        let map = ColumnMap {
+            date: 0,
+            description: 1,
+            amount: AmountColumns::DebitCredit { debit: 2, credit: 3 },
+            category: None,
+        };
+        let result = load_from_reader_with(csv.as_bytes(), false, Some(&map)).unwrap();
+        assert_eq!(result.transactions[0].amount, Decimal::from_str("-4.50").unwrap());
+        assert_eq!(result.transactions[1].amount, Decimal::from_str("100.00").unwrap());
+    }
+
+    #[test]
+    fn a_map_pointing_past_the_end_of_the_file_is_refused_plainly() {
+        let csv = "Posted,Memo\n2026-08-05,Coffee\n";
+        let map = ColumnMap {
+            date: 0,
+            description: 1,
+            amount: AmountColumns::Single { column: 5 },
+            category: None,
+        };
+        let err = load_from_reader_with(csv.as_bytes(), false, Some(&map)).unwrap_err();
+        assert!(err.to_string().contains("column"), "{err}");
+    }
+
+    #[test]
+    fn a_bad_cell_in_a_mapped_column_is_a_row_error_and_the_rest_import() {
+        let csv = "Posted,Memo,Amt\n2026-08-05,Coffee,-4.50\n2026-08-06,Pay,oops\n";
+        let map = ColumnMap {
+            date: 0,
+            description: 1,
+            amount: AmountColumns::Single { column: 2 },
+            category: None,
+        };
+        let result = load_from_reader_with(csv.as_bytes(), false, Some(&map)).unwrap();
+        assert_eq!(result.transactions.len(), 1);
+        assert_eq!(result.errors[0].row_number, 3);
+    }
+
+    #[test]
+    fn inspecting_a_file_with_unknown_headers_lists_what_is_missing() {
+        let csv = "Posted,Memo,Amt\n2026-08-05,Coffee,-4.50\n";
+        let found = inspect_reader(csv.as_bytes()).unwrap();
+        assert_eq!(found.headers, vec!["Posted", "Memo", "Amt"]);
+        assert_eq!(found.missing, vec!["date", "description", "amount"]);
+        assert_eq!(found.guess.date, None, "'Posted' has no 'date' in it, so nothing is guessed for the date");
+    }
+
+    #[test]
+    fn inspecting_a_recognised_file_reports_nothing_missing() {
+        let csv = "Date,Description,Amount\n2026-08-05,Coffee,-4.50\n";
+        assert!(inspect_reader(csv.as_bytes()).unwrap().missing.is_empty());
+    }
+
+    #[test]
+    fn inspecting_a_headerless_file_reports_nothing_missing() {
+        let csv = "2026-08-05,Coffee,-4.50\n";
+        let found = inspect_reader(csv.as_bytes()).unwrap();
+        assert!(found.missing.is_empty() && found.headers.is_empty());
+    }
+
+    #[test]
+    fn inspecting_keeps_only_the_first_five_sample_rows() {
+        let mut csv = String::from("Posted,Memo,Amt\n");
+        for d in 1..=9 {
+            csv.push_str(&format!("2026-08-0{d},Row {d},-1.00\n"));
+        }
+        assert_eq!(inspect_reader(csv.as_bytes()).unwrap().sample_rows.len(), 5);
     }
 
     #[test]

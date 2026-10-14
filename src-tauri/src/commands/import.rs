@@ -134,7 +134,7 @@ pub struct ImportSignCounts {
 /// be recognised and "Flip the signs" suggested. Reads the file only; nothing is stored.
 #[tauri::command]
 pub fn count_import_signs(path: String) -> Result<ImportSignCounts, String> {
-    let loaded = importer::load_transactions(&path, false).map_err(|e| e.to_string())?;
+    let loaded = importer::load_transactions(&path, false, None).map_err(|e| e.to_string())?;
     Ok(ImportSignCounts {
         positive: loaded
             .transactions
@@ -157,7 +157,7 @@ pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state
 
 /// `preview_import` against an already-locked profile. A pure read: nothing is created or remembered.
 fn preview_import_for(state: &mut AppState, path: &str, invert_amounts: bool, account_id: i64) -> Result<ImportPreview, String> {
-    let loaded = importer::load_transactions(path, invert_amounts).map_err(|e| e.to_string())?;
+    let loaded = importer::load_transactions(path, invert_amounts, None).map_err(|e| e.to_string())?;
     let row_errors = loaded.errors.len();
 
     let mut resolved_accounts = Vec::with_capacity(loaded.transactions.len());
@@ -300,7 +300,7 @@ fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<I
     use budget_core::import_resolution::Automatic;
     use budget_core::store::{ImportAccount, ImportBatch, ImportBatchRow, RowCategory};
 
-    let loaded = importer::load_transactions(&req.path, req.invert_amounts).map_err(|e| e.to_string())?;
+    let loaded = importer::load_transactions(&req.path, req.invert_amounts, None).map_err(|e| e.to_string())?;
     if import_resolution::review_token(&loaded) != req.review_token {
         return Err("This file changed. Review it again before importing.".to_string());
     }
