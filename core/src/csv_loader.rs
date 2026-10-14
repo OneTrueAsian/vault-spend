@@ -139,6 +139,29 @@ pub struct ColumnNames {
 }
 
 impl ColumnNames {
+    /// Whichever of these names are still among `headers`, as a guess for pre-filling the picker when a
+    /// later file renamed some of them. A field whose name is gone is `None`.
+    pub fn partial_guess(&self, headers: &[String]) -> ColumnGuess {
+        let find = |name: &str| {
+            let name = name.trim();
+            if name.is_empty() {
+                return None;
+            }
+            headers.iter().position(|h| h.trim().eq_ignore_ascii_case(name))
+        };
+        let (amount, debit, credit) = match &self.amount {
+            AmountNames::Single { column } => (find(column), None, None),
+            AmountNames::DebitCredit { debit, credit } => (None, find(debit), find(credit)),
+        };
+        ColumnGuess {
+            date: find(&self.date),
+            description: find(&self.description),
+            amount,
+            debit,
+            credit,
+        }
+    }
+
     /// Finds each name among `headers` (ignoring case and surrounding spaces; the first match wins).
     /// `None` unless every name is found.
     pub fn resolve(&self, headers: &[String]) -> Option<ColumnMap> {

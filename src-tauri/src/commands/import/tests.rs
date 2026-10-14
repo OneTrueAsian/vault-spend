@@ -601,6 +601,10 @@ fn inspect_applies_a_saved_choice_when_the_headers_still_match() {
     let dto = inspect_import_columns_for(&state, file.to_str().unwrap(), account).unwrap();
     assert_eq!(dto.status, "needs_mapping");
     assert!(dto.map.is_none());
+    // The remembered names that are still in the file start the picker; the renamed one is left open.
+    assert_eq!(dto.guess.date, Some(0));
+    assert_eq!(dto.guess.description, Some(1));
+    assert_eq!(dto.guess.amount, None);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

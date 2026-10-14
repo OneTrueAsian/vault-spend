@@ -59,6 +59,13 @@ describe("HelpView", () => {
     expect(text).toContain("Reduce motion");
   });
 
+  it("explains the Match your columns window for files with unfamiliar headers", () => {
+    const text = container.textContent ?? "";
+    expect(text).toContain("Importing a file with unfamiliar headers");
+    expect(text).toContain("Match your columns");
+    expect(text).toContain("remembers your choice for that account");
+  });
+
   it("explains that unsure import rows wait for a choice and that file category choices are remembered", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Pick a category");

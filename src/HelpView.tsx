@@ -709,6 +709,19 @@ const IMPORTING_ENTRY: HelpEntry = {
           under <strong>Review inbox</strong> on the Transactions tab.
         </li>
       </ol>
+      <h3>Importing a file with unfamiliar headers</h3>
+      <p>
+        If a CSV's column names aren't ones Vault Spend knows, a{" "}
+        <strong>Match your columns</strong> window opens before anything
+        else. Pick which column is the date, which is the description and
+        which is the amount (or tick the box if money in and money out are
+        in separate columns). The first rows of your file are shown so you
+        can check. <strong>Continue</strong> stays off until each is chosen.
+        Vault Spend remembers your choice for that account, so the next
+        file with the same headers skips the window. If a header changes,
+        the window opens again with your earlier picks filled in. Cancel
+        and nothing is imported.
+      </p>
     </>
   ),
 };

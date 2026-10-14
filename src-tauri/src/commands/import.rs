@@ -198,13 +198,27 @@ fn inspect_import_columns_for(state: &AppState, path: &str, account_id: i64) -> 
         });
     }
     let inspection = csv_loader::inspect_csv(path).map_err(|e| e.to_string())?;
+    let mut guess = inspection.guess;
     let (status, map) = if inspection.missing.is_empty() {
         ("ok", None)
     } else {
         let saved = state.store.account_import_columns(account_id).map_err(|e| e.to_string())?;
-        match saved.and_then(|names| names.resolve(&inspection.headers)) {
+        match saved.as_ref().and_then(|names| names.resolve(&inspection.headers)) {
             Some(map) => ("saved", Some(map)),
-            None => ("needs_mapping", None),
+            None => {
+                // Some remembered names may still be in this file: start the picker from those.
+                if let Some(names) = &saved {
+                    let remembered = names.partial_guess(&inspection.headers);
+                    guess = ColumnGuess {
+                        date: remembered.date.or(guess.date),
+                        description: remembered.description.or(guess.description),
+                        amount: remembered.amount.or(guess.amount),
+                        debit: remembered.debit.or(guess.debit),
+                        credit: remembered.credit.or(guess.credit),
+                    };
+                }
+                ("needs_mapping", None)
+            }
         }
     };
     Ok(ColumnInspectionDto {
@@ -212,7 +226,7 @@ fn inspect_import_columns_for(state: &AppState, path: &str, account_id: i64) -> 
         headers: inspection.headers,
         sample_rows: inspection.sample_rows,
         missing: inspection.missing,
-        guess: inspection.guess,
+        guess,
         map,
     })
 }
