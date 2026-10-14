@@ -1,6 +1,7 @@
 //! Commands: importing files (preview, settle, commit), the sign question, and the setup-data template.
 
 use super::*;
+use budget_core::csv_loader::{self, ColumnGuess, ColumnMap};
 
 #[cfg(test)]
 mod tests;
@@ -133,8 +134,8 @@ pub struct ImportSignCounts {
 /// the "Which way do the amounts go?" question, so a credit card's export that shows charges as positive can
 /// be recognised and "Flip the signs" suggested. Reads the file only; nothing is stored.
 #[tauri::command]
-pub fn count_import_signs(path: String) -> Result<ImportSignCounts, String> {
-    let loaded = importer::load_transactions(&path, false, None).map_err(|e| e.to_string())?;
+pub fn count_import_signs(path: String, column_map: Option<ColumnMap>) -> Result<ImportSignCounts, String> {
+    let loaded = importer::load_transactions(&path, false, column_map.as_ref()).map_err(|e| e.to_string())?;
     Ok(ImportSignCounts {
         positive: loaded
             .transactions
@@ -149,15 +150,89 @@ pub fn count_import_signs(path: String) -> Result<ImportSignCounts, String> {
     })
 }
 
+/// What the "match your columns" step needs to know about a file before it is read.
+#[derive(Serialize)]
+pub struct ColumnInspectionDto {
+    /// "ok" (nothing to match), "saved" (the account's remembered choice fits; `map` is it) or "needs_mapping".
+    pub status: String,
+    pub headers: Vec<String>,
+    pub sample_rows: Vec<Vec<String>>,
+    pub missing: Vec<String>,
+    pub guess: ColumnGuess,
+    pub map: Option<ColumnMap>,
+}
+
+/// Looks at a file's header row to see whether the importer can find the columns it needs.
+/// Reads the file only; nothing is stored.
 #[tauri::command]
-pub fn preview_import(path: String, invert_amounts: bool, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<ImportPreview, String> {
+pub fn inspect_import_columns(path: String, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<ColumnInspectionDto, String> {
+    let state = state.lock()?;
+    inspect_import_columns_for(&state, &path, account_id)
+}
+
+fn inspect_import_columns_for(state: &AppState, path: &str, account_id: i64) -> Result<ColumnInspectionDto, String> {
+    let extension = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if matches!(extension.as_str(), "ofx" | "qfx" | "qif") {
+        return Ok(ColumnInspectionDto {
+            status: "ok".to_string(),
+            headers: Vec::new(),
+            sample_rows: Vec::new(),
+            missing: Vec::new(),
+            guess: ColumnGuess {
+                date: None,
+                description: None,
+                amount: None,
+                debit: None,
+                credit: None,
+            },
+            map: None,
+        });
+    }
+    let inspection = csv_loader::inspect_csv(path).map_err(|e| e.to_string())?;
+    let (status, map) = if inspection.missing.is_empty() {
+        ("ok", None)
+    } else {
+        let saved = state.store.account_import_columns(account_id).map_err(|e| e.to_string())?;
+        match saved.and_then(|names| names.resolve(&inspection.headers)) {
+            Some(map) => ("saved", Some(map)),
+            None => ("needs_mapping", None),
+        }
+    };
+    Ok(ColumnInspectionDto {
+        status: status.to_string(),
+        headers: inspection.headers,
+        sample_rows: inspection.sample_rows,
+        missing: inspection.missing,
+        guess: inspection.guess,
+        map,
+    })
+}
+
+#[tauri::command]
+pub fn preview_import(
+    path: String,
+    invert_amounts: bool,
+    account_id: i64,
+    column_map: Option<ColumnMap>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<ImportPreview, String> {
     let mut state = state.lock()?;
-    preview_import_for(&mut state, &path, invert_amounts, account_id)
+    preview_import_for(&mut state, &path, invert_amounts, account_id, column_map.as_ref())
 }
 
 /// `preview_import` against an already-locked profile. A pure read: nothing is created or remembered.
-fn preview_import_for(state: &mut AppState, path: &str, invert_amounts: bool, account_id: i64) -> Result<ImportPreview, String> {
-    let loaded = importer::load_transactions(path, invert_amounts, None).map_err(|e| e.to_string())?;
+fn preview_import_for(
+    state: &mut AppState,
+    path: &str,
+    invert_amounts: bool,
+    account_id: i64,
+    column_map: Option<&ColumnMap>,
+) -> Result<ImportPreview, String> {
+    let loaded = importer::load_transactions(path, invert_amounts, column_map).map_err(|e| e.to_string())?;
     let row_errors = loaded.errors.len();
 
     let mut resolved_accounts = Vec::with_capacity(loaded.transactions.len());
@@ -265,6 +340,7 @@ pub fn commit_import(
     account_overrides: std::collections::HashMap<usize, i64>,
     category_choices: Option<std::collections::HashMap<String, CategoryChoiceDto>>,
     row_choices: std::collections::HashMap<usize, Option<String>>,
+    column_map: Option<ColumnMap>,
     state: tauri::State<AppStateHandle>,
 ) -> Result<ImportSummary, String> {
     let mut state = state.lock()?;
@@ -279,6 +355,7 @@ pub fn commit_import(
             account_overrides,
             category_choices,
             row_choices,
+            column_map,
         },
     )
 }
@@ -294,13 +371,15 @@ pub struct CommitImportRequest {
     pub category_choices: Option<std::collections::HashMap<String, CategoryChoiceDto>>,
     /// A missing key means no choice was made; a `None` value means "Leave uncategorized".
     pub row_choices: std::collections::HashMap<usize, Option<String>>,
+    /// The columns the person matched for a file whose headers weren't recognised; remembered for the account on success.
+    pub column_map: Option<ColumnMap>,
 }
 
 fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<ImportSummary, String> {
     use budget_core::import_resolution::Automatic;
     use budget_core::store::{ImportAccount, ImportBatch, ImportBatchRow, RowCategory};
 
-    let loaded = importer::load_transactions(&req.path, req.invert_amounts, None).map_err(|e| e.to_string())?;
+    let loaded = importer::load_transactions(&req.path, req.invert_amounts, req.column_map.as_ref()).map_err(|e| e.to_string())?;
     if import_resolution::review_token(&loaded) != req.review_token {
         return Err("This file changed. Review it again before importing.".to_string());
     }
@@ -388,6 +467,14 @@ fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<I
         sign_preference: Some((req.default_account_id, req.invert_amounts)),
         ..ImportBatch::default()
     };
+    // Remember the person's column choice for the account, by header name. A choice that can't be
+    // named (a blank header) is simply not remembered; the import still goes ahead.
+    if let Some(map) = &req.column_map {
+        let headers = csv_loader::inspect_csv(&req.path).map_err(|e| e.to_string())?.headers;
+        if let Some(names) = map.names(&headers) {
+            batch.column_names = Some((req.default_account_id, names));
+        }
+    }
     // Each unfamiliar file category the included rows use, by key, in the file's first spelling.
     let mut used_names: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     for &index in &included {
