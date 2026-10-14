@@ -2,6 +2,7 @@
 
 import type { ImportPreview } from "./importResolution";
 import type { ImportSignSuggestion } from "./importSigns";
+import type { ColumnInspection, ColumnMap } from "./columnMapping";
 
 export type ImportSummary = {
   inserted: number;
@@ -15,6 +16,8 @@ export type PendingImport = {
   path: string;
   invertAmounts: boolean;
   defaultAccountId: number;
+  /** The person's column choices for a CSV whose headers weren't recognised; null for everything else. */
+  columnMap: ColumnMap | null;
   preview: ImportPreview;
 };
 
@@ -42,6 +45,7 @@ export type PendingDialog =
   }
   | { kind: "newCategory"; resolve: (name: string | null) => void }
   | { kind: "confirmInvert"; resolve: (invert: boolean) => void; accountName?: string; suggestion?: ImportSignSuggestion }
+  | { kind: "columnMapping"; resolve: (map: ColumnMap | null) => void; inspection: ColumnInspection; accountName?: string }
   | { kind: "csvExportWarning"; resolve: (proceed: boolean) => void };
 
 /** How a transaction got its category, in words (the backend stores rule / user / classifier). */

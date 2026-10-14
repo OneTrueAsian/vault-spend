@@ -13,6 +13,7 @@ import {
 } from "./importResolution";
 import { errorMessage } from "./errorMessage";
 import type { ImportSummary, PendingImport, StatusKind } from "./appTypes";
+import type { ColumnMap } from "./columnMapping";
 import type { Account } from "./types";
 
 /** The Transactions tab's import review: the file being reviewed, which rows are checked, any
@@ -53,7 +54,7 @@ export function useImportReview({
   const [notice, setNotice] = useState<string | null>(null);
 
   /** Reads `path` and opens its review. */
-  async function begin(path: string, invertAmounts: boolean, accountId: number) {
+  async function begin(path: string, invertAmounts: boolean, accountId: number, columnMap: ColumnMap | null = null) {
     setBusy(true);
     setStatus("Reading file…", "info");
     try {
@@ -61,6 +62,7 @@ export function useImportReview({
         path,
         invertAmounts,
         accountId,
+        columnMap,
       });
       // duplicates default to excluded (matches the old behavior), everything
       // else defaults to included; the user can flip any row either way
@@ -76,7 +78,7 @@ export function useImportReview({
       setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories));
       setImportRowChoices(new Map());
       setNotice(null);
-      setPendingImport({ path, invertAmounts, defaultAccountId: accountId, preview });
+      setPendingImport({ path, invertAmounts, defaultAccountId: accountId, columnMap, preview });
       setStatus("");
     } catch (e) {
       setStatus(errorMessage(e));
@@ -159,6 +161,7 @@ export function useImportReview({
         path: pendingImport.path,
         invertAmounts: pendingImport.invertAmounts,
         defaultAccountId: pendingImport.defaultAccountId,
+        columnMap: pendingImport.columnMap,
         reviewToken: pendingImport.preview.review_token,
         includedIndices: Array.from(includedIndices),
         accountOverrides: Object.fromEntries(accountOverrides),
@@ -175,6 +178,7 @@ export function useImportReview({
           path: pendingImport.path,
           invertAmounts: pendingImport.invertAmounts,
           accountId: pendingImport.defaultAccountId,
+          columnMap: pendingImport.columnMap,
         });
         const categories = await call<string[]>("list_categories");
         const carried = carryOverReview(

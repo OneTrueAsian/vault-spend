@@ -87,6 +87,8 @@ import {
   WhatsNewDialog,
 } from "./Modal";
 import { TransactionNotesDialog } from "./TransactionNotesDialog";
+import { ColumnMappingDialog } from "./ColumnMappingDialog";
+import type { ColumnInspection, ColumnMap } from "./columnMapping";
 import { importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
 import {
   DEFAULT_LAYOUT,
@@ -1363,6 +1365,9 @@ function App({
   function askConfirmInvert(accountName?: string, suggestion?: ImportSignSuggestion): Promise<boolean> {
     return new Promise((resolve) => setDialog({ kind: "confirmInvert", resolve, accountName, suggestion }));
   }
+  function askColumnMap(inspection: ColumnInspection, accountName?: string): Promise<ColumnMap | null> {
+    return new Promise((resolve) => setDialog({ kind: "columnMapping", resolve, inspection, accountName }));
+  }
   function askCsvExportWarning(): Promise<boolean> {
     return new Promise((resolve) => setDialog({ kind: "csvExportWarning", resolve }));
   }
@@ -2596,10 +2601,21 @@ function App({
     // Offer the answer this account's last import used, or flipping for a credit card file that is mostly
     // positive (charges shown as positive). Reading ahead is only a hint, so a file it can't read asks plainly.
     const account = accounts.find((a) => a.id === accountId);
-    const counts = await invoke<ImportSignCounts>("count_import_signs", { path }).catch(() => null);
+
+    // A CSV whose headers aren't recognised asks which columns are which, before anything is read or saved.
+    // If the look-ahead itself fails, the import below reports the problem the way it always did.
+    let columnMap: ColumnMap | null = null;
+    const inspection = await invoke<ColumnInspection>("inspect_import_columns", { path, accountId }).catch(() => null);
+    if (inspection?.status === "saved") columnMap = inspection.map;
+    if (inspection?.status === "needs_mapping") {
+      columnMap = await askColumnMap(inspection, account?.name);
+      if (!columnMap) return; // cancelled: nothing read, nothing saved
+    }
+
+    const counts = await invoke<ImportSignCounts>("count_import_signs", { path, columnMap }).catch(() => null);
     const invertAmounts = await askConfirmInvert(account?.name, importSignSuggestion(account, counts));
 
-    await importReview.begin(path, invertAmounts, accountId);
+    await importReview.begin(path, invertAmounts, accountId, columnMap);
   }
 
   /** A category fix just saved a rule for each of these merchants (one for a
@@ -3638,6 +3654,20 @@ function App({
               }}
               onConfirm={() => {
                 dialog.resolve(true);
+                setDialog(null);
+              }}
+            />
+          )}
+          {dialog?.kind === "columnMapping" && (
+            <ColumnMappingDialog
+              inspection={dialog.inspection}
+              accountName={dialog.accountName}
+              onCancel={() => {
+                dialog.resolve(null);
+                setDialog(null);
+              }}
+              onConfirm={(map) => {
+                dialog.resolve(map);
                 setDialog(null);
               }}
             />
