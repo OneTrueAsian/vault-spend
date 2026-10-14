@@ -119,6 +119,9 @@ pub struct CsvInspection {
     pub guess: ColumnGuess,
 }
 
+/// Opens the CSV at `path` and returns its headers, first few rows, which
+/// required columns couldn't be found by name, and best-guess positions for
+/// them. A headerless file reports no headers and nothing missing.
 pub fn inspect_csv(path: impl AsRef<Path>) -> std::io::Result<CsvInspection> {
     inspect_reader(File::open(path)?)
 }
@@ -504,6 +507,29 @@ mod tests {
         assert_eq!(found.headers, vec!["Posted", "Memo", "Amt"]);
         assert_eq!(found.missing, vec!["date", "description", "amount"]);
         assert_eq!(found.guess.date, None, "'Posted' has no 'date' in it, so nothing is guessed for the date");
+    }
+
+    #[test]
+    fn inspecting_duplicate_and_blank_headers_does_not_panic_and_picks_the_first_match() {
+        let csv = "Date,Date,,Amount\n2026-08-05,2026-08-06,x,-4.50\n";
+        let found = inspect_reader(csv.as_bytes()).unwrap();
+        assert_eq!(found.headers.len(), 4);
+        // A duplicated name resolves to the first matching column.
+        assert_eq!(found.guess.date, Some(0));
+        assert_eq!(found.guess.amount, Some(3));
+    }
+
+    #[test]
+    fn inspecting_recognises_separate_debit_and_credit_columns() {
+        let csv = "Date,Description,Debit,Credit\n2026-08-05,Coffee,4.50,\n";
+        let found = inspect_reader(csv.as_bytes()).unwrap();
+        assert!(found.missing.is_empty(), "{:?}", found.missing);
+        assert_eq!(found.guess.debit, Some(2));
+        assert_eq!(found.guess.credit, Some(3));
+
+        let csv = "Date,Description,Debit\n2026-08-05,Coffee,4.50\n";
+        let found = inspect_reader(csv.as_bytes()).unwrap();
+        assert_eq!(found.missing, vec!["amount"]);
     }
 
     #[test]
