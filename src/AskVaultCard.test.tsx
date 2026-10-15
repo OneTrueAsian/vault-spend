@@ -251,6 +251,27 @@ describe("the Ask the Vault card", () => {
     expect(text()).toContain("$317.13");
   });
 
+  it("an open 'Show all' list does not keep showing amounts while the answer is being re-checked", async () => {
+    const names = ["Groceries", "Dining Out", "Rent", "Shopping", "Gifts", "Health", "Travel"];
+    const categories = names.map((category, i) => ({ category, amount: String(1000 - i * 10), purchaseCount: 1 }));
+    let release: (s: AskVaultSnapshot) => void = () => {};
+    let holdChecks = false;
+    const full = () => snapshot({ kind: "rank-categories", periods: [period({ categories, categoryCount: 7 })] });
+    const client = fake(() => (holdChecks ? new Promise<AskVaultSnapshot>((r) => (release = r)) : Promise.resolve(full())));
+    const view = mount(client);
+    await ask("top 7 spending categories last month");
+    await click("Show all 7");
+    expect(document.querySelector("[role='dialog']")!.textContent).toContain("$1,000.00");
+    holdChecks = true;
+    view.rerender("v1", "r2"); // reloaded: the answer is being checked
+    await act(async () => {});
+    expect(document.body.textContent).not.toContain("$1,000.00");
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+    await act(async () => release(full()));
+    await act(async () => {});
+    expect(text()).toContain("$1,000.00"); // confirmed current: the answer is back on the card
+  });
+
   it("a long ranking shows five rows inline and the rest in a dialog", async () => {
     const names = ["Groceries", "Dining Out", "Rent", "Shopping", "Gifts", "Health", "Travel", "Pets", "Fuel", "Coffee"];
     const categories = names.map((category, i) => ({ category, amount: String(1000 - i * 10), purchaseCount: i + 1 }));

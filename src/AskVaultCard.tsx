@@ -89,6 +89,10 @@ export function AskVaultCard({
   const [placeholderExample] = useState(() => LEDGER_QA_EXAMPLES[Math.floor(Math.random() * LEDGER_QA_EXAMPLES.length)]);
   // The full list belongs to the answer it was opened from: a new answer, or none, closes it.
   useEffect(() => setAllRowsOpen(false), [view]);
+  // ...and so does a re-check: nothing from an answer is shown while it is being confirmed as current.
+  useEffect(() => {
+    if (checking) setAllRowsOpen(false);
+  }, [checking]);
   const detailsButton = useRef<HTMLButtonElement | null>(null);
   const wasOpen = useRef(false);
 
@@ -285,7 +289,7 @@ export function AskVaultCard({
         )}
       </div>
 
-      {allRowsOpen && view.status === "answer" && (
+      {allRowsOpen && view.status === "answer" && checking !== view.result && (
         <ModalShell
           title={view.result.answer.headline}
           onCancel={() => setAllRowsOpen(false)}
