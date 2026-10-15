@@ -87,6 +87,8 @@ export function AskVaultCard({
   const [showExamples, setShowExamples] = useState(false);
   const [allRowsOpen, setAllRowsOpen] = useState(false);
   const [placeholderExample] = useState(() => LEDGER_QA_EXAMPLES[Math.floor(Math.random() * LEDGER_QA_EXAMPLES.length)]);
+  // The full list belongs to the answer it was opened from: a new answer, or none, closes it.
+  useEffect(() => setAllRowsOpen(false), [view]);
   const detailsButton = useRef<HTMLButtonElement | null>(null);
   const wasOpen = useRef(false);
 

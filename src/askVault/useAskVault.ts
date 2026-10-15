@@ -54,8 +54,8 @@ export function useAskVault({
   const [tokens] = useState(() => ({ sequence: 0, detail: 0, check: 0 }));
   const factory = useRef(createClient);
   factory.current = createClient;
-  const latest = useRef({ getContext, legacyAsk, dataKey });
-  latest.current = { getContext, legacyAsk, dataKey };
+  const latest = useRef({ getContext, legacyAsk, dataKey, reloadKey });
+  latest.current = { getContext, legacyAsk, dataKey, reloadKey };
   const answeredWith = useRef<unknown>(dataKey);
   const [view, setView] = useState<AskVaultView>({ status: "idle" });
   const shown = useRef(view);
@@ -82,31 +82,42 @@ export function useAskVault({
       if (!showing || answeredWith.current === dataKey) return current;
       return { status: "stale", question: current.question, message: LEDGER_CHANGED };
     });
-    if (answeredWith.current !== dataKey) setDetails(null);
-  }, [dataKey]);
+    if (answeredWith.current !== dataKey) {
+      tokens.detail++; // a purchases list still being read must not open for an answer that is gone
+      setDetails(null);
+    }
+  }, [dataKey, tokens]);
+
+  /** Ask the native side whether its data revision moved since this answer was read; if it did (or the check fails), retire the answer. */
+  const verifyFresh = useCallback(
+    (answer: Extract<AskVaultView, { status: "answer" }>["result"]) => {
+      if (!client.current) return;
+      const mine = ++tokens.check;
+      const day = answer.request.periods[0].from;
+      const retire = () => {
+        if (!alive.current || mine !== tokens.check) return;
+        tokens.detail++; // and any purchases list still being read for it
+        setView((now) => (now.status === "answer" && now.result === answer ? { status: "stale", question: now.question, message: LEDGER_CHANGED } : now));
+        setDetails(null);
+      };
+      client.current
+        .askVault({ kind: "total", periods: [{ from: day, to: day }], accountIds: [], categories: [], minimumPurchase: null, vendors: [], excludeVendors: [], excludeCategories: [], limit: 1, expectedRevision: null })
+        .then((reply) => {
+          if (reply.revision.local !== answer.revision.local || reply.revision.external !== answer.revision.external) retire();
+        })
+        .catch(retire);
+    },
+    [tokens],
+  );
 
   // A reload of the list does not mean the data changed (and a split can change amounts without changing the
-  // list's fingerprint), so ask the native side whether its data revision moved since the answer was read.
+  // list's fingerprint), so check the data revision rather than trusting the list.
   useEffect(() => {
     if (reloadKey === checkedFor.current) return;
     checkedFor.current = reloadKey;
     const current = shown.current;
-    if (current.status !== "answer" || !client.current) return;
-    const answer = current.result;
-    const mine = ++tokens.check;
-    const day = answer.request.periods[0].from;
-    const retire = () => {
-      if (!alive.current || mine !== tokens.check) return;
-      setView((now) => (now.status === "answer" && now.result === answer ? { status: "stale", question: now.question, message: LEDGER_CHANGED } : now));
-      setDetails(null);
-    };
-    client.current
-      .askVault({ kind: "total", periods: [{ from: day, to: day }], accountIds: [], categories: [], minimumPurchase: null, vendors: [], excludeVendors: [], excludeCategories: [], limit: 1, expectedRevision: null })
-      .then((reply) => {
-        if (reply.revision.local !== answer.revision.local || reply.revision.external !== answer.revision.external) retire();
-      })
-      .catch(retire);
-  }, [reloadKey, tokens]);
+    if (current.status === "answer") verifyFresh(current.result);
+  }, [reloadKey, verifyFresh]);
 
   const ask = useCallback(async (raw: string) => {
     const question = raw.trim();
@@ -116,6 +127,7 @@ export function useAskVault({
     tokens.check++;
     setDetails(null);
     answeredWith.current = latest.current.dataKey;
+    const startedWith = { dataKey: latest.current.dataKey, reloadKey: latest.current.reloadKey };
     setView({ status: "loading", question });
     // Let the "working" state reach the screen before the question is read: with a large ledger that work is not instant.
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -125,6 +137,8 @@ export function useAskVault({
     switch (outcome.status) {
       case "answer":
         setView({ status: "answer", question, result: outcome });
+        // The ledger changed while this was being read: it may already be out of date, so check before trusting it.
+        if (latest.current.dataKey !== startedWith.dataKey || latest.current.reloadKey !== startedWith.reloadKey) verifyFresh(outcome);
         return;
       case "legacy": {
         const legacy = latest.current.legacyAsk(question);
@@ -143,7 +157,7 @@ export function useAskVault({
       case "error":
         setView({ status: "error", question, message: outcome.message });
     }
-  }, [tokens]);
+  }, [tokens, verifyFresh]);
 
   /** The purchases behind a total: the same filters, read as a ranking of up to 50 purchases. */
   const openDetails = useCallback(async () => {

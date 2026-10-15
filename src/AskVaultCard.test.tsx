@@ -72,14 +72,16 @@ async function ask(question: string) {
   await act(async () => {
     container.querySelector<HTMLFormElement>(".ledger-qa-card form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
-  await act(async () => {});
+  await settle();
 }
+// The card shows "working" first and reads the question on the next turn of the event loop, so tests wait one turn.
+const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
 const text = () => container.querySelector(".ledger-qa-card")!.textContent ?? "";
 const click = async (label: string) => {
   const button = [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === label);
   if (!button) throw new Error(`no button "${label}" in: ${document.body.textContent}`);
   await act(async () => button.click());
-  await act(async () => {});
+  await settle();
 };
 
 describe("the Ask the Vault card", () => {
@@ -298,6 +300,59 @@ describe("the Ask the Vault card", () => {
     await act(async () => {});
     expect(text()).not.toContain("$317.13");
     expect(text()).toContain("Your ledger changed");
+  });
+
+  it("an answer read before the ledger changed is not left standing as current", async () => {
+    let release: (s: AskVaultSnapshot) => void = () => {};
+    let calls = 0;
+    const client = fake(() => {
+      calls++;
+      if (calls === 1) return new Promise<AskVaultSnapshot>((r) => (release = r)); // the question itself, still being read
+      return Promise.resolve(snapshot({ revision: { local: 6, external: 2 } })); // the freshness check, after the change
+    });
+    const view = mount(client);
+    await ask("how much did I spend on groceries last month"); // returns while the read is still pending
+    view.rerender("v2", "r2"); // the ledger changes while the answer is on its way
+    await act(async () => {});
+    await act(async () => release(snapshot({ revision: { local: 5, external: 2 } })));
+    await act(async () => {});
+    expect(text()).not.toContain("$317.13");
+    expect(text()).toContain("Your ledger changed");
+  });
+
+  it("a purchases list still loading does not open after its answer was retired", async () => {
+    let releaseDetails: (s: AskVaultSnapshot) => void = () => {};
+    let revision = { local: 5, external: 2 };
+    const client = fake((request) => {
+      if (request.kind === "rank-purchases") return new Promise<AskVaultSnapshot>((r) => (releaseDetails = r));
+      return Promise.resolve(snapshot({ revision }));
+    });
+    const view = mount(client);
+    await ask("how much did I spend on groceries last month");
+    await click("View 3 purchases"); // the list is being read
+    revision = { local: 6, external: 2 };
+    view.rerender("v1", "r2"); // the answer is retired
+    await act(async () => {});
+    expect(text()).toContain("Your ledger changed");
+    await act(async () => releaseDetails(snapshot({ kind: "rank-purchases", periods: [period({ purchases })] })));
+    await act(async () => {});
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+  });
+
+  it("a 'Show all' list does not come back for the next answer", async () => {
+    const names = ["Groceries", "Dining Out", "Rent", "Shopping", "Gifts", "Health", "Travel"];
+    const categories = names.map((category, i) => ({ category, amount: String(1000 - i * 10), purchaseCount: 1 }));
+    const client = fake(async () => snapshot({ kind: "rank-categories", periods: [period({ categories, categoryCount: 7 })] }));
+    const view = mount(client);
+    await ask("top 7 spending categories last month");
+    await click("Show all 7");
+    expect(document.querySelector("[role='dialog']")).not.toBeNull();
+    view.rerender("v2"); // answer retired: the dialog goes with it
+    await act(async () => {});
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+    await click("Ask again");
+    expect(text()).toContain("Show all 7");
+    expect(document.querySelector("[role='dialog']")).toBeNull();
   });
 
   it("if the freshness check itself fails, the answer is retired rather than trusted", async () => {
