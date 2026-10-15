@@ -270,7 +270,7 @@ fn deleting_a_budget_line_in_one_month_does_not_delete_it_in_another() {
 fn opening_a_pre_period_scoped_budgets_database_migrates_it_without_losing_data() {
     // Simulates a real database created before budgets were split per
     // month: a `budgets` table with `category` as its sole primary key.
-    let dir = std::env::temp_dir().join(format!("meadow-budget-migration-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-budget-migration-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("pre_period_budgets.db");
     if db_path.exists() {
@@ -312,7 +312,7 @@ fn opening_a_database_with_period_scoped_budgets_but_no_tracking_table_still_fin
     // the tracker must be backfilled from what's actually in
     // `budgets`, not just seeded at migration time, or these rows
     // silently look untouched and become invisible.
-    let dir = std::env::temp_dir().join(format!("meadow-budget-tracker-backfill-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-budget-tracker-backfill-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("period_scoped_no_tracker.db");
     if db_path.exists() {

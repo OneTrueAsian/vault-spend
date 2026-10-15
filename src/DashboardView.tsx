@@ -53,6 +53,7 @@ import { describeBudgetAlerts, isUsedInFull } from "./budgetAlertText";
 import { HelpLink } from "./HelpLink";
 import type { Tab } from "./appTypes";
 
+// "meadow-" is the app's earliest name, kept so a dismissed checklist stays dismissed (see themeBootstrap.ts).
 const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
 /** The Layout menu's last entry: turns Customize on or off. Not a layout, so never saved as one. */

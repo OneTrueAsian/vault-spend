@@ -14,7 +14,7 @@ use budget_core::store::{CategorySource, Store};
 use std::collections::HashMap;
 
 fn write_temp_csv(name: &str, contents: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("meadow-learning-loop-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-learning-loop-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(name);
     std::fs::write(&path, contents).unwrap();

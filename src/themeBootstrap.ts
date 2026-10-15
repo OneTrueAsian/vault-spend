@@ -1,6 +1,8 @@
 // The saved appearance lives in browser storage and is normally applied by App once it mounts. The
 // launch error screen appears before that, so it applies the same saved values itself, with the same
 // rules: "system" (light/dark) means no attribute, and the style always goes on as data-palette.
+// The "meadow-" prefix on these browser-storage keys is the app's earliest name (Meadow, before Pennywise, Penny Worth and
+// Vault Spend). It is kept on purpose: renaming a key would reset everyone's saved theme, layout and filter choices.
 export const THEME_STORAGE_KEY = "meadow-theme";
 export const THEME_STYLE_STORAGE_KEY = "meadow-theme-style";
 

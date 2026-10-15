@@ -70,7 +70,7 @@ fn opening_a_pre_member_id_database_migrates_every_table_without_losing_data() {
     // Simulates a database from before family member attribution
     // existed: accounts/transactions/recurring/buckets/assets with no
     // `member_id` column on any of them.
-    let dir = std::env::temp_dir().join(format!("meadow-member-id-migration-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-member-id-migration-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("pre_member_id.db");
     if db_path.exists() {

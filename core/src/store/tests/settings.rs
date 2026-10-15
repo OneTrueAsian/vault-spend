@@ -253,7 +253,7 @@ fn setting_the_backup_copy_dir_leaves_the_feature_toggles_alone() {
 
 #[test]
 fn opening_a_database_from_before_the_backup_copy_dir_existed_adds_the_column() {
-    let dir = std::env::temp_dir().join(format!("meadow-backup-copy-dir-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-backup-copy-dir-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("pre_backup_copy_dir.db");
     let _ = std::fs::remove_file(&db_path);
@@ -303,7 +303,7 @@ fn the_rollover_feature_is_on_by_default_and_its_setting_persists() {
 
 #[test]
 fn opening_a_database_from_before_the_rollover_setting_existed_keeps_rollover_on() {
-    let dir = std::env::temp_dir().join(format!("meadow-rollover-setting-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-rollover-setting-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("pre_rollover_setting.db");
     let _ = std::fs::remove_file(&db_path);

@@ -57,16 +57,14 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .on_window_event(background::handle_window_event)
         .setup(|app| {
-            // Identifier (tauri.conf.json) and this filename were renamed
-            // from "com.joeyf.meadow" / "meadow.db" to "com.joeyf.pennywise"
-            // / "pennywise.db" alongside the Meadow -> Penny Wise rebrand,
-            // again to "com.joeyf.pennyworth" / "pennyworth.db" alongside
-            // the Penny Wise -> Penny Worth rebrand, and again to
-            // "com.joeyf.vaultspend" / "vaultspend.db" alongside the Penny
-            // Worth -> Vault Spend rebrand. Each time, the pre-existing
-            // database was copied by hand from the old AppData folder into
-            // the new one at rename time — this does not auto-migrate on
-            // its own.
+            // This app's earlier names were Meadow, Pennywise and Penny Worth;
+            // its current name is Vault Spend. Each rename changed the
+            // identifier (tauri.conf.json) and the default database filename
+            // ("com.joeyf.<name>" / "<name>.db"), and the AppData folder is
+            // keyed by that identifier. The old names are still spelled out
+            // in legacy_migration.rs on purpose: that is how an install made
+            // under an earlier name finds its data and carries it forward
+            // into the Vault Spend folder on first launch.
             //
             // VAULTSPEND_DB_DIR lets E2E tests (see e2e/) point the app at a
             // throwaway directory instead of the real AppData folder, so

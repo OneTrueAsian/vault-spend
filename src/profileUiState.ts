@@ -27,6 +27,8 @@ export const setProfileUiState = (key: UiStateKey, value: string, expectedGenera
  * (Phase E Task 8's browser-state audit): an investment widget's id can embed a real account name,
  * so the arrangement is profile financial content, not the per-viewer display choice it was
  * originally treated as — see `dashboardLayout.ts`. */
+// The "meadow-" keys keep the app's earliest name (Meadow) on purpose: these are the exact keys older versions wrote, so
+// they have to stay as they are for a person's saved settings to be found and carried over.
 const LEGACY_KEYS: Partial<Record<UiStateKey, string>> = {
   saved_filters: "meadow-saved-ledger-filters", // App.tsx
   safe_to_spend_buffer: "vaultspend-safe-to-spend-buffer", // SafeToSpendCard.tsx

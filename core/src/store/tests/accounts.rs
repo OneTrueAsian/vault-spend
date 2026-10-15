@@ -847,7 +847,7 @@ fn set_account_details_on_an_unknown_id_is_a_harmless_no_op() {
 fn opening_a_pre_institution_database_migrates_it_without_losing_data() {
     // Simulates a database from before institution/mask existed: an
     // `accounts` table without those two columns.
-    let dir = std::env::temp_dir().join(format!("meadow-institution-migration-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-institution-migration-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("pre_institution.db");
     if db_path.exists() {
@@ -886,7 +886,7 @@ fn opening_a_pre_institution_database_migrates_it_without_losing_data() {
 fn opening_a_pre_balance_database_migrates_it_without_losing_data() {
     // Simulates a real database created before account balances
     // existed: an `accounts` table with no `starting_balance` column.
-    let dir = std::env::temp_dir().join(format!("meadow-balance-migration-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-balance-migration-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("pre_balance.db");
     if db_path.exists() {

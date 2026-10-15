@@ -112,7 +112,7 @@ fn save_transactions_inserts_a_flagged_duplicate_when_asked() {
 
 #[test]
 fn persists_to_disk_across_reopen() {
-    let dir = std::env::temp_dir().join(format!("meadow-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("test.db");
     if db_path.exists() {
@@ -165,7 +165,7 @@ fn backup_to_copies_every_row_to_a_new_file() {
 fn opening_a_pre_accounts_database_migrates_it_without_losing_data() {
     // Simulates a real database created before Step 11 added accounts:
     // a `transactions` table with no `account_id` column at all.
-    let dir = std::env::temp_dir().join(format!("meadow-migration-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-migration-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("pre_accounts.db");
     if db_path.exists() {

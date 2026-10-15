@@ -4,6 +4,7 @@
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import { NAV_ITEMS, type SavedLedgerFilter, type Tab } from "./appTypes";
 
+// "meadow-" is the app's earliest name, kept so saved settings carry over (see themeBootstrap.ts).
 export const NAV_ORDER_STORAGE_KEY = "meadow-nav-order";
 // Per-viewer, like the theme: how tall Transactions rows are. Compact is the
 // default — the comfortable layout stacked the tag box and Split button under

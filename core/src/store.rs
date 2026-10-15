@@ -222,8 +222,9 @@ pub struct FamilyMember {
 }
 
 /// Tables that have existed since this database's very first schema
-/// version — present in literally every real Vault Spend/Penny
-/// Worth/Pennywise/Meadow database ever created, unlike a table added by
+/// version — present in every real Vault Spend database ever created
+/// (including those made under the app's earlier names: Meadow, Pennywise
+/// and Penny Worth), unlike a table added by
 /// a later migration a very old real file might predate (opening it
 /// through `Store::open` would still add those transparently, same as any
 /// other migration).
@@ -249,8 +250,9 @@ const CORE_TABLE_NAMES: [&str; 7] = [
 /// notice their data isn't there.
 ///
 /// Deliberately not filename- or extension-based: this app's own database
-/// filename has changed with every product rename (meadow.db ->
-/// pennywise.db -> pennyworth.db -> vaultspend.db), and a future rename
+/// filename has changed with every product rename (the app's earlier names
+/// were Meadow, Pennywise and Penny Worth, with files meadow.db, pennywise.db
+/// and pennyworth.db; today it is vaultspend.db), and a future rename
 /// will change it again, so "does this look right" has to come from the
 /// file's actual structure, not what it's called.
 pub fn looks_like_a_vault_spend_database(path: impl AsRef<Path>) -> Result<(), String> {
