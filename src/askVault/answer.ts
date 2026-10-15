@@ -1,4 +1,5 @@
 import type { AskPeriodResult, AskVaultSnapshot } from "./contract";
+import type { AskMonthCoverage, AskPeriodResultV2, AskVaultSnapshotV2 } from "./contractV2";
 import { dayLabel } from "./dates";
 import { compareMoney, formatMoney } from "./money";
 import type { Interpretation } from "./types";
@@ -10,6 +11,11 @@ export type AskVaultAnswer = {
   detail: string;
   /** Ranked results, or one line per store when several were asked about. */
   rows: AnswerRow[];
+  /** Grouped rows use a labeled table; rankings retain their ordered list. */
+  rowsLabel?: string;
+  breakdowns?: { heading: string; rows: AnswerRow[] }[];
+  /** Essential qualifications stay visible beside the result. */
+  warnings?: string[];
   /** The recorded names a store question matched, e.g. "SAMS CLUB #6482 (5 purchases)". Empty otherwise. */
   matches: string[];
   notes: string[];
@@ -27,9 +33,11 @@ function rangeText(from: string, to: string): string {
 
 /** " at Meijer and Target on Groceries from Rewards Card" */
 function scopeOf(interpretation: Interpretation): string {
+  const categories = interpretation.categories ?? (interpretation.category ? [interpretation.category] : []);
   return (
     (interpretation.vendors.length ? ` at ${listNames(interpretation.vendors)}` : "") +
-    (interpretation.category ? ` on ${interpretation.category}` : "") +
+    (categories.length ? ` on ${listNames(categories)}` : "") +
+    (interpretation.members?.length ? ` for ${listNames(interpretation.members)}` : "") +
     (interpretation.accountName ? ` from ${interpretation.accountName}` : "")
   );
 }
@@ -118,7 +126,7 @@ function totalAnswer(interpretation: Interpretation, result: AskPeriodResult): A
 }
 
 function categoryAnswer(interpretation: Interpretation, result: AskPeriodResult): AskVaultAnswer {
-  const store = interpretation.vendors.length ? ` at ${listNames(interpretation.vendors)}` : "";
+  const store = scopeOf({ ...interpretation, category: null, categories: [] });
   const excluding = excludingPhrase(interpretation);
   if (result.purchaseCount === 0) {
     return {
@@ -147,7 +155,7 @@ function categoryAnswer(interpretation: Interpretation, result: AskPeriodResult)
 }
 
 function purchaseAnswer(interpretation: Interpretation, result: AskPeriodResult): AskVaultAnswer {
-  const store = interpretation.vendors.length ? ` at ${listNames(interpretation.vendors)}` : "";
+  const store = scopeOf(interpretation);
   const excluding = excludingPhrase(interpretation);
   if (result.purchaseCount === 0) {
     return {
@@ -201,9 +209,85 @@ function compareAnswer(interpretation: Interpretation, snapshot: AskVaultSnapsho
 }
 
 /** Words for the person asking. Money is formatted from exact strings; nothing is rounded except extra decimals for display. */
-export function renderAnswer(interpretation: Interpretation, snapshot: AskVaultSnapshot): AskVaultAnswer {
-  const answer = build(interpretation, snapshot);
-  return { ...answer, notes: [...historyNote(interpretation, snapshot.periods), ...answer.notes] };
+export function renderAnswer(interpretation: Interpretation, snapshot: AskVaultSnapshot | AskVaultSnapshotV2): AskVaultAnswer {
+  const answer = snapshot.contractVersion === 2 ? buildVersion2(interpretation, snapshot) : build(interpretation, snapshot);
+  const withHistory = snapshot.contractVersion === 2 ? { ...interpretation, earliestRecord: snapshot.earliestRecord } : interpretation;
+  return { ...answer, notes: [...historyNote(withHistory, snapshot.periods), ...answer.notes] };
+}
+
+const monthLabel = (month: string) => longDate(`${month}-01`).replace(" 1,", "");
+const COVERAGE: Record<AskMonthCoverage, string> = {
+  complete: "Records support a full month",
+  "in-progress": "Month still in progress",
+  "partial-period": "Only part of this month was requested",
+  "partly-recorded": "Recording started partway through this month",
+  "before-records": "Before recording began; spending unknown",
+  "no-records": "No records; spending unknown",
+  "records-end": "Records do not continue past this month; spending may be incomplete",
+};
+const COVERAGE_LIMIT = "These month labels are based on recorded activity, not import history. A quiet account can look like a missing import when another account has records that month.";
+
+function version2Comparison(i: Interpretation, snapshot: AskVaultSnapshotV2): AskVaultAnswer {
+  const answer = compareAnswer(i, { ...snapshot, contractVersion: 1 });
+  const c = snapshot.comparison!;
+  answer.rowsLabel = "Compared periods";
+  answer.rows = snapshot.periods.map((p, index) => ({ label: i.periods[index].label, amount: formatMoney(p.total), detail: `${rangeText(p.from, p.to)} · ${plural(p.dayCount, "day")}` }));
+  answer.warnings = [];
+  if (!c.comparable) {
+    const [a,b] = snapshot.periods;
+    answer.warnings.push(`The periods cover ${plural(a.dayCount, "day")} and ${plural(b.dayCount, "day")}; this is not a like-for-like comparison. Only the dollar difference is shown.`);
+  }
+  if (c.clamped) answer.warnings.push(`The earlier period was shortened to ${plural(c.clamped.usedDays, "day")} because the matching calendar dates do not exist. The dates shown are the dates compared.`);
+  if (c.comparable && c.percentOutcome === "from-zero") answer.detail += " Spending is up from nothing, so there is no percentage change.";
+  else if (c.comparable && c.percentChange !== null) {
+    const direction = compareMoney(c.absoluteChange, "0");
+    answer.detail += direction === 0 ? " No change (0.0%)." : ` That is ${c.percentChange.replace(/^-/, "")}% ${direction > 0 ? "more" : "less"}.`;
+  }
+  if (i.excludedVendors.length || i.excludedCategories.length) answer.notes.push(...leftOutNote(i, snapshot.periods[1]).map(n => `${i.periods[1].label}: ${n}`));
+  return answer;
+}
+
+function buildVersion2(i: Interpretation, snapshot: AskVaultSnapshotV2): AskVaultAnswer {
+  const p = snapshot.periods[0];
+  const answer = i.kind === "compare" ? version2Comparison(i, snapshot) : build(i, { ...snapshot, contractVersion: 1 });
+  const breakdowns: { heading: string; rows: AnswerRow[] }[] = [];
+  if (i.kind === "total") {
+    if (p.memberTotals.length) breakdowns.push({ heading: "Spending by family member", rows: p.memberTotals.map(r => ({ label: r.name ?? "Not assigned to anyone", amount: formatMoney(r.total), detail: plural(r.purchaseCount, "purchase") })) });
+    if (p.months.length) breakdowns.push({ heading: "Spending by month", rows: p.months.map(r => ({ label: monthLabel(r.month), amount: formatMoney(r.total), detail: `${plural(r.purchaseCount, "purchase")} · ${COVERAGE[r.coverage]}${p.average?.basis === "per-month" ? r.coverage === "complete" ? " · Included in average" : " · Left out of average" : ""}` })) });
+    if (p.categoryTotals.length > 1) breakdowns.push({ heading: "Spending by category", rows: p.categoryTotals.map(r => ({ label: r.category, amount: formatMoney(r.total), detail: plural(r.purchaseCount, "purchase") })) });
+    if (breakdowns.length) {
+      if (answer.rows.length) breakdowns.push({ heading: "Spending by store", rows: answer.rows });
+      const first = breakdowns.shift()!;
+      answer.rowsLabel = first.heading;
+      answer.rows = first.rows;
+      answer.breakdowns = breakdowns;
+    }
+  }
+  if (i.members?.length || p.memberTotals.length) answer.notes.push("This only counts what is recorded against each person on the purchase. Every part of a split purchase belongs to that person; unassigned purchases are separate.");
+  if (p.sharedPurchaseCount > 0) answer.notes.push("A split purchase can appear in more than one category. Category purchase counts can overlap; the overall purchase count counts each purchase once.");
+  if (p.months.length) answer.warnings = [...(answer.warnings ?? []), COVERAGE_LIMIT];
+  if (p.average) averageAnswer(answer, i, p);
+  return answer;
+}
+
+function averageAnswer(answer: AskVaultAnswer, i: Interpretation, p: AskPeriodResultV2): void {
+  const average = p.average!;
+  const monthly = average.basis === "per-month";
+  const scope = `${scopeOf(i)}${excludingPhrase(i)} ${whenText(i)}`;
+  if (average.value === null) {
+    answer.headline = `${monthly ? "No monthly average available" : "No purchases to average"}${scope}.`;
+    answer.detail = `${formatMoney(p.total)} recorded · ${rangeText(p.from, p.to)}`;
+    answer.warnings = [...(answer.warnings ?? []), monthly ? "No completed month has enough recording evidence to enter this average." : "There are no matching purchases, so an average cannot be calculated."];
+  } else {
+    answer.headline = `You averaged ${formatMoney(average.value)} per ${monthly ? "month" : "purchase"}${scope}.`;
+    answer.detail = `${formatMoney(average.numerator)} ÷ ${plural(average.denominator, monthly ? "month" : "purchase")} · ${rangeText(p.from, p.to)}`;
+    answer.notes.push("The average is rounded to the nearest cent, with half cents rounded up.");
+  }
+  answer.notes.push(`Total recorded across the whole range: ${formatMoney(p.total)} across ${plural(p.purchaseCount, "purchase")}.`);
+  if (monthly) {
+    answer.notes.push(`Used: ${average.monthsUsed.length ? average.monthsUsed.map(monthLabel).join(", ") : "no months"}.`);
+    if (average.monthsLeftOut.length) answer.notes.push(`Left out: ${average.monthsLeftOut.map(m => `${monthLabel(m.month)} (${COVERAGE[m.why]})`).join("; ")}.`);
+  }
 }
 
 function build(interpretation: Interpretation, snapshot: AskVaultSnapshot): AskVaultAnswer {

@@ -7,8 +7,8 @@ import {
   validateReportSummarySnapshot,
 } from "./financialContracts";
 import { toLocalIsoDate } from "./format";
-import { validateAskVaultSnapshot } from "./askVault/contract";
-import type { AskVaultRequest } from "./askVault/types";
+import { validateAskVaultSnapshot, type AskKnownPeople } from "./askVault/contract";
+import type { AskVaultRequest, AskVaultRequestV2 } from "./askVault/types";
 export function createFinancialClient() {
   const client = createTransactionClient();
   async function read<T extends { context: { generation: number; sessionRevision: number } }>(
@@ -61,9 +61,16 @@ export function createFinancialClient() {
       return result;
     },
     /** One exact spending read for Ask the Vault. The request is typed data only, never question text. */
-    askVault: async (request: AskVaultRequest) => {
+    askVault: async (request: AskVaultRequest | AskVaultRequestV2, known?: AskKnownPeople) => {
       const today = toLocalIsoDate();
-      const result = await read("get_ask_vault_snapshot", { request }, (value) => validateAskVaultSnapshot(value, request));
+      // Capture the independent roster before awaiting IPC; a later UI update must not change what this reply is checked against.
+      const familyMembers = known?.familyMembers?.map(member => ({ ...member }));
+      const version2 = "contractVersion" in request && request.contractVersion === 2;
+      if (version2 && (request as AskVaultRequestV2).groupBy === "member" && !familyMembers)
+        throw new TransactionError("invalid_response", "The family member list is unavailable. Reload and ask again.");
+      const result = version2
+        ? await read("get_ask_vault_snapshot", { request }, value => validateAskVaultSnapshot(value, request as AskVaultRequestV2, { familyMembers }))
+        : await read("get_ask_vault_snapshot", { request }, value => validateAskVaultSnapshot(value, request));
       if (result.asOf !== today)
         throw new TransactionError("invalid_response", "The answer belongs to another date.");
       return result;

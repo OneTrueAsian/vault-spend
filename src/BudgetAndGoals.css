@@ -131,6 +131,45 @@
   font-size: 13px;
 }
 
+.ledger-qa-caution {
+  padding: 8px 10px;
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ledger-qa-breakdown {
+  width: 100%;
+  margin-top: 10px;
+  color: var(--text);
+}
+
+.ledger-qa-breakdown caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 0;
+}
+
+.ledger-qa-breakdown th,
+.ledger-qa-breakdown td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.ledger-qa-breakdown .amount-col {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-qa-breakdown tbody th {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: inherit;
+}
+
 .ledger-qa-rows {
   list-style: none;
   margin: 10px 0 0 0;

@@ -14,6 +14,14 @@ const invokeMock = vi.hoisted(() =>
   }),
 );
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+const askContextMock = vi.hoisted(() => vi.fn());
+vi.mock("./AskVaultCard", async importOriginal => {
+  const actual = await importOriginal<typeof import("./AskVaultCard")>();
+  return { ...actual, AskVaultCard: (p: ComponentProps<typeof actual.AskVaultCard>) => {
+    askContextMock(p.getContext());
+    return <actual.AskVaultCard {...p} />;
+  } };
+});
 
 import { DashboardView } from "./DashboardView";
 import { DEFAULT_LAYOUT, type WidgetId } from "./dashboardLayout";
@@ -121,6 +129,11 @@ function chooseLayoutOption(label: string) {
 const widgetOrder = () => [...container.querySelectorAll<HTMLElement>("[data-widget-id]")].map((el) => el.dataset.widgetId);
 
 describe("Dashboard header", () => {
+  it("supplies member IDs and names to the M2 parser while keeping legacy member names", async () => {
+    const familyMembers = [{ id: 7, name: "Sam" }, { id: 8, name: "Robin" }];
+    await render(props({ familyMembers }));
+    expect(askContextMock.mock.lastCall?.[0]).toMatchObject({ familyMembers, members: ["Sam", "Robin"] });
+  });
   it("keeps Ask the Vault as the full card directly under the title row (owner rule)", async () => {
     await render(props());
 

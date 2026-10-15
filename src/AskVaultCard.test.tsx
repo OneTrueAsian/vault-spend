@@ -6,6 +6,7 @@ import { AskVaultCard, MORE_EXAMPLES } from "./AskVaultCard";
 import { LEDGER_QA_EXAMPLES } from "./ledgerQa";
 import { parseQuestion } from "./askVault/parser";
 import type { AskVaultSnapshot } from "./askVault/contract";
+import type { AskVaultSnapshotV2 } from "./askVault/contractV2";
 import type { AskVaultRequest, ParseContext } from "./askVault/types";
 import { TransactionError } from "./transactionContracts";
 
@@ -47,7 +48,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-type Handler = (request: AskVaultRequest) => Promise<AskVaultSnapshot>;
+type Handler = (request: AskVaultRequest) => Promise<AskVaultSnapshot | AskVaultSnapshotV2>;
 type Fake = { askVault: ReturnType<typeof vi.fn<Handler>>; dispose: ReturnType<typeof vi.fn<() => void>> };
 function fake(handler: Handler): Fake {
   return { askVault: vi.fn<Handler>(handler), dispose: vi.fn<() => void>() };
@@ -85,8 +86,86 @@ const click = async (label: string) => {
 };
 
 describe("the Ask the Vault card", () => {
+  const membersContext = { ...context, familyMembers: [{ id: 1, name: "Sam" }, { id: 2, name: "Robin" }] };
+  const memberReply = (): AskVaultSnapshotV2 => ({
+    ...snapshot(), contractVersion: 2, earliestRecord: "2026-01-01", comparison: null,
+    periods: [{ ...period(), categoryTotals: [], sharedPurchaseCount: 0, months: [], recordedFrom: null, recordedThrough: null, average: null,
+      memberTotals: [{memberId:1,name:"Sam",total:"317.13",purchaseCount:3},{memberId:2,name:"Robin",total:"0",purchaseCount:0},{memberId:null,name:null,total:"0",purchaseCount:0}] }],
+  });
+  for (const memberId of [7,8]) it(`sends only selected lookalike member ${memberId} after clicking a clarification`, async () => {
+    const ctx={...context,familyMembers:[{id:7,name:"O’Neil"},{id:8,name:"O'Neil"}]};
+    const reply=memberReply();reply.periods[0].memberTotals=[];
+    const client=fake(async()=>reply);
+    mount(client,{ctx});
+    await ask("how much did O’Neil spend on groceries last month");
+    expect(client.askVault).not.toHaveBeenCalled();
+    const name=ctx.familyMembers.find(m=>m.id===memberId)!.name;
+    const button=[...container.querySelectorAll<HTMLButtonElement>('.ledger-qa-choices button')].find(b=>b.textContent?.includes(name));
+    expect(button).toBeDefined();
+    await act(async()=>button!.click());await settle();
+    expect(client.askVault).toHaveBeenCalledTimes(1);
+    expect(client.askVault.mock.calls[0][0]).toMatchObject({members:{ids:[memberId],unassigned:false},categories:["Groceries"],periods:[{from:"2026-08-01",to:"2026-08-31"}]});
+    expect(text()).toContain("$317.13");
+  });
+  it("retires a member clarification when its roster or ledger changes before selection", async () => {
+    const ctx={...context,familyMembers:[{id:7,name:"O’Neil"},{id:8,name:"O'Neil"}]};
+    const client=fake(async()=>memberReply());
+    const screen=mount(client,{ctx});
+    await ask("how much did O’Neil spend last month");
+    expect(container.querySelector('.ledger-qa-choices button')).not.toBeNull();
+    screen.rerender("changed-roster");
+    await settle();
+    expect(container.querySelector('.ledger-qa-choices button')).toBeNull();
+    expect(client.askVault).not.toHaveBeenCalled();
+    expect(text()).toContain("Your ledger changed");
+  });
+  it("renders member and unassigned rows as an accessible labeled table and restates grouping", async () => {
+    mount(fake(async () => memberReply()), {ctx:membersContext});
+    await ask("what did each family member spend last month");
+    const table = container.querySelector('table[aria-label="Spending by family member"]');
+    expect(table).not.toBeNull();
+    expect(table?.textContent).toContain("Robin");
+    expect(table?.textContent).toContain("Not assigned to anyone");
+    expect(table?.textContent).toContain("$0.00");
+    expect(container.querySelector('[aria-label="What I understood"]')?.textContent).toContain("By family member");
+  });
+  it("keeps member filters on purchase details and hides inexact Transactions navigation", async () => {
+    const navigate=vi.fn();
+    const client=fake(async request => request.kind === "rank-purchases" ? snapshot({kind:"rank-purchases",periods:[period({purchases})]}) : memberReply());
+    mount(client,{ctx:membersContext,onOpenTransactions:navigate});
+    await ask("how much did Sam spend on groceries last month");
+    expect(text()).toContain("for Sam");
+    await click("View 3 purchases");
+    expect(client.askVault.mock.calls[1][0]).toMatchObject({members:{ids:[1],unassigned:false},groupBy:"none",average:"none"});
+    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("Open in Transactions");
+  });
+  it("shows monthly uncertainty visibly, not only inside What's counted", async () => {
+    const reply=memberReply();
+    reply.periods[0].memberTotals=[];
+    reply.periods[0].months=[{month:"2026-08",from:"2026-08-01",to:"2026-08-31",dayCount:31,coverage:"no-records",recordCount:0,total:"0",purchaseCount:0}];
+    mount(fake(async()=>reply),{ctx:membersContext});
+    await ask("spending by month last month");
+    expect(container.querySelector('.ledger-qa-caution')?.textContent).toContain("missing import");
+    expect(container.querySelector('table[aria-label="Spending by month"]')?.textContent).toContain("spending unknown");
+  });
+  it("retires an in-flight member answer when the roster changes even if the ledger revision stays the same", async () => {
+    let finish!: (reply: AskVaultSnapshotV2) => void;
+    let first=true;
+    const client=fake(() => {
+      if (!first) return Promise.resolve(memberReply());
+      first=false;
+      return new Promise<AskVaultSnapshotV2>(resolve => { finish=resolve; });
+    });
+    const view=mount(client,{ctx:membersContext});
+    await ask("how much did Sam spend last month");
+    view.rerender("roster-renamed");
+    await act(async()=>finish(memberReply()));
+    await settle();
+    expect(text()).toContain("no longer shown");
+    expect(text()).not.toContain("$317.13");
+  });
   it("every example shown under Tips & examples is understood, never refused", () => {
-    const ctx: ParseContext = { ...context, categories: [...context.categories, "Dining Out"], merchants: [...(context.merchants ?? []), "WHOLE FOODS MARKET", "COSTCO #1"], historyStart: "2025-01-01" };
+    const ctx: ParseContext = { ...membersContext, categories: [...context.categories, "Dining Out"], merchants: [...(context.merchants ?? []), "WHOLE FOODS MARKET", "COSTCO #1"], historyStart: "2025-01-01" };
     for (const example of [...LEDGER_QA_EXAMPLES, ...MORE_EXAMPLES]) {
       const outcome = parseQuestion(example, ctx);
       expect(["query", "legacy", "clarify"], example).toContain(outcome.status);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addMoney, compareMoney, formatMoney, isMoney, subtractMoney } from "./money";
+import { addMoney, averageToCents, compareMoney, formatMoney, isMoney, percentChangeTenths, subtractMoney } from "./money";
 
 describe("isMoney", () => {
   it("accepts plain decimal strings only", () => {
@@ -57,5 +57,25 @@ describe("formatMoney for display", () => {
   });
   it("never shows a negative zero", () => {
     expect(formatMoney("-0.001")).toBe("$0.00");
+  });
+});
+
+describe("averages and percentages round half away from zero", () => {
+  it("shows an average to the cent", () => {
+    expect(averageToCents("610.00", 3)).toBe("203.33");
+    expect(averageToCents("80.00", 3)).toBe("26.67");
+    expect(averageToCents("450.50", 4)).toBe("112.63"); // 112.625 rounds up
+    expect(averageToCents("0.00", 5)).toBe("0.00");
+    expect(averageToCents("5", 2)).toBe("2.50");
+  });
+  it("rounds a half-cent on a negative amount away from zero", () => {
+    expect(averageToCents("-0.05", 2)).toBe("-0.03");
+  });
+  it("gives a percentage to one decimal", () => {
+    expect(percentChangeTenths("30.00", "20.00")).toBe("50.0");
+    expect(percentChangeTenths("200.50", "200.00")).toBe("0.3"); // 0.25 rounds up
+    expect(percentChangeTenths("199.50", "200.00")).toBe("-0.3");
+    expect(percentChangeTenths("0.00", "100.00")).toBe("-100.0");
+    expect(percentChangeTenths("1", "3")).toBe("-66.7");
   });
 });

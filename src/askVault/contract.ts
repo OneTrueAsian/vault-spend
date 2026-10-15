@@ -1,7 +1,9 @@
 import { array, boolean, date, integer, nullable, object, string } from "../contractChecks";
 import { TransactionError } from "../transactionContracts";
 import { addMoney, compareMoney, isMoney, subtractMoney } from "./money";
-import type { AskDataRevision, AskKind, AskVaultRequest } from "./types";
+import type { AskVaultSnapshotV2 } from "./contractV2";
+import { checkVersion2, periodExtraShape, snapshotExtraShape } from "./contractV2";
+import type { AskDataRevision, AskKind, AskFamilyMember, AskVaultRequest, AskVaultRequestV2 } from "./types";
 
 export type AskCategoryRow = { category: string | null; amount: string; purchaseCount: number };
 export type AskPurchaseRow = {
@@ -69,8 +71,8 @@ const periodResult = object({
   vendorTotals: array(vendorTotal),
   leftOut,
 });
-const shape = object({
-  contractVersion: (v) => v === 1,
+const shapeFor = (version: 1 | 2) => object({
+  contractVersion: (v) => v === version,
   context: object({ generation: integer, sessionRevision: integer }),
   revision: object({ local: integer, external: integer }),
   asOf: date,
@@ -80,6 +82,8 @@ const shape = object({
   periods: array(periodResult),
   difference: nullable((v) => typeof v === "string" && /^-?\d+(?:\.\d+)?$/.test(v)),
 });
+const shapeV1 = shapeFor(1);
+const shapeV2 = shapeFor(2);
 
 const days = (from: string, to: string) => Math.round((Date.parse(to + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 86_400_000) + 1;
 const descending = (rows: { amount: string }[]) => rows.every((row, i) => i === 0 || compareMoney(rows[i - 1].amount, row.amount) >= 0);
@@ -122,12 +126,28 @@ function invalid(): never {
   throw new TransactionError("invalid_response", "The app received an incomplete answer. Ask again.");
 }
 
+/** What the Dashboard already knows, so a reply cannot vouch for its own roster. Required to check a "by family member" answer fully. */
+export type AskKnownPeople = { familyMembers?: AskFamilyMember[] };
+
+const isVersion2 = (request: AskVaultRequest | AskVaultRequestV2): request is AskVaultRequestV2 =>
+  (request as { contractVersion?: unknown }).contractVersion === 2;
+
 /**
  * Check a native spending reply against the request that produced it. A reply that does not echo the
- * question, or whose rows or money cannot be trusted, is refused rather than shown.
+ * question, or whose rows or money cannot be trusted, is refused rather than shown. A request without
+ * `contractVersion` is a version 1 request and only a version 1 reply fits it; a version 2 request needs a
+ * version 2 reply, which must also reproduce from its own numbers. `known` supplies the family roster for that check.
  */
-export function validateAskVaultSnapshot(value: unknown, request: AskVaultRequest): AskVaultSnapshot {
-  if (!shape(value)) return invalid();
+export function validateAskVaultSnapshot(value: unknown, request: AskVaultRequestV2, known?: AskKnownPeople): AskVaultSnapshotV2;
+export function validateAskVaultSnapshot(value: unknown, request: AskVaultRequest): AskVaultSnapshot;
+export function validateAskVaultSnapshot(
+  value: unknown,
+  request: AskVaultRequest | AskVaultRequestV2,
+  known?: AskKnownPeople,
+): AskVaultSnapshot | AskVaultSnapshotV2 {
+  const version2 = isVersion2(request);
+  if (!(version2 ? shapeV2 : shapeV1)(value)) return invalid();
+  if (version2 && !(snapshotExtraShape(value) && (value as { periods: unknown[] }).periods.every(periodExtraShape))) return invalid();
   const reply = value as AskVaultSnapshot;
   if (reply.kind !== request.kind || reply.periods.length !== request.periods.length) return invalid();
 
@@ -153,6 +173,10 @@ export function validateAskVaultSnapshot(value: unknown, request: AskVaultReques
     if (compareMoney(subtractMoney(reply.periods[0].total, reply.periods[1].total), reply.difference) !== 0) return invalid();
   } else if (reply.difference !== null) {
     return invalid();
+  }
+  if (version2) {
+    checkVersion2(value as AskVaultSnapshotV2, request, known?.familyMembers);
+    return value as AskVaultSnapshotV2;
   }
   return reply;
 }

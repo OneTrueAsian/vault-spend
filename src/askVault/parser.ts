@@ -1,7 +1,22 @@
+import { alignedPrior, daysInMonth, isoDate, monthsTouching } from "./calendar";
 import { dayLabel, matchPeriod, MONTHS, tokenize } from "./dates";
 import { distance } from "./distance";
 import { anyVendorMatches, resolveVendor, vendorTerm } from "./vendor";
-import type { AskAccount, AskVaultRequest, Correction, Interpretation, ParseContext, ParseOutcome, ResolvedPeriod } from "./types";
+import type {
+  AskAccount,
+  AskAlignment,
+  AskAverageKind,
+  AskFamilyMember,
+  AskMemberSelection,
+  AskGroupBy,
+  AskVaultRequest,
+  AskVaultRequestV2,
+  Correction,
+  Interpretation,
+  ParseContext,
+  ParseOutcome,
+  ResolvedPeriod,
+} from "./types";
 
 /**
  * Handwritten clause parser for spending questions. It turns words into a typed request for the native
@@ -19,6 +34,13 @@ type Atom =
   | { kind: "legacy-entity"; text: string; excluded?: boolean }
   | { kind: "vendor"; text: string; label: string; term: string; excluded?: boolean }
   | { kind: "exclude"; text: string }
+  /** Version 2: a family member chosen by exact name. */
+  | { kind: "member"; text: string; id: number; name: string; excluded?: boolean }
+  | { kind: "unassigned" | "by-member" | "average"; text: string }
+  /** "monthly", "by month": a month-by-month breakdown, or with "average" the cadence of the average. `group` is true for "by month". */
+  | { kind: "monthly"; text: string; group: boolean }
+  | { kind: "other-cadence"; text: string; unit: "day" | "week" | "quarter" | "year" }
+  | { kind: "same-days"; text: string; alignment: Exclude<AskAlignment, "as-requested">; month?: number }
   | { kind: "period"; text: string; period: ResolvedPeriod }
   | { kind: "threshold"; text: string; amount: string; inclusive: boolean }
   | { kind: "number"; text: string; value: number }
@@ -118,13 +140,91 @@ function normalizeAmount(token: string): string | null {
   return `${m[1]}.${(m[2] ?? "").padEnd(2, "0")}`;
 }
 
+// ---- Version 2 words. They only apply when the Dashboard supplies `familyMembers`; without it the parser behaves exactly as in M1.
+const BY_MEMBER: string[][] = [
+  ["by", "family", "member"], ["by", "family", "members"], ["each", "family", "member"], ["every", "family", "member"], ["per", "family", "member"],
+  ["for", "each", "family", "member"], ["by", "member"], ["per", "member"], ["each", "member"], ["family", "member"], ["family", "members"],
+];
+const UNASSIGNED: string[][] = [
+  ["not", "assigned", "to", "a", "family", "member"], ["not", "assigned", "to", "any", "family", "member"], ["not", "assigned", "to", "anyone"],
+  ["not", "assigned", "to", "anybody"], ["with", "no", "family", "member"], ["without", "a", "family", "member"], ["not", "assigned"], ["unassigned"],
+];
+const MONTHLY: { phrase: string[]; group: boolean }[] = [
+  { phrase: ["month", "by", "month"], group: true }, { phrase: ["by", "month"], group: true }, { phrase: ["monthly"], group: false },
+  { phrase: ["per", "month"], group: false }, { phrase: ["each", "month"], group: false }, { phrase: ["a", "month"], group: false },
+];
+const OTHER_CADENCE: { phrase: string[]; unit: "day" | "week" | "quarter" | "year" }[] = [
+  { phrase: ["by", "quarter"], unit: "quarter" }, { phrase: ["quarterly"], unit: "quarter" }, { phrase: ["per", "quarter"], unit: "quarter" },
+  { phrase: ["by", "week"], unit: "week" }, { phrase: ["weekly"], unit: "week" }, { phrase: ["per", "week"], unit: "week" }, { phrase: ["a", "week"], unit: "week" },
+  { phrase: ["by", "day"], unit: "day" }, { phrase: ["daily"], unit: "day" }, { phrase: ["per", "day"], unit: "day" }, { phrase: ["a", "day"], unit: "day" },
+  { phrase: ["by", "year"], unit: "year" }, { phrase: ["yearly"], unit: "year" }, { phrase: ["per", "year"], unit: "year" },
+];
+const AVERAGE: string[][] = [["on", "average"], ["average"], ["avg"], ["averages"]];
+/** The questions a clarification can be asked about when no time period was given yet: each choice then also names one, so it can be answered. */
+const PERIOD_CHOICES: [label: string, word: string][] = [["last month", "last month"], ["this month so far", "this month"], ["this year so far", "this year"]];
+type Option = { label: string; question: string };
+const SAME_NOUNS = new Set(["days", "day", "point", "time", "dates", "stretch"]);
+
+function phraseLength(tokens: string[], i: number, phrases: string[][]): number {
+  return phrases.reduce((best, phrase) => (startsWithPhrase(tokens, i, phrase) && phrase.length > best ? phrase.length : best), 0);
+}
+
+/** The version 2 clause words at `i`: breakdowns, averages, "not assigned", and "the same days last month". */
+function versionTwoPhrase(tokens: string[], i: number): { atom: Atom; consume: number } | null {
+  const text = (n: number) => tokens.slice(i, i + n).join(" ");
+  const unassigned = phraseLength(tokens, i, UNASSIGNED);
+  if (unassigned) return { atom: { kind: "unassigned", text: text(unassigned) }, consume: unassigned };
+  const byMember = phraseLength(tokens, i, BY_MEMBER);
+  if (byMember) return { atom: { kind: "by-member", text: text(byMember) }, consume: byMember };
+  const monthly = MONTHLY.filter((m) => startsWithPhrase(tokens, i, m.phrase)).sort((a, b) => b.phrase.length - a.phrase.length)[0];
+  const cadence = OTHER_CADENCE.filter((c) => startsWithPhrase(tokens, i, c.phrase)).sort((a, b) => b.phrase.length - a.phrase.length)[0];
+  // "a month" / "a week" / "a day" only mean a cadence right after an average ("average spending a month").
+  const afterAverage = tokens.slice(0, i).some((t) => t === "average" || t === "avg" || t === "averages");
+  if (monthly && (monthly.phrase[0] !== "a" || afterAverage)) return { atom: { kind: "monthly", text: text(monthly.phrase.length), group: monthly.group }, consume: monthly.phrase.length };
+  if (cadence && (cadence.phrase[0] !== "a" || afterAverage)) return { atom: { kind: "other-cadence", text: text(cadence.phrase.length), unit: cadence.unit }, consume: cadence.phrase.length };
+  const average = phraseLength(tokens, i, AVERAGE);
+  if (average) return { atom: { kind: "average", text: text(average) }, consume: average };
+  if (tokens[i] === "same" && SAME_NOUNS.has(tokens[i + 1] ?? "")) {
+    const [a, b] = [tokens[i + 2], tokens[i + 3]];
+    if (["last", "previous", "prior"].includes(a ?? "") && (b === "month" || b === "year")) {
+      return { atom: { kind: "same-days", text: text(4), alignment: b === "month" ? "same-days-previous-month" : "same-days-previous-year" }, consume: 4 };
+    }
+    if (a === "in" && MONTHS.includes(b ?? "")) {
+      return { atom: { kind: "same-days", text: text(4), alignment: "same-days-previous-month", month: MONTHS.indexOf(b) + 1 }, consume: 4 };
+    }
+    if (a === "a" && (b === "month" || b === "year") && tokens[i + 4] === "ago") {
+      return { atom: { kind: "same-days", text: text(5), alignment: b === "month" ? "same-days-previous-month" : "same-days-previous-year" }, consume: 5 };
+    }
+  }
+  return null;
+}
+
+/**
+ * A recorded name split into the same words the question is split into, so a name with a hyphen, an apostrophe or a full stop
+ * ("Mary-Jane", "O’Brien", "Dr. Lee") is matched exactly as it is typed. The sentinel keeps a trailing full stop.
+ */
+const nameTokens = (name: string): string[] => tokenize(`${name} x`).slice(0, -1);
+
+/** The family member whose name starts at `i`, longest name first. */
+function memberAt(tokens: string[], i: number, members: AskFamilyMember[]): { member: AskFamilyMember; length: number; alternatives?: AskFamilyMember[] } | null {
+  const matching = members
+    .map((member) => ({ member, parts: nameTokens(member.name) }))
+    .filter(({ parts }) => parts.every((part, k) => tokens[i + k] === part))
+    .sort((a, b) => b.parts.length - a.parts.length);
+  const found = matching[0];
+  if (!found) return null;
+  // Two members whose names are the same once case and apostrophes are ignored cannot be told apart from the question.
+  const alternatives = matching.filter(m => m.parts.length === found.parts.length).map(m => m.member);
+  return { member: found.member, length: found.parts.length, ...(alternatives.length > 1 ? { alternatives } : {}) };
+}
+
 type Entity = { name: string; parts: string[]; kind: "category" | "account" | "legacy"; account?: AskAccount };
 
 function buildEntities(context: ParseContext): Entity[] {
   const entities: Entity[] = [
-    ...context.categories.map<Entity>((name) => ({ name, parts: name.toLowerCase().split(/\s+/), kind: "category" })),
-    ...context.accounts.map<Entity>((account) => ({ name: account.name, parts: account.name.toLowerCase().split(/\s+/), kind: "account", account })),
-    ...(context.members ?? []).map<Entity>((name) => ({ name, parts: name.toLowerCase().split(/\s+/), kind: "legacy" })),
+    ...context.categories.map<Entity>((name) => ({ name, parts: nameTokens(name), kind: "category" })),
+    ...context.accounts.map<Entity>((account) => ({ name: account.name, parts: nameTokens(account.name), kind: "account", account })),
+    ...(context.familyMembers === undefined ? context.members ?? [] : []).map<Entity>((name) => ({ name, parts: nameTokens(name), kind: "legacy" })),
   ];
   return entities.sort((a, b) => b.parts.length - a.parts.length);
 }
@@ -139,10 +239,12 @@ function entityAtom(entity: Entity, text: string): Atom {
 function fuzzyMatches(tokens: string[], i: number, entities: Entity[]): { entity: Entity; consume: number; weak?: boolean }[] {
   const w = tokens[i];
   const found: { entity: Entity; consume: number; weak?: boolean }[] = [];
+  // A slip in a spending word ("sent" for "spent") is one letter from a category such as Rent: never quietly read as that category.
+  if (w.length >= 4 && !SPEND.has(w) && ["spend", "spent", "spends", "spending"].some((word) => distance(w, word) <= 1)) return found;
   for (const entity of entities) {
     if (RESERVED_START.has(entity.parts[0])) continue;
     const phrase = tokens.slice(i, i + entity.parts.length).join(" ");
-    if (phrase.length >= 3 && distance(phrase, entity.name.toLowerCase()) <= 1) {
+    if (phrase.length >= 3 && distance(phrase, entity.parts.join(" ")) <= 1) {
       found.push({ entity, consume: entity.parts.length });
       continue;
     }
@@ -167,6 +269,7 @@ const titleCase = (words: string[]) => words.map((w) => (w ? w[0].toUpperCase() 
 /** True for a word that belongs to the grammar rather than to a store's name. */
 function isStructural(tokens: string[], j: number, context: ParseContext): boolean {
   const t = tokens[j];
+  if (context.familyMembers !== undefined && versionTwoPhrase(tokens, j) !== null) return true;
   return (
     SPEND.has(t) || TOTAL.has(t) || RANK.has(t) || COMPARE.has(t) || JOIN.has(t) || PURCHASE.has(t) || FILLER.has(t) ||
     NEGATION.has(t) || CHANGES.has(t) || FORECAST.has(t) || THRESHOLD_STARTS.has(t) || INCOME.has(t) ||
@@ -213,9 +316,63 @@ function vendorAtom(tokens: string[], at: number, count: number, quoted: boolean
   return unsupported(`I couldn't find a store or payee called "${raw}" in your transactions.`);
 }
 
+const MAX_STORE_WORDS = 10;
+
+/** A recorded description as the words of its name: apostrophes dropped, cut at the first word with a digit (a store number). */
+function recordedName(description: string): string[] {
+  const words = description.toLowerCase().replace(/['’]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").split(" ").filter(Boolean);
+  const end = words.findIndex((w) => /\d/.test(w));
+  return end > 0 ? words.slice(0, end) : words;
+}
+
+/**
+ * The most words from `i` that spell, as whole words, a recorded store's name (up to ten), or 0. A name may contain words that
+ * are otherwise grammar ("of", "the"), so a long name is one store filter, never several.
+ */
+function longestStore(tokens: string[], i: number, context: ParseContext): number {
+  const merchants = context.merchants ?? [];
+  if (merchants.length === 0) return 0;
+  for (let n = Math.min(MAX_STORE_WORDS, tokens.length - i); n >= 1; n--) {
+    const span = tokens.slice(i, i + n);
+    if (span.some((t) => t.startsWith('"') || t === ",")) continue;
+    if (resolveVendor(span.join(" "), merchants, true).status !== "none") return n;
+  }
+  return 0;
+}
+
+/**
+ * How many words from `i` name a recorded store whose name contains a version 2 grammar word ("Monthly Market"); 0 when none does.
+ * A name longer than the grammar phrase counts, so "monthly groceries" stays a request. A store named only by the grammar phrase
+ * ("Monthly") counts after on/at/from (`cued`), or when nothing but a time period or the end follows it.
+ */
+function storeSpanAt(tokens: string[], i: number, context: ParseContext, cued: boolean): number {
+  const merchants = context.merchants ?? [];
+  if (context.familyMembers === undefined || merchants.length === 0) return 0;
+  const phrase = versionTwoPhrase(tokens, i);
+  if (!phrase) return 0;
+  for (let n = Math.min(MAX_STORE_WORDS, tokens.length - i); n >= phrase.consume; n--) {
+    const beyond = Array.from({ length: n - phrase.consume }, (_, k) => i + phrase.consume + k);
+    if (beyond.some((k) => tokens[k].startsWith('"') || tokens[k] === ",")) continue;
+    const typed = tokens.slice(i, i + n).join(" ");
+    if (resolveVendor(typed, merchants, true).status === "none") continue;
+    if (n > phrase.consume) return n;
+    const whole = merchants.some((m) => recordedName(m).join(" ") === typed);
+    const next = tokens[i + n];
+    // Uncued, a lone word is only a question when it opens the question and nothing but a period follows it.
+    if (whole && (cued || (i === 0 && (next === undefined || matchPeriod(tokens, i + n, context.today, context.historyStart) !== null)))) return n;
+  }
+  return 0;
+}
+
 /** A word the grammar does not know may still be a store: try it (and up to three words after it) against the names on record. */
 function implicitVendor(tokens: string[], i: number, context: ParseContext, strict = true): { atom: Atom; count: number } | ParseOutcome | null {
   if (isStructural(tokens, i, context) || (context.merchants ?? []).length === 0) return null;
+  // A recorded name of several words (which may itself contain words like "of") is one store.
+  const long = strict ? longestStore(tokens, i, context) : 0;
+  if (long > 1) {
+    const whole = vendorAtom(tokens, i, long, false, context, strict);
+    return "status" in whole ? whole : { atom: whole, count: long };
+  }
   for (let n = Math.min(4, tokens.length - i); n >= 1; n--) {
     if (Array.from({ length: n }, (_, k) => i + k).some((k) => isStructural(tokens, k, context))) continue;
     const raw = tokens.slice(i, i + n).join(" ");
@@ -227,8 +384,141 @@ function implicitVendor(tokens: string[], i: number, context: ParseContext, stri
   return null;
 }
 
-function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; corrections: Correction[] } | ParseOutcome {
+const hasPeriod = (tokens: string[], context: ParseContext) =>
+  tokens.some((_, i) => matchPeriod(tokens, i, context.today, context.historyStart)?.kind === "period");
+
+/** Choices for a question: with no time period in the question yet, every choice carries one too, so none leads to another question. */
+function periodComplete(options: Option[], tokens: string[], context: ParseContext): { choices: string[]; replacements: string[] } {
+  const all = hasPeriod(tokens, context) ? options : options.flatMap((o) => PERIOD_CHOICES.map(([label, word]) => ({ label: `${o.label}, ${label}`, question: `${o.question} ${word}` })));
+  return { choices: all.map((o) => o.label), replacements: all.map((o) => o.question) };
+}
+
+const isJoin = (t: string | undefined) => t === "and" || t === "or" || t === ",";
+
+/** Words after which a name is a thing (an account, category, date or store), never a person. */
+const NOT_A_PERSON_AFTER = new Set(["on", "at", "in", "from", "with", "using", "via", "under", "over", "than"]);
+
+/**
+ * A name equal to a family member's. It is that person after "did", "does", "has", before a spending word ("sam spent", "robin
+ * purchase"), or continuing a list of members. When the same name is also a month, an account or a category, the words around it
+ * decide: after on/in/at it is the thing; with no clue it is a question. Alone, when a recorded store also starts with the name, it is
+ * a question too. "other" means: not a person here, read it as the thing it also is.
+ */
+function memberAtom(
+  tokens: string[],
+  i: number,
+  named: { member: AskFamilyMember; length: number },
+  atoms: Atom[],
+  context: ParseContext,
+  people: AskFamilyMember[],
+  excluding: boolean,
+  entities: Entity[],
+): Atom | ParseOutcome | "other" {
+  const text = tokens.slice(i, i + named.length).join(" ");
+  const atom: Atom = { kind: "member", text, id: named.member.id, name: named.member.name };
+  let after = i + named.length;
+  // Look past "and alex" / ", robin" to the word that follows the whole list of names.
+  for (;;) {
+    let next = after;
+    while (isJoin(tokens[next])) next++;
+    const further = next > after ? memberAt(tokens, next, people) : null;
+    if (!further) break;
+    after = next + further.length;
+  }
+  const previous = tokens[i - 1] ?? "";
+  const lastNamed = [...atoms].reverse().find((a) => a.kind !== "join" && a.kind !== "filler");
+  const continuesList = isJoin(tokens[i - 1]) && lastNamed?.kind === "member";
+  const strong = ["did", "does", "do", "has", "had"].includes(previous) || SPEND.has(tokens[after] ?? "") || PURCHASE.has(tokens[after] ?? "") || continuesList;
+  const weak = previous === "for" || previous === "of";
+  if (strong) return atom;
+  if (excluding) return atom;
+  const monthWord = named.length === 1 && MONTHS.includes(tokens[i]);
+  const thing = entities.find((e) => e.kind !== "legacy" && !RESERVED_START.has(e.parts[0]) && e.parts.length === named.length && e.parts.every((part, k) => tokens[i + k] === part));
+  if (monthWord || thing) {
+    if (monthWord || NOT_A_PERSON_AFTER.has(previous)) return "other";
+    const kindWord = thing!.kind === "account" ? "an account" : "a category";
+    const person = [...tokens.slice(0, i), "did", text, "spend", ...tokens.slice(i + named.length)].join(" ");
+    const entity = [...tokens.slice(0, i), `"${text}"`, ...tokens.slice(i + named.length)].join(" ");
+    const options: Option[] = [
+      { label: `${named.member.name}, a family member`, question: person },
+      { label: `${thing!.name}, ${kindWord}`, question: entity },
+    ];
+    return {
+      status: "clarify",
+      reason: `"${titleCase([text])}" is the name of a family member and also of ${kindWord}. Which one did you mean? Nothing has been added up yet.`,
+      ...periodComplete(options, tokens, context),
+    };
+  }
+  const store = resolveVendor(text, context.merchants ?? [], false);
+  // After on/at/from the name is the store when one starts with it; only the stores are offered then, never the person.
+  if (NOT_A_PERSON_AFTER.has(previous) && store.status !== "none") return vendorAtom(tokens, i, named.length, false, context);
+  if (weak) return atom;
+  if (store.status === "none") return atom;
+  const storeChoices =
+    store.status === "matched"
+      ? [{ label: titleCase(vendorWordsOf(store.names[0])), term: vendorWordsOf(store.names[0]).join(" ") }]
+      : store.choices.map((c) => ({ label: titleCase(c.label.toLowerCase().split(" ")), term: c.term }));
+  const options: Option[] = [
+    { label: `${named.member.name}, a family member`, question: [...tokens.slice(0, i), "did", text, "spend", ...tokens.slice(i + named.length)].join(" ") },
+    ...storeChoices.map((choice) => ({ label: choice.label, question: [...tokens.slice(0, i), `"${choice.term}"`, ...tokens.slice(i + named.length)].join(" ") })),
+  ];
+  return {
+    status: "clarify",
+    reason: `"${titleCase([text])}" could be a family member or a store. Which one did you mean? Nothing has been added up yet.`,
+    ...periodComplete(options, tokens, context),
+  };
+}
+
+/** The words of a recorded description that name the store: those before the first one holding a digit (a store number). */
+function vendorWordsOf(description: string): string[] {
+  const words = description.toLowerCase().replace(/['\u2019]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").split(" ").filter(Boolean);
+  const end = words.findIndex((w) => /\d/.test(w));
+  return (end > 0 ? words.slice(0, end) : words).slice(0, 6);
+}
+
+/** "How much did Taylor spend": a name after "did" and before a spending word that is nobody and no store is a stop, never a guess. */
+function unknownMember(tokens: string[], i: number, context: ParseContext, people: AskFamilyMember[]): ParseOutcome | null {
+  const w = tokens[i];
+  if (!/^\p{L}{2,}$/u.test(w) || !["did", "does", "do", "has", "had"].includes(tokens[i - 1] ?? "")) return null;
+  // The name may start a list ("taylor and sam spend"): look past the joined names to the spending word.
+  let after = i + 1;
+  while (isJoin(tokens[after]) && tokens[after + 1] !== undefined) after += 2;
+  if (!SPEND.has(tokens[after] ?? "")) return null;
+  if (isStructural(tokens, i, context) || resolveVendor(w, context.merchants ?? [], true).status !== "none") return null;
+  if (people.length === 0) return unsupported("No family members are set up yet, so I can't tell whose spending to add up. Add your family members first, then ask again.");
+  return unsupported(`There is no family member called ${titleCase([w])}. Your family members are ${listNames(people.map((m) => m.name))}.`);
+}
+
+/**
+ * Categories or accounts whose names differ only in the apostrophe ("John's Card", "John’s Card") read the same once typed, so a
+ * question that names one cannot say which: stop instead of choosing, quoted or not.
+ */
+function lookalikeNames(tokens: string[], entities: Entity[]): ParseOutcome | null {
+  const groups = new Map<string, Entity[]>();
+  for (const entity of entities) {
+    if (entity.kind === "legacy") continue;
+    const key = entity.parts.join(" ");
+    groups.set(key, [...(groups.get(key) ?? []), entity]);
+  }
+  for (const [key, group] of groups) {
+    if (new Set(group.map((e) => e.name)).size < 2) continue;
+    const parts = group[0].parts;
+    const named = tokens.some(
+      (t, i) => (t.startsWith('"') && nameTokens(t.slice(1, -1)).join(" ") === key) || (!t.startsWith('"') && parts.every((part, k) => tokens[i + k] === part)),
+    );
+    if (named) {
+      const names = [...new Set(group.map((e) => `"${e.name}"`))];
+      return unsupported(`Two of your names, ${listNames(names)}, look the same when typed, so I can't tell which one you mean. Rename one of them and ask again.`);
+    }
+  }
+  return null;
+}
+
+function scan(tokens: string[], context: ParseContext, selected: AskMemberSelection[]): { atoms: Atom[]; corrections: Correction[] } | ParseOutcome {
   const entities = buildEntities(context);
+  const lookalike = lookalikeNames(tokens, entities);
+  if (lookalike) return lookalike;
+  const people = context.familyMembers;
   const atoms: Atom[] = [];
   const corrections: Correction[] = [];
   const display = (from: number, count: number) => tokens.slice(from, from + count).join(" ");
@@ -237,7 +527,7 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
   // After a store, further names in a list (", sams club and target") may be written without "at".
   let vendorList = false;
   const add = (atom: Atom) => {
-    const named = atom.kind === "category" || atom.kind === "account" || atom.kind === "vendor" || atom.kind === "legacy-entity";
+    const named = atom.kind === "category" || atom.kind === "account" || atom.kind === "vendor" || atom.kind === "legacy-entity" || atom.kind === "member";
     if (named) atom = { ...atom, excluded: excluding } as Atom;
     if (["period", "threshold", "spend", "total", "rank", "compare"].includes(atom.kind)) excluding = false;
     vendorList = atom.kind === "vendor" ? true : atom.kind === "filler" || atom.kind === "join" ? vendorList : false;
@@ -259,8 +549,8 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
     const w = tokens[i];
 
     if (w.startsWith('"')) {
-      const name = w.slice(1, -1);
-      const hit = entities.find((e) => e.name.toLowerCase() === name);
+      const name = nameTokens(w.slice(1, -1)).join(" ");
+      const hit = entities.find((e) => e.parts.join(" ") === name);
       if (hit) {
         add(entityAtom(hit, w));
         i++;
@@ -271,6 +561,52 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
       add(quotedVendor);
       i++;
       continue;
+    }
+
+    if (people !== undefined) {
+      const phrase = versionTwoPhrase(tokens, i);
+      const span = phrase ? storeSpanAt(tokens, i, context, NOT_A_PERSON_AFTER.has(tokens[i - 1] ?? "")) : 0;
+      if (phrase && span) {
+        // "Monthly Market", "Average Joes": the words are the start of a recorded store's name. After on/at/from it is the store;
+        // with no cue it could be a request followed by a shorter store name, so ask.
+        if (NOT_A_PERSON_AFTER.has(tokens[i - 1] ?? "")) {
+          const found = vendorAtom(tokens, i, span, false, context, true);
+          if ("status" in found) return found;
+          add(found);
+          i += span;
+          continue;
+        }
+        const storeWords = tokens.slice(i, i + span);
+        const rest = tokens.slice(i + phrase.consume, i + span);
+        const options: Option[] = [
+          { label: titleCase(storeWords), question: [...tokens.slice(0, i), `"${storeWords.join(" ")}"`, ...tokens.slice(i + span)].join(" ") },
+          rest.length > 0
+            ? {
+                label: `"${titleCase(tokens.slice(i, i + phrase.consume))}" as a request, then the store "${titleCase(rest)}"`,
+                question: [...tokens.slice(0, i), ...tokens.slice(i, i + phrase.consume), "at", `"${rest.join(" ")}"`, ...tokens.slice(i + span)].join(" "),
+              }
+            : {
+                label: `"${titleCase(storeWords)}" as a request, not a store`,
+                question: ["spending", ...tokens].join(" "),
+              },
+        ];
+        return {
+          status: "clarify",
+          reason: `"${titleCase(storeWords)}" is the name of a store, and "${titleCase(tokens.slice(i, i + phrase.consume))}" is also a word I understand. Which did you mean? Nothing has been added up yet.`,
+          ...periodComplete(options, tokens, context),
+        };
+      }
+      if (phrase) {
+        add(phrase.atom);
+        i += phrase.consume;
+        continue;
+      }
+      // "over the past 6 months" reads as a period, not as an amount: "over" only means more-than before an amount.
+      if (w === "over" && ["the", "past", "last", "this", "from"].includes(tokens[i + 1] ?? "")) {
+        add({ kind: "filler", text: w });
+        i++;
+        continue;
+      }
     }
 
     const excluder =
@@ -290,6 +626,8 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
       if (tokens[j]?.startsWith('"')) {
         quoted = true;
         end = j + 1;
+      } else if (storeSpanAt(tokens, j, context, true) || longestStore(tokens, j, context) > 1) {
+        end = j + (storeSpanAt(tokens, j, context, true) || longestStore(tokens, j, context));
       } else {
         while (end < tokens.length && end - j < 5 && !isStructural(tokens, end, context)) end++;
       }
@@ -308,6 +646,39 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
       continue;
     }
 
+    if (people !== undefined) {
+      let named = memberAt(tokens, i, people);
+      let occurrence = 0;
+      if (named?.alternatives) {
+        const key = nameTokens(named.member.name).join(" ");
+        occurrence = atoms.filter(atom => atom.kind === "member" && nameTokens(atom.name).join(" ") === key).length;
+        const chosen = named.alternatives.find(member => selected.some(choice => choice.id === member.id && choice.occurrence === occurrence));
+        if (chosen) named = { member: chosen, length: named.length };
+      }
+      // A longer category or account name that starts with the same words wins ("sam card").
+      const longer = named && entities.some((e) => e.kind !== "legacy" && e.parts.length > named.length && e.parts.every((part, k) => tokens[i + k] === part));
+      if (named && !longer) {
+        const decided = memberAtom(tokens, i, named, atoms, context, people, excluding, entities);
+        if (decided !== "other") {
+          if ("status" in decided) return decided;
+          if (named.alternatives) {
+            if (named.alternatives.length > MAX_CHOICES || new Set(named.alternatives.map(m => m.name)).size !== named.alternatives.length)
+              return unsupported("These family members cannot be distinguished by name. Give them distinct names and ask again.");
+            return {
+              status: "clarify",
+              reason: "These family member names look alike. Whose spending do you mean?",
+              choices: named.alternatives.map(member => `${member.name}${member.name.includes("’") ? " (curved apostrophe)" : member.name.includes("'") ? " (straight apostrophe)" : ""}`),
+              replacements: named.alternatives.map(member => [...tokens.slice(0, i), member.name, ...tokens.slice(i + named.length)].join(" ")),
+              memberSelections: named.alternatives.map(member => [...selected, { ...member, occurrence }]),
+            };
+          }
+          add(decided);
+          i += named.length;
+          continue;
+        }
+      }
+    }
+
     // A misspelled name of two or more words ("cash wallt") is that name, not its first word taken as something older.
     const spelled = fuzzyMatches(tokens, i, entities).filter((m) => m.consume > 1 && m.entity.kind !== "legacy");
     if (spelled.length) {
@@ -317,7 +688,7 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
         const { entity, consume } = best[0];
         const text = display(i, consume);
         add(entityAtom(entity, text));
-        if (text !== entity.name.toLowerCase()) corrections.push({ from: text, to: entity.name });
+        if (text !== entity.parts.join(" ")) corrections.push({ from: text, to: entity.name });
         i += consume;
         continue;
       }
@@ -328,6 +699,11 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
       add(entityAtom(exact, display(i, exact.parts.length)));
       i += exact.parts.length;
       continue;
+    }
+
+    if (people !== undefined) {
+      const stranger = unknownMember(tokens, i, context, people);
+      if (stranger) return stranger;
     }
 
     const under = UNDER.find((p) => startsWithPhrase(tokens, i, p) && normalizeAmount(tokens[i + p.length] ?? "") !== null);
@@ -389,7 +765,7 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
       continue;
     }
 
-    if (LEGACY_WORDS.has(w)) {
+    if (LEGACY_WORDS.has(w) && !(people !== undefined && (w === "average" || w === "avg"))) {
       add({ kind: "legacy", text: w });
       i++;
       continue;
@@ -413,7 +789,7 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
     const order = [...context.categories, ...context.accounts.map((a) => a.name), ...(context.members ?? [])];
     const names = [...new Set(candidates.map((m) => m.entity.name))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
     // In a list of stores, a slip that is close to both a store and a category is a question, not a guess.
-    if ((vendorList || excluding) && candidates.length > 0 && candidates.every((m) => display(i, m.consume) !== m.entity.name.toLowerCase() && !m.entity.parts[0].startsWith(w))) {
+    if ((vendorList || excluding) && candidates.length > 0 && candidates.every((m) => display(i, m.consume) !== m.entity.parts.join(" ") && !m.entity.parts[0].startsWith(w))) {
       const span = storeSuggestionSpan(i);
       const stores = span > 0 ? vendorAtom(tokens, i, span, false, context) : null;
       if (stores && "status" in stores && stores.status === "clarify" && stores.replacements) {
@@ -440,7 +816,7 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
       const { entity, consume } = candidates[0];
       const text = display(i, consume);
       add(entityAtom(entity, text));
-      if (entity.kind !== "legacy" && text !== entity.name.toLowerCase()) corrections.push({ from: text, to: entity.name });
+      if (entity.kind !== "legacy" && text !== entity.parts.join(" ")) corrections.push({ from: text, to: entity.name });
       i += consume;
       continue;
     }
@@ -494,6 +870,7 @@ function unknownReason(word: string): string {
   if (NEGATION.has(word)) return "I can't leave things out of a question yet. Ask about everything in a category, or name the one thing you want.";
   if (word === "before" || word === "after") return 'I can only use a start and an end date, like "from June 1 to June 30", not "before" or "after".';
   if (FORECAST.has(word)) return "I can only answer about money that has already been recorded. I can’t predict the future yet.";
+  if (word === "share" || word === "portion" || word === "proportion" || word === "fraction") return "I can't work out a share or percent of your spending yet. Ask for the totals and I'll add them up.";
   if (word === "%" || word === "percentage" || word === "percent" || word === "discount") return "I can't work with percentages or discounts in a question yet.";
   if (CHANGES.has(word)) return "Asking a question can't change your data. Use the buttons in the app to make changes.";
   return `I don't understand "${word}" yet. Try a category name, a time period like "last month", or something like "top 3".`;
@@ -501,19 +878,84 @@ function unknownReason(word: string): string {
 
 const listNames = (names: string[]) => (names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
 
-export function parseQuestion(question: string, context: ParseContext): ParseOutcome {
+type Clarification = Extract<ParseOutcome, { status: "clarify" }>;
+const MAX_CHOICES = 12;
+
+/**
+ * In the family-aware grammar a clarification is closed: a choice that would itself ask another question is replaced by that
+ * question's own choices (labels joined), so tapping any choice gives an answer. Left as it is when that would be too many choices.
+ */
+function closeChoices(outcome: Clarification, context: ParseContext, selected: AskMemberSelection[], depth = 0): Clarification {
+  if (!outcome.replacements || depth >= 3) return outcome;
+  const choices: string[] = [];
+  const replacements: string[] = [];
+  const memberSelections: AskMemberSelection[][] = [];
+  outcome.replacements.forEach((replacement, k) => {
+    const bindings = outcome.memberSelections?.[k] ?? selected;
+    const next = parseOnce(replacement, context, bindings);
+    if (next.status === "clarify" && next.replacements?.length) {
+      const inner = closeChoices(next, context, bindings, depth + 1);
+      inner.choices.forEach((choice, n) => {
+        choices.push(`${outcome.choices[k]}, ${choice}`);
+        replacements.push(inner.replacements![n]);
+        memberSelections.push(inner.memberSelections?.[n] ?? bindings);
+      });
+    } else {
+      choices.push(outcome.choices[k]);
+      replacements.push(replacement);
+      memberSelections.push(bindings);
+    }
+  });
+  return choices.length > MAX_CHOICES ? outcome : { ...outcome, choices, replacements, ...(memberSelections.some(m => m.length) ? { memberSelections } : {}) };
+}
+
+/**
+ * Every choice offered must itself be a question that can be answered. A choice that would only lead to a stop is dropped; when no
+ * choice is left, the question stops with the reason the choices would have given.
+ */
+function onlyAnswerable(outcome: Clarification, context: ParseContext, selected: AskMemberSelection[]): ParseOutcome {
+  if (!outcome.replacements) return outcome;
+  const kept: { choice: string; replacement: string; members: AskMemberSelection[] }[] = [];
+  let stop: ParseOutcome | undefined;
+  outcome.replacements.forEach((replacement, k) => {
+    const members = outcome.memberSelections?.[k] ?? selected;
+    const next = parseOnce(replacement, context, members);
+    if (next.status === "query") kept.push({ choice: outcome.choices[k], replacement, members });
+    else stop ??= next;
+  });
+  if (kept.length === outcome.replacements.length) return outcome;
+  if (kept.length > 0) return { ...outcome, choices: kept.map((k) => k.choice), replacements: kept.map((k) => k.replacement), ...(kept.some(k => k.members.length) ? {memberSelections:kept.map(k=>k.members)} : {}) };
+  return stop?.status === "unsupported" ? stop : unsupported("That could mean several things. Name the store, person and time period you want, and ask again.");
+}
+
+export function parseQuestion(question: string, context: ParseContext, selected: AskMemberSelection[] = []): ParseOutcome {
+  const outcome = parseOnce(question, context, selected);
+  return outcome.status === "clarify" && context.familyMembers !== undefined ? onlyAnswerable(closeChoices(outcome, context, selected), context, selected) : outcome;
+}
+
+function parseOnce(question: string, context: ParseContext, selected: AskMemberSelection[] = []): ParseOutcome {
+  if (selected.some(member => !Number.isSafeInteger(member.occurrence) || member.occurrence < 0 || !context.familyMembers?.some(known => known.id === member.id && known.name === member.name)) ||
+      new Set(selected.map(member => `${nameTokens(member.name).join(" ")}:${member.occurrence}`)).size !== selected.length)
+    return unsupported("The family member choices changed. Ask again using the current family member list.");
   if ([...question].length > MAX_QUESTION_CHARS) return unsupported("That question is too long. Keep it under 512 characters.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(context.today)) return unsupported("The app could not read today's date.");
 
   const tokens = stripBookends(tokenize(question));
   const base = tokens.join(" ");
-  const scanned = scan(tokens, context);
+  const scanned = scan(tokens, context, selected);
   if ("status" in scanned) return scanned;
   const { atoms, corrections } = scanned;
   const of = <K extends Atom["kind"]>(kind: K) => atoms.filter((a): a is Extract<Atom, { kind: K }> => a.kind === kind);
   const has = (kind: Atom["kind"]) => atoms.some((a) => a.kind === kind);
 
   const wanted = <T extends { excluded?: boolean }>(list: T[]) => list.filter((a) => !a.excluded);
+  /** The question with its period phrase swapped for another, dropping a leftover "over", "for" or "in" in front of it. */
+  const swapPeriod = (text: string, replacement: string) => {
+    const at = base.indexOf(text);
+    if (at < 0) return base;
+    const before = base.slice(0, at).replace(/\s*\b(?:over|for|in)\s*$/, "");
+    return `${before} ${replacement} ${base.slice(at + text.length)}`.replace(/\s+/g, " ").trim();
+  };
   const unwanted = <T extends { excluded?: boolean }>(list: T[]) => list.filter((a) => a.excluded);
   const unique = (names: string[]) => [...new Set(names)];
   const categories = unique(wanted(of("category")).map((a) => a.name));
@@ -549,7 +991,70 @@ export function parseQuestion(question: string, context: ParseContext): ParseOut
   const periods = of("period");
   const thresholds = of("threshold");
   const numbers = of("number");
-  if (categories.length > 1) return unsupported("I can only look at one category at a time for now.");
+  const version2 = context.familyMembers !== undefined;
+  const memberAtoms = of("member");
+  const members = [...new Map(memberAtoms.map((a) => [a.id, a])).values()];
+  if (unwanted(memberAtoms).length) return unsupported("I can't leave a family member out of a question yet. Name the people you want instead.");
+  const unassigned = has("unassigned");
+  const byMember = has("by-member");
+  const monthly = of("monthly");
+  const wantsAverage = has("average");
+  const cadences = of("other-cadence");
+  const sameDays = of("same-days");
+
+  if (cadences.length) {
+    const unit = cadences[0].unit;
+    if (wantsAverage && (unit === "day" || unit === "week")) {
+      return unsupported(`Averages per ${unit} aren't available yet. I can average per month or per purchase.`);
+    }
+    return unsupported(`I can only break spending down by month for now, not by ${unit}. Try "by month".`);
+  }
+  if (wantsAverage && byMember) return unsupported("An average can't be split by family member yet. Ask for the average on its own, or the totals for each family member.");
+  if (byMember && monthly.length) return unsupported("I can show one breakdown at a time: by month or by family member, not both together.");
+
+  const groupBy: AskGroupBy = byMember ? "member" : monthly.length && (!wantsAverage || monthly.some((m) => m.group)) ? "month" : "none";
+  let average: AskAverageKind = "none";
+  if (wantsAverage) {
+    const at = tokens.findIndex((t) => t === "average" || t === "avg" || t === "averages");
+    const askWhich = (options: Option[]) =>
+      ({ status: "clarify", reason: 'The word "average" can mean two different things here. Which one do you want?', ...periodComplete(options, tokens, context) }) as ParseOutcome;
+    if (monthly.length && has("purchase")) {
+      // "Average monthly purchase": a per-purchase average, or a monthly one? Either way part of the wording would be dropped, so ask.
+      const cadence = monthly[0].text.split(" ");
+      const gap = tokens.findIndex((_, k) => cadence.every((word, n) => tokens[k + n] === word));
+      const without = [...tokens.slice(0, gap), ...tokens.slice(gap + cadence.length)].join(" ");
+      const purchaseWord = atoms.find((a) => a.kind === "purchase")!.text;
+      const spending = tokens.map((t) => (t === purchaseWord ? "spending" : t)).join(" ");
+      return askWhich([
+        { label: "Per purchase", question: without },
+        { label: "Per month", question: spending },
+      ]);
+    }
+    if (monthly.length) average = "per-month";
+    else if (has("purchase")) average = "per-purchase";
+    else {
+      const reword = (extra: string) => [...tokens.slice(0, at + 1), extra, ...tokens.slice(at + 1)].join(" ");
+      return askWhich([
+        { label: "Per purchase", question: reword("purchase") },
+        { label: "Per month", question: reword("monthly") },
+      ]);
+    }
+  }
+  const wantsRankNow = has("rank");
+  const wantsCompareNow = has("compare");
+  if ((groupBy !== "none" || average !== "none") && (wantsRankNow || wantsCompareNow)) {
+    return unsupported(
+      wantsCompareNow
+        ? "Breakdowns and averages don't combine with comparisons yet. Compare the totals, or ask for the month-by-month lines on their own."
+        : "Breakdowns and averages don't combine with rankings yet. Ask for the ranking, or for the breakdown, on its own.",
+    );
+  }
+  if (sameDays.length && !wantsCompareNow) return unsupported('Comparing "the same days" only works in a comparison, like "compare groceries this month to the same days last month".');
+  if (sameDays.length > 1) return unsupported("Name the same days once.");
+  if (categories.length > 1 && !version2) return unsupported("I can only look at one category at a time for now.");
+  if (accounts.length + categories.length + excludedCategories.length + members.length > 20) {
+    return unsupported("That names more than 20 accounts, categories and family members at once. Choose 20 or fewer.");
+  }
   if (accounts.length > 1) return unsupported("I can only look at one account at a time for now.");
   if (thresholds.length > 1) return unsupported("I can only use one amount filter at a time.");
   if (vendors.length > MAX_STORES || excludedVendors.length > MAX_STORES) return unsupported("That is too many stores for one question. Choose ten or fewer.");
@@ -576,8 +1081,13 @@ export function parseQuestion(question: string, context: ParseContext): ParseOut
     const mostOn = most && has("spend") && atoms.some((a) => a.kind === "filler" && a.text === "on");
     if (plural || singularCategory || mostOn) kind = "rank-categories";
     else if (purchaseWord) kind = "rank-purchases";
-    else return clarify("Do you want the biggest categories or the biggest individual purchases?", ["Categories", "Purchases"], [`${base} categories`, `${base} purchases`]);
-    if (kind === "rank-categories" && category) return unsupported("A ranking of categories can't be limited to one category. Name a category to see its purchases instead.");
+    else {
+      // Propose an explicit count rather than expanding 2 kinds × 3 counts × 3 dates beyond the choice limit.
+      const proposeFive = context.familyMembers !== undefined && !numbers.length && !most;
+      const question = proposeFive ? `${base} 5` : base;
+      return clarify("Do you want the biggest categories or the biggest individual purchases?", proposeFive ? ["Top 5 categories", "Top 5 purchases"] : ["Categories", "Purchases"], [`${question} categories`, `${question} purchases`]);
+    }
+    if (kind === "rank-categories" && categories.length === 1) return unsupported("A ranking of categories can't be limited to one category. Name a category to see its purchases instead.");
     if (numbers.length > 1) return unsupported("Use one number for how many results to show.");
     if (numbers.length === 1) limit = numbers[0].value;
     else if (most || singularCategory || (purchaseWord && !purchaseWord.text.endsWith("s"))) limit = 1;
@@ -585,12 +1095,14 @@ export function parseQuestion(question: string, context: ParseContext): ParseOut
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LIMIT) return unsupported("Choose between 1 and 50 results.");
   } else if (wantsCompare) {
     kind = "compare";
-    if (numbers.length || thresholds.length) return unsupported("A comparison can't use an amount filter or a count yet.");
+    if (numbers.length) return unsupported("A comparison can't use a result count. Name two time periods to compare.");
+    if (!version2 && thresholds.length) return unsupported("A comparison can't use an amount filter yet.");
     if (has("plural-categories")) return unsupported("A comparison can't rank categories yet.");
   } else {
     kind = "total";
     const understood =
-      has("spend") || has("total") || category !== null || accounts.length > 0 || thresholds.length > 0 || vendors.length > 0 || anyLeftOut;
+      has("spend") || has("total") || category !== null || accounts.length > 0 || thresholds.length > 0 || vendors.length > 0 || anyLeftOut ||
+      members.length > 0 || unassigned || groupBy !== "none" || average !== "none";
     if (!understood && has("purchase")) {
       return unsupported('To see your transactions, open the Transactions tab. Or ask for a total, like "how much did I spend last month", or the biggest ones, like "top 5 purchases last month".');
     }
@@ -605,8 +1117,9 @@ export function parseQuestion(question: string, context: ParseContext): ParseOut
     }
   }
 
-  const wantedPeriods = kind === "compare" ? 2 : 1;
+  const wantedPeriods = kind === "compare" && !sameDays.length ? 2 : 1;
   const resolved = periods.map((p) => p.period);
+  let alignment: AskAlignment = "as-requested";
   if (resolved.length === 0 && vendors.length > 0 && kind !== "compare" && context.historyStart) {
     resolved.push({ from: context.historyStart, to: context.today, label: "all your records", soFar: false, allRecords: true });
   }
@@ -615,14 +1128,63 @@ export function parseQuestion(question: string, context: ParseContext): ParseOut
     return clarify("Which time period should I use?", options ? ["Last month", "This month so far", "This year so far"] : [], options);
   }
   if (resolved.length !== wantedPeriods) {
+    if (sameDays.length) return unsupported('Name one time period and say "the same days last month" (or last year) for the other, like "compare groceries this month to the same days last month".');
     return unsupported(wantedPeriods === 2 ? "Name two time periods to compare." : "Ask about one time period, or use \"compare\" to look at two.");
   }
+  if (sameDays.length) {
+    alignment = sameDays[0].alignment;
+    const first = resolved[0];
+    const earlier = alignedPrior({ from: first.from, to: first.to }, alignment);
+    if (earlier === null) {
+      return unsupported(
+        alignment === "same-days-previous-month"
+          ? 'To compare the same days of the month before, start with one calendar month, like "this month so far" or "February".'
+          : "I couldn't work out the same days a year earlier for that period.",
+      );
+    }
+    if (sameDays[0].month !== undefined && Number(earlier.range.from.slice(5, 7)) !== sameDays[0].month) {
+      return unsupported("The same days have to be in the month right before the first one. Name that month, or say \"last month\".");
+    }
+    resolved.push({ from: earlier.range.from, to: earlier.range.to, label: alignment === "same-days-previous-month" ? "the same days in the month before" : "the same days a year earlier", soFar: false });
+  }
 
-  const request: AskVaultRequest = {
+  // A month-by-month answer is at most 50 lines; a longer range is a question, because the lines must add back to the total.
+  const monthLines = groupBy === "month" || average === "per-month";
+  if (monthLines && periods.length === 1 && monthsTouching(resolved[0]).length > 50) {
+    const text = periods[0].text;
+    const shorter = (replacement: string) => swapPeriod(text, replacement);
+    return clarify(
+      "That would be more than 50 months, which is too many lines to show without leaving some out. Which range should I use?",
+      ["The last 12 months", "The last 4 years"],
+      [shorter("the past 12 months"), shorter("the past 4 years")],
+    );
+  }
+  // "The past 3 months" starts part-way through a month, and only whole months can be averaged.
+  const rolling = /^the past (\d+) (month|year)s?$/.exec(periods[0]?.period.label ?? "");
+  if (average === "per-month" && rolling && periods.length === 1) {
+    const count = Number(rolling[1]) * (rolling[2] === "year" ? 12 : 1);
+    const today = context.today;
+    const thisMonth = { y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) };
+    const startIndex = thisMonth.y * 12 + (thisMonth.m - 1) - count;
+    const start = isoDate(Math.floor(startIndex / 12), (startIndex % 12) + 1, 1);
+    const endIndex = thisMonth.y * 12 + (thisMonth.m - 1) - 1;
+    const end = isoDate(Math.floor(endIndex / 12), (endIndex % 12) + 1, daysInMonth(Math.floor(endIndex / 12), (endIndex % 12) + 1));
+    const text = periods[0].text;
+    const using = (from: string, to: string) => swapPeriod(text, `from ${from} to ${to}`);
+    return clarify(
+      "Only whole months can be averaged, and that range starts part-way through a month. Which one do you want?",
+      [`The ${count} whole months before this one`, `Exactly ${periods[0].period.label}, as asked`],
+      [using(start, end), using(periods[0].period.from, periods[0].period.to)],
+    );
+  }
+
+  const needsVersion2 =
+    version2 && (categories.length > 1 || members.length > 0 || unassigned || groupBy !== "none" || average !== "none" || alignment !== "as-requested");
+  const plain: AskVaultRequest = {
     kind,
     periods: resolved.map(({ from, to }) => ({ from, to })),
     accountIds,
-    categories: category ? [category] : [],
+    categories: needsVersion2 ? categories : category ? [category] : [],
     minimumPurchase,
     vendors: vendors.map((v) => v.term),
     excludeVendors: excludedVendors.map((v) => v.term),
@@ -630,6 +1192,9 @@ export function parseQuestion(question: string, context: ParseContext): ParseOut
     limit: limit ?? 1,
     expectedRevision: null,
   };
+  const request: AskVaultRequest | AskVaultRequestV2 = needsVersion2
+    ? { ...plain, contractVersion: 2, members: { ids: members.map((m) => m.id), unassigned }, groupBy, average, alignment }
+    : plain;
   const interpretation: Interpretation = {
     kind,
     category,
@@ -641,6 +1206,9 @@ export function parseQuestion(question: string, context: ParseContext): ParseOut
     minimumPurchase,
     limit,
     earliestRecord: context.historyStart ?? null,
+    ...(needsVersion2
+      ? { categories, members: [...members.map((m) => m.name), ...(unassigned ? ["purchases not assigned to anyone"] : [])], groupBy, average, alignment }
+      : {}),
   };
   void listNames;
   return { status: "query", request, interpretation, corrections };

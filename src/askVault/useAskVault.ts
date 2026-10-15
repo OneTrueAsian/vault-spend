@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createFinancialClient } from "../financialReads";
-import { askVault, explainFailure, type AskVaultResult } from "./controller";
+import { askVault, explainFailure, purchaseDetailsRequest, type AskVaultResult } from "./controller";
 import type { AskPurchaseRow } from "./contract";
-import type { ParseContext } from "./types";
+import type { AskClarification, AskMemberSelection, ParseContext } from "./types";
 
 type Client = ReturnType<typeof createFinancialClient>;
 export type LegacyAnswer = { matched: boolean; answer: string };
@@ -11,7 +11,7 @@ export type AskVaultView =
   | { status: "idle" }
   | { status: "loading"; question: string }
   | { status: "answer"; question: string; result: Extract<AskVaultResult, { status: "answer" }> }
-  | { status: "clarify"; question: string; reason: string; choices: string[]; replacements?: string[] }
+  | (AskClarification & { question: string })
   | { status: "unsupported"; question: string; reason: string }
   | { status: "legacy"; question: string; matched: boolean; answer: string }
   | { status: "stale"; question: string; message: string }
@@ -23,7 +23,6 @@ export type AskVaultDetails =
   | { status: "ready"; rows: AskPurchaseRow[]; purchaseCount: number }
   | { status: "error"; message: string };
 
-const DETAIL_ROWS = 50;
 const LEDGER_CHANGED = "Your ledger changed. Ask again using the current data.";
 
 /**
@@ -80,7 +79,7 @@ export function useAskVault({
 
   useEffect(() => {
     setView((current) => {
-      const showing = current.status === "answer" || current.status === "legacy";
+      const showing = current.status === "answer" || current.status === "legacy" || current.status === "clarify";
       if (!showing || answeredWith.current === dataKey) return current;
       return { status: "stale", question: current.question, message: LEDGER_CHANGED };
     });
@@ -126,9 +125,13 @@ export function useAskVault({
     if (current.status === "answer") verifyFresh(current.result);
   }, [reloadKey, verifyFresh]);
 
-  const ask = useCallback(async (raw: string) => {
+  const ask = useCallback(async (raw: string, selectedMembers: AskMemberSelection[] = []) => {
     const question = raw.trim();
     if (!question || !client.current) return;
+    if (selectedMembers.length && (shown.current.status !== "clarify" || answeredWith.current !== latest.current.dataKey)) {
+      setView({ status: "stale", question, message: LEDGER_CHANGED });
+      return;
+    }
     const request = ++tokens.sequence;
     tokens.detail++;
     tokens.check++;
@@ -140,8 +143,14 @@ export function useAskVault({
     // Let the "working" state reach the screen before the question is read: with a large ledger that work is not instant.
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     if (!alive.current || request !== tokens.sequence) return;
-    const outcome = await askVault(question, latest.current.getContext(), client.current);
+    const outcome = await askVault(question, latest.current.getContext(), client.current, selectedMembers);
     if (!alive.current || request !== tokens.sequence) return;
+    // Roster/name changes can leave the native ledger revision unchanged. Choices and answers
+    // must still belong to the Dashboard scope that asked the question.
+    if (latest.current.dataKey !== startedWith.dataKey) {
+      setView({ status: "stale", question, message: LEDGER_CHANGED });
+      return;
+    }
     switch (outcome.status) {
       case "answer":
         setView({ status: "answer", question, result: outcome });
@@ -154,7 +163,7 @@ export function useAskVault({
         return;
       }
       case "clarify":
-        setView({ status: "clarify", question, reason: outcome.reason, choices: outcome.choices, replacements: outcome.replacements });
+        setView({ ...outcome, question });
         return;
       case "unsupported":
         setView({ status: "unsupported", question, reason: outcome.reason });
@@ -174,13 +183,7 @@ export function useAskVault({
     const mine = ++tokens.detail;
     setDetails({ status: "loading" });
     try {
-      const reply = await client.current.askVault({
-        ...request,
-        kind: "rank-purchases",
-        periods: [request.periods[0]],
-        limit: DETAIL_ROWS,
-        expectedRevision: revision,
-      });
+      const reply = await client.current.askVault(purchaseDetailsRequest(request, revision));
       if (!alive.current || mine !== tokens.detail) return;
       setDetails({ status: "ready", rows: reply.periods[0].purchases, purchaseCount: reply.periods[0].purchaseCount });
     } catch (failure) {

@@ -84,14 +84,12 @@ function groupByBrand(names: string[]): Group[] {
   return groups;
 }
 
-function mostCommon(names: string[]): string {
-  const counts = new Map<string, number>();
-  for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
-  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+function mostCommon(names: string[], counts: ReadonlyMap<string, number>): string {
+  return [...names].sort((a, b) => counts.get(b)! - counts.get(a)! || a.localeCompare(b))[0];
 }
 
-function choiceFor(group: Group): VendorChoice {
-  return brandLabel(mostCommon(group.names));
+function choiceFor(group: Group, counts: ReadonlyMap<string, number>): VendorChoice {
+  return brandLabel(mostCommon(group.names, counts));
 }
 
 /**
@@ -105,15 +103,15 @@ export function resolveVendor(typed: string, descriptions: string[], wholeWords 
   const typedWords = vendorWords(typed);
   const { names, counts, words: nameWords } = prepare(descriptions);
   const wholeWordMatch = (words: string[]) => words.some((_, i) => typedWords.every((w, k) => words[i + k] === w));
-  // Repeats are kept (the commonest spelling labels a store), but each distinct name is matched once.
+  // Match and group each spelling once. Keep its frequency as a weight for the label, rather than
+  // expanding tens of thousands of repeated descriptions and tokenizing every purchase again.
   const matched = names
-    .filter((name) => startsAtAWord(nameWords.get(name)!, term) && (!wholeWords || wholeWordMatch(nameWords.get(name)!)))
-    .flatMap((name) => Array<string>(counts.get(name)!).fill(name));
+    .filter((name) => startsAtAWord(nameWords.get(name)!, term) && (!wholeWords || wholeWordMatch(nameWords.get(name)!)));
   if (wholeWords && matched.length === 0) return { status: "none", suggestions: [] };
   if (matched.length > 0) {
     const groups = groupByBrand(matched);
-    if (groups.length === 1) return { status: "matched", term: vendorWords(typed).join(" "), names: [...new Set(matched)] };
-    const choices = groups.map(choiceFor).sort((a, b) => a.label.localeCompare(b.label));
+    if (groups.length === 1) return { status: "matched", term: vendorWords(typed).join(" "), names: matched };
+    const choices = groups.map(group => choiceFor(group, counts)).sort((a, b) => a.label.localeCompare(b.label));
     return { status: "ambiguous", choices, bothTerm: vendorWords(typed).join(" ") };
   }
   const first = vendorWords(typed)[0];
@@ -123,8 +121,7 @@ export function resolveVendor(typed: string, descriptions: string[], wholeWords 
       .filter((name) => {
         const word = nameWords.get(name)![0];
         return word !== undefined && first.length >= 3 && distance(first, word.slice(0, first.length + 1)) <= tolerance;
-      })
-      .flatMap((name) => Array<string>(counts.get(name)!).fill(name)),
+      }),
   );
-  return { status: "none", suggestions: close.slice(0, MAX_SUGGESTIONS).map(choiceFor) };
+  return { status: "none", suggestions: close.slice(0, MAX_SUGGESTIONS).map(group => choiceFor(group, counts)) };
 }

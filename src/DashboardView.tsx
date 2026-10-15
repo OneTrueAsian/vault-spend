@@ -317,6 +317,7 @@ export function DashboardView({
       accounts: accounts.map((a) => ({ id: a.id, name: a.name })),
       merchants: askMerchants,
       members: familyMembers.map((m) => m.name),
+      familyMembers: familyMembers.map(({ id, name }) => ({ id, name })),
       historyStart: askHistoryStart,
     }),
     [askMerchants, askHistoryStart, categories, accounts, familyMembers],
@@ -327,7 +328,7 @@ export function DashboardView({
     [transactions, categories, accounts, buckets, recurring, avgMonthlySpend],
   );
   // An answer is retired only when the data it came from really changed, not on every reload of the list.
-  const askDataKey = useMemo(() => ledgerSignature(transactions), [transactions]);
+  const askDataKey = useMemo(() => JSON.stringify([ledgerSignature(transactions), familyMembers.map(({ id, name }) => [id, name])]), [transactions, familyMembers]);
   const accountNames = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
   const cashAccounts = useMemo(() => accounts.filter((a) => groupOf(a.account_type) === "cash"), [accounts]);
   const debtAccounts = useMemo(

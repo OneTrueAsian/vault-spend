@@ -67,3 +67,29 @@ export function formatMoney(value: string): string {
   const cents = text.slice(-2);
   return `${negative && abs !== 0n ? "-" : ""}$${whole}.${cents}`;
 }
+
+/** n / d rounded half away from zero, for d > 0. */
+function roundHalfAway(n: bigint, d: bigint): bigint {
+  const abs = n < 0n ? -n : n;
+  const q = (2n * abs + d) / (2n * d);
+  return n < 0n ? -q : q;
+}
+
+function fixed(units: bigint, decimals: number): string {
+  const negative = units < 0n;
+  const text = (negative ? -units : units).toString().padStart(decimals + 1, "0");
+  const body = decimals === 0 ? text : `${text.slice(0, text.length - decimals)}.${text.slice(text.length - decimals)}`;
+  return negative ? `-${body}` : body;
+}
+
+/** An exact amount divided by a whole number, shown to the cent and rounded half away from zero. `count` must be above zero. */
+export function averageToCents(amount: string, count: number): string {
+  const { units, scale } = parse(amount);
+  return fixed(roundHalfAway(units * 100n, 10n ** BigInt(scale) * BigInt(count)), 2);
+}
+
+/** (current - base) / |base| as a percentage with one decimal, rounded half away from zero. `base` must not be zero. */
+export function percentChangeTenths(current: string, base: string): string {
+  const [x, y] = align(current, base);
+  return fixed(roundHalfAway((x - y) * 1000n, y < 0n ? -y : y), 1);
+}

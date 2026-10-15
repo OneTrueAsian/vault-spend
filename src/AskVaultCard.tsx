@@ -5,7 +5,7 @@ import { ModalShell } from "./Modal";
 import { formatDisplayDate } from "./format";
 import { formatMoney } from "./askVault/money";
 import { useAskVault, type LegacyAnswer } from "./askVault/useAskVault";
-import type { Correction, Interpretation, ParseContext } from "./askVault/types";
+import type { AskMemberSelection, Correction, Interpretation, ParseContext } from "./askVault/types";
 import type { createFinancialClient } from "./financialReads";
 
 /** Questions shown as one-click suggestions when something could not be understood. */
@@ -19,7 +19,7 @@ const SUGGESTIONS = [
 const INLINE_ROWS = 5;
 const INLINE_CHOICES = 3;
 
-export const MORE_EXAMPLES = ["how much did I spend at Costco last month", "everything except rent last month"];
+export const MORE_EXAMPLES = ["how much did I spend at Costco last month", "everything except rent last month", "spending by month this year", "average purchase on groceries last month", "what did each family member spend last month"];
 
 /** The short phrases under the question that say what was understood, so a wrong reading is easy to spot. */
 function understoodChips(i: Interpretation): string[] {
@@ -28,9 +28,17 @@ function understoodChips(i: Interpretation): string[] {
   if (i.kind === "rank-purchases") chips.push(i.limit === 1 ? "Biggest purchase" : `Top ${i.limit} purchases`);
   if (i.kind === "compare") chips.push("Comparison");
   if (i.vendors.length) chips.push(`At ${i.vendors.join(", ")}`);
-  if (i.category) chips.push(i.category);
+  const categories = i.categories ?? (i.category ? [i.category] : []);
+  chips.push(...categories);
+  if (i.members?.length) chips.push(`For ${i.members.join(", ")}`);
+  if (i.groupBy === "member") chips.push("By family member");
+  if (i.groupBy === "month") chips.push("By month");
+  if (i.average === "per-purchase") chips.push("Average per purchase");
+  if (i.average === "per-month") chips.push("Average per recorded month");
+  if (i.alignment === "same-days-previous-month") chips.push("Same days of the previous month");
+  if (i.alignment === "same-days-previous-year") chips.push("Same dates of the previous year");
   if (i.accountName) chips.push(`On ${i.accountName}`);
-  if (!i.vendors.length && !i.category && !i.accountName && i.kind !== "rank-categories") chips.push("All spending");
+  if (!i.vendors.length && !categories.length && !i.accountName && !i.members?.length && i.kind !== "rank-categories") chips.push("All spending");
   for (const name of [...i.excludedVendors, ...i.excludedCategories]) chips.push(`Leaving out ${name}`);
   if (i.minimumPurchase) chips.push(`${i.minimumPurchase.inclusive ? "At least" : "Over"} ${formatMoney(i.minimumPurchase.amount)}`);
   for (const p of i.periods) chips.push(p.label);
@@ -43,7 +51,16 @@ function correctionLine(corrections: Correction[]): string | null {
   return `I read ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`}.`;
 }
 
-function AnswerRows({ rows }: { rows: { label: string; amount: string; detail: string }[] }) {
+function AnswerRows({ rows, label }: { rows: { label: string; amount: string; detail: string }[]; label?: string }) {
+  if (label) return (
+    <div className="modal-table-scroll">
+      <table className="ledger ledger-qa-breakdown" aria-label={label}>
+        <caption>{label}</caption>
+        <thead><tr><th scope="col">{label === "Spending by month" ? "Month" : label === "Spending by family member" ? "Family member" : label === "Compared periods" ? "Period" : label === "Spending by store" ? "Store" : "Category"}</th><th scope="col" className="amount-col">Recorded amount</th><th scope="col">Details</th></tr></thead>
+        <tbody>{rows.map((row,i) => <tr key={`${row.label}-${i}`}><th scope="row">{row.label}</th><td className="amount-col">{row.amount}</td><td>{row.detail}</td></tr>)}</tbody>
+      </table>
+    </div>
+  );
   return (
     <ol className="ledger-qa-rows">
       {rows.map((row, i) => (
@@ -112,6 +129,7 @@ export function AskVaultCard({
       request.excludeVendors.length === 0 &&
       request.excludeCategories.length === 0 &&
       request.minimumPurchase === null &&
+      (!("contractVersion" in request) || (request.members.ids.length === 0 && !request.members.unassigned)) &&
       request.periods.length === 1;
     return exact ? { category: request.categories[0], accountIds: request.accountIds, from: request.periods[0].from, to: request.periods[0].to } : null;
   })();
@@ -121,9 +139,9 @@ export function AskVaultCard({
     if (!question.trim()) return;
     void ask(question);
   }
-  function choose(next: string) {
+  function choose(next: string, members: AskMemberSelection[] = []) {
     setQuestion(next);
-    void ask(next);
+    void ask(next, members);
   }
 
   return (
@@ -143,7 +161,9 @@ export function AskVaultCard({
             Ask one thing at a time, using the category, account or store names you see elsewhere in the app. Add a time
             period like "this month," "last week," "July," "2026" or "the past 3 months." You can ask for a total, a top 3,
             or a comparison of two periods, name several stores ("at Meijer and Target"), or leave things out ("without
-            Costco," "except rent").
+            Costco," "except rent"). You can also name several categories or family members, ask for spending by month
+            or family member, or ask for an average per purchase or per recorded month. Add "same days last month" to
+            compare matching dates. Monthly averages leave out months without enough recording evidence.
           </p>
           <ul className="ledger-qa-examples">
             {[...LEDGER_QA_EXAMPLES, ...MORE_EXAMPLES].map((example) => (
@@ -178,9 +198,10 @@ export function AskVaultCard({
             <div className="ledger-qa-answer">
               <p className="ledger-qa-headline">{view.result.answer.headline}</p>
               <p className="ledger-qa-detail">{view.result.answer.detail}</p>
+              {view.result.answer.warnings?.map(warning => <p className="ledger-qa-caution" key={warning}>{warning}</p>)}
               {view.result.answer.rows.length > 0 && (
                 <>
-                  <AnswerRows rows={view.result.answer.rows.slice(0, INLINE_ROWS)} />
+                  <AnswerRows rows={view.result.answer.rows.slice(0, INLINE_ROWS)} label={view.result.answer.rowsLabel} />
                   {view.result.answer.rows.length > INLINE_ROWS && (
                     <div className="ledger-qa-actions">
                       <button type="button" className="modal-secondary" onClick={() => setAllRowsOpen(true)}>
@@ -190,6 +211,12 @@ export function AskVaultCard({
                   )}
                 </>
               )}
+              {view.result.answer.breakdowns?.map(section => (
+                <details className="ledger-qa-notes" key={section.heading}>
+                  <summary>{section.heading}</summary>
+                  <AnswerRows rows={section.rows} label={section.heading} />
+                </details>
+              ))}
               {view.result.interpretation.kind === "total" && view.result.purchaseCount > 0 && (
                 <div className="ledger-qa-actions">
                   <button ref={detailsButton} type="button" className="modal-secondary" onClick={() => void openDetails()}>
@@ -231,7 +258,7 @@ export function AskVaultCard({
             {view.choices.length > 0 && view.replacements ? (
               <div className="ledger-qa-choices" role="group" aria-label="Choose one">
                 {view.choices.slice(0, INLINE_CHOICES).map((choice, i) => (
-                  <button key={choice} type="button" onClick={() => choose(view.replacements![i])}>
+                  <button key={choice} type="button" onClick={() => choose(view.replacements![i], view.memberSelections?.[i])}>
                     {choice}
                   </button>
                 ))}
@@ -240,7 +267,7 @@ export function AskVaultCard({
                     <summary>More choices</summary>
                     <div className="ledger-qa-choices">
                       {view.choices.slice(INLINE_CHOICES).map((choice, i) => (
-                        <button key={choice} type="button" onClick={() => choose(view.replacements![INLINE_CHOICES + i])}>
+                        <button key={choice} type="button" onClick={() => choose(view.replacements![INLINE_CHOICES + i], view.memberSelections?.[INLINE_CHOICES + i])}>
                           {choice}
                         </button>
                       ))}
@@ -299,7 +326,7 @@ export function AskVaultCard({
             </button>
           }
         >
-          <AnswerRows rows={view.result.answer.rows} />
+          <AnswerRows rows={view.result.answer.rows} label={view.result.answer.rowsLabel} />
         </ModalShell>
       )}
 
@@ -328,6 +355,9 @@ export function AskVaultCard({
             </>
           }
         >
+          {view.status === "answer" && (view.result.request.kind === "compare" || view.result.interpretation.average === "per-month") && (
+            <p className="modal-message-secondary">These purchases cover {view.result.interpretation.periods[0].label} with the same filters. {view.result.request.kind === "compare" ? "Only the first compared period is listed here." : "The monthly average uses only the months marked as included, rather than every purchase in this list."}</p>
+          )}
           {details.status === "loading" && <p>Loading purchases…</p>}
           {details.status === "error" && <p role="alert">{details.message}</p>}
           {details.status === "ready" && (

@@ -41,6 +41,31 @@ const descriptions = [
 ];
 
 describe("resolving what a person typed", () => {
+  it("preserves frequency-weighted choices and distinct names on a 50,000-purchase ledger", () => {
+    const repeated = [
+      ...Array<string>(40_000).fill("SAMSCLUB.COM"),
+      ...Array<string>(500).fill("SAMS CLUB #9"),
+      ...Array<string>(5_000).fill("Samantha's Bakery"),
+      ...Array<string>(4_500).fill("SAMANTHAS CAFE"),
+    ];
+    expect(resolveVendor("sam", repeated)).toEqual({
+      status: "ambiguous", bothTerm: "sam",
+      choices: [{ label: "SAMANTHAS BAKERY", term: "samanthas bakery" }, { label: "SAMSCLUB COM", term: "samsclub com" }],
+    });
+    expect(resolveVendor("sams clb", repeated)).toEqual({ status: "none", suggestions: [{ label: "SAMSCLUB COM", term: "samsclub com" }] });
+    expect(resolveVendor("sams club", repeated)).toEqual({ status: "matched", term: "sams club", names: ["SAMSCLUB.COM", "SAMS CLUB #9"] });
+  });
+  it("breaks equally frequent spelling ties consistently, including typo suggestions", () => {
+    const tied = [...Array<string>(100).fill("SAMSCLUB.COM"), ...Array<string>(100).fill("SAMS CLUB #9"), "Samantha's Bakery"];
+    expect(resolveVendor("sam", tied)).toMatchObject({ status: "ambiguous", choices: [{ label: "SAMANTHAS BAKERY" }, { label: "SAMS CLUB" }] });
+    expect(resolveVendor("sams clb", tied)).toMatchObject({ status: "none", suggestions: [{ label: "SAMS CLUB" }] });
+  });
+  it("recomputes the commonest label for a changed description list", () => {
+    const original = [...Array<string>(10).fill("SAMSCLUB.COM"), "SAMS CLUB #9", "Samantha's Bakery"];
+    const changed = [...Array<string>(10).fill("SAMS CLUB #9"), "SAMSCLUB.COM", "Samantha's Bakery"];
+    expect(resolveVendor("sam", original)).toMatchObject({ status: "ambiguous", choices: [{ label: "SAMANTHAS BAKERY" }, { label: "SAMSCLUB COM" }] });
+    expect(resolveVendor("sam", changed)).toMatchObject({ status: "ambiguous", choices: [{ label: "SAMANTHAS BAKERY" }, { label: "SAMS CLUB" }] });
+  });
   it("one store written several ways is one match, with every name it covers", () => {
     const r = resolveVendor("sams club", descriptions);
     expect(r).toMatchObject({ status: "matched", term: "sams club" });

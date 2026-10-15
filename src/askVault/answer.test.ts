@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderAnswer } from "./answer";
 import type { AskVaultSnapshot } from "./contract";
+import type { AskPeriodResultV2, AskVaultSnapshotV2 } from "./contractV2";
 import type { Interpretation, ResolvedPeriod } from "./types";
 
 const aug: ResolvedPeriod = { from: "2026-08-01", to: "2026-08-31", label: "August 2026", soFar: false };
@@ -16,6 +17,105 @@ const snap = (over: Partial<AskVaultSnapshot> = {}): AskVaultSnapshot => ({
   contractVersion: 1, context: { generation: 1, sessionRevision: 1 }, revision: { local: 1, external: 1 }, asOf: "2026-09-06",
   kind: "total", spendingBasis: "gross-negative-allocations", thresholdBasis: "absolute-parent-amount",
   periods: [period()], difference: null, ...over,
+});
+
+const m2Period = (over: Partial<AskPeriodResultV2> = {}): AskPeriodResultV2 => ({
+  ...period(), categoryTotals: [], sharedPurchaseCount: 0, memberTotals: [], months: [], recordedFrom: null, recordedThrough: null, average: null, ...over,
+});
+const m2Snap = (p = m2Period(), over: Partial<AskVaultSnapshotV2> = {}): AskVaultSnapshotV2 => ({
+  ...snap(), contractVersion: 2, earliestRecord: "2026-01-01", periods: [p], comparison: null, ...over,
+});
+
+describe("M2 answers", () => {
+  it("names every selected category and member, including on rankings", () => {
+    const i = interp({ categories: ["Groceries", "Shopping"], members: ["Sam", "Robin"] });
+    expect(renderAnswer(i, m2Snap()).headline).toContain("on Groceries and Shopping for Sam and Robin");
+    expect(renderAnswer({ ...i, kind: "rank-purchases", limit: 1 }, m2Snap(m2Period({ purchases: [{ transactionId: 1, accountId: 1, date: "2026-08-01", description: "Store", amount: "50", parentAmount: "50" }] }), { kind: "rank-purchases" })).headline).toContain("for Sam and Robin");
+  });
+  it("keeps zero-spend members and unassigned purchases in a labeled breakdown", () => {
+    const a = renderAnswer(interp({ category: null, groupBy: "member" }), m2Snap(m2Period({ memberTotals: [
+      {memberId:1,name:"Sam",total:"1234.5",purchaseCount:3}, {memberId:2,name:"Robin",total:"0",purchaseCount:0}, {memberId:null,name:null,total:"0",purchaseCount:0},
+    ] })));
+    expect(a.rowsLabel).toBe("Spending by family member");
+    expect(a.rows.map(r => [r.label,r.amount])).toEqual([["Sam","$1,234.50"],["Robin","$0.00"],["Not assigned to anyone","$0.00"]]);
+    expect(a.notes.join(" ")).toContain("recorded against each person");
+  });
+  it("lists all selected categories and explains overlapping split counts", () => {
+    const a = renderAnswer(interp({ categories: ["Groceries","Shopping"] }), m2Snap(m2Period({ categoryTotals:[{category:"Groceries",total:"1000",purchaseCount:3},{category:"Shopping",total:"234.5",purchaseCount:1}], sharedPurchaseCount:1 })));
+    expect(a.rowsLabel).toBe("Spending by category");
+    expect(a.rows).toHaveLength(2);
+    expect(a.notes.join(" ")).toContain("split purchase can appear in more than one category");
+    expect(a.detail).toContain("3 purchases");
+  });
+  const months: AskPeriodResultV2["months"] = [
+    {month:"2026-07",from:"2026-07-01",to:"2026-07-31",dayCount:31,coverage:"complete",recordCount:2,total:"100",purchaseCount:2},
+    {month:"2026-08",from:"2026-08-01",to:"2026-08-31",dayCount:31,coverage:"no-records",recordCount:0,total:"0",purchaseCount:0},
+  ];
+  it("shows missing records as unknown spending beside the recorded zero", () => {
+    const a = renderAnswer(interp({ groupBy:"month" }), m2Snap(m2Period({months})));
+    expect(a.rowsLabel).toBe("Spending by month");
+    expect(a.rows[1]).toMatchObject({label:"August 2026",amount:"$0.00"});
+    expect(a.rows[1].detail).toContain("spending unknown");
+    expect(a.warnings?.join(" ")).toContain("missing import");
+  });
+  it.each([
+    ["complete", "Records support a full month"], ["in-progress", "Month still in progress"],
+    ["partial-period", "Only part of this month"], ["partly-recorded", "Recording started partway"],
+    ["before-records", "spending unknown"], ["no-records", "spending unknown"], ["records-end", "spending may be incomplete"],
+  ] as const)("explains %s month coverage without claiming certified import history", (coverage, expected) => {
+    const a=renderAnswer(interp({groupBy:"month"}),m2Snap(m2Period({months:[{...months[0],coverage}]})));
+    expect(a.rows[0].detail).toContain(expected);
+  });
+  it("uses the average numerator rather than the whole-range total and explains omitted months", () => {
+    const a = renderAnswer(interp({average:"per-month"}), m2Snap(m2Period({total:"500",months,average:{basis:"per-month",numerator:"100",denominator:1,value:"100.00",unavailable:null,monthsUsed:["2026-07"],monthsLeftOut:[{month:"2026-08",why:"no-records"}]}})));
+    expect(a.headline).toContain("averaged $100.00 per month");
+    expect(a.detail).toContain("$100.00 ÷ 1 month");
+    expect(a.notes.join(" ")).toContain("Total recorded across the whole range: $500.00");
+    expect(a.notes.join(" ")).toContain("Used: July 2026");
+    expect(a.rows[1].detail).toContain("Left out of average");
+  });
+  it("never presents an unavailable monthly average as zero", () => {
+    const a=renderAnswer(interp({average:"per-month"}),m2Snap(m2Period({months,average:{basis:"per-month",numerator:"0",denominator:0,value:null,unavailable:"no-complete-months",monthsUsed:[],monthsLeftOut:[{month:"2026-07",why:"records-end"},{month:"2026-08",why:"no-records"}]}})));
+    expect(a.headline).toContain("No monthly average available");
+    expect(a.headline).not.toContain("$0.00");
+    expect(a.detail).toContain("$1,234.50 recorded");
+  });
+  it("shows a per-purchase average and its exact basis; no purchases gives no average", () => {
+    const p=m2Period({average:{basis:"per-purchase",numerator:"450.50",denominator:4,value:"112.63",unavailable:null,monthsUsed:[],monthsLeftOut:[]}});
+    const a=renderAnswer(interp({average:"per-purchase",members:["Sam"]}),m2Snap(p));
+    expect(a.headline).toContain("averaged $112.63 per purchase");
+    expect(a.headline).toContain("for Sam");
+    expect(a.detail).toContain("$450.50 ÷ 4 purchases");
+    expect(renderAnswer(interp({average:"per-purchase"}),m2Snap(m2Period({total:"0",purchaseCount:0,average:{...p.average!,numerator:"0",denominator:0,value:null,unavailable:"no-purchases"}}))).headline).toContain("No purchases to average");
+  });
+  const compared = (over: Partial<NonNullable<AskVaultSnapshotV2["comparison"]>> = {}) => m2Snap(m2Period({total:"150",dayCount:31}), {kind:"compare",periods:[m2Period({total:"150",dayCount:31}),m2Period({total:"100",dayCount:31})],difference:"50",comparison:{alignment:"as-requested",comparable:true,notComparableReason:null,elapsedDays:31,clamped:null,absoluteChange:"50",percentChange:"50.0",percentOutcome:"changed",...over}});
+  const comparisonI=interp({kind:"compare",periods:[aug,{...aug,label:"July 2026"}]});
+  it("shows validated percent change with both real ranges", () => {
+    const a=renderAnswer(comparisonI,compared());
+    expect(a.detail).toContain("50.0% more");
+    expect(a.rowsLabel).toBe("Compared periods");
+    expect(a.rows[0].detail).toContain("31 days");
+  });
+  it("shows dollars only for clamped unequal periods, with a visible warning", () => {
+    const a=renderAnswer(comparisonI,compared({comparable:false,notComparableReason:"clamped",clamped:{requestedDays:31,usedDays:28},percentChange:null,percentOutcome:"not-comparable"}));
+    expect([a.headline,a.detail,...a.notes].join(" ")).not.toContain("%");
+    expect(a.warnings?.join(" ")).toContain("shortened");
+    expect(a.warnings?.join(" ")).toContain("not a like-for-like comparison");
+  });
+  it("explains a zero baseline without an infinite percentage", () => {
+    const a=renderAnswer(comparisonI,compared({percentChange:null,percentOutcome:"from-zero"}));
+    expect(a.detail).toContain("up from nothing");
+    expect(a.detail).not.toContain("%");
+  });
+  it("shows negative changes as less and both zero as no change", () => {
+    const lower=compared({absoluteChange:"-50",percentChange:"-50.0"});
+    lower.difference="-50";
+    lower.periods[0].total="50";
+    expect(renderAnswer(comparisonI,lower).detail).toContain("50.0% less");
+    const zero=compared({absoluteChange:"0",percentChange:"0.0",percentOutcome:"no-change"});
+    zero.difference="0";zero.periods.forEach(p => {p.total="0";});
+    expect(renderAnswer(comparisonI,zero).detail).toContain("No change (0.0%)");
+  });
 });
 
 describe("a total", () => {

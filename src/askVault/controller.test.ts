@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { askVault, type AskVaultClient } from "./controller";
+import { askVault, purchaseDetailsRequest, type AskVaultClient } from "./controller";
 import type { AskVaultSnapshot } from "./contract";
 import { TransactionError } from "../transactionContracts";
 import type { ParseContext } from "./types";
@@ -27,6 +27,23 @@ const clientReturning = (value: AskVaultSnapshot): AskVaultClient & { askVault: 
 const clientFailing = (error: unknown): AskVaultClient => ({ askVault: vi.fn(async () => { throw error; }) });
 
 describe("a question the new grammar understands", () => {
+  it("keeps M2 financial filters and revision when opening purchases, while clearing total-only operations", () => {
+    const original = { kind: "total" as const, periods: [{ from: "2026-08-01", to: "2026-08-31" }], accountIds: [1], categories: ["Groceries", "Rent"],
+      minimumPurchase: null, vendors: [], excludeVendors: [], excludeCategories: [], limit: 1, expectedRevision: null,
+      contractVersion: 2 as const, members: { ids: [7], unassigned: true }, groupBy: "month" as const, average: "per-month" as const, alignment: "as-requested" as const };
+    const revision = { local: 9, external: 4 };
+    expect(purchaseDetailsRequest(original, revision)).toEqual({ ...original, kind: "rank-purchases", limit: 50, expectedRevision: revision, groupBy: "none", average: "none", alignment: "as-requested" });
+    expect(original.groupBy).toBe("month");
+  });
+  it("passes the member roster with an M2 request and renders the member scope", async () => {
+    const familyMembers = [{ id: 1, name: "Alex" }];
+    const value = { ...snapshot(), contractVersion: 2, earliestRecord: "2026-08-01", comparison: null,
+      periods: snapshot().periods.map(p => ({ ...p, categoryTotals: [], sharedPurchaseCount: 0, memberTotals: [], months: [], recordedFrom: null, recordedThrough: null, average: null })) };
+    const client = { askVault: vi.fn(async () => value as never) };
+    const result = await askVault("how much did Alex spend last month", { ...context, familyMembers }, client);
+    expect(client.askVault).toHaveBeenCalledWith(expect.objectContaining({ contractVersion: 2, members: { ids: [1], unassigned: false } }), { familyMembers });
+    expect(result).toMatchObject({ status: "answer", answer: { headline: expect.stringContaining("for Alex") } });
+  });
   it("reads once and returns a rendered answer with the exact request and the data revision", async () => {
     const client = clientReturning(snapshot());
     const result = await askVault("how much did I spend on groceries last month", context, client);

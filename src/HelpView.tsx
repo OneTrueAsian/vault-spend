@@ -1619,7 +1619,15 @@ const FAQ_ENTRIES: FaqEntry[] = [
         category, account or store ("how much did I spend at Meijer and
         Target last month"), leave things out ("groceries last month without
         Costco"), rank your biggest categories or purchases, and compare two
-        periods. It tells you what it understood and shows the purchases
+        periods. It also handles several categories or family members,
+        spending by month or family member, averages per purchase or per
+        recorded month, and comparisons to the same days last month or year.
+        For example: "spending by month this year" or "average purchase on
+        groceries last month." A monthly average uses only completed months
+        with enough recording evidence. Its month labels are estimates from
+        recorded activity: a quiet account can look like a missing import.
+        A comparison with unequal numbers of days shows dollars without a
+        percentage. It tells you what it understood and shows the purchases
         behind a total. It matches a set of question shapes rather than truly
         understanding free-form English, so it works best one question at a
         time, using the category, account or store names you see elsewhere in

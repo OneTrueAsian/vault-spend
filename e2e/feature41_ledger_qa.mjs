@@ -37,7 +37,7 @@ cur.execute("INSERT INTO bucket_contributions (bucket_id, date, amount) VALUES (
 cur.execute("INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, '${dateInMonth(-1, 5)}', 'Recent runway fixture', '-30.00', 'Groceries', 'fp_recent')", (checking_id,))
 `);
 
-async function ask(app, question) {
+async function ask(app, question, averageChoice) {
   const input = await app.browser.$(".ledger-qa-card input");
   // `.setValue()` clears the field with a WebDriver call that doesn't reliably
   // reach a controlled React input in this WebView (the second question then
@@ -50,6 +50,14 @@ async function ask(app, question) {
   const qaCard = await app.browser.$(".ledger-qa-card");
   const askButton = await qaCard.$("button=Ask");
   await askButton.click();
+  if (averageChoice) {
+    // M2 deliberately clarifies a bare "average" instead of guessing the denominator.
+    const clarify = await app.browser.$(".ledger-qa-clarify");
+    await clarify.waitForExist({ timeout: 5000 });
+    if (!(await clarify.getText()).includes('The word "average"')) throw new Error("expected the average-basis clarification");
+    if (await app.browser.$(".ledger-qa-answer").isExisting()) throw new Error("an ambiguous average must not show a financial answer");
+    await (await clarify.$(`button=${averageChoice}`)).click();
+  }
   const answer = await app.browser.$(".ledger-qa-answer");
   await answer.waitForExist({ timeout: 5000 });
   return answer.getText();
@@ -65,7 +73,7 @@ try {
 
   // New in the primitive-query-engine pass — confirms `resolveSpendQuery`/
   // `runQuery` are wired through the real UI, not just unit-tested.
-  const avgAnswer = await ask(app, `what's my average spend on dining out in ${DINING_MONTH}`);
+  const avgAnswer = await ask(app, `what's my average spend on dining out in ${DINING_MONTH}`, "Per purchase");
   console.log("average spend question:", avgAnswer);
   if (!avgAnswer.includes("$47.50") || !avgAnswer.includes("Dining Out")) {
     throw new Error(`expected the average to mention Dining Out and $47.50 ((60+35)/2), got "${avgAnswer}"`);

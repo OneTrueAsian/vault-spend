@@ -631,6 +631,7 @@ fn ask_vault_reads_exact_split_allocations_with_parent_threshold_and_distinct_co
         exclude_vendors: vec![],
         exclude_categories: vec![],
         limit: 5,
+        ..Default::default()
     };
     let before = store.read_revision().unwrap();
     let result = store.ask_spending(&filter).unwrap();
@@ -677,6 +678,7 @@ fn ask_vault_totals_are_not_truncated_by_display_limits_and_ties_are_stable() {
         exclude_vendors: vec![],
         exclude_categories: vec![],
         limit: 1,
+        ..Default::default()
     };
     let result = store.ask_spending(&filter).unwrap();
     assert_eq!(result.total, dec("18014398509481984.03"));
@@ -738,6 +740,7 @@ fn ask_vault_matches_reports_inclusions_and_account_intersections() {
         exclude_vendors: vec![],
         exclude_categories: vec![],
         limit: 50,
+        ..Default::default()
     };
     let result = store.ask_spending(&filter).unwrap();
     let report_total: Decimal = store.daily_spending(2026, 8, 2026, 8).unwrap().iter().map(|r| r.amount).sum();
@@ -773,6 +776,7 @@ fn ask_vault_refuses_missing_entities_and_invalid_filter_bounds() {
         exclude_vendors: vec![],
         exclude_categories: vec![],
         limit: 5,
+        ..Default::default()
     };
     for bad in [
         AskSpendFilter {
@@ -827,6 +831,7 @@ fn ask_vault_refuses_decimal_sums_that_would_drop_cents() {
         exclude_vendors: vec![],
         exclude_categories: vec![],
         limit: 5,
+        ..Default::default()
     };
     assert!(
         store.ask_spending(&filter).is_err(),
@@ -845,6 +850,7 @@ fn vendor_filter(vendor: Option<&str>) -> crate::store::AskSpendFilter {
         exclude_vendors: vec![],
         exclude_categories: vec![],
         limit: 5,
+        ..Default::default()
     }
 }
 
@@ -1069,4 +1075,59 @@ fn ask_vault_exclusions_respect_the_purchase_threshold_and_never_hide_a_conflict
     let mut clash = lists(&[], &[], &["Rent"]);
     clash.categories = vec!["Rent".into()];
     assert!(store.ask_spending(&clash).is_err(), "a category cannot be both asked for and left out");
+}
+
+#[test]
+fn ask_vault_version_two_words_match_the_reply_contract() {
+    use crate::store::AskMonthCoverage::*;
+    let words: Vec<_> = [Complete, InProgress, PartialPeriod, PartlyRecorded, BeforeRecords, NoRecords, RecordsEnd]
+        .iter()
+        .map(|c| c.as_str())
+        .collect();
+    assert_eq!(
+        words,
+        [
+            "complete",
+            "in-progress",
+            "partial-period",
+            "partly-recorded",
+            "before-records",
+            "no-records",
+            "records-end"
+        ]
+    );
+}
+
+#[test]
+fn ask_vault_default_filter_keeps_every_version_two_choice_off() {
+    use crate::store::{AskAverageKind, AskGroupBy, AskSpendFilter};
+    let filter = AskSpendFilter::default();
+    assert!(filter.member_ids.is_empty() && !filter.include_unassigned);
+    assert_eq!((filter.group_by, filter.average), (AskGroupBy::None, AskAverageKind::None));
+    let store = Store::open_in_memory().unwrap();
+    // Untouched, a default filter over one day is an ordinary version 1 question and is answered.
+    assert!(store.ask_spending(&filter).is_ok());
+}
+
+#[test]
+fn ask_vault_reports_the_first_record_of_the_whole_ledger_for_information_only() {
+    use crate::store::AskSpendFilter;
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    let ask = |store: &Store| {
+        store
+            .ask_spending(&AskSpendFilter {
+                from: "2026-08-20".parse().unwrap(),
+                to: "2026-08-31".parse().unwrap(),
+                ..Default::default()
+            })
+            .unwrap()
+    };
+    assert_eq!(ask(&store).earliest_record, None);
+    spend_on(&store, account, "2026-08-09", "MEIJER #204", "50.00", "Groceries");
+    spend_on(&store, account, "2026-08-25", "COSTCO", "70.00", "Groceries");
+    // The first record is outside the asked range: it is still the first record of the ledger, and does not change the total.
+    let result = ask(&store);
+    assert_eq!(result.earliest_record, Some("2026-08-09".parse().unwrap()));
+    assert_eq!(result.total, dec("70.00"));
 }

@@ -7,6 +7,7 @@ use crate::models::Transaction;
 
 use chrono::NaiveDate;
 mod accounts;
+mod ask_vault_m2;
 mod assets;
 mod buckets;
 mod budgets;

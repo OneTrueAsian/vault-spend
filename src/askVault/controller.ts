@@ -2,7 +2,7 @@ import type { createFinancialClient } from "../financialReads";
 import { transactionError } from "../transactionContracts";
 import { renderAnswer, type AskVaultAnswer } from "./answer";
 import { parseQuestion } from "./parser";
-import type { AskDataRevision, AskVaultRequest, Correction, Interpretation, ParseContext } from "./types";
+import type { AskClarification, AskDataRevision, AskMemberSelection, AskVaultRequest, AskVaultRequestV2, Correction, Interpretation, ParseContext } from "./types";
 
 export type AskVaultClient = Pick<ReturnType<typeof createFinancialClient>, "askVault">;
 
@@ -12,13 +12,13 @@ export type AskVaultResult =
       answer: AskVaultAnswer;
       interpretation: Interpretation;
       corrections: Correction[];
-      request: AskVaultRequest;
+      request: AskVaultRequest | AskVaultRequestV2;
       /** Purchases behind the first period's total. */
       purchaseCount: number;
       /** Pass back as `expectedRevision` to make a later read fail if the ledger changed in between. */
       revision: AskDataRevision;
     }
-  | { status: "clarify"; reason: string; choices: string[]; replacements?: string[] }
+  | AskClarification
   | { status: "unsupported"; reason: string }
   /** The older matcher owns this question. */
   | { status: "legacy" }
@@ -29,6 +29,14 @@ export type AskVaultResult =
 const PROFILE_MOVED = new Set(["stale_profile", "profile_locked", "no_profile_open", "superseded"]);
 const PROFILE_MESSAGE = "That question belongs to a profile that is no longer open. Ask it again.";
 const GENERIC_MESSAGE = "I couldn't answer that right now. Try again in a moment.";
+
+/** Read the same purchases behind an answer; grouping, averages and alignment do not apply to a purchase ranking. */
+export function purchaseDetailsRequest(request: AskVaultRequest | AskVaultRequestV2, revision: AskDataRevision): AskVaultRequest | AskVaultRequestV2 {
+  const detail = { ...request, kind: "rank-purchases" as const, periods: [request.periods[0]], limit: 50, expectedRevision: revision };
+  return "contractVersion" in request && request.contractVersion === 2
+    ? { ...detail, groupBy: "none", average: "none", alignment: "as-requested" }
+    : detail;
+}
 
 /** Turn any failure into a plain message, and say whether it means "this answer is no longer valid". */
 export function explainFailure(failure: unknown): { status: "stale" | "error"; message: string } {
@@ -43,11 +51,13 @@ export function explainFailure(failure: unknown): { status: "stale" | "error"; m
  * Parse a question, read the exact spending it names, and render the answer. Questions the new grammar
  * does not own come back as `legacy` and nothing is read. Failures never expose internal wording.
  */
-export async function askVault(question: string, context: ParseContext, client: AskVaultClient): Promise<AskVaultResult> {
-  const parsed = parseQuestion(question, context);
+export async function askVault(question: string, context: ParseContext, client: AskVaultClient, selectedMembers: AskMemberSelection[] = []): Promise<AskVaultResult> {
+  const parsed = parseQuestion(question, context, selectedMembers);
   if (parsed.status !== "query") return parsed;
   try {
-    const snapshot = await client.askVault(parsed.request);
+    const snapshot = "contractVersion" in parsed.request && parsed.request.contractVersion === 2
+      ? await client.askVault(parsed.request, { familyMembers: context.familyMembers })
+      : await client.askVault(parsed.request);
     return {
       status: "answer",
       answer: renderAnswer(parsed.interpretation, snapshot),

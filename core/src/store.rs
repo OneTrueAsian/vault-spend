@@ -53,7 +53,11 @@ mod forecast;
 pub use self::forecast::{BillAwareForecast, DebtPayoffLine, DebtPayoffPlan, ForecastEvent, ForecastPoint};
 mod ask_vault;
 mod reports;
-pub use self::ask_vault::{AskCategorySpend, AskPurchaseSpend, AskSpendFilter, AskSpendResult, AskSpendThreshold, AskVendorSpend, AskVendorTotal};
+pub use self::ask_vault::{
+    AskAlignment, AskAverageKind, AskAverageResult, AskCategorySpend, AskCategoryTotal, AskComparisonResult, AskGroupBy, AskMemberTotal,
+    AskMonthCoverage, AskMonthSpend, AskPurchaseSpend, AskSpendFilter, AskSpendResult, AskSpendThreshold, AskVendorSpend, AskVendorTotal,
+    ask_comparison,
+};
 pub use self::reports::{AccountContributionDelta, CategoryMonthAmount, DailySpendAmount, NetWorthBreakdown};
 mod mobile_snapshot;
 pub use self::mobile_snapshot::{

@@ -530,6 +530,333 @@ mod tests {
         }
     }
     #[test]
+    fn ask_vault_m2_dispatch_maps_months_averages_and_exact_evidence() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let (store, account, _) = fixture();
+        for (date, amount) in [("2026-08-01", "-20.00"), ("2026-09-10", "-10.00")] {
+            store
+                .create_transaction(
+                    account,
+                    &budget_core::models::Transaction {
+                        date: date.parse().unwrap(),
+                        description: "Synthetic".into(),
+                        amount: Decimal::from_str(amount).unwrap(),
+                        category: Some("Fixture".into()),
+                    },
+                    None,
+                )
+                .unwrap();
+        }
+        let request: AskRequest = serde_json::from_value(serde_json::json!({
+            "contractVersion":2,"kind":"total","periods":[{"from":"2026-08-01","to":"2026-10-08"}],
+            "accountIds":[account],"categories":["Fixture"],"members":{"ids":[],"unassigned":false},
+            "groupBy":"month","average":"per-month","alignment":"as-requested","limit":5
+        }))
+        .unwrap();
+        let result = serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap()).unwrap();
+        assert_eq!(result["contractVersion"], 2);
+        assert_eq!(result["earliestRecord"], "2026-08-01");
+        assert!(result["comparison"].is_null());
+        let p = &result["periods"][0];
+        assert_eq!(p["total"], "42.34");
+        assert_eq!(p["recordedFrom"], "2026-08-01");
+        assert_eq!(p["recordedThrough"], "2026-10-01");
+        assert_eq!(p["months"][0]["coverage"], "complete");
+        assert_eq!(p["months"][1]["coverage"], "complete");
+        assert_eq!(p["months"][2]["coverage"], "in-progress");
+        assert_eq!(p["months"][1]["recordCount"], 1);
+        assert_eq!(p["average"]["basis"], "per-month");
+        assert_eq!(p["average"]["value"], "15.00");
+        assert_eq!(p["average"]["denominator"], 2);
+        assert_eq!(p["average"]["monthsUsed"], serde_json::json!(["2026-08", "2026-09"]));
+        assert_eq!(
+            p["average"]["monthsLeftOut"],
+            serde_json::json!([{"month":"2026-10","why":"in-progress"}])
+        );
+    }
+    #[test]
+    fn ask_vault_m2_dispatch_maps_members_and_overlapping_split_category_counts() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let (store, account, transaction) = fixture();
+        let sam = store.create_family_member("Sam").unwrap();
+        store.set_transaction_member(transaction, Some(sam)).unwrap();
+        let alex = store.create_family_member("Alex").unwrap();
+        store.create_category("Other", None).unwrap();
+        let other = store
+            .create_transaction(
+                account,
+                &budget_core::models::Transaction {
+                    date: "2026-10-02".parse().unwrap(),
+                    description: "Another member".into(),
+                    amount: Decimal::from_str("-9.99").unwrap(),
+                    category: Some("Other".into()),
+                },
+                None,
+            )
+            .unwrap();
+        store.set_transaction_member(other, Some(alex)).unwrap();
+        store
+            .set_transaction_splits(
+                transaction,
+                &[
+                    ("Fixture".into(), Decimal::from(-5), None),
+                    ("Other".into(), Decimal::from_str("-7.34").unwrap(), None),
+                ],
+            )
+            .unwrap();
+        let request: AskRequest = serde_json::from_value(serde_json::json!({
+            "contractVersion":2,"kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],
+            "accountIds":[account],"categories":["Fixture","Other"],"members":{"ids":[sam],"unassigned":true},
+            "groupBy":"member","average":"none","alignment":"as-requested","limit":5
+        }))
+        .unwrap();
+        let result = serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap()).unwrap();
+        let p = &result["periods"][0];
+        assert_eq!(p["total"], "12.34");
+        assert_eq!(p["purchaseCount"], 1);
+        assert_eq!(p["sharedPurchaseCount"], 1);
+        assert_eq!(p["categoryTotals"][0]["category"], "Fixture");
+        assert_eq!(p["categoryTotals"][1]["total"], "7.34");
+        assert_eq!(p["memberTotals"][0]["memberId"], sam);
+        assert_eq!(p["memberTotals"][0]["name"], "Sam");
+        assert_eq!(p["memberTotals"][0]["total"], "12.34");
+        assert_eq!(p["memberTotals"][1]["purchaseCount"], 0);
+        assert!(p["memberTotals"][1]["memberId"].is_null());
+        assert!(p["recordedFrom"].is_null());
+        assert!(p["average"].is_null());
+    }
+    #[test]
+    fn ask_vault_m2_dispatch_validates_alignment_and_maps_comparison_facts() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let (store, _, _) = fixture();
+        let mut body = serde_json::json!({
+            "contractVersion":2,"kind":"compare","periods":[{"from":"2026-10-01","to":"2026-10-08"},{"from":"2026-09-01","to":"2026-09-08"}],
+            "members":{"ids":[],"unassigned":false},"groupBy":"none","average":"none","alignment":"same-days-previous-month","limit":5
+        });
+        let request: AskRequest = serde_json::from_value(body.clone()).unwrap();
+        let result = serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap()).unwrap();
+        assert_eq!(result["difference"], "12.34");
+        assert_eq!(result["comparison"]["absoluteChange"], "12.34");
+        assert_eq!(result["comparison"]["alignment"], "same-days-previous-month");
+        assert_eq!(result["comparison"]["percentOutcome"], "from-zero");
+        assert_eq!(result["comparison"]["elapsedDays"], 8);
+        assert_eq!(result["comparison"]["comparable"], true);
+        assert!(result["comparison"]["percentChange"].is_null());
+        body["periods"][1]["to"] = serde_json::json!("2026-09-07");
+        let request: AskRequest = serde_json::from_value(body).unwrap();
+        assert_eq!(
+            serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap_err()).unwrap()["code"],
+            "invalid_argument"
+        );
+    }
+    #[test]
+    fn ask_vault_m2_dispatch_refuses_version_confusion_and_invalid_combinations() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let store = Store::open_in_memory().unwrap();
+        let base = serde_json::json!({"contractVersion":2,"kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],
+            "members":{"ids":[],"unassigned":false},"groupBy":"none","average":"none","alignment":"as-requested","limit":5});
+        for extra in [
+            serde_json::json!({"contractVersion":3}),
+            serde_json::json!({"contractVersion":1}),
+            serde_json::json!({"kind":"rank-categories","groupBy":"member"}),
+            serde_json::json!({"kind":"rank-purchases","average":"per-purchase"}),
+            serde_json::json!({"alignment":"same-days-previous-year"}),
+            serde_json::json!({"groupBy":"member","average":"per-month"}),
+            serde_json::json!({"kind":"compare","periods":[{"from":"2026-10-01","to":"2026-10-08"},{"from":"2026-09-01","to":"2026-09-08"}],"groupBy":"month"}),
+            serde_json::json!({"kind":"compare","periods":[{"from":"2026-10-01","to":"2026-10-08"},{"from":"2026-09-01","to":"2026-09-08"}],"average":"per-purchase"}),
+        ] {
+            let mut bad = base.clone();
+            bad.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            let request = serde_json::from_value::<AskRequest>(bad.clone())
+                .unwrap_or_else(|error| panic!("This case must deserialize so dispatch validation is exercised: {bad}; {error}"));
+            assert_eq!(
+                serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap_err()).unwrap()["code"],
+                "invalid_argument",
+                "{bad}"
+            );
+        }
+        for extra in [
+            serde_json::json!({"groupBy":"week"}),
+            serde_json::json!({"average":"per-day"}),
+            serde_json::json!({"alignment":"guess"}),
+            serde_json::json!({"members":{"ids":[],"unassigned":false,"sql":"SELECT 1"}}),
+            serde_json::json!({"contractVersion":null}),
+            serde_json::json!({"sql":"SELECT 1"}),
+        ] {
+            let mut bad = base.clone();
+            bad.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            assert!(serde_json::from_value::<AskRequest>(bad.clone()).is_err(), "{bad}");
+        }
+        for field in ["members", "groupBy", "average", "alignment"] {
+            let mut bad = base.clone();
+            bad.as_object_mut().unwrap().remove(field);
+            let request: AskRequest = serde_json::from_value(bad).unwrap();
+            assert_eq!(
+                serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap_err()).unwrap()["code"],
+                "invalid_argument",
+                "missing {field}"
+            );
+        }
+    }
+    #[test]
+    fn ask_vault_m2_dispatch_refusals_explain_the_needed_change() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let store = Store::open_in_memory().unwrap();
+        let base = serde_json::json!({"contractVersion":2,"kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],
+            "members":{"ids":[],"unassigned":false},"groupBy":"none","average":"none","alignment":"as-requested","limit":5});
+        for (extra, explanation) in [
+            (
+                serde_json::json!({"groupBy":"month","periods":[{"from":"2021-01-01","to":"2026-10-08"}]}),
+                "at most 50 months",
+            ),
+            (serde_json::json!({"groupBy":"member","average":"per-month"}), "separately"),
+            (serde_json::json!({"accountIds":(1..=21).collect::<Vec<i64>>()}), "at most 20 selected"),
+            (
+                serde_json::json!({"periods":[{"from":"2026-10-08","to":"2026-10-01"}]}),
+                "ordered date range",
+            ),
+            (serde_json::json!({"limit":0}), "limit of 1 to 50"),
+        ] {
+            let mut bad = base.clone();
+            bad.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            let request: AskRequest = serde_json::from_value(bad.clone()).expect("a dispatch validation case must deserialize");
+            let error = serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap_err()).unwrap();
+            assert_eq!(error["code"], "invalid_argument");
+            assert!(error["message"].as_str().unwrap().contains(explanation), "{bad}: {error}");
+        }
+        for i in 0..50 {
+            store.create_family_member(&format!("Person {i}")).unwrap();
+        }
+        let mut members = base;
+        members["groupBy"] = serde_json::json!("member");
+        let request: AskRequest = serde_json::from_value(members).unwrap();
+        let error = serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap_err()).unwrap();
+        assert_eq!(error["code"], "invalid_argument");
+        assert!(error["message"].as_str().unwrap().contains("at most 50 lines"), "{error}");
+    }
+    #[test]
+    fn ask_vault_m2_dispatch_keeps_v1_reply_shape_unchanged() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let (store, _, _) = fixture();
+        let base = serde_json::json!({"kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],"limit":5});
+        let request: AskRequest = serde_json::from_value(base.clone()).unwrap();
+        let legacy = serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap()).unwrap();
+        let mut explicit = base;
+        explicit["contractVersion"] = serde_json::json!(1);
+        let request: AskRequest = serde_json::from_value(explicit).unwrap();
+        let v1 = serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap()).unwrap();
+        assert_eq!(v1, legacy);
+        assert!(v1.get("earliestRecord").is_none());
+        assert!(v1.get("comparison").is_none());
+        for field in [
+            "categoryTotals",
+            "sharedPurchaseCount",
+            "memberTotals",
+            "months",
+            "recordedFrom",
+            "recordedThrough",
+            "average",
+        ] {
+            assert!(v1["periods"][0].get(field).is_none(), "{field}");
+        }
+    }
+    #[test]
+    fn ask_vault_m2_dispatch_maps_purchase_averages_and_unavailable_values() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let (store, _, _) = fixture();
+        let base = serde_json::json!({"contractVersion":2,"kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],
+            "members":{"ids":[],"unassigned":false},"groupBy":"none","average":"per-purchase","alignment":"as-requested","limit":5});
+        let ask = |body| {
+            let request: AskRequest = serde_json::from_value(body).unwrap();
+            serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap()).unwrap()
+        };
+        let result = ask(base.clone());
+        assert_eq!(
+            result["periods"][0]["average"],
+            serde_json::json!({
+                "basis":"per-purchase","numerator":"12.34","denominator":1,"value":"12.34","unavailable":null,"monthsUsed":[],"monthsLeftOut":[]
+            })
+        );
+        let mut empty = base;
+        empty["periods"] = serde_json::json!([{"from":"2026-09-01","to":"2026-09-30"}]);
+        let result = ask(empty);
+        assert!(result["periods"][0]["average"]["value"].is_null());
+        assert_eq!(result["periods"][0]["average"]["unavailable"], "no-purchases");
+        assert_eq!(result["periods"][0]["average"]["denominator"], 0);
+    }
+    #[test]
+    fn ask_vault_m2_dispatch_maps_rounded_percentage_and_clamped_day_counts() {
+        use super::super::ask_vault::{snapshot, AskRequest};
+        let (store, account, _) = fixture();
+        store
+            .create_transaction(
+                account,
+                &budget_core::models::Transaction {
+                    date: "2026-09-01".parse().unwrap(),
+                    description: "Synthetic".into(),
+                    amount: Decimal::from_str("-6.17").unwrap(),
+                    category: Some("Fixture".into()),
+                },
+                None,
+            )
+            .unwrap();
+        let base = serde_json::json!({"contractVersion":2,"kind":"compare","periods":[{"from":"2026-10-01","to":"2026-10-08"},{"from":"2026-09-01","to":"2026-09-08"}],
+            "members":{"ids":[],"unassigned":false},"groupBy":"none","average":"none","alignment":"same-days-previous-month","limit":5});
+        let ask = |body| {
+            let request: AskRequest = serde_json::from_value(body).unwrap();
+            serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap()).unwrap()
+        };
+        let result = ask(base.clone());
+        assert_eq!(result["comparison"]["percentChange"], "100.0");
+        assert_eq!(result["comparison"]["percentOutcome"], "changed");
+        let mut clamped = base.clone();
+        clamped["periods"] = serde_json::json!([{"from":"2026-03-01","to":"2026-03-30"},{"from":"2026-02-01","to":"2026-02-28"}]);
+        let result = ask(clamped);
+        assert_eq!(result["comparison"]["clamped"], serde_json::json!({"requestedDays":30,"usedDays":28}));
+        assert_eq!(result["comparison"]["notComparableReason"], "clamped");
+        assert_eq!(result["comparison"]["percentOutcome"], "not-comparable");
+        assert!(result["comparison"]["percentChange"].is_null());
+        let mut year = base;
+        year["alignment"] = serde_json::json!("same-days-previous-year");
+        year["periods"] = serde_json::json!([{"from":"2024-01-01","to":"2024-02-29"},{"from":"2023-01-01","to":"2023-02-28"}]);
+        let result = ask(year);
+        assert_eq!(result["comparison"]["alignment"], "same-days-previous-year");
+        assert_eq!(result["comparison"]["clamped"], serde_json::json!({"requestedDays":60,"usedDays":59}));
+    }
+    #[test]
+    fn ask_vault_m2_dispatch_preserves_session_and_ledger_revision_guards() {
+        use super::super::ask_vault::{read_for_session, snapshot, AskRequest};
+        let body = serde_json::json!({"contractVersion":2,"kind":"total","periods":[{"from":"2026-10-01","to":"2026-10-08"}],
+            "members":{"ids":[],"unassigned":false},"groupBy":"none","average":"none","alignment":"as-requested","limit":5});
+        let request: AskRequest = serde_json::from_value(body.clone()).unwrap();
+        let runtime = crate::runtime::AppRuntime::no_profile_open();
+        let paths = crate::config::AppPaths {
+            config_path: "unused-test-config".into(),
+            db_path: std::sync::Mutex::new("unused-test-db".into()),
+            generation: std::sync::atomic::AtomicU64::new(4),
+        };
+        let code =
+            |result: Result<super::super::ask_vault::AskSnapshot, ReadError>| serde_json::to_value(result.unwrap_err()).unwrap()["code"].clone();
+        assert_eq!(code(read_for_session(&request, 4, 0, &runtime, &paths)), "no_profile_open");
+        runtime.install(AppState {
+            store: Store::open_in_memory().unwrap(),
+            rules: RuleSet::new(vec![]),
+            import_review: None,
+        });
+        let revision = runtime.current_revision();
+        assert!(read_for_session(&request, 4, revision, &runtime, &paths).is_ok());
+        assert_eq!(code(read_for_session(&request, 3, revision, &runtime, &paths)), "stale_profile");
+        runtime.lock_profile("synthetic");
+        assert_eq!(code(read_for_session(&request, 4, revision, &runtime, &paths)), "profile_locked");
+        let (store, _, _) = fixture();
+        let result = serde_json::to_value(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap()).unwrap()).unwrap();
+        let mut stale = body;
+        stale["expectedRevision"] = result["revision"].clone();
+        let request: AskRequest = serde_json::from_value(stale).unwrap();
+        store.create_category("Changed", None).unwrap();
+        assert_eq!(code(snapshot(&store, 2, 7, &request, "2026-10-08".parse().unwrap())), "stale_data");
+    }
+    #[test]
     fn untouched_month_is_initialized_before_coherent_reads_without_resurrecting_deleted_lines() {
         let store = Store::open_in_memory().unwrap();
         let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 8).unwrap();

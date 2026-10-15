@@ -55,7 +55,8 @@ try {
   const page = await browser.$("[data-account-detail]");
   await page.waitForExist({ timeout: 10000, timeoutMsg: "Details should open the account's page" });
   await browser.waitUntil(async () => (await page.getText()).includes("Everyday Checking"), { timeout: 5000 });
-  if (!(await page.$("svg").isExisting())) throw new Error("the balance history should draw a chart");
+  // The title renders before loadOverview's native history read completes.
+  await page.$("svg").waitForExist({ timeout: 10000, timeoutMsg: "the balance history should draw a chart" });
   let lastSeen = "";
   await waitUntilOrDiagnose(browser, async () => (lastSeen = await lastReconciledText()) === "Never", {
     timeoutMsg: "nothing has been reconciled yet, so Last reconciled should say Never",

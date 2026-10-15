@@ -6,6 +6,7 @@
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, string[]> = {
   "1.3.1": [
+    "Ask the Vault can now answer spending questions about several categories or family members, show monthly and member breakdowns, calculate averages with recording-coverage explanations, and compare matching dates without hiding unequal periods.",
     "Updates can now download verified installers from the official release, with progress, cancellation and confirmation before opening the installer.",
     "Update authenticity is checked against a publisher public key embedded in the app; unavailable or invalid metadata keeps the manual release link available.",
   ],

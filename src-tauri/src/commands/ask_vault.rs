@@ -1,6 +1,6 @@
 //! Versioned, exact financial reads for the deterministic Ask the Vault parser.
 use super::*;
-use budget_core::store::{AskSpendFilter, AskSpendThreshold};
+use budget_core::store::{ask_comparison, AskAlignment, AskAverageKind, AskGroupBy, AskSpendFilter, AskSpendThreshold};
 use chrono::NaiveDate;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
@@ -10,6 +10,67 @@ pub enum AskKind {
     RankCategories,
     RankPurchases,
     Compare,
+}
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+enum AskGrouping {
+    None,
+    Month,
+    Member,
+}
+impl From<AskGrouping> for AskGroupBy {
+    fn from(value: AskGrouping) -> Self {
+        match value {
+            AskGrouping::None => Self::None,
+            AskGrouping::Month => Self::Month,
+            AskGrouping::Member => Self::Member,
+        }
+    }
+}
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+enum AskAverageBasis {
+    None,
+    PerPurchase,
+    PerMonth,
+}
+impl From<AskAverageBasis> for AskAverageKind {
+    fn from(value: AskAverageBasis) -> Self {
+        match value {
+            AskAverageBasis::None => Self::None,
+            AskAverageBasis::PerPurchase => Self::PerPurchase,
+            AskAverageBasis::PerMonth => Self::PerMonth,
+        }
+    }
+}
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+enum AskComparisonAlignment {
+    AsRequested,
+    SameDaysPreviousMonth,
+    SameDaysPreviousYear,
+}
+impl From<AskComparisonAlignment> for AskAlignment {
+    fn from(value: AskComparisonAlignment) -> Self {
+        match value {
+            AskComparisonAlignment::AsRequested => Self::AsRequested,
+            AskComparisonAlignment::SameDaysPreviousMonth => Self::SameDaysPreviousMonth,
+            AskComparisonAlignment::SameDaysPreviousYear => Self::SameDaysPreviousYear,
+        }
+    }
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AskMembers {
+    ids: Vec<i64>,
+    unassigned: bool,
+}
+fn legacy_version() -> u8 {
+    1
+}
+/// Missing extension fields are allowed for v1; explicitly supplied null is never a valid selection or enum.
+fn present_field<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(deserializer: D) -> Result<Option<T>, D::Error> {
+    T::deserialize(deserializer).map(Some)
 }
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -32,6 +93,8 @@ pub struct AskDataRevision {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AskRequest {
+    #[serde(default = "legacy_version")]
+    contract_version: u8,
     kind: AskKind,
     periods: Vec<AskPeriod>,
     #[serde(default)]
@@ -49,6 +112,14 @@ pub struct AskRequest {
     exclude_categories: Vec<String>,
     limit: usize,
     pub(super) expected_revision: Option<AskDataRevision>,
+    #[serde(default, deserialize_with = "present_field", skip_serializing_if = "Option::is_none")]
+    members: Option<AskMembers>,
+    #[serde(default, deserialize_with = "present_field", skip_serializing_if = "Option::is_none")]
+    group_by: Option<AskGrouping>,
+    #[serde(default, deserialize_with = "present_field", skip_serializing_if = "Option::is_none")]
+    average: Option<AskAverageBasis>,
+    #[serde(default, deserialize_with = "present_field", skip_serializing_if = "Option::is_none")]
+    alignment: Option<AskComparisonAlignment>,
 }
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -115,6 +186,87 @@ struct AskPeriodResult {
     vendor_totals: Vec<AskVendorTotal>,
     /// What the exclusions removed. Zero and empty when nothing was left out.
     left_out: AskLeftOut,
+    // Flatten only for v2: v1 replies retain precisely their existing field set.
+    #[serde(flatten)]
+    v2: Option<AskPeriodResultV2>,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AskCategoryTotal {
+    category: String,
+    total: String,
+    purchase_count: usize,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AskMemberTotal {
+    member_id: Option<i64>,
+    name: Option<String>,
+    total: String,
+    purchase_count: usize,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AskMonthRow {
+    month: String,
+    from: String,
+    to: String,
+    day_count: i64,
+    coverage: &'static str,
+    record_count: usize,
+    total: String,
+    purchase_count: usize,
+}
+#[derive(Debug, Serialize)]
+struct AskAverageLeftOut {
+    month: String,
+    why: &'static str,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AskAverage {
+    basis: AskAverageBasis,
+    numerator: String,
+    denominator: usize,
+    value: Option<String>,
+    unavailable: Option<&'static str>,
+    months_used: Vec<String>,
+    months_left_out: Vec<AskAverageLeftOut>,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AskPeriodResultV2 {
+    category_totals: Vec<AskCategoryTotal>,
+    shared_purchase_count: usize,
+    member_totals: Vec<AskMemberTotal>,
+    months: Vec<AskMonthRow>,
+    recorded_from: Option<String>,
+    recorded_through: Option<String>,
+    average: Option<AskAverage>,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AskClampedDays {
+    requested_days: i64,
+    used_days: i64,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AskComparison {
+    alignment: AskComparisonAlignment,
+    comparable: bool,
+    not_comparable_reason: Option<&'static str>,
+    elapsed_days: i64,
+    clamped: Option<AskClampedDays>,
+    absolute_change: String,
+    percent_change: Option<String>,
+    percent_outcome: &'static str,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AskSnapshotV2 {
+    earliest_record: Option<String>,
+    comparison: Option<AskComparison>,
 }
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -129,11 +281,97 @@ pub struct AskSnapshot {
     periods: Vec<AskPeriodResult>,
     /// First requested period minus the second. No extrapolation or percentage trend.
     difference: Option<String>,
+    #[serde(flatten)]
+    v2: Option<AskSnapshotV2>,
 }
 fn invalid(message: &str) -> ReadError {
     ReadError::new("invalid_argument", message)
 }
+fn period_v2(result: &budget_core::store::AskSpendResult, basis: AskAverageBasis) -> AskPeriodResultV2 {
+    AskPeriodResultV2 {
+        category_totals: result
+            .category_totals
+            .iter()
+            .map(|c| AskCategoryTotal {
+                category: c.category.clone(),
+                total: c.total.to_string(),
+                purchase_count: c.purchase_count,
+            })
+            .collect(),
+        shared_purchase_count: result.shared_purchase_count,
+        member_totals: result
+            .member_totals
+            .iter()
+            .map(|m| AskMemberTotal {
+                member_id: m.member_id,
+                name: m.name.clone(),
+                total: m.total.to_string(),
+                purchase_count: m.purchase_count,
+            })
+            .collect(),
+        months: result
+            .months
+            .iter()
+            .map(|m| AskMonthRow {
+                month: m.month.clone(),
+                from: m.from.to_string(),
+                to: m.to.to_string(),
+                day_count: m.day_count,
+                coverage: m.coverage.as_str(),
+                record_count: m.record_count,
+                total: m.total.to_string(),
+                purchase_count: m.purchase_count,
+            })
+            .collect(),
+        recorded_from: result.recorded_from.map(|d| d.to_string()),
+        recorded_through: result.recorded_through.map(|d| d.to_string()),
+        average: result.average.as_ref().map(|a| AskAverage {
+            basis,
+            numerator: a.numerator.to_string(),
+            denominator: a.denominator,
+            value: a.value.map(|v| v.to_string()),
+            unavailable: a.unavailable,
+            months_used: a.months_used.clone(),
+            months_left_out: a
+                .months_left_out
+                .iter()
+                .map(|(month, why)| AskAverageLeftOut {
+                    month: month.clone(),
+                    why: why.as_str(),
+                })
+                .collect(),
+        }),
+    }
+}
 fn filters(request: &AskRequest, today: NaiveDate) -> Result<Vec<AskSpendFilter>, ReadError> {
+    let v2 = match request.contract_version {
+        1 => false,
+        2 => true,
+        _ => return Err(invalid("Choose a supported Ask the Vault contract version.")),
+    };
+    let extensions = (
+        request.members.is_some(),
+        request.group_by.is_some(),
+        request.average.is_some(),
+        request.alignment.is_some(),
+    );
+    if (!v2 && extensions != (false, false, false, false)) || (v2 && extensions != (true, true, true, true)) {
+        return Err(invalid(
+            "Use version 2 with all member, grouping, average and alignment fields for an enhanced question.",
+        ));
+    }
+    let grouping = request.group_by.unwrap_or(AskGrouping::None);
+    let average = request.average.unwrap_or(AskAverageBasis::None);
+    let alignment = request.alignment.unwrap_or(AskComparisonAlignment::AsRequested);
+    if grouping == AskGrouping::Member && average != AskAverageBasis::None {
+        return Err(invalid("Ask for spending by family member or an average, separately."));
+    }
+    if request.kind != AskKind::Total && (grouping != AskGrouping::None || average != AskAverageBasis::None) {
+        return Err(invalid("Use one total-spending period for grouping or averages."));
+    }
+    if request.kind != AskKind::Compare && alignment != AskComparisonAlignment::AsRequested {
+        return Err(invalid("Use a comparison when asking for the same days in a previous month or year."));
+    }
     let required = if request.kind == AskKind::Compare { 2 } else { 1 };
     if request.periods.len() != required {
         return Err(invalid("Choose one period, or exactly two periods for a comparison."));
@@ -157,7 +395,7 @@ fn filters(request: &AskRequest, today: NaiveDate) -> Result<Vec<AskSpendFilter>
             })
         })
         .transpose()?;
-    request
+    let filters: Vec<AskSpendFilter> = request
         .periods
         .iter()
         .map(|period| {
@@ -178,16 +416,35 @@ fn filters(request: &AskRequest, today: NaiveDate) -> Result<Vec<AskSpendFilter>
                 exclude_vendors: request.exclude_vendors.clone(),
                 exclude_categories: request.exclude_categories.clone(),
                 limit: request.limit,
+                as_of: today,
+                member_ids: request.members.as_ref().map(|m| m.ids.clone()).unwrap_or_default(),
+                include_unassigned: request.members.as_ref().is_some_and(|m| m.unassigned),
+                group_by: grouping.into(),
+                average: average.into(),
             };
             if filter.to > today {
                 return Err(invalid("Recorded-spending periods must end on or before today."));
             }
-            filter
-                .validate()
-                .map_err(|_| invalid("Choose an ordered bounded date range, 1 to 50 results, and at most 20 distinct valid entities."))?;
+            // Pure filter validation returns fixed guidance, never database errors or stored/user text.
+            filter.validate().map_err(|error| match error {
+                budget_core::store::StoreError::InvalidParameterName(message) => invalid(&message),
+                _ => invalid("Check the selected dates, results limit and filters."),
+            })?;
             Ok(filter)
         })
-        .collect()
+        .collect::<Result<_, _>>()?;
+    if v2 && request.kind == AskKind::Compare {
+        // Validate the caller-resolved alignment before querying, including comparisons over empty data.
+        ask_comparison(
+            alignment.into(),
+            (filters[0].from, filters[0].to),
+            (filters[1].from, filters[1].to),
+            Decimal::ZERO,
+            Decimal::ZERO,
+        )
+        .map_err(|_| invalid("Choose comparison dates that match the requested alignment."))?;
+    }
+    Ok(filters)
 }
 pub(super) fn snapshot(
     store: &Store,
@@ -209,10 +466,14 @@ pub(super) fn snapshot(
             }
             let mut periods = Vec::new();
             let mut totals = Vec::new();
+            let mut earliest_record = None;
             for filter in &filters {
                 let result = store.ask_spending(filter)?;
                 totals.push(result.total);
+                earliest_record = result.earliest_record.map(|d| d.to_string());
+                let v2 = (request.contract_version == 2).then(|| period_v2(&result, request.average.unwrap_or(AskAverageBasis::None)));
                 periods.push(AskPeriodResult {
+                    v2,
                     from: filter.from.to_string(),
                     to: filter.to.to_string(),
                     day_count: (filter.to - filter.from).num_days() + 1,
@@ -306,8 +567,38 @@ pub(super) fn snapshot(
             } else {
                 None
             };
+            let v2 = if request.contract_version == 2 {
+                let comparison = if request.kind == AskKind::Compare {
+                    let alignment = request.alignment.unwrap_or(AskComparisonAlignment::AsRequested);
+                    let facts = ask_comparison(
+                        alignment.into(),
+                        (filters[0].from, filters[0].to),
+                        (filters[1].from, filters[1].to),
+                        totals[0],
+                        totals[1],
+                    )
+                    .map_err(|_| rusqlite_error("Comparison exceeds the supported range or dates do not match the requested alignment"))?;
+                    Some(AskComparison {
+                        alignment,
+                        comparable: facts.comparable,
+                        not_comparable_reason: facts.not_comparable_reason,
+                        elapsed_days: facts.elapsed_days,
+                        clamped: facts
+                            .clamped
+                            .map(|(requested_days, used_days)| AskClampedDays { requested_days, used_days }),
+                        absolute_change: facts.absolute_change.to_string(),
+                        percent_change: facts.percent_change.map(|p| p.to_string()),
+                        percent_outcome: facts.percent_outcome,
+                    })
+                } else {
+                    None
+                };
+                Some(AskSnapshotV2 { earliest_record, comparison })
+            } else {
+                None
+            };
             Ok(Ok(AskSnapshot {
-                contract_version: 1,
+                contract_version: request.contract_version,
                 context: AskContext {
                     generation,
                     session_revision,
@@ -319,9 +610,16 @@ pub(super) fn snapshot(
                 threshold_basis: "absolute-parent-amount",
                 periods,
                 difference,
+                v2,
             }))
         })
         .map_err(|e| match e {
+            // Only this fixed, known store refusal is exposed; database details remain redacted below.
+            budget_core::store::StoreError::InvalidParameterName(message)
+                if message == "Choose fewer family members: at most 50 lines can be shown" =>
+            {
+                invalid("Choose fewer family members: at most 50 lines can be shown.")
+            }
             budget_core::store::StoreError::InvalidParameterName(_) => {
                 invalid("A selected entity is unavailable or the monetary total is outside the supported range.")
             }

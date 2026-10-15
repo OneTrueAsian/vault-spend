@@ -2,7 +2,7 @@ import type { ResolvedPeriod } from "./types";
 
 /** Split a question into lowercase tokens. Quoted names, ISO dates, slash dates and dollar amounts stay whole. */
 export function tokenize(question: string): string[] {
-  const input = question.trim().replace(/[?!.]+$/, "");
+  const input = question.trim().replace(/[?!.]+$/, "").replace(/’/g, "'");
   const pieces =
     input.match(
       /"[^"]*"|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\$?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:st|nd|rd|th)?|\p{L}+(?:'\p{L}+)?|[^\s]/gu,
