@@ -36,6 +36,7 @@ export function useAskVault({
   getContext,
   legacyAsk,
   dataKey,
+  reloadKey,
   createClient = createFinancialClient,
 }: {
   /** Built when a question is asked, so today's date and the names are always current. */
@@ -43,18 +44,23 @@ export function useAskVault({
   legacyAsk: (question: string) => LegacyAnswer;
   /** Changes whenever the ledger the Dashboard shows changes. */
   dataKey: unknown;
+  /** Changes whenever the Dashboard reloads its list. An answer is kept if the native data revision is unchanged. */
+  reloadKey?: unknown;
   createClient?: () => Pick<Client, "askVault" | "dispose">;
 }) {
   const client = useRef<Pick<Client, "askVault" | "dispose"> | null>(null);
   const alive = useRef(false);
   // Plain counters (not DOM refs): bumping one invalidates any reply still in flight.
-  const [tokens] = useState(() => ({ sequence: 0, detail: 0 }));
+  const [tokens] = useState(() => ({ sequence: 0, detail: 0, check: 0 }));
   const factory = useRef(createClient);
   factory.current = createClient;
   const latest = useRef({ getContext, legacyAsk, dataKey });
   latest.current = { getContext, legacyAsk, dataKey };
   const answeredWith = useRef<unknown>(dataKey);
   const [view, setView] = useState<AskVaultView>({ status: "idle" });
+  const shown = useRef(view);
+  shown.current = view;
+  const checkedFor = useRef<unknown>(reloadKey);
   const [details, setDetails] = useState<AskVaultDetails>(null);
 
   useEffect(() => {
@@ -64,6 +70,7 @@ export function useAskVault({
       alive.current = false;
       tokens.sequence++;
       tokens.detail++;
+      tokens.check++;
       client.current?.dispose();
       client.current = null;
     };
@@ -78,14 +85,41 @@ export function useAskVault({
     if (answeredWith.current !== dataKey) setDetails(null);
   }, [dataKey]);
 
+  // A reload of the list does not mean the data changed (and a split can change amounts without changing the
+  // list's fingerprint), so ask the native side whether its data revision moved since the answer was read.
+  useEffect(() => {
+    if (reloadKey === checkedFor.current) return;
+    checkedFor.current = reloadKey;
+    const current = shown.current;
+    if (current.status !== "answer" || !client.current) return;
+    const answer = current.result;
+    const mine = ++tokens.check;
+    const day = answer.request.periods[0].from;
+    const retire = () => {
+      if (!alive.current || mine !== tokens.check) return;
+      setView((now) => (now.status === "answer" && now.result === answer ? { status: "stale", question: now.question, message: LEDGER_CHANGED } : now));
+      setDetails(null);
+    };
+    client.current
+      .askVault({ kind: "total", periods: [{ from: day, to: day }], accountIds: [], categories: [], minimumPurchase: null, vendors: [], excludeVendors: [], excludeCategories: [], limit: 1, expectedRevision: null })
+      .then((reply) => {
+        if (reply.revision.local !== answer.revision.local || reply.revision.external !== answer.revision.external) retire();
+      })
+      .catch(retire);
+  }, [reloadKey, tokens]);
+
   const ask = useCallback(async (raw: string) => {
     const question = raw.trim();
     if (!question || !client.current) return;
     const request = ++tokens.sequence;
     tokens.detail++;
+    tokens.check++;
     setDetails(null);
     answeredWith.current = latest.current.dataKey;
     setView({ status: "loading", question });
+    // Let the "working" state reach the screen before the question is read: with a large ledger that work is not instant.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    if (!alive.current || request !== tokens.sequence) return;
     const outcome = await askVault(question, latest.current.getContext(), client.current);
     if (!alive.current || request !== tokens.sequence) return;
     switch (outcome.status) {

@@ -87,6 +87,28 @@ try {
   assert.equal(ask.noStore.periods[0].total, "0");
   assert.deepEqual(ask.noStore.periods[0].vendors, []);
   assert.equal(ask.oneLetter, "invalid_argument");
+
+  // Changing how a purchase is split, with the same number of parts and the same total, still moves the data revision,
+  // which is how an answer on screen learns it is out of date.
+  const split = await b.executeAsync((today, done) => {
+    const invoke = window.__TAURI_INTERNALS__.invoke;
+    (async () => {
+      const context = await invoke("get_transaction_context");
+      const origin = { expectedGeneration: context.generation, expectedSessionRevision: context.sessionRevision };
+      const request = { kind: "rank-purchases", periods: [{ from: today, to: today }], categories: ["Groceries"], limit: 1 };
+      const before = await invoke("get_ask_vault_snapshot", { ...origin, request });
+      const id = before.periods[0].purchases[0].transactionId;
+      await invoke("set_transaction_splits", { transactionId: id, splits: [["Groceries", "-6.00", null], ["Groceries", "-6.34", null]] });
+      const first = await invoke("get_ask_vault_snapshot", { ...origin, request });
+      await invoke("set_transaction_splits", { transactionId: id, splits: [["Groceries", "-5.00", null], ["Groceries", "-7.34", null]] });
+      const second = await invoke("get_ask_vault_snapshot", { ...origin, request });
+      done({ before: before.revision, first: first.revision, second: second.revision, total: second.periods[0].total });
+    })().catch(error => done({ fatal: JSON.stringify(error) }));
+  }, today);
+  assert.equal(split.fatal, undefined);
+  assert.notDeepEqual(split.first, split.before);
+  assert.notDeepEqual(split.second, split.first);
+  assert.equal(split.total, "12.34");
   assert.deepEqual(ask.several.periods[0].vendorTotals.map((l) => [l.total, l.purchaseCount]), [["12.34", 1], ["0", 0]]);
   assert.equal(ask.leftStore.periods[0].total, "0");
   assert.equal(ask.leftStore.periods[0].leftOut.total, "12.34");

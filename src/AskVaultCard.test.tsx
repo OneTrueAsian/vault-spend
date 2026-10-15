@@ -55,11 +55,11 @@ function fake(handler: Handler): Fake {
 const legacy = vi.fn((q: string) => (q.includes("net worth") ? { matched: true, answer: "Your net worth is $50,178.37." } : { matched: false, answer: "I couldn't match that." }));
 
 function mount(client: Fake, over: { dataKey?: unknown; ctx?: ParseContext; onOpenTransactions?: (f: { category: string; accountIds: number[]; from: string; to: string }) => void } = {}) {
-  const element = (key: unknown) => (
-    <AskVaultCard getContext={() => over.ctx ?? context} legacyAsk={legacy} dataKey={key} accountNames={new Map([[1, "Everyday Checking"]])} onOpenTransactions={over.onOpenTransactions} createClient={() => client} />
+  const element = (key: unknown, reload: unknown = "r1") => (
+    <AskVaultCard getContext={() => over.ctx ?? context} legacyAsk={legacy} dataKey={key} reloadKey={reload} accountNames={new Map([[1, "Everyday Checking"]])} onOpenTransactions={over.onOpenTransactions} createClient={() => client} />
   );
   act(() => root.render(element(over.dataKey ?? "v1")));
-  return { rerender: (key: unknown) => act(() => root.render(element(key))) };
+  return { rerender: (key: unknown, reload?: unknown) => act(() => root.render(element(key, reload))) };
 }
 
 async function ask(question: string) {
@@ -97,6 +97,16 @@ describe("the Ask the Vault card", () => {
     expect(text()).toContain("Ask the Vault");
     expect(container.querySelector("button[type='submit']")?.textContent).toBe("Ask");
     expect(container.querySelector(".ledger-qa-card .card-head")).not.toBeNull();
+  });
+
+  it("shows that it is working before it starts reading the question (so a big ledger cannot delay the first sign of life)", async () => {
+    let sawWorking: boolean | null = null;
+    const client = fake(async () => snapshot());
+    mount(client, { ctx: undefined });
+    // A context built at ask time stands in for the work done before parsing.
+    root.render(<AskVaultCard getContext={() => { sawWorking = document.body.textContent?.includes("Looking that up") ?? false; return context; }} legacyAsk={legacy} dataKey="v1" accountNames={new Map()} createClient={() => client} />);
+    await ask("how much did I spend on groceries last month");
+    expect(sawWorking).toBe(true);
   });
 
   it("reads once from the native side and shows the answer in plain words", async () => {
@@ -237,6 +247,87 @@ describe("the Ask the Vault card", () => {
     await click("Ask again");
     expect(client.askVault).toHaveBeenCalledTimes(2);
     expect(text()).toContain("$317.13");
+  });
+
+  it("a long ranking shows five rows inline and the rest in a dialog", async () => {
+    const names = ["Groceries", "Dining Out", "Rent", "Shopping", "Gifts", "Health", "Travel", "Pets", "Fuel", "Coffee"];
+    const categories = names.map((category, i) => ({ category, amount: String(1000 - i * 10), purchaseCount: i + 1 }));
+    const client = fake(async () => snapshot({ kind: "rank-categories", periods: [period({ categories, categoryCount: 12, total: "9550", purchaseCount: 55 })] }));
+    mount(client);
+    await ask("top 10 spending categories last month");
+    expect(container.querySelectorAll(".ledger-qa-rows li")).toHaveLength(5);
+    expect(text()).not.toContain("Coffee");
+    await click("Show all 10");
+    const dialog = document.querySelector("[role='dialog']")!;
+    expect(dialog.querySelectorAll("li")).toHaveLength(10);
+    expect(dialog.textContent).toContain("Coffee");
+    await click("Close");
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+  });
+
+  it("five or fewer rows have no extra button", async () => {
+    const categories = ["Groceries", "Rent"].map((category, i) => ({ category, amount: String(100 - i), purchaseCount: 1 }));
+    mount(fake(async () => snapshot({ kind: "rank-categories", periods: [period({ categories, categoryCount: 2 })] })));
+    await ask("top 5 spending categories last month");
+    expect(text()).not.toContain("Show all");
+  });
+
+  it("no more than three choices are shown at once; the rest sit behind 'More choices'", async () => {
+    const many: ParseContext = { ...context, categories: ["Dining", "Dining Out", "Dinner Club", "Diner Tabs", "Dinero"] };
+    mount(fake(async () => snapshot()), { ctx: many });
+    await ask("total spending on din last month");
+    const inline = container.querySelectorAll("[role='group'] > button");
+    expect(inline.length).toBeLessThanOrEqual(3);
+    expect(inline.length).toBeGreaterThan(0);
+    expect(text()).toContain("More choices");
+    const more = container.querySelectorAll("[role='group'] details button");
+    expect(inline.length + more.length).toBeGreaterThan(3);
+  });
+
+  it("a reload with the ledger unchanged keeps the answer; a changed split (same fingerprint) retires it", async () => {
+    let revision = { local: 5, external: 2 };
+    const client = fake(async () => snapshot({ revision }));
+    const view = mount(client);
+    await ask("how much did I spend on groceries last month");
+    expect(text()).toContain("$317.13");
+    view.rerender("v1", "r2"); // the list was reloaded, nothing was written
+    await act(async () => {});
+    expect(text()).toContain("$317.13");
+    revision = { local: 6, external: 2 }; // split amounts changed: same count, same fingerprint
+    view.rerender("v1", "r3");
+    await act(async () => {});
+    expect(text()).not.toContain("$317.13");
+    expect(text()).toContain("Your ledger changed");
+  });
+
+  it("if the freshness check itself fails, the answer is retired rather than trusted", async () => {
+    let fail = false;
+    const client = fake(async () => {
+      if (fail) throw new TransactionError("internal_error", "boom");
+      return snapshot();
+    });
+    const view = mount(client);
+    await ask("how much did I spend on groceries last month");
+    fail = true;
+    view.rerender("v1", "r2");
+    await act(async () => {});
+    expect(text()).not.toContain("$317.13");
+  });
+
+  it("a freshness check that finishes after a newer question was asked is ignored", async () => {
+    let release: (s: AskVaultSnapshot) => void = () => {};
+    let held = false;
+    const client = fake(() => (held ? new Promise<AskVaultSnapshot>((r) => (release = r)) : Promise.resolve(snapshot())));
+    const view = mount(client);
+    await ask("how much did I spend on groceries last month");
+    held = true;
+    view.rerender("v1", "r2"); // check starts and waits
+    held = false;
+    await ask("how much did I spend on groceries last month"); // a newer question answers
+    release(snapshot({ revision: { local: 99, external: 2 } })); // the old check finishes late with a different revision
+    await act(async () => {});
+    expect(text()).toContain("$317.13");
+    expect(text()).not.toContain("Your ledger changed");
   });
 
   it("a failed read is reported in plain words with a way to retry", async () => {

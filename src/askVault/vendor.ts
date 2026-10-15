@@ -32,6 +32,28 @@ export function vendorMatches(description: string, term: string): boolean {
   return words.some((_, i) => words.slice(i).join("").startsWith(term));
 }
 
+/** The recorded names with repeats collapsed and each split into words once, kept for as long as the same list is used. */
+type Prepared = { names: string[]; counts: Map<string, number>; words: Map<string, string[]> };
+const prepared = new WeakMap<readonly string[], Prepared>();
+function prepare(descriptions: readonly string[]): Prepared {
+  const known = prepared.get(descriptions);
+  if (known) return known;
+  const counts = new Map<string, number>();
+  for (const d of descriptions) counts.set(d, (counts.get(d) ?? 0) + 1);
+  const names = [...counts.keys()];
+  const words = new Map(names.map((name) => [name, vendorWords(name)]));
+  const made = { names, counts, words };
+  prepared.set(descriptions, made);
+  return made;
+}
+const startsAtAWord = (words: string[], term: string) => words.some((_, i) => words.slice(i).join("").startsWith(term));
+
+/** True when any recorded name matches the term (the same rule as vendorMatches, without redoing the word split). */
+export function anyVendorMatches(descriptions: readonly string[], term: string): boolean {
+  const { names, words } = prepare(descriptions);
+  return names.some((name) => startsAtAWord(words.get(name)!, term));
+}
+
 export type VendorChoice = { label: string; term: string };
 export type VendorResolution =
   | { status: "matched"; term: string; names: string[] }
@@ -81,11 +103,12 @@ export function resolveVendor(typed: string, descriptions: string[], wholeWords 
   const term = vendorTerm(typed);
   if (term === null) return { status: "none", suggestions: [] };
   const typedWords = vendorWords(typed);
-  const wholeWordMatch = (description: string) => {
-    const words = vendorWords(description);
-    return words.some((_, i) => typedWords.every((w, k) => words[i + k] === w));
-  };
-  const matched = descriptions.filter((d) => vendorMatches(d, term) && (!wholeWords || wholeWordMatch(d)));
+  const { names, counts, words: nameWords } = prepare(descriptions);
+  const wholeWordMatch = (words: string[]) => words.some((_, i) => typedWords.every((w, k) => words[i + k] === w));
+  // Repeats are kept (the commonest spelling labels a store), but each distinct name is matched once.
+  const matched = names
+    .filter((name) => startsAtAWord(nameWords.get(name)!, term) && (!wholeWords || wholeWordMatch(nameWords.get(name)!)))
+    .flatMap((name) => Array<string>(counts.get(name)!).fill(name));
   if (wholeWords && matched.length === 0) return { status: "none", suggestions: [] };
   if (matched.length > 0) {
     const groups = groupByBrand(matched);
@@ -96,10 +119,12 @@ export function resolveVendor(typed: string, descriptions: string[], wholeWords 
   const first = vendorWords(typed)[0];
   const tolerance = first.length <= 5 ? 1 : 2;
   const close = groupByBrand(
-    descriptions.filter((d) => {
-      const word = vendorWords(d)[0];
-      return word !== undefined && first.length >= 3 && distance(first, word.slice(0, first.length + 1)) <= tolerance;
-    }),
+    names
+      .filter((name) => {
+        const word = nameWords.get(name)![0];
+        return word !== undefined && first.length >= 3 && distance(first, word.slice(0, first.length + 1)) <= tolerance;
+      })
+      .flatMap((name) => Array<string>(counts.get(name)!).fill(name)),
   );
   return { status: "none", suggestions: close.slice(0, MAX_SUGGESTIONS).map(choiceFor) };
 }

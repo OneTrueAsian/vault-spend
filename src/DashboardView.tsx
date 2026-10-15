@@ -303,18 +303,24 @@ export function DashboardView({
   const netWorthWithAssets = netWorth + assetsTotal;
 
   // Ask the Vault: what the question parser may know. Built when a question is asked, so today's date is current.
-  const getAskContext = useCallback((): ParseContext => {
+  // Built once per loaded list, so a large ledger is not walked again for every question.
+  const askMerchants = useMemo(() => transactions.map((t) => t.description), [transactions]);
+  const askHistoryStart = useMemo(() => {
     let earliest: string | undefined;
     for (const t of transactions) if (earliest === undefined || t.date < earliest) earliest = t.date;
-    return {
+    return earliest;
+  }, [transactions]);
+  const getAskContext = useCallback(
+    (): ParseContext => ({
       today: toLocalIsoDate(),
       categories,
       accounts: accounts.map((a) => ({ id: a.id, name: a.name })),
-      merchants: transactions.map((t) => t.description),
+      merchants: askMerchants,
       members: familyMembers.map((m) => m.name),
-      historyStart: earliest,
-    };
-  }, [transactions, categories, accounts, familyMembers]);
+      historyStart: askHistoryStart,
+    }),
+    [askMerchants, askHistoryStart, categories, accounts, familyMembers],
+  );
   const legacyAsk = useCallback(
     (question: string) =>
       answerLedgerQuestion(question, { transactions, categories, accounts, buckets, recurring, avgMonthlySpend, today: new Date() }),
@@ -1197,6 +1203,7 @@ export function DashboardView({
         getContext={getAskContext}
         legacyAsk={legacyAsk}
         dataKey={askDataKey}
+        reloadKey={transactions}
         accountNames={accountNames}
         onOpenTransactions={onOpenLedgerFiltered}
       />

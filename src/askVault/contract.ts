@@ -149,7 +149,8 @@ export function validateAskVaultSnapshot(value: unknown, request: AskVaultReques
 
   if (request.kind === "compare") {
     if (reply.difference === null) return invalid();
-    if (subtractMoney(reply.periods[0].total, reply.periods[1].total) !== reply.difference) return invalid();
+    // Compared as amounts, not as text: the native side writes "-4882.10" where subtraction here gives "-4882.1".
+    if (compareMoney(subtractMoney(reply.periods[0].total, reply.periods[1].total), reply.difference) !== 0) return invalid();
   } else if (reply.difference !== null) {
     return invalid();
   }

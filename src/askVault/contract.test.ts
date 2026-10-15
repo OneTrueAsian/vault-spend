@@ -179,6 +179,13 @@ describe("a reply that does not match the request is refused", () => {
     expectInvalid(reply({ kind: "compare", periods: two, difference: null }), request);
     expect(validateAskVaultSnapshot(reply({ kind: "compare", periods: two, difference: "9.8" }), request).difference).toBe("9.8");
   });
+  it("accepts the difference the way the native side writes it, with trailing zeros", () => {
+    const request = { ...base, kind: "compare" as const, periods: [base.periods[0], base.periods[0]] };
+    for (const [a, b, diff] of [["1705.64", "6587.74", "-4882.10"], ["10.50", "0.50", "10.00"], ["5.00", "5.00", "0.00"], ["5", "5", "0"]]) {
+      const two = [period({ total: a }), period({ total: b })];
+      expect(validateAskVaultSnapshot(reply({ kind: "compare", periods: two, difference: diff }), request).difference).toBe(diff);
+    }
+  });
   it("a difference on something that is not a comparison", () => {
     expectInvalid(reply({ difference: "0" }));
   });

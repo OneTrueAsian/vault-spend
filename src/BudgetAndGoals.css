@@ -227,6 +227,17 @@
   border-color: var(--accent);
 }
 
+.ledger-qa-more {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.ledger-qa-more summary {
+  cursor: pointer;
+  color: var(--text);
+}
+
 .ledger-qa-link {
   background: none;
   border: 0;

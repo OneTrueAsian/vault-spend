@@ -542,3 +542,22 @@ describe("found by the three-seed acceptance run (written before the fixes)", ()
 });
 
 const known = context;
+
+describe("a large ledger does not slow a question down", () => {
+  const brands = ["COSTCO", "COSTCO GAS", "TARGET", "KROGER", "ALDI", "SHELL", "SAMS CLUB", "MEIJER", "WALMART", "SPEEDWAY"];
+  const merchants = Array.from({ length: 50000 }, (_, i) => `${brands[i % 10]} #${100 + (i % 900)}`);
+  const big: ParseContext = { today: "2026-10-14", categories: ["Groceries", "Dining Out", "Shopping"], accounts: [{ id: 1, name: "Everyday Checking" }], merchants, members: [], historyStart: "2023-10-14" };
+  it("reads stores in lists and left-out lists within 100 ms with 50,000 transactions on record", () => {
+    parseQuestion("how much did I spend at costco", big); // the first question may prepare the names once
+    for (const q of ["how much did I spend at costco", "groceries at costco, target, kroger and aldi this year", "spending this year without costco, shell and groceries", "how much did I spend at costc last month"]) {
+      const started = performance.now();
+      parseQuestion(q, big);
+      expect(performance.now() - started, q).toBeLessThan(100);
+    }
+  });
+  it("gives the same answer as a short list of the same names", () => {
+    const small: ParseContext = { ...big, merchants: [...new Set(merchants)] };
+    const q = "groceries at costco, target, kroger and aldi this year";
+    expect(parseQuestion(q, big)).toEqual(parseQuestion(q, small));
+  });
+});

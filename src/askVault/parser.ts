@@ -1,6 +1,6 @@
 import { dayLabel, matchPeriod, MONTHS, tokenize } from "./dates";
 import { distance } from "./distance";
-import { resolveVendor, vendorMatches, vendorTerm } from "./vendor";
+import { anyVendorMatches, resolveVendor, vendorTerm } from "./vendor";
 import type { AskAccount, AskVaultRequest, Correction, Interpretation, ParseContext, ParseOutcome, ResolvedPeriod } from "./types";
 
 /**
@@ -188,7 +188,7 @@ function vendorAtom(tokens: string[], at: number, count: number, quoted: boolean
   const words = raw.toLowerCase().replace(/['\u2019]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   const rebuild = (choiceTerm: string) => [...tokens.slice(0, at), `"${choiceTerm}"`, ...tokens.slice(at + count)].join(" ");
   if (quoted) {
-    if (descriptions.some((d) => vendorMatches(d, term))) return { kind: "vendor", text: raw, label, term: words };
+    if (anyVendorMatches(descriptions, term)) return { kind: "vendor", text: raw, label, term: words };
     return clarify(`I couldn't find a category, account, store or payee called "${raw}". Choose one of your categories or stores.`);
   }
   const resolution = resolveVendor(raw, descriptions, wholeWords);
@@ -410,7 +410,7 @@ function scan(tokens: string[], context: ParseContext): { atoms: Atom[]; correct
     const pool = real.length ? real : all;
     const longest = pool.filter((m) => m.consume > 1);
     const candidates = longest.length ? longest : pool;
-    const order = [...context.categories, ...context.accounts.map((a) => a.name), ...(context.merchants ?? []), ...(context.members ?? [])];
+    const order = [...context.categories, ...context.accounts.map((a) => a.name), ...(context.members ?? [])];
     const names = [...new Set(candidates.map((m) => m.entity.name))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
     // In a list of stores, a slip that is close to both a store and a category is a question, not a guess.
     if ((vendorList || excluding) && candidates.length > 0 && candidates.every((m) => display(i, m.consume) !== m.entity.name.toLowerCase() && !m.entity.parts[0].startsWith(w))) {

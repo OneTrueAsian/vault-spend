@@ -15,6 +15,10 @@ const SUGGESTIONS = [
   "my three biggest expenses last month",
   "groceries last month without Costco",
 ];
+/** Rows and choices shown inline; longer lists open in a dialog or sit behind a disclosure. */
+const INLINE_ROWS = 5;
+const INLINE_CHOICES = 3;
+
 export const MORE_EXAMPLES = ["how much did I spend at Costco last month", "everything except rent last month"];
 
 /** The short phrases under the question that say what was understood, so a wrong reading is easy to spot. */
@@ -39,6 +43,20 @@ function correctionLine(corrections: Correction[]): string | null {
   return `I read ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`}.`;
 }
 
+function AnswerRows({ rows }: { rows: { label: string; amount: string; detail: string }[] }) {
+  return (
+    <ol className="ledger-qa-rows">
+      {rows.map((row, i) => (
+        <li key={`${row.label}-${i}`}>
+          <span>{row.label}</span>
+          <span className="ledger-qa-amount">{row.amount}</span>
+          <span className="ledger-qa-sub">{row.detail}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 /**
  * The Dashboard's "Ask the Vault" card. Spending questions are read exactly from the profile's own data
  * by the native side; the older question families are answered by the older matcher. Nothing leaves the
@@ -48,6 +66,7 @@ export function AskVaultCard({
   getContext,
   legacyAsk,
   dataKey,
+  reloadKey,
   accountNames,
   onOpenTransactions,
   createClient,
@@ -56,14 +75,17 @@ export function AskVaultCard({
   legacyAsk: (question: string) => LegacyAnswer;
   /** Changes when the ledger changes; an answer on screen is retired when it does. */
   dataKey: unknown;
+  /** Changes whenever the list is reloaded; the answer is kept only if the data revision is unchanged. */
+  reloadKey?: unknown;
   accountNames: Map<number, string>;
   /** Opens the Transactions tab filtered the same way as an answer; offered only when it can show exactly those purchases. */
   onOpenTransactions?: (filter: { category: string; accountIds: number[]; from: string; to: string }) => void;
   createClient?: () => Pick<ReturnType<typeof createFinancialClient>, "askVault" | "dispose">;
 }) {
-  const { view, details, ask, openDetails, closeDetails } = useAskVault({ getContext, legacyAsk, dataKey, createClient });
+  const { view, details, ask, openDetails, closeDetails } = useAskVault({ getContext, legacyAsk, dataKey, reloadKey, createClient });
   const [question, setQuestion] = useState("");
   const [showExamples, setShowExamples] = useState(false);
+  const [allRowsOpen, setAllRowsOpen] = useState(false);
   const [placeholderExample] = useState(() => LEDGER_QA_EXAMPLES[Math.floor(Math.random() * LEDGER_QA_EXAMPLES.length)]);
   const detailsButton = useRef<HTMLButtonElement | null>(null);
   const wasOpen = useRef(false);
@@ -149,15 +171,16 @@ export function AskVaultCard({
               <p className="ledger-qa-headline">{view.result.answer.headline}</p>
               <p className="ledger-qa-detail">{view.result.answer.detail}</p>
               {view.result.answer.rows.length > 0 && (
-                <ol className="ledger-qa-rows">
-                  {view.result.answer.rows.map((row, i) => (
-                    <li key={`${row.label}-${i}`}>
-                      <span>{row.label}</span>
-                      <span className="ledger-qa-amount">{row.amount}</span>
-                      <span className="ledger-qa-sub">{row.detail}</span>
-                    </li>
-                  ))}
-                </ol>
+                <>
+                  <AnswerRows rows={view.result.answer.rows.slice(0, INLINE_ROWS)} />
+                  {view.result.answer.rows.length > INLINE_ROWS && (
+                    <div className="ledger-qa-actions">
+                      <button type="button" className="modal-secondary" onClick={() => setAllRowsOpen(true)}>
+                        {`Show all ${view.result.answer.rows.length}`}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
               {view.result.interpretation.kind === "total" && view.result.purchaseCount > 0 && (
                 <div className="ledger-qa-actions">
@@ -199,11 +222,23 @@ export function AskVaultCard({
             </p>
             {view.choices.length > 0 && view.replacements ? (
               <div className="ledger-qa-choices" role="group" aria-label="Choose one">
-                {view.choices.map((choice, i) => (
+                {view.choices.slice(0, INLINE_CHOICES).map((choice, i) => (
                   <button key={choice} type="button" onClick={() => choose(view.replacements![i])}>
                     {choice}
                   </button>
                 ))}
+                {view.choices.length > INLINE_CHOICES && (
+                  <details className="ledger-qa-more">
+                    <summary>More choices</summary>
+                    <div className="ledger-qa-choices">
+                      {view.choices.slice(INLINE_CHOICES).map((choice, i) => (
+                        <button key={choice} type="button" onClick={() => choose(view.replacements![INLINE_CHOICES + i])}>
+                          {choice}
+                        </button>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
             ) : (
               <p className="ledger-qa-hint">Change your question above and ask again.</p>
@@ -245,6 +280,20 @@ export function AskVaultCard({
           </p>
         )}
       </div>
+
+      {allRowsOpen && view.status === "answer" && (
+        <ModalShell
+          title={view.result.answer.headline}
+          onCancel={() => setAllRowsOpen(false)}
+          footer={
+            <button type="button" onClick={() => setAllRowsOpen(false)}>
+              Close
+            </button>
+          }
+        >
+          <AnswerRows rows={view.result.answer.rows} />
+        </ModalShell>
+      )}
 
       {details && (
         <ModalShell
