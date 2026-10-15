@@ -2,13 +2,13 @@
 
 *Own your Data, Own your Money!*
 
-A local, private budgeting and transaction ledger for Windows and macOS.
+A local, private budgeting and transaction tracker for Windows and macOS.
 There's no service account, no cloud synchronization, and no subscription —
 your main data lives in files on your own computer, in independent profiles you
 can each password-protect. Vault Spend reaches out to the internet for a check
 on GitHub for a newer version and live investment prices if you set up a price
 provider. Its typefaces are bundled locally. Neither service receives your
-financial ledger. The full
+transaction data. The full
 [legal notice](docs/LEGAL-NOTICE.md) covers these, estimates, backups and
 recovery codes.
 

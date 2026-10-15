@@ -1174,7 +1174,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         within 3 days, and no other possible match for either side. Anything
         ambiguous (say, one $500 out and two $500 deposits) stays in "possible
         transfers" for you to decide. Turning it on also links the clear-cut
-        pairs already in your ledger, and it runs after every import and every
+        pairs already in your transactions, and it runs after every import and every
         transaction you add. Each automatic link appears under "N auto-linked
         — review" on Transactions: choose "Looks right" to clear it from the
         list (the link stays) or Unlink if it isn't a transfer — that pair
