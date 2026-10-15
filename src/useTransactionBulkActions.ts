@@ -4,18 +4,18 @@ import { errorMessage } from "./errorMessage";
 import { distinctMerchants, similarOfferText } from "./similarRules";
 import { setLastUsedAccountId } from "./appStorage";
 import type { useTransactionData } from "./useTransactionData";
-import type { useTransactionsLedger } from "./useTransactionsLedger";
+import type { useTransactionList } from "./useTransactionList";
 import type { StatusKind } from "./appTypes";
 
 /** Owns creation, categorization, bulk selection actions and undo/review decisions. */
-export function useTransactionBulkActions({ data, ledger, onStatus: setStatus, onBusy: setBusy, askNewCategory, refreshRecurring }: {
-  data: ReturnType<typeof useTransactionData>; ledger: Pick<ReturnType<typeof useTransactionsLedger>, "selectedIds" | "setSelectedIds">;
+export function useTransactionBulkActions({ data, list, onStatus: setStatus, onBusy: setBusy, askNewCategory, refreshRecurring }: {
+  data: ReturnType<typeof useTransactionData>; list: Pick<ReturnType<typeof useTransactionList>, "selectedIds" | "setSelectedIds">;
   onStatus: (message: string, kind?: StatusKind) => void; onBusy: (busy: boolean) => void;
   askNewCategory: () => Promise<string | null>; refreshRecurring: () => Promise<void>;
 }) {
   const { refresh, refreshRows, setTransactions, call: callTransaction } = data;
   const transactions = data.snapshot?.transactions ?? [];
-  const { selectedIds, setSelectedIds } = ledger;
+  const { selectedIds, setSelectedIds } = list;
   const [bulkTagText, setBulkTagText] = useState("");
 
   const [newTransactionOpen, setNewTransactionOpen] = useState(false);

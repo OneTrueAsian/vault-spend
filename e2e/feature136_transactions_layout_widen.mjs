@@ -5,7 +5,7 @@
 // editable and keeps an accessible way to change sort even once a
 // sortable column's own header has moved out of view.
 //
-// Run with: node e2e/feature136_ledger_layout_widen.mjs
+// Run with: node e2e/feature136_transactions_layout_widen.mjs
 
 import assert from "node:assert/strict";
 import { launchApp, chooseMenuOption, menuSelectValue, pickFromMenu } from "./harness.mjs";

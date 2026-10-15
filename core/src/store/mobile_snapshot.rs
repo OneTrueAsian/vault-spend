@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 
 mod budgets;
 mod comparisons;
-mod ledger;
 mod refresh;
+mod transactions;
 pub use refresh::{MOBILE_REFRESH_INTERVAL, MobileRefreshDenied, MobileSnapshotRefreshGate, MobileSnapshotRefreshPermit};
 #[cfg(test)]
 mod tests;
@@ -150,8 +150,8 @@ impl Store {
                 name: m.name.clone(),
             })
             .collect();
-        let mut ledger = ledger::read(self, as_of)?;
-        let budgets = budgets::read(self, &mut ledger.history, &ledger.raw, as_of)?;
+        let mut transaction_data = transactions::read(self, as_of)?;
+        let budgets = budgets::read(self, &mut transaction_data.history, &transaction_data.raw, as_of)?;
         let property: Money = assets.iter().map(|a| a.value).sum();
         let worth = self.net_worth_breakdown_as_of(as_of)?;
         let average = self.average_monthly_spend(as_of)?;
@@ -274,7 +274,7 @@ impl Store {
             },
             accounts: investment_accounts,
         };
-        ledger.history.portfolio = self
+        transaction_data.history.portfolio = self
             .portfolio_history()?
             .into_iter()
             .filter(|(d, _)| *d <= as_of)
@@ -283,13 +283,13 @@ impl Store {
                 value: money(value),
             })
             .collect();
-        // Recorded value history and manual goal deposits can predate the ledger.
+        // Recorded value history and manual goal deposits can predate the first transaction.
         let contribution_first: Option<String> =
             self.conn
                 .query_row("SELECT MIN(date) FROM bucket_contributions WHERE date <= ?1", [as_of.to_string()], |r| {
                     r.get(0)
                 })?;
-        let first = ledger
+        let first = transaction_data
             .history
             .from_month
             .clone()
@@ -300,12 +300,12 @@ impl Store {
                     .filter(|b| b.month <= month(as_of) && (b.source_month.is_some() || !b.lines.is_empty()))
                     .map(|b| b.month.clone()),
             )
-            .chain(ledger.history.portfolio.iter().map(|p| p.date[..7].to_string()))
+            .chain(transaction_data.history.portfolio.iter().map(|p| p.date[..7].to_string()))
             .chain(accumulation.iter().flat_map(|a| a.value_history.iter().map(|v| v.date[..7].to_string())))
             .chain(contribution_first.map(|s| s[..7].to_string()))
             .min();
-        ledger::fill_months(&mut ledger.history, first.as_deref(), as_of);
-        for m in &ledger.history.months {
+        transactions::fill_months(&mut transaction_data.history, first.as_deref(), as_of);
+        for m in &transaction_data.history.months {
             let date = if m.month == month(as_of) {
                 as_of
             } else {
@@ -314,7 +314,7 @@ impl Store {
                     .unwrap()
             };
             let point = self.net_worth_breakdown_as_of(date)?;
-            ledger.history.net_worth.push(NetWorthPoint {
+            transaction_data.history.net_worth.push(NetWorthPoint {
                 date: date.to_string(),
                 net_worth: money(point.net_worth + property),
                 cash: money(point.cash),
@@ -331,7 +331,7 @@ impl Store {
         for a in &assets {
             *member_worth.entry(a.member_id).or_default() += a.value;
         }
-        ledger.history.member_net_worth = member_worth
+        transaction_data.history.member_net_worth = member_worth
             .into_iter()
             .map(|(id, value)| MemberWorth {
                 member_id: id.map(|id| c.alias("member", id)),
@@ -342,7 +342,7 @@ impl Store {
                 value: money(value),
             })
             .collect();
-        ledger::alias_breakdowns(&mut ledger.history, c);
+        transactions::alias_breakdowns(&mut transaction_data.history, c);
         let trend = self.cash_flow_forecast(as_of, 1)?;
         let forecast = self.bill_aware_forecast(as_of, 90)?;
         let mut schedule: BTreeMap<String, (Money, Money)> = BTreeMap::new();
@@ -413,7 +413,7 @@ impl Store {
             accounts: exported_accounts,
             investments,
             budgets,
-            history: ledger.history,
+            history: transaction_data.history,
             comparisons,
             calculators: Calculators {
                 inflation_pct: money(self.get_inflation_pct()?),

@@ -379,7 +379,7 @@
   padding-right: 8px;
 }
 
-/* Below the ledger's narrow breakpoint (App.tsx's `ledgerNarrow`), an
+/* Below the ledger's narrow breakpoint (App.tsx's `transactionsNarrow`), an
    accessible replacement for the sortable headers that move into Details —
    clicking a header is no longer possible once it isn't rendered. */
 .ledger-sort-by {

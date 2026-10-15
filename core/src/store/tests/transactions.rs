@@ -305,7 +305,7 @@ fn assigning_a_brand_new_category_to_a_transaction_registers_it_for_every_other_
 }
 
 #[test]
-fn transactions_by_ids_returns_exactly_those_rows_as_the_full_ledger_shows_them() {
+fn transactions_by_ids_returns_exactly_those_rows_as_the_full_transactions_shows_them() {
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);
     store
@@ -336,7 +336,7 @@ fn transactions_by_ids_returns_exactly_those_rows_as_the_full_ledger_shows_them(
 }
 
 #[test]
-fn category_counts_and_description_lookup_match_the_full_ledger() {
+fn category_counts_and_description_lookup_match_the_full_transactions() {
     // get_stats and correct_category used to load every transaction (0.4 s each at 50,000 rows,
     // 2026-10-02 QA, M1). Their narrow queries must see exactly the rows all_transactions lists.
     let store = Store::open_in_memory().unwrap();

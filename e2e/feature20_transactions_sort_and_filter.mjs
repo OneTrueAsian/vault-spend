@@ -5,7 +5,7 @@
 // then confirms unchecking an account in the filter dropdown hides that
 // account's transactions.
 //
-// Run with: node e2e/feature20_ledger_sort_and_filter.mjs
+// Run with: node e2e/feature20_transactions_sort_and_filter.mjs
 
 import { launchApp, chooseMenuOption, menuSelectValue, withFocusRetry } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import type { AccountFilterValue } from "./AccountFilterDropdown";
 import type { MemberFilterValue } from "./MemberFilterDropdown";
-import type { SavedLedgerFilter } from "./appTypes";
+import type { SavedTransactionFilter } from "./appTypes";
 import { loadSavedFilters, saveSavedFilters } from "./appStorage";
 import { ensureUiStateMigrated } from "./profileUiState";
 
-export function useLedgerFilters() {
+export function useTransactionFilters() {
   const [searchText, setSearchText] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterAccountIds, setFilterAccountIds] = useState<AccountFilterValue>("all");
@@ -13,7 +13,7 @@ export function useLedgerFilters() {
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
   const [filterTag, setFilterTag] = useState("all");
-  const [savedFilters, setSavedFilters] = useState<SavedLedgerFilter[]>([]);
+  const [savedFilters, setSavedFilters] = useState<SavedTransactionFilter[]>([]);
   const [savingFilter, setSavingFilter] = useState(false);
   const [newFilterName, setNewFilterName] = useState("");
 
@@ -33,7 +33,7 @@ export function useLedgerFilters() {
   function saveCurrentFilter() {
     const name = newFilterName.trim();
     if (!name) return;
-    const snapshot: SavedLedgerFilter = {
+    const snapshot: SavedTransactionFilter = {
       name,
       searchText,
       filterCategory,
@@ -52,7 +52,7 @@ export function useLedgerFilters() {
     setSavingFilter(false);
   }
 
-  function applySavedFilter(filter: SavedLedgerFilter) {
+  function applySavedFilter(filter: SavedTransactionFilter) {
     setSearchText(filter.searchText);
     setFilterCategory(filter.filterCategory);
     setFilterAccountIds(filter.filterAccountIds === "all" ? "all" : new Set(filter.filterAccountIds));

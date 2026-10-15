@@ -3,7 +3,7 @@ import type { ImportReview } from "./useImportReview";
 import { AccountDestinationDropdown } from "./AccountDestinationDropdown";
 import type { Account } from "./types";
 
-interface LedgerPageActionsProps {
+interface TransactionsPageActionsProps {
   accounts: Account[];
   selectedAccountId: number | null;
   handleAccountSelectChange: (value: string) => void;
@@ -20,11 +20,11 @@ interface LedgerPageActionsProps {
   openManageCategories: () => void;
   openManageFamilyMembers: () => void;
   handleRecategorize: () => Promise<void>;
-  handleExportLedgerCsv: () => Promise<void>;
+  handleExportTransactionsCsv: () => Promise<void>;
 }
 
 /** The Transactions page's own buttons, beside its title: "Add to", Import, Add, and the ⋯ menu. */
-export function LedgerPageActions({
+export function TransactionsPageActions({
   accounts,
   selectedAccountId,
   handleAccountSelectChange,
@@ -41,8 +41,8 @@ export function LedgerPageActions({
   openManageCategories,
   openManageFamilyMembers,
   handleRecategorize,
-  handleExportLedgerCsv,
-}: LedgerPageActionsProps) {
+  handleExportTransactionsCsv,
+}: TransactionsPageActionsProps) {
   return (
     <div className="import-controls">
       <label
@@ -122,7 +122,7 @@ export function LedgerPageActions({
               className="more-menu-item"
               onClick={() => {
                 setMoreMenuOpen(false);
-                handleExportLedgerCsv();
+                handleExportTransactionsCsv();
               }}
             >
               Export CSV…

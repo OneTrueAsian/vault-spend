@@ -7,7 +7,7 @@ export const LEDGER_STEPS = [25, 50, 100] as const;
 const n = (value: number) => value.toLocaleString("en-US");
 
 /** "Showing 50 of 1,200 transactions", or "Showing all 1,200 transactions". */
-export function ledgerShownLabel(shown: number, total: number): string {
+export function transactionsShownLabel(shown: number, total: number): string {
   if (total === 1) return "Showing 1 transaction";
   return shown >= total ? `Showing all ${n(total)} transactions` : `Showing ${n(shown)} of ${n(total)} transactions`;
 }

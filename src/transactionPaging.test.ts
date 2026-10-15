@@ -1,7 +1,7 @@
 // The Transactions tab shows its matching rows a step at a time with a "Show N more" button
 // instead of numbered pages (owner, 2026-10-04).
 import { describe, expect, it } from "vitest";
-import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel, transactionsInRows } from "./ledgerPaging";
+import { LEDGER_STEPS, transactionsShownLabel, rowsToShowFor, showMoreLabel, transactionsInRows } from "./transactionPaging";
 
 describe("ledger paging", () => {
   it("offers 25, 50 or 100 rows at a time", () => {
@@ -9,10 +9,10 @@ describe("ledger paging", () => {
   });
 
   it("says how many of the matching rows show, with thousands separators", () => {
-    expect(ledgerShownLabel(50, 1200)).toBe("Showing 50 of 1,200 transactions");
-    expect(ledgerShownLabel(1200, 1200)).toBe("Showing all 1,200 transactions");
-    expect(ledgerShownLabel(60, 7)).toBe("Showing all 7 transactions");
-    expect(ledgerShownLabel(50, 1)).toBe("Showing 1 transaction");
+    expect(transactionsShownLabel(50, 1200)).toBe("Showing 50 of 1,200 transactions");
+    expect(transactionsShownLabel(1200, 1200)).toBe("Showing all 1,200 transactions");
+    expect(transactionsShownLabel(60, 7)).toBe("Showing all 7 transactions");
+    expect(transactionsShownLabel(50, 1)).toBe("Showing 1 transaction");
   });
 
   it("counts transactions, so a transfer shown as one row counts as its two", () => {

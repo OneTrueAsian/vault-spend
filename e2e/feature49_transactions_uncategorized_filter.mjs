@@ -14,7 +14,7 @@
 // source) alongside a genuinely uncategorized one to confirm the stat and
 // filter now agree.
 //
-// Run with: node e2e/feature49_ledger_uncategorized_filter.mjs
+// Run with: node e2e/feature49_transactions_uncategorized_filter.mjs
 
 import { launchApp, pickFromMenu, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";

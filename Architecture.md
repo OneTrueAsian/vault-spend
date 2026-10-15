@@ -16,7 +16,7 @@ subgraph group_finance["Finance workflows"]
   node_household["Household<br/>[HouseholdView.tsx]"]
   node_reports["Reports<br/>[ReportsView.tsx]"]
   node_import_ui["Import inbox"]
-  node_query["Ledger queries<br/>[ledgerQuery.ts]"]
+  node_query["Ledger queries<br/>[transactionQuery.ts]"]
 end
 
 subgraph group_backend["Desktop backend"]
@@ -84,7 +84,7 @@ click node_investments "https://github.com/onetrueasian/vault-spend/blob/main/sr
 click node_household "https://github.com/onetrueasian/vault-spend/blob/main/src/HouseholdView.tsx"
 click node_reports "https://github.com/onetrueasian/vault-spend/blob/main/src/ReportsView.tsx"
 click node_import_ui "https://github.com/onetrueasian/vault-spend/blob/main/src/ImportInboxDialog.tsx"
-click node_query "https://github.com/onetrueasian/vault-spend/blob/main/src/ledgerQuery.ts"
+click node_query "https://github.com/onetrueasian/vault-spend/blob/main/src/transactionQuery.ts"
 click node_commands "https://github.com/onetrueasian/vault-spend/blob/main/src-tauri/src/commands.rs"
 click node_runtime "https://github.com/onetrueasian/vault-spend/blob/main/src-tauri/src/runtime.rs"
 click node_background "https://github.com/onetrueasian/vault-spend/blob/main/src-tauri/src/background.rs"

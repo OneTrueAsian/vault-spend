@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Transaction } from "./types";
 import type { useTransactionData } from "./useTransactionData";
-import type { useTransactionsLedger } from "./useTransactionsLedger";
+import type { useTransactionList } from "./useTransactionList";
 import type { StatusKind } from "./appTypes";
 import { errorMessage } from "./errorMessage";
 
 /** Owns transfer suggestions, review/dismissal/undo state and link mutations. */
-export function useTransactionTransfers({ data, transactions, active, ledger, onStatus: setStatus }: {
+export function useTransactionTransfers({ data, transactions, active, list, onStatus: setStatus }: {
   data: Pick<ReturnType<typeof useTransactionData>, "call" | "refresh">;
   transactions: Transaction[]; active: boolean;
-  ledger: Pick<ReturnType<typeof useTransactionsLedger>, "selectedPairForLink" | "setSelectedIds">;
+  list: Pick<ReturnType<typeof useTransactionList>, "selectedPairForLink" | "setSelectedIds">;
   onStatus: (message: string, kind?: StatusKind) => void;
 }) {
   const { call: callTransaction, refresh } = data;
-  const { selectedPairForLink, setSelectedIds } = ledger;
+  const { selectedPairForLink, setSelectedIds } = list;
   const [transferCandidates, setTransferCandidates] = useState<{ out_id: number; in_id: number }[]>([]);
   const [transferReviewOpen, setTransferReviewOpen] = useState(false);
   // Own state (like `undoToast`) so a routine status message can't clobber

@@ -2,7 +2,7 @@ use super::super::LIVE_TRANSFER_LEG_IDS_SQL;
 use super::*;
 use std::str::FromStr;
 
-pub(super) struct Ledger {
+pub(super) struct TransactionData {
     pub history: History,
     pub raw: BTreeMap<(String, String), Money>,
 }
@@ -37,7 +37,7 @@ fn breakdown(map: Totals) -> Vec<MonthBreakdown> {
         })
         .collect()
 }
-pub(super) fn read(store: &Store, as_of: NaiveDate) -> rusqlite::Result<Ledger> {
+pub(super) fn read(store: &Store, as_of: NaiveDate) -> rusqlite::Result<TransactionData> {
     // One parent pass; notes, masks, import metadata and payment identifiers are never fetched.
     let mut stmt=store.conn.prepare(&format!("SELECT t.id,t.date,t.amount,t.category,t.account_id,t.member_id,t.description,a.account_type,t.id IN ({LIVE_TRANSFER_LEG_IDS_SQL}) FROM transactions t JOIN accounts a ON a.id=t.account_id WHERE t.deleted_at IS NULL AND t.date<=?1 AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments) ORDER BY t.date,t.id"))?;
     let rows = stmt
@@ -166,7 +166,7 @@ pub(super) fn read(store: &Store, as_of: NaiveDate) -> rusqlite::Result<Ledger> 
         portfolio: Vec::new(),
         member_net_worth: Vec::new(),
     };
-    Ok(Ledger { history, raw })
+    Ok(TransactionData { history, raw })
 }
 pub(super) fn fill_months(history: &mut History, first: Option<&str>, as_of: NaiveDate) {
     let Some(first) = first else { return };

@@ -69,7 +69,7 @@ function props(over: Partial<Props> = {}): Props {
     layoutWidgets: [...DEFAULT_LAYOUT],
     onSetLayoutWidgets: vi.fn(),
     onOpenAddWidget: vi.fn(),
-    onOpenLedger: vi.fn(),
+    onOpenTransactions: vi.fn(),
     onOpenRecurring: vi.fn(),
     onOpenBudget: vi.fn(),
     onOpenCashFlow: vi.fn(),

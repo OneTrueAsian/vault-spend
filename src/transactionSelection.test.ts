@@ -1,7 +1,7 @@
 // Select all on the Transactions tab picks every matching row, at most 250 transactions at a
 // time, and the next press picks the next 250 once a change has been applied (owner, 2026-10-04).
 import { describe, expect, it } from "vitest";
-import { SELECT_ALL_CAP, canSelectMore, isBatchSelected, selectAllNext, selectAllNote, unselectBatch } from "./ledgerSelection";
+import { SELECT_ALL_CAP, canSelectMore, isBatchSelected, selectAllNext, selectAllNote, unselectBatch } from "./transactionSelection";
 
 /** `n` single-transaction rows with ids 1..n, in ledger order. */
 const rows = (n: number, from = 1) => Array.from({ length: n }, (_, i) => [from + i]);

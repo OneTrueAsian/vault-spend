@@ -1,8 +1,8 @@
 import type { Transaction } from "./types";
 
-export type LedgerRowActionId = "split" | "principal" | "applyDebt" | "note" | "tag" | "delete";
+export type TransactionRowActionId = "split" | "principal" | "applyDebt" | "note" | "tag" | "delete";
 
-export interface LedgerRowActionContext {
+export interface TransactionRowActionContext {
   /** Settings > "Split purchases" is on. */
   splitEnabled: boolean;
   /** Settings > "Apply payments to a debt" is on. */
@@ -18,11 +18,11 @@ export interface LedgerRowActionContext {
 }
 
 /** Which items a ledger row's `⋯` menu offers, in order. Pure, so the rules are tested on their own. */
-export function ledgerRowActions(
+export function transactionRowActions(
   t: Pick<Transaction, "amount" | "split_count" | "notes">,
-  ctx: LedgerRowActionContext,
-): { id: LedgerRowActionId; label: string }[] {
-  const actions: { id: LedgerRowActionId; label: string }[] = [];
+  ctx: TransactionRowActionContext,
+): { id: TransactionRowActionId; label: string }[] {
+  const actions: { id: TransactionRowActionId; label: string }[] = [];
   if (ctx.splitEnabled) actions.push({ id: "split", label: t.split_count > 0 ? "Edit splits…" : "Split…" });
   if (ctx.isLoanAccount) {
     if (ctx.debtEnabled && !ctx.hasPrincipalOverride) actions.push({ id: "principal", label: "Split principal…" });

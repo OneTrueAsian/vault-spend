@@ -7,8 +7,8 @@ tab navigation.
 
 | Owner | Current responsibility |
 |---|---|
-| `useTransactionsLedger` | Filter/saved-filter composition, sort, transfer collapse, visible row count, selection, batch history and selection-limit actions |
-| `useLedgerFilters` | Filter fields, saved filter snapshots and existing profile UI-state persistence |
+| `useTransactionList` | Filter/saved-filter composition, sort, transfer collapse, visible row count, selection, batch history and selection-limit actions |
+| `useTransactionFilters` | Filter fields, saved filter snapshots and existing profile UI-state persistence |
 | `transactionReads` / `transactionContracts` | Versioned validated snapshot adapter, profile-bound calls, pending-call coalescing and stable error classification; compatibility list reads |
 | `useTransactionData` | Atomic shared transactions/accounts/stats/categories/icons/tags/flags/members; full/targeted reads, fallback, loading/error/retry, optimistic reconciliation and session/request cancellation |
 | `compactTransactionContracts` | Validated lossless version-2 wire decoding into the existing full transaction model; no backend paging |

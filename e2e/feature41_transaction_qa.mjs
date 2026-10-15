@@ -1,13 +1,13 @@
 // E2E test for the Dashboard's "Ask the Vault" box: template-matched
 // natural-language questions answered entirely from local data (no hosted
-// LLM call — see src/ledgerQa.ts). The bulk of the engine's logic (period
+// LLM call — see src/transactionQa.ts). The bulk of the engine's logic (period
 // parsing, fuzzy matching, every intent) has its own fast unit tests in
-// src/ledgerQa.test.ts — this spec exists to confirm the real UI actually
+// src/transactionQa.test.ts — this spec exists to confirm the real UI actually
 // wires the box up to it correctly (props threaded through from App.tsx,
 // including buckets/recurring which the unit tests supply directly but a
 // wiring mistake here wouldn't catch), not to re-verify the logic itself.
 //
-// Run with: node e2e/feature41_ledger_qa.mjs
+// Run with: node e2e/feature41_transaction_qa.mjs
 
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";

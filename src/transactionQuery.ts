@@ -79,7 +79,7 @@ export function findMember(phrase: string, transactions: Transaction[]): string 
 // averages, counts, comparisons). Net worth/debt/balance (accounts),
 // subscriptions/next-bill (recurring), and bucket progress (buckets) are
 // each a single fixed report, not a combinatorial filter+aggregate
-// question, so they stay their own special-cased handlers in ledgerQa.ts
+// question, so they stay their own special-cased handlers in transactionQa.ts
 // rather than being forced through this engine.
 
 export type Metric = "sum" | "avg" | "count" | "max" | "min";
@@ -149,7 +149,7 @@ function matchesSubject(t: Transaction, subject: Subject): boolean {
  * amounts are already negative, so their magnitude is what a person means
  * by "how much" — but income is reported as its real (positive) amount
  * rather than an absolute value, matching the sum this replaces
- * (`incomeAndExpense`, previously in ledgerQa.ts) exactly. */
+ * (`incomeAndExpense`, previously in transactionQa.ts) exactly. */
 function magnitude(t: Transaction, sign: Sign): number {
   const amount = parseFloat(t.amount);
   return sign === "income" ? amount : Math.abs(amount);

@@ -1,5 +1,5 @@
 /* RowMenu: the shared "⋯" actions menu on a row. The panel is portaled and positioned inline by
-   useFixedPanel; `.row-field-panel-fixed` (Ledger.css) supplies position: fixed. */
+   useFixedPanel; `.row-field-panel-fixed` (Transactions.css) supplies position: fixed. */
 /* `button.` (0,1,1) outranks each style's plain-button look, e.g. Retro's raised
    `[data-palette="retro"] :where(button)` (0,1,0): the trigger is a quiet glyph, not a button face. */
 button.row-menu-toggle {

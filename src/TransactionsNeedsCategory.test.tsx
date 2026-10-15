@@ -2,11 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { LedgerNeedsCategory } from "./LedgerNeedsCategory";
+import { TransactionsNeedsCategory } from "./TransactionsNeedsCategory";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-describe("LedgerNeedsCategory", () => {
+describe("TransactionsNeedsCategory", () => {
   let container: HTMLDivElement;
   let root: Root;
   beforeEach(() => {
@@ -19,7 +19,7 @@ describe("LedgerNeedsCategory", () => {
     container.remove();
   });
   const show = (count: number, active: boolean, onToggle = vi.fn()) => {
-    act(() => root.render(<LedgerNeedsCategory count={count} active={active} onToggle={onToggle} />));
+    act(() => root.render(<TransactionsNeedsCategory count={count} active={active} onToggle={onToggle} />));
     return onToggle;
   };
   const line = () => container.querySelector<HTMLElement>("[data-needs-category]");

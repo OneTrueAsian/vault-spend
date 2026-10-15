@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerLedgerQuestion, LEDGER_QA_EXAMPLES, type QaContext } from "./ledgerQa";
+import { answerTransactionQuestion, TRANSACTION_QA_EXAMPLES, type QaContext } from "./transactionQa";
 import type { Account, Bucket, Recurring, Transaction } from "./types";
 
 const TODAY = new Date(2026, 8, 6); // Sat 2026-09-06
@@ -97,7 +97,7 @@ function ctx(overrides: Partial<QaContext> = {}): QaContext {
 }
 
 function ask(question: string, c: QaContext) {
-  return answerLedgerQuestion(question, c);
+  return answerTransactionQuestion(question, c);
 }
 
 describe("spend by category or merchant", () => {
@@ -610,8 +610,8 @@ describe("unmatched questions", () => {
   });
 });
 
-// The Dashboard's "Ask the Vault" box surfaces `LEDGER_QA_EXAMPLES`
-// verbatim as clickable suggestions (DashboardView.tsx's `LedgerQaBox`) —
+// The Dashboard's "Ask the Vault" box surfaces `TRANSACTION_QA_EXAMPLES`
+// verbatim as clickable suggestions (DashboardView.tsx's `TransactionQaBox`) —
 // a shipped example that fails to match (as "what's my savings rate this
 // month" once did: its pattern only accepted a period phrase after "in/
 // during/for", not the bare "this month" every sibling pattern in this
@@ -641,7 +641,7 @@ describe("the Dashboard's curated example questions", () => {
     avgMonthlySpend: "2750.00",
   });
 
-  for (const example of LEDGER_QA_EXAMPLES) {
+  for (const example of TRANSACTION_QA_EXAMPLES) {
     it(`matches: "${example}"`, () => {
       const r = ask(example, exampleCtx);
       expect(r.matched, `expected "${example}" to match an intent, got: ${r.answer}`).toBe(true);

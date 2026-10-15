@@ -1,5 +1,5 @@
 import { accountTypeLabel } from "./accountGroups";
-import "./Ledger.css";
+import "./Transactions.css";
 
 import { formatAmount, formatDisplayDate } from "./format";
 import { ModalShell } from "./Modal";

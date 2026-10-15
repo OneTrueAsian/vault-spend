@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { transactionPerf } from "./transactionPerf";
-import { useLedgerFilters } from "./useLedgerFilters";
+import { useTransactionFilters } from "./useTransactionFilters";
 import { matchesPaymentAccount } from "./paymentDiscovery";
-import { compareTransactionsBy } from "./ledgerHelpers";
+import { compareTransactionsBy } from "./transactionHelpers";
 import { canLinkAsTransfer, collapseTransferPairs } from "./transfers";
-import { transactionsInRows } from "./ledgerPaging";
-import { canSelectMore, isBatchSelected, selectAllNext, selectAllNote, unselectBatch, type SelectAllBatch } from "./ledgerSelection";
-import { UNCATEGORIZED_FILTER, type LedgerSortColumn } from "./appTypes";
+import { transactionsInRows } from "./transactionPaging";
+import { canSelectMore, isBatchSelected, selectAllNext, selectAllNote, unselectBatch, type SelectAllBatch } from "./transactionSelection";
+import { UNCATEGORIZED_FILTER, type TransactionSortColumn } from "./appTypes";
 import type { Transaction } from "./types";
 
 /** Owns ledger query/paging/selection. Shared transaction reads and mutation orchestration
  * remain in the shell until subsequent M/O slices. Saved-filter persistence is delegated
- * to useLedgerFilters; this controller performs no transaction mutations. */
-export function useTransactionsLedger({ transactions, pendingPaymentId, onSelectionLimit, active = true }: {
+ * to useTransactionFilters; this controller performs no transaction mutations. */
+export function useTransactionList({ transactions, pendingPaymentId, onSelectionLimit, active = true }: {
   transactions: Transaction[];
   pendingPaymentId: number | null;
   onSelectionLimit: () => void;
@@ -41,13 +41,13 @@ export function useTransactionsLedger({ transactions, pendingPaymentId, onSelect
     saveCurrentFilter,
     applySavedFilter,
     deleteSavedFilter,
-  } = useLedgerFilters();
-  const [sortColumn, setSortColumn] = useState<LedgerSortColumn>("date");
+  } = useTransactionFilters();
+  const [sortColumn, setSortColumn] = useState<TransactionSortColumn>("date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [pageSize, setPageSize] = useState(50);
-  // How many matching rows the ledger shows; "Show N more" adds a step (see ledgerPaging.ts).
+  // How many matching rows the ledger shows; "Show N more" adds a step (see transactionPaging.ts).
   const [shownCount, setShownCount] = useState(50);
-  // The current Select all batch (see ledgerSelection.ts), and the note it leaves when capped.
+  // The current Select all batch (see transactionSelection.ts), and the note it leaves when capped.
   const [selectAllBatch, setSelectAllBatch] = useState<SelectAllBatch | null>(null);
   const [selectAllMessage, setSelectAllMessage] = useState<string | null>(null);
 
@@ -85,7 +85,7 @@ export function useTransactionsLedger({ transactions, pendingPaymentId, onSelect
     [filteredTransactions, sortColumn, sortDirection],
   );
 
-  function toggleSort(column: LedgerSortColumn) {
+  function toggleSort(column: TransactionSortColumn) {
     if (sortColumn === column) {
       setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
     } else {

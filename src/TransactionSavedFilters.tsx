@@ -1,11 +1,11 @@
-import "./Ledger.css";
+import "./Transactions.css";
 import type * as React from "react";
 
 import type { Transaction } from "./types";
 
-interface LedgerSavedFiltersProps {
-  savedFilters: import("./appTypes").SavedLedgerFilter[];
-  applySavedFilter: (filter: import("./appTypes").SavedLedgerFilter) => void;
+interface TransactionSavedFiltersProps {
+  savedFilters: import("./appTypes").SavedTransactionFilter[];
+  applySavedFilter: (filter: import("./appTypes").SavedTransactionFilter) => void;
   deleteSavedFilter: (name: string) => void;
   savingFilter: boolean;
   saveCurrentFilter: () => void;
@@ -18,7 +18,7 @@ interface LedgerSavedFiltersProps {
   setAutoLinkReviewOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export function LedgerSavedFilters({
+export function TransactionSavedFilters({
   savedFilters,
   applySavedFilter,
   deleteSavedFilter,
@@ -31,7 +31,7 @@ export function LedgerSavedFilters({
   setTransferReviewOpen,
   autoLinkedPairs,
   setAutoLinkReviewOpen,
-}: LedgerSavedFiltersProps) {
+}: TransactionSavedFiltersProps) {
   return (
     <div className="saved-filter-bar">
       {savedFilters.map((f) => (
@@ -99,13 +99,13 @@ export function LedgerSavedFilters({
       )}
       {/* Hidden by request; keep the original selector available to restore.
       <div className="density-toggle" role="group" aria-label="Row density">
-        {(["comfortable", "compact"] as LedgerDensity[]).map((d) => (
+        {(["comfortable", "compact"] as TransactionDensity[]).map((d) => (
           <button
             key={d}
             type="button"
-            className={ledgerDensity === d ? "density-toggle-active" : ""}
-            aria-pressed={ledgerDensity === d}
-            onClick={() => setLedgerDensity(d)}
+            className={transactionDensity === d ? "density-toggle-active" : ""}
+            aria-pressed={transactionDensity === d}
+            onClick={() => setTransactionDensity(d)}
           >
             {d === "comfortable" ? "Comfortable" : "Compact"}
           </button>

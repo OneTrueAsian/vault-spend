@@ -2,9 +2,9 @@
 
 import { formatAmount } from "./format";
 import type { Account, Transaction } from "./types";
-import type { LedgerSortColumn } from "./appTypes";
+import type { TransactionSortColumn } from "./appTypes";
 
-export function compareTransactionsBy(a: Transaction, b: Transaction, column: LedgerSortColumn): number {
+export function compareTransactionsBy(a: Transaction, b: Transaction, column: TransactionSortColumn): number {
   switch (column) {
     case "date":
       return a.date.localeCompare(b.date);
@@ -50,7 +50,7 @@ export function describeDeleteImpact(amount: string, account: Account | undefine
 /** How many columns the Transactions table has, for full-width rows (`colSpan`): select, date,
  * description, amount and actions always; account, category and "Sorted by" when not narrow; and the
  * member column only when it shows (wide, and two or more family members). */
-export function ledgerColumnCount(narrow: boolean, showMemberCol: boolean): number {
+export function transactionColumnCount(narrow: boolean, showMemberCol: boolean): number {
   if (narrow) return 5;
   return 8 + (showMemberCol ? 1 : 0);
 }

@@ -11,7 +11,7 @@
 // - One transaction left without a category brings up the "needs a category" line, and Review
 //   shows just the ones that need one.
 //
-// Run with: node e2e/feature268_calm_ledger.mjs
+// Run with: node e2e/feature268_calm_transactions.mjs
 
 import assert from "node:assert/strict";
 import fs from "node:fs";

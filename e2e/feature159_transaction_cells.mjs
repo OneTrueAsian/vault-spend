@@ -5,7 +5,7 @@
 // - "Apply to a debt…" (in the row's ⋯ menu) appears only on money going out, never on income or transfers in.
 // - The "Sorted by" column says how a category was set in words, not the stored code ("rule").
 //
-// Run with: node e2e/feature159_ledger_cells.mjs
+// Run with: node e2e/feature159_transaction_cells.mjs
 
 import assert from "node:assert/strict";
 import { dismissStatusMessages, launchApp } from "./harness.mjs";

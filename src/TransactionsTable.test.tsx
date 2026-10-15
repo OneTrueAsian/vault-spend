@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 //
-// LedgerTable (s1, calmer rows): each row is plain text with its actions in one `⋯` menu, the
+// TransactionsTable (s1, calmer rows): each row is plain text with its actions in one `⋯` menu, the
 // member column shows only when there's more than one person, and amounts line up on the right.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, useState, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import fs from "node:fs";
 import path from "node:path";
-import { LedgerTable } from "./LedgerTable";
-import { ledgerColumnCount } from "./ledgerHelpers";
+import { TransactionsTable } from "./TransactionsTable";
+import { transactionColumnCount } from "./transactionHelpers";
 import type { Account, FamilyMember, Transaction } from "./types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -53,15 +53,15 @@ const checking: Account = {
   import_flip_signs: null,
 };
 
-type Props = ComponentProps<typeof LedgerTable>;
+type Props = ComponentProps<typeof TransactionsTable>;
 
 function baseProps(transactions: Transaction[], familyMembers: FamilyMember[]): Omit<Props, "confirmingDeleteId" | "setConfirmingDeleteId" | "taggingId" | "setTaggingId"> {
   const narrow = false;
   const showMemberCol = familyMembers.length >= 2;
   return {
-    setLedgerScrollEl: vi.fn(),
-    ledgerDensity: "comfortable",
-    ledgerNarrow: narrow,
+    setTransactionsScrollEl: vi.fn(),
+    transactionDensity: "comfortable",
+    transactionsNarrow: narrow,
     showMemberCol,
     appSettings: {
       apply_to_debt_enabled: true,
@@ -125,7 +125,7 @@ function baseProps(transactions: Transaction[], familyMembers: FamilyMember[]): 
     setEditingAmount: vi.fn(),
     commitAmountEdit: vi.fn(),
     handleDeleteTransaction: vi.fn(),
-    ledgerColumnCount: ledgerColumnCount(narrow, showMemberCol),
+    transactionColumnCount: transactionColumnCount(narrow, showMemberCol),
     expandedSplitId: null,
     splitLines: [],
     updateSplitLine: vi.fn(),
@@ -145,11 +145,11 @@ function Harness({ props }: { props: ReturnType<typeof baseProps> }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   const [taggingId, setTaggingId] = useState<number | null>(null);
   return (
-    <LedgerTable {...props} confirmingDeleteId={confirmingDeleteId} setConfirmingDeleteId={setConfirmingDeleteId} taggingId={taggingId} setTaggingId={setTaggingId} />
+    <TransactionsTable {...props} confirmingDeleteId={confirmingDeleteId} setConfirmingDeleteId={setConfirmingDeleteId} taggingId={taggingId} setTaggingId={setTaggingId} />
   );
 }
 
-describe("LedgerTable", () => {
+describe("TransactionsTable", () => {
   let container: HTMLDivElement;
   let root: Root;
   beforeEach(() => {
@@ -184,9 +184,9 @@ describe("LedgerTable", () => {
     const props = baseProps(twoRows, [{ id: 1, name: "Alex" }]);
     show(props);
     expect(container.querySelector(".member-col")).toBeNull();
-    expect(container.querySelectorAll("thead th")).toHaveLength(props.ledgerColumnCount);
-    expect(container.querySelectorAll("colgroup col")).toHaveLength(props.ledgerColumnCount);
-    for (const row of rows()) expect(row.querySelectorAll("td")).toHaveLength(props.ledgerColumnCount);
+    expect(container.querySelectorAll("thead th")).toHaveLength(props.transactionColumnCount);
+    expect(container.querySelectorAll("colgroup col")).toHaveLength(props.transactionColumnCount);
+    for (const row of rows()) expect(row.querySelectorAll("td")).toHaveLength(props.transactionColumnCount);
     expect(colWidthTotal()).toBe(100);
   });
 
@@ -197,8 +197,8 @@ describe("LedgerTable", () => {
     ]);
     show(props);
     expect(container.querySelector("td.member-col")).not.toBeNull();
-    expect(container.querySelectorAll("thead th")).toHaveLength(props.ledgerColumnCount);
-    expect(container.querySelectorAll("colgroup col")).toHaveLength(props.ledgerColumnCount);
+    expect(container.querySelectorAll("thead th")).toHaveLength(props.transactionColumnCount);
+    expect(container.querySelectorAll("colgroup col")).toHaveLength(props.transactionColumnCount);
     expect(colWidthTotal()).toBe(100);
     const member = container.querySelector<HTMLButtonElement>("[aria-label='Family member for \"Coffee Shop\"']")!;
     expect(member.textContent).toBe("▾");
@@ -292,8 +292,8 @@ describe("LedgerTable", () => {
 
   it("says No one in the narrow Details panel for a row with no member, not an empty control", () => {
     const props = baseProps(twoRows, [{ id: 1, name: "Alex" }]);
-    props.ledgerNarrow = true;
-    props.ledgerColumnCount = ledgerColumnCount(true, false);
+    props.transactionsNarrow = true;
+    props.transactionColumnCount = transactionColumnCount(true, false);
     props.detailsOpenId = 1;
     show(props);
     const member = container.querySelector<HTMLButtonElement>(".ledger-details-row [aria-label='Family member for \"Coffee Shop\"']")!;
@@ -359,8 +359,8 @@ describe("LedgerTable", () => {
 
   it("right-aligns ledger amounts over the generic left alignment of ledger cells", () => {
     const style = document.createElement("style");
-    style.dataset.testLedger = "";
-    style.textContent = fs.readFileSync(path.join(__dirname, "Ledger.css"), "utf8");
+    style.dataset.testTransactions = "";
+    style.textContent = fs.readFileSync(path.join(__dirname, "Transactions.css"), "utf8");
     document.head.append(style);
     show(baseProps(twoRows, [{ id: 1, name: "Alex" }]));
     const td = container.querySelector<HTMLElement>("td.amount-col")!;

@@ -11,7 +11,7 @@ import "./SharedCards.css";
 import "./AccountsCards.css";
 import "./BudgetAndGoals.css";
 import "./DashboardCards.css";
-import "./Ledger.css";
+import "./Transactions.css";
 import "./Rules.css";
 import "./FirstRunChecklist.css";
 import "./Modal.css";
@@ -27,22 +27,22 @@ import "./LegalNotice.css";
 import "./MenuSelect.css";
 import "./themes/retro.css";
 import "./themes/futuristic.css";
-import { LedgerSavedFilters } from "./LedgerSavedFilters";
-import { useTransactionsLedger } from "./useTransactionsLedger";
+import { TransactionSavedFilters } from "./TransactionSavedFilters";
+import { useTransactionList } from "./useTransactionList";
 import { recordTransactionPerf } from "./transactionPerf";
 import { TransactionReadState } from "./TransactionReadState";
 import { useTransactionData } from "./useTransactionData";
 import { useTransactionTransfers } from "./useTransactionTransfers";
 import { useTransactionBulkActions } from "./useTransactionBulkActions";
 import { useTransactionRowActions } from "./useTransactionRowActions";
-import { LedgerTable } from "./LedgerTable";
-import { LedgerNeedsCategory } from "./LedgerNeedsCategory";
+import { TransactionsTable } from "./TransactionsTable";
+import { TransactionsNeedsCategory } from "./TransactionsNeedsCategory";
 import { SidebarControls } from "./SidebarControls";
 import { useResolvedTheme } from "./useResolvedTheme";
 import { HelpLink } from "./HelpLink";
-import { LedgerPageActions } from "./LedgerPageActions";
-import { LedgerBulkActions } from "./LedgerBulkActions";
-import { LedgerFilterBar } from "./LedgerFilterBar";
+import { TransactionsPageActions } from "./TransactionsPageActions";
+import { TransactionBulkActionsBar } from "./TransactionBulkActionsBar";
+import { TransactionFilterBar } from "./TransactionFilterBar";
 import { SetupImportReviewDialog } from "./SetupImportReviewDialog";
 import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -108,8 +108,8 @@ import { AccountDetailView } from "./AccountDetailView";
 
 import { ImportReviewDialog } from "./ImportReviewDialog";
 import { useImportReview } from "./useImportReview";
-import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel } from "./ledgerPaging";
-import { SELECT_ALL_CAP } from "./ledgerSelection";
+import { LEDGER_STEPS, transactionsShownLabel, rowsToShowFor, showMoreLabel } from "./transactionPaging";
+import { SELECT_ALL_CAP } from "./transactionSelection";
 
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
@@ -209,20 +209,20 @@ import { MenuSelect } from "./MenuSelect";
 import { errorMessage } from "./errorMessage";
 import { sumMoney } from "./money";
 import { StatusBanner } from "./StatusBanner";
-import { ledgerColumnCount as computeLedgerColumnCount } from "./ledgerHelpers";
+import { transactionColumnCount as computeTransactionColumnCount } from "./transactionHelpers";
 import {
   NAV_ORDER_STORAGE_KEY,
   getLastUsedAccountId,
-  loadLedgerDensity,
+  loadTransactionDensity,
   loadNavOrder,
   setLastUsedAccountId,
-  type LedgerDensity,
+  type TransactionDensity,
 } from "./appStorage";
 import {
   NAV_ITEMS,
   PINNED_NAV_ITEMS,
   UNCATEGORIZED_FILTER,
-  type LedgerSortColumn,
+  type TransactionSortColumn,
   type NewAccountResult,
   type PendingDialog,
   type StatusKind,
@@ -412,7 +412,7 @@ function App({
     toggleSelectedMany,
     toggleSelected,
     toggleSelectAll,
-  } = useTransactionsLedger({
+  } = useTransactionList({
     transactions,
     active: activeTab === "ledger",
     pendingPaymentId,
@@ -1030,7 +1030,7 @@ function App({
     handleUndoBulkDelete,
     handleBulkFlipSigns,
     handleAddSelectedToRecurring,
-  } = useTransactionBulkActions({ data: transactionData, ledger: { selectedIds, setSelectedIds }, onStatus: setStatus, onBusy: setBusy, askNewCategory, refreshRecurring: async () => { await refreshRecurring(); } });
+  } = useTransactionBulkActions({ data: transactionData, list: { selectedIds, setSelectedIds }, onStatus: setStatus, onBusy: setBusy, askNewCategory, refreshRecurring: async () => { await refreshRecurring(); } });
 
   const [dialog, setDialog] = useState<PendingDialog | null>(null);
   const [pendingSetupImport, setPendingSetupImport] = useState<{
@@ -1076,13 +1076,13 @@ function App({
   // transactions already on the books. Own state (like `undoToast`) so a
   // routine status message can't clobber it mid-decision.
 
-  // const [ledgerDensity, setLedgerDensityState] = useState<LedgerDensity>(loadLedgerDensity);
-  const [ledgerDensity] = useState<LedgerDensity>(loadLedgerDensity);
+  // const [transactionDensity, setTransactionDensityState] = useState<TransactionDensity>(loadTransactionDensity);
+  const [transactionDensity] = useState<TransactionDensity>(loadTransactionDensity);
   // Restore this setter with the Transactions density selector below.
-  // function setLedgerDensity(next: LedgerDensity) {
-  //   setLedgerDensityState(next);
+  // function setTransactionDensity(next: TransactionDensity) {
+  //   setTransactionDensityState(next);
   //   try {
-  //     localStorage.setItem(LEDGER_DENSITY_STORAGE_KEY, next);
+  //     localStorage.setItem(TRANSACTION_DENSITY_STORAGE_KEY, next);
   //   } catch {
   //     // a failed write only means the choice isn't remembered next launch
   //   }
@@ -1098,25 +1098,25 @@ function App({
   // page's own vertical scrollbar is present) stays in the wide layout;
   // this app's own tested widths (1440/1280 wide, 960/800 narrow) don't
   // actually exercise the 850-1100 gap between the brief's two tiers.
-  const LEDGER_NARROW_BREAKPOINT = 850;
-  const [ledgerNarrow, setLedgerNarrow] = useState(false);
+  const TRANSACTIONS_NARROW_BREAKPOINT = 850;
+  const [transactionsNarrow, setTransactionsNarrow] = useState(false);
   // A plain ref's `.current` doesn't trigger a re-render or effect when it
   // changes, so a `useEffect(..., [])` that reads it at mount time missed
   // the container entirely whenever the app first loaded on a tab other
   // than Transactions (the usual case) — the ledger's own div didn't exist
-  // yet, the observer was never attached, and `ledgerNarrow` stayed false
+  // yet, the observer was never attached, and `transactionsNarrow` stayed false
   // forever after. A callback ref re-fires this effect exactly when the
   // div actually mounts (switching onto the tab) or unmounts (off it).
-  const [ledgerScrollEl, setLedgerScrollEl] = useState<HTMLDivElement | null>(null);
+  const [transactionsScrollEl, setTransactionsScrollEl] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!ledgerScrollEl || typeof ResizeObserver === "undefined") return;
+    if (!transactionsScrollEl || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
-      if (width !== undefined) setLedgerNarrow(width < LEDGER_NARROW_BREAKPOINT);
+      if (width !== undefined) setTransactionsNarrow(width < TRANSACTIONS_NARROW_BREAKPOINT);
     });
-    observer.observe(ledgerScrollEl);
+    observer.observe(transactionsScrollEl);
     return () => observer.disconnect();
-  }, [ledgerScrollEl]);
+  }, [transactionsScrollEl]);
   const [detailsOpenId, setDetailsOpenId] = useState<number | null>(null);
 
   // `usedCategories` now comes straight from the backend's category
@@ -1184,12 +1184,12 @@ function App({
     handleLinkSelectedAsTransfer,
     handleLinkTransfers,
     handleMarkAutoLinksReviewed,
-  } = useTransactionTransfers({ data: transactionData, transactions, active: activeTab === "ledger", ledger: { selectedPairForLink, setSelectedIds }, onStatus: setStatus });
+  } = useTransactionTransfers({ data: transactionData, transactions, active: activeTab === "ledger", list: { selectedPairForLink, setSelectedIds }, onStatus: setStatus });
   // The Member column earns its space only when there's more than one person to choose between.
   const showMemberCol = familyMembers.length >= 2;
   // select, date, description, amount, actions — plus, when not narrow, account, [member], category
   // and source. Debt payments live under the description and in the row's ⋯ menu, not a column.
-  const ledgerColumnCount = computeLedgerColumnCount(ledgerNarrow, showMemberCol);
+  const transactionColumnCount = computeTransactionColumnCount(transactionsNarrow, showMemberCol);
 
   useEffect(() => {
     if (pendingPaymentId === null) return;
@@ -2804,7 +2804,7 @@ function App({
     }
   }
 
-  const handleExportLedgerCsv = createTransactionExporter({ rows: sortedTransactions, isProtected: profiles.some(p => p.is_active && p.is_password_protected), confirmPlaintext: askCsvExportWarning, call: callTransaction, onStatus: setStatus });
+  const handleExportTransactionsCsv = createTransactionExporter({ rows: sortedTransactions, isProtected: profiles.some(p => p.is_active && p.is_password_protected), confirmPlaintext: askCsvExportWarning, call: callTransaction, onStatus: setStatus });
 
   // No dedicated bulk backend command — `add_tag` is already a cheap
   // single-row insert, so a client-side loop plus one shared `refresh()`
@@ -2987,7 +2987,7 @@ function App({
                 layoutWidgets={layoutWidgets}
                 onSetLayoutWidgets={setLayoutWidgets}
                 onOpenAddWidget={() => setAddWidgetModalOpen(true)}
-                onOpenLedger={() => setActiveTab("ledger")}
+                onOpenTransactions={() => setActiveTab("ledger")}
                 onOpenRecurring={() => setActiveTab("recurring")}
                 onOpenBudget={() => setActiveTab("budget")}
                 onOpenCashFlow={() => setActiveTab("cashflow")}
@@ -3029,7 +3029,7 @@ function App({
                     Review inbox ({inboxCount})
                   </button>
                 )}
-                <LedgerPageActions
+                <TransactionsPageActions
                   accounts={accounts}
                   selectedAccountId={selectedAccountId}
                   handleAccountSelectChange={handleAccountSelectChange}
@@ -3046,7 +3046,7 @@ function App({
                   openManageCategories={openManageCategories}
                   openManageFamilyMembers={openManageFamilyMembers}
                   handleRecategorize={handleRecategorize}
-                  handleExportLedgerCsv={handleExportLedgerCsv}
+                  handleExportTransactionsCsv={handleExportTransactionsCsv}
                 />
               </div>
             </div>
@@ -3076,7 +3076,7 @@ function App({
           )}
 
           {activeTab === "ledger" && stats && (
-            <LedgerNeedsCategory
+            <TransactionsNeedsCategory
               count={stats.uncategorized}
               active={filterCategory === UNCATEGORIZED_FILTER}
               onToggle={() => setFilterCategory((c) => (c === UNCATEGORIZED_FILTER ? "all" : UNCATEGORIZED_FILTER))}
@@ -3084,7 +3084,7 @@ function App({
           )}
 
           {activeTab === "ledger" && (
-            <LedgerFilterBar
+            <TransactionFilterBar
               searchText={searchText}
               setSearchText={setSearchText}
               categoryFilterOptions={categoryFilterOptions}
@@ -3107,7 +3107,7 @@ function App({
           )}
 
           {activeTab === "ledger" && (
-            <LedgerSavedFilters
+            <TransactionSavedFilters
               savedFilters={savedFilters}
               applySavedFilter={applySavedFilter}
               deleteSavedFilter={deleteSavedFilter}
@@ -3129,7 +3129,7 @@ function App({
             </p>
           )}
           {activeTab === "ledger" && selectedIds.size > 0 && (
-            <LedgerBulkActions
+            <TransactionBulkActionsBar
               selectedIds={selectedIds}
               handleBulkCategoryChange={handleBulkCategoryChange}
               categoryOptions={categoryOptions}
@@ -3155,14 +3155,14 @@ function App({
 
           {activeTab === "ledger" && (
             <>
-              {ledgerNarrow && (
+              {transactionsNarrow && (
                 <div className="ledger-sort-by">
                   <label className="labeled-field">
                     <span className="labeled-field-label">Sort by</span>
                     <MenuSelect
                       ariaLabel="Sort by"
                       value={sortColumn}
-                      onChange={(v) => setSortColumn(v as LedgerSortColumn)}
+                      onChange={(v) => setSortColumn(v as TransactionSortColumn)}
                       options={[
                         { value: "date", label: "Date" },
                         { value: "description", label: "Description" },
@@ -3183,10 +3183,10 @@ function App({
                   </button>
                 </div>
               )}
-              <LedgerTable
-              setLedgerScrollEl={setLedgerScrollEl}
-              ledgerDensity={ledgerDensity}
-              ledgerNarrow={ledgerNarrow}
+              <TransactionsTable
+              setTransactionsScrollEl={setTransactionsScrollEl}
+              transactionDensity={transactionDensity}
+              transactionsNarrow={transactionsNarrow}
               showMemberCol={showMemberCol}
               appSettings={appSettings}
               selectAllBatch={selectAllBatch}
@@ -3247,7 +3247,7 @@ function App({
               confirmingDeleteId={confirmingDeleteId}
               setConfirmingDeleteId={setConfirmingDeleteId}
               handleDeleteTransaction={handleDeleteTransaction}
-              ledgerColumnCount={ledgerColumnCount}
+              transactionColumnCount={transactionColumnCount}
               expandedSplitId={expandedSplitId}
               splitLines={splitLines}
               updateSplitLine={updateSplitLine}
@@ -3276,7 +3276,7 @@ function App({
                 at a time
               </label>
               <span className="ledger-page-count" aria-live="polite" data-ledger-shown>
-                {ledgerShownLabel(shownTransactions.shown, shownTransactions.total)}
+                {transactionsShownLabel(shownTransactions.shown, shownTransactions.total)}
               </span>
               {showMoreLabel(shownCount, displayTransactions.length, pageSize) && (
                 <button type="button" className="modal-secondary" onClick={() => setShownCount((count) => count + pageSize)} data-ledger-show-more>

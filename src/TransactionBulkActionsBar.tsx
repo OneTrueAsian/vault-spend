@@ -1,5 +1,5 @@
 import { EditableCombobox } from "./EditableCombobox";
-import "./Ledger.css";
+import "./Transactions.css";
 import type * as React from "react";
 
 import { flipConfirmText } from "./importSigns";
@@ -9,7 +9,7 @@ import { CADENCE_OPTIONS } from "./cadence";
 import type { FamilyMember, Transaction } from "./types";
 import { MenuSelect } from "./MenuSelect";
 
-interface LedgerBulkActionsProps {
+interface TransactionBulkActionsBarProps {
   selectedIds: Set<number>;
   handleBulkCategoryChange: (value: string) => Promise<void>;
   categoryOptions: string[];
@@ -32,7 +32,7 @@ interface LedgerBulkActionsProps {
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<number>>>;
 }
 
-export function LedgerBulkActions({
+export function TransactionBulkActionsBar({
   selectedIds,
   handleBulkCategoryChange,
   categoryOptions,
@@ -53,7 +53,7 @@ export function LedgerBulkActions({
   selectedPairForLink,
   handleLinkSelectedAsTransfer,
   setSelectedIds,
-}: LedgerBulkActionsProps) {
+}: TransactionBulkActionsBarProps) {
   return (
     <div className="bulk-actions-bar">
       <span className="bulk-actions-count">{selectedIds.size} selected</span>

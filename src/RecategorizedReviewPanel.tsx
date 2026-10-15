@@ -1,4 +1,4 @@
-import "./Ledger.css";
+import "./Transactions.css";
 import type * as React from "react";
 
 import { formatAmount, formatDisplayDate } from "./format";

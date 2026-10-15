@@ -117,7 +117,7 @@ fn contents(store: &Store) -> Vec<(String, Vec<Vec<String>>)> {
 }
 
 #[test]
-fn mixed_ledger_parity_includes_splits_refunds_transfers_debt_and_members() {
+fn mixed_transactions_parity_includes_splits_refunds_transfers_debt_and_members() {
     let store = Store::open_in_memory().unwrap();
     let cash = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
     let other = store.get_or_create_account("Savings", AccountType::Savings).unwrap();
@@ -601,7 +601,7 @@ fn switches_income_adjustments_zero_targets_and_36_month_rollover_cap_match_desk
 }
 
 #[test]
-fn partial_and_ledger_only_investments_never_invent_gain_or_day_change() {
+fn partial_and_transactions_only_investments_never_invent_gain_or_day_change() {
     let store = Store::open_in_memory().unwrap();
     let known = store.get_or_create_account("Known", AccountType::Investment).unwrap();
     let unknown = store.get_or_create_account("Ledger only", AccountType::Investment).unwrap();

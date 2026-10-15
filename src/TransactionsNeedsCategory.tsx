@@ -1,7 +1,7 @@
 /** One line above the Transactions table, in place of the old four count tiles: how many
  * transactions still need a category, with a button that shows only those (and back). The other
  * counts moved into the page's subtitle. Renders nothing when there is nothing to sort. */
-export function LedgerNeedsCategory({ count, active, onToggle }: { count: number; active: boolean; onToggle: () => void }) {
+export function TransactionsNeedsCategory({ count, active, onToggle }: { count: number; active: boolean; onToggle: () => void }) {
   if (count === 0 && !active) return null;
   const sentence = active
     ? count === 0

@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { useTransactionsLedger } from "./useTransactionsLedger";
+import { useTransactionList } from "./useTransactionList";
 import type { Transaction } from "./types";
 import { UNCATEGORIZED_FILTER } from "./appTypes";
 import { saveSavedFilters } from "./appStorage";
@@ -18,12 +18,12 @@ function row(id: number, overrides: Partial<Transaction> = {}): Transaction {
     tags: [], member_id: null, member_name: null, notes: null, ...overrides };
 }
 let root: Root;
-let ledger: ReturnType<typeof useTransactionsLedger>;
+let ledger: ReturnType<typeof useTransactionList>;
 let transactions: Transaction[];
 let pendingPaymentId: number | null;
 let active: boolean;
 const selectionLimit = vi.fn();
-function Harness() { ledger = useTransactionsLedger({ transactions, pendingPaymentId, active, onSelectionLimit: selectionLimit }); return null; }
+function Harness() { ledger = useTransactionList({ transactions, pendingPaymentId, active, onSelectionLimit: selectionLimit }); return null; }
 async function render() { await act(async () => { root.render(<Harness />); }); }
 beforeEach(async () => {
   vi.clearAllMocks(); transactions = []; pendingPaymentId = null; active = true;

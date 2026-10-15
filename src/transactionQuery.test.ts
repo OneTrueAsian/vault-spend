@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareQuery, resolveSubject, runQuery, type QaContext } from "./ledgerQuery";
+import { compareQuery, resolveSubject, runQuery, type QaContext } from "./transactionQuery";
 import type { Account, Transaction } from "./types";
 
 function account(overrides: Partial<Account> = {}): Account {

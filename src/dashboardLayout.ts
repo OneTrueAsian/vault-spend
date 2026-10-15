@@ -206,7 +206,7 @@ export async function saveDashboardLayout(widgets: WidgetId[]): Promise<void> {
 }
 
 /** A user-named arrangement, saved alongside the 3 built-in presets —
- * same idea as `SavedLedgerFilter` in App.tsx (a per-profile backend-stored
+ * same idea as `SavedTransactionFilter` in App.tsx (a per-profile backend-stored
  * list keyed by name, where saving under a name already in use replaces
  * it rather than accumulating duplicates). Its dropdown `<option value>`
  * is `custom:${name}` — see `matchingLayoutPreset` below. */

@@ -11,7 +11,7 @@ Ten DateField call sites retain native date editing/calendar behavior:
 |---|---|
 | AccountDetailView | Statement ending date |
 | BucketsView | New goal and existing goal target date |
-| LedgerTable | Transaction date edit |
+| TransactionsTable | Transaction date edit |
 | Modal | Manual transaction date |
 | MoreFiltersPopover | From and to dates |
 | RecurringView | New bill and existing bill next due date |

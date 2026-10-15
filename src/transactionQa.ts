@@ -11,11 +11,11 @@ import {
   type DateRange,
   type Metric,
   type QaContext,
-} from "./ledgerQuery";
+} from "./transactionQuery";
 
 // Re-exported so existing imports of `QaContext` from this module (e.g.
-// ledgerQa.test.ts) keep working — the type itself now lives in
-// ledgerQuery.ts alongside the engine that operates on it.
+// transactionQa.test.ts) keep working — the type itself now lives in
+// transactionQuery.ts alongside the engine that operates on it.
 export type { QaContext };
 
 export type QaResult = {
@@ -29,7 +29,7 @@ export type QaResult = {
   matched: boolean;
 };
 
-export const LEDGER_QA_EXAMPLES = [
+export const TRANSACTION_QA_EXAMPLES = [
   "how much did I spend on dining out in July",
   "how much did I spend at Whole Foods",
   "what's my runway if rent goes up by $200",
@@ -51,7 +51,7 @@ function match(result: RegExpMatchArray | null): RegExpMatchArray | null {
 // ---------------------------------------------------------------------------
 // Bucket lookup — the one fuzzy-find consumer not part of the transaction
 // query engine (bucket progress isn't a transaction-aggregate question),
-// so it stays here reusing the shared `fuzzyFind` from ledgerQuery.ts.
+// so it stays here reusing the shared `fuzzyFind` from transactionQuery.ts.
 function findBucket(phrase: string, buckets: Bucket[]): Bucket | null {
   return fuzzyFind(phrase, buckets, (b) => b.name);
 }
@@ -181,7 +181,7 @@ const INTENTS: Intent[] = [
     // deliberately accepted both as the subject preposition ("spend in
     // groceries") and the period connector ("in the past 2 months") — the
     // lazy subject match plus the anchored trailing clause resolve the
-    // overlap correctly (verified in ledgerQa.test.ts), since there's
+    // overlap correctly (verified in transactionQa.test.ts), since there's
     // always a unique split that lets the rest of the pattern match.
     pattern:
       /how much (?:did i|have i) spen[dt] (?:on|in|at) (.+?)(?: (in|during|since) (.+)|(this week|last week|this month|last month|this year|last year|the past \d+ (?:day|week|month|year)s?|\d{4}))?$/,
@@ -503,7 +503,7 @@ function compareSpendAnswer(phraseA: string, phraseB: string, ctx: QaContext): s
  * answered from data the app already has on hand — no hosted LLM call, no
  * new backend query, no network at all. An unmatched question gets a
  * fallback pointing at an example, rather than a bare "I don't understand." */
-export function answerLedgerQuestion(question: string, ctx: QaContext): QaResult {
+export function answerTransactionQuestion(question: string, ctx: QaContext): QaResult {
   const q = question.trim().toLowerCase().replace(/[?.!]+$/, "");
 
   for (const intent of INTENTS) {
@@ -511,7 +511,7 @@ export function answerLedgerQuestion(question: string, ctx: QaContext): QaResult
     if (m) return { matched: true, answer: intent.handle(m, ctx) };
   }
 
-  const example = LEDGER_QA_EXAMPLES[Math.floor(Math.random() * LEDGER_QA_EXAMPLES.length)];
+  const example = TRANSACTION_QA_EXAMPLES[Math.floor(Math.random() * TRANSACTION_QA_EXAMPLES.length)];
   return {
     matched: false,
     answer: `I couldn't match that to a question I understand yet. Try something like: "${example}"`,

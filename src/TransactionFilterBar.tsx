@@ -1,4 +1,4 @@
-import "./Ledger.css";
+import "./Transactions.css";
 import type * as React from "react";
 
 import { CategoryFilterDropdown } from "./CategoryFilterDropdown";
@@ -9,7 +9,7 @@ import { MoreFiltersPopover } from "./MoreFiltersPopover";
 
 import type { Account, FamilyMember } from "./types";
 
-interface LedgerFilterBarProps {
+interface TransactionFilterBarProps {
   searchText: string;
   setSearchText: React.Dispatch<React.SetStateAction<string>>;
   categoryFilterOptions: { value: string; label: string; }[];
@@ -30,7 +30,7 @@ interface LedgerFilterBarProps {
   setFilterTag: React.Dispatch<React.SetStateAction<string>>;
 }
 
-export function LedgerFilterBar({
+export function TransactionFilterBar({
   searchText,
   setSearchText,
   categoryFilterOptions,
@@ -49,7 +49,7 @@ export function LedgerFilterBar({
   filterTag,
   allTags,
   setFilterTag,
-}: LedgerFilterBarProps) {
+}: TransactionFilterBarProps) {
   return (
     <div className="ledger-filters">
       <input

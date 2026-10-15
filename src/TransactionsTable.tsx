@@ -1,5 +1,5 @@
 import { EditableCombobox } from "./EditableCombobox";
-import "./Ledger.css";
+import "./Transactions.css";
 import type * as React from "react";
 
 import { Fragment, useLayoutEffect, useRef } from "react";
@@ -9,11 +9,11 @@ import { AppliedPaymentDetails } from "./AppliedPaymentDetails";
 
 import { RowFieldDropdown } from "./RowFieldDropdown";
 import { RowMenu, type RowMenuItem } from "./RowMenu";
-import { ledgerRowActions, type LedgerRowActionId } from "./ledgerRowActions";
+import { transactionRowActions, type TransactionRowActionId } from "./transactionRowActions";
 
 import { SortableTh } from "./SortableTh";
 
-import { isBatchSelected, type SelectAllBatch } from "./ledgerSelection";
+import { isBatchSelected, type SelectAllBatch } from "./transactionSelection";
 
 import { CategoryIcon } from "./icons";
 import { formatAmount, formatDisplayDate } from "./format";
@@ -24,23 +24,23 @@ import { InfoTip } from "./InfoTip";
 import type { Account, AnomalyFlag, AppSettings, FamilyMember, Transaction } from "./types";
 import { MenuSelect } from "./MenuSelect";
 
-import { describeDeleteImpact } from "./ledgerHelpers";
-import { type LedgerDensity } from "./appStorage";
-import { CATEGORY_SOURCE_LABELS, type LedgerSortColumn } from "./appTypes";
+import { describeDeleteImpact } from "./transactionHelpers";
+import { type TransactionDensity } from "./appStorage";
+import { CATEGORY_SOURCE_LABELS, type TransactionSortColumn } from "./appTypes";
 
-interface LedgerTableProps {
-  setLedgerScrollEl: React.Dispatch<React.SetStateAction<HTMLDivElement | null>>;
-  ledgerDensity: LedgerDensity;
-  ledgerNarrow: boolean;
+interface TransactionsTableProps {
+  setTransactionsScrollEl: React.Dispatch<React.SetStateAction<HTMLDivElement | null>>;
+  transactionDensity: TransactionDensity;
+  transactionsNarrow: boolean;
   /** The Member column shows only with two or more family members (see App.tsx). */
   showMemberCol: boolean;
   appSettings: AppSettings;
   selectAllBatch: SelectAllBatch | null;
   selectedIds: Set<number>;
   toggleSelectAll: () => void;
-  sortColumn: LedgerSortColumn;
+  sortColumn: TransactionSortColumn;
   sortDirection: "asc" | "desc";
-  toggleSort: (column: LedgerSortColumn) => void;
+  toggleSort: (column: TransactionSortColumn) => void;
   pagedTransactions: Transaction[];
   inLegByOutId: Map<number, Transaction>;
   highlightedPaymentRow: number | null;
@@ -94,7 +94,7 @@ interface LedgerTableProps {
   confirmingDeleteId: number | null;
   setConfirmingDeleteId: React.Dispatch<React.SetStateAction<number | null>>;
   handleDeleteTransaction: (id: number) => Promise<void>;
-  ledgerColumnCount: number;
+  transactionColumnCount: number;
   expandedSplitId: number | null;
   splitLines: { category: string; amount: string; note: string; }[];
   updateSplitLine: (index: number, patch: Partial<{ category: string; amount: string; note: string; }>) => void;
@@ -108,10 +108,10 @@ interface LedgerTableProps {
   transactions: Transaction[];
 }
 
-export function LedgerTable({
-  setLedgerScrollEl,
-  ledgerDensity,
-  ledgerNarrow,
+export function TransactionsTable({
+  setTransactionsScrollEl,
+  transactionDensity,
+  transactionsNarrow,
   showMemberCol,
   appSettings,
   selectAllBatch,
@@ -172,7 +172,7 @@ export function LedgerTable({
   confirmingDeleteId,
   setConfirmingDeleteId,
   handleDeleteTransaction,
-  ledgerColumnCount,
+  transactionColumnCount,
   expandedSplitId,
   splitLines,
   updateSplitLine,
@@ -184,7 +184,7 @@ export function LedgerTable({
   setExpandedSplitId,
   filteredTransactions,
   transactions,
-}: LedgerTableProps) {
+}: TransactionsTableProps) {
   // Keyboard focus never falls to the page: when a row's delete confirm or tag field closes while
   // it held focus (Cancel, Enter, Escape, or the confirm timing out), focus goes back to that row's
   // ⋯. A blur to somewhere else is left alone, and a row that is gone (deleted) has nothing to take it.
@@ -209,20 +209,20 @@ export function LedgerTable({
   // changes) whether the row belongs to that person, so the information isn't lost.
   const onlyMember = !showMemberCol && familyMembers.length === 1 ? familyMembers[0] : null;
   return (
-    <div className="ledger-table-scroll" ref={setLedgerScrollEl}>
-      <table className={ledgerDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
+    <div className="ledger-table-scroll" ref={setTransactionsScrollEl}>
+      <table className={transactionDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
         <colgroup>
-          <col style={{ width: ledgerNarrow ? "6%" : "3%" }} />
+          <col style={{ width: transactionsNarrow ? "6%" : "3%" }} />
           {/* the date needs ~80px in every style's font: 7% left it ~38px and it ran into the description */}
-          <col style={{ width: ledgerNarrow ? "16%" : "11%" }} />
+          <col style={{ width: transactionsNarrow ? "16%" : "11%" }} />
           {/* The description takes whatever the optional Member column leaves. */}
-          <col style={{ width: ledgerNarrow ? "43%" : showMemberCol ? "22%" : "29%" }} />
-          <col style={{ width: ledgerNarrow ? "16%" : "10%" }} />
-          {!ledgerNarrow && <col style={{ width: showMemberCol ? "16%" : "17%" }} />}
-          {!ledgerNarrow && showMemberCol && <col style={{ width: "8%" }} />}
-          {!ledgerNarrow && <col style={{ width: "15%" }} />}
-          {!ledgerNarrow && <col style={{ width: "10%" }} />}
-          <col style={{ width: ledgerNarrow ? "19%" : "5%" }} />
+          <col style={{ width: transactionsNarrow ? "43%" : showMemberCol ? "22%" : "29%" }} />
+          <col style={{ width: transactionsNarrow ? "16%" : "10%" }} />
+          {!transactionsNarrow && <col style={{ width: showMemberCol ? "16%" : "17%" }} />}
+          {!transactionsNarrow && showMemberCol && <col style={{ width: "8%" }} />}
+          {!transactionsNarrow && <col style={{ width: "15%" }} />}
+          {!transactionsNarrow && <col style={{ width: "10%" }} />}
+          <col style={{ width: transactionsNarrow ? "19%" : "5%" }} />
         </colgroup>
         <thead>
           <tr>
@@ -243,18 +243,18 @@ export function LedgerTable({
             <SortableTh column="amount" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} className="amount-col">
               Amount
             </SortableTh>
-            {!ledgerNarrow && (
+            {!transactionsNarrow && (
               <SortableTh column="account" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
                 Account
               </SortableTh>
             )}
-            {!ledgerNarrow && showMemberCol && <th className="member-col">Member</th>}
-            {!ledgerNarrow && (
+            {!transactionsNarrow && showMemberCol && <th className="member-col">Member</th>}
+            {!transactionsNarrow && (
               <SortableTh column="category" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
                 Category
               </SortableTh>
             )}
-            {!ledgerNarrow && (
+            {!transactionsNarrow && (
               <SortableTh column="source" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort}>
                 Sorted by
               </SortableTh>
@@ -277,7 +277,7 @@ export function LedgerTable({
                   onUnlink={() => handleUnlinkTransfer(t.id)}
                   onEditNote={setNotesDialogFor}
                   showMemberCol={showMemberCol}
-                  narrow={ledgerNarrow}
+                  narrow={transactionsNarrow}
                   detailsOpen={detailsOpenId === t.id}
                   onToggleDetails={() => setDetailsOpenId(detailsOpenId === t.id ? null : t.id)}
                 />
@@ -406,7 +406,7 @@ export function LedgerTable({
                 </button>
               </span>
             ) : null;
-            const runAction: Record<LedgerRowActionId, () => void> = {
+            const runAction: Record<TransactionRowActionId, () => void> = {
               split: () => void toggleSplitEditor(t),
               principal: () => startEditingPrincipal(t),
               applyDebt: () => startApplyingDebtPayment(t),
@@ -414,7 +414,7 @@ export function LedgerTable({
               tag: () => setTaggingId(t.id),
               delete: () => setConfirmingDeleteId(t.id),
             };
-            const actionItems: RowMenuItem[] = ledgerRowActions(t, {
+            const actionItems: RowMenuItem[] = transactionRowActions(t, {
               splitEnabled: appSettings.split_purchases_enabled,
               debtEnabled: appSettings.apply_to_debt_enabled,
               isLoanAccount,
@@ -595,12 +595,12 @@ export function LedgerTable({
                       </span>
                     )}
                   </td>
-                  {!ledgerNarrow && <td className="account-col">{accountField}</td>}
-                  {!ledgerNarrow && showMemberCol && <td className="member-col">{memberField(true)}</td>}
-                  {!ledgerNarrow && <td className="category-col">{categoryField}</td>}
-                  {!ledgerNarrow && <td className="source-col">{sourceField}</td>}
+                  {!transactionsNarrow && <td className="account-col">{accountField}</td>}
+                  {!transactionsNarrow && showMemberCol && <td className="member-col">{memberField(true)}</td>}
+                  {!transactionsNarrow && <td className="category-col">{categoryField}</td>}
+                  {!transactionsNarrow && <td className="source-col">{sourceField}</td>}
                   <td className="actions-col">
-                    {ledgerNarrow && (
+                    {transactionsNarrow && (
                       <button
                         type="button"
                         className="modal-secondary"
@@ -631,9 +631,9 @@ export function LedgerTable({
                     )}
                   </td>
                 </tr>
-                {ledgerNarrow && detailsOpenId === t.id && (
+                {transactionsNarrow && detailsOpenId === t.id && (
                   <tr className="ledger-details-row">
-                    <td colSpan={ledgerColumnCount}>
+                    <td colSpan={transactionColumnCount}>
                       <div className="ledger-details">
                         <label className="ledger-details-field">
                           <span>Account</span>
@@ -660,7 +660,7 @@ export function LedgerTable({
                 )}
                 {expandedSplitId === t.id && (
                   <tr className="split-editor-row">
-                    <td colSpan={ledgerColumnCount}>
+                    <td colSpan={transactionColumnCount}>
                       <div className="split-editor">
                         {splitLines.map((line, i) => (
                           <div className="split-editor-line" key={i}>
@@ -714,7 +714,7 @@ export function LedgerTable({
           })}
           {filteredTransactions.length === 0 && (
             <tr>
-              <td colSpan={ledgerColumnCount} className="empty-state">
+              <td colSpan={transactionColumnCount} className="empty-state">
                 {transactions.length === 0
                   ? "No transactions yet — import a CSV to get started."
                   : "No transactions match your filters."}

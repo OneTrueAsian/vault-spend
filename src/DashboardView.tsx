@@ -40,7 +40,7 @@ import {
   type SavedLayoutPreset,
   type WidgetId,
 } from "./dashboardLayout";
-import { answerLedgerQuestion, LEDGER_QA_EXAMPLES, type QaResult } from "./ledgerQa";
+import { answerTransactionQuestion, TRANSACTION_QA_EXAMPLES, type QaResult } from "./transactionQa";
 import { ensureUiStateMigrated } from "./profileUiState";
 import { attentionItems, type AttentionKind } from "./needsAttention";
 import { effectiveBudget, monthElapsed } from "./budgetPlan";
@@ -60,10 +60,10 @@ const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 const CUSTOMIZE_OPTION = "__customize__";
 
 /** A single template-matched natural-language question, answered entirely
- * from data already on hand (see ledgerQa.ts) — never a hosted LLM call.
+ * from data already on hand (see transactionQa.ts) — never a hosted LLM call.
  * Always visible above the widget layout, not itself a customizable
  * widget, since it's a utility rather than a report. */
-function LedgerQaBox({
+function TransactionQaBox({
   onAsk,
 }: {
   onAsk: (question: string) => QaResult;
@@ -76,7 +76,7 @@ function LedgerQaBox({
   // always showed the same one example, which (combined with no other
   // hint of what the box can do) made a genuinely novel feature — natural-
   // language questions answered entirely from local data — easy to miss.
-  const [placeholderExample] = useState(() => LEDGER_QA_EXAMPLES[Math.floor(Math.random() * LEDGER_QA_EXAMPLES.length)]);
+  const [placeholderExample] = useState(() => TRANSACTION_QA_EXAMPLES[Math.floor(Math.random() * TRANSACTION_QA_EXAMPLES.length)]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -104,7 +104,7 @@ function LedgerQaBox({
             a year like "2026," or "since March."
           </p>
           <ul className="ledger-qa-examples">
-            {LEDGER_QA_EXAMPLES.map((example) => (
+            {TRANSACTION_QA_EXAMPLES.map((example) => (
               <li key={example}>
                 <button type="button" onClick={() => setQuestion(example)}>
                   {example}
@@ -202,7 +202,7 @@ export function DashboardView({
   layoutWidgets,
   onSetLayoutWidgets,
   onOpenAddWidget,
-  onOpenLedger,
+  onOpenTransactions,
   onOpenRecurring,
   onOpenBudget,
   onOpenCashFlow,
@@ -253,10 +253,10 @@ export function DashboardView({
    * request. */
   holdings: Holding[];
   familyMembers: FamilyMember[];
-  /** Only needed for "Ask the Vault" (see ledgerQa.ts) — bucket-progress
+  /** Only needed for "Ask the Vault" (see transactionQa.ts) — bucket-progress
    * questions ("how much have I saved toward vacation"). */
   buckets: Bucket[];
-  /** Only needed for "Ask the Vault" (see ledgerQa.ts) — matching a
+  /** Only needed for "Ask the Vault" (see transactionQa.ts) — matching a
    * question's category phrase against the app's real, user-curated
    * category names. */
   categories: string[];
@@ -278,7 +278,7 @@ export function DashboardView({
    * Recurring tab — no filter passed along, matching every other tab
    * switch in this app (simplest useful version, not trying to pre-filter
    * the destination tab down to just that one row). */
-  onOpenLedger: () => void;
+  onOpenTransactions: () => void;
   onOpenRecurring: () => void;
   onOpenBudget: () => void;
   onOpenCashFlow: () => void;
@@ -358,8 +358,8 @@ export function DashboardView({
   }
 
   const checklistSteps = [
-    { done: accounts.length > 0, label: "Add an account", detail: "Checking, savings, credit card — whatever you track.", onClick: onOpenLedger },
-    { done: transactions.length > 0, label: "Import or add transactions", detail: "Import a CSV from your bank, or add one by hand.", onClick: onOpenLedger },
+    { done: accounts.length > 0, label: "Add an account", detail: "Checking, savings, credit card — whatever you track.", onClick: onOpenTransactions },
+    { done: transactions.length > 0, label: "Import or add transactions", detail: "Import a CSV from your bank, or add one by hand.", onClick: onOpenTransactions },
     { done: (report?.budget_actuals.length ?? 0) > 0, label: "Set up your budget", detail: "Give at least one category a monthly amount.", onClick: onOpenBudget },
   ];
   const showChecklist = !checklistDismissed && checklistSteps.some((s) => !s.done);
@@ -897,7 +897,7 @@ export function DashboardView({
           </thead>
           <tbody>
             {recent.map((t) => (
-              <tr key={t.id} className="clickable-row" onClick={onOpenLedger} title="Go to the Transactions tab">
+              <tr key={t.id} className="clickable-row" onClick={onOpenTransactions} title="Go to the Transactions tab">
                 <td className="date-cell">{formatDisplayDate(t.date)}</td>
                 <td>
                   <span className="cell-with-icon">
@@ -1241,9 +1241,9 @@ export function DashboardView({
       </div>
       {/* Owner decision (1.3.0): Ask the Vault stays this big card, directly under the title row.
           Don't shrink it into the title row. DashboardView.test.tsx and feature270 pin this. */}
-      <LedgerQaBox
+      <TransactionQaBox
         onAsk={(question) =>
-          answerLedgerQuestion(question, {
+          answerTransactionQuestion(question, {
             transactions,
             categories,
             accounts,
