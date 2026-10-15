@@ -106,7 +106,7 @@ describe("the Ask the Vault read", () => {
   it("keeps a structured refusal and does not retry it", async () => {
     vi.mocked(invoke).mockImplementation(async (c) => {
       if (c === "get_transaction_context") return context;
-      throw { code: "stale_data", message: "Your ledger changed. Ask again using the current data." };
+      throw { code: "stale_data", message: "Your transactions changed. Ask again using the current data." };
     });
     await expect(createFinancialClient().askVault(request)).rejects.toMatchObject({ code: "stale_data" });
     expect(vi.mocked(invoke).mock.calls.filter(([c]) => c === "get_ask_vault_snapshot")).toHaveLength(1);

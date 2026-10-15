@@ -117,7 +117,7 @@ describe("the Ask the Vault card", () => {
     await settle();
     expect(container.querySelector('.ledger-qa-choices button')).toBeNull();
     expect(client.askVault).not.toHaveBeenCalled();
-    expect(text()).toContain("Your ledger changed");
+    expect(text()).toContain("Your transactions changed");
   });
   it("renders member and unassigned rows as an accessible labeled table and restates grouping", async () => {
     mount(fake(async () => memberReply()), {ctx:membersContext});
@@ -307,13 +307,13 @@ describe("the Ask the Vault card", () => {
 
   it("the details dialog says plainly when the ledger changed in between", async () => {
     const client = fake(async (request) => {
-      if (request.kind === "rank-purchases") throw new TransactionError("stale_data", "Your ledger changed. Ask again using the current data.");
+      if (request.kind === "rank-purchases") throw new TransactionError("stale_data", "Your transactions changed. Ask again using the current data.");
       return snapshot();
     });
     mount(client);
     await ask("how much did I spend on groceries last month");
     await click("View 3 purchases");
-    expect(document.querySelector("[role='dialog']")!.textContent).toContain("Your ledger changed");
+    expect(document.querySelector("[role='dialog']")!.textContent).toContain("Your transactions changed");
   });
 
   it("an answer is retired when the ledger changes underneath it, and can be asked again", async () => {
@@ -324,7 +324,7 @@ describe("the Ask the Vault card", () => {
     view.rerender("v2");
     await act(async () => {});
     expect(text()).not.toContain("$317.13");
-    expect(text()).toContain("Your ledger changed");
+    expect(text()).toContain("Your transactions changed");
     await click("Ask again");
     expect(client.askVault).toHaveBeenCalledTimes(2);
     expect(text()).toContain("$317.13");
@@ -399,7 +399,7 @@ describe("the Ask the Vault card", () => {
     view.rerender("v1", "r3");
     await act(async () => {});
     expect(text()).not.toContain("$317.13");
-    expect(text()).toContain("Your ledger changed");
+    expect(text()).toContain("Your transactions changed");
   });
 
   it("an answer read before the ledger changed is not left standing as current", async () => {
@@ -417,7 +417,7 @@ describe("the Ask the Vault card", () => {
     await act(async () => release(snapshot({ revision: { local: 5, external: 2 } })));
     await act(async () => {});
     expect(text()).not.toContain("$317.13");
-    expect(text()).toContain("Your ledger changed");
+    expect(text()).toContain("Your transactions changed");
   });
 
   it("a purchases list still loading does not open after its answer was retired", async () => {
@@ -433,7 +433,7 @@ describe("the Ask the Vault card", () => {
     revision = { local: 6, external: 2 };
     view.rerender("v1", "r2"); // the answer is retired
     await act(async () => {});
-    expect(text()).toContain("Your ledger changed");
+    expect(text()).toContain("Your transactions changed");
     await act(async () => releaseDetails(snapshot({ kind: "rank-purchases", periods: [period({ purchases })] })));
     await act(async () => {});
     expect(document.querySelector("[role='dialog']")).toBeNull();
@@ -488,7 +488,7 @@ describe("the Ask the Vault card", () => {
     await act(async () => {});
     seen.push(text());
     expect(seen.some((s) => s.includes("$317.13"))).toBe(false);
-    expect(text()).toContain("Your ledger changed");
+    expect(text()).toContain("Your transactions changed");
   });
 
   it("if the freshness check itself fails, the answer is retired rather than trusted", async () => {
@@ -518,7 +518,7 @@ describe("the Ask the Vault card", () => {
     release(snapshot({ revision: { local: 99, external: 2 } })); // the old check finishes late with a different revision
     await act(async () => {});
     expect(text()).toContain("$317.13");
-    expect(text()).not.toContain("Your ledger changed");
+    expect(text()).not.toContain("Your transactions changed");
   });
 
   it("a failed read is reported in plain words with a way to retry", async () => {

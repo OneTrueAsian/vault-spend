@@ -23,7 +23,7 @@ export type AskVaultDetails =
   | { status: "ready"; rows: AskPurchaseRow[]; purchaseCount: number }
   | { status: "error"; message: string };
 
-const LEDGER_CHANGED = "Your ledger changed. Ask again using the current data.";
+const LEDGER_CHANGED = "Your transactions changed. Ask again using the current data.";
 
 /**
  * One question at a time against one open profile. The client lives exactly as long as the card is

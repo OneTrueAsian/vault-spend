@@ -461,7 +461,7 @@ pub(super) fn snapshot(
             if request.expected_revision.as_ref().is_some_and(|expected| expected != &revision) {
                 return Ok(Err(ReadError::new(
                     "stale_data",
-                    "Your ledger changed. Ask again using the current data.",
+                    "Your transactions changed. Ask again using the current data.",
                 )));
             }
             let mut periods = Vec::new();

@@ -42,7 +42,7 @@ export function purchaseDetailsRequest(request: AskVaultRequest | AskVaultReques
 export function explainFailure(failure: unknown): { status: "stale" | "error"; message: string } {
   const error = transactionError(failure);
   if (PROFILE_MOVED.has(error.code)) return { status: "stale", message: PROFILE_MESSAGE };
-  if (error.code === "stale_data") return { status: "stale", message: "Your ledger changed. Ask again using the current data." };
+  if (error.code === "stale_data") return { status: "stale", message: "Your transactions changed. Ask again using the current data." };
   if (error.code === "invalid_argument" || error.code === "invalid_response") return { status: "error", message: error.message };
   return { status: "error", message: GENERIC_MESSAGE };
 }
