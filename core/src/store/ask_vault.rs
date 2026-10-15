@@ -3,7 +3,7 @@ use super::{LIVE_TRANSFER_LEG_IDS_SQL, Store};
 use chrono::{Datelike, NaiveDate};
 use rusqlite::params;
 use rust_decimal::Decimal;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub struct AskSpendThreshold {
@@ -137,6 +137,20 @@ fn add(a: Decimal, b: Decimal) -> rusqlite::Result<Decimal> {
         .filter(|sum| sum.checked_sub(a) == Some(b) && sum.checked_sub(b) == Some(a))
         .ok_or_else(|| invalid("Spending exceeds the exact supported decimal range"))
 }
+/// What is remembered about a purchase that counts: its text is looked up by number only for the few shown.
+struct KeptPurchase {
+    account_id: i64,
+    date: String,
+    number: usize,
+    amount: Decimal,
+    parent_amount: Decimal,
+}
+fn conversion(column: usize, error: rusqlite::types::FromSqlError) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(column, rusqlite::types::Type::Text, Box::new(error))
+}
+fn text<'a>(row: &'a rusqlite::Row<'_>, column: usize) -> rusqlite::Result<&'a str> {
+    row.get_ref(column)?.as_str().map_err(|e| conversion(column, e))
+}
 impl AskSpendFilter {
     pub fn validate(&self) -> rusqlite::Result<()> {
         let months = (self.to.year() - self.from.year()) * 12 + self.to.month() as i32 - self.from.month() as i32;
@@ -226,44 +240,63 @@ impl Store {
                AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
                AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})"
         ))?;
-        let rows = statement.query_map(params![filter.from.to_string(), filter.to.to_string()], |r| {
-            Ok((
-                r.get::<_, i64>(0)?,
-                r.get::<_, i64>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-                r.get::<_, Option<String>>(5)?,
-                r.get::<_, String>(6)?,
-            ))
-        })?;
-        let mut categories: BTreeMap<Option<String>, (Decimal, BTreeSet<i64>)> = BTreeMap::new();
-        let mut purchases: BTreeMap<i64, AskPurchaseSpend> = BTreeMap::new();
-        let mut total = Decimal::ZERO;
+        let mut rows = statement.query(params![filter.from.to_string(), filter.to.to_string()])?;
         let include: Vec<String> = filter.vendors.iter().filter_map(|v| vendor_term(v)).collect();
         let exclude: Vec<String> = filter.exclude_vendors.iter().filter_map(|v| vendor_term(v)).collect();
-        let mut vendors: BTreeMap<String, BTreeSet<i64>> = BTreeMap::new();
-        let mut per_term: Vec<(Decimal, BTreeSet<i64>)> = vec![(Decimal::ZERO, BTreeSet::new()); include.len()];
+        // A description repeats on many rows (one store, many visits), so each distinct description is numbered the first
+        // time it is seen and decided once; rows are then handled by number without copying their text.
+        let mut seen: HashMap<String, usize> = HashMap::new();
+        let mut names: Vec<String> = Vec::new();
+        let mut decided: Vec<(Option<usize>, bool)> = Vec::new();
+        let mut named_ids: Vec<HashSet<i64>> = Vec::new();
+        let mut by_name: HashMap<String, (Decimal, HashSet<i64>)> = HashMap::new();
+        let mut uncategorized: Option<(Decimal, HashSet<i64>)> = None;
+        let mut purchases: HashMap<i64, KeptPurchase> = HashMap::new();
+        let mut total = Decimal::ZERO;
+        let mut per_term: Vec<(Decimal, HashSet<i64>)> = vec![(Decimal::ZERO, HashSet::new()); include.len()];
         let mut left_total = Decimal::ZERO;
         let mut left_ids: BTreeSet<i64> = BTreeSet::new();
         let mut left_vendors: BTreeMap<String, BTreeSet<i64>> = BTreeMap::new();
         let mut left_categories: BTreeMap<Option<String>, (Decimal, BTreeSet<i64>)> = BTreeMap::new();
-        for row in rows {
-            let (id, account_id, date, description, parent, category, allocation) = row?;
+        while let Some(row) = rows.next()? {
+            let id: i64 = row.get(0)?;
+            let account_id: i64 = row.get(1)?;
+            let date = text(row, 2)?;
+            let description = text(row, 3)?;
+            let parent = text(row, 4)?;
+            let category: Option<&str> = match row.get_ref(5)? {
+                rusqlite::types::ValueRef::Null => None,
+                other => Some(other.as_str().map_err(|e| conversion(5, e))?),
+            };
+            let allocation = text(row, 6)?;
             if !filter.account_ids.is_empty() && !filter.account_ids.contains(&account_id) {
                 continue;
             }
-            if category.as_deref() == Some("Transfer") {
+            if category == Some("Transfer") {
                 continue;
             }
-            let credited = include.iter().position(|t| vendor_matches(&description, t));
+            let number = match seen.get(description) {
+                Some(found) => *found,
+                None => {
+                    let number = names.len();
+                    decided.push((
+                        include.iter().position(|t| vendor_matches(description, t)),
+                        exclude.iter().any(|t| vendor_matches(description, t)),
+                    ));
+                    names.push(description.to_string());
+                    named_ids.push(HashSet::new());
+                    seen.insert(description.to_string(), number);
+                    number
+                }
+            };
+            let (credited, left_by_store) = decided[number];
             if !include.is_empty() && credited.is_none() {
                 continue;
             }
-            if !filter.categories.is_empty() && !category.as_ref().is_some_and(|c| filter.categories.contains(c)) {
+            if !filter.categories.is_empty() && !category.is_some_and(|c| filter.categories.iter().any(|wanted| wanted == c)) {
                 continue;
             }
-            let parent_amount = decimal(&parent)?.abs();
+            let parent_amount = decimal(parent)?.abs();
             if filter.minimum_purchase.as_ref().is_some_and(|t| {
                 if t.inclusive {
                     parent_amount < t.amount
@@ -273,70 +306,104 @@ impl Store {
             }) {
                 continue;
             }
-            let allocation = decimal(&allocation)?;
+            let allocation = decimal(allocation)?;
             if allocation >= Decimal::ZERO {
                 continue;
             }
             let amount = -allocation;
-            let left_by_store = exclude.iter().any(|t| vendor_matches(&description, t));
-            let left_by_category = category.as_ref().is_some_and(|c| filter.exclude_categories.contains(c));
+            let left_by_category = category.is_some_and(|c| filter.exclude_categories.iter().any(|left| left == c));
             if left_by_store || left_by_category {
                 left_total = add(left_total, amount)?;
                 left_ids.insert(id);
                 if left_by_store {
-                    left_vendors.entry(description.clone()).or_default().insert(id);
+                    left_vendors.entry(names[number].clone()).or_default().insert(id);
                 }
                 if left_by_category {
-                    let entry = left_categories.entry(category.clone()).or_insert((Decimal::ZERO, BTreeSet::new()));
+                    let entry = left_categories
+                        .entry(category.map(str::to_string))
+                        .or_insert((Decimal::ZERO, BTreeSet::new()));
                     entry.0 = add(entry.0, amount)?;
                     entry.1.insert(id);
                 }
                 continue;
             }
             total = add(total, amount)?;
-            let entry = categories.entry(category).or_insert((Decimal::ZERO, BTreeSet::new()));
-            entry.0 = add(entry.0, amount)?;
-            entry.1.insert(id);
+            let slot = match category {
+                Some(name) => {
+                    if !by_name.contains_key(name) {
+                        by_name.insert(name.to_string(), (Decimal::ZERO, HashSet::new()));
+                    }
+                    by_name.get_mut(name).expect("just inserted")
+                }
+                None => uncategorized.get_or_insert((Decimal::ZERO, HashSet::new())),
+            };
+            slot.0 = add(slot.0, amount)?;
+            slot.1.insert(id);
             if let Some(index) = credited {
-                vendors.entry(description.clone()).or_default().insert(id);
+                named_ids[number].insert(id);
                 per_term[index].0 = add(per_term[index].0, amount)?;
                 per_term[index].1.insert(id);
             }
-            let purchase = purchases.entry(id).or_insert(AskPurchaseSpend {
-                transaction_id: id,
-                account_id,
-                date,
-                description,
-                amount: Decimal::ZERO,
-                parent_amount,
-            });
-            purchase.amount = add(purchase.amount, amount)?;
+            match purchases.get_mut(&id) {
+                Some(kept) => kept.amount = add(kept.amount, amount)?,
+                None => {
+                    purchases.insert(
+                        id,
+                        KeptPurchase {
+                            account_id,
+                            date: date.to_string(),
+                            number,
+                            amount,
+                            parent_amount,
+                        },
+                    );
+                }
+            }
         }
         let purchase_count = purchases.len();
-        let category_count = categories.len();
-        let mut categories: Vec<_> = categories
+        let category_count = by_name.len() + usize::from(uncategorized.is_some());
+        let mut categories: Vec<_> = by_name
             .into_iter()
             .map(|(category, (amount, ids))| AskCategorySpend {
-                category,
+                category: Some(category),
                 amount,
                 purchase_count: ids.len(),
             })
+            .chain(uncategorized.map(|(amount, ids)| AskCategorySpend {
+                category: None,
+                amount,
+                purchase_count: ids.len(),
+            }))
             .collect();
         categories.sort_by(|a, b| b.amount.cmp(&a.amount).then_with(|| a.category.cmp(&b.category)));
         categories.truncate(filter.limit);
-        let mut purchases: Vec<_> = purchases.into_values().collect();
-        purchases.sort_by(|a, b| {
-            b.amount
-                .cmp(&a.amount)
-                .then_with(|| a.date.cmp(&b.date))
-                .then_with(|| a.transaction_id.cmp(&b.transaction_id))
+        // Rank first, then build rows (with their text) only for the few that are shown.
+        let mut ranked: Vec<(&i64, &KeptPurchase)> = purchases.iter().collect();
+        ranked.sort_by(|a, b| {
+            b.1.amount
+                .cmp(&a.1.amount)
+                .then_with(|| a.1.date.cmp(&b.1.date))
+                .then_with(|| a.0.cmp(b.0))
         });
-        purchases.truncate(filter.limit);
-        let vendor_name_count = vendors.len();
-        let mut vendors: Vec<_> = vendors
+        ranked.truncate(filter.limit);
+        let purchases: Vec<AskPurchaseSpend> = ranked
             .into_iter()
-            .map(|(description, ids)| AskVendorSpend {
-                description,
+            .map(|(id, kept)| AskPurchaseSpend {
+                transaction_id: *id,
+                account_id: kept.account_id,
+                date: kept.date.clone(),
+                description: names[kept.number].clone(),
+                amount: kept.amount,
+                parent_amount: kept.parent_amount,
+            })
+            .collect();
+        let vendor_name_count = named_ids.iter().filter(|ids| !ids.is_empty()).count();
+        let mut vendors: Vec<_> = named_ids
+            .iter()
+            .enumerate()
+            .filter(|(_, ids)| !ids.is_empty())
+            .map(|(number, ids)| AskVendorSpend {
+                description: names[number].clone(),
                 purchase_count: ids.len(),
             })
             .collect();

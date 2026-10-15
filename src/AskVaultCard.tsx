@@ -82,7 +82,7 @@ export function AskVaultCard({
   onOpenTransactions?: (filter: { category: string; accountIds: number[]; from: string; to: string }) => void;
   createClient?: () => Pick<ReturnType<typeof createFinancialClient>, "askVault" | "dispose">;
 }) {
-  const { view, details, ask, openDetails, closeDetails } = useAskVault({ getContext, legacyAsk, dataKey, reloadKey, createClient });
+  const { view, details, checking, ask, openDetails, closeDetails } = useAskVault({ getContext, legacyAsk, dataKey, reloadKey, createClient });
   const [question, setQuestion] = useState("");
   const [showExamples, setShowExamples] = useState(false);
   const [allRowsOpen, setAllRowsOpen] = useState(false);
@@ -161,7 +161,9 @@ export function AskVaultCard({
       <div className="ledger-qa-result" aria-live="polite">
         {view.status === "loading" && <p className="ledger-qa-working">Looking that up…</p>}
 
-        {view.status === "answer" && (
+        {view.status === "answer" && checking === view.result && <p className="ledger-qa-working">Checking that this is still up to date…</p>}
+
+        {view.status === "answer" && checking !== view.result && (
           <>
             <ul className="ledger-qa-chips" aria-label="What I understood">
               {understoodChips(view.result.interpretation).map((chip, i) => (

@@ -355,6 +355,42 @@ describe("the Ask the Vault card", () => {
     expect(document.querySelector("[role='dialog']")).toBeNull();
   });
 
+  it("while an answer is being checked after a reload, its amount is not shown", async () => {
+    let release: (s: AskVaultSnapshot) => void = () => {};
+    let holdChecks = false;
+    const client = fake(() => (holdChecks ? new Promise<AskVaultSnapshot>((r) => (release = r)) : Promise.resolve(snapshot())));
+    const view = mount(client);
+    await ask("how much did I spend on groceries last month");
+    expect(text()).toContain("$317.13");
+    holdChecks = true;
+    view.rerender("v1", "r2");
+    await act(async () => {});
+    expect(text()).not.toContain("$317.13");
+    expect(text()).toContain("Checking that this is still up to date");
+    await act(async () => release(snapshot())); // unchanged: the same answer comes back
+    await act(async () => {});
+    expect(text()).toContain("$317.13");
+    expect(text()).not.toContain("Checking that this");
+  });
+
+  it("an answer that turns out to be out of date is never shown, not even briefly", async () => {
+    let release: (s: AskVaultSnapshot) => void = () => {};
+    let holdChecks = false;
+    const client = fake(() => (holdChecks ? new Promise<AskVaultSnapshot>((r) => (release = r)) : Promise.resolve(snapshot())));
+    const view = mount(client);
+    await ask("how much did I spend on groceries last month");
+    holdChecks = true;
+    const seen: string[] = [];
+    view.rerender("v1", "r2");
+    seen.push(text());
+    await act(async () => release(snapshot({ revision: { local: 9, external: 2 } })));
+    seen.push(text());
+    await act(async () => {});
+    seen.push(text());
+    expect(seen.some((s) => s.includes("$317.13"))).toBe(false);
+    expect(text()).toContain("Your ledger changed");
+  });
+
   it("if the freshness check itself fails, the answer is retired rather than trusted", async () => {
     let fail = false;
     const client = fake(async () => {

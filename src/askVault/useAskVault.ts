@@ -62,6 +62,8 @@ export function useAskVault({
   shown.current = view;
   const checkedFor = useRef<unknown>(reloadKey);
   const [details, setDetails] = useState<AskVaultDetails>(null);
+  // The answer being re-checked after a reload. It is not shown (or its purchases listed) until the check says it is current.
+  const [checking, setChecking] = useState<Extract<AskVaultView, { status: "answer" }>["result"] | null>(null);
 
   useEffect(() => {
     alive.current = true;
@@ -94,8 +96,12 @@ export function useAskVault({
       if (!client.current) return;
       const mine = ++tokens.check;
       const day = answer.request.periods[0].from;
+      tokens.detail++;
+      setDetails(null);
+      setChecking(answer);
       const retire = () => {
         if (!alive.current || mine !== tokens.check) return;
+        setChecking(null);
         tokens.detail++; // and any purchases list still being read for it
         setView((now) => (now.status === "answer" && now.result === answer ? { status: "stale", question: now.question, message: LEDGER_CHANGED } : now));
         setDetails(null);
@@ -104,6 +110,7 @@ export function useAskVault({
         .askVault({ kind: "total", periods: [{ from: day, to: day }], accountIds: [], categories: [], minimumPurchase: null, vendors: [], excludeVendors: [], excludeCategories: [], limit: 1, expectedRevision: null })
         .then((reply) => {
           if (reply.revision.local !== answer.revision.local || reply.revision.external !== answer.revision.external) retire();
+          else if (alive.current && mine === tokens.check) setChecking((c) => (c === answer ? null : c));
         })
         .catch(retire);
     },
@@ -126,6 +133,7 @@ export function useAskVault({
     tokens.detail++;
     tokens.check++;
     setDetails(null);
+    setChecking(null);
     answeredWith.current = latest.current.dataKey;
     const startedWith = { dataKey: latest.current.dataKey, reloadKey: latest.current.reloadKey };
     setView({ status: "loading", question });
@@ -186,5 +194,5 @@ export function useAskVault({
     setDetails(null);
   }, [tokens]);
 
-  return { view, details, ask, openDetails, closeDetails };
+  return { view, details, checking, ask, openDetails, closeDetails };
 }
