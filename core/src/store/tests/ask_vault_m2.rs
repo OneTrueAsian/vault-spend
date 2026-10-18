@@ -2,7 +2,7 @@
 //! aligned comparisons. Every expected number was added up by hand from the rows written in each test.
 use super::*;
 use crate::models::{AccountType, Transaction};
-use crate::store::{AskAlignment, AskAverageKind, AskGroupBy, AskMonthCoverage, AskMonthCoverage::*, AskSpendFilter, AskSpendResult, ask_comparison};
+use crate::store::{ask_comparison, AskAlignment, AskAverageKind, AskGroupBy, AskMonthCoverage, AskMonthCoverage::*, AskSpendFilter, AskSpendResult};
 
 fn account(store: &Store, name: &str) -> i64 {
     store.create_account(name, AccountType::Checking).unwrap().expect("new account")
@@ -224,7 +224,7 @@ fn family_household() -> (Store, i64, i64, i64) {
     }
     record(&store, joint, "2026-03-01", "KROGER", -9000, Some("Groceries"), Some(sam)); // Sam 90.00
     record(&store, joint, "2026-03-03", "SHELL", -5000, Some("Fuel"), Some(sam)); // Sam 50.00
-    // 200.00 split 80.00 groceries / 120.00 shopping, recorded against Alex: all of it is Alex's.
+                                                                                  // 200.00 split 80.00 groceries / 120.00 shopping, recorded against Alex: all of it is Alex's.
     let target = record(&store, joint, "2026-03-05", "TARGET", -20000, None, Some(alex));
     split(&store, target, &[("Groceries", -8000), ("Shopping", -12000)]);
     record(&store, joint, "2026-03-18", "PHARMACY", -2200, Some("Groceries"), None); // unassigned 22.00
@@ -336,30 +336,24 @@ fn grouping_by_member_lists_everyone_largest_first_and_adds_back() {
 #[test]
 fn members_must_exist_and_be_distinct() {
     let (store, sam, _, _) = family_household();
-    assert!(
-        store
-            .ask_spending(&AskSpendFilter {
-                member_ids: vec![99],
-                ..march()
-            })
-            .is_err()
-    );
-    assert!(
-        store
-            .ask_spending(&AskSpendFilter {
-                member_ids: vec![sam, sam],
-                ..march()
-            })
-            .is_err()
-    );
-    assert!(
-        store
-            .ask_spending(&AskSpendFilter {
-                member_ids: vec![0],
-                ..march()
-            })
-            .is_err()
-    );
+    assert!(store
+        .ask_spending(&AskSpendFilter {
+            member_ids: vec![99],
+            ..march()
+        })
+        .is_err());
+    assert!(store
+        .ask_spending(&AskSpendFilter {
+            member_ids: vec![sam, sam],
+            ..march()
+        })
+        .is_err());
+    assert!(store
+        .ask_spending(&AskSpendFilter {
+            member_ids: vec![0],
+            ..march()
+        })
+        .is_err());
 }
 
 #[test]
@@ -568,36 +562,30 @@ fn unequal_lengths_are_not_comparable() {
 
 #[test]
 fn an_aligned_comparison_must_be_exactly_the_alignment() {
-    assert!(
-        compare(
-            AskAlignment::SameDaysPreviousMonth,
-            ("2026-03-01", "2026-03-30"),
-            ("2026-02-01", "2026-02-27"),
-            "1",
-            "1"
-        )
-        .is_err()
-    );
-    assert!(
-        compare(
-            AskAlignment::SameDaysPreviousMonth,
-            ("2026-03-05", "2026-03-30"),
-            ("2026-02-05", "2026-02-28"),
-            "1",
-            "1"
-        )
-        .is_err()
-    );
-    assert!(
-        compare(
-            AskAlignment::SameDaysPreviousYear,
-            ("2026-01-01", "2026-03-30"),
-            ("2025-01-01", "2025-03-29"),
-            "1",
-            "1"
-        )
-        .is_err()
-    );
+    assert!(compare(
+        AskAlignment::SameDaysPreviousMonth,
+        ("2026-03-01", "2026-03-30"),
+        ("2026-02-01", "2026-02-27"),
+        "1",
+        "1"
+    )
+    .is_err());
+    assert!(compare(
+        AskAlignment::SameDaysPreviousMonth,
+        ("2026-03-05", "2026-03-30"),
+        ("2026-02-05", "2026-02-28"),
+        "1",
+        "1"
+    )
+    .is_err());
+    assert!(compare(
+        AskAlignment::SameDaysPreviousYear,
+        ("2026-01-01", "2026-03-30"),
+        ("2025-01-01", "2025-03-29"),
+        "1",
+        "1"
+    )
+    .is_err());
     let ok = compare(
         AskAlignment::SameDaysPreviousMonth,
         ("2026-01-01", "2026-01-20"),
@@ -680,14 +668,12 @@ fn a_split_by_family_member_is_refused_past_fifty_lines_rather_than_cut_off() {
         store.create_family_member(&format!("Person {i}")).unwrap();
     }
     // 50 people plus the unassigned line is 51 lines, which cannot be shown without leaving some out.
-    assert!(
-        store
-            .ask_spending(&AskSpendFilter {
-                group_by: AskGroupBy::Member,
-                ..march()
-            })
-            .is_err()
-    );
+    assert!(store
+        .ask_spending(&AskSpendFilter {
+            group_by: AskGroupBy::Member,
+            ..march()
+        })
+        .is_err());
     // Choosing a few people is fine however many the household has.
     let few = AskSpendFilter {
         group_by: AskGroupBy::Member,
@@ -746,4 +732,190 @@ fn accounts_with_matching_purchases_only_outside_the_period_still_set_the_eviden
     );
     assert_eq!(result.total, dec("30.00"));
     assert_eq!(result.months.iter().map(|m| m.coverage).collect::<Vec<_>>(), [BeforeRecords]);
+}
+
+#[test]
+fn m4_batch_matches_independent_categories_with_distinct_coverage_and_outside_evidence() {
+    let (store, _, _) = gap_household();
+    let categories = vec!["Travel".to_string(), "Groceries".to_string()];
+    let batch = store.ask_baseline_bundle(&categories, day("2026-07-10")).expect("batch baseline");
+    assert_eq!(batch.iter().map(|r| r.0.as_str()).collect::<Vec<_>>(), ["Travel", "Groceries"]);
+    for (name, result) in batch {
+        let old = ask(
+            &store,
+            AskSpendFilter {
+                from: day("2026-04-01"),
+                to: day("2026-06-30"),
+                as_of: day("2026-07-10"),
+                categories: vec![name],
+                group_by: AskGroupBy::Month,
+                average: AskAverageKind::PerMonth,
+                ..Default::default()
+            },
+        );
+        assert_eq!(result.months, old.months);
+        assert_eq!(result.total, old.total);
+        assert_eq!(result.purchase_count, old.purchase_count);
+        assert_eq!(result.recorded_from, old.recorded_from);
+        assert_eq!(result.recorded_through, old.recorded_through);
+        assert_eq!(result.average, old.average);
+    }
+}
+#[test]
+fn m4_batch_fresh_transfer_and_generated_payment_fixture_keeps_source_purchase_once() {
+    let store = Store::open_in_memory().unwrap();
+    let (a, b) = (account(&store, "Current"), account(&store, "Savings"));
+    let loan = store.get_or_create_account("Loan", AccountType::Loan).unwrap();
+    store.create_category("Fixture", None).unwrap();
+    store.create_category("Other", None).unwrap();
+    for (date, cents, cat) in [
+        ("2026-03-01", 0, "Fixture"),
+        ("2026-04-10", -1234, "Fixture"),
+        ("2026-05-10", -2345, "Fixture"),
+        ("2026-06-10", -3456, "Fixture"),
+        ("2026-07-10", 0, "Fixture"),
+    ] {
+        record(&store, a, date, "ordinary", cents, Some(cat), None);
+    }
+    let out = record(&store, a, "2026-05-12", "linked out", -3000, Some("Fixture"), None);
+    let incoming = record(&store, b, "2026-05-12", "linked in", 3000, Some("Other"), None);
+    assert!(store.link_transfer(out, incoming).unwrap());
+    // A split on an excluded transfer leg must not reintroduce it.
+    store
+        .conn
+        .execute(
+            "INSERT INTO transaction_splits(transaction_id,category,amount) VALUES (?1,'Fixture','-30.00')",
+            [out],
+        )
+        .unwrap();
+    record(&store, a, "2026-05-12", "category transfer", -4000, Some("Transfer"), None);
+    let source = record(&store, a, "2026-05-13", "source payment", -1000, Some("Fixture"), None);
+    store.apply_debt_payment(source, loan, Decimal::from(10), day("2026-05-13")).unwrap();
+    let generated: i64 = store
+        .conn
+        .query_row(
+            "SELECT generated_transaction_id FROM debt_payments WHERE source_transaction_id=?1",
+            [source],
+            |r| r.get(0),
+        )
+        .unwrap();
+    // Make the generated leg negative and split: sign alone must never be the exclusion.
+    store
+        .conn
+        .execute("UPDATE transactions SET category='Fixture',amount='-999.00' WHERE id=?1", [generated])
+        .unwrap();
+    store
+        .conn
+        .execute(
+            "INSERT INTO transaction_splits(transaction_id,category,amount) VALUES (?1,'Fixture','-999.00')",
+            [generated],
+        )
+        .unwrap();
+    let read = || store.ask_baseline_bundle(&["Fixture".into(), "Other".into()], day("2026-07-10")).unwrap();
+    let before = store.read_revision().unwrap();
+    let batch = read();
+    assert_eq!(store.read_revision().unwrap(), before);
+    assert_eq!(
+        batch[0].1.months.iter().map(|r| r.total).collect::<Vec<_>>(),
+        [dec("12.34"), dec("33.45"), dec("34.56")]
+    );
+    assert_eq!(batch[0].1.total, dec("80.35"));
+    assert_eq!(batch[1].1.total, Decimal::ZERO);
+    let old = ask(
+        &store,
+        AskSpendFilter {
+            from: day("2026-04-01"),
+            to: day("2026-06-30"),
+            as_of: day("2026-07-10"),
+            categories: vec!["Fixture".into()],
+            group_by: AskGroupBy::Month,
+            average: AskAverageKind::PerMonth,
+            ..Default::default()
+        },
+    );
+    assert_eq!(batch[0].1.months, old.months);
+    store
+        .delete_transaction(incoming, day("2026-07-10").and_hms_opt(0, 0, 0).unwrap())
+        .unwrap();
+    assert_eq!(read()[0].1.total, dec("110.35"));
+    store.restore_transactions(&[incoming]).unwrap();
+    assert_eq!(read()[0].1.total, dec("80.35"));
+}
+#[test]
+fn m4_batch_rejects_invalid_selections_without_partial_answers() {
+    let store = Store::open_in_memory().unwrap();
+    store.create_category("A", None).unwrap();
+    for names in [
+        vec![],
+        vec!["A".into(), "A".into()],
+        vec!["missing".into()],
+        vec![" ".into()],
+        (0..21).map(|i| format!("C{i}")).collect(),
+    ] {
+        assert!(store.ask_baseline_bundle(&names, day("2026-07-10")).is_err());
+    }
+}
+
+#[test]
+fn m4_batch_twenty_categories_differential_covers_split_refund_deleted_and_outside_rows() {
+    for seed in 0..12 {
+        let store = Store::open_in_memory().unwrap();
+        let accounts = [account(&store, "A"), account(&store, "B"), account(&store, "C")];
+        let categories: Vec<String> = (0..20).map(|i| format!("Category {i:02}")).collect();
+        for c in &categories {
+            store.create_category(c, None).unwrap();
+        }
+        for i in 0..120 {
+            let c = &categories[(i + seed) % 20];
+            let date = format!("2026-{:02}-{:02}", 1 + (i * 7 + seed) % 10, 1 + (i * 11) % 27);
+            let id = record(
+                &store,
+                accounts[(i + seed) % 3],
+                &date,
+                "fixture",
+                if i % 11 == 0 { 900 } else { -((i + seed + 1) as i64) },
+                Some(c),
+                None,
+            );
+            if i % 17 == 0 {
+                split(&store, id, &[(c.as_str(), -30), (categories[(i + seed + 1) % 20].as_str(), -40)]);
+            }
+            if i % 23 == 0 {
+                store.delete_transaction(id, day("2026-10-16").and_hms_opt(0, 0, 0).unwrap()).unwrap();
+            }
+        }
+        // Greater than JS safe integer plus sub-cent native precision, in a category without overflow.
+        store
+            .conn
+            .execute(
+                "UPDATE transactions SET amount='-9007199254740993.001' WHERE id=(SELECT MAX(id) FROM transactions WHERE deleted_at IS NULL)",
+                [],
+            )
+            .unwrap();
+        let before = store.read_revision().unwrap();
+        let bundle = store.ask_baseline_bundle(&categories, day("2026-10-16")).unwrap();
+        assert_eq!(before, store.read_revision().unwrap());
+        for (c, batch) in bundle {
+            let old = ask(
+                &store,
+                AskSpendFilter {
+                    from: day("2026-07-01"),
+                    to: day("2026-09-30"),
+                    as_of: day("2026-10-16"),
+                    categories: vec![c],
+                    group_by: AskGroupBy::Month,
+                    average: AskAverageKind::PerMonth,
+                    ..Default::default()
+                },
+            );
+            assert_eq!(batch.months, old.months);
+            assert_eq!(batch.average, old.average);
+            assert_eq!(batch.total, old.total);
+            assert_eq!(batch.purchase_count, old.purchase_count);
+            assert_eq!(batch.category_count, old.category_count);
+            assert_eq!(batch.recorded_from, old.recorded_from);
+            assert_eq!(batch.recorded_through, old.recorded_through);
+            assert_eq!(batch.earliest_record, old.earliest_record);
+        }
+    }
 }

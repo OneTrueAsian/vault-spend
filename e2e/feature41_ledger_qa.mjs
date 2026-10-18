@@ -35,6 +35,9 @@ cur.execute("INSERT INTO bucket_contributions (bucket_id, date, amount) VALUES (
 # Keep the runway's trailing 90-day window populated independently of the
 # historical Dining Out query. Three-month-old rows can legitimately age out.
 cur.execute("INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, '${dateInMonth(-1, 5)}', 'Recent runway fixture', '-30.00', 'Groceries', 'fp_recent')", (checking_id,))
+# Recording evidence spans all three baseline months; zero rows never add spending.
+for marker_date in ['${dateInMonth(-4, 1)}', '${dateInMonth(-2, 1)}', '${dateInMonth(0, 1)}']:
+    cur.execute("INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, ?, 'Recording boundary', '0.00', 'Groceries', ?)", (checking_id, marker_date, 'coverage_' + marker_date))
 `);
 
 async function ask(app, question, averageChoice) {
@@ -166,6 +169,65 @@ try {
     throw new Error(`expected the unmatched answer to carry the unmatched styling class, got "${unmatchedClass}"`);
   }
 
+  // M3: the real native monthly baseline is reviewed before a read-only one-time result.
+  const scenarioInput = await app.browser.$(".ledger-qa-card input");
+  await scenarioInput.click();
+  await app.browser.keys(["Control", "a"]);
+  await app.browser.keys("Backspace");
+  await scenarioInput.addValue(`Cut Dining Out by $5 once on ${dateInMonth(1, 15)}`);
+  await (await (await app.browser.$(".ledger-qa-card")).$("button=Ask")).click();
+  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Check these details"), { timeout: 8000 });
+  if (await app.browser.$(".scenario-total").isExisting()) throw new Error("no scenario result before confirmation");
+  const review = await app.browser.$("[role='dialog']");
+  const reviewText = await review.getText();
+  if (!reviewText.includes("$95.00")) throw new Error(`native baseline must include the historical $95: ${reviewText}`);
+  // Short-history fixtures still require an explicit choice if native coverage excludes a month.
+  if (reviewText.includes("Which would you like to use?")) {
+    await (await review.$("input[type='radio']")).click();
+  }
+  await (await review.$("button=Show what I would save")).click();
+  await app.browser.$(".scenario-total").waitForExist({ timeout: 8000 });
+  if (await app.browser.$(".scenario-total").getText() !== "$5.00") throw new Error("one-time saving must be exactly $5");
+  await app.browser.keys("Escape");
+  await app.browser.waitUntil(async () => !(await app.browser.$("[role='dialog']").isExisting()), { timeout: 5000 });
+  // M4 actual Dashboard route: no injected component, native three-month baseline, explicit confirmation.
+  const cutInput = await app.browser.$(".ledger-qa-card input");
+  await cutInput.click(); await app.browser.keys(["Control", "a"]); await app.browser.keys("Backspace");
+  await cutInput.addValue(`Save $5 monthly across Dining Out with Dining Out floor $0 and maximum cut 100% from ${dateInMonth(1, 1)} through ${dateInMonth(2, 28)}`);
+  await (await app.browser.$(".ledger-qa-card")).$("button=Ask").click();
+  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Where would you like to cut back?"), { timeout: 5000 });
+  // The final month may be partial: deliberately choose inclusive daily proration if prompted.
+  const partChoice = await app.browser.$('label*=Count the part month by the day');
+  if (await partChoice.isExisting()) await (await partChoice.$('input')).click();
+  await app.browser.$('button=Review the details').click();
+  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Check every detail"), { timeout: 8000 });
+  if (await app.browser.$('.cut-preview-results').isExisting()) throw new Error('M4 cannot calculate before final consent');
+  if (!(await app.browser.$("[role='dialog']").getText()).includes('$95.00')) throw new Error('M4 must review the native95.00 evidence');
+  const shortChoice = await app.browser.$('label*=Use 2 recorded months for Dining Out');
+  if (await shortChoice.isExisting()) await (await shortChoice.$('input')).click();
+  await app.browser.$('button=Show the preview').click();
+  await app.browser.$('.cut-preview-results').waitForExist({ timeout: 8000 });
+  const resultText = await app.browser.$("[role='dialog']").getText();
+  if (!resultText.includes('Goal: $5.00 per month') || !resultText.includes('Shortfall: $0.00 per month') || !resultText.includes('Nothing in your data was changed')) throw new Error(resultText);
+  await app.browser.$('button=Change the details').click();
+  if (await app.browser.$('.cut-preview-results').isExisting()) throw new Error('Editing must retire the previous allocation');
+  await app.browser.keys('Escape');
+  await app.browser.waitUntil(async () => !(await app.browser.$("[role='dialog']").isExisting()), { timeout: 5000 });
+  // Natural cap wording must keep its40% while requiring a separately chosen floor and final consent.
+  await cutInput.setValue(`Save $5 a month from Dining Out, I can cut up to 40% from ${dateInMonth(1, 1)} through ${dateInMonth(2, 28)}`);
+  await (await app.browser.$(".ledger-qa-card")).$("button=Ask").click();
+  await app.browser.$('input[aria-label="Dining Out monthly floor"]').waitForExist({ timeout: 5000 });
+  if (await app.browser.$('input[aria-label="Dining Out monthly floor"]').getValue() !== '') throw new Error('A missing floor must not become zero');
+  if (await app.browser.$('input[aria-label="Dining Out maximum cut"]').getValue() !== '40') throw new Error('Natural cap must retain40%');
+  await app.browser.$('input[aria-label="Dining Out monthly floor"]').setValue('0');
+  if (await partChoice.isExisting()) await (await partChoice.$('input')).click();
+  await app.browser.$('button=Review the details').click();
+  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Check every detail"), { timeout: 8000 });
+  if (await shortChoice.isExisting()) await (await shortChoice.$('input')).click();
+  if (await app.browser.$('.cut-preview-results').isExisting()) throw new Error('Natural wording is not calculation consent');
+  await app.browser.$('button=Show the preview').click();
+  await app.browser.$('.cut-preview-results').waitForExist({ timeout: 8000 });
+  if (!(await app.browser.$("[role='dialog']").getText()).includes('Goal: $5.00 per month')) throw new Error('Natural question must reach the exact result');
   console.log("FEATURE 41 E2E TEST PASSED");
 } finally {
   await app.close();

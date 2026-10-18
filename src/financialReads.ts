@@ -9,6 +9,7 @@ import {
 import { toLocalIsoDate } from "./format";
 import { validateAskVaultSnapshot, type AskKnownPeople } from "./askVault/contract";
 import type { AskVaultRequest, AskVaultRequestV2 } from "./askVault/types";
+import { validateBaselineBatchRequest, validateBaselineBatchSnapshot, type AskBaselineBatchRequest } from "./askVault/cutPreviewBatch";
 export function createFinancialClient() {
   const client = createTransactionClient();
   async function read<T extends { context: { generation: number; sessionRevision: number } }>(
@@ -25,6 +26,13 @@ export function createFinancialClient() {
     return result;
   }
   return {
+    askVaultBaselines: async (request: AskBaselineBatchRequest) => {
+      const captured = validateBaselineBatchRequest(request);
+      const today = toLocalIsoDate();
+      const result = await read("get_ask_vault_baselines", { request: captured }, value => validateBaselineBatchSnapshot(value, captured));
+      if (result.asOf !== today || toLocalIsoDate() !== today) throw new TransactionError("invalid_response", "The baseline bundle belongs to another date.");
+      return result;
+    },
     dashboard: async () => {
       const today = toLocalIsoDate();
       const result = await read("get_dashboard_snapshot", {}, validateDashboardSnapshot);

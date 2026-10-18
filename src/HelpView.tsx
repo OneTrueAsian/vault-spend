@@ -1638,6 +1638,27 @@ const FAQ_ENTRIES: FaqEntry[] = [
       </p>
     ),
   },
+  {
+    question: "How can I preview cuts to meet a savings target?",
+    tags: ["ask the vault", "savings target", "cut back", "what if", "monthly floor", "maximum cut", "shortfall", "baseline"],
+    answer: (
+      <>
+        <p>On the Dashboard, try <q>Where can I cut back to save $200 a month?</q> or <q>Save $200 in total this year</q>.
+          Choose whether your target is per month or a total over dates, then choose up to 20 categories you are willing to reduce.
+          Set a <strong>monthly floor</strong>, the spending you want to keep, and a <strong>maximum cut</strong> in dollars per month or percent for every category.
+          The app does not decide which obligations are safe to cut.</p>
+        <p>Review the three full calendar months before this month. Only months with enough recording evidence enter the usual-month average.
+          With short history, explicitly choose the available months or enter your own usual month. With no usable history, enter your own usual month or remove the category.
+          A quiet account can resemble a missed import; these labels cannot certify that every import is present.</p>
+        <p>Choose dates of up to 12 months. For <q>this year</q>, choose the remaining year or a full-year what-if, which includes months already past.
+          If your dates include part months, choose daily proration or only whole months. Check every category, limit and history choice before confirming.</p>
+        <p>The preview spreads cuts in proportion to the capacity you allowed. It shows the achievable amount, maximum and any <strong>shortfall</strong>.
+          Monthly equivalents and limits may be rounded; use the allocated amounts in the displayed target unit, rather than multiplying rounded monthly figures.</p>
+        <p>Nothing is applied to your budget or bank account, and no investment growth is included. Editing, refreshing data, locking or switching profiles retires the preview.
+          Questions and choices are not saved as a history or sent to an AI service.</p>
+      </>
+    ),
+  },
 ];
 
 /** Static, in-app version of the project README — no backend calls, just

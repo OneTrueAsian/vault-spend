@@ -120,7 +120,7 @@ export function resolveVendor(typed: string, descriptions: string[], wholeWords 
     names
       .filter((name) => {
         const word = nameWords.get(name)![0];
-        return word !== undefined && first.length >= 3 && distance(first, word.slice(0, first.length + 1)) <= tolerance;
+        return word !== undefined && first.length >= 3 && distance(first, word.slice(0, first.length + 1), tolerance) <= tolerance;
       }),
   );
   return { status: "none", suggestions: close.slice(0, MAX_SUGGESTIONS).map(group => choiceFor(group, counts)) };

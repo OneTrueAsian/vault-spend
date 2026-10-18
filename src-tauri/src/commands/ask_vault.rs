@@ -660,3 +660,251 @@ pub fn get_ask_vault_snapshot(
 ) -> Result<AskSnapshot, ReadError> {
     read_for_session(&request, expected_generation, expected_session_revision, &state, &paths)
 }
+
+fn required_revision<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<AskDataRevision>, D::Error> {
+    Option::<AskDataRevision>::deserialize(d)
+}
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AskBaselineBatchRequest {
+    contract_version: u8,
+    categories: Vec<String>,
+    #[serde(deserialize_with = "required_revision")]
+    expected_revision: Option<AskDataRevision>,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AskBaselineBatchRow {
+    category: String,
+    snapshot: AskSnapshot,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AskBaselineBatchSnapshot {
+    contract_version: u8,
+    context: AskContext,
+    revision: AskDataRevision,
+    as_of: String,
+    baselines: Vec<AskBaselineBatchRow>,
+}
+pub(super) fn baseline_snapshot(
+    store: &Store,
+    generation: u64,
+    session_revision: u64,
+    request: &AskBaselineBatchRequest,
+    today: NaiveDate,
+) -> Result<AskBaselineBatchSnapshot, ReadError> {
+    if request.contract_version != 1
+        || request.categories.is_empty()
+        || request.categories.len() > 20
+        || request.categories.iter().any(|c| c.trim().is_empty())
+        || request.categories.iter().collect::<std::collections::HashSet<_>>().len() != request.categories.len()
+    {
+        return Err(invalid(
+            "Choose between 1 and 20 distinct existing categories using baseline contract version 1.",
+        ));
+    }
+    store
+        .read_snapshot(|store| {
+            let (local, external) = store.read_revision()?;
+            let revision = AskDataRevision { local, external };
+            if request.expected_revision.as_ref().is_some_and(|expected| expected != &revision) {
+                return Ok(Err(ReadError::new("stale_data", "Your transactions changed. Read the baselines again.")));
+            }
+            let bundle = store.ask_baseline_bundle(&request.categories, today)?;
+            let mut baselines = Vec::new();
+            for (category, result) in bundle {
+                let from = result.months.first().ok_or_else(|| rusqlite_error("Missing baseline months"))?.from;
+                let to = result.months.last().ok_or_else(|| rusqlite_error("Missing baseline months"))?.to;
+                let v2 = period_v2(&result, AskAverageBasis::PerMonth);
+                let period = AskPeriodResult {
+                    from: from.to_string(),
+                    to: to.to_string(),
+                    day_count: (to - from).num_days() + 1,
+                    ends_today: false,
+                    history_coverage: "unknown",
+                    total: result.total.to_string(),
+                    purchase_count: result.purchase_count,
+                    category_count: result.category_count,
+                    categories: Vec::new(),
+                    purchases: Vec::new(),
+                    vendors: Vec::new(),
+                    vendor_name_count: 0,
+                    vendor_totals: Vec::new(),
+                    left_out: AskLeftOut {
+                        total: "0".into(),
+                        purchase_count: 0,
+                        vendors: Vec::new(),
+                        categories: Vec::new(),
+                    },
+                    v2: Some(v2),
+                };
+                baselines.push(AskBaselineBatchRow {
+                    category,
+                    snapshot: AskSnapshot {
+                        contract_version: 2,
+                        context: AskContext {
+                            generation,
+                            session_revision,
+                        },
+                        revision: AskDataRevision { local, external },
+                        as_of: today.to_string(),
+                        kind: AskKind::Total,
+                        spending_basis: "gross-negative-allocations",
+                        threshold_basis: "absolute-parent-amount",
+                        periods: vec![period],
+                        difference: None,
+                        v2: Some(AskSnapshotV2 {
+                            earliest_record: result.earliest_record.map(|d| d.to_string()),
+                            comparison: None,
+                        }),
+                    },
+                });
+            }
+            Ok(Ok(AskBaselineBatchSnapshot {
+                contract_version: 1,
+                context: AskContext {
+                    generation,
+                    session_revision,
+                },
+                revision,
+                as_of: today.to_string(),
+                baselines,
+            }))
+        })
+        .map_err(|e| match e {
+            budget_core::store::StoreError::InvalidParameterName(_) => {
+                invalid("A selected category is unavailable or the baseline exceeds the supported date or monetary range.")
+            }
+            _ => ReadError::new("internal_error", "The baseline bundle could not be read."),
+        })?
+}
+pub(super) fn read_baselines_for_session(
+    request: &AskBaselineBatchRequest,
+    generation: u64,
+    revision: u64,
+    state: &AppStateHandle,
+    paths: &crate::config::AppPaths,
+) -> Result<AskBaselineBatchSnapshot, ReadError> {
+    let session = state.lock().map_err(ReadError::from)?;
+    if paths.current_generation() != generation || state.current_revision() != revision {
+        return Err(ReadError::new("stale_profile", "These baselines belong to a previous profile session."));
+    }
+    baseline_snapshot(&session.store, generation, revision, request, chrono::Local::now().date_naive())
+}
+#[tauri::command]
+pub fn get_ask_vault_baselines(
+    request: AskBaselineBatchRequest,
+    expected_generation: u64,
+    expected_session_revision: u64,
+    state: tauri::State<AppStateHandle>,
+    paths: tauri::State<crate::config::AppPaths>,
+) -> Result<AskBaselineBatchSnapshot, ReadError> {
+    read_baselines_for_session(&request, expected_generation, expected_session_revision, &state, &paths)
+}
+
+#[cfg(test)]
+mod batch_tests {
+    use super::*;
+    use serde_json::json;
+    fn request() -> AskBaselineBatchRequest {
+        serde_json::from_value(json!({"contractVersion":1,"categories":["Dining","Travel"],"expectedRevision":null})).unwrap()
+    }
+    #[test]
+    fn ask_vault_batch_session_guard_rejects_no_profile_lock_and_old_generation_or_session() {
+        let runtime = crate::runtime::AppRuntime::no_profile_open();
+        let paths = crate::config::AppPaths {
+            config_path: "unused-test-config".into(),
+            db_path: std::sync::Mutex::new("unused-test-db".into()),
+            generation: std::sync::atomic::AtomicU64::new(4),
+        };
+        let code = |r: Result<AskBaselineBatchSnapshot, ReadError>| serde_json::to_value(r.unwrap_err()).unwrap()["code"].clone();
+        assert_eq!(code(read_baselines_for_session(&request(), 4, 0, &runtime, &paths)), "no_profile_open");
+        let make = || {
+            let store = Store::open_in_memory().unwrap();
+            store.create_category("Dining", None).unwrap();
+            store.create_category("Travel", None).unwrap();
+            AppState {
+                store,
+                rules: RuleSet::new(vec![]),
+                import_review: None,
+            }
+        };
+        runtime.install(make());
+        let revision = runtime.current_revision();
+        assert!(read_baselines_for_session(&request(), 4, revision, &runtime, &paths).is_ok());
+        assert_eq!(
+            code(read_baselines_for_session(&request(), 3, revision, &runtime, &paths)),
+            "stale_profile"
+        );
+        runtime.lock_profile("synthetic");
+        assert_eq!(
+            code(read_baselines_for_session(&request(), 4, revision, &runtime, &paths)),
+            "profile_locked"
+        );
+        runtime.install(make());
+        assert_eq!(
+            code(read_baselines_for_session(&request(), 4, revision, &runtime, &paths)),
+            "stale_profile"
+        );
+    }
+    #[test]
+    fn ask_vault_batch_snapshot_has_one_common_source_and_independent_three_months() {
+        let store = Store::open_in_memory().unwrap();
+        store.create_category("Dining", None).unwrap();
+        store.create_category("Travel", None).unwrap();
+        let before = store.read_revision().unwrap();
+        let raw = serde_json::to_value(baseline_snapshot(&store, 3, 7, &request(), NaiveDate::from_ymd_opt(2026, 10, 16).unwrap()).unwrap()).unwrap();
+        assert_eq!(raw["asOf"], "2026-10-16");
+        assert_eq!(raw["context"]["sessionRevision"], 7);
+        assert_eq!(raw["baselines"].as_array().unwrap().len(), 2);
+        for row in raw["baselines"].as_array().unwrap() {
+            assert_eq!(row["snapshot"]["context"], raw["context"]);
+            assert_eq!(row["snapshot"]["revision"], raw["revision"]);
+            assert_eq!(row["snapshot"]["periods"][0]["months"].as_array().unwrap().len(), 3);
+            assert_eq!(row["snapshot"]["periods"][0]["from"], "2026-07-01");
+            assert_eq!(row["snapshot"]["periods"][0]["to"], "2026-09-30");
+        }
+        assert_eq!(before, store.read_revision().unwrap());
+    }
+    #[test]
+    fn ask_vault_batch_strict_request_omission_and_unknown_fields_fail() {
+        for bad in [
+            json!({"contractVersion":1,"categories":["Dining"]}),
+            json!({"contractVersion":1,"categories":["Dining"],"expectedRevision":null,"asOf":"2026-01-01"}),
+            json!({"contractVersion":1,"categories":["Dining"],"expectedRevision":{"local":0,"external":0,"extra":1}}),
+        ] {
+            assert!(serde_json::from_value::<AskBaselineBatchRequest>(bad).is_err());
+        }
+    }
+    #[test]
+    fn ask_vault_batch_stale_revision_is_refused_before_missing_entity() {
+        let store = Store::open_in_memory().unwrap();
+        let mut r = request();
+        r.expected_revision = Some(AskDataRevision {
+            local: 999999,
+            external: 99999,
+        });
+        let error = baseline_snapshot(&store, 3, 7, &r, NaiveDate::from_ymd_opt(2026, 10, 16).unwrap()).unwrap_err();
+        assert_eq!(serde_json::to_value(error).unwrap()["code"], "stale_data");
+    }
+    #[test]
+    fn ask_vault_batch_empty_duplicates_limit_and_version_are_refusals() {
+        let store = Store::open_in_memory().unwrap();
+        for (version, names) in [
+            (1, vec![]),
+            (1, vec!["A".into(), "A".into()]),
+            (2, vec!["A".into()]),
+            (1, (0..21).map(|i| format!("C{i}")).collect()),
+        ] {
+            let mut r = request();
+            r.contract_version = version;
+            r.categories = names;
+            assert_eq!(
+                serde_json::to_value(baseline_snapshot(&store, 3, 7, &r, NaiveDate::from_ymd_opt(2026, 10, 16).unwrap()).unwrap_err()).unwrap()
+                    ["code"],
+                "invalid_argument"
+            );
+        }
+    }
+}

@@ -25,6 +25,21 @@ describe("HelpView", () => {
     container.remove();
   });
 
+  it("finds savings-target preview guidance, explicit constraints, history choices and no-write limitations", () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "savings target");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("How can I preview cuts to meet a savings target?");
+    expect(text).toContain("Where can I cut back to save $200 a month?");
+    expect(text).toContain("monthly floor"); expect(text).toContain("maximum cut"); expect(text).toContain("shortfall");
+    expect(text).toContain("three full calendar months"); expect(text).toContain("own usual month");
+    expect(text).toContain("remaining year"); expect(text).toContain("full-year what-if");
+    expect(text).toContain("Nothing is applied to your budget"); expect(text).toContain("locking or switching profiles");
+  });
+
   it("finds the complete mobile setup, offline and removal guidance together", () => {
     const input=container.querySelector<HTMLInputElement>("input[type=search]")!;
     act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,"mobile snapshots");input.dispatchEvent(new Event("input",{bubbles:true}));});

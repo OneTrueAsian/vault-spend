@@ -7,8 +7,12 @@ import { LEDGER_QA_EXAMPLES } from "./ledgerQa";
 import { parseQuestion } from "./askVault/parser";
 import type { AskVaultSnapshot } from "./askVault/contract";
 import type { AskVaultSnapshotV2 } from "./askVault/contractV2";
-import type { AskVaultRequest, ParseContext } from "./askVault/types";
+import type { AskVaultRequest, AskVaultRequestV2, ParseContext } from "./askVault/types";
 import { TransactionError } from "./transactionContracts";
+import type { AskBaselineBatchRequest, AskBaselineBatchSnapshot } from "./askVault/cutPreviewBatch";
+import { useCutPreview } from "./askVault/useCutPreview";
+import { parseCutPreview } from "./askVault/cutPreviewParser";
+import type { ConfirmedCutPreview, CutPreviewIntent } from "./askVault/cutPreviewContract";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -24,6 +28,329 @@ const period = (over: Record<string, unknown> = {}) => ({
   from: "2026-08-01", to: "2026-08-31", dayCount: 31, endsToday: false, historyCoverage: "unknown" as const,
   total: "317.13", purchaseCount: 3, categoryCount: 1, categories: [], purchases: [], vendors: [], vendorNameCount: 0,
   vendorTotals: [], leftOut: { total: "0", purchaseCount: 0, vendors: [], categories: [] }, ...over,
+});
+
+describe("M4 integrated savings-target routing and lifecycle", () => {
+  const targetQuestion = "Save $40 monthly across Dining with Dining floor $0 and maximum cut 100% from October through November 2026";
+  function bundle(names: string[], counts: Record<string, number> = {}): AskBaselineBatchSnapshot {
+    return {
+      contractVersion: 1, context: { generation: 1, sessionRevision: 1 }, revision: { local: 5, external: 2 }, asOf: context.today,
+      baselines: names.map(category => {
+        const count = counts[category] ?? 3;
+        const months = ["06", "07", "08"].map((m, index) => ({
+          month: `2026-${m}`, from: `2026-${m}-01`, to: `2026-${m}-${m === "06" ? 30 : 31}`, dayCount: m === "06" ? 30 : 31,
+          coverage: index < count ? "complete" as const : "no-records" as const,
+          recordCount: index < count ? 1 : 0, total: index < count ? "300" : "0", purchaseCount: index < count ? 1 : 0,
+        }));
+        return { category, snapshot: { ...snapshot(), contractVersion: 2, earliestRecord: "2025-01-01", comparison: null,
+          periods: [{ ...period({ from: "2026-06-01", to: "2026-08-31", dayCount: 92, total: String(count * 300), purchaseCount: count, categoryCount: count ? 1 : 0 }),
+            categoryTotals: [], sharedPurchaseCount: 0, memberTotals: [], recordedFrom: "2025-01-01", recordedThrough: context.today, months,
+            average: { basis: "per-month", numerator: String(count * 300), denominator: count, value: count ? "300.00" : null, unavailable: count ? null : "no-complete-months",
+              monthsUsed: months.filter(m => m.coverage === "complete").map(m => m.month), monthsLeftOut: months.filter(m => m.coverage !== "complete").map(m => ({ month: m.month, why: "no-records" as const })) },
+          }],
+        } };
+      }),
+    };
+  }
+  const batchClient = (counts: Record<string, number> = {}) => ({
+    ...fake(async () => snapshot()),
+    askVaultBaselines: vi.fn(async (request: AskBaselineBatchRequest) => bundle(request.categories, counts)),
+  });
+  const dialogText = () => document.querySelector('[role="dialog"]')?.textContent ?? "";
+  async function enter(label: string, value: string) {
+    const field = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+    expect(field, label).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, value);
+      field!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  async function radio(prefix: string) {
+    const label = [...document.querySelectorAll("label.scenario-option")].find(l => l.textContent?.startsWith(prefix));
+    expect(label, prefix).toBeDefined();
+    await act(async () => label!.querySelector<HTMLInputElement>("input")!.click());
+  }
+  async function review() { await click("Review the details"); }
+  async function preview() { await review(); await click("Show the preview"); }
+
+  it("routes a target through deliberate choices, one batch, live revision check and exact calculator", async () => {
+    const client = batchClient(); mount(client);
+    await ask(targetQuestion);
+    expect(dialogText()).toContain("Where would you like to cut back?");
+    expect(client.askVault).not.toHaveBeenCalled();
+    expect(client.askVaultBaselines).not.toHaveBeenCalled();
+    await review();
+    expect(dialogText()).toContain("Check every detail");
+    expect(client.askVaultBaselines).toHaveBeenCalledTimes(1);
+    expect(client.askVaultBaselines.mock.calls[0][0]).toEqual({ contractVersion: 1, categories: ["Dining"], expectedRevision: { local: 5, external: 2 } });
+    expect(document.querySelector('.cut-preview-results')).toBeNull();
+    await click("Show the preview");
+    expect(dialogText()).toContain("Goal: $40.00 per month");
+    expect(dialogText()).toContain("$80.00 across the selected dates");
+    expect(client.askVault.mock.calls.at(-1)![0]).toMatchObject({ expectedRevision: { local: 5, external: 2 }, periods: [{ from: context.today, to: context.today }] });
+    expect(client.askVaultBaselines).toHaveBeenCalledTimes(1);
+  });
+  it("distinguishes a whole-period target from monthly and labels monthly equivalents", async () => {
+    mount(batchClient()); await ask(targetQuestion.replace("$40 monthly", "$40 in total")); await preview();
+    expect(dialogText()).toContain("Goal: $40.00 over these dates");
+    expect(dialogText()).toContain("$40.00 across the selected dates");
+    expect(dialogText()).toContain("Approx. monthly cut");
+  });
+  for (const choice of ["From now until December 31", "The whole of 2026 as a what-if"]) it(`requires and routes year-choice: ${choice}`, async () => {
+    const client = batchClient(); mount(client);
+    await ask(targetQuestion.replace("from October through November 2026", "this year"));
+    expect(client.askVaultBaselines).not.toHaveBeenCalled();
+    expect([...document.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === "Review the details")?.disabled).toBe(true);
+    await radio(choice);
+    if (choice.startsWith("From")) await radio("Count the part month by the day");
+    await preview();
+    expect(dialogText()).toContain("Your savings target preview");
+    if (choice.startsWith("The whole")) expect(dialogText()).toContain("includes months that have already passed");
+  });
+  it("re-parses a close category choice without losing target, schedule or constraints", async () => {
+    const client = batchClient(); mount(client);
+    await ask("Save $40 monthly across dinning from October through November 2026");
+    expect(client.askVault).not.toHaveBeenCalled();
+    await click("Dining");
+    expect(dialogText()).toContain("Dining");
+    await click("Allow up to 100% with floor $0 for Dining");
+    await preview();
+    expect(dialogText()).toContain("Goal: $40.00 per month");
+    expect(dialogText()).toContain("$80.00 across the selected dates");
+  });
+  for (const suffix of ["for Alex", "at Costco", "weekly", "apply these cuts", "cut the fewest categories"]) it(`explains unsupported target scope without reading or legacy fallback: ${suffix}`, async () => {
+    const client = batchClient(); mount(client); legacy.mockClear();
+    await ask(targetQuestion + " " + suffix);
+    expect(dialogText()).not.toBe("");
+    expect(dialogText()).not.toContain("Your savings target preview");
+    expect(client.askVault).not.toHaveBeenCalled(); expect(client.askVaultBaselines).not.toHaveBeenCalled(); expect(legacy).not.toHaveBeenCalled();
+  });
+  for (const first of ["manual", "recorded"]) it(`resolves missing Dining and short Groceries in either order: ${first}`, async () => {
+    const client = batchClient({ Dining: 0, Groceries: 2 }); mount(client);
+    await ask(targetQuestion.replace("across Dining", "across Dining and Groceries with Groceries floor $0 and maximum cut 100%"));
+    await review();
+    const confirm = () => [...document.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === "Show the preview")!;
+    expect(confirm().disabled).toBe(true);
+    if (first === "manual") await enter("Dining usual month", "100"); else await radio("Use 2 recorded months for Groceries");
+    expect(confirm().disabled).toBe(true); expect(client.askVault).toHaveBeenCalledTimes(1);
+    if (first === "manual") await radio("Use 2 recorded months for Groceries"); else await enter("Dining usual month", "100");
+    await click("Show the preview");
+    expect(dialogText()).toContain("Your savings target preview"); expect(dialogText()).toContain("$80.00 across the selected dates");
+  });
+  it("removing the last category returns to explicit choices without a calculation", async () => {
+    const client = batchClient({ Dining: 0 }); mount(client); await ask(targetQuestion); await review(); await click("Remove Dining");
+    expect(dialogText()).toContain("Where would you like to cut back?");
+    expect(document.querySelector<HTMLInputElement>('[aria-label="Select Dining"]')?.checked).toBe(false);
+    expect(document.querySelector('.cut-preview-results')).toBeNull(); expect(client.askVault).toHaveBeenCalledTimes(1);
+  });
+  it("editing terms preserves them as a draft and requires new history review and confirmation", async () => {
+    const client = batchClient(); mount(client); await ask(targetQuestion); await preview();
+    await click("Change the details");
+    expect(dialogText()).toContain("Where would you like to cut back?"); expect(document.querySelector('.cut-preview-results')).toBeNull();
+    await enter("Savings target", "60"); await review();
+    expect(dialogText()).toContain("Check every detail"); expect(document.querySelector('.cut-preview-results')).toBeNull();
+    await click("Show the preview"); expect(dialogText()).toContain("$120.00 across the selected dates");
+    expect(client.askVaultBaselines).toHaveBeenCalledTimes(2);
+  });
+  for (const change of ["ledger", "reload", "roster", "day"]) it(`retires a displayed result immediately after ${change}`, async () => {
+    const ctx = structuredClone(context), client = batchClient(), view = mount(client, { ctx });
+    await ask(targetQuestion); await preview();
+    if (change === "roster") ctx.categories = ctx.categories.filter(c => c !== "Dining");
+    if (change === "day") ctx.today = "2026-09-07";
+    view.rerender(change === "ledger" ? "v2" : "v1", change === "reload" ? "r2" : "r1");
+    expect(document.querySelector('.cut-preview-results')).toBeNull(); expect(dialogText()).toContain("changed");
+  });
+  for (const phase of ["source", "bundle", "confirmation"]) for (const action of ["new-question", "close", "reload", "unmount"]) it(`drops a late ${phase} reply after ${action}`, async () => {
+    const client = batchClient(); let release!: () => void;
+    if (phase === "bundle") client.askVaultBaselines.mockImplementationOnce(request => new Promise(resolve => { release = () => resolve(bundle(request.categories)); }));
+    else {
+      const hold = () => new Promise<AskVaultSnapshot>(resolve => { release = () => resolve(snapshot()); });
+      if (phase === "source") client.askVault.mockImplementationOnce(hold); else client.askVault.mockImplementationOnce(async () => snapshot()).mockImplementationOnce(hold);
+    }
+    const view = mount(client); await ask(targetQuestion); await review();
+    if (phase === "confirmation") await click("Show the preview");
+    expect(release).toBeTypeOf("function");
+    if (action === "new-question") await ask("how much did I spend on groceries last month");
+    if (action === "close") await click("Close");
+    if (action === "reload") view.rerender("v1", "r2");
+    if (action === "unmount") { act(() => root.unmount()); expect(client.dispose).toHaveBeenCalled(); root = createRoot(container); }
+    await act(async () => release()); await settle();
+    expect(document.querySelector('.cut-preview-results')).toBeNull();
+    if (action === "new-question" || action === "close" || action === "unmount") expect(document.querySelector('[role="dialog"]')).toBeNull();
+    else expect(dialogText()).toContain("changed");
+  });
+  for (const changed of ["generation", "sessionRevision", "local", "external", "asOf"]) it(`rejects changed native ${changed} on final consent check`, async () => {
+    const client = batchClient(); mount(client); await ask(targetQuestion); await review();
+    const reply = snapshot();
+    if (changed === "generation" || changed === "sessionRevision") reply.context[changed]++;
+    else if (changed === "asOf") reply.asOf = "2026-09-07"; else reply.revision[changed as "local" | "external"]++;
+    client.askVault.mockImplementationOnce(async () => reply); await click("Show the preview");
+    expect(document.querySelector('.cut-preview-results')).toBeNull(); expect(dialogText()).toContain("changed");
+  });
+  it("suppresses duplicate confirmation while its freshness request is pending", async () => {
+    const client = batchClient(); let release!: () => void;
+    mount(client); await ask(targetQuestion); await review();
+    client.askVault.mockImplementationOnce(() => new Promise(resolve => { release = () => resolve(snapshot()); }));
+    const button = [...document.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === "Show the preview")!;
+    await act(async () => { button.click(); button.click(); });
+    expect(client.askVault).toHaveBeenCalledTimes(2);
+    await act(async () => release()); expect(dialogText()).toContain("Your savings target preview");
+  });
+  it("sanitizes a real read failure and retries from fresh choices rather than old consent", async () => {
+    const client = batchClient(); client.askVaultBaselines.mockRejectedValueOnce(new TransactionError("internal_error", "SQL secret /private/question"));
+    mount(client); await ask(targetQuestion); await review();
+    expect(dialogText()).not.toContain("SQL secret"); expect(document.querySelector('.cut-preview-results')).toBeNull();
+    await click("Try again"); expect(dialogText()).toContain("Where would you like to cut back?");
+    await preview(); expect(dialogText()).toContain("Your savings target preview");
+  });
+  it("never writes or sends the question/choices to storage, URL, title or a remote request", async () => {
+    const stored = [vi.spyOn(Storage.prototype, "setItem"), vi.spyOn(history, "pushState"), vi.spyOn(history, "replaceState")];
+    const before = { url: location.href, title: document.title };
+    try {
+      const client = batchClient(); mount(client); await ask(targetQuestion); await preview();
+      expect(stored.every(spy => spy.mock.calls.length === 0)).toBe(true);
+      expect(location.href).toBe(before.url); expect(document.title).toBe(before.title);
+      expect(JSON.stringify(client.askVault.mock.calls)).not.toContain("Save $40");
+      expect(JSON.stringify(client.askVaultBaselines.mock.calls)).not.toContain("maximum cut");
+      expect([...document.querySelectorAll('button')].some(b => /apply|save (?:plan|budget)/i.test(b.textContent ?? ""))).toBe(false);
+    } finally { stored.forEach(spy => spy.mockRestore()); }
+  });
+  it("allows an explicitly removed exclusion after the user reselects and reviews the category", async () => {
+    const client = batchClient(); mount(client);
+    await ask(targetQuestion.replace("from October", "except Rent from October"));
+    expect(document.querySelector<HTMLInputElement>('[aria-label="Select Rent"]')?.disabled).toBe(true);
+    await click("Allow selecting Rent");
+    await act(async () => document.querySelector<HTMLInputElement>('[aria-label="Select Rent"]')!.click());
+    await click("Allow up to 100% with floor $0 for Rent"); await review();
+    expect(dialogText()).toContain("Check every detail");
+    expect(client.askVaultBaselines.mock.calls[0][0].categories).toEqual(["Dining", "Rent"]);
+  });
+  function controller(client = batchClient()) {
+    let api!: ReturnType<typeof useCutPreview>;
+    function Probe() { api = useCutPreview({ getContext: () => context, dataKey: "stable", reloadKey: "stable", createClient: () => client }); return null; }
+    act(() => root.render(<Probe />));
+    const intent: CutPreviewIntent = { version: 1, target: { kind: "monthly", amount: "40" }, allocationPolicy: "capacity-proportional",
+      categories: [{ category: "Dining", monthlyFloor: "0", maximumReduction: { kind: "percent", amount: "100" } }], horizon: { kind: "prospective", from: "2026-10-01", to: "2026-11-30" }, partialMonth: "exclude" };
+    return { client, api: () => api, intent,
+      start: async () => { await act(async () => { api.ask(targetQuestion); }); await act(async () => { await api.choose(intent); }); },
+      payload: (): ConfirmedCutPreview => { const screen = api.screen; if (screen?.stage !== "review") throw new Error("Expected a real review"); return structuredClone({ ...screen.scenario, confirmed: true as const }); },
+    };
+  }
+  it("keeps one controller timer/client through repeated previews and releases them on unmount", async () => {
+    vi.useFakeTimers();
+    const add = vi.spyOn(window, "addEventListener"), remove = vi.spyOn(window, "removeEventListener");
+    try {
+      const t = controller();
+      expect(vi.getTimerCount()).toBe(1);
+      const focus = add.mock.calls.filter(([type]) => type === "focus");
+      expect(focus).toHaveLength(1);
+      for (let i = 0; i < 60; i++) {
+        await t.start(); await act(async () => { await t.api().confirm(t.payload()); });
+        expect(t.api().screen?.stage).toBe("result");
+        await act(async () => t.api().cancel());
+        expect(t.api().screen).toBeNull(); expect(vi.getTimerCount()).toBe(1);
+      }
+      expect(add.mock.calls.filter(([type]) => type === "focus")).toHaveLength(1);
+      expect(remove.mock.calls.filter(([type]) => type === "focus")).toHaveLength(0);
+      await act(async () => root.render(null));
+      expect(vi.getTimerCount()).toBe(0); expect(t.client.dispose).toHaveBeenCalledTimes(1);
+      expect(remove).toHaveBeenCalledWith("focus", focus[0][1]);
+    } finally { add.mockRestore(); remove.mockRestore(); vi.useRealTimers(); }
+  });
+  it("routes a natural floor question without assuming its missing maximum cut or reading early", async () => {
+    const client = batchClient(); mount(client);
+    await ask("save $120 a month from groceries but keep at least $400 a month");
+    expect(dialogText()).toContain("Where would you like to cut back?");
+    expect(document.querySelector<HTMLInputElement>('input[aria-label="Groceries monthly floor"]')?.value).toBe("400");
+    expect(document.querySelector<HTMLInputElement>('input[aria-label="Groceries maximum cut"]')?.value).toBe("");
+    expect(client.askVault).not.toHaveBeenCalled(); expect(client.askVaultBaselines).not.toHaveBeenCalled();
+    expect(document.querySelector('.cut-preview-results')).toBeNull();
+  });
+  for (const phase of ["source", "confirmation"]) for (const action of ["close", "edit", "new-question", "unmount"]) it(`releases the pending ${phase} controller wait after ${action}, before native settlement`, async () => {
+    const client = batchClient(), t = controller(client);
+    if (phase === "confirmation") await t.start();
+    else await act(async () => { t.api().ask(targetQuestion); });
+    let reject!: (e: unknown) => void;
+    client.askVault.mockImplementationOnce(() => new Promise<AskVaultSnapshot>((_resolve, fail) => { reject = fail; }));
+    let settled = false;
+    await act(async () => { const work = phase === "source" ? t.api().choose(t.intent) : t.api().confirm(t.payload()); void work.then(() => { settled = true; }); });
+    expect(settled).toBe(false);
+    await act(async () => {
+      if (action === "close") t.api().cancel();
+      else if (action === "edit") t.api().edit();
+      else if (action === "new-question") t.api().ask("Save $20 monthly");
+      else root.render(null);
+    });
+    const releasedBeforeNative = settled;
+    await act(async () => { reject(new Error("late native failure")); });
+    expect(releasedBeforeNative).toBe(true);
+    expect(t.api().screen?.stage).not.toBe("result");
+  });
+  for (const mutation of ["target", "floor", "dates", "policy", "source", "recorded-total", "manual-override", "duplicate", "missing", "extra-key", "unconfirmed"]) it(`does not treat a forged ${mutation} callback as reviewed consent`, async () => {
+    const t = controller(); await t.start(); const confirmed = t.payload();
+    switch (mutation) {
+      case "target": confirmed.intent.target.amount = "900"; break;
+      case "floor": confirmed.intent.categories[0].monthlyFloor = "100"; break;
+      case "dates": confirmed.intent.horizon.to = "2026-12-31"; break;
+      case "policy": Object.assign(confirmed.intent, { allocationPolicy: "fewest" }); break;
+      case "source": confirmed.source.revision.external++; break;
+      case "recorded-total": if (confirmed.baselines[0].baseline.kind === "recorded") confirmed.baselines[0].baseline.months[0].total = "900"; break;
+      case "manual-override": confirmed.baselines[0].baseline = { kind: "manual", monthlyAmount: "999", source: confirmed.source }; break;
+      case "duplicate": confirmed.baselines.push(structuredClone(confirmed.baselines[0])); break;
+      case "missing": confirmed.baselines = []; break;
+      case "extra-key": Object.assign(confirmed, { consentFromParser: true }); break;
+      case "unconfirmed": Object.assign(confirmed, { confirmed: false }); break;
+    }
+    await act(async () => { await t.api().confirm(confirmed); });
+    expect(t.api().screen?.stage).not.toBe("result");
+  });
+  it("rejects a saved consent callback after editing and loading an identical new review", async () => {
+    const t = controller(); await t.start(); const oldConfirm = t.api().confirm, oldPayload = t.payload();
+    await act(async () => t.api().edit()); await act(async () => { await t.api().choose(t.intent); });
+    expect(t.api().screen?.stage).toBe("review");
+    const before = t.client.askVault.mock.calls.length;
+    await act(async () => { await oldConfirm(oldPayload); });
+    expect(t.client.askVault).toHaveBeenCalledTimes(before); expect(t.api().screen?.stage).toBe("review");
+    await act(async () => { await t.api().confirm(t.payload()); }); expect(t.api().screen?.stage).toBe("result");
+  });
+  it("does not authorize confirmation before review or after closing", async () => {
+    const t = controller(); await t.start(); const payload = t.payload();
+    await act(async () => t.api().cancel());
+    await act(async () => { await t.api().confirm(payload); });
+    expect(t.api().screen).toBeNull(); expect(t.client.askVault).toHaveBeenCalledTimes(1);
+    await act(async () => { t.api().ask(targetQuestion); });
+    await act(async () => { await t.api().confirm(payload); });
+    expect(t.api().screen?.stage).toBe("choices"); expect(t.client.askVault).toHaveBeenCalledTimes(1);
+  });
+  it("documents monthly versus total targets, deliberate constraints, shortfalls and read-only scope", async () => {
+    mount(batchClient()); await click("Tips & examples");
+    expect(text()).toContain("monthly floor"); expect(text()).toContain("maximum cut"); expect(text()).toContain("shortfall");
+    expect(MORE_EXAMPLES).toContain("Where can I cut back to save $200 a month?");
+    expect(MORE_EXAMPLES).toContain("Save $200 in total this year");
+  });
+  it("drops a result on date rollover at focus without a React rerender", async () => {
+    const ctx = structuredClone(context); mount(batchClient(), { ctx }); await ask(targetQuestion); await preview();
+    ctx.today = "2026-09-07"; await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(document.querySelector('.cut-preview-results')).toBeNull(); expect(dialogText()).toContain("changed");
+  });
+  const supported = ["Save", "Help me save", "I want to save", "Where can I cut back to save", "How could we save", "Please save"];
+  for (const lead of supported) for (const basis of ["monthly", "in total"]) for (const amount of ["0", "0.01", "40", "600", "700"]) {
+    it(`couples ${lead} $${amount} ${basis} to the fixed native mean, capacity and exact result`, async () => {
+      mount(batchClient());
+      await ask(`${lead} $${amount} ${basis} across Dining and Groceries with Dining floor $0 and maximum cut 100% with Groceries floor $0 and maximum cut 100% from October through November 2026`);
+      await preview();
+      const targetCents = BigInt(amount.replace('.', '').padEnd(amount.includes('.') ? amount.length - 1 : amount.length + 2, '0'));
+      const capacity = basis === "monthly" ? 60000n : 120000n;
+      const allocated = targetCents < capacity ? targetCents : capacity;
+      const result = dialogText();
+      const dollars = (cents: bigint) => '$' + (cents / 100n).toLocaleString('en-US') + '.' + (cents % 100n).toString().padStart(2,'0');
+      expect(result).toContain(`Goal: ${dollars(targetCents)} ${basis === "monthly" ? "per month" : "over these dates"}`);
+      expect(result).toContain(`Achievable: ${dollars(allocated)}`);
+      expect(result).toContain(`Maximum: ${dollars(capacity)}`);
+      expect(result).toContain(`Shortfall: ${dollars(targetCents - allocated)}`);
+      expect(result).toContain(`${dollars(allocated * (basis === "monthly" ? 2n : 1n))} across the selected dates`);
+    });
+  }
 });
 const snapshot = (over: Partial<AskVaultSnapshot> = {}): AskVaultSnapshot => ({
   contractVersion: 1, context: { generation: 1, sessionRevision: 1 }, revision: { local: 5, external: 2 }, asOf: "2026-09-06",
@@ -48,7 +375,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-type Handler = (request: AskVaultRequest) => Promise<AskVaultSnapshot | AskVaultSnapshotV2>;
+type Handler = (request: AskVaultRequest | AskVaultRequestV2) => Promise<AskVaultSnapshot | AskVaultSnapshotV2>;
 type Fake = { askVault: ReturnType<typeof vi.fn<Handler>>; dispose: ReturnType<typeof vi.fn<() => void>> };
 function fake(handler: Handler): Fake {
   return { askVault: vi.fn<Handler>(handler), dispose: vi.fn<() => void>() };
@@ -167,6 +494,12 @@ describe("the Ask the Vault card", () => {
   it("every example shown under Tips & examples is understood, never refused", () => {
     const ctx: ParseContext = { ...membersContext, categories: [...context.categories, "Dining Out"], merchants: [...(context.merchants ?? []), "WHOLE FOODS MARKET", "COSTCO #1"], historyStart: "2025-01-01" };
     for (const example of [...LEDGER_QA_EXAMPLES, ...MORE_EXAMPLES]) {
+      const target = parseCutPreview(example, ctx);
+      if (target) {
+        expect(target.kind, example).toBe("cut-preview");
+        if (target.kind === "cut-preview") expect(target.draft.missing.length, example).toBeGreaterThan(0);
+        continue;
+      }
       const outcome = parseQuestion(example, ctx);
       expect(["query", "legacy", "clarify"], example).toContain(outcome.status);
       if (outcome.status === "clarify") expect(outcome.choices.length, example).toBeGreaterThan(0);
@@ -565,5 +898,151 @@ describe("the Ask the Vault card", () => {
     expect(container.querySelector("[aria-live='polite']")).not.toBeNull();
     await ask("total spending on din last month");
     expect(container.querySelector("[role='group'][aria-label]")).not.toBeNull();
+  });
+});
+
+describe("spending scenarios in the Ask the Vault card", () => {
+  const baselineReply = (): AskVaultSnapshotV2 => ({
+    ...snapshot(), contractVersion: 2, earliestRecord: "2025-01-01", comparison: null,
+    periods: [{ ...period({ from: "2026-06-01", to: "2026-08-31", dayCount: 92, total: "900" }),
+      categoryTotals: [], sharedPurchaseCount: 0, memberTotals: [], recordedFrom: "2025-01-01", recordedThrough: "2026-09-06", average: null,
+      months: ["06", "07", "08"].map(month => ({ month: `2026-${month}`, from: `2026-${month}-01`, to: `2026-${month}-${month === "06" ? "30" : "31"}`, dayCount: month === "06" ? 30 : 31, coverage: "complete" as const, recordCount: 1, total: "300", purchaseCount: 1 })) }],
+  });
+  const question = "Cut Dining by $50 monthly from October to November 2026";
+
+  it("reviews the native baseline and rechecks its revision before displaying savings", async () => {
+    const client = fake(async () => baselineReply());
+    mount(client);
+    await ask(question);
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Check these details");
+    expect(client.askVault.mock.calls[0][0]).toMatchObject({ contractVersion: 2, categories: ["Dining"], groupBy: "month", average: "per-month", accountIds: [], expectedRevision: null });
+    expect(document.body.textContent).not.toContain("What you would save");
+    await click("Show what I would save");
+    expect(client.askVault.mock.calls[1][0]).toMatchObject({ expectedRevision: { local: 5, external: 2 } });
+    // Freshness is global to the profile: do not recalculate the expensive three-month baseline.
+    expect(client.askVault.mock.calls[1][0]).toMatchObject({ periods: [{ from: context.today, to: context.today }] });
+    expect(client.askVault.mock.calls[1][0]).not.toHaveProperty("contractVersion");
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("What you would save");
+    expect(document.querySelector('.scenario-total')?.textContent).toBe("$100.00");
+  });
+
+  it("removes a scenario result immediately when the ledger changes", async () => {
+    const client = fake(async () => baselineReply());
+    const screen = mount(client);
+    await ask(question);
+    await click("Show what I would save");
+    screen.rerender("changed");
+    expect(document.querySelector('.scenario-total')).toBeNull();
+    expect(document.body.textContent).toContain("no longer shown");
+  });
+
+  it("cancels a pending scenario when a different question is submitted", async () => {
+    let finish!: (reply: AskVaultSnapshotV2) => void;
+    const client = fake(request => "contractVersion" in request && request.contractVersion === 2 ? new Promise(resolve => { finish = resolve; }) : Promise.resolve(snapshot()));
+    mount(client);
+    await ask(question);
+    await ask("how much did I spend on groceries last month");
+    await act(async () => finish(baselineReply()));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(text()).toContain("$317.13");
+  });
+
+  it.each([
+    { context: { generation: 2, sessionRevision: 1 } },
+    { context: { generation: 1, sessionRevision: 2 } },
+    { revision: { local: 6, external: 2 } },
+  ])("refuses a confirmation whose native source changed: %j", async changed => {
+    const client = fake(async () => baselineReply());
+    mount(client);
+    await ask(question);
+    client.askVault.mockImplementationOnce(async () => ({ ...baselineReply(), ...changed }));
+    await click("Show what I would save");
+    expect(document.querySelector('.scenario-total')).toBeNull();
+    expect(document.body.textContent).toContain("no longer shown");
+  });
+
+  it("requires selection and re-parses a misspelled scenario category before reading", async () => {
+    const client = fake(async () => baselineReply());
+    mount(client);
+    await ask(question.replace("Dining", "dinning"));
+    expect(client.askVault).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await click("Dining");
+    expect(client.askVault.mock.calls[0][0]).toMatchObject({ categories: ["Dining"] });
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Check these details");
+  });
+
+  it("cannot display a scenario read that finishes after the profile unmounts", async () => {
+    let finish!: (reply: AskVaultSnapshotV2) => void;
+    const client = fake(() => new Promise(resolve => { finish = resolve; }));
+    mount(client);
+    await ask(question);
+    act(() => root.unmount());
+    expect(client.dispose).toHaveBeenCalled();
+    await act(async () => finish(baselineReply()));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    root = createRoot(container);
+  });
+
+  it("requires an explicit short-history choice before confirmation", async () => {
+    const reply = baselineReply();
+    reply.periods[0].months[1] = { ...reply.periods[0].months[1], coverage: "no-records", total: "0", recordCount: 0, purchaseCount: 0 };
+    const client = fake(async () => reply);
+    mount(client);
+    await ask(question);
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Show what I would save")!;
+    expect(confirm.disabled).toBe(true);
+    expect(client.askVault).toHaveBeenCalledTimes(1);
+    const choice = [...document.querySelectorAll('label')].find(label => label.textContent?.includes("Use the 2 months I have"))!.querySelector<HTMLInputElement>('input')!;
+    await act(async () => choice.click());
+    await click("Show what I would save");
+    expect(document.querySelector('.scenario-total')?.textContent).toBe("$100.00");
+  });
+
+  it("retires a scenario result on local date rollover even when the data key is unchanged", async () => {
+    const ctx = { ...context };
+    const screen = mount(fake(async () => baselineReply()), { ctx });
+    await ask(question);
+    await click("Show what I would save");
+    ctx.today = "2026-09-07";
+    screen.rerender("v1");
+    expect(document.querySelector('.scenario-total')).toBeNull();
+    expect(document.body.textContent).toContain("no longer shown");
+  });
+
+  it("keeps keyboard focus in the scenario during an asynchronous confirmation", async () => {
+    let finish!: (reply: AskVaultSnapshot) => void;
+    const client = fake(request => "contractVersion" in request ? Promise.resolve(baselineReply()) : new Promise(resolve => { finish = resolve; }));
+    mount(client);
+    await ask(question);
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === "Show what I would save")!;
+    confirm.focus();
+    await click("Show what I would save");
+    expect(document.querySelector('[role="dialog"]')?.contains(document.activeElement)).toBe(true);
+    await act(async () => finish(snapshot()));
+    expect(document.querySelector('.scenario-total')?.textContent).toBe("$100.00");
+    expect(document.querySelector('[role="dialog"]')?.contains(document.activeElement)).toBe(true);
+  });
+
+  it("uses the reviewed baseline rather than the current-day source-check amount", async () => {
+    const client = fake(request => Promise.resolve("contractVersion" in request ? baselineReply() : snapshot({ periods: [period({ from: context.today, to: context.today, total: "0", purchaseCount: 0 })] })));
+    mount(client);
+    await ask(question.replace("$50", "10%"));
+    await click("Show what I would save");
+    expect(document.querySelector('.scenario-total')?.textContent).toBe("$60.00");
+  });
+
+  it("returns focus to the question when changing scenario terms", async () => {
+    const client = fake(async () => baselineReply());
+    mount(client);
+    container.querySelector<HTMLButtonElement>('button[type="submit"]')!.focus();
+    await ask(question);
+    await act(async () => (document.querySelector('[aria-label="Change category"]') as HTMLButtonElement).click());
+    await settle();
+    const input = container.querySelector<HTMLInputElement>('.ledger-qa-card input')!;
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe(question);
+    expect(client.askVault).toHaveBeenCalledTimes(1);
   });
 });

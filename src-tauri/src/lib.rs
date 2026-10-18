@@ -293,6 +293,7 @@ pub fn run() {
             commands::get_report_summary_snapshot,
             commands::get_report_range_snapshot,
             commands::get_ask_vault_snapshot,
+            commands::get_ask_vault_baselines,
             commands::list_transactions,
             commands::list_transactions_by_ids,
             commands::correct_category,

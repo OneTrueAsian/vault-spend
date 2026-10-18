@@ -197,5 +197,14 @@ export function useAskVault({
     setDetails(null);
   }, [tokens]);
 
-  return { view, details, checking, ask, openDetails, closeDetails };
+  const reset = useCallback(() => {
+    tokens.sequence++;
+    tokens.detail++;
+    tokens.check++;
+    setView({ status: "idle" });
+    setDetails(null);
+    setChecking(null);
+  }, [tokens]);
+
+  return { view, details, checking, ask, openDetails, closeDetails, reset };
 }

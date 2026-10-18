@@ -51,6 +51,10 @@ try {
         timeoutMsg: `${view} never showed`,
       });
       await browser.pause(400); // charts and lazy sections settle
+      if (view === "Dashboard" || view === "Accounts") {
+        await browser.$('.profile-switcher-toggle').moveTo();
+        await browser.pause(150); // Reproduce the generic-button hover contrast regression deterministically.
+      }
       if (view === "Recurring") {
         const inactiveStatus = await browser.$('.status-pill:not(.status-pill-active)');
         if (await inactiveStatus.isExisting()) {

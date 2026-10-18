@@ -325,6 +325,13 @@
   cursor: pointer;
 }
 
+/* Keep the sidebar pair: the generic button:hover accent fill has dark-text contrast below AA. */
+.profile-switcher-toggle:hover,
+.profile-switcher-toggle[aria-expanded="true"] {
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text-active);
+}
+
 .profile-switcher-icon {
   width: 18px;
   height: 18px;

@@ -5,8 +5,11 @@ import { ModalShell } from "./Modal";
 import { formatDisplayDate } from "./format";
 import { formatMoney } from "./askVault/money";
 import { useAskVault, type LegacyAnswer } from "./askVault/useAskVault";
+import { useSpendingScenario } from "./askVault/useSpendingScenario";
+import { SpendingScenarioDialog } from "./SpendingScenarioDialog";
+import { useCutPreview, type CutPreviewClient } from "./askVault/useCutPreview";
+import { CutPreviewDialog } from "./CutPreviewDialog";
 import type { AskMemberSelection, Correction, Interpretation, ParseContext } from "./askVault/types";
-import type { createFinancialClient } from "./financialReads";
 
 /** Questions shown as one-click suggestions when something could not be understood. */
 const SUGGESTIONS = [
@@ -19,7 +22,7 @@ const SUGGESTIONS = [
 const INLINE_ROWS = 5;
 const INLINE_CHOICES = 3;
 
-export const MORE_EXAMPLES = ["how much did I spend at Costco last month", "everything except rent last month", "spending by month this year", "average purchase on groceries last month", "what did each family member spend last month"];
+export const MORE_EXAMPLES = ["how much did I spend at Costco last month", "everything except rent last month", "spending by month this year", "average purchase on groceries last month", "what did each family member spend last month", "Where can I cut back to save $200 a month?", "Save $200 in total this year"];
 
 /** The short phrases under the question that say what was understood, so a wrong reading is easy to spot. */
 function understoodChips(i: Interpretation): string[] {
@@ -97,9 +100,12 @@ export function AskVaultCard({
   accountNames: Map<number, string>;
   /** Opens the Transactions tab filtered the same way as an answer; offered only when it can show exactly those purchases. */
   onOpenTransactions?: (filter: { category: string; accountIds: number[]; from: string; to: string }) => void;
-  createClient?: () => Pick<ReturnType<typeof createFinancialClient>, "askVault" | "dispose">;
+  createClient?: () => CutPreviewClient;
 }) {
-  const { view, details, checking, ask, openDetails, closeDetails } = useAskVault({ getContext, legacyAsk, dataKey, reloadKey, createClient });
+  const { view, details, checking, ask, openDetails, closeDetails, reset } = useAskVault({ getContext, legacyAsk, dataKey, reloadKey, createClient });
+  const scenario = useSpendingScenario({ getContext, dataKey, reloadKey, createClient });
+  const cut = useCutPreview({ getContext, dataKey, reloadKey, createClient });
+  const questionInput = useRef<HTMLInputElement | null>(null);
   const [question, setQuestion] = useState("");
   const [showExamples, setShowExamples] = useState(false);
   const [allRowsOpen, setAllRowsOpen] = useState(false);
@@ -137,12 +143,30 @@ export function AskVaultCard({
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!question.trim()) return;
-    void ask(question);
+    runQuestion(question);
+  }
+  function runQuestion(next: string, members: AskMemberSelection[] = []) {
+    cut.cancel();
+    scenario.cancel();
+    if (!members.length) {
+      reset();
+      if (cut.ask(next)) return;
+      if (scenario.ask(next)) return;
+    }
+    void ask(next, members);
   }
   function choose(next: string, members: AskMemberSelection[] = []) {
     setQuestion(next);
-    void ask(next, members);
+    runQuestion(next, members);
   }
+  function editScenario() {
+    scenario.cancel();
+    questionInput.current?.focus();
+  }
+  function changeQuestion(next: string) {
+    cut.cancel(); scenario.cancel(); setQuestion(next);
+  }
+  function closeCut() { cut.cancel(); questionInput.current?.focus(); }
 
   return (
     <div className="card ledger-qa-card">
@@ -164,11 +188,18 @@ export function AskVaultCard({
             Costco," "except rent"). You can also name several categories or family members, ask for spending by month
             or family member, or ask for an average per purchase or per recorded month. Add "same days last month" to
             compare matching dates. Monthly averages leave out months without enough recording evidence.
+            You can also ask what you would save by spending less each month or just once. You review the dates
+            and usual spending before any result is shown; this never changes your budget.
+            For a savings target, say whether it is per month or a total over dates. You choose the categories,
+            a monthly floor (the spending you want to keep) and a maximum cut for each. The preview spreads
+            cuts within those limits and shows the maximum and any shortfall. Missing history needs your own
+            usual-month amount; short history needs your explicit choice. You review everything before confirming.
+            These are read-only spending illustrations, with no investment growth or automatic budget changes.
           </p>
           <ul className="ledger-qa-examples">
             {[...LEDGER_QA_EXAMPLES, ...MORE_EXAMPLES].map((example) => (
               <li key={example}>
-                <button type="button" onClick={() => setQuestion(example)}>
+                <button type="button" onClick={() => changeQuestion(example)}>
                   {example}
                 </button>
               </li>
@@ -177,12 +208,28 @@ export function AskVaultCard({
         </div>
       )}
       <form className="category-create-form" onSubmit={submit}>
-        <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={`e.g. "${placeholderExample}"`} aria-label="Your question" />
+        <input ref={questionInput} value={question} onChange={(e) => changeQuestion(e.target.value)} placeholder={`e.g. "${placeholderExample}"`} aria-label="Your question" />
         <button type="submit" disabled={!question.trim()}>
           Ask
         </button>
       </form>
       <div className="ledger-qa-result" aria-live="polite">
+        {cut.clarification && <div className="ledger-qa-clarify">
+          <p className="ledger-qa-banner">{cut.clarification.reason} Nothing has been calculated yet.</p>
+          <div className="ledger-qa-choices" role="group" aria-label="Choose a category">
+            {cut.clarification.choices.map((label, index) => <button key={label} type="button" onClick={() => choose(cut.clarification!.replacements![index])}>{label}</button>)}
+          </div>
+          {!cut.clarification.choices.length && <p>Change your question above and ask again.</p>}
+        </div>}
+        {scenario.clarification && (
+          <div className="ledger-qa-clarify">
+            <p className="ledger-qa-banner">{scenario.clarification.reason} Nothing has been calculated yet.</p>
+            <div className="ledger-qa-choices" role="group" aria-label="Choose a category">
+              {scenario.clarification.choices.map((label, index) => <button key={label} type="button" onClick={() => choose(scenario.clarification!.replacements![index])}>{label}</button>)}
+            </div>
+            {!scenario.clarification.choices.length && <p>Change your question above and ask again.</p>}
+          </div>
+        )}
         {view.status === "loading" && <p className="ledger-qa-working">Looking that up…</p>}
 
         {view.status === "answer" && checking === view.result && <p className="ledger-qa-working">Checking that this is still up to date…</p>}
@@ -315,6 +362,13 @@ export function AskVaultCard({
           </p>
         )}
       </div>
+
+      {scenario.screen && <SpendingScenarioDialog screen={scenario.screen}
+        onChoices={answers => void scenario.choose(answers)} onConfirm={choice => void scenario.confirm(choice)}
+        onChangeTerm={editScenario} onEdit={editScenario} onManualBaseline={scenario.manualBaseline}
+        onRestart={scenario.restart} onClose={editScenario} />}
+      {cut.screen && <CutPreviewDialog screen={cut.screen} onChoices={intent => void cut.choose(intent)} onConfirm={confirmed => void cut.confirm(confirmed)}
+        onRemoveCategory={cut.remove} onEdit={cut.edit} onRestart={cut.restart} onClose={closeCut} />}
 
       {allRowsOpen && view.status === "answer" && checking !== view.result && (
         <ModalShell

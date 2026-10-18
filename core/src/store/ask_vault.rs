@@ -1,5 +1,5 @@
 //! Exact, read-only spending primitives for Ask the Vault. No question text or SQL is accepted.
-use super::{LIVE_TRANSFER_LEG_IDS_SQL, Store};
+use super::{Store, LIVE_TRANSFER_LEG_IDS_SQL};
 use chrono::{Datelike, Months, NaiveDate};
 use rusqlite::params;
 use rust_decimal::Decimal;
@@ -507,7 +507,194 @@ impl AskSpendFilter {
         Ok(())
     }
 }
+fn allocation_sql() -> String {
+    format!(
+        "SELECT t.id, t.account_id, t.date, t.description, t.amount, t.category, t.amount, t.member_id
+             FROM transactions t
+             WHERE t.date >= ?1 AND t.date <= ?2 AND t.deleted_at IS NULL
+               AND t.id NOT IN (SELECT transaction_id FROM transaction_splits)
+               AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+               AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
+             UNION ALL
+             SELECT t.id, t.account_id, t.date, t.description, t.amount, s.category, s.amount, t.member_id
+             FROM transaction_splits s JOIN transactions t ON t.id=s.transaction_id
+             WHERE t.date >= ?1 AND t.date <= ?2 AND t.deleted_at IS NULL
+               AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
+               AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})"
+    )
+}
+
 impl Store {
+    /// Fixed household baseline bundle: one eligible-allocation scan, independent category evidence.
+    /// Caller owns the coherent read transaction and source revision; this function never writes or caches.
+    pub fn ask_baseline_bundle(&self, categories: &[String], as_of: NaiveDate) -> rusqlite::Result<Vec<(String, AskSpendResult)>> {
+        if categories.is_empty()
+            || categories.len() > 20
+            || categories.iter().any(|c| c.trim().is_empty())
+            || categories.iter().collect::<HashSet<_>>().len() != categories.len()
+        {
+            return Err(invalid("Choose between 1 and 20 distinct existing categories"));
+        }
+        let first = as_of.with_day(1).ok_or_else(|| invalid("Invalid baseline date"))?;
+        let from = first.checked_sub_months(Months::new(3)).ok_or_else(|| invalid("Invalid baseline date"))?;
+        let to = first.pred_opt().ok_or_else(|| invalid("Invalid baseline date"))?;
+        AskSpendFilter {
+            from,
+            to,
+            as_of,
+            categories: categories.to_vec(),
+            group_by: AskGroupBy::Month,
+            ..Default::default()
+        }
+        .validate()?;
+        for name in categories {
+            let exists: bool = self
+                .conn
+                .query_row("SELECT EXISTS(SELECT 1 FROM categories WHERE name=?1)", [name], |r| r.get(0))?;
+            if !exists {
+                return Err(invalid("A selected category is no longer available"));
+            }
+        }
+        let parse = |text: &str| NaiveDate::parse_from_str(text, "%Y-%m-%d").map_err(|_| invalid("Invalid stored date"));
+        let earliest_record = self
+            .conn
+            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |r| {
+                r.get::<_, Option<String>>(0)
+            })?
+            .map(|d| parse(&d))
+            .transpose()?;
+        let earliest = earliest_record
+            .unwrap_or(from)
+            .min(from)
+            .max(as_of.checked_sub_months(Months::new(12 * 99)).unwrap_or(from));
+        let index: HashMap<&str, usize> = categories.iter().enumerate().map(|(i, c)| (c.as_str(), i)).collect();
+        let mut evidence = vec![BTreeSet::<i64>::new(); categories.len()];
+        let mut totals = vec![BTreeMap::<String, (Decimal, HashSet<i64>)>::new(); categories.len()];
+        let mut statement = self.conn.prepare(&allocation_sql())?;
+        let mut rows = statement.query(params![earliest.to_string(), as_of.to_string()])?;
+        while let Some(row) = rows.next()? {
+            let category: Option<String> = row.get(5)?;
+            let Some(category) = category else { continue };
+            if category == "Transfer" {
+                continue;
+            }
+            let Some(&i) = index.get(category.as_str()) else { continue };
+            // Same exact native decimal checks as the legacy scan, never SQLite floating-point casts.
+            let _parent = decimal(text(row, 4)?)?.abs();
+            let amount = decimal(text(row, 6)?)?;
+            if amount >= Decimal::ZERO {
+                continue;
+            }
+            let id: i64 = row.get(0)?;
+            let account: i64 = row.get(1)?;
+            let date = text(row, 2)?;
+            evidence[i].insert(account);
+            if date >= from.to_string().as_str() && date <= to.to_string().as_str() {
+                let month = date.get(..7).ok_or_else(|| invalid("Invalid stored date"))?;
+                let entry = totals[i].entry(month.to_string()).or_insert((Decimal::ZERO, HashSet::new()));
+                entry.0 = add(entry.0, -amount)?;
+                entry.1.insert(id);
+            }
+        }
+        let mut first_last = BTreeMap::new();
+        let mut statement = self
+            .conn
+            .prepare("SELECT account_id,MIN(date),MAX(date) FROM transactions WHERE deleted_at IS NULL AND date<=?1 GROUP BY account_id")?;
+        let mut rows = statement.query([as_of.to_string()])?;
+        while let Some(row) = rows.next()? {
+            let id: i64 = row.get(0)?;
+            let first: String = row.get(1)?;
+            let last: String = row.get(2)?;
+            first_last.insert(id, (first, last));
+        }
+        let mut counts = BTreeMap::new();
+        let mut statement = self
+            .conn
+            .prepare("SELECT substr(date,1,7),COUNT(*) FROM transactions WHERE deleted_at IS NULL AND date>=?1 AND date<=?2 GROUP BY 1")?;
+        let mut rows = statement.query(params![from.to_string(), to.to_string()])?;
+        while let Some(row) = rows.next()? {
+            counts.insert(row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize);
+        }
+        let mut out = Vec::new();
+        for (i, category) in categories.iter().enumerate() {
+            let mut recorded: Option<(NaiveDate, NaiveDate)> = None;
+            for account in &evidence[i] {
+                if let Some((a, b)) = first_last.get(account) {
+                    let pair = (parse(a)?, parse(b)?);
+                    recorded = Some(recorded.map_or(pair, |(f, t)| (f.max(pair.0), t.min(pair.1))));
+                }
+            }
+            let mut months = Vec::new();
+            let mut cursor = from;
+            let mut total = Decimal::ZERO;
+            let mut purchase_count = 0;
+            while cursor <= to {
+                let end = last_day_of(cursor.year(), cursor.month()).ok_or_else(|| invalid("Invalid baseline month"))?;
+                let key = cursor.format("%Y-%m").to_string();
+                let (amount, ids) = totals[i].remove(&key).unwrap_or((Decimal::ZERO, HashSet::new()));
+                let record_count = counts.get(&key).copied().unwrap_or(0);
+                total = add(total, amount)?;
+                purchase_count += ids.len();
+                months.push(AskMonthSpend {
+                    month: key,
+                    from: cursor,
+                    to: end,
+                    day_count: days_between(cursor, end),
+                    coverage: month_coverage(cursor, end, cursor, end, record_count, recorded, as_of),
+                    record_count,
+                    total: amount,
+                    purchase_count: ids.len(),
+                });
+                cursor = cursor
+                    .checked_add_months(Months::new(1))
+                    .ok_or_else(|| invalid("Invalid baseline month"))?;
+            }
+            let used: Vec<_> = months.iter().filter(|m| m.coverage == AskMonthCoverage::Complete).collect();
+            let mut numerator = Decimal::ZERO;
+            for month in &used {
+                numerator = add(numerator, month.total)?;
+            }
+            let average = AskAverageResult {
+                numerator,
+                denominator: used.len(),
+                value: if used.is_empty() {
+                    None
+                } else {
+                    Some(average_cents(numerator, used.len()).ok_or_else(|| invalid("Average out of range"))?)
+                },
+                unavailable: used.is_empty().then_some("no-complete-months"),
+                months_used: used.iter().map(|m| m.month.clone()).collect(),
+                months_left_out: months
+                    .iter()
+                    .filter(|m| m.coverage != AskMonthCoverage::Complete)
+                    .map(|m| (m.month.clone(), m.coverage))
+                    .collect(),
+            };
+            out.push((
+                category.clone(),
+                AskSpendResult {
+                    total,
+                    purchase_count,
+                    category_count: usize::from(purchase_count > 0),
+                    categories: Vec::new(),
+                    purchases: Vec::new(),
+                    vendors: Vec::new(),
+                    vendor_name_count: 0,
+                    vendor_totals: Vec::new(),
+                    left_out: AskLeftOut::default(),
+                    category_totals: Vec::new(),
+                    shared_purchase_count: 0,
+                    member_totals: Vec::new(),
+                    months,
+                    recorded_from: recorded.map(|r| r.0),
+                    recorded_through: recorded.map(|r| r.1),
+                    average: Some(average),
+                    earliest_record,
+                },
+            ));
+        }
+        Ok(out)
+    }
     /// Same gross negative-allocation semantics as Reports' daily/category spending.
     /// Refunds are excluded, not subtracted. Limits affect displayed rankings only.
     pub fn ask_spending(&self, filter: &AskSpendFilter) -> rusqlite::Result<AskSpendResult> {
@@ -672,20 +859,7 @@ impl Store {
         }
         // Predicates are fixed SQL with bound dates. Entity/decimal filters are exact Rust
         // comparisons; SQLite numeric casts would lose cents on large Decimal amounts.
-        let mut statement = self.conn.prepare(&format!(
-            "SELECT t.id, t.account_id, t.date, t.description, t.amount, t.category, t.amount, t.member_id
-             FROM transactions t
-             WHERE t.date >= ?1 AND t.date <= ?2 AND t.deleted_at IS NULL
-               AND t.id NOT IN (SELECT transaction_id FROM transaction_splits)
-               AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-               AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})
-             UNION ALL
-             SELECT t.id, t.account_id, t.date, t.description, t.amount, s.category, s.amount, t.member_id
-             FROM transaction_splits s JOIN transactions t ON t.id=s.transaction_id
-             WHERE t.date >= ?1 AND t.date <= ?2 AND t.deleted_at IS NULL
-               AND t.id NOT IN (SELECT generated_transaction_id FROM debt_payments)
-               AND t.id NOT IN ({LIVE_TRANSFER_LEG_IDS_SQL})"
-        ))?;
+        let mut statement = self.conn.prepare(&allocation_sql())?;
         let mut rows = statement.query(params![filter.from.to_string(), filter.to.to_string()])?;
         let include: Vec<String> = filter.vendors.iter().filter_map(|v| vendor_term(v)).collect();
         let exclude: Vec<String> = filter.exclude_vendors.iter().filter_map(|v| vendor_term(v)).collect();

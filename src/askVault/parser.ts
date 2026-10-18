@@ -240,17 +240,17 @@ function fuzzyMatches(tokens: string[], i: number, entities: Entity[]): { entity
   const w = tokens[i];
   const found: { entity: Entity; consume: number; weak?: boolean }[] = [];
   // A slip in a spending word ("sent" for "spent") is one letter from a category such as Rent: never quietly read as that category.
-  if (w.length >= 4 && !SPEND.has(w) && ["spend", "spent", "spends", "spending"].some((word) => distance(w, word) <= 1)) return found;
+  if (w.length >= 4 && !SPEND.has(w) && ["spend", "spent", "spends", "spending"].some((word) => distance(w, word, 1) <= 1)) return found;
   for (const entity of entities) {
     if (RESERVED_START.has(entity.parts[0])) continue;
     const phrase = tokens.slice(i, i + entity.parts.length).join(" ");
-    if (phrase.length >= 3 && distance(phrase, entity.parts.join(" ")) <= 1) {
+    if (phrase.length >= 3 && distance(phrase, entity.parts.join(" "), 1) <= 1) {
       found.push({ entity, consume: entity.parts.length });
       continue;
     }
     const first = entity.parts[0];
     const minimum = entity.kind === "legacy" ? 4 : 3;
-    const singleWord = w.length >= minimum && /^\p{L}+$/u.test(w) && (first.startsWith(w) || distance(w, first) <= 1);
+    const singleWord = w.length >= minimum && /^\p{L}+$/u.test(w) && (first.startsWith(w) || distance(w, first, 1) <= 1);
     const anyPart = entity.kind === "account" && w.length >= 5 && entity.parts.includes(w);
     if (singleWord || anyPart) {
       let consume = 1;

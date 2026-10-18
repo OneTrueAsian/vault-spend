@@ -73,6 +73,29 @@ nothing is protected unless you turn it on.
   each shown as a picture. Below 1000 pixels wide the sidebar shows icons,
   with a Show names button.
 
+## Ask the Vault spending previews
+
+On the Dashboard, try **"Where can I cut back to save $200 a month?"** or
+**"Save $200 in total this year"**. Choose a monthly or total-period target,
+up to 20 categories, and an explicit monthly floor and maximum cut for each.
+The preview spreads cuts within those limits and shows the achievable amount,
+maximum and shortfall. It does not choose which obligations are safe to reduce.
+
+Review the preceding three full calendar months. Only sufficiently recorded
+months enter the usual-month average; short history needs your explicit choice,
+and missing history needs your own usual-month amount or removal of the category.
+Recording labels cannot certify import completeness. Choose dates within a
+12-month horizon and confirm remaining-year versus full-year hypothetical and
+partial-month handling where needed, then review every detail before calculating.
+The result labels rounded monthly equivalents and exact allocated target-unit
+amounts separately. It is a local, read-only spending illustration, with no
+investment growth or automatic budget changes. Edits, data refresh, locking and
+profile changes retire the preview; questions and choices are not saved as history.
+
+For a fixed single-category what-if, use **"Cut Dining Out by $50 monthly"**,
+substituting one of your exact saved category names, then choose the dates in the app. The supported phrasing is bounded;
+unresolved or unsupported conditions need a choice or a revised question.
+
 ## Mobile snapshots
 
 On the computer, open **Settings → Mobile snapshots → Set up a phone**. The guide explains the local QR connection, one-time certificate installation and trust, and desktop approval of the phone's profiles. Keep both devices on the same private home network. No online account, domain service, financial cloud storage or relay is used.
