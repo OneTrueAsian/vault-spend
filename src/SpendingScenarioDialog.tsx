@@ -1,3 +1,4 @@
+import { CHANGED_HEADING } from "./askVault/changedState";
 import { useId, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import { ModalShell } from "./Modal";
 import "./SpendingScenarioDialog.css";
@@ -8,6 +9,7 @@ import { scenarioBaselineProblem } from "./askVault/spendingScenarioMath";
 import type { ScenarioBaseline, SpendingScenarioCalculation, SpendingScenarioDraft, SpendingScenarioIntent } from "./askVault/spendingScenarioContract";
 import {
   ROUNDING_NOTE,
+  assumptionText,
   baselineRows,
   countedMonths,
   datesText,
@@ -454,6 +456,7 @@ export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeT
             </div>
           ))}
         </dl>
+        <p className="modal-message-secondary scenario-secondary scenario-assumption">{assumptionText(intent)}</p>
         <p className="modal-message-secondary scenario-secondary scenario-source">
           {manualGiven
             ? `Based on the usual month you entered for ${intent.category}, not on your records, as of ${asOf}.`
@@ -631,7 +634,7 @@ export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeT
   const stale = screen.stage === "stale";
   return (
     <ScenarioShell stage={screen.stage}
-      title={stale ? "Your transactions changed" : "I could not do that"}
+      title={stale ? CHANGED_HEADING : "I could not do that"}
       onCancel={onClose}
       wide
       footer={
@@ -644,7 +647,7 @@ export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeT
       }
     >
       <p className={stale ? "scenario-banner scenario-banner-warn" : "scenario-banner scenario-banner-error"} role="alert">
-        <strong>{stale ? "That result is no longer shown." : screen.message}</strong> {stale ? screen.message : "Nothing was calculated."}
+        {stale ? screen.message : <><strong>{screen.message}</strong> Nothing was calculated.</>}
       </p>
       {stale && <p className="modal-message-secondary scenario-secondary">Nothing was saved or changed.</p>}
     </ScenarioShell>

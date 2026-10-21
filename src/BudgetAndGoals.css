@@ -1538,3 +1538,6 @@
   padding: 0.2em 0.6em;
   font-size: 0.8em;
 }
+
+/* The "Try again" and "Ask again" links took the info colour, which is too faint on the banner background (3.39:1 in the error banner; found by the M6 narrow-width check). They take the banner's own text colour and stay underlined. */
+.ledger-qa-banner .ledger-qa-link { color: inherit; }

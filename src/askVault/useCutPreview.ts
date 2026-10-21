@@ -1,3 +1,4 @@
+import { CHANGED_BODY } from "./changedState";
 import { useEffect, useRef, useState } from "react";
 import { createFinancialClient } from "../financialReads";
 import type { CutPreviewScreen } from "../CutPreviewDialog";
@@ -19,7 +20,7 @@ type Pending = {
   reviewed?: Omit<ConfirmedCutPreview, "confirmed">;
 };
 type View = { question: string; owner: Owner | null; screen: CutPreviewScreen | null; clarification: AskClarification | null };
-const CHANGED = "Your profile, transactions, names or date changed. This preview is no longer shown. Ask again using the current data.";
+const CHANGED = CHANGED_BODY;
 const INVALID = "Those choices no longer match the details you reviewed. Start again and confirm every category.";
 const fingerprint = (context: ParseContext) => JSON.stringify(context);
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

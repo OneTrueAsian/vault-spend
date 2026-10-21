@@ -5,6 +5,7 @@ import { freshTestDbDir, seedFixture } from "./lib/seed.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 import { invoke } from "./lib/change-password.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
+import { runAskLayoutChecks } from "./lib/askLayoutChecks.mjs";
 
 // Ask the Vault must leave nothing behind when the profile locks: not the question, not the answer,
 // not the purchases dialog. A late reply from the native side must not reappear after unlocking either.
@@ -25,6 +26,42 @@ try {
     await (await b.$(".ledger-qa-card input")).waitForExist({ timeout: 10000 });
   };
   await openDashboard();
+
+  // M6 task-4 final review (VP-11, EX-05/06): characterization of the real
+  // keyboard, controlled region and fill announcement; no injected component state.
+  const tips = await (await b.$('.ledger-qa-card')).$('button=Tips & examples');
+  assert.equal(await tips.getAttribute('aria-expanded'), 'false');
+  await tips.click();
+  await b.waitUntil(async () => await tips.getAttribute('aria-expanded') === 'true', { timeout: 3000 });
+  const controlled = await tips.getAttribute('aria-controls');
+  assert.ok(controlled, 'Tips must identify its controlled region');
+  assert.equal(await b.$(`[id="${controlled}"]`).isDisplayed(), true);
+  await b.keys('Enter');
+  await b.waitUntil(async () => await tips.getAttribute('aria-expanded') === 'false', { timeout: 3000 });
+  await b.keys('Enter');
+  await b.waitUntil(async () => await tips.getAttribute('aria-expanded') === 'true', { timeout: 3000 });
+  const example = await b.$('.ledger-qa-tips .ledger-qa-examples button');
+  const exampleText = await example.getText();
+  await b.keys('Tab');
+  assert.equal(await b.execute(() => document.activeElement?.textContent?.trim()), exampleText);
+  await b.keys('Enter');
+  assert.equal(await b.$('.ledger-qa-card input').getValue(), exampleText);
+  assert.equal(await b.execute(() => document.activeElement?.getAttribute('aria-label')), 'Your question');
+  assert.equal(await b.execute(() => document.querySelector('[data-example-status]')?.textContent), 'Example filled in. Press Ask to run it.');
+  assert.equal(await b.$('.ledger-qa-answer').isExisting(), false, 'filling an example is not asking it');
+  await b.$('.ledger-qa-card input').addValue('?');
+  assert.equal(await b.execute(() => document.querySelector('[data-example-status]')?.textContent), '', 'editing clears the fill notice');
+  await b.keys(['Control', 'a']); await b.keys('Backspace');
+  await tips.click();
+  await b.$('.nav-item[data-tab=help]').click();
+  await b.$('.help-search').waitForExist({ timeout: 5000 });
+  await b.$('.help-search').setValue('plain English');
+  await b.waitUntil(async () => (await b.$('.page').getText()).includes('I can correct small typing mistakes'), { timeout: 5000 });
+  const helpText = (await b.$('.page').getText()).replace(/\s+/g, ' ');
+  assert.ok(helpText.includes('I can correct small typing mistakes and show how I read them. If a name is unclear, I’ll ask you to choose.'));
+  assert.ok(!helpText.includes('or a word looks misspelled, it asks you to choose instead of guessing'));
+  await openDashboard();
+  console.log('M6 COMPILED TIPS KEYBOARD / FILL / EDIT / HELP WORDING PASSED');
 
   // M4's bounded native baseline read is coherent/read-only, and cannot cross lock or session retirement.
   const baselineOrigin = (await invoke(b, "get_transaction_context")).ok;
@@ -192,3 +229,6 @@ try {
   assert.ok(legacy.ok, legacy.error); assert.deepEqual(legacy.ok.periods[0].months, own.months); assert.deepEqual(legacy.ok.revision, result.ok.revision);
   console.log("M4 FRESH NATIVE TRANSFER / GENERATED PAYMENT / SOURCE PAYMENT PARITY PASSED");
 } finally { await inclusionApp.close(); }
+
+// M6 (D-S4-03): narrow widths, long names and the M4 states no other compiled check reaches (the ordinary card and M3 sections run in feature41).
+await runAskLayoutChecks({ month: "", sections: ["m4"] });

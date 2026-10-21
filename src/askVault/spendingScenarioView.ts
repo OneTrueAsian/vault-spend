@@ -67,6 +67,13 @@ export function reductionText(intent: SpendingScenarioIntent): string {
   return `${amount} ${how}`;
 }
 
+/** What the person is assuming, in one sentence, on the review: spending this much less. A what-if, never advice or a budget change. */
+export function assumptionText(intent: SpendingScenarioIntent): string {
+  const less = intent.reduction.kind === "money" ? `${typedDollars(intent.reduction.amount)} less` : `${intent.reduction.amount}% less`;
+  const when = intent.cadence === "once" ? `once, on ${longDate(intent.horizon.from)}` : `each month from ${longDate(intent.horizon.from)} to ${longDate(intent.horizon.to)}`;
+  return `This assumes you spend ${less} on ${intent.category} ${when}. It is a what-if, not advice, and nothing in your budget changes.`;
+}
+
 /** The dates in words, with the month count for a monthly schedule. */
 export function datesText(intent: SpendingScenarioIntent): string {
   const { from, to } = intent.horizon;

@@ -1,3 +1,4 @@
+import { CHANGED_BODY } from "./changedState";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createFinancialClient } from "../financialReads";
 import { askVault, explainFailure, purchaseDetailsRequest, type AskVaultResult } from "./controller";
@@ -21,9 +22,10 @@ export type AskVaultDetails =
   | null
   | { status: "loading" }
   | { status: "ready"; rows: AskPurchaseRow[]; purchaseCount: number }
-  | { status: "error"; message: string };
+  /** `changed` is true when the failure means the data moved under the list, not that the read broke. */
+  | { status: "error"; message: string; changed?: true };
 
-const LEDGER_CHANGED = "Your transactions changed. Ask again using the current data.";
+const LEDGER_CHANGED = CHANGED_BODY;
 
 /**
  * One question at a time against one open profile. The client lives exactly as long as the card is
@@ -188,7 +190,8 @@ export function useAskVault({
       setDetails({ status: "ready", rows: reply.periods[0].purchases, purchaseCount: reply.periods[0].purchaseCount });
     } catch (failure) {
       if (!alive.current || mine !== tokens.detail) return;
-      setDetails({ status: "error", message: explainFailure(failure).message });
+      const explained = explainFailure(failure);
+      setDetails({ status: "error", message: explained.message, ...(explained.status === "stale" ? { changed: true as const } : {}) });
     }
   }, [view, tokens]);
 

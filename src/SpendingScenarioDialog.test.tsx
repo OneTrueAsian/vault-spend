@@ -1,3 +1,4 @@
+import { CHANGED_BODY, CHANGED_HEADING } from "./askVault/changedState";
 import { CutPreviewDialog, type CutPreviewScreen } from "./CutPreviewDialog";
 import type { CutPreviewDraft, ConfirmedCutPreview } from "./askVault/cutPreviewContract";
 import { calculateCutPreview } from "./askVault/cutPreviewMath";
@@ -565,9 +566,9 @@ describe("the screens that stop short of a number", () => {
   });
 
   it("changed transactions retire the result and say nothing was changed", () => {
-    const h = mount({ stage: "stale", message: "Your transactions changed. Ask again using the current data." });
-    expect(document.querySelector("[role='alert']")!.textContent).toContain("That result is no longer shown.");
-    expect(text()).toContain("Your transactions changed. Ask again using the current data.");
+    const h = mount({ stage: "stale", message: CHANGED_BODY });
+    expect(document.querySelector("[role='dialog']")!.textContent).toContain(CHANGED_HEADING);
+    expect(document.querySelector("[role='alert']")!.textContent).toContain(CHANGED_BODY);
     expect(text()).toContain("Nothing was saved or changed.");
     click(button("Start again"));
     expect(h.onRestart).toHaveBeenCalled();
@@ -626,7 +627,7 @@ describe('M4 cut preview screen conformance',()=>{
  it('UI5 infeasible target keeps target, maximum and explicit shortfall visible',()=>{const s=scenario();s.intent.target.amount='300';const r=calculateCutPreview(s);if(r.kind!=='preview')throw Error('fixture');mount4({stage:'result',calculation:r});for(const part of ['$300.00','$230.00','$70.00','shortfall'])expect(text().toLowerCase()).toContain(part.toLowerCase());});
  it('UI5 total-period primary allocation cents are distinct from approximate fractional monthly equivalents',()=>{const s=scenario();s.intent.target={kind:'total',amount:'0.01'};const r=calculateCutPreview(s);if(r.kind!=='preview')throw Error('fixture');mount4({stage:'result',calculation:r});expect(text()).toContain('over these dates');expect(text()).toContain('Approx. monthly');expect(text()).toContain('rounded');expect(text()).toContain('$0.01');expect(text()).toContain('not money promised');});
  it('UI5 zero capacity remains a result with maximum0 and full shortfall',()=>{const s=scenario();s.intent.categories.forEach(row=>row.maximumReduction={kind:'money',amount:'0'});const r=calculateCutPreview(s);if(r.kind!=='preview')throw Error('fixture');mount4({stage:'result',calculation:r});expect(text()).toContain('$0.00');expect(text()).toContain('$115.00');expect(text()).toMatch(/shortfall/i);});
- it.each([{stage:'blocked',calculation:{kind:'needs-baseline',categories:['Dining']}},{stage:'blocked',calculation:{kind:'constraints-invalid',violations:[{category:'Dining',monthlyFloor:'301',monthlyBaseline:{numerator:'300',denominator:'1'},reason:'floor-above-baseline'}]}}] as CutPreviewScreen[])('UI6 blocker shows no authoritative result and offers edit',screen=>{const h=mount4(screen);expect(text()).toContain('Dining');expect(text()).toContain('Nothing was calculated');click(button('Change the details'));expect(h.onEdit).toHaveBeenCalled();});
+ it.each([{stage:'blocked',calculation:{kind:'needs-baseline',categories:['Dining']}},{stage:'blocked',calculation:{kind:'constraints-invalid',violations:[{category:'Dining',monthlyFloor:'301',monthlyBaseline:{numerator:'300',denominator:'1'},reason:'floor-above-baseline'}]}}] as CutPreviewScreen[])('UI6 blocker shows no authoritative result and offers edit',screen=>{const h=mount4(screen);expect(text()).toContain('Dining');expect(document.querySelector('.cut-preview-results')).toBeNull();expect(text()).not.toMatch(/Goal:|Shortfall|Maximum|\$\d+\.\d\d per month saved/);expect(document.querySelector('[role="alert"]')?.textContent).toContain('Nothing was calculated');expect(text()).toContain('Nothing was calculated');click(button('Change the details'));expect(h.onEdit).toHaveBeenCalled();});
  it.each(['stale','error'] as const)('UI6 %s retires numbers and offers retry/close',stage=>{const h=mount4({stage,message:'Fictional source changed'});expect(text()).toContain('Fictional source changed');expect(text()).toContain('Nothing was calculated');click(button('Try again'));expect(h.onRestart).toHaveBeenCalled();click(button('Close'));expect(h.onClose).toHaveBeenCalled();});
  it('UI6 reading shows no result or confirm action and retains close',()=>{const h=mount4({stage:'reading',categories:['Dining','Travel']});expect(text()).toContain('Reading');expect(text()).toContain('Nothing has been calculated');click(button('Close'));expect(h.onClose).toHaveBeenCalled();});
 });

@@ -1,3 +1,4 @@
+import { CHANGED_BODY } from "./changedState";
 import type { AskVaultRequestV2 } from "./types";
 import { describe, expect, it, vi } from "vitest";
 import { validateAskVaultSnapshot } from "./contract";
@@ -255,12 +256,12 @@ describe("reading the baseline", () => {
     });
     expect(await readScenarioBaseline({ category: "Dining", client: changed, currentSource: () => current() })).toEqual({
       status: "stale",
-      message: "Your transactions changed. Ask again using the current data.",
+      message: CHANGED_BODY,
     });
     const moved = client(async () => {
       throw new TransactionError("stale_profile", "internal wording");
     });
-    expect(await readScenarioBaseline({ category: "Dining", client: moved, currentSource: () => current() })).toMatchObject({ status: "stale", message: expect.stringContaining("no longer open") });
+    expect(await readScenarioBaseline({ category: "Dining", client: moved, currentSource: () => current() })).toEqual({ status: "stale", message: CHANGED_BODY });
   });
 
   it("turns any other failure into a plain message without internal wording", async () => {
@@ -339,7 +340,7 @@ describe('M4 source-consistent native baseline bundle',()=>{
  it('stops further reads when the first source moves',async()=>{let live=source();const a={...args(vi.fn(async(r:any)=>{const result=reply(r);live={...live,generation:9};return result;})),currentSource:()=>live};expect((await readCutPreviewBaselines(a)).status).toBe('stale');expect(a.client.askVault).toHaveBeenCalledTimes(1);});
  it('rejects an individually valid reply from another revision',async()=>{const a=args(vi.fn(async(r:any)=>reply(r,{...source(),revision:{local:6,external:2}})));expect((await readCutPreviewBaselines(a)).status).toBe('stale');expect(a.client.askVault).toHaveBeenCalledTimes(1);});
  it('never turns an IPC failure into missing history or a partial bundle',async()=>{const a=args(vi.fn(async(r:any)=>{if(r.categories[0]==='Travel')throw new Error('private sqlite path');return reply(r);}));const r=await readCutPreviewBaselines(a);expect(r).toEqual({status:'error',message:"I couldn't answer that right now. Try again in a moment."});expect(r).not.toHaveProperty('baselines');});
- it('reports a stale-data error without returning partial rows',async()=>{const a=args(vi.fn(async()=>{throw new TransactionError('stale_data','internal');}));expect(await readCutPreviewBaselines(a)).toEqual({status:'stale',message:'Your transactions changed. Ask again using the current data.'});});
+ it('reports a stale-data error without returning partial rows',async()=>{const a=args(vi.fn(async()=>{throw new TransactionError('stale_data','internal');}));expect(await readCutPreviewBaselines(a)).toEqual({status:'stale',message:CHANGED_BODY});});
  it('does not accept a malformed snapshot',async()=>{const a=args(vi.fn(async()=>({contractVersion:1})));expect((await readCutPreviewBaselines(a)).status).toBe('error');});
  it('settles cancellation promptly even when a native reply remains pending',async()=>{let resolve:any;const pending=new Promise(r=>{resolve=r;}),ask=vi.fn(()=>pending);const controller=new AbortController();const p=readCutPreviewBaselines({...args(ask),signal:controller.signal});controller.abort();expect(await Promise.race([p,new Promise(r=>setTimeout(()=>r('timed-out'),100))])).toEqual({status:'stale'});resolve({});await new Promise(r=>setTimeout(r,0));expect(ask).toHaveBeenCalledTimes(1);});
  it('returns copied evidence, not mutable reply/source references',async()=>{let raw:any;const live=source();const a={...args(vi.fn(async(r:any)=>{raw=reply(r);return raw;})),currentSource:()=>live};const r=await readCutPreviewBaselines(a);expect(r.status).toBe('baseline');raw.periods[0].months[0].total='999.00';live.revision.local++;if(r.status==='baseline'){expect(r.source.revision.local).toBe(5);expect(r.baselines[1].baseline).toMatchObject({months:[{total:'100.00'},{},{ }]});}});

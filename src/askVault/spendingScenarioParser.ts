@@ -1,6 +1,7 @@
 import { date as isDate } from "../contractChecks";
 import { validateScenarioIntent } from "./spendingScenarioContract";
 import { distance } from "./distance";
+import { ordinaryOperatorStore, wholeNamePattern } from "./savingLead";
 import type { SpendingScenarioDraft, SpendingScenarioParseOutcome } from "./spendingScenarioContract";
 import type { ParseContext } from "./types";
 
@@ -11,6 +12,10 @@ const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalize = (text: string) => text.toLowerCase().replace(/[‘’]/g, "'").replace(/\s+/g, " ").trim();
 const scenarioLanguage = (text: string) => /\b(?:what if|if (?:i|we)|cut|cutting|reduce|reduced|reducing|(?:would|could) (?:i|we) (?:save|spend))\b/.test(text)
   || /^save\s+(?:\$|\d)/.test(text) || /\b(?:spend|spent|spending)\b.*\bless\b/.test(text);
+/** Quoted text is a name (a store, a category), never an instruction: operator words inside quotes do not make a scenario. */
+const maskQuotes = (text: string) => text.replace(/"[^"]*"/g, " ");
+/** "Help me / How can I / Please / I want to save $X ..." is the spending-reduction question "save $X ..." (M6 D-S3-02). Only the lead-in goes, and only before an amount. */
+const SAVE_LEAD_IN = /^(?:please\s+)?(?:(?:can you\s+)?help (?:me|us)\s+|(?:how|where) (?:can|could) (?:i|we)\s+|(?:i|we) want to\s+)?(?=save\s+(?:\$|\d))/;
 const day = (year: number, month: number, date: number) => `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(date).padStart(2, "0")}`;
 function monthEnd(year: number, month: number): string {
   const date = new Date("2000-01-01T00:00:00Z");
@@ -23,12 +28,30 @@ function monthEnd(year: number, month: number): string {
  * the scenario rather than silently weakening it. No baseline read, calculation or confirmation.
  */
 export function parseSpendingScenario(text: string, context: ParseContext): SpendingScenarioParseOutcome {
-  let rest = normalize(text).replace(/\.$/, "");
+  const ordinary = ordinaryOperatorStore(text, context);
+  const scenario = parseScenario(text, context);
+  if (!ordinary) return scenario;
+  if (scenario?.kind !== "scenario") return null;
+  // Both consuming grammars understand this question (e.g. merchant CUT DINING,
+  // category Dining). Quote only the entity in each replacement: no dates, amounts
+  // or other clauses are removed, and a missing period stays a real user choice.
+  const category = scenario.draft.category, store = ordinary.interpretation.vendors[0];
+  const categorySpan = category ? wholeNamePattern(category)?.exec(text) : null;
+  const storeSpan = store ? wholeNamePattern(store)?.exec(text) : null;
+  const quote = (span: RegExpExecArray) => text.slice(0, span.index) + '"' + span[0] + '"' + text.slice(span.index + span[0].length);
+  if (!categorySpan || !storeSpan) return { kind: "scenario-clarify", clarification: { status: "clarify", reason: "Do you mean recorded store spending or a proposed spending cut? Ask again with the store or category in quotes.", choices: [], replacements: [] } };
+  return { kind: "scenario-clarify", clarification: { status: "clarify", reason: "Do you mean recorded spending at this store, or a proposed spending cut?", choices: [`Recorded spending at ${store}`, `Spend less on ${category}`], replacements: [quote(storeSpan), `What if I ${quote(categorySpan)}`] } };
+}
+
+function parseScenario(text: string, context: ParseContext): SpendingScenarioParseOutcome {
+  let rest = normalize(text).replace(/\.$/, "").replace(SAVE_LEAD_IN, "");
   const unsupported = (reason: string): SpendingScenarioParseOutcome => ({ kind: "scenario-unsupported", reason });
   const retrospective = () => unsupported("Retrospective scenarios are not supported. Try an explicitly chosen current-year what-if instead.");
   if (/\b(?:would|could)\b.*\b(?:have saved|had saved)\b/.test(rest)) return retrospective();
   if (/\b(?:did|have)\b.*\b(?:spend|spent)\b.*\bless\b/.test(rest) && /\b(?:than|compare|compared)\b/.test(rest) && !/\b(?:if|cut|reduce)\b/.test(rest)) return null;
-  if (!scenarioLanguage(rest)) return null;
+  // A plain question about what was spent ("how much did I spend at Cut Above in July") belongs to the ordinary reader, whatever the store is called.
+  if (/^(?:how much|what|which)\b.*\b(?:did|have|had)\s+(?:i|we)\s+(?:spend|spent)\b/.test(rest) && !/\b(?:if|would|could|should|will)\b/.test(rest)) return null;
+  if (!scenarioLanguage(maskQuotes(rest))) return null;
   if (text.length > 512) return unsupported("Keep the scenario to 512 characters or fewer.");
   if (!isDate(context.today)) return unsupported("Refresh the current date before starting a scenario.");
   if (/^(?:cut|reduce|cutting|reducing)$/.test(rest)) return unsupported("Name a category and an amount, then choose monthly or one-time savings and dates.");
@@ -64,7 +87,7 @@ export function parseSpendingScenario(text: string, context: ParseContext): Spen
       draft.category = category;
     }
   }
-  if (!scenarioLanguage(rest.trim())) return null;
+  if (!scenarioLanguage(maskQuotes(rest.trim()))) return null;
   if (ambiguousCategory) return unsupported("Choose one unambiguous category for this scenario.");
   if (/\bbudgets?\b|\bbudget limits?\b/.test(rest)) return unsupported("Budget limits and spending are different. This preview models lower spending, not a change to your budget limit. Ask explicitly about spending instead.");
   let unknownCategory: { raw: string; start: number; end: number } | null = null;
@@ -72,7 +95,7 @@ export function parseSpendingScenario(text: string, context: ParseContext): Spen
     // Recognize a subject slot, not arbitrary leftover words. The remainder still has
     // to pass every scope/amount/date check before any replacements are offered.
     const subjectMatch = (input: string) => /\b(?:cut|reduce|reduced|reducing)\s+([\p{L}][\p{L}' -]*?)\s+by\b/iu.exec(input)
-      ?? /\b(?:on|in)\s+([\p{L}][\p{L}' -]*?)(?=\s+(?:from|starting|for|monthly|each|per|a month)\b|$)/iu.exec(input);
+      ?? /\b(?:on|in)\s+([\p{L}][\p{L}' -]*?)(?=\s+(?:from|starting|for|monthly|each|per|a month|every|once|one[ -]time|until|through|beginning)\b|$)/iu.exec(input);
     const subject = subjectMatch(rest);
     if (subject) {
       const raw = subject[1].trim();

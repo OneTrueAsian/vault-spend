@@ -1,2 +1,20 @@
 # The benchmark package is checksummed byte for byte; never convert its line endings.
 core/data/benchmarks/* -text
+
+# M6 corpus freeze records exact bytes, including line endings, across checkouts.
+src/testSupport/askVaultM6/** -text
+src/askVault/combinedCorpusGrader.test.ts -text
+src/askVault/combinedCorpusGraderGaps.test.ts -text
+src/askVault/combinedCorpusGraderMutation.test.ts -text
+src/askVault/combinedRouteHarness.test.tsx -text
+src/askVault/exampleEvidence.test.tsx -text
+src/askVault/insufficientHistoryCorpus.test.tsx -text
+src/askVault/m3Scenario.test.tsx -text
+src/askVault/m4Scenario.test.tsx -text
+src/askVault/m5Model.test.ts -text
+src/askVault/m5RouteElsewhere.test.tsx -text
+src/askVault/m5Scenario.test.tsx -text
+src/askVault/m6PreparedPackages.test.ts -text
+src/askVault/routeDisplayCheck.test.tsx -text
+src/askVault/scenarioNativeProof.test.ts -text
+src/askVault/typoDispositions.test.tsx -text

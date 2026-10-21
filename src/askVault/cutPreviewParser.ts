@@ -3,6 +3,7 @@ import { dateOutOfRange } from "../dateRange";
 import { distance } from "./distance";
 import { daysInMonth, isoDate } from "./calendar";
 import { parseSpendingScenario } from "./spendingScenarioParser";
+import { EXTRA_MARKER, RETIREMENT_WORDS, SAVING_LEAD, ordinaryOperatorStore, namesInvestmentAccount } from "./savingLead";
 import { validateScenarioIntent } from "./spendingScenarioContract";
 import type { CutPreviewCategory, CutPreviewDraft, ParseCutPreview } from "./cutPreviewContract";
 
@@ -20,6 +21,7 @@ const entityPattern = (label: string) => {
 export const parseCutPreview: ParseCutPreview = (text, context) => {
   const original = text.replace(/[‘’]/g, "'");
   let rest = original;
+  // A question that begins with a known store's full name is an ordinary spending question, whatever words the name holds (M6 D-S4-02).
   const unsupported = (reason: string) => ({ kind: "cut-preview-unsupported" as const, reason });
   if (/^(?:please\s+)?(?:invest (?:the|my|our) savings\b|apply (?:these|the) cuts\b|(?:(?:cut|use) (?:the )?)?(?:fewest|fewer) categories\b)/iu.test(rest.trim())) {
     return unsupported("Investing savings, applying cuts and choosing the fewest categories are not supported. This read-only preview can spread a monthly savings target across explicitly selected categories.");
@@ -29,6 +31,16 @@ export const parseCutPreview: ParseCutPreview = (text, context) => {
   const namedDiscovery = /^cut (?:my|our)\s+/iu.exec(rest.trimStart());
   const categoryDiscovery = !!namedDiscovery && /\s+to save money[.?!]?\s*$/iu.test(rest);
   if (!goal && !discovery && !categoryDiscovery) return null;
+  if (ordinaryOperatorStore(original, context)) return null;
+  // "Save $50 a month into my Roth IRA" names an investment account, not a savings target: the extra-money reader asks what is meant (M6 D-S3-01).
+  if (goal && SAVING_LEAD.test(rest) && namesInvestmentAccount(original, context)) return null;
+  // "Save an extra $50 a month for retirement" states additional money for an investment account without naming one: the extra-money flow
+  // asks which account and when (M6 D-S4-01). Words inside quoted names do not count.
+  if (goal && SAVING_LEAD.test(rest)) {
+    const outsideQuotes = original.replace(/"[^"\r\n]*"/g, q => " ".repeat(q.length));
+    if (EXTRA_MARKER.test(outsideQuotes) && RETIREMENT_WORDS.test(outsideQuotes)) return null;
+    if (/\bfor\s+(?:my\s+)?retirement\b/iu.test(outsideQuotes)) return unsupported('If you mean adding extra money to an investment account, say "Extra $50 a month for retirement". This question does not yet say whether the money is additional.');
+  }
   if ([...text].length > 512) return unsupported("Keep the savings-target question to 512 characters or fewer.");
   const quotedNames = original.includes('"');
   const outsideName = (index: number) => !quotedNames || (original.slice(0, index).match(/"/g)?.length ?? 0) % 2 === 0;
@@ -44,6 +56,12 @@ export const parseCutPreview: ParseCutPreview = (text, context) => {
     const quoted = materialMatch(new RegExp(`\\b(?:in|on)\\s+"${escape(label)}"`, "iu"));
     return quoted || (!months.includes(norm(label)) && materialMatch(new RegExp(`\\b(?:in|on)\\s+${entityPattern(label)}`, "iu")));
   })) return null;
+  // A single category that is only misspelled is still M3's question: its clarification offers the close names (M6 D-S3-02, "existing clarification rules").
+  if (!quotedNames && !materialMatch(/\bacross\b/iu)) {
+    const subject = /\b(?:on|in)\s+([\p{L}][\p{L}' -]*?)(?=\s+(?:from|starting|for|monthly|each|per|a month|every|once|one[ -]time|until|through|beginning)\b|[.?!,]?\s*$)/iu.exec(original);
+    const key = subject ? norm(subject[1]) : "";
+    if (key.length >= 3 && !months.includes(key) && context.categories.some(label => norm(label) !== key && distance(key, norm(label), 1) <= 1)) return null;
+  }
   if (!isDate(context.today) || dateOutOfRange(context.today)) return unsupported("Refresh the current date before starting a preview.");
   // Mask by original offsets, so corrections never replace a date or remove another clause.
   const erase = (start: number, length: number) => { rest = rest.slice(0, start) + " ".repeat(length) + rest.slice(start + length); };

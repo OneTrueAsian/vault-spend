@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { CHANGED_HEADING } from "./askVault/changedState";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { MessageCircleQuestion } from "lucide-react";
 import { LEDGER_QA_EXAMPLES } from "./ledgerQa";
 import { ModalShell } from "./Modal";
@@ -9,10 +10,13 @@ import { useSpendingScenario } from "./askVault/useSpendingScenario";
 import { SpendingScenarioDialog } from "./SpendingScenarioDialog";
 import { useCutPreview, type CutPreviewClient } from "./askVault/useCutPreview";
 import { CutPreviewDialog } from "./CutPreviewDialog";
+import { useRetirementScenario } from "./askVault/useRetirementScenario";
+import type { RetirementClient } from "./askVault/retirementContextReader";
+import { RetirementScenarioDialog } from "./RetirementScenarioDialog";
 import type { AskMemberSelection, Correction, Interpretation, ParseContext } from "./askVault/types";
 
 /** Questions shown as one-click suggestions when something could not be understood. */
-const SUGGESTIONS = [
+export const SUGGESTIONS = [
   "how much did I spend on groceries last month",
   "top 3 spending categories this year",
   "my three biggest expenses last month",
@@ -22,7 +26,7 @@ const SUGGESTIONS = [
 const INLINE_ROWS = 5;
 const INLINE_CHOICES = 3;
 
-export const MORE_EXAMPLES = ["how much did I spend at Costco last month", "everything except rent last month", "spending by month this year", "average purchase on groceries last month", "what did each family member spend last month", "Where can I cut back to save $200 a month?", "Save $200 in total this year"];
+export const MORE_EXAMPLES = ["how much did I spend at Costco last month", "everything except rent last month", "spending by month this year", "average purchase on groceries last month", "what did each family member spend last month", "Where can I cut back to save $200 a month?", "Save $200 in total this year", "Extra $50 a month into Roth IRA until January 2056", "What if I cut Groceries by $50 a month?"];
 
 /** The short phrases under the question that say what was understood, so a wrong reading is easy to spot. */
 function understoodChips(i: Interpretation): string[] {
@@ -100,14 +104,17 @@ export function AskVaultCard({
   accountNames: Map<number, string>;
   /** Opens the Transactions tab filtered the same way as an answer; offered only when it can show exactly those purchases. */
   onOpenTransactions?: (filter: { category: string; accountIds: number[]; from: string; to: string }) => void;
-  createClient?: () => CutPreviewClient;
+  createClient?: () => CutPreviewClient & RetirementClient;
 }) {
   const { view, details, checking, ask, openDetails, closeDetails, reset } = useAskVault({ getContext, legacyAsk, dataKey, reloadKey, createClient });
   const scenario = useSpendingScenario({ getContext, dataKey, reloadKey, createClient });
   const cut = useCutPreview({ getContext, dataKey, reloadKey, createClient });
+  const retirement = useRetirementScenario({ getContext, dataKey, reloadKey, createClient });
   const questionInput = useRef<HTMLInputElement | null>(null);
   const [question, setQuestion] = useState("");
   const [showExamples, setShowExamples] = useState(false);
+  const [exampleFilled, setExampleFilled] = useState(false);
+  const tipsId = useId();
   const [allRowsOpen, setAllRowsOpen] = useState(false);
   const [placeholderExample] = useState(() => LEDGER_QA_EXAMPLES[Math.floor(Math.random() * LEDGER_QA_EXAMPLES.length)]);
   // The full list belongs to the answer it was opened from: a new answer, or none, closes it.
@@ -147,10 +154,13 @@ export function AskVaultCard({
   }
   function runQuestion(next: string, members: AskMemberSelection[] = []) {
     cut.cancel();
+    retirement.cancel();
     scenario.cancel();
     if (!members.length) {
       reset();
+      // Precedence: savings targets, then extra money into an investment account, then spending scenarios, then ordinary questions.
       if (cut.ask(next)) return;
+      if (retirement.ask(next)) return;
       if (scenario.ask(next)) return;
     }
     void ask(next, members);
@@ -164,9 +174,23 @@ export function AskVaultCard({
     questionInput.current?.focus();
   }
   function changeQuestion(next: string) {
-    cut.cancel(); scenario.cancel(); setQuestion(next);
+    cut.cancel(); retirement.cancel(); scenario.cancel(); setQuestion(next); setExampleFilled(false);
+  }
+  // An example only fills the box: it is not asked until the person presses Ask. Say so, and move to the box so the next key press continues from there.
+  function fillExample(example: string) {
+    changeQuestion(example); setExampleFilled(true); questionInput.current?.focus();
   }
   function closeCut() { cut.cancel(); questionInput.current?.focus(); }
+  function closeRetirement() { retirement.cancel(); questionInput.current?.focus(); }
+  // The dialog shell hands focus back to whatever had it before, a tick after it unmounts; the question field is where a person continues.
+  const retirementOpen = retirement.screen !== null, retirementWasOpen = useRef(false);
+  useEffect(() => {
+    const closed = retirementWasOpen.current && !retirementOpen;
+    retirementWasOpen.current = retirementOpen;
+    if (!closed) return;
+    const timer = window.setTimeout(() => questionInput.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [retirementOpen]);
 
   return (
     <div className="card ledger-qa-card">
@@ -175,12 +199,12 @@ export function AskVaultCard({
           <MessageCircleQuestion className="category-legend-icon" />
           Ask the Vault
         </span>
-        <button type="button" className="modal-secondary" onClick={() => setShowExamples((v) => !v)}>
+        <button type="button" className="modal-secondary" aria-expanded={showExamples} aria-controls={tipsId} onClick={() => setShowExamples((v) => !v)}>
           {showExamples ? "Hide tips" : "Tips & examples"}
         </button>
       </div>
       {showExamples && (
-        <div className="ledger-qa-tips">
+        <div className="ledger-qa-tips" id={tipsId}>
           <p className="field-hint">
             Ask one thing at a time, using the category, account or store names you see elsewhere in the app. Add a time
             period like "this month," "last week," "July," "2026" or "the past 3 months." You can ask for a total, a top 3,
@@ -195,11 +219,12 @@ export function AskVaultCard({
             cuts within those limits and shows the maximum and any shortfall. Missing history needs your own
             usual-month amount; short history needs your explicit choice. You review everything before confirming.
             These are read-only spending illustrations, with no investment growth or automatic budget changes.
+            To see what extra money in one investment account could add, name the account, the extra amount, monthly or once, and your retirement month. You confirm your saved plan first; this changes nothing.
           </p>
           <ul className="ledger-qa-examples">
             {[...LEDGER_QA_EXAMPLES, ...MORE_EXAMPLES].map((example) => (
               <li key={example}>
-                <button type="button" onClick={() => changeQuestion(example)}>
+                <button type="button" onClick={() => fillExample(example)}>
                   {example}
                 </button>
               </li>
@@ -207,6 +232,7 @@ export function AskVaultCard({
           </ul>
         </div>
       )}
+      <p className="sr-only" role="status" data-example-status>{exampleFilled ? "Example filled in. Press Ask to run it." : ""}</p>
       <form className="category-create-form" onSubmit={submit}>
         <input ref={questionInput} value={question} onChange={(e) => changeQuestion(e.target.value)} placeholder={`e.g. "${placeholderExample}"`} aria-label="Your question" />
         <button type="submit" disabled={!question.trim()}>
@@ -228,6 +254,15 @@ export function AskVaultCard({
               {scenario.clarification.choices.map((label, index) => <button key={label} type="button" onClick={() => choose(scenario.clarification!.replacements![index])}>{label}</button>)}
             </div>
             {!scenario.clarification.choices.length && <p>Change your question above and ask again.</p>}
+          </div>
+        )}
+        {retirement.clarification && (
+          <div className="ledger-qa-clarify">
+            <p className="ledger-qa-banner">{retirement.clarification.reason} Nothing has been calculated yet.</p>
+            {retirement.clarification.choices.length > 0 && <div className="ledger-qa-choices" role="group" aria-label="Choose one">
+              {retirement.clarification.choices.map((label, index) => <button key={label} type="button" onClick={() => choose(retirement.clarification!.replacements![index])}>{label}</button>)}
+            </div>}
+            {!retirement.clarification.choices.length && <p>Change your question above and ask again.</p>}
           </div>
         )}
         {view.status === "loading" && <p className="ledger-qa-working">Looking that up…</p>}
@@ -346,7 +381,7 @@ export function AskVaultCard({
 
         {view.status === "stale" && (
           <p className="ledger-qa-banner" role="status">
-            <strong>That answer is no longer shown.</strong> {view.message}{" "}
+            <strong>{CHANGED_HEADING}</strong> {view.message}{" "}
             <button type="button" className="ledger-qa-link" onClick={() => void ask(view.question)}>
               Ask again
             </button>
@@ -367,6 +402,9 @@ export function AskVaultCard({
         onChoices={answers => void scenario.choose(answers)} onConfirm={choice => void scenario.confirm(choice)}
         onChangeTerm={editScenario} onEdit={editScenario} onManualBaseline={scenario.manualBaseline}
         onRestart={scenario.restart} onClose={editScenario} />}
+      {retirement.screen && <RetirementScenarioDialog screen={retirement.screen} live={retirement.live} openReturnChoice={retirement.openReturnChoice}
+        onChoices={event => void retirement.choices(event)} onConfirm={scenario => void retirement.confirm(scenario)} onExplore={retirement.explore} onBack={retirement.back}
+        onEdit={request => retirement.edit(request)} onRestart={retirement.restart} onClose={closeRetirement} />}
       {cut.screen && <CutPreviewDialog screen={cut.screen} onChoices={intent => void cut.choose(intent)} onConfirm={confirmed => void cut.confirm(confirmed)}
         onRemoveCategory={cut.remove} onEdit={cut.edit} onRestart={cut.restart} onClose={closeCut} />}
 
@@ -413,7 +451,7 @@ export function AskVaultCard({
             <p className="modal-message-secondary">These purchases cover {view.result.interpretation.periods[0].label} with the same filters. {view.result.request.kind === "compare" ? "Only the first compared period is listed here." : "The monthly average uses only the months marked as included, rather than every purchase in this list."}</p>
           )}
           {details.status === "loading" && <p>Loading purchases…</p>}
-          {details.status === "error" && <p role="alert">{details.message}</p>}
+          {details.status === "error" && <p role="alert">{details.changed && <strong>{CHANGED_HEADING} </strong>}{details.message}</p>}
           {details.status === "ready" && (
             <>
               <p className="modal-message-secondary">

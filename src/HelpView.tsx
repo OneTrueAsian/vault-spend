@@ -1631,11 +1631,23 @@ const FAQ_ENTRIES: FaqEntry[] = [
         behind a total. It matches a set of question shapes rather than truly
         understanding free-form English, so it works best one question at a
         time, using the category, account or store names you see elsewhere in
-        the app. If it is unsure, or a word looks misspelled, it asks you to
-        choose instead of guessing. Click "Tips &amp; examples" on the box
+        the app. I can correct small typing mistakes and show how I read them.
+        If a name is unclear, I’ll ask you to choose. Click "Tips &amp; examples" on the box
         itself for phrasing guidance and the full list of what it
         understands.
       </p>
+    ),
+  },
+  {
+    question: "What if I spent less on one category?",
+    tags: ["ask the vault", "what if", "spend less", "spending less", "cut", "save", "category", "one-time", "monthly"],
+    answer: (
+      <>
+        <p>On the Dashboard, try <q>What if I cut Groceries by $50 a month?</q> Name one category, an amount in dollars or a percent, whether it is every month or just once, and the dates.
+          If you leave out how often or the dates, you choose them. Wording such as <q>Help me save $50 on Groceries each month</q> works the same way.</p>
+        <p>You review the dates and your usual spending in that category before any result is shown. The result is an illustration of spending that much less. It is not advice, and it never changes your budget or your accounts.
+          Editing the question, a new day, locking or switching profiles closes it, and you ask again.</p>
+      </>
     ),
   },
   {
@@ -1656,6 +1668,29 @@ const FAQ_ENTRIES: FaqEntry[] = [
           Monthly equivalents and limits may be rounded; use the allocated amounts in the displayed target unit, rather than multiplying rounded monthly figures.</p>
         <p>Nothing is applied to your budget or bank account, and no investment growth is included. Editing, refreshing data, locking or switching profiles retires the preview.
           Questions and choices are not saved as a history or sent to an AI service.</p>
+      </>
+    ),
+  },
+  {
+    question: "What could extra money in an investment account add by my retirement month?",
+    tags: ["ask the vault", "retirement", "investment", "extra money", "extra deposit", "roth ira", "401k", "brokerage", "what if", "no growth", "return", "inflation", "today's dollars"],
+    answer: (
+      <>
+        <p>On the Dashboard, try <q>Extra $50 a month into Roth IRA until January 2056</q>, using the name of one of your own investment accounts.
+          The app looks at one investment account at a time. Tell it an extra amount, whether it is added every month or just once, and your retirement month.
+          If you leave one of these out, it asks you to choose; the plan's saved month is offered only as a button you can press, never picked for you.</p>
+        <p>You then see the account's recorded value, the amount you add now, and the return in your saved plan, and you confirm them once.
+          If your plan has no saved return, you can still see the exact extra deposits and a no-growth balance, and you can type a return of your own.
+          Choosing <strong>Change the details</strong> asks again for the account, the extra amount, how often and the retirement month.
+          If the numbers would be too large to show exactly, you see <strong>A few details need attention</strong> and nothing is calculated.
+          Choose <strong>Change the details</strong>, then choose a nearer retirement month or a smaller return, and confirm again.</p>
+        <p>The result shows an <strong>Illustrative balance</strong> at your retirement month, <strong>Without the extra</strong> and <strong>With the extra</strong>,
+          under <strong>No investment growth</strong> and <strong>Using your confirmed plan return</strong>. Balances are rounded, and the exact extra deposits are shown to the cent.
+          <strong>Explore other returns</strong> lets you try a lower and a higher return you choose yourself. You can also show amounts in today's dollars, using the yearly inflation you confirm.</p>
+        <p>These are illustrations, not a prediction: real results could be lower than both figures or higher than both.
+          They leave out taxes, fees, an employer match, contribution limits and any advice about what to do.
+          Nothing is saved or changed in your accounts, plan or budget, and your question is not kept.
+          Changing a related plan, holding, price or account, a new day, locking, switching profiles or editing the question closes the result, and you ask again to see current numbers.</p>
       </>
     ),
   },

@@ -1,3 +1,4 @@
+import { CHANGED_HEADING } from "./askVault/changedState";
 import type { ConfirmedCutPreview, CutPreviewCalculation, CutPreviewDraft, CutPreviewIntent } from "./askVault/cutPreviewContract";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ModalShell } from "./Modal";
@@ -224,5 +225,5 @@ export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategor
   }
   if (screen.stage === "reading") return shell("Reading spending records", <><p role="status">Reading {screen.categories.join(", ")}…</p><p>Nothing has been calculated yet.</p></>);
   if (screen.stage === "blocked") return shell("A few details need attention", <><p role="alert">Nothing was calculated.</p>{screen.calculation.kind === "needs-baseline" ? <p>Choose a usual month or remove: {screen.calculation.categories.join(", ")}.</p> : <ul>{screen.calculation.violations.map(v => <li key={v.category}>{v.category}: monthly floor {typedDollars(v.monthlyFloor)} is above the usual month {money(v.monthlyBaseline)} (rounded). Change the floor or usual month.</li>)}</ul>}</>, <button type="button" onClick={onEdit}>Change the details</button>);
-  return shell(screen.stage === "stale" ? "Your records changed" : "I could not read those records", <><p className="scenario-banner" role="alert">{screen.message} Nothing was calculated.</p></>, <button type="button" onClick={onRestart}>Try again</button>);
+  return shell(screen.stage === "stale" ? CHANGED_HEADING : "I could not read those records", <><p className="scenario-banner" role="alert">{screen.message} Nothing was calculated.</p></>, <button type="button" onClick={onRestart}>Try again</button>);
 }

@@ -31,6 +31,11 @@ export type ParseContext = {
    * with it, member questions are understood here.
    */
   familyMembers?: AskFamilyMember[];
+  /**
+   * Investment accounts only, ids and names, used to claim retirement questions that name an account. Never authorization: the native
+   * roster is read before any account-specific review, and a mismatch discards the question. Absent means none are known.
+   */
+  investmentAccounts?: AskAccount[];
 };
 
 export type AskKind = "total" | "rank-categories" | "rank-purchases" | "compare";

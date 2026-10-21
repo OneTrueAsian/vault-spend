@@ -40,6 +40,34 @@ describe("HelpView", () => {
     expect(text).toContain("Nothing is applied to your budget"); expect(text).toContain("locking or switching profiles");
   });
 
+  it("explains extra money into an investment account: scope, choices, assumptions, labels and limits", () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "extra money");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("What could extra money in an investment account add by my retirement month?");
+    expect(text).toContain("Extra $50 a month into Roth IRA until January 2056");
+    for (const phrase of [
+      "one investment account", "every month or just once", "retirement month", "saved plan", "Without the extra", "With the extra", "Illustrative balance",
+      "No investment growth", "Using your confirmed plan return", "Explore other returns", "today's dollars", "exact extra deposits",
+      "not a prediction", "taxes", "fees", "employer match", "Nothing is saved or changed", "locking, switching profiles",
+    ]) expect(text, phrase).toContain(phrase);
+  });
+
+  it("explains what happens when the numbers are too large to show, and how to try again", () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "extra money");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    // Task item 2 (20 Oct 2026): the refused card ("A few details need attention") is reachable, so the Help says what it means and that Change the details reopens the choices.
+    for (const phrase of ["too large to show", "A few details need attention", "nothing is calculated", "choose a nearer retirement month"]) expect(text, phrase).toContain(phrase);
+    expect(text).not.toMatch(/guarantee|safe withdrawal/i);
+  });
+
   it("finds the complete mobile setup, offline and removal guidance together", () => {
     const input=container.querySelector<HTMLInputElement>("input[type=search]")!;
     act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,"mobile snapshots");input.dispatchEvent(new Event("input",{bubbles:true}));});

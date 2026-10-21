@@ -12,6 +12,8 @@ import { TransactionError } from "./transactionContracts";
 import type { AskBaselineBatchRequest, AskBaselineBatchSnapshot } from "./askVault/cutPreviewBatch";
 import { useCutPreview } from "./askVault/useCutPreview";
 import { parseCutPreview } from "./askVault/cutPreviewParser";
+import { parseSpendingScenario } from "./askVault/spendingScenarioParser";
+import { parseRetirementScenario } from "./askVault/retirementParser";
 import type { ConfirmedCutPreview, CutPreviewIntent } from "./askVault/cutPreviewContract";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -257,6 +259,32 @@ describe("M4 integrated savings-target routing and lifecycle", () => {
       expect(remove).toHaveBeenCalledWith("focus", focus[0][1]);
     } finally { add.mockRestore(); remove.mockRestore(); vi.useRealTimers(); }
   });
+  // M6 D-S6: "A few details need attention" is a defensive stage. The review screen refuses a floor above the usual month, so no click path reaches it
+  // (CutPreviewDialog.tsx:165-168 against cutPreviewMath.ts:62-68). These tests call the controller with a confirmation the review screen would never send,
+  // to prove the fallback: an invalid calculation never becomes a displayed result, and the person can go back and change the details.
+  it("a confirmation with a floor above the usual month becomes the blocked screen: no result, details named, recovery offered", async () => {
+    const t = controller(batchClient({ Dining: 2 }));
+    t.intent.categories[0].monthlyFloor = "500";
+    await t.start();
+    const confirmed = t.payload();
+    confirmed.baselines = [{ category: "Dining", baseline: { kind: "manual", monthlyAmount: "100", source: structuredClone(confirmed.source) } }];
+    await act(async () => { await t.api().confirm(confirmed); });
+    const screen = t.api().screen;
+    expect(screen?.stage).toBe("blocked");
+    expect(screen).toMatchObject({ calculation: { kind: "constraints-invalid", violations: [{ category: "Dining", monthlyFloor: "500", reason: "floor-above-baseline" }] } });
+    expect(JSON.stringify(screen)).not.toMatch(/allocations|totalSaving|targetMet|shortfall/);
+    await act(async () => t.api().edit());
+    expect(t.api().screen?.stage).toBe("choices");
+  });
+  it("a confirmation that drops a selected category's usual month is stopped earlier, as an error with no result (the needs-a-usual-month blocker cannot be reached either)", async () => {
+    const t = controller(batchClient({ Dining: 0 }));
+    await t.start();
+    const confirmed = t.payload();
+    confirmed.baselines = [{ category: "Dining", baseline: { kind: "recorded", months: [], source: structuredClone(confirmed.source) } as never }];
+    await act(async () => { await t.api().confirm(confirmed); });
+    expect(t.api().screen).toMatchObject({ stage: "error", message: expect.stringMatching(/no longer match/) });
+    expect(JSON.stringify(t.api().screen)).not.toMatch(/allocations|totalSaving|targetMet/);
+  });
   it("routes a natural floor question without assuming its missing maximum cut or reading early", async () => {
     const client = batchClient(); mount(client);
     await ask("save $120 a month from groceries but keep at least $400 a month");
@@ -444,7 +472,7 @@ describe("the Ask the Vault card", () => {
     await settle();
     expect(container.querySelector('.ledger-qa-choices button')).toBeNull();
     expect(client.askVault).not.toHaveBeenCalled();
-    expect(text()).toContain("Your transactions changed");
+    expect(text()).toContain("Your details changed");
   });
   it("renders member and unassigned rows as an accessible labeled table and restates grouping", async () => {
     mount(fake(async () => memberReply()), {ctx:membersContext});
@@ -491,13 +519,29 @@ describe("the Ask the Vault card", () => {
     expect(text()).toContain("no longer shown");
     expect(text()).not.toContain("$317.13");
   });
+  it("shows an extra-money-into-an-investment-account example under Tips & examples", () => {
+    expect(MORE_EXAMPLES).toContain("Extra $50 a month into Roth IRA until January 2056");
+  });
   it("every example shown under Tips & examples is understood, never refused", () => {
     const ctx: ParseContext = { ...membersContext, categories: [...context.categories, "Dining Out"], merchants: [...(context.merchants ?? []), "WHOLE FOODS MARKET", "COSTCO #1"], historyStart: "2025-01-01" };
+    // The same order as the card's own claims: savings target, extra money, spending cut, then the ordinary reader (AskVaultCard.tsx runQuestion).
+    // The routed, request-level proof for every advertised sentence is AskVaultCardRouting.test.tsx; this loop only shows that none is refused.
     for (const example of [...LEDGER_QA_EXAMPLES, ...MORE_EXAMPLES]) {
       const target = parseCutPreview(example, ctx);
       if (target) {
         expect(target.kind, example).toBe("cut-preview");
         if (target.kind === "cut-preview") expect(target.draft.missing.length, example).toBeGreaterThan(0);
+        continue;
+      }
+      const retirement = parseRetirementScenario(example, { today: ctx.today, investmentAccounts: [{ id: 1, name: "Roth IRA" }] });
+      if (retirement) {
+        expect(retirement.kind, example).toBe("retirement");
+        if (retirement.kind === "retirement") expect(retirement.draft.missing, example).toEqual([]); // every term the example gives is understood
+        continue;
+      }
+      const spend = parseSpendingScenario(example, ctx);
+      if (spend) {
+        expect(spend.kind, example).toBe("scenario");
         continue;
       }
       const outcome = parseQuestion(example, ctx);
@@ -646,7 +690,8 @@ describe("the Ask the Vault card", () => {
     mount(client);
     await ask("how much did I spend on groceries last month");
     await click("View 3 purchases");
-    expect(document.querySelector("[role='dialog']")!.textContent).toContain("Your transactions changed");
+    expect(document.querySelector("[role='dialog']")!.textContent).toContain("Your details changed");
+    expect(document.querySelector("[role='dialog']")!.textContent).toContain("This answer or preview is no longer shown. Ask again using your current details.");
   });
 
   it("an answer is retired when the ledger changes underneath it, and can be asked again", async () => {
@@ -657,7 +702,7 @@ describe("the Ask the Vault card", () => {
     view.rerender("v2");
     await act(async () => {});
     expect(text()).not.toContain("$317.13");
-    expect(text()).toContain("Your transactions changed");
+    expect(text()).toContain("Your details changed");
     await click("Ask again");
     expect(client.askVault).toHaveBeenCalledTimes(2);
     expect(text()).toContain("$317.13");
@@ -732,7 +777,7 @@ describe("the Ask the Vault card", () => {
     view.rerender("v1", "r3");
     await act(async () => {});
     expect(text()).not.toContain("$317.13");
-    expect(text()).toContain("Your transactions changed");
+    expect(text()).toContain("Your details changed");
   });
 
   it("an answer read before the ledger changed is not left standing as current", async () => {
@@ -750,7 +795,7 @@ describe("the Ask the Vault card", () => {
     await act(async () => release(snapshot({ revision: { local: 5, external: 2 } })));
     await act(async () => {});
     expect(text()).not.toContain("$317.13");
-    expect(text()).toContain("Your transactions changed");
+    expect(text()).toContain("Your details changed");
   });
 
   it("a purchases list still loading does not open after its answer was retired", async () => {
@@ -766,7 +811,7 @@ describe("the Ask the Vault card", () => {
     revision = { local: 6, external: 2 };
     view.rerender("v1", "r2"); // the answer is retired
     await act(async () => {});
-    expect(text()).toContain("Your transactions changed");
+    expect(text()).toContain("Your details changed");
     await act(async () => releaseDetails(snapshot({ kind: "rank-purchases", periods: [period({ purchases })] })));
     await act(async () => {});
     expect(document.querySelector("[role='dialog']")).toBeNull();
@@ -821,7 +866,7 @@ describe("the Ask the Vault card", () => {
     await act(async () => {});
     seen.push(text());
     expect(seen.some((s) => s.includes("$317.13"))).toBe(false);
-    expect(text()).toContain("Your transactions changed");
+    expect(text()).toContain("Your details changed");
   });
 
   it("if the freshness check itself fails, the answer is retired rather than trusted", async () => {
@@ -851,7 +896,7 @@ describe("the Ask the Vault card", () => {
     release(snapshot({ revision: { local: 99, external: 2 } })); // the old check finishes late with a different revision
     await act(async () => {});
     expect(text()).toContain("$317.13");
-    expect(text()).not.toContain("Your transactions changed");
+    expect(text()).not.toContain("Your details changed");
   });
 
   it("a failed read is reported in plain words with a way to retry", async () => {
@@ -936,6 +981,36 @@ describe("spending scenarios in the Ask the Vault card", () => {
     expect(document.body.textContent).toContain("no longer shown");
   });
 
+  // M6 UC-10 / LC-04: the same lifecycle mechanisms the savings-target matrix proves above, for the spending what-if (reload, roster and date changes, late replies, a changed source at consent).
+  for (const change of ["reload", "roster", "day"]) it(`retires a displayed scenario result immediately after ${change}`, async () => {
+    const ctx = structuredClone(context), client = fake(async () => baselineReply()), view = mount(client, { ctx });
+    await ask(question); await click("Show what I would save");
+    expect(document.querySelector(".scenario-total")).not.toBeNull();
+    if (change === "roster") ctx.categories = ctx.categories.filter(c => c !== "Dining");
+    if (change === "day") ctx.today = "2026-09-07";
+    view.rerender("v1", change === "reload" ? "r2" : "r1");
+    expect(document.querySelector(".scenario-total")).toBeNull(); expect(document.body.textContent).toContain("no longer shown");
+  });
+  for (const phase of ["source", "confirmation"]) for (const action of ["close", "reload", "unmount"]) it(`drops a late scenario ${phase} reply after ${action}`, async () => {
+    let release!: () => void;
+    const hold = () => new Promise<AskVaultSnapshotV2>(resolve => { release = () => resolve(baselineReply()); });
+    const client = fake(async () => baselineReply());
+    if (phase === "source") client.askVault.mockImplementationOnce(hold); else client.askVault.mockImplementationOnce(async () => baselineReply()).mockImplementationOnce(hold);
+    const view = mount(client); await ask(question);
+    if (phase === "confirmation") await click("Show what I would save");
+    expect(release).toBeTypeOf("function");
+    if (action === "close") await click([...document.querySelectorAll("button")].some(b => b.textContent === "Cancel") ? "Cancel" : "Close");
+    if (action === "reload") view.rerender("v1", "r2");
+    if (action === "unmount") { act(() => root.unmount()); expect(client.dispose).toHaveBeenCalled(); root = createRoot(container); }
+    await act(async () => release()); await settle();
+    expect(document.querySelector(".scenario-total")).toBeNull();
+    if (action === "reload") expect(document.body.textContent).toContain("no longer shown"); else expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+  it("refuses a confirmation whose native date moved", async () => {
+    const client = fake(async () => baselineReply()); mount(client); await ask(question);
+    client.askVault.mockImplementationOnce(async () => ({ ...baselineReply(), asOf: "2026-09-07" })); await click("Show what I would save");
+    expect(document.querySelector(".scenario-total")).toBeNull(); expect(document.body.textContent).toContain("no longer shown");
+  });
   it("cancels a pending scenario when a different question is submitted", async () => {
     let finish!: (reply: AskVaultSnapshotV2) => void;
     const client = fake(request => "contractVersion" in request && request.contractVersion === 2 ? new Promise(resolve => { finish = resolve; }) : Promise.resolve(snapshot()));

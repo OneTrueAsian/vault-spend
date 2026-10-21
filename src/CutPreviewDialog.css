@@ -14,3 +14,5 @@
 .cut-preview-results th, .cut-preview-results td { overflow-wrap: anywhere; }
 .cut-preview-category h3 { margin: 0 0 8px; font-size: 15px; }
 @media (max-width: 800px) { .cut-preview-controls { grid-template-columns: 1fr; gap: 0; } }
+/* A category name with no spaces made the "Allow up to 100%" button wider than the dialog (found by the M6 narrow-width check). */
+.cut-preview-category > .modal-secondary { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }

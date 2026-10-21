@@ -1,3 +1,4 @@
+import { CHANGED_BODY } from "./changedState";
 import { useEffect, useRef, useState } from "react";
 import { createFinancialClient } from "../financialReads";
 import type { ScenarioBaselineChoice, ScenarioChoiceAnswers, SpendingScenarioScreen } from "../SpendingScenarioDialog";
@@ -13,7 +14,7 @@ type Client = Pick<ReturnType<typeof createFinancialClient>, "askVault" | "dispo
 type Owner = { dataKey: unknown; reloadKey: unknown; context: string };
 type Pending = { question: string; owner: Owner; draft: SpendingScenarioDraft; intent?: SpendingScenarioIntent; baseline?: ScenarioBaseline };
 type View = { question: string; owner: Owner | null; screen: SpendingScenarioScreen | null; clarification: AskClarification | null };
-const CHANGED = "Your profile, transactions, names or date changed. Ask again using the current data.";
+const CHANGED = CHANGED_BODY;
 const fingerprint = (context: ParseContext) => JSON.stringify([context.today, context.categories, context.accounts, context.familyMembers]);
 
 /** Session-only scenario controller. No writes or persistence; every preview needs explicit source-bound confirmation. */

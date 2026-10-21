@@ -2,7 +2,7 @@
 //! aligned comparisons. Every expected number was added up by hand from the rows written in each test.
 use super::*;
 use crate::models::{AccountType, Transaction};
-use crate::store::{ask_comparison, AskAlignment, AskAverageKind, AskGroupBy, AskMonthCoverage, AskMonthCoverage::*, AskSpendFilter, AskSpendResult};
+use crate::store::{AskAlignment, AskAverageKind, AskGroupBy, AskMonthCoverage, AskMonthCoverage::*, AskSpendFilter, AskSpendResult, ask_comparison};
 
 fn account(store: &Store, name: &str) -> i64 {
     store.create_account(name, AccountType::Checking).unwrap().expect("new account")
@@ -224,7 +224,7 @@ fn family_household() -> (Store, i64, i64, i64) {
     }
     record(&store, joint, "2026-03-01", "KROGER", -9000, Some("Groceries"), Some(sam)); // Sam 90.00
     record(&store, joint, "2026-03-03", "SHELL", -5000, Some("Fuel"), Some(sam)); // Sam 50.00
-                                                                                  // 200.00 split 80.00 groceries / 120.00 shopping, recorded against Alex: all of it is Alex's.
+    // 200.00 split 80.00 groceries / 120.00 shopping, recorded against Alex: all of it is Alex's.
     let target = record(&store, joint, "2026-03-05", "TARGET", -20000, None, Some(alex));
     split(&store, target, &[("Groceries", -8000), ("Shopping", -12000)]);
     record(&store, joint, "2026-03-18", "PHARMACY", -2200, Some("Groceries"), None); // unassigned 22.00
@@ -336,24 +336,30 @@ fn grouping_by_member_lists_everyone_largest_first_and_adds_back() {
 #[test]
 fn members_must_exist_and_be_distinct() {
     let (store, sam, _, _) = family_household();
-    assert!(store
-        .ask_spending(&AskSpendFilter {
-            member_ids: vec![99],
-            ..march()
-        })
-        .is_err());
-    assert!(store
-        .ask_spending(&AskSpendFilter {
-            member_ids: vec![sam, sam],
-            ..march()
-        })
-        .is_err());
-    assert!(store
-        .ask_spending(&AskSpendFilter {
-            member_ids: vec![0],
-            ..march()
-        })
-        .is_err());
+    assert!(
+        store
+            .ask_spending(&AskSpendFilter {
+                member_ids: vec![99],
+                ..march()
+            })
+            .is_err()
+    );
+    assert!(
+        store
+            .ask_spending(&AskSpendFilter {
+                member_ids: vec![sam, sam],
+                ..march()
+            })
+            .is_err()
+    );
+    assert!(
+        store
+            .ask_spending(&AskSpendFilter {
+                member_ids: vec![0],
+                ..march()
+            })
+            .is_err()
+    );
 }
 
 #[test]
@@ -562,30 +568,36 @@ fn unequal_lengths_are_not_comparable() {
 
 #[test]
 fn an_aligned_comparison_must_be_exactly_the_alignment() {
-    assert!(compare(
-        AskAlignment::SameDaysPreviousMonth,
-        ("2026-03-01", "2026-03-30"),
-        ("2026-02-01", "2026-02-27"),
-        "1",
-        "1"
-    )
-    .is_err());
-    assert!(compare(
-        AskAlignment::SameDaysPreviousMonth,
-        ("2026-03-05", "2026-03-30"),
-        ("2026-02-05", "2026-02-28"),
-        "1",
-        "1"
-    )
-    .is_err());
-    assert!(compare(
-        AskAlignment::SameDaysPreviousYear,
-        ("2026-01-01", "2026-03-30"),
-        ("2025-01-01", "2025-03-29"),
-        "1",
-        "1"
-    )
-    .is_err());
+    assert!(
+        compare(
+            AskAlignment::SameDaysPreviousMonth,
+            ("2026-03-01", "2026-03-30"),
+            ("2026-02-01", "2026-02-27"),
+            "1",
+            "1"
+        )
+        .is_err()
+    );
+    assert!(
+        compare(
+            AskAlignment::SameDaysPreviousMonth,
+            ("2026-03-05", "2026-03-30"),
+            ("2026-02-05", "2026-02-28"),
+            "1",
+            "1"
+        )
+        .is_err()
+    );
+    assert!(
+        compare(
+            AskAlignment::SameDaysPreviousYear,
+            ("2026-01-01", "2026-03-30"),
+            ("2025-01-01", "2025-03-29"),
+            "1",
+            "1"
+        )
+        .is_err()
+    );
     let ok = compare(
         AskAlignment::SameDaysPreviousMonth,
         ("2026-01-01", "2026-01-20"),
@@ -668,12 +680,14 @@ fn a_split_by_family_member_is_refused_past_fifty_lines_rather_than_cut_off() {
         store.create_family_member(&format!("Person {i}")).unwrap();
     }
     // 50 people plus the unassigned line is 51 lines, which cannot be shown without leaving some out.
-    assert!(store
-        .ask_spending(&AskSpendFilter {
-            group_by: AskGroupBy::Member,
-            ..march()
-        })
-        .is_err());
+    assert!(
+        store
+            .ask_spending(&AskSpendFilter {
+                group_by: AskGroupBy::Member,
+                ..march()
+            })
+            .is_err()
+    );
     // Choosing a few people is fine however many the household has.
     let few = AskSpendFilter {
         group_by: AskGroupBy::Member,

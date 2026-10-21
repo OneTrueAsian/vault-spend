@@ -10,6 +10,10 @@ import { toLocalIsoDate } from "./format";
 import { validateAskVaultSnapshot, type AskKnownPeople } from "./askVault/contract";
 import type { AskVaultRequest, AskVaultRequestV2 } from "./askVault/types";
 import { validateBaselineBatchRequest, validateBaselineBatchSnapshot, type AskBaselineBatchRequest } from "./askVault/cutPreviewBatch";
+import {
+  validateRetirementContextWireRequest, validateRetirementRosterWireRequest, validateRetirementContextReply, validateRetirementRosterReply,
+  type RetirementContextWireRequest, type RetirementRosterWireRequest,
+} from "./askVault/retirementNativeContract";
 export function createFinancialClient() {
   const client = createTransactionClient();
   async function read<T extends { context: { generation: number; sessionRevision: number } }>(
@@ -26,6 +30,18 @@ export function createFinancialClient() {
     return result;
   }
   return {
+    askVaultRetirementAccounts: async (request: RetirementRosterWireRequest) => {
+      const captured = validateRetirementRosterWireRequest(request), today = toLocalIsoDate();
+      const result = await read("get_ask_vault_retirement_accounts", { request: captured }, value => validateRetirementRosterReply(value, captured, today));
+      if (toLocalIsoDate() !== today) throw new TransactionError("invalid_response", "The account list belongs to another date. Ask again.");
+      return result;
+    },
+    askVaultRetirementContext: async (request: RetirementContextWireRequest) => {
+      const captured = validateRetirementContextWireRequest(request), today = toLocalIsoDate();
+      const result = await read("get_ask_vault_retirement_context", { request: captured }, value => validateRetirementContextReply(value, captured, today));
+      if (toLocalIsoDate() !== today) throw new TransactionError("invalid_response", "The account details belong to another date. Ask again.");
+      return result;
+    },
     askVaultBaselines: async (request: AskBaselineBatchRequest) => {
       const captured = validateBaselineBatchRequest(request);
       const today = toLocalIsoDate();

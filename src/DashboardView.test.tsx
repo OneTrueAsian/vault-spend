@@ -134,6 +134,22 @@ describe("Dashboard header", () => {
     await render(props({ familyMembers }));
     expect(askContextMock.mock.lastCall?.[0]).toMatchObject({ familyMembers, members: ["Sam", "Robin"] });
   });
+  describe("Ask context investment accounts (M5 A1)", () => {
+    const mixed = [
+      account({ id: 1, name: "Everyday checking", account_type: "checking" }), account({ id: 2, name: "Roth IRA", account_type: "investment", institution: "Fidelity", mask: "1234", current_balance: "9999.00" }),
+      account({ id: 3, name: "Card", account_type: "credit" }), account({ id: 4, name: "Brokerage", account_type: "investment" }), account({ id: 5, name: "Rental", account_type: "other" }),
+    ];
+    it("lists only investment-type accounts, with ids and names and nothing else", async () => {
+      await render(props({ accounts: mixed }));
+      const context = askContextMock.mock.lastCall?.[0] as { investmentAccounts?: unknown; accounts: unknown };
+      expect(context.investmentAccounts).toStrictEqual([{ id: 2, name: "Roth IRA" }, { id: 4, name: "Brokerage" }]);
+      expect(context.accounts).toHaveLength(5);
+    });
+    it("is an empty list, not missing, when there are no investment accounts", async () => {
+      await render(props({ accounts: [account({})] }));
+      expect((askContextMock.mock.lastCall?.[0] as { investmentAccounts?: unknown }).investmentAccounts).toStrictEqual([]);
+    });
+  });
   it("keeps Ask the Vault as the full card directly under the title row (owner rule)", async () => {
     await render(props());
 

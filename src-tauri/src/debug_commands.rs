@@ -4,6 +4,107 @@
 //! kill this exact process, never one found by name (which could hit the owner's own installed copy).
 use tauri::Manager;
 
+// Uses the existing disposable-fixture boundary, and additionally refuses a relocated/external active profile.
+fn retirement_fixture_paths_allowed(directory: Option<&std::path::Path>, config_path: &std::path::Path, database: &std::path::Path) -> bool {
+    let Some(directory) = directory.and_then(|p| p.canonicalize().ok()).filter(|p| p.is_dir()) else {
+        return false;
+    };
+    let Some(config_directory) = config_path.parent().and_then(|p| p.canonicalize().ok()) else {
+        return false;
+    };
+    let Some(database) = database.canonicalize().ok().filter(|p| p.is_file()) else {
+        return false;
+    };
+    directory == config_directory && database.starts_with(&directory)
+}
+
+/// Authorizes only a debug fixture whose current profile still belongs to its managed data directory.
+/// Returns no paths, account data or capability to run arbitrary commands; the frontend hook rechecks every operation.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn debug_retirement_fixture_allowed(paths: tauri::State<crate::config::AppPaths>) -> bool {
+    let directory = std::env::var_os("VAULTSPEND_DB_DIR").map(std::path::PathBuf::from);
+    let database = paths.db_path.lock().unwrap_or_else(|e| e.into_inner());
+    retirement_fixture_paths_allowed(directory.as_deref(), &paths.config_path, &database)
+}
+
+#[cfg(test)]
+mod retirement_fixture_tests {
+    use super::retirement_fixture_paths_allowed;
+    use std::path::PathBuf;
+
+    struct Fixture(PathBuf);
+    impl Fixture {
+        fn new() -> Self {
+            let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+            let root = std::env::temp_dir().join(format!("vaultspend-retirement-guard-{}-{nonce}", std::process::id()));
+            std::fs::create_dir_all(root.join("profiles")).unwrap();
+            std::fs::write(root.join("vaultspend.db"), []).unwrap();
+            std::fs::write(root.join("profiles").join("second.db"), []).unwrap();
+            Self(root)
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            assert!(self.0.starts_with(std::env::temp_dir()));
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn retirement_fixture_allows_only_the_matching_disposable_root_and_its_current_database() {
+        let fixture = Fixture::new();
+        let root = &fixture.0;
+        assert!(retirement_fixture_paths_allowed(
+            Some(root),
+            &root.join("config.json"),
+            &root.join("vaultspend.db")
+        ));
+        assert!(retirement_fixture_paths_allowed(
+            Some(root),
+            &root.join("config.json"),
+            &root.join("profiles/second.db")
+        ));
+        assert!(retirement_fixture_paths_allowed(
+            Some(&root.join("profiles/..")),
+            &root.join("config.json"),
+            &root.join("vaultspend.db")
+        ));
+    }
+
+    #[test]
+    fn retirement_fixture_denies_no_env_missing_root_mismatched_config_and_relocated_database() {
+        let fixture = Fixture::new();
+        let other = Fixture::new();
+        let root = &fixture.0;
+        assert!(!retirement_fixture_paths_allowed(
+            None,
+            &root.join("config.json"),
+            &root.join("vaultspend.db")
+        ));
+        assert!(!retirement_fixture_paths_allowed(
+            Some(&root.join("missing")),
+            &root.join("config.json"),
+            &root.join("vaultspend.db")
+        ));
+        assert!(!retirement_fixture_paths_allowed(
+            Some(root),
+            &other.0.join("config.json"),
+            &root.join("vaultspend.db")
+        ));
+        assert!(!retirement_fixture_paths_allowed(
+            Some(root),
+            &root.join("config.json"),
+            &other.0.join("vaultspend.db")
+        ));
+        assert!(!retirement_fixture_paths_allowed(
+            Some(root),
+            &root.join("config.json"),
+            &root.join("missing.db")
+        ));
+    }
+}
+
 /// Runs the real reminder worker with only OS delivery replaced. No payloads are retained
 /// globally, and neither this command nor its caller is registered in release builds.
 #[cfg(debug_assertions)]

@@ -315,6 +315,8 @@ export function DashboardView({
       today: toLocalIsoDate(),
       categories,
       accounts: accounts.map((a) => ({ id: a.id, name: a.name })),
+      // Lets the card claim a retirement question that names an investment account. Never authorization: the native roster is read first.
+      investmentAccounts: accounts.filter((a) => groupOf(a.account_type) === "investment").map((a) => ({ id: a.id, name: a.name })),
       merchants: askMerchants,
       members: familyMembers.map((m) => m.name),
       familyMembers: familyMembers.map(({ id, name }) => ({ id, name })),

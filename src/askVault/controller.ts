@@ -1,5 +1,6 @@
 import type { createFinancialClient } from "../financialReads";
 import { transactionError } from "../transactionContracts";
+import { CHANGED_BODY } from "./changedState";
 import { renderAnswer, type AskVaultAnswer } from "./answer";
 import { parseQuestion } from "./parser";
 import type { AskClarification, AskDataRevision, AskMemberSelection, AskVaultRequest, AskVaultRequestV2, Correction, Interpretation, ParseContext } from "./types";
@@ -27,7 +28,6 @@ export type AskVaultResult =
   | { status: "error"; message: string };
 
 const PROFILE_MOVED = new Set(["stale_profile", "profile_locked", "no_profile_open", "superseded"]);
-const PROFILE_MESSAGE = "That question belongs to a profile that is no longer open. Ask it again.";
 const GENERIC_MESSAGE = "I couldn't answer that right now. Try again in a moment.";
 
 /** Read the same purchases behind an answer; grouping, averages and alignment do not apply to a purchase ranking. */
@@ -41,8 +41,8 @@ export function purchaseDetailsRequest(request: AskVaultRequest | AskVaultReques
 /** Turn any failure into a plain message, and say whether it means "this answer is no longer valid". */
 export function explainFailure(failure: unknown): { status: "stale" | "error"; message: string } {
   const error = transactionError(failure);
-  if (PROFILE_MOVED.has(error.code)) return { status: "stale", message: PROFILE_MESSAGE };
-  if (error.code === "stale_data") return { status: "stale", message: "Your transactions changed. Ask again using the current data." };
+  if (PROFILE_MOVED.has(error.code)) return { status: "stale", message: CHANGED_BODY };
+  if (error.code === "stale_data") return { status: "stale", message: CHANGED_BODY };
   if (error.code === "invalid_argument" || error.code === "invalid_response") return { status: "error", message: error.message };
   return { status: "error", message: GENERIC_MESSAGE };
 }

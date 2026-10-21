@@ -1,3 +1,4 @@
+import { CHANGED_BODY } from "./changedState";
 import { describe, expect, it, vi } from "vitest";
 import { askVault, purchaseDetailsRequest, type AskVaultClient } from "./controller";
 import type { AskVaultSnapshot } from "./contract";
@@ -98,7 +99,7 @@ describe("failures are plain and retire the answer", () => {
 
   it("stale data tells the person to ask again", async () => {
     const result = await askVault("groceries last month", context, clientFailing(new TransactionError("stale_data", "Your transactions changed. Ask again using the current data.")));
-    expect(result).toMatchObject({ status: "stale", message: "Your transactions changed. Ask again using the current data." });
+    expect(result).toMatchObject({ status: "stale", message: CHANGED_BODY });
   });
 
   it("an invalid_argument keeps the native plain-language message", async () => {

@@ -1,5 +1,5 @@
 //! Exact, read-only spending primitives for Ask the Vault. No question text or SQL is accepted.
-use super::{Store, LIVE_TRANSFER_LEG_IDS_SQL};
+use super::{LIVE_TRANSFER_LEG_IDS_SQL, Store};
 use chrono::{Datelike, Months, NaiveDate};
 use rusqlite::params;
 use rust_decimal::Decimal;

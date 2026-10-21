@@ -92,9 +92,37 @@ amounts separately. It is a local, read-only spending illustration, with no
 investment growth or automatic budget changes. Edits, data refresh, locking and
 profile changes retire the preview; questions and choices are not saved as history.
 
-For a fixed single-category what-if, use **"Cut Dining Out by $50 monthly"**,
-substituting one of your exact saved category names, then choose the dates in the app. The supported phrasing is bounded;
+For a fixed single-category what-if, use **"What if I cut Groceries by $50 a month?"**
+or **"Cut Dining Out by $50 monthly"**, substituting one of your exact saved category names, then choose the dates in the app.
+Wording such as **"Help me save $50 on Groceries each month"** works the same way. The review states the assumption in words
+(you spend that much less on that category), and it is a what-if, not advice, and never changes your budget. The supported phrasing is bounded;
 unresolved or unsupported conditions need a choice or a revised question.
+
+## Ask the Vault: extra money into an investment account
+
+On the Dashboard, try **"Extra $50 a month into Roth IRA until January 2056"**,
+using the name of one of your investment accounts. It looks at one investment
+account at a time: an extra monthly or one-time amount and a retirement month.
+Anything you leave out is asked as a choice, and your plan's saved month is only
+offered as a button, never chosen for you. You confirm the account's recorded
+value, the amount you add now and your plan's saved return once; without a saved
+return you still see the exact extra deposits and a no-growth balance, and can
+type a return of your own. If you write "Save $50 a month into Roth IRA" without saying the money is extra,
+it first asks "Do you mean adding an extra $50 a month to this account?", and a Yes continues with the same account, amount and dates.
+**Change the details** asks again for the account,
+amount, how often and the month. If the numbers would be too large to show exactly,
+you see "A few details need attention" and nothing is calculated; choose **Change the details**,
+then a nearer month or a smaller return, and confirm again.
+
+The result shows an illustrative balance at the retirement month, with and
+without the extra, with no investment growth and with your confirmed return;
+balances are rounded and the exact extra deposits are shown to the cent. You can
+explore other returns you choose, and show amounts in today's dollars using the
+inflation you confirm. These are illustrations, not predictions, and leave out
+taxes, fees, an employer match, contribution limits and advice. Nothing is saved
+or changed and the question is not kept. A related write, a new day, locking,
+profile switching or editing the question closes the result. Everything stays on
+your computer.
 
 ## Mobile snapshots
 

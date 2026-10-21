@@ -376,6 +376,17 @@ impl Store {
     /// was contributed). A linked transfer has one leg in each account, so it
     /// counts once, on the account it is read for.
     pub fn account_contributions(&self, account_id: i64, today: NaiveDate) -> rusqlite::Result<AccountContributions> {
+        self.account_contributions_in_window(account_id, today, None)
+    }
+
+    /// The same contribution authority with an optional aggregation window. First-deposit evidence still covers all
+    /// non-deleted deposits through today; totals/rows/counts cover only the chosen window. The ordinary caller is unchanged.
+    pub(super) fn account_contributions_in_window(
+        &self,
+        account_id: i64,
+        today: NaiveDate,
+        window: Option<(NaiveDate, NaiveDate)>,
+    ) -> rusqlite::Result<AccountContributions> {
         let mut stmt = self.conn.prepare(
             "SELECT date, amount FROM transactions
              WHERE account_id = ?1 AND date <= ?2 AND deleted_at IS NULL
@@ -395,11 +406,16 @@ impl Store {
             if amount.is_zero() {
                 continue;
             }
+            if amount > Decimal::ZERO {
+                first_deposit.get_or_insert(date);
+            }
+            if window.is_some_and(|(from, through)| date < from || date > through) {
+                continue;
+            }
             let entry = by_month.entry((date.year(), date.month())).or_default();
             if amount > Decimal::ZERO {
                 entry.0 += amount;
                 deposit_count += 1;
-                first_deposit.get_or_insert(date);
             } else {
                 entry.1 += -amount;
             }

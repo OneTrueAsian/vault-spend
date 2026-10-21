@@ -12,6 +12,7 @@
 import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth, monthFromNow } from "./lib/dates.mjs";
+import { runAskLayoutChecks } from "./lib/askLayoutChecks.mjs";
 
 // The dining-out spend is three months back; questions name its month and year ("July 2026") so the answer
 // never depends on which year a bare month name resolves to.
@@ -21,6 +22,7 @@ const dbDir = await seedFixture(`
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Everyday Checking', 'checking', '3000.00')")
 checking_id = cur.lastrowid
 cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Dining Out')")
+cur.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Groceries')")
 cur.execute(
     "INSERT INTO transactions (account_id, date, description, amount, category, fingerprint) VALUES (?, '${dateInMonth(-3, 5)}', 'Sushi Place', -60.00, 'Dining Out', 'fp1')",
     (checking_id,),
@@ -190,6 +192,41 @@ try {
   if (await app.browser.$(".scenario-total").getText() !== "$5.00") throw new Error("one-time saving must be exactly $5");
   await app.browser.keys("Escape");
   await app.browser.waitUntil(async () => !(await app.browser.$("[role='dialog']").isExisting()), { timeout: 5000 });
+  // M6 (owner decision D-S3-02): one-category saving wording reaches the same spending-cut review, and the review says what is assumed.
+  const saveInput = await app.browser.$(".ledger-qa-card input");
+  await saveInput.click();
+  await app.browser.keys(["Control", "a"]);
+  await app.browser.keys("Backspace");
+  await saveInput.addValue(`Help me save $5 on Dining Out once on ${dateInMonth(1, 15)}`);
+  await (await (await app.browser.$(".ledger-qa-card")).$("button=Ask")).click();
+  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Check these details"), { timeout: 8000, timeoutMsg: "a plain save phrase for one category should reach the spending-cut review" });
+  const saveReview = await (await app.browser.$("[role='dialog']")).getText();
+  if (!saveReview.includes("$95.00")) throw new Error(`the review must use the native baseline: ${saveReview}`);
+  if (!saveReview.includes("This assumes you spend $5.00 less on Dining Out once, on ") || !saveReview.includes("It is a what-if, not advice, and nothing in your budget changes.")) throw new Error(`the review must state the assumption: ${saveReview}`);
+  if (/invest|retire/i.test(saveReview)) throw new Error(`the review must not mention investing: ${saveReview}`);
+  await app.browser.keys("Escape");
+  await app.browser.waitUntil(async () => !(await app.browser.$("[role='dialog']").isExisting()), { timeout: 5000 });
+
+  // M6 (UC-08): the clickable spending-cut example fills the box with exactly its sentence and reaches the same flow.
+  await (await app.browser.$("button=Tips & examples")).click();
+  await (await app.browser.$("button=What if I cut Groceries by $50 a month?")).click();
+  if ((await (await app.browser.$(".ledger-qa-card input")).getValue()) !== "What if I cut Groceries by $50 a month?") throw new Error("the example must fill the box with exactly its sentence");
+  await (await (await app.browser.$(".ledger-qa-card")).$("button=Ask")).click();
+  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").isExisting()) && (await app.browser.$("[role='dialog']").getText()).includes("Groceries"), { timeout: 8000, timeoutMsg: "the example should open the spending-cut choices for Groceries" });
+  await app.browser.keys("Escape");
+  await app.browser.waitUntil(async () => !(await app.browser.$("[role='dialog']").isExisting()), { timeout: 5000 });
+  await (await app.browser.$("button=Hide tips")).click();
+
+  // M6 (UC-01): two of the twelve original examples, checked against values worked out here from the fixture, not from the app.
+  // Checking: 3000.00 starting balance - 60.00 sushi - 35.00 pizza - 30.00 recent groceries = 2875.00.
+  const checkingAnswer = await ask(app, "how much do I have in checking");
+  console.log("checking balance question:", checkingAnswer);
+  if (!checkingAnswer.includes("$2,875.00")) throw new Error(`expected the checking balance $2,875.00, got "${checkingAnswer}"`);
+  // This month so far has only the zero-dollar recording marker; last month has the one $30.00 grocery purchase.
+  const compareAnswer = await ask(app, "compare this month to last month");
+  console.log("compare question:", compareAnswer);
+  if (!compareAnswer.includes("$30.00") || !compareAnswer.includes("$0.00")) throw new Error(`expected $0.00 this month against $30.00 last month, got "${compareAnswer}"`);
+
   // M4 actual Dashboard route: no injected component, native three-month baseline, explicit confirmation.
   const cutInput = await app.browser.$(".ledger-qa-card input");
   await cutInput.click(); await app.browser.keys(["Control", "a"]); await app.browser.keys("Backspace");
@@ -228,7 +265,9 @@ try {
   await app.browser.$('button=Show the preview').click();
   await app.browser.$('.cut-preview-results').waitForExist({ timeout: 8000 });
   if (!(await app.browser.$("[role='dialog']").getText()).includes('Goal: $5.00 per month')) throw new Error('Natural question must reach the exact result');
-  console.log("FEATURE 41 E2E TEST PASSED");
 } finally {
   await app.close();
 }
+// M6 (D-S4-03): narrow widths, long names and the M3/M4 states no other compiled check reaches, on a second profile.
+await runAskLayoutChecks({ month: DINING_MONTH, sections: ["ordinary", "m3"] });
+console.log("FEATURE 41 E2E TEST PASSED");
