@@ -17,11 +17,13 @@
 // exist); only going through the Tauri CLI actually embeds the frontend.
 
 import { execFileSync, spawn } from "node:child_process";
-import net, { Socket } from "node:net";
+import net from "node:net";
 import { homedir } from "node:os";
 import { remote } from "webdriverio";
 import path from "node:path";
 import { isolatedTempEnv, makeTempDir, releaseTempDir } from "./lib/tempDir.mjs";
+import { settleWithin } from "./lib/settleWithin.mjs";
+import { waitForPort } from "./lib/waitForPort.mjs";
 
 export function cargoBin(env = process.env, home = homedir()) {
   return path.join(env.CARGO_HOME || path.join(home, ".cargo"), "bin");
@@ -94,22 +96,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function waitForPort(port, timeoutMs = 20000) {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const tryConnect = async () => {
-      const socket = new Socket();
-      socket.once("connect", () => { socket.destroy(); resolve(); });
-      socket.once("error", async () => {
-        socket.destroy();
-        if (Date.now() - start > timeoutMs) reject(new Error(`tauri-driver never opened port ${port}`));
-        else { await sleep(1000); tryConnect(); }
-      });
-      socket.connect(port, "127.0.0.1");
-    };
-    tryConnect();
-  });
-}
 
 // Every E2E run gets its own throwaway SQLite file — never the user's real
 // AppData database. Read by src-tauri/src/lib.rs via VAULTSPEND_DB_DIR.
@@ -610,21 +596,33 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
   } finally {
     clearTimeout(deadlineTimer);
   }
+  // Opt-in profiling output (VAULTSPEND_E2E_PHASES=1): where launch time went, for each phase marked above. Off by default.
+  const profilePhases = process.env.VAULTSPEND_E2E_PHASES === "1";
+  if (profilePhases) console.error(`[harness] launch phases: ${phases.join(" | ")} | total +${((Date.now() - launchStartedAt) / 1000).toFixed(2)}s`);
 
   return {
     browser,
     testDbDir,
     async close() {
+      const closeStartedAt = Date.now();
+      try {
+        await closeSession();
+      } finally {
+        if (profilePhases) console.error(`[harness] close took ${((Date.now() - closeStartedAt) / 1000).toFixed(2)}s`);
+      }
+    },
+  };
+
+  async function closeSession() {
+    {
       // Bounded: an app that died on its own (a spec's own process-kill test, or a genuine crash)
       // can leave tauri-driver waiting on a response that will never come — an unbounded await here
       // would hang this call (and so the whole spec) indefinitely instead of just leaking a little
       // slower. A real bug found running Task 9's own kill scenarios: they cost 90+s each before
       // this bound existed, and left tauri-driver/msedgedriver processes running afterward too,
       // since driverProcess.kill() below was never reached until the hung await gave up on its own.
-      await Promise.race([
-        browser.deleteSession().catch(() => {}),
-        new Promise((resolve) => setTimeout(resolve, 3000)),
-      ]);
+      // (settleWithin clears its timer: the old inline timeout kept every spec's process alive ~3 s after the session had closed.)
+      await settleWithin(browser.deleteSession().catch(() => {}), 3000);
       // The whole tree, not just tauri-driver: driverProcess.kill() left msedgedriver (and so the
       // WebView2 profile it holds open) running on its own.
       const exited = driverProcess.exitCode !== null ? Promise.resolve() : new Promise((resolve) => driverProcess.once("exit", resolve));
@@ -633,12 +631,10 @@ async function launchAppOnce({ dbDir, ready = ".brand-word", beforeReady, showLe
       // bounded so a driver that won't die can't hang the caller, but this
       // still stops a lingering tauri-driver/msedgedriver from outliving
       // the spec that started it.
-      let timer;
-      await Promise.race([exited, new Promise((resolve) => (timer = setTimeout(resolve, 3000)))]);
-      clearTimeout(timer);
+      await settleWithin(exited, 3000);
       releaseTempDir(launchTempDir);
-    },
-  };
+    }
+  }
 }
 
 // Launches the app and returns a driven session. A launch that stalls before the page loads (see
