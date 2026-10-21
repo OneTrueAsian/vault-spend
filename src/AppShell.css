@@ -426,7 +426,10 @@ svg.profile-switcher-icon {
   color: var(--text);
 }
 
+/* A containing block in every style: visually hidden (position: absolute) content inside a page is placed by this scroll area, not by the window.
+   Without it, Futuristic and Retro let such content lengthen the window itself, so scrolling past the page end scrolled the whole app away. */
 .main {
+  position: relative;
   flex: 1;
   min-width: 0;
   overflow-y: auto;
