@@ -1,0 +1,402 @@
+{
+ "m5q-m5c-001": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "question",
+   "annualPct": "6"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-003": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "100"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "question",
+   "annualPct": "7"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-004": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "once",
+   "amount": "5000"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "question",
+   "annualPct": "6"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-005": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "question",
+   "annualPct": "0"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-006": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "200"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "question",
+   "annualPct": "5"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-014": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "75"
+  },
+  "startDate": "today",
+  "retirementMonth": "2040-03",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-015": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50.50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-016": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "0"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-017": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-018": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-019": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-020": {
+  "family": "m5-extra-money",
+  "accountName": "Rothé IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-021": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "once",
+   "amount": "1000"
+  },
+  "startDate": "today",
+  "retirementMonth": "2045-12",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-022": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "once",
+   "amount": "500"
+  },
+  "startDate": "today",
+  "retirementMonth": "2026-09",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-023": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "once",
+   "amount": "250"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-024": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "100"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "question",
+   "annualPct": "0"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-025": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "100"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "question",
+   "annualPct": "6.5"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-026": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "100"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "question",
+   "annualPct": "-2"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-029": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "100"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-030": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-031": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-032": {
+  "family": "m5-extra-money",
+  "accountName": "Brokerage",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-038": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-039": {
+  "family": "m5-extra-money",
+  "accountName": "Save in 2050",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2055-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-066": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-067": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-068": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "1000000"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ },
+ "m5q-m5c-069": {
+  "family": "m5-extra-money",
+  "accountName": "Roth IRA",
+  "extra": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "startDate": "today",
+  "retirementMonth": "2050-06",
+  "returnChoice": {
+   "source": "saved-plan"
+  },
+  "displayUnit": "future-dollars"
+ }
+}

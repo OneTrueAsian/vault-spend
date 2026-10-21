@@ -1,0 +1,746 @@
+[
+ {
+  "id": "m4/monthly-0-percent",
+  "text": "Save $0 monthly across Dining and Groceries with Dining floor $0 and maximum cut 100% with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-0-percent",
+    "referenceId": "m4q-monthly-0-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-0-percent",
+    "referenceId": "m4q-monthly-0-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-0-percent",
+    "referenceId": "m4q-monthly-0-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-0-floor-percent",
+  "text": "Save $0 monthly across Dining and Groceries with Dining floor $10 and maximum cut 25% with Groceries floor $10 and maximum cut 25% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:floor-percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-0-floor-percent",
+    "referenceId": "m4q-monthly-0-floor-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-0-floor-percent",
+    "referenceId": "m4q-monthly-0-floor-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-0-floor-percent",
+    "referenceId": "m4q-monthly-0-floor-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-0-floor-money",
+  "text": "Save $0 monthly across Dining and Groceries with Dining floor $10 and maximum cut $25 with Groceries floor $10 and maximum cut $25 from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:floor-money",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-0-floor-money",
+    "referenceId": "m4q-monthly-0-floor-money-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-0-floor-money",
+    "referenceId": "m4q-monthly-0-floor-money-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-0-floor-money",
+    "referenceId": "m4q-monthly-0-floor-money-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-0.01-percent",
+  "text": "Save $0.01 monthly across Dining and Groceries with Dining floor $0 and maximum cut 100% with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-0.01-percent",
+    "referenceId": "m4q-monthly-0.01-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-0.01-percent",
+    "referenceId": "m4q-monthly-0.01-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-0.01-percent",
+    "referenceId": "m4q-monthly-0.01-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-0.01-floor-percent",
+  "text": "Save $0.01 monthly across Dining and Groceries with Dining floor $10 and maximum cut 25% with Groceries floor $10 and maximum cut 25% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:floor-percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-0.01-floor-percent",
+    "referenceId": "m4q-monthly-0.01-floor-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-0.01-floor-percent",
+    "referenceId": "m4q-monthly-0.01-floor-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-0.01-floor-percent",
+    "referenceId": "m4q-monthly-0.01-floor-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-0.01-floor-money",
+  "text": "Save $0.01 monthly across Dining and Groceries with Dining floor $10 and maximum cut $25 with Groceries floor $10 and maximum cut $25 from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:floor-money",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-0.01-floor-money",
+    "referenceId": "m4q-monthly-0.01-floor-money-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-0.01-floor-money",
+    "referenceId": "m4q-monthly-0.01-floor-money-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-0.01-floor-money",
+    "referenceId": "m4q-monthly-0.01-floor-money-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-50-percent",
+  "text": "Save $50 monthly across Dining and Groceries with Dining floor $0 and maximum cut 100% with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-50-percent",
+    "referenceId": "m4q-monthly-50-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-50-percent",
+    "referenceId": "m4q-monthly-50-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-50-percent",
+    "referenceId": "m4q-monthly-50-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-50-floor-percent",
+  "text": "Save $50 monthly across Dining and Groceries with Dining floor $10 and maximum cut 25% with Groceries floor $10 and maximum cut 25% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:floor-percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-50-floor-percent",
+    "referenceId": "m4q-monthly-50-floor-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-50-floor-percent",
+    "referenceId": "m4q-monthly-50-floor-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-50-floor-percent",
+    "referenceId": "m4q-monthly-50-floor-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-50-floor-money",
+  "text": "Save $50 monthly across Dining and Groceries with Dining floor $10 and maximum cut $25 with Groceries floor $10 and maximum cut $25 from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:floor-money",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-50-floor-money",
+    "referenceId": "m4q-monthly-50-floor-money-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-50-floor-money",
+    "referenceId": "m4q-monthly-50-floor-money-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-50-floor-money",
+    "referenceId": "m4q-monthly-50-floor-money-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-10000-percent",
+  "text": "Save $10000 monthly across Dining and Groceries with Dining floor $0 and maximum cut 100% with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-10000-percent",
+    "referenceId": "m4q-monthly-10000-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-10000-percent",
+    "referenceId": "m4q-monthly-10000-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-10000-percent",
+    "referenceId": "m4q-monthly-10000-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-10000-floor-percent",
+  "text": "Save $10000 monthly across Dining and Groceries with Dining floor $10 and maximum cut 25% with Groceries floor $10 and maximum cut 25% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:floor-percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-10000-floor-percent",
+    "referenceId": "m4q-monthly-10000-floor-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-10000-floor-percent",
+    "referenceId": "m4q-monthly-10000-floor-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-10000-floor-percent",
+    "referenceId": "m4q-monthly-10000-floor-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/monthly-10000-floor-money",
+  "text": "Save $10000 monthly across Dining and Groceries with Dining floor $10 and maximum cut $25 with Groceries floor $10 and maximum cut $25 from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:monthly-target",
+  "cluster": "m4:monthly:floor-money",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-monthly-10000-floor-money",
+    "referenceId": "m4q-monthly-10000-floor-money-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-monthly-10000-floor-money",
+    "referenceId": "m4q-monthly-10000-floor-money-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-monthly-10000-floor-money",
+    "referenceId": "m4q-monthly-10000-floor-money-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-0-percent",
+  "text": "Save $0 in total across Dining and Groceries with Dining floor $0 and maximum cut 100% with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-0-percent",
+    "referenceId": "m4q-total-0-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-0-percent",
+    "referenceId": "m4q-total-0-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-0-percent",
+    "referenceId": "m4q-total-0-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-0-floor-percent",
+  "text": "Save $0 in total across Dining and Groceries with Dining floor $10 and maximum cut 25% with Groceries floor $10 and maximum cut 25% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:floor-percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-0-floor-percent",
+    "referenceId": "m4q-total-0-floor-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-0-floor-percent",
+    "referenceId": "m4q-total-0-floor-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-0-floor-percent",
+    "referenceId": "m4q-total-0-floor-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-0-floor-money",
+  "text": "Save $0 in total across Dining and Groceries with Dining floor $10 and maximum cut $25 with Groceries floor $10 and maximum cut $25 from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:floor-money",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-0-floor-money",
+    "referenceId": "m4q-total-0-floor-money-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-0-floor-money",
+    "referenceId": "m4q-total-0-floor-money-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-0-floor-money",
+    "referenceId": "m4q-total-0-floor-money-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-0.01-percent",
+  "text": "Save $0.01 in total across Dining and Groceries with Dining floor $0 and maximum cut 100% with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-0.01-percent",
+    "referenceId": "m4q-total-0.01-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-0.01-percent",
+    "referenceId": "m4q-total-0.01-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-0.01-percent",
+    "referenceId": "m4q-total-0.01-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-0.01-floor-percent",
+  "text": "Save $0.01 in total across Dining and Groceries with Dining floor $10 and maximum cut 25% with Groceries floor $10 and maximum cut 25% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:floor-percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-0.01-floor-percent",
+    "referenceId": "m4q-total-0.01-floor-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-0.01-floor-percent",
+    "referenceId": "m4q-total-0.01-floor-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-0.01-floor-percent",
+    "referenceId": "m4q-total-0.01-floor-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-0.01-floor-money",
+  "text": "Save $0.01 in total across Dining and Groceries with Dining floor $10 and maximum cut $25 with Groceries floor $10 and maximum cut $25 from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:floor-money",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-0.01-floor-money",
+    "referenceId": "m4q-total-0.01-floor-money-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-0.01-floor-money",
+    "referenceId": "m4q-total-0.01-floor-money-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-0.01-floor-money",
+    "referenceId": "m4q-total-0.01-floor-money-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-50-percent",
+  "text": "Save $50 in total across Dining and Groceries with Dining floor $0 and maximum cut 100% with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-50-percent",
+    "referenceId": "m4q-total-50-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-50-percent",
+    "referenceId": "m4q-total-50-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-50-percent",
+    "referenceId": "m4q-total-50-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-50-floor-percent",
+  "text": "Save $50 in total across Dining and Groceries with Dining floor $10 and maximum cut 25% with Groceries floor $10 and maximum cut 25% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:floor-percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-50-floor-percent",
+    "referenceId": "m4q-total-50-floor-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-50-floor-percent",
+    "referenceId": "m4q-total-50-floor-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-50-floor-percent",
+    "referenceId": "m4q-total-50-floor-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-50-floor-money",
+  "text": "Save $50 in total across Dining and Groceries with Dining floor $10 and maximum cut $25 with Groceries floor $10 and maximum cut $25 from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:floor-money",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-50-floor-money",
+    "referenceId": "m4q-total-50-floor-money-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-50-floor-money",
+    "referenceId": "m4q-total-50-floor-money-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-50-floor-money",
+    "referenceId": "m4q-total-50-floor-money-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-10000-percent",
+  "text": "Save $10000 in total across Dining and Groceries with Dining floor $0 and maximum cut 100% with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-10000-percent",
+    "referenceId": "m4q-total-10000-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-10000-percent",
+    "referenceId": "m4q-total-10000-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-10000-percent",
+    "referenceId": "m4q-total-10000-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-10000-floor-percent",
+  "text": "Save $10000 in total across Dining and Groceries with Dining floor $10 and maximum cut 25% with Groceries floor $10 and maximum cut 25% from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:floor-percent",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-10000-floor-percent",
+    "referenceId": "m4q-total-10000-floor-percent-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-10000-floor-percent",
+    "referenceId": "m4q-total-10000-floor-percent-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-10000-floor-percent",
+    "referenceId": "m4q-total-10000-floor-percent-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m4/total-10000-floor-money",
+  "text": "Save $10000 in total across Dining and Groceries with Dining floor $10 and maximum cut $25 with Groceries floor $10 and maximum cut $25 from November through December 2026",
+  "population": "P-CORE",
+  "family": "m4:total-target",
+  "cluster": "m4:total:floor-money",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "origin-101-seed-101",
+    "requestId": "m4q-total-10000-floor-money",
+    "referenceId": "m4q-total-10000-floor-money-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "origin-101-seed-202",
+    "requestId": "m4q-total-10000-floor-money",
+    "referenceId": "m4q-total-10000-floor-money-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "origin-101-seed-303",
+    "requestId": "m4q-total-10000-floor-money",
+    "referenceId": "m4q-total-10000-floor-money-303",
+    "requiresConsent": true
+   }
+  ]
+ }
+]

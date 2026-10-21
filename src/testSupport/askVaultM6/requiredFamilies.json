@@ -1,0 +1,531 @@
+{
+  "version": "m6-required-families-2",
+  "preparedOn": "2026-10-21",
+  "preparedBy": "session bec4530a-cba4-40c4-b585-ecb9aed91bfa",
+  "purpose": "Authority-backed complete required-family inventory (Validation-Plan VP-07, Requirements-Checklist CG-03). The grader checks the caller list against this file and reports every family here, including zero-case families, never only the families present in cases.json.",
+  "openQuestions": [],
+  "crosswalk": [
+    {
+      "from": "m2:m1:*",
+      "to": "m1:*",
+      "condition": "only where the capability and counting obligations are unchanged"
+    },
+    {
+      "from": "m2:m1:comparison-threshold",
+      "to": "m2:comparison-threshold",
+      "condition": "the M2 comparison-threshold family; same capability, same counting key"
+    }
+  ],
+  "families": [
+    {
+      "id": "m1:total-category",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m1:total-all",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m1:account",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m1:rank-categories",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m1:rank-purchases",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m1:threshold",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m1:compare",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m1:store",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m1:several-stores",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m1:exclusions",
+      "milestone": "M1",
+      "authority": "M1/acceptance/acceptance.test.ts:123-127 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m2:several-categories",
+      "milestone": "M2",
+      "authority": "M2/acceptance/acceptance.test.ts:133-138 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m2:member",
+      "milestone": "M2",
+      "authority": "M2/acceptance/acceptance.test.ts:133-138 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m2:each-member",
+      "milestone": "M2",
+      "authority": "M2/acceptance/acceptance.test.ts:133-138 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m2:unassigned",
+      "milestone": "M2",
+      "authority": "M2/acceptance/acceptance.test.ts:133-138 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m2:by-month",
+      "milestone": "M2",
+      "authority": "M2/acceptance/acceptance.test.ts:133-138 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m2:average-month",
+      "milestone": "M2",
+      "authority": "M2/acceptance/acceptance.test.ts:133-138 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m2:average-purchase",
+      "milestone": "M2",
+      "authority": "M2/acceptance/acceptance.test.ts:133-138 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m2:same-days",
+      "milestone": "M2",
+      "authority": "M2/acceptance/acceptance.test.ts:133-138 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m2:comparison-threshold",
+      "milestone": "M2",
+      "authority": "M2/acceptance/acceptance.test.ts:133-138 (per-family direct rate); Family-Registry-Draft.json",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m3:monthly-money",
+      "milestone": "M3",
+      "authority": "M3/Contract.md:15 (monthly and one-time fixed amounts, monthly percentage); Corpus-Audit.md:107 (candidate subfamilies; membership still incomplete); owner decision Q2 (21 October 2026) confirms this family",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m3:monthly-percentage",
+      "milestone": "M3",
+      "authority": "M3/Contract.md:15 (monthly and one-time fixed amounts, monthly percentage); Corpus-Audit.md:107 (candidate subfamilies; membership still incomplete); owner decision Q2 (21 October 2026) confirms this family",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m3:one-time-money",
+      "milestone": "M3",
+      "authority": "M3/Contract.md:15 (monthly and one-time fixed amounts, monthly percentage); Corpus-Audit.md:107 (candidate subfamilies; membership still incomplete); owner decision Q2 (21 October 2026) confirms this family",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m4:monthly-target",
+      "milestone": "M4",
+      "authority": "M4/Contract.md:7 (target kind monthly or total); Corpus-Audit.md:107; owner decision Q2 (21 October 2026) confirms this family",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m4:total-target",
+      "milestone": "M4",
+      "authority": "M4/Contract.md:7 (target kind monthly or total); Corpus-Audit.md:107; owner decision Q2 (21 October 2026) confirms this family",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "Validation-Plan.md:116-125 (VP-07): gated completion family, 90 percent direct"
+    },
+    {
+      "id": "m5:monthly-extra",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:once-extra",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:return-wording",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass; 100% safe refusal (P-UNSAFE); 100% required refusal on every required seed, never an estimate (P-NR)",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion",
+        "refusal",
+        "numeric-boundary"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:inflation-wording",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:account-choice",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass; 100% required clarification with the frozen choice set (P-NC)",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion",
+        "clarification"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:close-name",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% required clarification with the frozen choice set (P-NC)",
+      "population": "P-NC",
+      "applicability": "applicable",
+      "outcomes": [
+        "clarification"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:quoted-name",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:missing-choice",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% required clarification with the frozen choice set (P-NC)",
+      "population": "P-NC",
+      "applicability": "applicable",
+      "outcomes": [
+        "clarification"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:date-wording",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% required clarification with the frozen choice set (P-NC); 100% safe refusal (P-UNSAFE)",
+      "population": "P-NC",
+      "applicability": "applicable",
+      "outcomes": [
+        "clarification",
+        "refusal"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:future-start",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% required clarification with the frozen choice set (P-NC)",
+      "population": "P-NC",
+      "applicability": "applicable",
+      "outcomes": [
+        "clarification"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:unsupported-scope",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% safe refusal (P-UNSAFE)",
+      "population": "P-UNSAFE",
+      "applicability": "applicable",
+      "outcomes": [
+        "refusal"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:unsupported-advice",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% safe refusal (P-UNSAFE)",
+      "population": "P-UNSAFE",
+      "applicability": "applicable",
+      "outcomes": [
+        "refusal"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:interacting-clause",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% safe refusal (P-UNSAFE)",
+      "population": "P-UNSAFE",
+      "applicability": "applicable",
+      "outcomes": [
+        "refusal"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:boundary",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass; 100% safe refusal (P-UNSAFE)",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion",
+        "refusal"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:route-elsewhere",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% route non-interference: older routes keep the question (no M5 claim)",
+      "population": "P-UNSAFE",
+      "applicability": "applicable",
+      "outcomes": [
+        "routing"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:negation",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": ">=90% direct (P-CORE), small family: every case must pass",
+      "population": "P-CORE",
+      "applicability": "applicable",
+      "outcomes": [
+        "completion"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:follow-up",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% route non-interference: older routes keep the question (no M5 claim)",
+      "population": "P-UNSAFE",
+      "applicability": "applicable",
+      "outcomes": [
+        "routing"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    },
+    {
+      "id": "m5:original-clarify",
+      "milestone": "M5",
+      "authority": "src/askVault/retirementCorpus.ts:31 (CorpusFamily) and :220-250 (retirementScoringPlan); RETIREMENT_GATES.section3.perFamilyCoverage",
+      "gate": "100% required clarification with the frozen choice set (P-NC)",
+      "population": "P-NC",
+      "applicability": "applicable",
+      "outcomes": [
+        "clarification"
+      ],
+      "outcomeAuthority": "src/askVault/retirementCorpus.ts:220-250 retirementScoringPlan() family counts (completionApplicable, draftsNeedingChoices, necessaryClarifications, refusals, numericBoundaryRefusals, routeElsewhere); owner decision Q2"
+    }
+  ],
+  "confirmedBy": "Owner decision Q2, 21 October 2026: M3 monthly-money, monthly-percentage, one-time-money; M4 monthly-target, total-target; conditional crosswalk; M5 outcome requirements follow retirementScoringPlan()."
+}

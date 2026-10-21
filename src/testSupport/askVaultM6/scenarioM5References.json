@@ -1,0 +1,1854 @@
+{
+ "version": "m6-scenario-m5-references-1",
+ "writtenBy": "session bec4530a-cba4-40c4-b585-ecb9aed91bfa, 2026-10-21",
+ "references": {
+  "m5r-m5c-001-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 167000,
+     "with": 199000,
+     "difference": 31000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-001",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-001-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-001",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-001-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 143000,
+     "with": 175000,
+     "difference": 31000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-001",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-003-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 96000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 271000,
+     "difference": 73000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-003",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-003-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 74000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 122000,
+     "with": 195000,
+     "difference": 73000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-003",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-003-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 86000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 169000,
+     "with": 242000,
+     "difference": 73000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-003",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-004-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "5000.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 72000,
+     "difference": 5000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 167000,
+     "with": 188000,
+     "difference": 21000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-004",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-004-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "5000.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 50000,
+     "difference": 5000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 125000,
+     "difference": 21000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-004",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-004-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "5000.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 63000,
+     "difference": 5000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 143000,
+     "with": 164000,
+     "difference": 21000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-004",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-005-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "0",
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-005",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-005-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "0",
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-005",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-005-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "0",
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-005",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-006-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "57000.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 124000,
+     "difference": 57000
+    },
+    "confirmedReturn": {
+     "annualPct": "5",
+     "without": 142000,
+     "with": 251000,
+     "difference": 109000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-006",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-006-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "57000.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 102000,
+     "difference": 57000
+    },
+    "confirmedReturn": {
+     "annualPct": "5",
+     "without": 90000,
+     "with": 199000,
+     "difference": 109000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-006",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-006-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "57000.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 115000,
+     "difference": 57000
+    },
+    "confirmedReturn": {
+     "annualPct": "5",
+     "without": 122000,
+     "with": 231000,
+     "difference": 109000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-006",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-014-101": {
+   "value": {
+    "months": 162,
+    "extraDeposits": "12150.00",
+    "noGrowth": {
+     "without": 42000,
+     "with": 55000,
+     "difference": 12000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 79000,
+     "with": 99000,
+     "difference": 20000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-014",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-014-202": {
+   "value": {
+    "months": 162,
+    "extraDeposits": "12150.00",
+    "noGrowth": {
+     "without": 27000,
+     "with": 39000,
+     "difference": 12000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 43000,
+     "with": 62000,
+     "difference": 19000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-014",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-014-303": {
+   "value": {
+    "months": 162,
+    "extraDeposits": "12150.00",
+    "noGrowth": {
+     "without": 36000,
+     "with": 49000,
+     "difference": 12000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 71000,
+     "with": 92000,
+     "difference": 21000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-014",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-015-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14392.50",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 235000,
+     "difference": 37000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-015",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-015-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14392.50",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 32000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-015",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-015-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14392.50",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 40000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-015",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-016-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "0.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 67000,
+     "difference": 0
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 198000,
+     "difference": 0
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-016",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-016-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "0.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 45000,
+     "difference": 0
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 105000,
+     "difference": 0
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-016",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-016-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "0.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 58000,
+     "difference": 0
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 185000,
+     "difference": 0
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-016",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-017-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 234000,
+     "difference": 36000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-017",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-017-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-017",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-017-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 39000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-017",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-018-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 234000,
+     "difference": 36000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-018",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-018-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-018",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-018-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 39000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-018",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-019-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 234000,
+     "difference": 36000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-019",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-019-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-019",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-019-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 39000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-019",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-020-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 30000,
+     "with": 44000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "5",
+     "without": 59000,
+     "with": 87000,
+     "difference": 27000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-11",
+   "requestId": "m5q-m5c-020",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-11",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-020-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 36000,
+     "with": 50000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6.5",
+     "without": 89000,
+     "with": 122000,
+     "difference": 34000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-11",
+   "requestId": "m5q-m5c-020",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-11",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-020-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 27000,
+     "with": 42000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "4.5",
+     "without": 51000,
+     "with": 76000,
+     "difference": 25000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-11",
+   "requestId": "m5q-m5c-020",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-11",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-021-101": {
+   "value": {
+    "months": 231,
+    "extraDeposits": "1000.00",
+    "noGrowth": {
+     "without": 56000,
+     "with": 57000,
+     "difference": 1000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 135000,
+     "with": 139000,
+     "difference": 3800
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-021",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-021-202": {
+   "value": {
+    "months": 231,
+    "extraDeposits": "1000.00",
+    "noGrowth": {
+     "without": 37000,
+     "with": 38000,
+     "difference": 1000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 73000,
+     "with": 76000,
+     "difference": 3200
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-021",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-021-303": {
+   "value": {
+    "months": 231,
+    "extraDeposits": "1000.00",
+    "noGrowth": {
+     "without": 48000,
+     "with": 49000,
+     "difference": 1000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 124000,
+     "with": 128000,
+     "difference": 4200
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-021",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-022-101": {
+   "value": {
+    "months": 0,
+    "extraDeposits": "500.00",
+    "noGrowth": {
+     "without": 10000,
+     "with": 11000,
+     "difference": 500
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 10000,
+     "with": 11000,
+     "difference": 500
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-022",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-022-202": {
+   "value": {
+    "months": 0,
+    "extraDeposits": "500.00",
+    "noGrowth": {
+     "without": 2500,
+     "with": 3000,
+     "difference": 500
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 2500,
+     "with": 3000,
+     "difference": 500
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-022",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-022-303": {
+   "value": {
+    "months": 0,
+    "extraDeposits": "500.00",
+    "noGrowth": {
+     "without": 8000,
+     "with": 8500,
+     "difference": 500
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 8000,
+     "with": 8500,
+     "difference": 500
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-022",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-023-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 67000,
+     "difference": 250
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 199000,
+     "difference": 1300
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-023",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-023-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 46000,
+     "difference": 250
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 106000,
+     "difference": 1000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-023",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-023-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 58000,
+     "difference": 250
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 186000,
+     "difference": 1500
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-023",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-024-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 96000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "0",
+     "without": 67000,
+     "with": 96000,
+     "difference": 29000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-024",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-024-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 74000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "0",
+     "without": 45000,
+     "with": 74000,
+     "difference": 29000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-024",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-024-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 86000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "0",
+     "without": 58000,
+     "with": 86000,
+     "difference": 29000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-024",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-025-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 96000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "6.5",
+     "without": 182000,
+     "with": 249000,
+     "difference": 68000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-025",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-025-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 74000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "6.5",
+     "without": 113000,
+     "with": 181000,
+     "difference": 68000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-025",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-025-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 86000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "6.5",
+     "without": 156000,
+     "with": 223000,
+     "difference": 68000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-025",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-026-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 96000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "-2",
+     "without": 52000,
+     "with": 74000,
+     "difference": 23000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-026",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-026-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 74000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "-2",
+     "without": 36000,
+     "with": 58000,
+     "difference": 23000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-026",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-026-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 86000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "-2",
+     "without": 45000,
+     "with": 67000,
+     "difference": 23000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-026",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-029-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 96000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 271000,
+     "difference": 73000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-029",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-029-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 74000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 168000,
+     "difference": 63000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-029",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-029-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "28500.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 86000,
+     "difference": 29000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 263000,
+     "difference": 78000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-029",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-030-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 234000,
+     "difference": 36000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-030",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-030-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-030",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-030-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 39000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-030",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-031-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 234000,
+     "difference": 36000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-031",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-031-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-031",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-031-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 39000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-031",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-032-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 111000,
+     "with": 125000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 292000,
+     "with": 324000,
+     "difference": 31000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-8",
+   "requestId": "m5q-m5c-032",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-8",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-032-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 83000,
+     "with": 98000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "5.5",
+     "without": 190000,
+     "with": 220000,
+     "difference": 29000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-8",
+   "requestId": "m5q-m5c-032",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-8",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-032-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 132000,
+     "with": 146000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6.5",
+     "without": 354000,
+     "with": 388000,
+     "difference": 34000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-8",
+   "requestId": "m5q-m5c-032",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-8",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-038-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 234000,
+     "difference": 36000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-038",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-038-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-038",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-038-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 39000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-038",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-039-101": {
+   "value": {
+    "months": 345,
+    "extraDeposits": "17250.00",
+    "noGrowth": {
+     "without": 19000,
+     "with": 37000,
+     "difference": 17000
+    },
+    "confirmedReturn": {
+     "annualPct": "4",
+     "without": 39000,
+     "with": 71000,
+     "difference": 32000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-9",
+   "requestId": "m5q-m5c-039",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-9",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-039-202": {
+   "value": {
+    "months": 345,
+    "extraDeposits": "17250.00",
+    "noGrowth": {
+     "without": 28000,
+     "with": 45000,
+     "difference": 17000
+    },
+    "confirmedReturn": {
+     "annualPct": "3.5",
+     "without": 50000,
+     "with": 80000,
+     "difference": 30000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-9",
+   "requestId": "m5q-m5c-039",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-9",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-039-303": {
+   "value": {
+    "months": 345,
+    "extraDeposits": "17250.00",
+    "noGrowth": {
+     "without": 23000,
+     "with": 40000,
+     "difference": 17000
+    },
+    "confirmedReturn": {
+     "annualPct": "5.5",
+     "without": 60000,
+     "with": 102000,
+     "difference": 42000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-9",
+   "requestId": "m5q-m5c-039",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-9",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-066-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 234000,
+     "difference": 36000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-066",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-066-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-066",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-066-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 39000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-066",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-067-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 234000,
+     "difference": 36000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-067",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-067-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-067",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-067-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 39000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-067",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-068-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "285000000.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 285067000,
+     "difference": 285000000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 728267000,
+     "difference": 728069000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-068",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-068-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "285000000.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 285045000,
+     "difference": 285000000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 628729000,
+     "difference": 628624000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-068",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-068-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "285000000.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 285058000,
+     "difference": 285000000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 784897000,
+     "difference": 784712000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-068",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-069-101": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 67000,
+     "with": 81000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7",
+     "without": 198000,
+     "with": 234000,
+     "difference": 36000
+    }
+   },
+   "seed": 101,
+   "contextId": "m6-m5-seed-101-account-5",
+   "requestId": "m5q-m5c-069",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-101-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-069-202": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 45000,
+     "with": 60000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "6",
+     "without": 105000,
+     "with": 136000,
+     "difference": 31000
+    }
+   },
+   "seed": 202,
+   "contextId": "m6-m5-seed-202-account-5",
+   "requestId": "m5q-m5c-069",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-202-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  },
+  "m5r-m5c-069-303": {
+   "value": {
+    "months": 285,
+    "extraDeposits": "14250.00",
+    "noGrowth": {
+     "without": 58000,
+     "with": 72000,
+     "difference": 14000
+    },
+    "confirmedReturn": {
+     "annualPct": "7.5",
+     "without": 185000,
+     "with": 224000,
+     "difference": 39000
+    }
+   },
+   "seed": 303,
+   "contextId": "m6-m5-seed-303-account-5",
+   "requestId": "m5q-m5c-069",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#m6-m5-seed-303-account-5",
+   "calculation": "independent exact model (src/testSupport/askVaultM6/m5Model.ts): JavaScript projection, not native"
+  }
+ }
+}

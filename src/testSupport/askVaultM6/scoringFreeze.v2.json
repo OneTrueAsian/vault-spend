@@ -1,0 +1,60 @@
+{
+  "version": "m6-ordinary-scoring-freeze-2",
+  "status": "PARTIAL",
+  "countingKey": "count-key-v1",
+  "signedOn": "2026-10-21",
+  "supersedes": {
+    "version": "m6-ordinary-scoring-freeze-1",
+    "file": "scoringFreeze.v1.json",
+    "sha256": "d5d4e81ce93e0fa1ddaddc9c838f6a3d9268c9f465ac8bde64493a5b445ce586"
+  },
+  "preparedAndSignedBy": "Claude session bec4530a-cba4-40c4-b585-ecb9aed91bfa (owner-instructed validation-gap remediation, Ownership section 12). Prepared and signed by the same session that wrote the changes; Roles A and B remain combined.",
+  "disclosure": "The same session prepared, changed and signs this version; no other session reviewed it. Cross-review by a different session is still available and unperformed. Version 1 is preserved unchanged. Version 2 adds the authority-backed required-family registry, the native-evidence verifier, the identity manifest and the retained proof copy; it changes the grader and its input types only to bind grading to them. Gates, original corpus texts, golds, labels, amendments, receipts and memberships are unchanged (see scoringFreeze.test.ts). A local freeze cannot waive an approved gate.",
+  "typoClassificationLock": null,
+  "typoClassificationLockReason": "Validation-Plan V-U3: the numeric distance and margin policy for typo and did-you-mean classification is not an approved rule and is not invented here. The flagged batch (parallel/agent-a/Flagged-Clarifications.json, 30 rows, 17 distinct texts) needs an owner disposition before the affected populations are graded.",
+  "notCovered": [
+    "M3 spending-scenario families: no M6 case, full intended request, separate expected result or native-linked reference yet; the registry lists m3:monthly-money, m3:monthly-percentage and m3:one-time-money as NOT MEASURED",
+    "M4 savings-target families: no linked natural-language cases or native seed map; m4:monthly-target and m4:total-target are NOT MEASURED",
+    "M5 retirement families: the retained 87 rows are not yet converted to M6 cases/contexts/references; all 18 m5 families are NOT MEASURED",
+    "P-ID (insufficient history) and P-NR (numeric-boundary refusal, m5c-027) populations: zero cases",
+    "The four scenario references (anchor.*) are hand-worked anchors, not native evidence. Native context proof and JavaScript calculation proof are not yet distinguished for scenario flows.",
+    "The advertised-example and Help result mapping is separate from this freeze."
+  ],
+  "zeroCaseFamilies": "Every applicable M3, M4 and M5 family is NOT MEASURED until cases exist; this blocks M6 closure (Validation-Plan VP-07). The grader reports all registry families, not only those present in cases.json.",
+  "files": {
+    "cases.json": "5e3db9dee47463d737b0f98231591c32e6e85064adf4d5282ebbed1ab4c47522",
+    "contexts.json": "96d9e2043998147bdcd5332fdc2f19647808e9a27d0c8fda5f60523a1756e96c",
+    "expectedRequests.json": "c321f4a84a7f413407a7574ba6544d3aea78b9c4b14927be45383f15e30c29d1",
+    "referenceResults.json": "5233e1432cf4c9c5f40d5f5236e40e94baf53463eb776771cf1a3c0cfe0856e9",
+    "provenance.json": "49b0e17da4299e4518f3024cc9ec9f28cae089af28b304fed928b4ff6ad3145e",
+    "manifest.ts": "188f4dab854add0045fa195d6164fbbbeddb5b6c68ec09615e2a92a6f4d70aec",
+    "counting.ts": "310892139d9c18032d4cff726a9ebb181ffd7573caa0e1729d066c7d506d4296",
+    "grader.ts": "990e3338956a6131257ab0b668761e4e253bff5c0864337b13a8eb6f4b3926e5",
+    "referenceCalendar.ts": "feda1b1c901ff1040ad57109dde551f95dedfa983e8c0d15bb3d0ade59234cb4",
+    "referenceContract.ts": "2d14db0d5a0b4c4b5eaaaae8971395d3f486977f2257fbae9a61733d8a93a08d",
+    "referenceOracle.ts": "4b285545986b7f5fa467485bdc127feb4a211a0b79744ecd420fd357458bae45",
+    "referenceWorld.ts": "78b6f3c37cabf99bb3b24e5d3f47b337c6c5bf3edc7ca7a57043ac1afe5f420b",
+    "nativeEvidence.ts": "8ccea6db1b531dd14a96b70f5e72ba39d1808b1c312b5760dcf96c9677abca7f",
+    "registry.ts": "6955be76c9ffa829ea5a535f2fc9f96b40e7a4768ecc7d5d5c53132002703873",
+    "requiredFamilies.json": "4d5894ab5bfcf813a1719b80192a22459a884f5a629b29161112aa1eb993bf24",
+    "nativeEvidenceManifest.json": "66fdbcf57218b20a8ef5a2b32b3ee40ec3bda5b31a196e959d7264262038178a",
+    "nativeProofs/native-proof-ordinary.json": "17f4d55bf53c7d4c78336ae25389b3039e61ce340405d8b832bb23eb6b30fd4d"
+  },
+  "populationLabels": {
+    "cases": 2159,
+    "sha256": "b50bcd87b74b20a1e73bc45c864a075d622899985f70af16e4ef680ee907d596"
+  },
+  "familyRegistry": {
+    "families": 47,
+    "sha256": "289321757ae4baa5a742b274f539c92e99a98fc14b056c427780d723fa0cd1cc"
+  },
+  "requiredFamilyRegistry": {
+    "families": 42,
+    "sha256": "9991f8cb7cf5b6a092653f659a8a420c9cca581f48a393fd0650b5aae99b7b78"
+  },
+  "seedContextMembership": {
+    "cases": 2159,
+    "requirements": 6477,
+    "sha256": "88d7c9defb8786affff946f703ee4afa2b5a428d2c645fc1d1830cc39724b3fc"
+  }
+}

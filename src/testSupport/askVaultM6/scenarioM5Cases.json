@@ -1,0 +1,870 @@
+[
+ {
+  "id": "m5/m5c-001",
+  "text": "How much would my Roth IRA balance increase if I saved an extra $50 per month until June 2050, assuming 6% a year",
+  "population": "P-CORE",
+  "family": "m5:monthly-extra",
+  "cluster": "m5:monthly-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-001",
+    "referenceId": "m5r-m5c-001-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-001",
+    "referenceId": "m5r-m5c-001-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-001",
+    "referenceId": "m5r-m5c-001-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-003",
+  "text": "extra $100 per month into my Roth IRA until June 2050 at 7%",
+  "population": "P-CORE",
+  "family": "m5:return-wording",
+  "cluster": "m5:return-wording",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-003",
+    "referenceId": "m5r-m5c-003-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-003",
+    "referenceId": "m5r-m5c-003-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-003",
+    "referenceId": "m5r-m5c-003-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-004",
+  "text": "what if I add a one-time $5,000 to my Roth IRA now, retiring June 2050 at 6%",
+  "population": "P-CORE",
+  "family": "m5:once-extra",
+  "cluster": "m5:once-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-004",
+    "referenceId": "m5r-m5c-004-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-004",
+    "referenceId": "m5r-m5c-004-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-004",
+    "referenceId": "m5r-m5c-004-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-005",
+  "text": "extra $50 a month into the Roth IRA until June 2050 with no growth",
+  "population": "P-CORE",
+  "family": "m5:return-wording",
+  "cluster": "m5:return-wording",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-005",
+    "referenceId": "m5r-m5c-005-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-005",
+    "referenceId": "m5r-m5c-005-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-005",
+    "referenceId": "m5r-m5c-005-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-006",
+  "text": "an extra $200 per month in my Roth IRA until June 2050 at 5%",
+  "population": "P-CORE",
+  "family": "m5:monthly-extra",
+  "cluster": "m5:monthly-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-006",
+    "referenceId": "m5r-m5c-006-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-006",
+    "referenceId": "m5r-m5c-006-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-006",
+    "referenceId": "m5r-m5c-006-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-014",
+  "text": "what if I add $75 a month to my Roth IRA until March 2040",
+  "population": "P-CORE",
+  "family": "m5:monthly-extra",
+  "cluster": "m5:monthly-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-014",
+    "referenceId": "m5r-m5c-014-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-014",
+    "referenceId": "m5r-m5c-014-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-014",
+    "referenceId": "m5r-m5c-014-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-015",
+  "text": "extra $50.50 per month to the Roth IRA until June 2050",
+  "population": "P-CORE",
+  "family": "m5:monthly-extra",
+  "cluster": "m5:monthly-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-015",
+    "referenceId": "m5r-m5c-015-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-015",
+    "referenceId": "m5r-m5c-015-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-015",
+    "referenceId": "m5r-m5c-015-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-016",
+  "text": "extra $0 a month into my Roth IRA until June 2050",
+  "population": "P-CORE",
+  "family": "m5:monthly-extra",
+  "cluster": "m5:monthly-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-016",
+    "referenceId": "m5r-m5c-016-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-016",
+    "referenceId": "m5r-m5c-016-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-016",
+    "referenceId": "m5r-m5c-016-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-017",
+  "text": "an extra $50 every month into Roth IRA through 2050-06",
+  "population": "P-CORE",
+  "family": "m5:monthly-extra",
+  "cluster": "m5:monthly-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-017",
+    "referenceId": "m5r-m5c-017-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-017",
+    "referenceId": "m5r-m5c-017-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-017",
+    "referenceId": "m5r-m5c-017-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-018",
+  "text": "Add $50/month to my Roth IRA until Jun 2050",
+  "population": "P-CORE",
+  "family": "m5:monthly-extra",
+  "cluster": "m5:monthly-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-018",
+    "referenceId": "m5r-m5c-018-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-018",
+    "referenceId": "m5r-m5c-018-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-018",
+    "referenceId": "m5r-m5c-018-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-019",
+  "text": "EXTRA $50 A MONTH INTO MY ROTH IRA UNTIL JUNE 2050",
+  "population": "P-CORE",
+  "family": "m5:monthly-extra",
+  "cluster": "m5:monthly-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-019",
+    "referenceId": "m5r-m5c-019-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-019",
+    "referenceId": "m5r-m5c-019-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-019",
+    "referenceId": "m5r-m5c-019-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-020",
+  "text": "extra $50 a month into my Rothé IRA until June 2050",
+  "population": "P-CORE",
+  "family": "m5:monthly-extra",
+  "cluster": "m5:monthly-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-11",
+    "requestId": "m5q-m5c-020",
+    "referenceId": "m5r-m5c-020-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-11",
+    "requestId": "m5q-m5c-020",
+    "referenceId": "m5r-m5c-020-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-11",
+    "requestId": "m5q-m5c-020",
+    "referenceId": "m5r-m5c-020-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-021",
+  "text": "if I put in $1,000 once into my Roth IRA now, retiring December 2045",
+  "population": "P-CORE",
+  "family": "m5:once-extra",
+  "cluster": "m5:once-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-021",
+    "referenceId": "m5r-m5c-021-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-021",
+    "referenceId": "m5r-m5c-021-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-021",
+    "referenceId": "m5r-m5c-021-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-022",
+  "text": "a one-time $500 deposit to my Roth IRA now, retiring September 2026",
+  "population": "P-CORE",
+  "family": "m5:once-extra",
+  "cluster": "m5:once-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-022",
+    "referenceId": "m5r-m5c-022-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-022",
+    "referenceId": "m5r-m5c-022-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-022",
+    "referenceId": "m5r-m5c-022-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-023",
+  "text": "one time $250 into my Roth IRA until June 2050",
+  "population": "P-CORE",
+  "family": "m5:once-extra",
+  "cluster": "m5:once-extra",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-023",
+    "referenceId": "m5r-m5c-023-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-023",
+    "referenceId": "m5r-m5c-023-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-023",
+    "referenceId": "m5r-m5c-023-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-024",
+  "text": "extra $100 a month into my Roth IRA until June 2050 at 0%",
+  "population": "P-CORE",
+  "family": "m5:return-wording",
+  "cluster": "m5:return-wording",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-024",
+    "referenceId": "m5r-m5c-024-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-024",
+    "referenceId": "m5r-m5c-024-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-024",
+    "referenceId": "m5r-m5c-024-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-025",
+  "text": "extra $100 a month into my Roth IRA until June 2050 at 6.5% a year",
+  "population": "P-CORE",
+  "family": "m5:return-wording",
+  "cluster": "m5:return-wording",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-025",
+    "referenceId": "m5r-m5c-025-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-025",
+    "referenceId": "m5r-m5c-025-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-025",
+    "referenceId": "m5r-m5c-025-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-026",
+  "text": "extra $100 a month into my Roth IRA until June 2050 at -2% a year",
+  "population": "P-CORE",
+  "family": "m5:return-wording",
+  "cluster": "m5:return-wording",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-026",
+    "referenceId": "m5r-m5c-026-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-026",
+    "referenceId": "m5r-m5c-026-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-026",
+    "referenceId": "m5r-m5c-026-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-029",
+  "text": "extra $100 a month into my Roth IRA until June 2050 using my saved plan",
+  "population": "P-CORE",
+  "family": "m5:return-wording",
+  "cluster": "m5:return-wording",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-029",
+    "referenceId": "m5r-m5c-029-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-029",
+    "referenceId": "m5r-m5c-029-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-029",
+    "referenceId": "m5r-m5c-029-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-030",
+  "text": "extra $50 a month into my Roth IRA until June 2050 in today's dollars",
+  "population": "P-CORE",
+  "family": "m5:inflation-wording",
+  "cluster": "m5:inflation-wording",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-030",
+    "referenceId": "m5r-m5c-030-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-030",
+    "referenceId": "m5r-m5c-030-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-030",
+    "referenceId": "m5r-m5c-030-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-031",
+  "text": "extra $50 a month into my Roth IRA until June 2050 at 2.5% inflation",
+  "population": "P-CORE",
+  "family": "m5:inflation-wording",
+  "cluster": "m5:inflation-wording",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-031",
+    "referenceId": "m5r-m5c-031-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-031",
+    "referenceId": "m5r-m5c-031-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-031",
+    "referenceId": "m5r-m5c-031-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-032",
+  "text": "extra $50 a month into my Brokerage until June 2050",
+  "population": "P-CORE",
+  "family": "m5:account-choice",
+  "cluster": "m5:account-choice",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-8",
+    "requestId": "m5q-m5c-032",
+    "referenceId": "m5r-m5c-032-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-8",
+    "requestId": "m5q-m5c-032",
+    "referenceId": "m5r-m5c-032-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-8",
+    "requestId": "m5q-m5c-032",
+    "referenceId": "m5r-m5c-032-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-038",
+  "text": "extra $50 a month into \"Roth IRA\" until June 2050",
+  "population": "P-CORE",
+  "family": "m5:quoted-name",
+  "cluster": "m5:quoted-name",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-038",
+    "referenceId": "m5r-m5c-038-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-038",
+    "referenceId": "m5r-m5c-038-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-038",
+    "referenceId": "m5r-m5c-038-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-039",
+  "text": "extra $50 a month into \"Save in 2050\" until June 2055",
+  "population": "P-CORE",
+  "family": "m5:quoted-name",
+  "cluster": "m5:quoted-name",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-9",
+    "requestId": "m5q-m5c-039",
+    "referenceId": "m5r-m5c-039-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-9",
+    "requestId": "m5q-m5c-039",
+    "referenceId": "m5r-m5c-039-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-9",
+    "requestId": "m5q-m5c-039",
+    "referenceId": "m5r-m5c-039-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-066",
+  "text": "don't count my employer match, extra $50 a month into my Roth IRA until June 2050",
+  "population": "P-CORE",
+  "family": "m5:negation",
+  "cluster": "m5:negation",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-066",
+    "referenceId": "m5r-m5c-066-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-066",
+    "referenceId": "m5r-m5c-066-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-066",
+    "referenceId": "m5r-m5c-066-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-067",
+  "text": "extra $50 a month into my Roth IRA until June 2050 without my employer match",
+  "population": "P-CORE",
+  "family": "m5:negation",
+  "cluster": "m5:negation",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-067",
+    "referenceId": "m5r-m5c-067-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-067",
+    "referenceId": "m5r-m5c-067-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-067",
+    "referenceId": "m5r-m5c-067-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-068",
+  "text": "extra $1,000,000 a month into my Roth IRA until June 2050",
+  "population": "P-CORE",
+  "family": "m5:boundary",
+  "cluster": "m5:boundary",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-068",
+    "referenceId": "m5r-m5c-068-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-068",
+    "referenceId": "m5r-m5c-068-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-068",
+    "referenceId": "m5r-m5c-068-303",
+    "requiresConsent": true
+   }
+  ]
+ },
+ {
+  "id": "m5/m5c-069",
+  "text": "extra $50 a month into my Roth IRA until June 2050                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ",
+  "population": "P-CORE",
+  "family": "m5:boundary",
+  "cluster": "m5:boundary",
+  "tags": [],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "m6-m5-seed-101-account-5",
+    "requestId": "m5q-m5c-069",
+    "referenceId": "m5r-m5c-069-101",
+    "requiresConsent": true
+   },
+   {
+    "seed": 202,
+    "contextId": "m6-m5-seed-202-account-5",
+    "requestId": "m5q-m5c-069",
+    "referenceId": "m5r-m5c-069-202",
+    "requiresConsent": true
+   },
+   {
+    "seed": 303,
+    "contextId": "m6-m5-seed-303-account-5",
+    "requestId": "m5q-m5c-069",
+    "referenceId": "m5r-m5c-069-303",
+    "requiresConsent": true
+   }
+  ]
+ }
+]

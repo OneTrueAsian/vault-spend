@@ -1,0 +1,1154 @@
+{
+ "worlds": {
+  "m6-m5-seed-101-account-5": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "100",
+       "price": "100.00"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "50",
+       "price": "500.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "10",
+       "price": "150.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "20",
+       "price": "100.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "200.00",
+     "returnPct": "7.00",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "300.00",
+     "returnPct": "6.00",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "100.00",
+     "returnPct": "5.00",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "50.00",
+     "returnPct": "4.00",
+     "withdrawMonth": "2055-06"
+    }
+   ],
+   "inflationPct": "3.0"
+  },
+  "m6-m5-seed-101-account-8": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "100",
+       "price": "100.00"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "50",
+       "price": "500.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "10",
+       "price": "150.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "20",
+       "price": "100.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "200.00",
+     "returnPct": "7.00",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "300.00",
+     "returnPct": "6.00",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "100.00",
+     "returnPct": "5.00",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "50.00",
+     "returnPct": "4.00",
+     "withdrawMonth": "2055-06"
+    }
+   ],
+   "inflationPct": "3.0"
+  },
+  "m6-m5-seed-101-account-11": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "100",
+       "price": "100.00"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "50",
+       "price": "500.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "10",
+       "price": "150.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "20",
+       "price": "100.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "200.00",
+     "returnPct": "7.00",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "300.00",
+     "returnPct": "6.00",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "100.00",
+     "returnPct": "5.00",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "50.00",
+     "returnPct": "4.00",
+     "withdrawMonth": "2055-06"
+    }
+   ],
+   "inflationPct": "3.0"
+  },
+  "m6-m5-seed-101-account-9": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "100",
+       "price": "100.00"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "50",
+       "price": "500.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "10",
+       "price": "150.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "20",
+       "price": "100.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "200.00",
+     "returnPct": "7.00",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "300.00",
+     "returnPct": "6.00",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "100.00",
+     "returnPct": "5.00",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "50.00",
+     "returnPct": "4.00",
+     "withdrawMonth": "2055-06"
+    }
+   ],
+   "inflationPct": "3.0"
+  },
+  "m6-m5-seed-202-account-5": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "40",
+       "price": "62.50"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "30",
+       "price": "400.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "8",
+       "price": "200.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "25",
+       "price": "80.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "150.00",
+     "returnPct": "6.00",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "250.00",
+     "returnPct": "5.50",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "120.00",
+     "returnPct": "6.50",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "75.00",
+     "returnPct": "3.50",
+     "withdrawMonth": "2055-06"
+    }
+   ]
+  },
+  "m6-m5-seed-202-account-8": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "40",
+       "price": "62.50"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "30",
+       "price": "400.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "8",
+       "price": "200.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "25",
+       "price": "80.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "150.00",
+     "returnPct": "6.00",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "250.00",
+     "returnPct": "5.50",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "120.00",
+     "returnPct": "6.50",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "75.00",
+     "returnPct": "3.50",
+     "withdrawMonth": "2055-06"
+    }
+   ]
+  },
+  "m6-m5-seed-202-account-11": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "40",
+       "price": "62.50"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "30",
+       "price": "400.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "8",
+       "price": "200.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "25",
+       "price": "80.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "150.00",
+     "returnPct": "6.00",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "250.00",
+     "returnPct": "5.50",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "120.00",
+     "returnPct": "6.50",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "75.00",
+     "returnPct": "3.50",
+     "withdrawMonth": "2055-06"
+    }
+   ]
+  },
+  "m6-m5-seed-202-account-9": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "40",
+       "price": "62.50"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "30",
+       "price": "400.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "8",
+       "price": "200.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "25",
+       "price": "80.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "150.00",
+     "returnPct": "6.00",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "250.00",
+     "returnPct": "5.50",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "120.00",
+     "returnPct": "6.50",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "75.00",
+     "returnPct": "3.50",
+     "withdrawMonth": "2055-06"
+    }
+   ]
+  },
+  "m6-m5-seed-303-account-5": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "12.5",
+       "price": "640.00"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "60",
+       "price": "300.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "7",
+       "price": "250.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "16",
+       "price": "125.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "175.00",
+     "returnPct": "7.50",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "400.00",
+     "returnPct": "6.50",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "90.00",
+     "returnPct": "4.50",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "60.00",
+     "returnPct": "5.50",
+     "withdrawMonth": "2055-06"
+    }
+   ],
+   "inflationPct": "2.5"
+  },
+  "m6-m5-seed-303-account-8": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "12.5",
+       "price": "640.00"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "60",
+       "price": "300.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "7",
+       "price": "250.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "16",
+       "price": "125.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "175.00",
+     "returnPct": "7.50",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "400.00",
+     "returnPct": "6.50",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "90.00",
+     "returnPct": "4.50",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "60.00",
+     "returnPct": "5.50",
+     "withdrawMonth": "2055-06"
+    }
+   ],
+   "inflationPct": "2.5"
+  },
+  "m6-m5-seed-303-account-11": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "12.5",
+       "price": "640.00"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "60",
+       "price": "300.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "7",
+       "price": "250.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "16",
+       "price": "125.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "175.00",
+     "returnPct": "7.50",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "400.00",
+     "returnPct": "6.50",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "90.00",
+     "returnPct": "4.50",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "60.00",
+     "returnPct": "5.50",
+     "withdrawMonth": "2055-06"
+    }
+   ],
+   "inflationPct": "2.5"
+  },
+  "m6-m5-seed-303-account-9": {
+   "profile": {
+    "generation": 3,
+    "sessionRevision": 11,
+    "revision": {
+     "local": 40,
+     "external": 7
+    }
+   },
+   "accounts": [
+    {
+     "id": 5,
+     "name": "Roth IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "12.5",
+       "price": "640.00"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "Brokerage",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "60",
+       "price": "300.00"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "Rothé IRA",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "7",
+       "price": "250.00"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "Save in 2050",
+     "type": "investment",
+     "startingBalance": "0",
+     "holdings": [
+      {
+       "shares": "16",
+       "price": "125.00"
+      }
+     ]
+    }
+   ],
+   "plans": [
+    {
+     "accountId": 5,
+     "monthly": "175.00",
+     "returnPct": "7.50",
+     "withdrawMonth": "2056-01"
+    },
+    {
+     "accountId": 8,
+     "monthly": "400.00",
+     "returnPct": "6.50",
+     "withdrawMonth": "2050-06"
+    },
+    {
+     "accountId": 11,
+     "monthly": "90.00",
+     "returnPct": "4.50",
+     "withdrawMonth": "2045-12"
+    },
+    {
+     "accountId": 9,
+     "monthly": "60.00",
+     "returnPct": "5.50",
+     "withdrawMonth": "2055-06"
+    }
+   ],
+   "inflationPct": "2.5"
+  }
+ },
+ "contexts": {
+  "m6-m5-seed-101-account-5": {
+   "seed": 101,
+   "worldId": "m6-m5-seed-101-account-5",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 5,
+    "accountName": "Roth IRA"
+   }
+  },
+  "m6-m5-seed-101-account-8": {
+   "seed": 101,
+   "worldId": "m6-m5-seed-101-account-8",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 8,
+    "accountName": "Brokerage"
+   }
+  },
+  "m6-m5-seed-101-account-11": {
+   "seed": 101,
+   "worldId": "m6-m5-seed-101-account-11",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 11,
+    "accountName": "Rothé IRA"
+   }
+  },
+  "m6-m5-seed-101-account-9": {
+   "seed": 101,
+   "worldId": "m6-m5-seed-101-account-9",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 9,
+    "accountName": "Save in 2050"
+   }
+  },
+  "m6-m5-seed-202-account-5": {
+   "seed": 202,
+   "worldId": "m6-m5-seed-202-account-5",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 5,
+    "accountName": "Roth IRA"
+   }
+  },
+  "m6-m5-seed-202-account-8": {
+   "seed": 202,
+   "worldId": "m6-m5-seed-202-account-8",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 8,
+    "accountName": "Brokerage"
+   }
+  },
+  "m6-m5-seed-202-account-11": {
+   "seed": 202,
+   "worldId": "m6-m5-seed-202-account-11",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 11,
+    "accountName": "Rothé IRA"
+   }
+  },
+  "m6-m5-seed-202-account-9": {
+   "seed": 202,
+   "worldId": "m6-m5-seed-202-account-9",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 9,
+    "accountName": "Save in 2050"
+   }
+  },
+  "m6-m5-seed-303-account-5": {
+   "seed": 303,
+   "worldId": "m6-m5-seed-303-account-5",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 5,
+    "accountName": "Roth IRA"
+   }
+  },
+  "m6-m5-seed-303-account-8": {
+   "seed": 303,
+   "worldId": "m6-m5-seed-303-account-8",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 8,
+    "accountName": "Brokerage"
+   }
+  },
+  "m6-m5-seed-303-account-11": {
+   "seed": 303,
+   "worldId": "m6-m5-seed-303-account-11",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 11,
+    "accountName": "Rothé IRA"
+   }
+  },
+  "m6-m5-seed-303-account-9": {
+   "seed": 303,
+   "worldId": "m6-m5-seed-303-account-9",
+   "parseContext": {
+    "today": "2026-09-06",
+    "accountId": 9,
+    "accountName": "Save in 2050"
+   }
+  }
+ }
+}
