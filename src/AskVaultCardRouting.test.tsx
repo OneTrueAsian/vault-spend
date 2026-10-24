@@ -64,10 +64,10 @@ function makeClient(spend: Spend = async () => { throw new Error("stop"); }, ros
 }
 let container: HTMLDivElement, root: Root, client: ReturnType<typeof makeClient>;
 const legacy = vi.fn((_question: string) => ({ matched: true, answer: "Older answer." }));
-function mount(over: { ctx?: ParseContext; dataKey?: unknown } = {}) {
-  const element = (key: unknown) => <AskVaultCard getContext={() => over.ctx ?? ctx} legacyAsk={legacy} dataKey={key} reloadKey="r1" accountNames={new Map([[1, "Everyday Checking"]])} createClient={() => client as never} />;
+function mount(over: { ctx?: ParseContext; dataKey?: unknown; ready?: boolean } = {}) {
+  const element = (key: unknown) => <AskVaultCard ready={over.ready} getContext={() => over.ctx ?? ctx} legacyAsk={legacy} dataKey={key} reloadKey="r1" accountNames={new Map([[1, "Everyday Checking"]])} createClient={() => client as never} />;
   act(() => root.render(element(over.dataKey ?? "v1")));
-  return { rerender: (key: unknown) => act(() => root.render(element(key))) };
+  return { rerender: (key: unknown) => act(() => root.render(element(key))), ready: (value: boolean) => { over.ready=value;act(()=>root.render(element(over.dataKey??"v1"))); } };
 }
 const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); });
 const box = () => container.querySelector<HTMLInputElement>(".ledger-qa-card input")!;
@@ -88,6 +88,22 @@ const dialog = () => document.querySelector('[role="dialog"]');
 const dialogText = () => dialog()?.textContent ?? "";
 const cardText = () => container.querySelector(".ledger-qa-card")?.textContent ?? "";
 const clarify = () => container.querySelector(".ledger-qa-clarify");
+
+describe("Task7 scheduled roster readiness", () => {
+  it.each(["how much did I spend at Costco last month", "Save $1 monthly from January to December 2027", "extra $50 a month into Roth IRA until January 2056", "Cut Groceries by $5 monthly from January to December 2027"])("does not parse/read/show a new flow until the loaded roster is ready: %s", async question => {
+    const mounted=mount({ready:false});await ask(question);
+    expect(box().value).toBe(question);expect(dialog()).toBeNull();
+    expect(client.askVault).not.toHaveBeenCalled();expect(client.askVaultBaselines).not.toHaveBeenCalled();expect(client.askVaultRetirementAccounts).not.toHaveBeenCalled();expect(legacy).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+    mounted.ready(true);expect(box().value).toBe(question);expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
+    mounted.ready(false);await ask(question);expect(client.askVault).not.toHaveBeenCalled();expect(client.askVaultRetirementAccounts).not.toHaveBeenCalled();
+  });
+  it("does not automatically submit a preserved edited question when readiness arrives", async()=>{
+    const mounted=mount({ready:false});await type("how much do I have in checking");mounted.ready(true);await settle();
+    expect(box().value).toBe("how much do I have in checking");expect(legacy).not.toHaveBeenCalled();
+    await ask(box().value);expect(legacy).toHaveBeenCalledWith("how much do I have in checking");
+  });
+});
 const choiceButtons = () => [...(clarify()?.querySelectorAll(".ledger-qa-choices button") ?? [])].map(b => b.textContent);
 const noNativeReads = () => {
   expect(client.askVault).not.toHaveBeenCalled(); expect(client.askVaultBaselines).not.toHaveBeenCalled();
@@ -489,5 +505,39 @@ describe("cross-family transitions: the family that was showing shows nothing af
     mount(); await ask("Extra $50 a month into Roth IRA until January 2056"); expect(dialogText()).toContain("Use my saved plan");
     await type("Extra $50 a month into Roth IRA until January 2056 "); expect(dialog()).toBeNull();
     expect(document.body.textContent).not.toContain("Use my saved plan");
+  });
+});
+
+/**
+ * Task 7 (owner direction D-10, gap G-2, finding S-01; CG-23): the real card must not open the extra-money flow, or read an investment roster, for a
+ * question that only STARTS with "Extra" or "Additional". It goes to the ordinary or older reader. Real extra-money requests keep their flow.
+ */
+describe("Task 7 D-10: Extra/Additional-led questions that are not extra-money requests", () => {
+  const questions = ["Additional income last month", "Extra spending last month", "Extra groceries last month", "Additional transactions in July"];
+  const variants: [string, ParseContext][] = [
+    ["with an investment account", ctx],
+    ["without an investment account", { ...ctx, investmentAccounts: [], accounts: [{ id: 1, name: "Everyday Checking" }] }],
+    ["with relevant merchants", { ...ctx, merchants: [...(ctx.merchants ?? []), "EXTRA SPACE STORAGE", "ADDITIONAL CHARGES CAFE"] }],
+  ];
+  for (const [label, c] of variants) {
+    it.each(questions)(`${label}: %s never opens the retirement flow or reads an investment account`, async question => {
+      mount({ ctx: c }); await ask(question);
+      expect(dialog(), question).toBeNull();
+      expect(client.askVaultRetirementAccounts).not.toHaveBeenCalled(); expect(client.askVaultRetirementContext).not.toHaveBeenCalled();
+      expect(client.askVaultBaselines).not.toHaveBeenCalled();
+      expect(cardText()).not.toMatch(/investment account|retirement month|one extra monthly/i);
+    });
+  }
+  it("a real extra-money request still opens its flow and reads the roster before any review", async () => {
+    mount(); await ask("Extra $50 a month into Roth IRA until January 2056");
+    expect(client.askVaultRetirementAccounts).toHaveBeenCalled(); expect(dialogText()).toContain("Roth IRA");
+  });
+  it("a recorded store that starts with Extra is still an ordinary spending question", async () => {
+    mount({ ctx: { ...ctx, merchants: [...(ctx.merchants ?? []), "EXTRA SPACE STORAGE"] } }); await ask("Extra Space Storage last month");
+    expect(dialog()).toBeNull(); expect(client.askVaultRetirementAccounts).not.toHaveBeenCalled(); expect(client.askVault).toHaveBeenCalledTimes(1);
+  });
+  it("an unsupported investment question still refuses with a plain reason and no number", async () => {
+    mount(); await ask("Extra income in retirement");
+    expect(client.askVaultRetirementContext).not.toHaveBeenCalled(); expect(dialogText() + cardText()).toMatch(/income/i); expect(dialogText() + cardText()).not.toMatch(/\$\d/);
   });
 });

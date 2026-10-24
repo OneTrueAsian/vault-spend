@@ -28,8 +28,8 @@ function monthEnd(year: number, month: number): string {
  * the scenario rather than silently weakening it. No baseline read, calculation or confirmation.
  */
 export function parseSpendingScenario(text: string, context: ParseContext): SpendingScenarioParseOutcome {
-  const ordinary = ordinaryOperatorStore(text, context);
   const scenario = parseScenario(text, context);
+  const ordinary = scenario === null ? null : ordinaryOperatorStore(text, context); // a question this reader will not claim is never read as an ordinary store question: that walks the roster (M6 F-T5-01)
   if (!ordinary) return scenario;
   if (scenario?.kind !== "scenario") return null;
   // Both consuming grammars understand this question (e.g. merchant CUT DINING,

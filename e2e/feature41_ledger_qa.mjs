@@ -13,6 +13,9 @@ import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth, monthFromNow } from "./lib/dates.mjs";
 import { runAskLayoutChecks } from "./lib/askLayoutChecks.mjs";
+import fs from "node:fs";
+import { invoke } from "./lib/change-password.mjs";
+import { assertTrafficAudit, installTrafficRecorder } from "./askVaultTrafficAudit.mjs";
 
 // The dining-out spend is three months back; questions name its month and year ("July 2026") so the answer
 // never depends on which year a bare month name resolves to.
@@ -69,12 +72,40 @@ async function ask(app, question, averageChoice) {
 }
 
 const app = await launchApp({ dbDir });
+const task6Audits = [];
+async function readRevision() {
+  const origin = await invoke(app.browser, "get_transaction_context");
+  if (!origin.ok) throw new Error(`Revision origin failed: ${origin.error}`);
+  const reply = await invoke(app.browser, "get_ask_vault_baselines", {
+    expectedGeneration: origin.ok.generation, expectedSessionRevision: origin.ok.sessionRevision,
+    request: { contractVersion: 1, categories: ["Dining Out"], expectedRevision: null },
+  });
+  if (!reply.ok?.revision) throw new Error(`Revision read failed: ${reply.error}`);
+  return reply.ok.revision;
+}
+async function beginAudit() {
+  const before = await readRevision();
+  await app.browser.execute(() => { window.__task6Traffic.requests.length = 0; window.__task6Traffic.commands.length = 0; });
+  return before;
+}
+async function endAudit(flow, before, allowed) {
+  const trace = await app.browser.execute(() => structuredClone(window.__task6Traffic));
+  const after = await readRevision(); // Test probe is outside the captured question-to-result interval.
+  const audit = { flow, ...trace, before, after };
+  task6Audits.push(audit);
+  if (process.env.VS_TASK6_TRAFFIC) fs.writeFileSync(process.env.VS_TASK6_TRAFFIC, JSON.stringify(task6Audits, null, 2));
+  assertTrafficAudit(audit, allowed);
+  console.log("TASK6 READ-ONLY TRAFFIC", JSON.stringify(audit));
+}
 try {
+  await app.browser.execute(installTrafficRecorder);
+  const ordinaryBefore = await beginAudit();
   const spendAnswer = await ask(app, `how much did I spend on dining out in ${DINING_MONTH}`);
   console.log("spend question:", spendAnswer);
   if (!spendAnswer.includes("$95.00") || !spendAnswer.includes("Dining Out")) {
     throw new Error(`expected the answer to mention Dining Out and $95.00 (60+35), got "${spendAnswer}"`);
   }
+  await endAudit("ordinary", ordinaryBefore, ["get_transaction_context", "get_ask_vault_snapshot"]);
 
   // New in the primitive-query-engine pass — confirms `resolveSpendQuery`/
   // `runQuery` are wired through the real UI, not just unit-tested.
@@ -172,6 +203,7 @@ try {
   }
 
   // M3: the real native monthly baseline is reviewed before a read-only one-time result.
+  const m3Before = await beginAudit();
   const scenarioInput = await app.browser.$(".ledger-qa-card input");
   await scenarioInput.click();
   await app.browser.keys(["Control", "a"]);
@@ -190,6 +222,7 @@ try {
   await (await review.$("button=Show what I would save")).click();
   await app.browser.$(".scenario-total").waitForExist({ timeout: 8000 });
   if (await app.browser.$(".scenario-total").getText() !== "$5.00") throw new Error("one-time saving must be exactly $5");
+  await endAudit("m3", m3Before, ["get_transaction_context", "get_ask_vault_snapshot"]);
   await app.browser.keys("Escape");
   await app.browser.waitUntil(async () => !(await app.browser.$("[role='dialog']").isExisting()), { timeout: 5000 });
   // M6 (owner decision D-S3-02): one-category saving wording reaches the same spending-cut review, and the review says what is assumed.
@@ -228,6 +261,7 @@ try {
   if (!compareAnswer.includes("$30.00") || !compareAnswer.includes("$0.00")) throw new Error(`expected $0.00 this month against $30.00 last month, got "${compareAnswer}"`);
 
   // M4 actual Dashboard route: no injected component, native three-month baseline, explicit confirmation.
+  const m4Before = await beginAudit();
   const cutInput = await app.browser.$(".ledger-qa-card input");
   await cutInput.click(); await app.browser.keys(["Control", "a"]); await app.browser.keys("Backspace");
   await cutInput.addValue(`Save $5 monthly across Dining Out with Dining Out floor $0 and maximum cut 100% from ${dateInMonth(1, 1)} through ${dateInMonth(2, 28)}`);
@@ -246,6 +280,7 @@ try {
   await app.browser.$('.cut-preview-results').waitForExist({ timeout: 8000 });
   const resultText = await app.browser.$("[role='dialog']").getText();
   if (!resultText.includes('Goal: $5.00 per month') || !resultText.includes('Shortfall: $0.00 per month') || !resultText.includes('Nothing in your data was changed')) throw new Error(resultText);
+  await endAudit("m4", m4Before, ["get_transaction_context", "get_ask_vault_baselines", "get_ask_vault_snapshot"]);
   await app.browser.$('button=Change the details').click();
   if (await app.browser.$('.cut-preview-results').isExisting()) throw new Error('Editing must retire the previous allocation');
   await app.browser.keys('Escape');

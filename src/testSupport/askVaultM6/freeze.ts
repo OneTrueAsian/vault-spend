@@ -28,6 +28,11 @@ const inventory = (relative = ""): string[] => readdirSync(`${DIR}/${relative}`,
 export const FREEZE_FILES = [...inventory(), ...[
   "m3Scenario.test.tsx", "m4Scenario.test.tsx", "m5Scenario.test.tsx", "m5Model.test.ts", "insufficientHistoryCorpus.test.tsx", "m5RouteElsewhere.test.tsx", "m6PreparedPackages.test.ts",
   "combinedCorpusGrader.test.ts", "combinedCorpusGraderGaps.test.ts", "combinedCorpusGraderMutation.test.ts", "combinedRouteHarness.test.tsx", "routeDisplayCheck.test.tsx", "exampleEvidence.test.tsx", "typoDispositions.test.tsx", "scenarioNativeProof.test.ts",
+  "combinedAcceptance.test.tsx", "combinedAcceptanceIntegrity.test.ts", "clarificationExchanges.test.tsx", "scoringFreeze.test.ts",
+  // Added by freeze version 12 (owner decisions D-R2, D-R3 and the N-1 fixture, 21 October 2026).
+  "familyResolution.test.ts", "familyResolutionRoute.test.tsx", "amendmentReferences.test.ts", "legacyHandoffRoute.test.tsx", "storeTypoLaterWord.test.tsx",
+  // Added by freeze version 13 (Task 7, owner direction D-8, 22 October 2026): the reviewed realistic-error list is counted instead of raw tags.
+  "realisticErrors.test.ts",
 ].map(name => `../../askVault/${name}`)].sort();
 const sha = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 export const fileHash = (name: string) => sha(readFileSync(`${DIR}/${name}`));

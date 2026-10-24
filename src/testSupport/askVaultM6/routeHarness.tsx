@@ -5,7 +5,7 @@ import { AskVaultCard } from "../../AskVaultCard";
 import type { ParseContext } from "../../askVault/types";
 import { canonical } from "./counting";
 import { expectedTables, readTables, rowProblems, summaryProblems, type ReplyValue } from "./displayCheck";
-import type { CorpusCase, Observation, Requirement } from "./manifest";
+import type { CorpusCase, Observation, Requirement, ResolutionObservation } from "./manifest";
 
 /**
  * Combined public-route harness (Validation-Plan VP-06; task-4 item 6). Test-only; needs jsdom.
@@ -66,7 +66,9 @@ export async function checkDisplay(value: ReplyValue, card: Element): Promise<st
   return problems;
 }
 
-export async function observeCase(c: CorpusCase, r: Requirement, env: RouteEnv, index: Map<string, unknown>, options: RouteOptions = {}): Promise<Observation> {
+/** An observation that also says which choice was clicked and how many native reads had happened before the click (D-R2: a store typo is never answered without a choice). */
+export type ClickedObservation = Observation & Partial<Pick<ResolutionObservation, "chosen" | "readsBeforeChoice">>;
+export async function observeCase(c: CorpusCase, r: Requirement, env: RouteEnv, index: Map<string, unknown>, options: RouteOptions = {}): Promise<ClickedObservation> {
   const calls: unknown[] = [];
   const client = {
     askVault: vi.fn(async (request: unknown) => {
@@ -93,27 +95,27 @@ export async function observeCase(c: CorpusCase, r: Requirement, env: RouteEnv, 
     const card = container.querySelector(".ledger-qa-card")!;
     const base = { caseId: c.id, seed: r.seed, contextId: r.contextId, accepted: [] as Observation["accepted"], reviewed: false, consented: false };
     if (document.querySelector('[role="dialog"]')) return { ...base, stage: "draft", meaningChoices: 0 };
-    let clarify = card.querySelector(".ledger-qa-clarify"), chosen = 0, offered: string[] | undefined;
+    let clarify = card.querySelector(".ledger-qa-clarify"), chosen = 0, offered: string[] | undefined, clicked: { chosen: string; readsBeforeChoice: number } | undefined;
     if (clarify) {
       const labels = [...clarify.querySelectorAll("button")].map(b => b.textContent ?? "");
       const pick = options.choose?.(labels) ?? null;
-      if (pick === null) return { ...base, stage: "clarify", meaningChoices: labels.length, offeredChoices: labels };
+      if (pick === null) return { ...base, stage: "clarify", meaningChoices: 1, offeredChoices: labels };
       const button = [...clarify.querySelectorAll("button")].find(b => b.textContent === pick);
-      if (!button) return { ...base, stage: "error", meaningChoices: labels.length, offeredChoices: labels };
-      offered = labels; chosen = 1;
+      if (!button) return { ...base, stage: "error", meaningChoices: 1, offeredChoices: labels };
+      offered = labels; chosen = 1; clicked = { chosen: pick, readsBeforeChoice: calls.length };
       await act(async () => button.click()); await settle();
       clarify = card.querySelector(".ledger-qa-clarify");
-      if (clarify) return { ...base, stage: "clarify", meaningChoices: 2, offeredChoices: [...clarify.querySelectorAll("button")].map(b => b.textContent ?? "") };
+      if (clarify) return { ...base, ...clicked, stage: "clarify", meaningChoices: 2, offeredChoices: [...clarify.querySelectorAll("button")].map(b => b.textContent ?? "") };
     }
     if (card.querySelector(".ledger-qa-headline") && calls.length) {
       const request = calls[calls.length - 1];
       const value = index.get(key(r.contextId, request)) as ReplyValue;
       const problems = await checkDisplay(value, card);
       const result = problems.length ? { ...value, displayMismatch: problems } : value;
-      return { ...base, stage: "result", meaningChoices: chosen, offeredChoices: offered, request, result, accepted: [{ request, result }] };
+      return { ...base, ...clicked, stage: "result", meaningChoices: chosen, offeredChoices: offered, request, result, accepted: [{ request, result }] };
     }
-    if (card.querySelector(".ledger-qa-banner-error")) return { ...base, stage: "error", meaningChoices: chosen };
-    return { ...base, stage: calls.length ? "error" : "refusal", meaningChoices: chosen };
+    if (card.querySelector(".ledger-qa-banner-error")) return { ...base, ...clicked, stage: "error", meaningChoices: chosen };
+    return { ...base, ...clicked, stage: calls.length ? "error" : "refusal", meaningChoices: chosen };
   } finally {
     act(() => root.unmount()); container.remove(); document.body.innerHTML = "";
   }

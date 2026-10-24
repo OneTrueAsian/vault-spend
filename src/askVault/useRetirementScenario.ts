@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { traceRetire, traceReviewPublisher } from "./retirementStageTrace";
 import { createFinancialClient } from "../financialReads";
 import { onDataWrite } from "./dataWriteEvents";
 import { compareRetirementRosterRows, retirementFreshness } from "./retirementNativeContract";
@@ -20,6 +21,7 @@ type Roster = { accounts: { id: number; name: string }[]; revision: AskDataRevis
 type Read = RetirementContextRead;
 type Shown = "deposits-only" | "blocked" | "result";
 type Pending = {
+  traceReview?: (screen: object) => void;
   question: string; owner: Owner; draft: RetirementDraft; phase: Phase; roster?: Roster;
   /** The last account read this flow accepted. Revalidation and the next step are bound to it. */
   read?: Read; review?: RetirementReview; calculation?: Extract<ReturnType<typeof calculateRetirementScenario>, { kind: "preview" | "extra-deposits-only" | "refused" }>;
@@ -59,10 +61,14 @@ export function useRetirementScenario(props: { getContext: () => ParseContext; d
   const client = () => runtime.client ??= (latest.current.createClient ?? createFinancialClient)();
   const showStale = (message = RETIREMENT_CHANGED_MESSAGE, stage: "stale" | "error" = "stale") =>
     runtime.alive && setView(v => ({ question: v.question, owner: null, clarification: null, openReturnChoice: false, live: parseContext(), screen: { stage, message } }));
-  const retire = (message = RETIREMENT_CHANGED_MESSAGE, stage: "stale" | "error" = "stale") => { invalidate(); runtime.pending = null; showStale(message, stage); };
+  const retire = (message = RETIREMENT_CHANGED_MESSAGE, stage: "stale" | "error" = "stale") => { if (import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true) traceRetire(); invalidate(); runtime.pending = null; showStale(message, stage); };
   const cancel = () => { invalidate(); runtime.pending = null; if (runtime.alive) setView({ question: "", owner: null, screen: null, live: null, clarification: null, openReturnChoice: false }); };
   const publish = (p: Pending, screen: RetirementScreen) => {
-    if (runtime.alive && runtime.pending === p && current(p.owner)) setView({ question: p.question, owner: p.owner, screen: structuredClone(screen), live: liveOf(p), clarification: null, openReturnChoice: p.openReturnChoice === true });
+    if (runtime.alive && runtime.pending === p && current(p.owner)) {
+      const shown = structuredClone(screen);
+      if (screen.stage === "review" && (import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true)) p.traceReview?.(shown);
+      setView({ question: p.question, owner: p.owner, screen: shown, live: liveOf(p), clarification: null, openReturnChoice: p.openReturnChoice === true });
+    }
   };
   const active = (p: Pending, mine: number) => runtime.alive && runtime.sequence === mine && runtime.pending === p;
   const begin = (p: Pending, phase: Phase) => { p.phase = phase; const abort = new AbortController(); runtime.abort = abort; return { mine: ++runtime.sequence, abort }; };
@@ -89,6 +95,7 @@ export function useRetirementScenario(props: { getContext: () => ParseContext; d
     window.addEventListener("focus", revalidate);
     const stopWrites = onDataWrite(() => { if (runtime.pending) retire(); });
     return () => {
+      if (import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true) traceRetire();
       runtime.alive = false; runtime.sequence++; runtime.abort?.abort(); runtime.abort = null; runtime.pending = null;
       runtime.client?.dispose(); runtime.client = null;
       clearTimeout(timer); window.removeEventListener("focus", revalidate); stopWrites();
@@ -152,6 +159,7 @@ export function useRetirementScenario(props: { getContext: () => ParseContext; d
     }
     const empty: RetirementDraft = { sourceText: question, accountId: null, extra: { kind: null, amount: null }, startDate: context.today, retirementMonth: null, assumptions: { annualReturnPct: null, inflationPct: null }, missing: [], hints: [] };
     const p: Pending = { question, owner: origin, draft: parsed.kind === "retirement" ? structuredClone(parsed.draft) : empty, phase: "other" };
+    if (import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true) p.traceReview = traceReviewPublisher();
     runtime.pending = p;
     if (parsed.kind === "retirement-unsupported") publish(p, { stage: "unsupported", reason: parsed.reason });
     else void start(p);

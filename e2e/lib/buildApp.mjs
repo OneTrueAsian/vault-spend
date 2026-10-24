@@ -5,7 +5,7 @@ import { computeBuildKey, diffInputs, recordArtifact, verifyArtifact } from "./b
 import { acquireAccess } from "./exclusiveAccess.mjs";
 
 export async function buildArtifact({ lockDir, exePath, recordPath, collectInputs, toolchain, mode, runBuild, force = false, wait = true, timeoutMs = 30 * 60 * 1000, pollMs }) {
-  const lock = await acquireAccess({ dir: lockDir, operation: "tauri-build", wait, timeoutMs, pollMs });
+  const lock = await acquireAccess({ dir: lockDir, operation: "tauri-build", wait, timeoutMs, pollMs, crashProtected: true });
   try {
     const before = await collectInputs();
     const key = computeBuildKey({ files: before, toolchain, mode });

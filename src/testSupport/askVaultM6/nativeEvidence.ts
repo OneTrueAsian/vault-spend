@@ -13,6 +13,8 @@ import { canonical } from "./counting";
 export const NATIVE_PROOF_TEST = "ask_vault_m6_frozen_reference_worlds";
 /** The focused scenario-prerequisites proof (owner decision Q5): it validates NATIVE CONTEXT only (store reads), never a JavaScript calculation. */
 export const SCENARIO_PROOF_TEST = "ask_vault_m6_scenario_prerequisites";
+/** D-R3 (owner, 2026-10-21): the separate native run for the amended alternate references. Same meaning as the ordinary proof (the native result equals the reference value); its own file, so the original proof is not rewritten. */
+export const AMENDMENT_PROOF_TEST = "ask_vault_m6_amendment_references";
 /** Marker for deliberately fabricated unit-test evidence. It is never admissible as corpus evidence. */
 export const UNIT_STAND_IN_RECEIPT = "deliberate-unit-stand-in-not-corpus-evidence";
 
@@ -61,7 +63,7 @@ export function verifyNativeEvidence(input: EvidenceInput): { verified: Set<stri
       const counts = new Map<string, number>();
       for (const id of scenario ? [...list(j.baseline), ...list(j.thresholdBoundary), ...list(j.retirementContexts)] : list(j.checked)) counts.set(id, (counts.get(id) ?? 0) + 1);
       parsed = { kind: scenario ? "scenario" : "ordinary", checked: counts, sha256: sha(proofs[file]),
-        successful: j.failures === 0 && (scenario || j.test === NATIVE_PROOF_TEST && Array.isArray(j.checked)) };
+        successful: j.failures === 0 && (scenario || (j.test === NATIVE_PROOF_TEST || j.test === AMENDMENT_PROOF_TEST) && Array.isArray(j.checked)) };
     } catch { parsed = null; }
     parsedProofs.set(file, parsed);
     return parsed;

@@ -85,22 +85,32 @@ fn with_snapshot<T>(
     {
         return Err(invalid());
     }
-    store
-        .read_snapshot(|store| {
-            let (local, external) = store.read_revision()?;
-            if local > MAX_SAFE || external > MAX_SAFE {
-                return Ok(Err(internal()));
-            }
-            let revision = RetirementRevision { local, external };
-            if expected.as_ref().is_some_and(|r| r != &revision) {
-                return Ok(Err(ReadError::new(
-                    "stale_data",
-                    "Your accounts or plan changed. Ask again using the current details.",
-                )));
-            }
-            Ok(read(store).map(|data| (revision, data)).map_err(core_error))
-        })
-        .map_err(|_| internal())?
+    let query = || {
+        store
+            .read_snapshot(|store| {
+                let (local, external) = store.read_revision()?;
+                if local > MAX_SAFE || external > MAX_SAFE {
+                    return Ok(Err(internal()));
+                }
+                let revision = RetirementRevision { local, external };
+                if expected.as_ref().is_some_and(|r| r != &revision) {
+                    return Ok(Err(ReadError::new(
+                        "stale_data",
+                        "Your accounts or plan changed. Ask again using the current details.",
+                    )));
+                }
+                Ok(read(store).map(|data| (revision, data)).map_err(core_error))
+            })
+            .map_err(|_| internal())?
+    };
+    #[cfg(debug_assertions)]
+    {
+        crate::retirement_stage_trace::read_span(query)
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        query()
+    }
 }
 fn retirement_roster_snapshot(
     store: &Store,
@@ -157,6 +167,9 @@ fn read_retirement_roster_for_session(
     state: &AppStateHandle,
     paths: &crate::config::AppPaths,
 ) -> Result<RetirementRosterSnapshot, ReadError> {
+    #[cfg(debug_assertions)]
+    let session = crate::retirement_stage_trace::lock_span(|| state.lock()).map_err(ReadError::from)?;
+    #[cfg(not(debug_assertions))]
     let session = state.lock().map_err(ReadError::from)?;
     if paths.current_generation() != generation || state.current_revision() != revision {
         return Err(ReadError::new(
@@ -173,6 +186,9 @@ fn read_retirement_context_for_session(
     state: &AppStateHandle,
     paths: &crate::config::AppPaths,
 ) -> Result<RetirementContextSnapshot, ReadError> {
+    #[cfg(debug_assertions)]
+    let session = crate::retirement_stage_trace::lock_span(|| state.lock()).map_err(ReadError::from)?;
+    #[cfg(not(debug_assertions))]
     let session = state.lock().map_err(ReadError::from)?;
     if paths.current_generation() != generation || state.current_revision() != revision {
         return Err(ReadError::new(
@@ -190,7 +206,19 @@ pub fn get_ask_vault_retirement_accounts(
     state: tauri::State<AppStateHandle>,
     paths: tauri::State<crate::config::AppPaths>,
 ) -> Result<RetirementRosterSnapshot, ReadError> {
-    read_retirement_roster_for_session(&request, expected_generation, expected_session_revision, &state, &paths)
+    #[cfg(debug_assertions)]
+    {
+        crate::retirement_stage_trace::native_call(
+            crate::retirement_stage_trace::Command::Accounts,
+            expected_generation,
+            expected_session_revision,
+            || read_retirement_roster_for_session(&request, expected_generation, expected_session_revision, &state, &paths),
+        )
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        read_retirement_roster_for_session(&request, expected_generation, expected_session_revision, &state, &paths)
+    }
 }
 #[tauri::command]
 pub fn get_ask_vault_retirement_context(
@@ -200,7 +228,19 @@ pub fn get_ask_vault_retirement_context(
     state: tauri::State<AppStateHandle>,
     paths: tauri::State<crate::config::AppPaths>,
 ) -> Result<RetirementContextSnapshot, ReadError> {
-    read_retirement_context_for_session(&request, expected_generation, expected_session_revision, &state, &paths)
+    #[cfg(debug_assertions)]
+    {
+        crate::retirement_stage_trace::native_call(
+            crate::retirement_stage_trace::Command::Context,
+            expected_generation,
+            expected_session_revision,
+            || read_retirement_context_for_session(&request, expected_generation, expected_session_revision, &state, &paths),
+        )
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        read_retirement_context_for_session(&request, expected_generation, expected_session_revision, &state, &paths)
+    }
 }
 
 #[cfg(test)]

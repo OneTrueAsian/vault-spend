@@ -231,7 +231,6 @@ fn ask_vault_m6_frozen_reference_worlds() {
     }
 }
 
-
 // ---- Owner decision Q5 (21 October 2026): native prerequisites for the scenario families. This is a SEPARATE test: the original proof of
 // ask_vault_m6_frozen_reference_worlds (3,291 ordinary references) is not rewritten. It validates NATIVE CONTEXT only (what the store reads); it does not
 // validate any JavaScript projection, review, consent or calculation. Expected values are prepared by the independent TypeScript oracle (spending reads) or worked by
@@ -285,7 +284,12 @@ fn retirement_seed(f: &Value) -> Store {
             .conn
             .execute(
                 "INSERT INTO accounts(id,name,account_type,starting_balance) VALUES(?1,?2,?3,?4)",
-                params![a["id"].as_i64().unwrap(), a["name"].as_str().unwrap(), a["type"].as_str().unwrap(), a["startingBalance"].as_str().unwrap()],
+                params![
+                    a["id"].as_i64().unwrap(),
+                    a["name"].as_str().unwrap(),
+                    a["type"].as_str().unwrap(),
+                    a["startingBalance"].as_str().unwrap()
+                ],
             )
             .unwrap();
         for t in a["transactions"].as_array().into_iter().flatten() {
@@ -313,12 +317,20 @@ fn retirement_seed(f: &Value) -> Store {
             .conn
             .execute(
                 "INSERT INTO investment_plans(account_id,monthly_contribution,annual_return_pct,withdraw_date) VALUES(?1,?2,?3,?4)",
-                params![p["accountId"].as_i64().unwrap(), p["monthly"].as_str(), p["returnPct"].as_str().unwrap(), date],
+                params![
+                    p["accountId"].as_i64().unwrap(),
+                    p["monthly"].as_str(),
+                    p["returnPct"].as_str().unwrap(),
+                    date
+                ],
             )
             .unwrap();
     }
     if let Some(pct) = f["seed"]["inflationPct"].as_str() {
-        store.conn.execute("INSERT INTO app_settings(id,inflation_pct) VALUES(1,?1)", params![pct]).unwrap();
+        store
+            .conn
+            .execute("INSERT INTO app_settings(id,inflation_pct) VALUES(1,?1)", params![pct])
+            .unwrap();
     }
     store
 }
@@ -326,16 +338,41 @@ fn retirement_seed(f: &Value) -> Store {
 #[test]
 fn ask_vault_m6_scenario_prerequisites() {
     let inputs = [
-        ("scenarioNativeFixtures.json", include_str!("../../../../src/testSupport/askVaultM6/scenarioNativeFixtures.json")),
-        ("scenarioNativeRequests.json", include_str!("../../../../src/testSupport/askVaultM6/scenarioNativeRequests.json")),
-        ("scenarioNativeReferences.json", include_str!("../../../../src/testSupport/askVaultM6/scenarioNativeReferences.json")),
+        (
+            "scenarioNativeFixtures.json",
+            include_str!("../../../../src/testSupport/askVaultM6/scenarioNativeFixtures.json"),
+        ),
+        (
+            "scenarioNativeRequests.json",
+            include_str!("../../../../src/testSupport/askVaultM6/scenarioNativeRequests.json"),
+        ),
+        (
+            "scenarioNativeReferences.json",
+            include_str!("../../../../src/testSupport/askVaultM6/scenarioNativeReferences.json"),
+        ),
         ("contexts.json", include_str!("../../../../src/testSupport/askVaultM6/contexts.json")),
-        ("expectedRequests.json", include_str!("../../../../src/testSupport/askVaultM6/expectedRequests.json")),
-        ("referenceResults.json", include_str!("../../../../src/testSupport/askVaultM6/referenceResults.json")),
+        (
+            "expectedRequests.json",
+            include_str!("../../../../src/testSupport/askVaultM6/expectedRequests.json"),
+        ),
+        (
+            "referenceResults.json",
+            include_str!("../../../../src/testSupport/askVaultM6/referenceResults.json"),
+        ),
     ];
     let get = |name: &str| -> Value { serde_json::from_str(inputs.iter().find(|(n, _)| *n == name).unwrap().1).unwrap() };
-    let (fixtures, requests, references, contexts) = (get("scenarioNativeFixtures.json"), get("scenarioNativeRequests.json"), get("scenarioNativeReferences.json"), get("contexts.json"));
-    let mut worlds: Vec<(String, Value)> = contexts["worlds"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    let (fixtures, requests, references, contexts) = (
+        get("scenarioNativeFixtures.json"),
+        get("scenarioNativeRequests.json"),
+        get("scenarioNativeReferences.json"),
+        get("contexts.json"),
+    );
+    let mut worlds: Vec<(String, Value)> = contexts["worlds"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
     worlds.extend(fixtures["worlds"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())));
     let mut baseline = Vec::new();
     let mut boundary = Vec::new();
@@ -358,15 +395,26 @@ fn ask_vault_m6_scenario_prerequisites() {
         }
         assert_eq!(before, store.read_revision().unwrap(), "all reference reads are read-only");
     }
-    let expected_baseline = contexts["worlds"].as_object().unwrap().values().map(|w| w["categories"].as_array().unwrap().len()).sum::<usize>();
-    assert_eq!(baseline.len(), expected_baseline, "every category of every seed world has a native baseline-shaped read");
+    let expected_baseline = contexts["worlds"]
+        .as_object()
+        .unwrap()
+        .values()
+        .map(|w| w["categories"].as_array().unwrap().len())
+        .sum::<usize>();
+    assert_eq!(
+        baseline.len(),
+        expected_baseline,
+        "every category of every seed world has a native baseline-shaped read"
+    );
     assert_eq!(boundary.len(), 5);
     let mut retirement = Vec::new();
     for f in fixtures["retirement"].as_array().unwrap() {
         let store = retirement_seed(f);
         let before = store.read_revision().unwrap();
         let date = f["today"].as_str().unwrap().parse().unwrap();
-        let got = store.retirement_context(f["accountId"].as_i64().unwrap(), date).expect("real investment account context");
+        let got = store
+            .retirement_context(f["accountId"].as_i64().unwrap(), date)
+            .expect("real investment account context");
         let e = &f["expected"]["reply"];
         let want = json!({"account":e["account"],"worth":e["worth"],"contribution":e["contribution"],"returnAssumption":e["returnAssumption"],"inflation":e["inflation"],"retirementMonth":e["retirementMonth"]});
         assert_eq!(serde_json::to_value(got).unwrap(), want, "{}", f["id"]);
@@ -374,13 +422,60 @@ fn ask_vault_m6_scenario_prerequisites() {
         retirement.push(f["id"].as_str().unwrap().to_owned());
     }
     assert_eq!(retirement.len(), fixtures["retirement"].as_array().unwrap().len());
-    assert!(retirement.len() >= 15, "three example contexts plus twelve M5 corpus contexts (three seeds, four investment accounts)");
+    assert!(
+        retirement.len() >= 15,
+        "three example contexts plus twelve M5 corpus contexts (three seeds, four investment accounts)"
+    );
     if let Ok(output) = std::env::var("VAULTSPEND_M6_SCENARIO_PROOF") {
         let digests: serde_json::Map<String, Value> = inputs.iter().map(|(n, t)| (n.to_string(), json!(sha_hex(t)))).collect();
         std::fs::write(
             output,
             serde_json::to_vec_pretty(&json!({"test":"ask_vault_m6_scenario_prerequisites","failures":0,"proves":"native context validation: what the store reads (spending reads and retirement-account contexts)",
                 "doesNotProve":"any JavaScript projection, review, consent or calculation","inputDigests":digests,"baseline":baseline,"thresholdBoundary":boundary,"retirementContexts":retirement})).unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+// ---- Owner decision D-R3 (21 October 2026): native proof for the amended alternate references (m1/202-0210, the actual request `["shel","sams club"]`).
+// A SEPARATE test: the original proof of ask_vault_m6_frozen_reference_worlds (3,291 ordinary references) is not rewritten. Expected values come from the independent
+// TypeScript oracle (src/testSupport/askVaultM6/amendmentReference.ts); this test never computes them. It records the SHA-256 of every input file as consumed.
+#[test]
+fn ask_vault_m6_amendment_references() {
+    let inputs = [
+        ("contexts.json", include_str!("../../../../src/testSupport/askVaultM6/contexts.json")),
+        (
+            "amendmentReferences.json",
+            include_str!("../../../../src/testSupport/askVaultM6/amendmentReferences.json"),
+        ),
+    ];
+    let get = |name: &str| -> Value { serde_json::from_str(inputs.iter().find(|(n, _)| *n == name).unwrap().1).unwrap() };
+    let (contexts, amend) = (get("contexts.json"), get("amendmentReferences.json"));
+    let mut checked = Vec::new();
+    for (world_id, world) in contexts["worlds"].as_object().unwrap() {
+        let store = build(world);
+        let before = store.read_revision().unwrap();
+        let today = world["today"].as_str().unwrap();
+        for (reference_id, reference) in amend["references"].as_object().unwrap() {
+            let context = &contexts["contexts"][reference["contextId"].as_str().unwrap()];
+            if context["worldId"] != world_id.as_str() {
+                continue;
+            }
+            let q = &amend["requests"][reference["requestId"].as_str().unwrap()];
+            let value = reference_value(&store, q, today);
+            assert_eq!(value, reference["value"], "native/oracle disagreement: {reference_id}, world {world_id}");
+            checked.push(reference_id.clone());
+        }
+        assert_eq!(before, store.read_revision().unwrap(), "all reference reads are read-only");
+    }
+    assert_eq!(checked.len(), amend["references"].as_object().unwrap().len());
+    assert!(!checked.is_empty());
+    if let Ok(output) = std::env::var("VAULTSPEND_M6_AMENDMENT_PROOF") {
+        let digests: serde_json::Map<String, Value> = inputs.iter().map(|(n, t)| (n.to_string(), json!(sha_hex(t)))).collect();
+        std::fs::write(
+            output,
+            serde_json::to_vec_pretty(&json!({"test":"ask_vault_m6_amendment_references","checked":checked,"failures":0,"inputDigests":digests}))
+                .unwrap(),
         )
         .unwrap();
     }

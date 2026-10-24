@@ -1,4 +1,5 @@
 import { createTransactionClient } from "./transactionReads";
+import { traceReadStart, traceValidator } from "./askVault/retirementStageTrace";
 import { TransactionError } from "./transactionContracts";
 import {
   validateBudgetSnapshot,
@@ -21,13 +22,17 @@ export function createFinancialClient() {
     args: Record<string, unknown>,
     validate: (value: unknown) => T,
   ): Promise<T> {
-    const origin = await client.context();
-    const result = validate(await client.call(command, args, true));
-    // Disposal must also reject replies already dispatched before unmount.
-    await client.context();
-    if (result.context.generation !== origin.generation || result.context.sessionRevision !== origin.sessionRevision)
-      throw new TransactionError("stale_profile", "These totals belong to another profile session.");
-    return result;
+    const endTrace = import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true ? traceReadStart(command) : null;
+    const check = import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true ? traceValidator(command, validate) : validate;
+    try {
+      const origin = await client.context();
+      const result = check(await client.call(command, args, true));
+      // Disposal must also reject replies already dispatched before unmount.
+      await client.context();
+      if (result.context.generation !== origin.generation || result.context.sessionRevision !== origin.sessionRevision)
+        throw new TransactionError("stale_profile", "These totals belong to another profile session.");
+      return result;
+    } finally { endTrace?.(); }
   }
   return {
     askVaultRetirementAccounts: async (request: RetirementRosterWireRequest) => {

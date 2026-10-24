@@ -505,3 +505,48 @@ describe("M6 task4 review regressions: names, instructions and complete ordinary
     expect(parseRetirementScenario(text, { ...ctx, investmentAccounts: ctx.investmentAccounts! })).toBeNull(); // No account alias inferred; the earlier reader refuses it.
   });
 });
+
+/**
+ * Task 7 (owner direction D-10, gap G-2, source finding S-01; authority CG-23, Requirements-Checklist.md:116): wording that merely STARTS with "Extra" or
+ * "Additional" is not an extra-money request. It must reach the ordinary or older reader. A real extra-money request (an amount and a cadence or an
+ * account) keeps its flow, and unsupported investment questions still refuse safely.
+ */
+describe("Task 7 D-10: a question that only starts with Extra or Additional is not claimed as a retirement request", () => {
+  const base = { today: "2026-10-20", categories: ["Dining", "Groceries"], accounts: [] as never[], members: [] as string[] };
+  const contexts: [string, ParseContext][] = [
+    ["no investment account", { ...base, merchants: ["Costco"], investmentAccounts: [] } as ParseContext],
+    ["one investment account", { ...base, merchants: ["Costco"], investmentAccounts: [{ id: 5, name: "Roth IRA" }] } as ParseContext],
+    ["investment account and relevant merchants", { ...base, merchants: ["Extra Space Storage", "Additional Charges Cafe", "Costco"], investmentAccounts: [{ id: 5, name: "Roth IRA" }] } as ParseContext],
+  ];
+  const questions = ["Additional income last month", "Extra spending last month", "Extra groceries last month", "Additional transactions in July"];
+  for (const [label, c] of contexts) {
+    it.each(questions)(`${label}: %s is not claimed by the extra-money reader`, text => {
+      expect(parseRetirementScenario(text, c as never), text).toBeNull();
+      expect(parseCutPreview(text, c), text).toBeNull();
+      expect(parseSpendingScenario(text, c), text).toBeNull();
+    });
+  }
+  it.each(questions)("%s is left to the ordinary reader, which answers, asks or refuses on its own terms", text => {
+    const out = parseQuestion(text, contexts[1][1]);
+    expect(["query", "legacy", "clarify", "unsupported"]).toContain(out.status);
+  });
+  const withAccount = contexts[1][1];
+  it.each([
+    "Extra $50 a month into Roth IRA until January 2056",
+    "Additional $100 one time into my Roth IRA until June 2050",
+    "An extra $50 a month for retirement",
+    "Extra $50 a month",
+  ])("a real extra-money request keeps its flow: %s", text => {
+    const out = parseRetirementScenario(text, withAccount as never);
+    expect(out?.kind, text).toBe("retirement");
+  });
+  it("an unsupported investment question still refuses safely instead of falling through", () => {
+    const out = parseRetirementScenario("Extra income in retirement", withAccount as never);
+    expect(out).toMatchObject({ kind: "retirement-unsupported" });
+  });
+  it("a recorded store whose name starts with Extra is still ordinary, and a mixed category and account question still clarifies", () => {
+    expect(parseRetirementScenario("Extra Space Storage last month", contexts[2][1] as never)).toBeNull();
+    const mixed = parseRetirementScenario("Extra $50 a month on Dining into my Roth IRA until June 2050", { ...withAccount, categories: ["Dining", "Groceries"] } as never);
+    expect(mixed?.kind === "retirement-clarify" || mixed?.kind === "retirement-unsupported").toBe(true);
+  });
+});

@@ -87,7 +87,8 @@ describe("when build identity cannot be computed (no git, rustc or cargo availab
     expect(run.artifact.reason).toMatch(/identity.*unavailable.*git is not available/i);
     expect(fs.existsSync(lockDir)).toBe(true);
     const verdict = await run.finish();
-    expect(verdict.valid).toBe(true);
+    expect(verdict.valid).toBe(false);
+    expect(verdict.problems).toContainEqual(expect.objectContaining({ kind: "untrusted-artifact", status: "unknown" }));
     expect(verdict.identity).toMatchObject({ artifactStatus: "unknown", buildKey: null, exeSha256: expect.stringMatching(/^[0-9A-F]{64}$/) });
     expect(fs.existsSync(lockDir)).toBe(false);
   });
@@ -100,7 +101,7 @@ describe("when build identity cannot be computed (no git, rustc or cargo availab
     const run = await guard({ collectInputs: () => { throw new Error("no git"); } });
     fs.writeFileSync(exe, "binary-replaced");
     const verdict = await run.finish();
-    expect(verdict.valid).toBe(false); expect(verdict.problems.map(p => p.kind)).toEqual(["executable-changed"]);
+    expect(verdict.valid).toBe(false); expect(verdict.problems.map(p => p.kind)).toEqual(["untrusted-artifact", "executable-changed"]);
   });
   it("a missing executable is still refused", async () => {
     fs.rmSync(exe);
@@ -137,10 +138,12 @@ describe("during a run", () => {
     expect(verdict.valid).toBe(false);
     expect(verdict.problems.map(p => p.kind)).toContain("executable-changed");
   });
-  it("edits to files that are not build inputs do not invalidate it", async () => {
+  it("documentation edits do not invalidate it, but runner changes invalidate validation without changing the app", async () => {
     const run = await guard();
     inputs["README.md"] = "docs edited"; inputs["e2e/run-all.mjs"] = "runner edited";
-    expect((await run.finish()).valid).toBe(true);
+    const result = await run.finish();
+    expect(result.valid).toBe(false);
+    expect(result.problems).toEqual([{ kind: "harness-changed", added: ["e2e/run-all.mjs"], changed: [], removed: [] }]);
   });
   it("reports both problems when both happen", async () => {
     const run = await guard();
@@ -154,10 +157,11 @@ describe("during a run", () => {
     run.abort();
     expect(fs.existsSync(lockDir)).toBe(false);
   });
-  it("aborting releases access without producing a verdict that looks valid", async () => {
+  it("aborting retains reconciliation access when descendant cleanup is unproved", async () => {
     const run = await guard();
     run.abort();
-    expect(fs.existsSync(lockDir)).toBe(false);
+    expect(fs.existsSync(lockDir)).toBe(true);
+    await expect(acquireAccess({ dir: lockDir, operation: "next", isAlive: () => false })).rejects.toBeInstanceOf(AccessHeldError);
     expect((await run.finish()).valid).toBe(false);
   });
 });

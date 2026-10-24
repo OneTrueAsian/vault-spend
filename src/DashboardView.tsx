@@ -42,6 +42,7 @@ import {
 } from "./dashboardLayout";
 import { answerLedgerQuestion } from "./ledgerQa";
 import { AskVaultCard } from "./AskVaultCard";
+import { prepareVendors } from "./askVault/vendor";
 import type { ParseContext } from "./askVault/types";
 import { ledgerSignature } from "./askVault/ledgerSignature";
 import { ensureUiStateMigrated } from "./profileUiState";
@@ -305,6 +306,14 @@ export function DashboardView({
   // Ask the Vault: what the question parser may know. Built when a question is asked, so today's date is current.
   // Built once per loaded list, so a large ledger is not walked again for every question.
   const askMerchants = useMemo(() => transactions.map((t) => t.description), [transactions]);
+  const [preparedAskMerchants, setPreparedAskMerchants] = useState<readonly string[] | null>(null);
+  useEffect(() => {
+    const preparation = new AbortController();
+    void prepareVendors(askMerchants, preparation.signal).then(ready => {
+      if (ready && !preparation.signal.aborted) setPreparedAskMerchants(askMerchants);
+    });
+    return () => preparation.abort();
+  }, [askMerchants]);
   const askHistoryStart = useMemo(() => {
     let earliest: string | undefined;
     for (const t of transactions) if (earliest === undefined || t.date < earliest) earliest = t.date;
@@ -1203,6 +1212,7 @@ export function DashboardView({
       {/* Owner decision (1.3.0): Ask the Vault stays this big card, directly under the title row.
           Don't shrink it into the title row. DashboardView.test.tsx and feature270 pin this. */}
       <AskVaultCard
+        ready={preparedAskMerchants === askMerchants}
         getContext={getAskContext}
         legacyAsk={legacyAsk}
         dataKey={askDataKey}

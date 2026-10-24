@@ -1,7 +1,7 @@
 import { alignedPrior, daysInMonth, isoDate, monthsTouching } from "./calendar";
 import { dayLabel, matchPeriod, MONTHS, tokenize } from "./dates";
 import { distance } from "./distance";
-import { anyVendorMatches, resolveVendor, vendorTerm } from "./vendor";
+import { anyVendorMatches, resolveVendor, vendorTerm, vendorWords } from "./vendor";
 import type {
   AskAccount,
   AskAlignment,
@@ -365,7 +365,7 @@ function storeSpanAt(tokens: string[], i: number, context: ParseContext, cued: b
 }
 
 /** A word the grammar does not know may still be a store: try it (and up to three words after it) against the names on record. */
-function implicitVendor(tokens: string[], i: number, context: ParseContext, strict = true): { atom: Atom; count: number } | ParseOutcome | null {
+function implicitVendor(tokens: string[], i: number, context: ParseContext, strict = true, listed = false): { atom: Atom; count: number } | ParseOutcome | null {
   if (isStructural(tokens, i, context) || (context.merchants ?? []).length === 0) return null;
   // A recorded name of several words (which may itself contain words like "of") is one store.
   const long = strict ? longestStore(tokens, i, context) : 0;
@@ -377,7 +377,7 @@ function implicitVendor(tokens: string[], i: number, context: ParseContext, stri
     if (Array.from({ length: n }, (_, k) => i + k).some((k) => isStructural(tokens, k, context))) continue;
     const raw = tokens.slice(i, i + n).join(" ");
     const resolution = resolveVendor(raw, context.merchants ?? [], strict);
-    if (resolution.status === "none") continue;
+    if (resolution.status === "none") { const slip = n > 1 && listed ? laterWordSlip(tokens, i, n, context) : null; if (slip) return slip; continue; }
     const found = vendorAtom(tokens, i, n, false, context, strict);
     return "status" in found ? found : { atom: found, count: n };
   }
@@ -772,7 +772,7 @@ function scan(tokens: string[], context: ParseContext, selected: AskMemberSelect
     }
 
     if (vendorList || excluding) {
-      const listed = implicitVendor(tokens, i, context, !vendorList);
+      const listed = implicitVendor(tokens, i, context, !vendorList, true);
       if (listed && "status" in listed) return listed;
       if (listed) {
         add(listed.atom);
@@ -1212,4 +1212,34 @@ function parseOnce(question: string, context: ParseContext, selected: AskMemberS
   };
   void listNames;
   return { status: "query", request, interpretation, corrections };
+}
+
+/**
+ * "Kroger and Home dept": in a list of stores the first word ("home") starts a recorded store and the next ("dept") is a slip in that store's second word. The same
+ * words directly after "at" are one typed name and already ask; here they would have been read as a store and an unknown second store, and refused. When the whole run of
+ * words is not a recorded name's start, the typed first word has close recorded names (the store rule's own suggestions), a shorter run is a recorded store, and the
+ * remaining words are not a store, a close store, a category or account (or a slip in one), a family member, a number, a grammar word or slip, or quoted, and the whole typed run is within one slip of a recorded name that starts with the words already matched, the run is one typed name: ask with the close names.
+ * Nothing is chosen for the person (mandatory choice, typoRules.json store decision). Returns null whenever any condition fails, leaving the old reading untouched.
+ */
+function laterWordSlip(tokens: string[], i: number, n: number, context: ParseContext): { atom: Atom; count: number } | ParseOutcome | null {
+  const merchants = context.merchants ?? [];
+  const whole = resolveVendor(tokens.slice(i, i + n).join(" "), merchants, false);
+  if (whole.status !== "none" || whole.suggestions.length === 0) return null;
+  let k = n - 1;
+  while (k >= 1 && resolveVendor(tokens.slice(i, i + k).join(" "), merchants, false).status === "none") k--;
+  if (k < 1) return null;
+  const rest = tokens.slice(i + k, i + n);
+  const entities = buildEntities(context);
+  const unrelated = rest.every((w, m) => !w.startsWith('"') && w !== "," && !LEGACY_WORDS.has(w) && NUMBER_WORDS[w] === undefined && WORD_TYPOS[w] === undefined && !/\d/.test(w)
+    && !entities.some((e) => e.parts.includes(w)) && !(context.members ?? []).some((m2) => nameTokens(m2).includes(w)) && fuzzyMatches(tokens, i + k + m, entities).length === 0);
+  if (!unrelated) return null;
+  const alone = resolveVendor(rest.join(" "), merchants, false);
+  if (alone.status !== "none" || alone.suggestions.length > 0) return null;
+  // The slip must be in the store's own name: the whole typed run is within one slip of a recorded name that starts with the words already matched.
+  const hit = resolveVendor(tokens.slice(i, i + k).join(" "), merchants, false);
+  const brands = hit.status === "matched" ? hit.names.map((name) => recordedName(name).join(" ")) : hit.status === "ambiguous" ? hit.choices.map((c) => c.term) : [];
+  const typed = vendorWords(tokens.slice(i, i + n).join(" ")).join(" ");
+  if (!brands.some((brand) => distance(typed, brand, 1) <= 1)) return null;
+  const found = vendorAtom(tokens, i, n, false, context, false);
+  return "status" in found ? found : null;
 }

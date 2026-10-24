@@ -1,4 +1,5 @@
 import { CHANGED_HEADING } from "./askVault/changedState";
+import { traceClaimStart } from "./askVault/retirementStageTrace";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { MessageCircleQuestion } from "lucide-react";
 import { LEDGER_QA_EXAMPLES } from "./ledgerQa";
@@ -94,7 +95,10 @@ export function AskVaultCard({
   accountNames,
   onOpenTransactions,
   createClient,
+  ready = true,
 }: {
+  /** The loaded name roster is prepared before new questions are submitted. Typing and existing results remain available. */
+  ready?: boolean;
   getContext: () => ParseContext;
   legacyAsk: (question: string) => LegacyAnswer;
   /** Changes when the ledger changes; an answer on screen is retired when it does. */
@@ -149,19 +153,23 @@ export function AskVaultCard({
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (!question.trim()) return;
+    if (!ready || !question.trim()) return;
     runQuestion(question);
   }
   function runQuestion(next: string, members: AskMemberSelection[] = []) {
+    if (!ready) return;
     cut.cancel();
     retirement.cancel();
     scenario.cancel();
     if (!members.length) {
       reset();
       // Precedence: savings targets, then extra money into an investment account, then spending scenarios, then ordinary questions.
-      if (cut.ask(next)) return;
-      if (retirement.ask(next)) return;
-      if (scenario.ask(next)) return;
+      const endTrace = import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true ? traceClaimStart() : null;
+      try {
+        if (cut.ask(next)) return;
+        if (retirement.ask(next)) return;
+        if (scenario.ask(next)) return;
+      } finally { endTrace?.(); }
     }
     void ask(next, members);
   }
@@ -233,12 +241,13 @@ export function AskVaultCard({
         </div>
       )}
       <p className="sr-only" role="status" data-example-status>{exampleFilled ? "Example filled in. Press Ask to run it." : ""}</p>
-      <form className="category-create-form" onSubmit={submit}>
+      <form className="category-create-form" onSubmit={submit} aria-busy={!ready}>
         <input ref={questionInput} value={question} onChange={(e) => changeQuestion(e.target.value)} placeholder={`e.g. "${placeholderExample}"`} aria-label="Your question" />
-        <button type="submit" disabled={!question.trim()}>
+        <button type="submit" disabled={!ready || !question.trim()}>
           Ask
         </button>
       </form>
+      {!ready && <p className="ledger-qa-hint" role="status">Getting ready to answer…</p>}
       <div className="ledger-qa-result" aria-live="polite">
         {cut.clarification && <div className="ledger-qa-clarify">
           <p className="ledger-qa-banner">{cut.clarification.reason} Nothing has been calculated yet.</p>

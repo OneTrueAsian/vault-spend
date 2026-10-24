@@ -4,7 +4,7 @@
 // The lock is a directory created atomically (mkdir fails if it exists) holding owner.json. The rules that keep it safe:
 //   - A holder is only ever waited for or refused. Nothing here signals or kills a process. process.kill(pid, 0) is an existence
 //     check, not a signal.
-//   - A lock is replaced only when it is provably abandoned: its process is gone, its heartbeat stopped long ago (a reused pid),
+//   - A lock is replaced only when it is provably abandoned: its process is gone,
 //     or its directory never got an owner and has sat unfinished well past the time a creator needs to write it.
 //   - Release removes the lock only while it still carries this holder's token.
 import crypto from "node:crypto";
@@ -14,7 +14,7 @@ import path from "node:path";
 export class AccessHeldError extends Error {
   constructor(owner, dir) {
     super(owner
-      ? `Exclusive access is held by "${owner.operation}" (pid ${owner.pid}, since ${owner.startedAt}). Wait for it to finish; nothing was stopped. Lock: ${dir}`
+      ? `Exclusive access is held by "${owner.operation}" (pid ${owner.pid}, since ${owner.startedAt}). ${owner.crashProtected ? "If its owner exited unexpectedly, reconcile its descendants before removing this lock. " : ""}Wait for it to finish; nothing was stopped. Lock: ${dir}`
       : `Exclusive access is being taken by another process right now. Lock: ${dir}`);
     this.name = "AccessHeldError"; this.owner = owner; this.dir = dir;
   }
@@ -46,11 +46,12 @@ function ageMs(dir, now) {
 }
 
 /** Whether the lock in `dir` may be replaced, and the owner it had. */
-function judge(dir, { isAlive, now, staleMs, graceMs }) {
+function judge(dir, { isAlive, now, graceMs }) {
   const owner = readOwner(dir);
   if (!owner) return { abandoned: ageMs(dir, now) > graceMs, owner: null };
-  const silentFor = now - Date.parse(owner.heartbeatAt ?? owner.startedAt ?? 0);
-  return { abandoned: !isAlive(owner.pid) || (Number.isFinite(silentFor) && silentFor > staleMs), owner };
+  // Suspend, a paused process or a blocked event loop can all stop heartbeats while the holder still owns the executable.
+  // Timestamp age does not prove PID reuse. Without process-identity evidence, a live PID must remain held.
+  return { abandoned: !owner.crashProtected && !isAlive(owner.pid), owner };
 }
 
 /** Replace an abandoned lock. A short mutex keeps two recoverers from removing each other's fresh lock. */
@@ -69,7 +70,7 @@ function recover(dir, seen, options) {
 }
 
 export async function acquireAccess({
-  dir, operation, wait = false, timeoutMs = 0, pollMs = 250, signal, isAlive = processAlive, staleMs = 10 * 60 * 1000, graceMs = 10000, heartbeatMs = 5000,
+  dir, operation, wait = false, timeoutMs = 0, pollMs = 250, signal, isAlive = processAlive, staleMs = 10 * 60 * 1000, graceMs = 10000, heartbeatMs = 5000, crashProtected = false,
 }) {
   if (signal?.aborted) throw abortError();
   fs.mkdirSync(path.dirname(dir), { recursive: true });
@@ -79,7 +80,7 @@ export async function acquireAccess({
     try {
       fs.mkdirSync(dir);
       const now = new Date().toISOString();
-      const owner = { operation, pid: process.pid, token: crypto.randomUUID(), startedAt: now, heartbeatAt: now };
+      const owner = { operation, pid: process.pid, token: crypto.randomUUID(), startedAt: now, heartbeatAt: now, ...(crashProtected ? { crashProtected: true } : {}) };
       fs.writeFileSync(ownerPath(dir), JSON.stringify(owner));
       return hold(dir, owner, recovered, heartbeatMs);
     } catch (error) {
@@ -118,6 +119,13 @@ function hold(dir, owner, recovered, heartbeatMs) {
     released = true; clearInterval(beat); process.off("exit", release);
     if (mine()) fs.rmSync(dir, { recursive: true, force: true });
   };
-  process.on("exit", release); // a holder that exits without releasing still frees the lock; a hard kill is recovered by the next acquirer
-  return { owner, recovered, release };
+  const abandon = () => {
+    if (released) return;
+    released = true; clearInterval(beat); process.off("exit", release);
+    // Deliberately keep owner.json: neither interrupt nor parent exit proves driver/compiler descendants are gone.
+  };
+  // Protected compilers/drivers may outlive a crashed parent. An exit hook cannot prove their cleanup.
+  // Successful orchestration releases explicitly; an unexpected exit leaves a conservative reconciliation lock.
+  if (!owner.crashProtected) process.on("exit", release);
+  return { owner, recovered, release, abandon };
 }

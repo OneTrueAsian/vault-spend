@@ -130,7 +130,10 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertLess(source.index('      - name: Refresh hosted WebView2 runtime'), source.index('      - name: Install desktop test drivers'))
         build = source.split('      - name: Build current desktop test app\n', 1)[1].split('      - name:', 1)[0]
         self.assertIn('CARGO_PROFILE_DEV_OPT_LEVEL: 1', build)
-        self.assertIn('npx tauri build --debug --no-bundle', build)
+        self.assertIn('npm run build:app', build)
+        # The provenance wrapper retains the original debug Tauri compiler flags.
+        builder = (ROOT / 'e2e/build-app.mjs').read_text(encoding='utf-8')
+        self.assertIn('["tauri", "build", "--debug", "--no-bundle"]', builder)
 
     def execute_repair(self, source):
         with tempfile.TemporaryDirectory(prefix='release-recovery-') as folder:

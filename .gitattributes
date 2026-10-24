@@ -3,6 +3,9 @@ core/data/benchmarks/* -text
 
 # M6 corpus freeze records exact bytes, including line endings, across checkouts.
 src/testSupport/askVaultM6/** -text
+src/testSupport/askVaultM6/freeze.ts whitespace=cr-at-eol
+src/testSupport/askVaultM6/manifest.ts whitespace=cr-at-eol
+src/testSupport/askVaultM6/nativeEvidence.ts whitespace=cr-at-eol
 src/askVault/combinedCorpusGrader.test.ts -text
 src/askVault/combinedCorpusGraderGaps.test.ts -text
 src/askVault/combinedCorpusGraderMutation.test.ts -text
@@ -18,3 +21,7 @@ src/askVault/m6PreparedPackages.test.ts -text
 src/askVault/routeDisplayCheck.test.tsx -text
 src/askVault/scenarioNativeProof.test.ts -text
 src/askVault/typoDispositions.test.tsx -text
+src/askVault/combinedAcceptance.test.tsx -text
+src/askVault/combinedAcceptanceIntegrity.test.ts -text
+src/askVault/clarificationExchanges.test.tsx -text
+src/askVault/scoringFreeze.test.ts -text

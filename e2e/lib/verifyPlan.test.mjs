@@ -65,7 +65,7 @@ describe("planning the fast path", () => {
 describe("planning the full path", () => {
   const plan = planVerification({ mode: "full", selection: selection(), allSpecs: specs });
   it("runs every check, Rust included, and the whole desktop suite", () => {
-    expect(ids(plan)).toEqual(expect.arrayContaining(["tsc", "lint", "npm-test", "cargo-fmt", "cargo-clippy", "cargo-test-core", "cargo-test-commands", "build", "smoke", "desktop-full"]));
+    expect(ids(plan)).toEqual(expect.arrayContaining(["tsc", "lint", "npm-test", "cargo-fmt", "cargo-clippy", "cargo-test-workspace", "build", "smoke", "desktop-full"]));
     expect(plan.skipped).toEqual([]);
   });
   it("runs the desktop suite without a --spec filter", () => {

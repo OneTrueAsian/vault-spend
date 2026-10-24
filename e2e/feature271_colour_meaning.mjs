@@ -58,6 +58,10 @@ con.execute("INSERT OR REPLACE INTO profile_ui_state (key, value) VALUES ('dashb
 import datetime
 last_payday = datetime.date.today().replace(day=20).isoformat()
 con.execute("DELETE FROM transactions WHERE description = 'RIVERSIDE HOSPITAL PAYROLL' AND date = ?", (last_payday,))
+# Hover contrast requires a real actionable row, independent of today's bill schedule.
+account = con.execute("SELECT id FROM accounts WHERE name = 'Joint Checking'").fetchone()[0]
+con.execute("INSERT INTO transactions (account_id,date,description,amount,category,fingerprint) VALUES (?,?,'UI review pending category','-0.01',NULL,'feature271-pending-category')", (account, datetime.date.today().isoformat()))
+assert con.execute("SELECT COUNT(*) FROM transactions WHERE category IS NULL").fetchone()[0] >= 1
 con.commit()
 `,
   path.join(dbDir, "vaultspend.db"),

@@ -5,14 +5,16 @@
 import { spawn } from "node:child_process";
 import { BUILD_MODE, exePath, lockDir, recordPath, repoRoot } from "./lib/accessPaths.mjs";
 import { buildArtifact } from "./lib/buildApp.mjs";
-import { collectInputs, readToolchain } from "./lib/buildIdentity.mjs";
+import { assertBuildOutput, collectInputs, readToolchain } from "./lib/buildIdentity.mjs";
 
 const runBuild = () => new Promise((resolve, reject) => {
+  assertBuildOutput({ repoRoot, exePath }); // configuration may have changed while waiting for exclusive access
   const child = spawn("npx", ["tauri", "build", "--debug", "--no-bundle"], { cwd: repoRoot, stdio: "inherit", shell: true });
   child.on("error", reject);
   child.on("close", code => (code === 0 ? resolve() : reject(new Error(`tauri build failed (exit ${code}).`))));
 });
 try {
+  assertBuildOutput({ repoRoot, exePath });
   const result = await buildArtifact({
     lockDir, exePath, recordPath, collectInputs: () => collectInputs(repoRoot), toolchain: readToolchain(), mode: BUILD_MODE, runBuild, force: process.argv.includes("--force"),
   });

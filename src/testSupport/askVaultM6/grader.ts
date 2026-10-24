@@ -1,5 +1,5 @@
 import { canonical, countKey, validateManifest } from "./counting";
-import type { GradingInput, Observation } from "./manifest";
+import type { GradingInput, Observation, Reference } from "./manifest";
 import { UNIT_STAND_IN_RECEIPT, verifyNativeEvidence, type EvidenceProblem } from "./nativeEvidence";
 import { REQUIRED_FAMILIES, REQUIRED_FAMILY_IDS, requiredFamilyProblems } from "./registry";
 import { readFileSync } from "node:fs";
@@ -16,6 +16,57 @@ const contradiction = (o: Observation) =>
 
 /** VP-05/06: every required context must pass; a later recovery never erases a wrong accepted answer. */
 export function gradeCorpus(input: GradingInput) {
+  return gradeValidatedCorpus(input);
+}
+
+type ValidatedEvidence = { admissible: Set<string>; problems: EvidenceProblem[]; originalCaseIds: Map<string, string> };
+
+/** Verify original package-local proof identities before building a namespaced scoring view.
+ * This is not an admissible-ID escape hatch: callers supply ordinary corpus evidence,
+ * never a trusted flag or prevalidated set. No signed case, proof or identity is rewritten. */
+export function gradeCombinedCorpus(packages: readonly { id: string; input: GradingInput }[]) {
+  const ids = new Set<string>();
+  const combined: GradingInput = { cases: [], requests: {}, references: {}, observations: [], requiredFamilies: [...REQUIRED_FAMILY_IDS],
+    routingObservations: [], amendments: { alternates: [] }, resolutionObservations: [], reviewedRealisticErrors: [], evidence: { kind: "corpus", proofs: {}, manifest: { proofs: {}, identities: {} }, contexts: { worlds: {}, contexts: {} } } };
+  const verified: ValidatedEvidence = { admissible: new Set(), problems: [], originalCaseIds: new Map() };
+  const namespaces: { package: string; cases: number; observations: number }[] = [];
+  for (const { id, input } of packages) {
+    if (!id || ids.has(id)) throw Error(`Duplicate or empty package ID: ${id}`);
+    ids.add(id);
+    if (input.evidence.kind !== "corpus") throw Error(`Package ${id} must carry real corpus evidence`);
+    validateManifest(input.cases);
+    const registry = requiredFamilyProblems(input.requiredFamilies);
+    if (registry.length) throw Error(`Package ${id}: ${registry.join("; ")}`);
+    const ns = (key: string) => JSON.stringify([id, key]);
+    const alternateIds = (input.amendments?.alternates ?? []).flatMap(a => a.perSeed.map(s => s.referenceId));
+    const referenced = new Set([...input.cases.flatMap(c => c.required.map(r => r.referenceId)), ...alternateIds].filter((x): x is string => x !== null && input.references[x] !== undefined));
+    const proof = verifyNativeEvidence({ ...input.evidence, references: Object.fromEntries([...referenced].map(key => [key, input.references[key]])), requests: input.requests });
+    for (const key of proof.verified) verified.admissible.add(ns(key));
+    verified.problems.push(...proof.problems.map(p => ({ ...p, referenceId: ns(p.referenceId) })));
+    for (const c of input.cases) {
+      verified.originalCaseIds.set(ns(c.id), c.id);
+      combined.cases.push({ ...c, id: ns(c.id), required: c.required.map(r => ({ ...r, contextId: ns(r.contextId), requestId: r.requestId === null ? null : ns(r.requestId), referenceId: r.referenceId === null ? null : ns(r.referenceId) })) });
+    }
+    for (const [key, request] of Object.entries(input.requests)) combined.requests[ns(key)] = request;
+    for (const [key, ref] of Object.entries(input.references)) combined.references[ns(key)] = { ...ref, contextId: ns(ref.contextId), requestId: ns(ref.requestId) } as Reference;
+    combined.observations.push(...input.observations.map(o => ({ ...o, caseId: ns(o.caseId), contextId: ns(o.contextId) })));
+    combined.routingObservations!.push(...(input.routingObservations ?? []));
+    combined.reviewedRealisticErrors!.push(...(input.reviewedRealisticErrors ?? []).map(e => ({ ...e, id: ns(e.id) })));
+    // Amendments are namespaced exactly like the cases they name, so a package can never amend another package's case.
+    const fr = input.amendments?.familyResolution;
+    if (fr) {
+      if (combined.amendments!.familyResolution) throw Error("More than one family-resolution amendment");
+      combined.amendments!.familyResolution = { ...fr, approvedChoices: Object.fromEntries(Object.entries(fr.approvedChoices).map(([id, label]) => [ns(id), label])) };
+    }
+    for (const a of input.amendments?.alternates ?? []) combined.amendments!.alternates!.push({ caseId: ns(a.caseId), perSeed: a.perSeed.map(s => ({ ...s, contextId: ns(s.contextId), requestId: ns(s.requestId), referenceId: ns(s.referenceId) })) });
+    combined.resolutionObservations!.push(...(input.resolutionObservations ?? []).map(o => ({ ...o, caseId: ns(o.caseId), contextId: ns(o.contextId) })));
+    namespaces.push({ package: id, cases: input.cases.length, observations: input.observations.length });
+  }
+  return { ...gradeValidatedCorpus(combined, verified), namespaces };
+}
+
+/** Private only: the combined entry point obtains this evidence by checking each original proof above. */
+function gradeValidatedCorpus(input: GradingInput, validated?: ValidatedEvidence) {
   validateManifest(input.cases);
   const {cases,requests,references,observations}=input;
   const issues: string[]=[],wrongAccepted: string[]=[],integrityIssues: string[]=[];
@@ -29,9 +80,10 @@ export function gradeCorpus(input: GradingInput) {
   for(const c of cases)if(c.population==="P-CORE"&&!REQUIRED_FAMILY_IDS.includes(c.family))integrity(`${c.id}: unregistered family ${c.family}`);
   // F2 (VP-06/08): only receipts that verify against the real proof earn financial credit. An omitted evidence block earns nothing.
   const evidence=input.evidence??{kind:"corpus" as const,proofs:{},manifest:{proofs:{},identities:{}},contexts:{worlds:{},contexts:{}}};
-  const referenced=new Set(cases.flatMap(c=>c.required.map(r=>r.referenceId)).filter((x):x is string=>x!==null&&references[x]!==undefined));
-  const evidenceProblems:EvidenceProblem[]=[],admissible=new Set<string>();
-  if(evidence.kind==="corpus") {
+  const referenced=new Set([...cases.flatMap(c=>c.required.map(r=>r.referenceId)),...(input.amendments?.alternates??[]).flatMap(a=>a.perSeed.map(s=>s.referenceId))].filter((x):x is string=>x!==null&&references[x]!==undefined));
+  const evidenceProblems:EvidenceProblem[]=[...(validated?.problems ?? [])],admissible=new Set<string>(validated?.admissible);
+  if(validated) { /* Original package proof identities were verified before namespacing. */ }
+  else if(evidence.kind==="corpus") {
     const v=verifyNativeEvidence({references:Object.fromEntries([...referenced].map(id=>[id,references[id]])),requests,contexts:evidence.contexts,proofs:evidence.proofs,manifest:evidence.manifest});
     evidenceProblems.push(...v.problems);v.verified.forEach(id=>admissible.add(id));
   } else for(const id of referenced) {
@@ -41,7 +93,7 @@ export function gradeCorpus(input: GradingInput) {
   for(const o of observations)if(!caseIds.has(o.caseId))integrity(`Unexpected observed case: ${o.caseId}`);
   for(const c of cases) {
     let financial=true,direct=true,withinOne=true,stop=true;
-    const clarificationGold=CLARIFICATION_GOLDS.cases[c.id];
+    const clarificationGold=CLARIFICATION_GOLDS.cases[validated?.originalCaseIds.get(c.id) ?? c.id];
     if(clarificationGold&&(clarificationGold.text!==c.text||clarificationGold.family!==c.family||c.population!=="P-NC"))integrity(`${c.id}: original clarification gold identity differs`);
     for(const r of c.required) {
       const label=`${c.id}/${r.contextId}/${r.seed}`;
@@ -69,12 +121,19 @@ export function gradeCorpus(input: GradingInput) {
         const linked=want!==undefined&&ref!==undefined&&ref.requestId===r.requestId&&ref.seed===r.seed&&ref.contextId===r.contextId&&admissible.has(r.referenceId!);
         if(!linked){integrity(`${label}: missing exact reference/native receipt linkage`);financial=direct=withinOne=false;}
         // Missing evidence is INCOMPLETE, not proof that the observed amount was wrong.
-        const wrong=(want!==undefined&&ref!==undefined)&&(o.accepted.some(a=>!same(a.request,want)||!same(a.result,ref.value))
-          ||(o.stage==="result"&&o.request!==undefined&&o.result!==undefined&&(!same(o.request,want)||!same(o.result,ref.value))));
+        // D-R3: an explicitly amended alternate request, with its own linked reference on this seed, is accepted beside the original gold. Nothing else is.
+        const alt=(input.amendments?.alternates??[]).find(a=>a.caseId===c.id)?.perSeed.find(s=>s.seed===r.seed&&s.contextId===r.contextId);
+        const altWant=alt?requests[alt.requestId]:undefined,altRef=alt?references[alt.referenceId]:undefined;
+        const altLinked=alt!==undefined&&altWant!==undefined&&altRef!==undefined&&altRef.requestId===alt.requestId&&altRef.seed===r.seed&&altRef.contextId===r.contextId&&admissible.has(alt.referenceId);
+        const mismatch=(w:unknown,rf:Reference|undefined)=>(w!==undefined&&rf!==undefined)&&(o.accepted.some(a=>!same(a.request,w)||!same(a.result,rf.value))
+          ||(o.stage==="result"&&o.request!==undefined&&o.result!==undefined&&(!same(o.request,w)||!same(o.result,rf.value))));
+        const altOk=altLinked&&!mismatch(altWant,altRef);
+        const wrong=mismatch(want,ref)&&!altOk;
         if(wrong){wrongAccepted.push(label);issues.push(`${label}: wrong accepted request/result`);}
         const consent=!r.requiresConsent||(o.reviewed&&o.consented);
         if(!consent&&o.stage==="result")integrity(`${label}: accepted without required live review/consent`);
-        const correct=linked&&!wrong&&consent&&o.stage==="result"&&o.accepted.length>0&&same(o.request,want)&&same(o.result,ref?.value);
+        const shown=consent&&o.stage==="result"&&o.accepted.length>0;
+        const correct=(linked&&!mismatch(want,ref)&&shown&&same(o.request,want)&&same(o.result,ref?.value))||(altOk&&shown&&same(o.request,altWant)&&same(o.result,altRef?.value));
         if(!correct){issues.push(`${label}: no verified completed result`);financial=direct=withinOne=false;}
         if(!Number.isSafeInteger(o.meaningChoices)||o.meaningChoices<0){integrity(`${label}: invalid clarification count`);financial=direct=withinOne=false;}
         direct&&=correct&&o.meaningChoices===0;withinOne&&=correct&&o.meaningChoices<=1;
@@ -84,6 +143,35 @@ export function gradeCorpus(input: GradingInput) {
       integrity(`${c.id}: unexpected seed/context`);financial=direct=withinOne=stop=false;
     }
     verdicts.set(c.id,{financial,direct,withinOne,stop});
+  }
+  // D-R2: the family-resolution measure. It reads only the amended cases of ONE family and writes nothing the direct metric, the family rows or the strict gates read.
+  const amend=input.amendments?.familyResolution,resolutionObs=input.resolutionObservations??[];
+  const approvedOf=(id:string)=>amend?.approvedChoices[id];
+  const resolvedCases=new Set<string>();
+  for(const x of resolutionObs)if(!caseIds.has(x.caseId)||approvedOf(x.caseId)===undefined)integrity(`${x.caseId}/${x.contextId}/${x.seed}: resolution observation outside the amendment`);
+  if(amend)for(const c of cases){
+    const approved=approvedOf(c.id);if(approved===undefined)continue;
+    const same=(a:unknown,b:unknown)=>a!==undefined&&b!==undefined&&canonical(a)===canonical(b);
+    if(c.family!==amend.family||c.population!=="P-CORE")integrity(`${c.id}: the amendment names a case outside ${amend.family} P-CORE`);
+    let ok=c.family===amend.family&&c.population==="P-CORE";
+    for(const r of c.required){
+      const label=`${c.id}/${r.contextId}/${r.seed}`;
+      const first=observations.filter(o=>o.caseId===c.id&&o.contextId===r.contextId&&o.seed===r.seed),res=resolutionObs.filter(o=>o.caseId===c.id&&o.contextId===r.contextId&&o.seed===r.seed);
+      if(res.length>1)integrity(`${label}: expected one resolution observation, got ${res.length}`);
+      if(first.length!==1||res.length!==1){ok=false;continue;}
+      const o=first[0],x=res[0];
+      const want=r.requestId!==null?requests[r.requestId]:undefined,ref=r.referenceId?references[r.referenceId]:undefined;
+      const linked=want!==undefined&&ref!==undefined&&ref.requestId===r.requestId&&ref.seed===r.seed&&ref.contextId===r.contextId&&admissible.has(r.referenceId!);
+      // An answer accepted or read before the person chose is a wrong acceptance in its own right: a store typo is never answered without a choice.
+      if(o.accepted.length>0||x.readsBeforeChoice>0){wrongAccepted.push(label);issues.push(`${label}: answered before the person chose`);}
+      const wrongAfter=want!==undefined&&ref!==undefined&&(x.accepted.some(a=>!same(a.request,want)||!same(a.result,ref.value))||(x.stage==="result"&&x.request!==undefined&&x.result!==undefined&&(!same(x.request,want)||!same(x.result,ref.value))));
+      if(wrongAfter){wrongAccepted.push(label);issues.push(`${label}: wrong accepted resolution request/result`);}
+      const offered=(o.offeredChoices??[]).some(l=>l.toLowerCase()===approved.toLowerCase());
+      const good=o.stage==="clarify"&&o.accepted.length===0&&offered&&!contradiction(o)&&!contradiction(x)&&x.stage==="result"&&x.meaningChoices===1&&x.chosen.toLowerCase()===approved.toLowerCase()
+        &&x.readsBeforeChoice===0&&x.accepted.length===1&&linked&&same(x.request,want)&&same(x.result,ref?.value)&&same(x.accepted[0].request,want)&&same(x.accepted[0].result,ref?.value)&&(!r.requiresConsent||(x.reviewed&&x.consented));
+      if(!good)ok=false;
+    }
+    if(ok)resolvedCases.add(c.id);
   }
   // Collision IDs are obligations, never additional attempts or text credits.
   const groups=new Map<string,typeof cases>();
@@ -115,7 +203,24 @@ export function gradeCorpus(input: GradingInput) {
   });
   const stops=slice(c=>STOP_POPULATIONS.includes(c.population)&&c.required.every(r=>r.requestId===null));
   const core=score("P-CORE"),longTail=score("P-LT");
+  // Raw tags are reported, never gated (Task 7, D-8, CG-04): the floor counts only individually reviewed membership, each entry checked against the frozen case.
   const typoTexts=population("P-CORE").filter(xs=>xs.some(c=>c.tags.some(t=>["typo","noise","realistic-error"].includes(t)))).length;
+  const caseById=new Map(cases.map(c=>[c.id,c])),reviewedIds=new Set<string>(),reviewedKeys=new Set<string>();
+  for(const e of input.reviewedRealisticErrors??[]) {
+    const bad=(why:string)=>integrity(`reviewed realistic error ${e.id}: ${why}`);
+    const c=caseById.get(e.id);
+    if(reviewedIds.has(e.id)){bad("duplicate id");continue;}
+    reviewedIds.add(e.id);
+    if(!c){bad("unknown id, not a case in this corpus");continue;}
+    if(c.population!=="P-CORE"){bad("not a P-CORE case");continue;}
+    if(!c.tags.includes("typo")&&!c.tags.includes("noise")){bad("case is not tagged typo or noise");continue;}
+    if(!c.tags.includes("typo")&&!(typeof e.justification==="string"&&e.justification.trim())){bad("noise-only case needs a written justification");continue;}
+    if(e.text!==c.text){bad("text differs from the frozen case");continue;}
+    if(!["typo","word-order","contraction"].includes(e.class)){bad("unknown error class");continue;}
+    if(typeof e.rationale!=="string"||e.rationale.trim().length<20){bad("missing rationale");continue;}
+    reviewedKeys.add(countKey(c.text));
+  }
+  const realisticErrorTexts=reviewedKeys.size;
   const outOfScope=population("P-OOS").length;
   const oosTally=new Map<string,{capability:string;total:number;unsupported:number;clarified:number;multiClarification:number;noAnswer:number;answered:number}>();
   for(const c of cases.filter(x=>x.population==="P-OOS"))for(const o of observations.filter(x=>x.caseId===c.id)){
@@ -127,10 +232,20 @@ export function gradeCorpus(input: GradingInput) {
   const outOfScopeReport=[...oosTally.values()].sort((a,b)=>a.capability<b.capability?-1:1);
   const requiredStops={total:stops.length,failed:stops.filter(xs=>!successful(xs,"stop")).length};
   const gates={coreFloor:core.total>=650,coreDirect:core.total>0&&100*core.direct>=95*core.total,
-    families:registryBound&&families.every(f=>f.status==="PASS"),admissibleEvidence:evidence.kind==="corpus"&&evidenceProblems.length===0,typoFloor:typoTexts>=100,financialFloor:financialTexts>=600,zeroWrong:wrongAccepted.length===0,
+    families:registryBound&&families.every(f=>f.status==="PASS"),admissibleEvidence:evidence.kind==="corpus"&&evidenceProblems.length===0,typoFloor:realisticErrorTexts>=100,financialFloor:financialTexts>=600,zeroWrong:wrongAccepted.length===0,
     longTailFloor:longTail.total>=100,longTailDirect:longTail.total>0&&100*longTail.direct>=80*longTail.total,
     longTailOne:longTail.total>0&&100*longTail.withinOne>=90*longTail.total,outOfScopeFloor:outOfScope>=100,requiredStops:requiredStops.failed===0};
+  const familyResolution=amend?(()=>{
+    const xs=slice(c=>c.family===amend.family&&c.population==="P-CORE"),row=families.find(f=>f.family===amend.family);
+    const direct=xs.filter(g=>successful(g,"direct")).length,resolved=xs.filter(g=>g.every(c=>verdicts.get(c.id)!.direct||resolvedCases.has(c.id))).length;
+    const original=(id:string)=>validated?.originalCaseIds.get(id)??id;
+    return {family:amend.family,thresholdPercent:amend.thresholdPercent,direct:{total:xs.length,direct},resolution:{total:xs.length,resolved,resolvedByChoice:[...resolvedCases].map(original).sort()},
+      pass:xs.length>0&&resolved*100>=amend.thresholdPercent*xs.length&&(!row||(row.stops.failed===0&&row.routing.every(r=>r.pass)))};
+  })():null;
+  const gatesUnderAmendment={...gates,families:registryBound&&families.every(f=>amend&&familyResolution&&f.family===amend.family?familyResolution.pass:f.status==="PASS")};
   const evidenceClass=evidence.kind==="unit-stand-in"?"unit-stand-in" as const:evidenceProblems.length===0?"native-verified" as const:"native-unverified" as const;
-  return {evidenceClass,evidenceProblems,registryBound,core,longTail,financialTexts,typoTexts,outOfScope,outOfScopeReport,families,requiredStops,wrongAccepted:[...new Set(wrongAccepted)],issues,integrityIssues,gates,
-    passed:Object.values(gates).every(Boolean)&&integrityIssues.length===0};
+  return {evidenceClass,evidenceProblems,registryBound,core,longTail,financialTexts,typoTexts,realisticErrorTexts,outOfScope,outOfScopeReport,families,requiredStops,wrongAccepted:[...new Set(wrongAccepted)],issues,integrityIssues,gates,
+    passed:Object.values(gates).every(Boolean)&&integrityIssues.length===0,
+    /** D-R2: reported beside, never instead of, the strict result above. Null when no amendment is supplied. */
+    familyResolution,gatesUnderAmendment,passedUnderAmendment:Object.values(gatesUnderAmendment).every(Boolean)&&integrityIssues.length===0};
 }

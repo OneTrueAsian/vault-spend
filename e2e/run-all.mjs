@@ -1,9 +1,6 @@
 // Runs smoke.mjs + every feature*.mjs spec with bounded concurrency,
-// instead of one at a time. Safe to parallelize because each spec already
-// gets its own throwaway SQLite file (harness.mjs's freshTestDbDir/seedFixture)
-// and, since harness.mjs picks a fresh OS-assigned port per launchApp() call
-// instead of a hardcoded one, its own tauri-driver instance too — no two
-// concurrent specs share any state.
+// with exclusive desktop resources protected by classification and source-bound approval.
+// Isolated SQLite files and driver ports do not isolate OS foreground, keyboard or pointer state.
 //
 // Usage:
 //   node e2e/run-all.mjs                 # default concurrency (6)
@@ -25,13 +22,14 @@ import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { isolatedTempEnv, keepTempFiles, makeTempDir, removeDir, removeStaleDirs } from "./lib/tempDir.mjs";
 import { resolveSpecTimeout } from "./lib/specTimeout.mjs";
 import { BUILD_MODE, exePath, lastRunPath, lockDir, recordPath, repoRoot } from "./lib/accessPaths.mjs";
 import { collectInputs, readToolchain } from "./lib/buildIdentity.mjs";
 import { GuardRefusal, beginGuardedRun } from "./lib/runGuard.mjs";
-import { classifySpecs, runSchedule } from "./lib/scheduler.mjs";
+import { classifySpecs, createApprovalContext, runSchedule } from "./lib/scheduler.mjs";
 import { matchesSelector } from "./lib/specSelectors.mjs";
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
@@ -43,11 +41,11 @@ if (!Number.isInteger(concurrency) || concurrency < 1) {
   process.exit(1);
 }
 
-// --schedule=pool (default): every spec shares one pool of `concurrency` workers, as before.
+// --schedule=pool: explicit diagnostic bypass; at concurrency >1 it never counts as acceptance.
 // --schedule=classified: only specs listed parallel-safe in e2e/spec-classification.json share the pool; every other spec is exclusive
-// and runs completely alone, after the pool has drained. A spec the file does not mention is exclusive.
+// and runs completely alone, after the pool has drained. Default; names without current approval are exclusive.
 const scheduleArg = process.argv.find((a) => a.startsWith("--schedule="));
-const schedule = scheduleArg ? scheduleArg.split("=")[1] : "pool";
+const schedule = scheduleArg ? scheduleArg.split("=")[1] : "classified";
 if (!["pool", "classified"].includes(schedule)) {
   console.error(`--schedule must be "pool" or "classified", got "${scheduleArg.split("=")[1]}"`);
   process.exit(1);
@@ -80,10 +78,11 @@ if (selectors) {
 const specs = selectors ? allSpecs.filter((name) => selectors.some((selector) => matchesSelector(name, selector))) : allSpecs;
 let classification;
 try { classification = JSON.parse(fs.readFileSync(path.join(e2eDir, "spec-classification.json"), "utf8")); } catch { classification = undefined; } // unreadable: everything exclusive
-const effectiveClassification = schedule === "classified" ? classification : { parallelSafe: specs };
-const classes = classifySpecs(specs, effectiveClassification);
+let effectiveClassification = schedule === "classified" ? classification : { parallelSafe: specs };
+let approvalContext = schedule === "classified" ? {} : undefined;
+let classes = classifySpecs(specs, effectiveClassification, approvalContext);
 if (process.argv.includes("--list")) {
-  console.log(schedule === "classified"
+  console.log(scheduleArg && schedule === "classified"
     ? specs.map((name) => `${name}  [${classes.parallel.includes(name) ? "parallel-safe" : "exclusive"}]`).join("\n")
     : specs.join("\n"));
   process.exit(0);
@@ -202,12 +201,44 @@ if (guard.artifact.status === "unknown") console.log(`Note: ${guard.artifact.rea
 else if (guard.artifact.status === "stale") console.log(`WARNING: running against a stale executable (--allow-stale-artifact). ${guard.artifact.reason}`);
 
 const overallStart = Date.now();
+if (schedule === "classified") {
+  // No registry, unreadable receipt or legacy names alone can grant parallel execution.
+  let registry = {};
+  try {
+    registry = JSON.parse(fs.readFileSync(path.join(e2eDir, "parallel-approvals.json"), "utf8"));
+    const verified = {};
+    for (const [id, reference] of Object.entries(registry.receipts ?? {})) {
+      try {
+        const bytes = fs.readFileSync(path.resolve(repoRoot, reference.path));
+        if (crypto.createHash("sha256").update(bytes).digest("hex") !== reference.sha256) continue;
+        const r = JSON.parse(bytes);
+        if (r.identity?.buildKey !== r.approvalBinding?.buildKey || r.identity?.exeSha256 !== r.approvalBinding?.exeSha256
+          || !Number.isFinite(Date.parse(r.identity?.startedAt)) || !Number.isFinite(Date.parse(r.identity?.finishedAt))
+          || Date.parse(r.identity.finishedAt) <= Date.parse(r.identity.startedAt)) continue;
+        // Explicit pool diagnostics cannot count as regression acceptance. Their source-valid, all-passing raw evidence
+        // can nevertheless support a separately reviewed approval; do not hide any other invalidation.
+        const validProof = r.valid === true || (r.sourceValid === true && r.problems?.length === 1 && r.problems[0].kind === "unapproved-parallel-pool");
+        verified[id] = { id, runId: `${r.identity.startedAt}|${r.identity.finishedAt}`, receiptSha256: reference.sha256, valid: validProof, concurrency: r.concurrency, binding: r.approvalBinding, specs: r.selected, results: r.executed };
+      } catch { /* missing/malformed evidence cannot grant approval */ }
+    }
+    registry.receipts = verified;
+  } catch { registry = {}; }
+  approvalContext = createApprovalContext({ inputs: guard.inputs(), identity: guard.identity(), registry });
+  approvalContext.concurrency = concurrency;
+  effectiveClassification = { ...classification, approvals: registry.approvals ?? {} };
+  classes = classifySpecs(specs, effectiveClassification, approvalContext);
+}
 console.log(schedule === "classified"
   ? `Running ${specs.length} specs, classified: ${classes.parallel.length} parallel-safe at concurrency ${concurrency}, then ${classes.exclusive.length} exclusive one at a time...\n`
   : `Running ${specs.length} specs with concurrency ${concurrency}...\n`);
-const results = await runSchedule({ specs, classification: effectiveClassification, concurrency, run: runAndReport, durations: knownDurations });
+const results = await runSchedule({ specs, classification: effectiveClassification, approvalContext, concurrency, run: runAndReport, durations: knownDurations });
 const totalSeconds = ((Date.now() - overallStart) / 1000).toFixed(1);
 const verdict = await guard.finish();
+const sourceValid = verdict.valid;
+if (schedule === "pool" && concurrency > 1) {
+  verdict.valid = false;
+  verdict.problems.push({ kind: "unapproved-parallel-pool", reason: "Explicit pool execution bypasses exclusive classifications; diagnostic evidence only, never full regression acceptance." });
+}
 
 // Only trust timings from specs that actually ran to a normal exit — a
 // killed-on-timeout duration is an artifact of the timeout, not the spec,
@@ -232,8 +263,8 @@ console.log(`Artifact: ${verdict.identity.artifactStatus}, executable SHA-256 ${
 try {
   fs.mkdirSync(path.dirname(lastRunPath), { recursive: true });
   fs.writeFileSync(lastRunPath, JSON.stringify({
-    identity: verdict.identity, valid: verdict.valid, problems: verdict.problems, schedule, parallelSafe: classes.parallel.length, exclusive: classes.exclusive.length, concurrency, specTimeoutMs: SPEC_TIMEOUT_MS, elapsedSeconds: Number(totalSeconds), launchRetries, timeouts,
-    selected: specs, executed: results.map((r) => ({ name: r.name, code: r.code, durationMs: r.durationMs })),
+    identity: verdict.identity, validationManifest: verdict.validationManifest, approvalBinding: approvalContext?.binding ?? createApprovalContext({ inputs: verdict.validationManifest?.before, identity: verdict.identity }).binding, sourceValid, valid: verdict.valid, problems: verdict.problems, schedule, parallelSafe: classes.parallel.length, exclusive: classes.exclusive.length, concurrency, specTimeoutMs: SPEC_TIMEOUT_MS, elapsedSeconds: Number(totalSeconds), launchRetries, timeouts,
+    selected: specs, executed: results.map((r) => ({ name: r.name, code: r.code, durationMs: r.durationMs, output: r.output })),
   }, null, 2) + "\n");
 } catch { /* the record is evidence for the report, not part of the verdict */ }
 if (failed.length > 0) {
@@ -244,7 +275,7 @@ if (failed.length > 0) {
   }
 }
 if (!verdict.valid) {
-  console.log("\nINVALID EVIDENCE: the source or the executable changed while this run was in progress, so its results do not describe a single build:");
+  console.log("\nINVALID EVIDENCE: artifact provenance is untrusted or validation inputs/executable changed during the run:");
   for (const p of verdict.problems) console.log(`  - ${p.kind}${p.changed ? ` changed: ${[...p.changed, ...p.added].join(", ")}` : ""}${p.removed?.length ? ` removed: ${p.removed.join(", ")}` : ""}${p.after !== undefined ? ` (SHA-256 ${p.before} -> ${p.after ?? "missing"})` : ""}`);
 }
 if (failed.length > 0) process.exit(1);

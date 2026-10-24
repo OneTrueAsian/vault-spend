@@ -7,9 +7,10 @@ const STEP = {
   lint: { label: "Lint", command: ["npm", "run", "lint"] },
   "npm-test": { label: "Full unit suite (npm test)", command: ["npm", "test"] },
   "cargo-fmt": { label: "Rust formatting", command: access("cargo-fmt", "cargo", "fmt", "--all", "--", "--check") },
-  "cargo-clippy": { label: "Rust Clippy (strict)", command: access("cargo-clippy", "cargo", "clippy", "-p", "budget_core", "-p", "vaultspend", "--lib", "--tests", "--", "-D", "warnings") },
+  "cargo-clippy": { label: "Rust Clippy (strict, all workspace targets)", command: access("cargo-clippy", "cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings") },
   "cargo-test-core": { label: "Rust tests: budget_core", command: access("cargo-test", "cargo", "test", "-p", "budget_core", "--", "--test-threads=1") },
   "cargo-test-commands": { label: "Rust tests: app commands", command: access("cargo-test", "cargo", "test", "-p", "vaultspend", "--lib", "commands::", "--", "--test-threads=1") },
+  "cargo-test-workspace": { label: "Rust tests: full workspace", command: access("cargo-test", "cargo", "test", "--workspace", "--", "--test-threads=1") },
   build: { label: "Debug Tauri build (reused when every input matches)", command: ["npm", "run", "build:app"] },
 };
 const DISCLAIMER = {
@@ -22,19 +23,25 @@ export function planVerification({ mode, selection, allSpecs, concurrency }) {
   const steps = [], skipped = [];
   const add = id => steps.push({ id, ...STEP[id] });
   for (const id of ["tsc", "lint", "npm-test"]) add(id);
-  // Desktop specs always use the classified schedule here: exclusive specs run alone. (The runner's own default stays the plain pool until the owner reviews the measured results.)
+  // Desktop specs use the classified schedule: exclusive or unapproved specs run alone.
   const concurrencyArgs = ["--schedule=classified", ...(concurrency ? [`--concurrency=${concurrency}`] : [])];
 
   if (mode === "full") {
-    for (const id of ["cargo-fmt", "cargo-clippy", "cargo-test-core", "cargo-test-commands", "build"]) add(id);
+    for (const id of ["cargo-fmt", "cargo-clippy", "cargo-test-workspace", "build"]) add(id);
     steps.push({ id: "smoke", label: "Smoke (desktop launch check)", command: ["node", "e2e/run-all.mjs", "--spec=smoke"] });
     steps.push({ id: "desktop-full", label: "Full desktop suite", command: ["node", "e2e/run-all.mjs", ...concurrencyArgs] });
     return { mode, steps, skipped, disclaimer: DISCLAIMER.full };
   }
 
   const required = (selection.required ?? []).join("\n");
-  const rust = [["cargo-fmt", /cargo fmt/], ["cargo-clippy", /clippy/], ["cargo-test-core", /budget_core/], ["cargo-test-commands", /vaultspend/]].filter(([, pattern]) => pattern.test(required));
-  if (rust.length) rust.forEach(([id]) => add(id));
+  // Structured native obligations cannot be lost when a broad desktop rule bypasses the map's explanatory strings.
+  // Retain older area-map `requires` declarations for existing cross-language boundaries.
+  const structured = new Set(selection.nativeChecks ?? []);
+  const rust = [["cargo-fmt", /cargo fmt/], ["cargo-clippy", /clippy/], ["cargo-test-core", /budget_core/], ["cargo-test-commands", /vaultspend/]].filter(([id, pattern]) => structured.has(id) || pattern.test(required));
+  if (structured.has("cargo-test-workspace")) {
+    for (const [id] of rust.filter(([id]) => !id.startsWith("cargo-test"))) add(id);
+    add("cargo-test-workspace");
+  } else if (rust.length) rust.forEach(([id]) => add(id));
   else skipped.push({ id: "cargo", label: "Rust checks", reason: "No native (Rust) file changed or reached by this selection." });
 
   if (selection.specs.length) {

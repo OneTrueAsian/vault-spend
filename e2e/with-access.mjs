@@ -14,7 +14,7 @@ if (separator < 3 || separator === process.argv.length - 1 || !operation || oper
 }
 const [command, ...args] = process.argv.slice(separator + 1);
 let lock;
-try { lock = await acquireAccess({ dir: lockDir, operation, wait: true, timeoutMs: Number(process.env.VAULTSPEND_ACCESS_TIMEOUT_MS ?? 30 * 60 * 1000) }); } catch (error) { console.error(error.message); process.exit(2); }
+try { lock = await acquireAccess({ dir: lockDir, operation, wait: true, timeoutMs: Number(process.env.VAULTSPEND_ACCESS_TIMEOUT_MS ?? 30 * 60 * 1000), crashProtected: true }); } catch (error) { console.error(error.message); process.exit(2); }
 // No shell by default, so arguments (quotes, spaces) reach the program exactly as given. Windows needs a shell only for .cmd launchers
 // such as npx; those get each argument quoted.
 const quote = arg => `"${String(arg).replaceAll('"', '\\"')}"`;

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import { chooseStyle, launchApp, withFocusRetry } from "../harness.mjs";
 import { askHelpers, LONG_NAME, NEAR_NAME_A, QUESTION, QUESTION_NO_ACCOUNT, QUESTION_REFUSED, REFUSAL_MESSAGE, seedRetirementProfile } from "./askRetirement.mjs";
 import { seedFixture } from "./seed.mjs";
+import { withAskReady } from "./askReady.mjs";
+import { ensureAxe, waitForVisualStability, measurePhase } from "./axeSession.mjs";
 
 // M5 compiled-screen acceptance (V3): every reachable screen, in the three styles, light and dark, at 720, 960 and 1280 px wide, with long and
 // near-duplicate account names. For every combination: Axe (WCAG 2 A, AA and 2.1 AA, including contrast), the dialog's geometry (inside the window, no
@@ -11,7 +12,6 @@ import { seedFixture } from "./seed.mjs";
 // A keyboard-only walk and the error card (more investment accounts than can be listed) are separate sections.
 // The numeric-refusal ("blocked") card IS reachable from a real question: a typed 100% return to October 2100 passes review and consent and the calculator then
 // refuses it (corpus case m5c-027). It is in this matrix, with a long account name and with the recovery choices it leads to, and in the keyboard walk.
-const AXE = fs.readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
 const SHOTS = process.env.VS_M5_SHOTS;
 // The suite kills a spec after 60 s, so the matrix runs as shards (feature305_screens_<style>_<theme>_<width>, plus feature305_screens_keyboard_and_error), each selecting
 // its slice here. Run with none of these set, the whole matrix runs in one process (the acceptance total is the same either way).
@@ -28,8 +28,8 @@ const ANNOUNCE = {
   explore: { heading: "Explore other returns", live: "none" },
   unsupported: { heading: "I can't do that yet", live: "status" }, stale: { heading: "Your details changed", live: "alert" }, error: { heading: "I couldn't read that account", live: "alert" },
 };
-const dbDir = await seedRetirementProfile();
-const app = await launchApp({ dbDir });
+const dbDir = await measurePhase("M5 fixture", () => seedRetirementProfile());
+const app = await measurePhase("M5 startup", () => launchApp({ dbDir }));
 const b = app.browser;
 const h = askHelpers(b);
 const failures = [], seen = new Set();
@@ -42,9 +42,11 @@ async function setTheme(mode) {
 
 /** Axe, geometry, announcement, focus and a screenshot for the screen that is open now. */
 async function inspect(label, stage = null) {
+  return measurePhase("M5 inspection", async () => {
   seen.add(stage ?? label);
-  await (await b.$("body")).moveTo({ xOffset: 2, yOffset: 2 }); await b.pause(450); // let colour transitions finish; a button under a resting pointer is mid-hover for a moment
-  await b.execute(AXE);
+  await (await b.$("body")).moveTo({ xOffset: 2, yOffset: 2 });
+  await waitForVisualStability(b); // same 450 ms allowance; inspect only after finite transitions and layout settle
+  await ensureAxe(b);
   const nodes = await b.executeAsync(done => window.axe.run({ include: [['[role="dialog"]']] }, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })
     .then(r => done(r.violations.flatMap(v => v.nodes.map(n => `${v.id}: ${n.target.join(" ")} — ${n.any[0]?.data?.fgColor ?? ""} on ${n.any[0]?.data?.bgColor ?? ""} at ${n.any[0]?.data?.contrastRatio ?? ""}`))))
     .catch(e => done([`axe failed: ${String(e)}`])));
@@ -76,6 +78,7 @@ async function inspect(label, stage = null) {
     if (expected.live === "none" && (semantics.alerts || semantics.statuses)) failures.push(`${label}: nothing should be announced here`);
   }
   await shoot(label.replace(/[^a-z0-9]+/gi, "-").toLowerCase());
+  });
 }
 
 /** Asks a question the calculator refuses after consent, confirms the review, and waits for the numeric-refusal card (with its wording and no fabricated balance). */
@@ -130,7 +133,7 @@ const SCREENS = [
 ];
 
 try {
-  await h.openDashboard();
+  await measurePhase("M5 navigation", () => h.openDashboard());
   // The reading card is brief; hold the roster reply for a moment (a slow native read) so the card can be inspected for real.
   await b.execute(() => { const real = window.fetch.bind(window); window.fetch = async (input, init) => { const url = String(input instanceof Request ? input.url : input); if (window.__m5Hold && url.includes("get_ask_vault_retirement_accounts")) await new Promise(r => setTimeout(r, window.__m5Hold)); return real(input, init); }; });
 
@@ -140,15 +143,15 @@ try {
       await setTheme(mode);
       for (const width of WIDTHS) {
         await b.setWindowSize(width, 900);
-        await h.openDashboard();
+        await measurePhase("M5 navigation", () => h.openDashboard());
         const where = `${style}/${mode}/${width}`;
         await b.execute(() => { window.__m5Hold = 1500; });
-        await h.ask(QUESTION()); await h.waitText("Reading", `${where} reading`, 5000);
+        await withAskReady(b, () => h.ask(QUESTION())); await h.waitText("Reading", `${where} reading`, 5000);
         await inspect(`${where} reading`, "reading");
         await b.execute(() => { window.__m5Hold = 0; });
         await h.waitText("Use my saved plan", `${where} review after reading`, 15000); await h.closeDialog();
         for (const [name, stage, enter] of SCREENS) {
-          try { await enter(); await inspect(`${where} ${name}`, stage); }
+          try { await measurePhase("M5 screen entry", enter); await inspect(`${where} ${name}`, stage); }
           catch (e) { failures.push(`${where} ${name}: ${String(e.message ?? e).replace(/\s*\n\s*/g, " / ")}`); }
           for (let attempt = 0; attempt < 4 && (await h.dialogOpen()); attempt++) { await h.closeDialog().catch(async () => { await b.keys("Escape"); await b.pause(200); }); }
           if (await h.dialogOpen()) failures.push(`${where} ${name}: the dialog could not be closed`);
@@ -225,4 +228,4 @@ for n in range(201):
   for (const s of expectedScreens) if (!seen.has(s)) failures.push(`the matrix never reached the ${s} screen`);
   assert.deepEqual(failures, [], `${failures.length} screen problem(s):\n${failures.join("\n")}`);
   console.log(`FEATURE 305 M5 COMPILED SCREENS PASSED (${RUN_MATRIX ? `${STYLES.length} style(s) x ${THEMES.length} theme(s) x ${WIDTHS.length} width(s) x ${SCREENS.length + 1} screens` : "no matrix"}${RUN_EXTRAS ? ", keyboard walk, error card" : ""})`);
-} finally { try { await app.close(); } catch { /* already closed */ } }
+} finally { try { await measurePhase("M5 cleanup", () => app.close()); } catch { /* already closed */ } }

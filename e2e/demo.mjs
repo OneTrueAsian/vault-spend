@@ -45,11 +45,11 @@ function run(cmd, cmdArgs) {
 
 if (args.has("--build") || !fs.existsSync(exe)) {
   console.log("Building the app (this takes a minute or two)...");
-  run("npx", ["tauri", "build", "--debug", "--no-bundle"]);
+  run("npm", ["run", "build:app", ...(args.has("--build") ? ["--", "--force"] : [])]);
 }
 if (!fs.existsSync(initDb)) {
   console.log("Building the database seeding helper...");
-  run("cargo", ["build", "-p", "budget_core", "--bin", "init_db"]);
+  run("node", ["e2e/with-access.mjs", "demo-init-db", "--", "cargo", "build", "-p", "budget_core", "--bin", "init_db"]);
 }
 
 // A demo already running would hold the database file open.

@@ -33,6 +33,8 @@ mod protection_lifecycle;
 mod protection_session;
 mod protection_transition;
 mod request_session;
+#[cfg(debug_assertions)]
+mod retirement_stage_trace;
 mod runtime;
 mod startup;
 mod statement_review;
@@ -459,6 +461,10 @@ pub fn run() {
             debug_commands::debug_process_id,
             #[cfg(debug_assertions)]
             debug_commands::debug_retirement_fixture_allowed,
+            #[cfg(debug_assertions)]
+            retirement_stage_trace::debug_retirement_stage_begin,
+            #[cfg(debug_assertions)]
+            retirement_stage_trace::debug_retirement_stage_drain,
             #[cfg(debug_assertions)]
             debug_commands::debug_recovery_code_unlocks,
             #[cfg(debug_assertions)]

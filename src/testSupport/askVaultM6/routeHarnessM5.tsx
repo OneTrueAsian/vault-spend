@@ -65,11 +65,11 @@ export async function observeM5Case(c: CorpusCase, r: Requirement, fixtures: M5F
     await settle(); await settle();
     const dialog = () => document.querySelector('[role="dialog"]');
     const clarify = container.querySelector(".ledger-qa-clarify");
-    if (clarify && !dialog()) { const labels = [...clarify.querySelectorAll("button")].map(b => b.textContent ?? ""); return { ...base, stage: "clarify", meaningChoices: labels.length, offeredChoices: labels }; }
+    if (clarify && !dialog()) { const labels = [...clarify.querySelectorAll("button")].map(b => b.textContent ?? ""); return { ...base, stage: "clarify", meaningChoices: 1, offeredChoices: labels }; }
     const d = dialog();
     if (!d) return { ...base, stage: "refusal", meaningChoices: 0 };   // left to the older routes: nothing claimed
     const legends = [...d.querySelectorAll("fieldset.scenario-question legend")].map(l => PROMPT_TO_ID.get(l.textContent ?? "")).filter((x): x is NonNullable<typeof x> => !!x);
-    if (legends.length) return { ...base, stage: "clarify", meaningChoices: legends.length, offeredChoices: legends };
+    if (legends.length) return { ...base, stage: "clarify", meaningChoices: 1, offeredChoices: legends };
     const review = scrapeReview(d.textContent ?? "");
     if (review.accountName === null || review.retirementMonth === null) return { ...base, stage: "refusal", meaningChoices: 0 };   // an unsupported message
     const label = review.asked !== null ? `Use ${review.asked}% a year, as you asked` : "Use my saved plan";

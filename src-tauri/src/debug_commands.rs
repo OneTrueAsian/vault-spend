@@ -5,7 +5,11 @@
 use tauri::Manager;
 
 // Uses the existing disposable-fixture boundary, and additionally refuses a relocated/external active profile.
-fn retirement_fixture_paths_allowed(directory: Option<&std::path::Path>, config_path: &std::path::Path, database: &std::path::Path) -> bool {
+pub(crate) fn retirement_fixture_paths_allowed(
+    directory: Option<&std::path::Path>,
+    config_path: &std::path::Path,
+    database: &std::path::Path,
+) -> bool {
     let Some(directory) = directory.and_then(|p| p.canonicalize().ok()).filter(|p| p.is_dir()) else {
         return false;
     };

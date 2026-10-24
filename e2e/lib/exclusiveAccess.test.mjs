@@ -115,12 +115,12 @@ describe("abandoned locks", () => {
     expect(err).toBeInstanceOf(AccessHeldError);
     expect(JSON.parse(fs.readFileSync(ownerFile(), "utf8")).token).toBe("foreign-token");
   });
-  it("replaces a lock whose pid was reused: alive but silent far beyond the heartbeat limit", async () => {
+  it("keeps a live PID with a stale heartbeat: elapsed time does not prove PID reuse", async () => {
     const old = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     writeOwner(foreignOwner({ heartbeatAt: old, startedAt: old }));
-    const lock = await acquireAccess({ dir, operation: "desktop-run", isAlive: () => true, staleMs: 10 * 60 * 1000 });
-    expect(lock.recovered).toMatchObject({ token: "foreign-token" });
-    lock.release();
+    const error = await acquireAccess({ dir, operation: "desktop-run", isAlive: () => true, staleMs: 10 * 60 * 1000 }).then(() => null, error => error);
+    expect(error).toBeInstanceOf(AccessHeldError);
+    expect(JSON.parse(fs.readFileSync(ownerFile(), "utf8")).token).toBe("foreign-token");
   });
   it("treats a just-created lock with no owner file as held (its creator is still writing it)", async () => {
     fs.mkdirSync(dir, { recursive: true });

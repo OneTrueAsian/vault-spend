@@ -64,7 +64,7 @@ export async function observeM3Case(c: CorpusCase, r: Requirement, env: (seed: n
     await settle(); await settle();
     const dialog = () => document.querySelector('[role="dialog"]');
     const clarify = container.querySelector(".ledger-qa-clarify");
-    if (clarify && !dialog()) { const labels = [...clarify.querySelectorAll("button")].map(b => b.textContent ?? ""); return { ...base, stage: "clarify", meaningChoices: labels.length, offeredChoices: labels }; }
+    if (clarify && !dialog()) { const labels = [...clarify.querySelectorAll("button")].map(b => b.textContent ?? ""); return { ...base, stage: "clarify", meaningChoices: 1, offeredChoices: labels }; }
     const d = dialog();
     if (!d) return { ...base, stage: "refusal", meaningChoices: 0 };
     const review = scrapeM3Review(d.textContent ?? "");

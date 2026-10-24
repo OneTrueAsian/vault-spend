@@ -24,6 +24,7 @@ vi.mock("./AskVaultCard", async importOriginal => {
 });
 
 import { DashboardView } from "./DashboardView";
+import * as vendor from "./askVault/vendor";
 import { DEFAULT_LAYOUT, type WidgetId } from "./dashboardLayout";
 import type { Account } from "./types";
 
@@ -108,6 +109,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   document.body.innerHTML = "";
+  vi.restoreAllMocks();
 });
 
 async function render(p: Props) {
@@ -117,6 +119,20 @@ async function render(p: Props) {
 }
 
 const layoutTrigger = () => container.querySelector<HTMLButtonElement>(".layout-select-toggle")!;
+
+it("Task7: waits for the current roster preparation and ignores a cancelled earlier roster", async()=>{
+  const pending:{signal:AbortSignal;resolve:(ready:boolean)=>void}[]=[];
+  vi.spyOn(vendor,"prepareVendors").mockImplementation((_names,signal)=>new Promise(resolve=>pending.push({signal,resolve})));
+  const first=props();await render(first);expect(pending).toHaveLength(1);
+  const input=container.querySelector<HTMLInputElement>('.ledger-qa-card input')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,"Costco last month");input.dispatchEvent(new Event("input",{bubbles:true}));});
+  const ask=()=>container.querySelector<HTMLButtonElement>('.ledger-qa-card button[type="submit"]')!;
+  expect(ask().disabled).toBe(true);
+  await render({...first,transactions:[...first.transactions]});expect(pending).toHaveLength(2);expect(pending[0].signal.aborted).toBe(true);
+  await act(async()=>{pending[0].resolve(true);await Promise.resolve();});expect(ask().disabled).toBe(true);expect(input.value).toBe("Costco last month");
+  await act(async()=>{pending[1].resolve(true);await Promise.resolve();});expect(ask().disabled).toBe(false);expect(input.value).toBe("Costco last month");
+  vi.restoreAllMocks();
+});
 const menuLabels = () => [...container.querySelectorAll("[role='menuitemradio']")].map((b) => b.textContent?.replace("✓", "").trim());
 function chooseLayoutOption(label: string) {
   act(() => layoutTrigger().click());

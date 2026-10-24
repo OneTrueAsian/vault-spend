@@ -12,6 +12,7 @@ import {
 } from "./askVault/retirementScreenContract";
 import type { ResultRow, RetirementChoicesEvent, RetirementDialogProps, RetirementReviewAction, RetirementReviewForm, RetirementScreen } from "./askVault/retirementScreenContract";
 import { validateRetirementDraft } from "./askVault/retirementScenarioContract";
+import { traceReviewCommit } from "./askVault/retirementStageTrace";
 
 /**
  * The M5 answer screen. It renders one validated screen at a time and reports what the person did through the callbacks of RetirementDialogProps. It calculates nothing, reads and writes nothing,
@@ -361,6 +362,9 @@ export function RetirementScenarioDialog({ screen, live, openReturnChoice = fals
   const verdict = useMemo(() => {
     try { return validateRetirementScreen(screen, live).ok; } catch { return false; }
   }, [screen, live]);
+  useLayoutEffect(() => {
+    if (verdict && screen.stage === "review" && (import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true)) return traceReviewCommit(screen);
+  }, [screen, verdict]);
   if (!verdict) return <MessageCard key="invalid" stage="error" message={RETIREMENT_INVALID_SCREEN_MESSAGE} onRestart={onRestart} onClose={onClose} />;
   // A different screen is a different card: its form starts clean and its one-shot actions are armed again.
   const key = JSON.stringify(screen);

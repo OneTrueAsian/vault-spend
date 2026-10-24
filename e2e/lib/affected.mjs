@@ -57,9 +57,14 @@ export function collectChanges(repoRoot, since = "HEAD") {
 }
 
 const FAST_BASE = ["npm test (the full unit suite)", "npm run lint", "npx tsc --noEmit"];
+const NATIVE_CHECKS = ["cargo-fmt", "cargo-clippy", "cargo-test-core", "cargo-test-commands"];
+const reachesNative = file => /\.rs$/.test(file) || /(^|\/)Cargo\.(toml|lock)$/.test(file) || /^rust-toolchain(?:\.toml)?$/.test(file) || file.startsWith("src-tauri/");
+// Native production changes can reach non-command app modules or another workspace member through the core.
+// Only core test-only changes retain the narrower existing obligations; TS-only reviewed boundaries retain their map checks.
+const needsWorkspace = file => reachesNative(file) && !/^core\/src\/(?:.*\/)?(?:tests\.rs|[^/]*_tests\.rs|tests\/.*)$/.test(file);
 
 export function selectAffected({ changes, specs, map, e2eDir }) {
-  const entries = [], selected = new Set(), required = new Set(), notes = [];
+  const entries = [], selected = new Set(), required = new Set(), notes = [], nativeChecks = new Set();
   let broad = false;
   const importers = new Map(); // helper file -> specs importing it, built lazily
   const importersOf = file => {
@@ -74,6 +79,10 @@ export function selectAffected({ changes, specs, map, e2eDir }) {
   for (const change of changes) {
     for (const file of [change.path, change.oldPath].filter(Boolean)) {
       const base = { path: file, status: change.status };
+      // Native obligations are independent of the desktop map's first matching rule. A broad/unknown match cannot erase them.
+      // Include the old path of a rename/deletion, even when its new path is a frontend file.
+      if (reachesNative(file)) NATIVE_CHECKS.forEach(check => nativeChecks.add(check));
+      if (needsWorkspace(file)) nativeChecks.add("cargo-test-workspace");
       let rule;
       if ((rule = find(map.broad, file))) { broad = true; entries.push({ ...base, verdict: "broad", reason: rule.reason }); } else if ((rule = find(map.noDesktop, file))) {
         entries.push({ ...base, verdict: "no-desktop", reason: rule.reason });
@@ -105,5 +114,5 @@ export function selectAffected({ changes, specs, map, e2eDir }) {
       ? "Milestone or release acceptance still needs its own gates (mutation, performance, the hosted release gate at its approved concurrency) where AGENTS.md or the milestone protocol requires them."
       : "A full desktop suite is still required for milestone or release acceptance and after shared UI, persistence or harness changes; this selection is not full regression coverage.",
   ] : [];
-  return { broad, specs: ordered, entries, required: [...required], outstanding, notes };
+  return { broad, specs: ordered, entries, required: [...required], nativeChecks: [...nativeChecks], outstanding, notes };
 }

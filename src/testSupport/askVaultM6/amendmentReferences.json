@@ -1,0 +1,221 @@
+{
+ "version": "m6-amendment-references-1",
+ "authority": "Owner decision D-R3, 2026-10-21 (Task5-Remediation-Completion/Decisions-Ledger.md). Values calculated by referenceOracle.ts (the independent oracle), not by the application.",
+ "amendedCase": "m1/202-0210",
+ "requests": {
+  "q-amend-m1-202-0210": {
+   "accountIds": [],
+   "categories": [],
+   "minimumPurchase": null,
+   "vendors": [
+    "shel",
+    "sams club"
+   ],
+   "excludeVendors": [],
+   "excludeCategories": [],
+   "expectedRevision": null,
+   "kind": "total",
+   "periods": [
+    {
+     "from": "2026-01-01",
+     "to": "2026-03-18"
+    }
+   ],
+   "limit": 1
+  }
+ },
+ "references": {
+  "r-amend-m1-202-0210-s101": {
+   "value": {
+    "contractVersion": 1,
+    "asOf": "2026-03-18",
+    "kind": "total",
+    "spendingBasis": "gross-negative-allocations",
+    "thresholdBasis": "absolute-parent-amount",
+    "periods": [
+     {
+      "from": "2026-01-01",
+      "to": "2026-03-18",
+      "dayCount": 77,
+      "endsToday": true,
+      "historyCoverage": "unknown",
+      "total": "4129.70",
+      "purchaseCount": 15,
+      "categoryCount": 4,
+      "categories": [],
+      "purchases": [],
+      "vendors": [
+       {
+        "description": "SAMS CLUB #212",
+        "purchaseCount": 5
+       },
+       {
+        "description": "SHELL #739",
+        "purchaseCount": 5
+       },
+       {
+        "description": "SAMS CLUB #865",
+        "purchaseCount": 3
+       },
+       {
+        "description": "SHELL #461",
+        "purchaseCount": 2
+       }
+      ],
+      "vendorNameCount": 4,
+      "vendorTotals": [
+       {
+        "term": "shel",
+        "total": "1872.72",
+        "purchaseCount": 7
+       },
+       {
+        "term": "sams club",
+        "total": "2256.98",
+        "purchaseCount": 8
+       }
+      ],
+      "leftOut": {
+       "total": "0.00",
+       "purchaseCount": 0,
+       "vendors": [],
+       "categories": []
+      }
+     }
+    ],
+    "difference": null
+   },
+   "seed": 101,
+   "contextId": "m1-origin-202-seed-101",
+   "requestId": "q-amend-m1-202-0210"
+  },
+  "r-amend-m1-202-0210-s202": {
+   "value": {
+    "contractVersion": 1,
+    "asOf": "2026-03-18",
+    "kind": "total",
+    "spendingBasis": "gross-negative-allocations",
+    "thresholdBasis": "absolute-parent-amount",
+    "periods": [
+     {
+      "from": "2026-01-01",
+      "to": "2026-03-18",
+      "dayCount": 77,
+      "endsToday": true,
+      "historyCoverage": "unknown",
+      "total": "8259.40",
+      "purchaseCount": 15,
+      "categoryCount": 4,
+      "categories": [],
+      "purchases": [],
+      "vendors": [
+       {
+        "description": "SAMS CLUB #212",
+        "purchaseCount": 5
+       },
+       {
+        "description": "SHELL #739",
+        "purchaseCount": 5
+       },
+       {
+        "description": "SAMS CLUB #865",
+        "purchaseCount": 3
+       },
+       {
+        "description": "SHELL #461",
+        "purchaseCount": 2
+       }
+      ],
+      "vendorNameCount": 4,
+      "vendorTotals": [
+       {
+        "term": "shel",
+        "total": "3745.44",
+        "purchaseCount": 7
+       },
+       {
+        "term": "sams club",
+        "total": "4513.96",
+        "purchaseCount": 8
+       }
+      ],
+      "leftOut": {
+       "total": "0.00",
+       "purchaseCount": 0,
+       "vendors": [],
+       "categories": []
+      }
+     }
+    ],
+    "difference": null
+   },
+   "seed": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "requestId": "q-amend-m1-202-0210"
+  },
+  "r-amend-m1-202-0210-s303": {
+   "value": {
+    "contractVersion": 1,
+    "asOf": "2026-03-18",
+    "kind": "total",
+    "spendingBasis": "gross-negative-allocations",
+    "thresholdBasis": "absolute-parent-amount",
+    "periods": [
+     {
+      "from": "2026-01-01",
+      "to": "2026-03-18",
+      "dayCount": 77,
+      "endsToday": true,
+      "historyCoverage": "unknown",
+      "total": "12389.10",
+      "purchaseCount": 15,
+      "categoryCount": 4,
+      "categories": [],
+      "purchases": [],
+      "vendors": [
+       {
+        "description": "SAMS CLUB #212",
+        "purchaseCount": 5
+       },
+       {
+        "description": "SHELL #739",
+        "purchaseCount": 5
+       },
+       {
+        "description": "SAMS CLUB #865",
+        "purchaseCount": 3
+       },
+       {
+        "description": "SHELL #461",
+        "purchaseCount": 2
+       }
+      ],
+      "vendorNameCount": 4,
+      "vendorTotals": [
+       {
+        "term": "shel",
+        "total": "5618.16",
+        "purchaseCount": 7
+       },
+       {
+        "term": "sams club",
+        "total": "6770.94",
+        "purchaseCount": 8
+       }
+      ],
+      "leftOut": {
+       "total": "0.00",
+       "purchaseCount": 0,
+       "vendors": [],
+       "categories": []
+      }
+     }
+    ],
+    "difference": null
+   },
+   "seed": 303,
+   "contextId": "m1-origin-202-seed-303",
+   "requestId": "q-amend-m1-202-0210"
+  }
+ }
+}

@@ -4,7 +4,8 @@
 //
 // If the build identity cannot be computed at all (no git, rustc or cargo on this machine) the run still takes exclusive access and still
 // treats the executable as immutable, but is labelled artifact=unknown with the reason; it cannot watch the source or vouch for freshness.
-import { computeBuildKey, computeTestKey, diffTestFiles, diffInputs, sha256File, verifyArtifact } from "./buildIdentity.mjs";
+// Unknown/stale diagnostic executions are invalid acceptance evidence even if their assertions pass.
+import { computeBuildKey, computeTestKey, diffHarnessFiles, diffTestFiles, diffInputs, sha256File, verifyArtifact } from "./buildIdentity.mjs";
 import { acquireAccess } from "./exclusiveAccess.mjs";
 
 export class GuardRefusal extends Error {
@@ -15,7 +16,7 @@ export class GuardRefusal extends Error {
 }
 
 export async function beginGuardedRun({ operation, lockDir, exePath, recordPath, collectInputs, toolchain, mode, wait = false, timeoutMs = 0, pollMs, allowStale = false }) {
-  const lock = await acquireAccess({ dir: lockDir, operation, wait, timeoutMs, pollMs });
+  const lock = await acquireAccess({ dir: lockDir, operation, wait, timeoutMs, pollMs, crashProtected: true });
   let start;
   try {
     let inputs = null, buildKey = null, testKey = null, artifact;
@@ -44,27 +45,33 @@ export async function beginGuardedRun({ operation, lockDir, exePath, recordPath,
   return {
     artifact: start.artifact,
     identity: () => identityOf(null),
+    inputs: () => start.inputs && { ...start.inputs },
     async finish() {
       if (verdict) return verdict;
       const problems = [];
+      // Diagnostics may execute against unknown/stale artifacts, but cannot supply trusted acceptance evidence.
+      if (start.artifact.status !== "fresh") problems.push({ kind: "untrusted-artifact", status: start.artifact.status, reason: start.artifact.reason });
+      let after = null;
       try {
         if (start.inputs) {
-          const after = await collectInputs();
+          after = await collectInputs();
           const diff = diffInputs(start.inputs, after);
           if (diff.added.length || diff.removed.length || diff.changed.length) problems.push({ kind: "source-changed", ...diff });
-          // A test file changed mid-run: the application is untouched, but the run is no longer evidence for one fixed set of tests (runner and document edits are not flagged, as before).
+          // Test, runner, helper, fixture and classification edits can invalidate validation without changing the executable.
           const harness = diffTestFiles(start.inputs, after);
           if (harness.added.length || harness.removed.length || harness.changed.length) problems.push({ kind: "tests-changed", ...harness });
+          const infrastructure = diffHarnessFiles(start.inputs, after);
+          if (infrastructure.added.length || infrastructure.removed.length || infrastructure.changed.length) problems.push({ kind: "harness-changed", ...infrastructure });
         }
         let now = null;
         try { now = sha256File(exePath); } catch { /* removed */ }
         if (now !== start.exeSha256) problems.push({ kind: "executable-changed", before: start.exeSha256, after: now });
       } finally { lock.release(); }
-      return (verdict = { valid: problems.length === 0, problems, identity: identityOf(new Date().toISOString()) });
+      return (verdict = { valid: problems.length === 0, problems, identity: identityOf(new Date().toISOString()), validationManifest: { before: start.inputs, after } });
     },
     abort() {
       if (verdict) return;
-      lock.release();
+      lock.abandon();
       verdict = { valid: false, problems: [{ kind: "aborted" }], identity: identityOf(new Date().toISOString()) };
     },
   };

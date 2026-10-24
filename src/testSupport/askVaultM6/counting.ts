@@ -19,7 +19,9 @@ export function validateManifest(cases: CorpusCase[]): void {
   const ids=new Set<string>(),populations=new Map<string,Set<string>>();
   for(const c of cases) {
     if(ids.has(c.id))throw Error(`Duplicate case ID: ${c.id}`);ids.add(c.id);
-    if(!c.text.trim()||!c.family||!c.cluster||!c.required.length)throw Error(`Incomplete case: ${c.id}`);
+    // CG-09 includes authored empty-input refusal fixtures. They never earn supported/financial credit.
+    const emptyUnsafeStop=c.population==="P-UNSAFE"&&c.required.length>0&&c.required.every(r=>r.requestId===null&&r.referenceId===null&&r.stop==="refusal");
+    if((!c.text.trim()&&!emptyUnsafeStop)||!c.family||!c.cluster||!c.required.length)throw Error(`Incomplete case: ${c.id}`);
     const key=countKey(c.text),seen=populations.get(key)??new Set<string>();seen.add(c.population);populations.set(key,seen);
     if(seen.has("P-CORE")&&seen.has("P-LT"))throw Error(`Core/long-tail overlap: ${c.id}`);
     const contexts=new Set<string>(),seeds=new Set<number>();

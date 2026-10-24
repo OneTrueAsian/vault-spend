@@ -72,14 +72,14 @@ function accountMention(text: string, context: Parameters<ParseRetirementScenari
 }
 
 function parseCore(sourceText: string, context: Parameters<ParseRetirementScenario>[1], allowLead: boolean): RetirementParseOutcome {
-  if (ordinaryOperatorStore(sourceText, context)) return null;
-  const outside = sourceText.replace(/"[^"\r\n]*"/g, q => " ".repeat(q.length));
+  const outside =sourceText.replace(/"[^"\r\n]*"/g, q => " ".repeat(q.length));
   // Quoted names are protected from operator matching, but still identify this question's family.
   const investmentName = Array.isArray(context?.investmentAccounts) && context.investmentAccounts.some(a => typeof a?.name === "string" && namesWholeName(sourceText, a.name));
   const retirement = /\b(?:retire|retiring|retirement|401k|ira|brokerage|investment|employer match)\b/i.test(outside);
   const extra = /\b(?:extra|additional|add|saved?|saving|put|deposit|contribute|one[ -]time)\b/i.test(outside);
-  const scenarioStart = /^\s*(?:an?\s+)?(?:extra|additional)\b/i.test(outside);
+  const scenarioStart = /^\s*(?:an?\s+)?(?:extra|additional)\b/i.test(outside) && /\$\s*\d/.test(outside) && (MONTHLY_WORDS.test(outside) || ONCE_WORDS.test(outside) || /\b(?:into|to)\s/i.test(outside)); // Task 7 D-10: opening with Extra/Additional alone is not an extra-money request
   if ((!retirement && !investmentName && !scenarioStart) || (!extra && !/\b(?:income|enough|should|smart)\b/i.test(outside))) return null;
+  if (ordinaryOperatorStore(sourceText, context)) return null; // read as an ordinary store question only once this reader could claim it: that reading walks the roster (M6 F-T5-01)
   if ([...sourceText].length > 512) return refuse("question-too-long");
   if ((sourceText.match(/"/g)?.length ?? 0) % 2 !== 0) return unparsed();
   const empty: RetirementDraft = { sourceText, accountId: null, extra: { kind: null, amount: null }, startDate: context?.today, retirementMonth: null, assumptions: { annualReturnPct: null, inflationPct: null }, missing: ["account", "extra-amount", "cadence", "retirement-month"], hints: [] };
