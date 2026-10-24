@@ -1,0 +1,790 @@
+{
+ "version": "m6-legacy-handoff-1",
+ "purpose": "CG-21 cell C6 / nominated check N-1: the 108 M1 legacy prompts (older-matcher hand-off) for card-level tests. Test-only fixture, never imported by production.",
+ "authority": "Requirements-Checklist.md CG-21; owner instruction 2026-10-21 item 5 (Task-Authority-2.txt:148-160); M1/acceptance/acceptance.test.ts:168 (all legacy prompts must hand off)",
+ "provenance": {
+  "extractedBy": "session a3fdc854-0d17-4a58-80ba-13f242e6daf9, read-only, via the original generator: generate(world).filter(set === legacy) for the three M1 worlds, in generator order",
+  "source": "E:/misc/Programming/Agents/Implementations/Ask Vault Ehancements/M1/acceptance/",
+  "sha256": {
+   "generate.ts": "8a53a1db327bf04c5ac9fd18736f0094c9aae7e88921065e596c7cce639df88a",
+   "world.ts": "2d7a7e2984f70bc1d70e3bb03c1b0acfbf0d2ed9e35490a050fe307d971672f4",
+   "acceptance.test.ts": "80066a2ccca1c65ed2263d7b510782283574597d377c4cc34c74320b10ac43ae"
+  },
+  "expectedByTheGenerator": "{\"status\":\"legacy\"} for every row",
+  "count": 108,
+  "distinctTexts": 46,
+  "contextRule": "world W is parse context m1-origin-W-seed-W in contexts.json (the M1 world W ledger)",
+  "supersededByM2": {
+   "ids": [
+    "m1/101-0337",
+    "m1/101-0338",
+    "m1/202-0333",
+    "m1/202-0334",
+    "m1/303-0342",
+    "m1/303-0343"
+   ],
+   "count": 6,
+   "authority": "M2/Supported-Questions.md:41-49 (averages are an M2 capability); M2/acceptance/acceptance.test.ts:118-119 (the M1 corpus is re-run under the family-aware grammar and its set 'legacy' belongs to M2 now); the shipped Dashboard always builds a family list (src/DashboardView.tsx:321-322), so the parser runs in M2 mode",
+   "expectedRoute": "ordinary question route, not the older matcher: 'what's my average spend on <category> in <month>' asks Per purchase / Per month (M2 acceptance 'amb-average'); 'average monthly spending last year' is a per-month average request",
+   "note": "All 108 original prompts are kept. The generator's own expectation ({status:'legacy'}) holds in M1 mode (no family list); in the shipped M2 mode these six are not legacy."
+  }
+ },
+ "cases": [
+  {
+   "id": "m1/101-0305",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what's my net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/101-0306",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "whats my net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/101-0307",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/101-0308",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much am i worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/101-0309",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "tell me my net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/101-0310",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what's my total debt",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/101-0311",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "total debt",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/101-0312",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much debt do i have",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/101-0313",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what do i owe in total",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/101-0314",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much do I owe on Household Checking",
+   "family": "owe"
+  },
+  {
+   "id": "m1/101-0315",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much do I owe on car loan",
+   "family": "owe"
+  },
+  {
+   "id": "m1/101-0316",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much do i owe on my mortgage",
+   "family": "owe"
+  },
+  {
+   "id": "m1/101-0317",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much do I have in Household Checking",
+   "family": "balance"
+  },
+  {
+   "id": "m1/101-0318",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much do I have in checking",
+   "family": "balance"
+  },
+  {
+   "id": "m1/101-0319",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much do I have in cash",
+   "family": "balance"
+  },
+  {
+   "id": "m1/101-0320",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what is my cash balance",
+   "family": "balance"
+  },
+  {
+   "id": "m1/101-0321",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much are my subscriptions",
+   "family": "subscriptions"
+  },
+  {
+   "id": "m1/101-0322",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what do I pay for subscriptions",
+   "family": "subscriptions"
+  },
+  {
+   "id": "m1/101-0323",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "monthly subscription total",
+   "family": "subscriptions"
+  },
+  {
+   "id": "m1/101-0324",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "when is my next bill due",
+   "family": "next-bill"
+  },
+  {
+   "id": "m1/101-0325",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "next bill due",
+   "family": "next-bill"
+  },
+  {
+   "id": "m1/101-0326",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what bill is due next",
+   "family": "next-bill"
+  },
+  {
+   "id": "m1/101-0327",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much have I saved toward vacation",
+   "family": "saved-toward"
+  },
+  {
+   "id": "m1/101-0328",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much have i saved toward my emergency cushion",
+   "family": "saved-toward"
+  },
+  {
+   "id": "m1/101-0329",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what's my savings rate this month",
+   "family": "savings-rate"
+  },
+  {
+   "id": "m1/101-0330",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "savings rate",
+   "family": "savings-rate"
+  },
+  {
+   "id": "m1/101-0331",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what is my savings rate this year",
+   "family": "savings-rate"
+  },
+  {
+   "id": "m1/101-0332",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what's my runway if rent goes up by $200",
+   "family": "runway"
+  },
+  {
+   "id": "m1/101-0333",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what's my runway if rent goes up by $150",
+   "family": "runway"
+  },
+  {
+   "id": "m1/101-0334",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what's my income this month",
+   "family": "income"
+  },
+  {
+   "id": "m1/101-0335",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what was my income for last month",
+   "family": "income"
+  },
+  {
+   "id": "m1/101-0336",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how much income did I have this year",
+   "family": "income"
+  },
+  {
+   "id": "m1/101-0337",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "what's my average spend on clothing in june",
+   "family": "average"
+  },
+  {
+   "id": "m1/101-0338",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "average monthly spending last year",
+   "family": "average"
+  },
+  {
+   "id": "m1/101-0339",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how many transactions do I have in Clothing since May 2026",
+   "family": "count"
+  },
+  {
+   "id": "m1/101-0340",
+   "world": 101,
+   "contextId": "m1-origin-101-seed-101",
+   "text": "how many purchases at kroger this year",
+   "family": "count"
+  },
+  {
+   "id": "m1/202-0301",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what's my net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/202-0302",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "whats my net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/202-0303",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/202-0304",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much am i worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/202-0305",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "tell me my net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/202-0306",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what's my total debt",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/202-0307",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "total debt",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/202-0308",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much debt do i have",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/202-0309",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what do i owe in total",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/202-0310",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much do I owe on Joint Visa",
+   "family": "owe"
+  },
+  {
+   "id": "m1/202-0311",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much do I owe on car loan",
+   "family": "owe"
+  },
+  {
+   "id": "m1/202-0312",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much do i owe on my mortgage",
+   "family": "owe"
+  },
+  {
+   "id": "m1/202-0313",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much do I have in Joint Visa",
+   "family": "balance"
+  },
+  {
+   "id": "m1/202-0314",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much do I have in checking",
+   "family": "balance"
+  },
+  {
+   "id": "m1/202-0315",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much do I have in cash",
+   "family": "balance"
+  },
+  {
+   "id": "m1/202-0316",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what is my cash balance",
+   "family": "balance"
+  },
+  {
+   "id": "m1/202-0317",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much are my subscriptions",
+   "family": "subscriptions"
+  },
+  {
+   "id": "m1/202-0318",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what do I pay for subscriptions",
+   "family": "subscriptions"
+  },
+  {
+   "id": "m1/202-0319",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "monthly subscription total",
+   "family": "subscriptions"
+  },
+  {
+   "id": "m1/202-0320",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "when is my next bill due",
+   "family": "next-bill"
+  },
+  {
+   "id": "m1/202-0321",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "next bill due",
+   "family": "next-bill"
+  },
+  {
+   "id": "m1/202-0322",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what bill is due next",
+   "family": "next-bill"
+  },
+  {
+   "id": "m1/202-0323",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much have I saved toward vacation",
+   "family": "saved-toward"
+  },
+  {
+   "id": "m1/202-0324",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much have i saved toward my emergency cushion",
+   "family": "saved-toward"
+  },
+  {
+   "id": "m1/202-0325",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what's my savings rate this month",
+   "family": "savings-rate"
+  },
+  {
+   "id": "m1/202-0326",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "savings rate",
+   "family": "savings-rate"
+  },
+  {
+   "id": "m1/202-0327",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what is my savings rate this year",
+   "family": "savings-rate"
+  },
+  {
+   "id": "m1/202-0328",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what's my runway if rent goes up by $200",
+   "family": "runway"
+  },
+  {
+   "id": "m1/202-0329",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what's my runway if rent goes up by $150",
+   "family": "runway"
+  },
+  {
+   "id": "m1/202-0330",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what's my income this month",
+   "family": "income"
+  },
+  {
+   "id": "m1/202-0331",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what was my income for last month",
+   "family": "income"
+  },
+  {
+   "id": "m1/202-0332",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how much income did I have this year",
+   "family": "income"
+  },
+  {
+   "id": "m1/202-0333",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "what's my average spend on clothing in June 2025",
+   "family": "average"
+  },
+  {
+   "id": "m1/202-0334",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "average monthly spending last year",
+   "family": "average"
+  },
+  {
+   "id": "m1/202-0335",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how many transactions do I have in Clothing in February 2026",
+   "family": "count"
+  },
+  {
+   "id": "m1/202-0336",
+   "world": 202,
+   "contextId": "m1-origin-202-seed-202",
+   "text": "how many purchases at wendys this year",
+   "family": "count"
+  },
+  {
+   "id": "m1/303-0310",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what's my net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/303-0311",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "whats my net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/303-0312",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/303-0313",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much am i worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/303-0314",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "tell me my net worth",
+   "family": "net-worth"
+  },
+  {
+   "id": "m1/303-0315",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what's my total debt",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/303-0316",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "total debt",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/303-0317",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much debt do i have",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/303-0318",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what do i owe in total",
+   "family": "total-debt"
+  },
+  {
+   "id": "m1/303-0319",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much do I owe on Travel Card",
+   "family": "owe"
+  },
+  {
+   "id": "m1/303-0320",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much do I owe on car loan",
+   "family": "owe"
+  },
+  {
+   "id": "m1/303-0321",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much do i owe on my mortgage",
+   "family": "owe"
+  },
+  {
+   "id": "m1/303-0322",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much do I have in Travel Card",
+   "family": "balance"
+  },
+  {
+   "id": "m1/303-0323",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much do I have in checking",
+   "family": "balance"
+  },
+  {
+   "id": "m1/303-0324",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much do I have in cash",
+   "family": "balance"
+  },
+  {
+   "id": "m1/303-0325",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what is my cash balance",
+   "family": "balance"
+  },
+  {
+   "id": "m1/303-0326",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much are my subscriptions",
+   "family": "subscriptions"
+  },
+  {
+   "id": "m1/303-0327",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what do I pay for subscriptions",
+   "family": "subscriptions"
+  },
+  {
+   "id": "m1/303-0328",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "monthly subscription total",
+   "family": "subscriptions"
+  },
+  {
+   "id": "m1/303-0329",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "when is my next bill due",
+   "family": "next-bill"
+  },
+  {
+   "id": "m1/303-0330",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "next bill due",
+   "family": "next-bill"
+  },
+  {
+   "id": "m1/303-0331",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what bill is due next",
+   "family": "next-bill"
+  },
+  {
+   "id": "m1/303-0332",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much have I saved toward vacation",
+   "family": "saved-toward"
+  },
+  {
+   "id": "m1/303-0333",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much have i saved toward my emergency cushion",
+   "family": "saved-toward"
+  },
+  {
+   "id": "m1/303-0334",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what's my savings rate this month",
+   "family": "savings-rate"
+  },
+  {
+   "id": "m1/303-0335",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "savings rate",
+   "family": "savings-rate"
+  },
+  {
+   "id": "m1/303-0336",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what is my savings rate this year",
+   "family": "savings-rate"
+  },
+  {
+   "id": "m1/303-0337",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what's my runway if rent goes up by $200",
+   "family": "runway"
+  },
+  {
+   "id": "m1/303-0338",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what's my runway if rent goes up by $150",
+   "family": "runway"
+  },
+  {
+   "id": "m1/303-0339",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what's my income this month",
+   "family": "income"
+  },
+  {
+   "id": "m1/303-0340",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what was my income for last month",
+   "family": "income"
+  },
+  {
+   "id": "m1/303-0341",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how much income did I have this year",
+   "family": "income"
+  },
+  {
+   "id": "m1/303-0342",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "what's my average spend on dining in June 2026",
+   "family": "average"
+  },
+  {
+   "id": "m1/303-0343",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "average monthly spending last year",
+   "family": "average"
+  },
+  {
+   "id": "m1/303-0344",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how many transactions do I have in Dining in March 2026",
+   "family": "count"
+  },
+  {
+   "id": "m1/303-0345",
+   "world": 303,
+   "contextId": "m1-origin-303-seed-303",
+   "text": "how many purchases at mcdonalds this year",
+   "family": "count"
+  }
+ ]
+}

@@ -1,0 +1,168 @@
+{
+  "version": "m6-acceptance-scoring-freeze-14",
+  "status": "FROZEN_FOR_ACCEPTANCE",
+  "scope": "Release integration namespace and checkout-byte identity only; no scoring-policy or financial expectation changes.",
+  "countingKey": "count-key-v1",
+  "signedOn": "2026-10-24",
+  "signedAt": "2026-10-24T22:16:38.033Z",
+  "preparedAndSignedBy": "Codex actual session 01a11bfa-3a3a-7c41-af31-b4b4b9dd7216",
+  "supersedes": {
+    "version": "m6-acceptance-scoring-freeze-13",
+    "file": "scoringFreeze.v13.json",
+    "sha256": "1e3afcca9f27ff7eb0517fcbc7280239519a87300dce94831420b2be7417eac9"
+  },
+  "typoClassificationLock": {
+    "file": "flaggedDispositions.json",
+    "sha256": "a173c54cc623cadad07dcb54bfe72abff872bd3f5d6ec1b95610d9de2f92d696"
+  },
+  "disclosure": "Same-author integration and signing before merged-candidate grading. A freeze is an identity, not a score. Historical v1-v13 receipts and failures remain preserved.",
+  "evidenceBoundaries": [
+    "Native context proof validates baseline/account reads, not JavaScript scenario calculations.",
+    "M4 has 120 preserved arithmetic vectors plus 24 separately authored public-route questions on three seeds; vectors do not count as natural-language questions.",
+    "P-ID protocol fixtures establish safe history interaction and do not supply financial credit or native amount proof.",
+    "Seven M5 routing checks establish noninterference only; they never supply the 650/600 floors.",
+    "Contexts are package-local; do not merge colliding context IDs without preserving their manifests.",
+    "Original ordinary data, scenario v1 golds and signed v1/v2 bytes are unchanged.",
+    "Combined accuracy floors cannot be certified by summing independent package results."
+  ],
+  "files": {
+    "../../askVault/amendmentReferences.test.ts": "42593d37ac2822f66f2b5a0d7e834c09c051b021a9b6b66ccecb207c28a72478",
+    "../../askVault/clarificationExchanges.test.tsx": "c62d0b38602f2e51138e1531c57e1b47eacfccff80b47f3999482196f78053fb",
+    "../../askVault/combinedAcceptance.test.tsx": "2767d8624421459c05b275f38a0561bff3c1c59c3eb0efc7b6d9b0c466bf738f",
+    "../../askVault/combinedAcceptanceIntegrity.test.ts": "eac595d0835f3520fa90a3de2cb2a78cf701284f0e88bffacbdd6a98227598c4",
+    "../../askVault/combinedCorpusGrader.test.ts": "ca8e6704e16b8a672c54f8735537b72ae7b3790c8d3cbec4504ea38f27207355",
+    "../../askVault/combinedCorpusGraderGaps.test.ts": "63f06053edc790fddd705c78fe59fb3e37a48cfb72b0290402a8ae721fc572dd",
+    "../../askVault/combinedCorpusGraderMutation.test.ts": "3a0c7884d37f9902ebad97747e578ce98e98ca7e3bf7d92ee3258d63ad5969ec",
+    "../../askVault/combinedRouteHarness.test.tsx": "19e81f4bb4fcda7892a383dd5cc899f90dc3da1845209ab1f986debd8000ec29",
+    "../../askVault/exampleEvidence.test.tsx": "2b3742fa8ccccd04e189ee2f162edf0b79ffa0566082c0137379eb1a6446d6a2",
+    "../../askVault/familyResolution.test.ts": "71b986752a313899ee59903424d59d461bbf68d82ad50959c0d0e85df8e69cc0",
+    "../../askVault/familyResolutionRoute.test.tsx": "063bdfed52820c57b6b02700a748dbd85033942741c80e6fd864c2f4f420b311",
+    "../../askVault/insufficientHistoryCorpus.test.tsx": "60bb6e0db8bbb1d88809d015429e066f62e2b0a7af0069c0ee7dc589e7574650",
+    "../../askVault/legacyHandoffRoute.test.tsx": "68424f226f822950bd98859e3231fe30d342a4fed778253f459d78d65f2a2b87",
+    "../../askVault/m3Scenario.test.tsx": "c34c69389f52152a42ebe8226b65e48e296535f1eee53b9cd17c48a59ac20839",
+    "../../askVault/m4Scenario.test.tsx": "518673490f0dac507e2fff0aa308947a9c2ecf860a5993c426da4ae7f471c51a",
+    "../../askVault/m5Model.test.ts": "c14d5b404acb203cd75d5f0447fbba9d4d1aab88858c6b4fe18d2dc93e3e1173",
+    "../../askVault/m5RouteElsewhere.test.tsx": "48ec4a5bd5ee59abe077007f0e6dcd93339592aee07915afdd12ee814137b198",
+    "../../askVault/m5Scenario.test.tsx": "9c9c9dbedad4559c737db2265b79b1dc03a89c821f00732788656ec42c58ae60",
+    "../../askVault/m6PreparedPackages.test.ts": "4165041530ce6c12c89ebf2f91b6f7011f389c88fcfd990420e73adbf29bc405",
+    "../../askVault/realisticErrors.test.ts": "1573e1273d8de41fc1adb2caeb6f65169f339199138eb24616e4861a96c94633",
+    "../../askVault/routeDisplayCheck.test.tsx": "6b1fa7858dca92a6ce1a2f65dd8458613c06a034ec624b66e6f8254c15e30486",
+    "../../askVault/scenarioNativeProof.test.ts": "84e5c35b23e5b499c524e02d618f7093d08acb626d3a092f15b1d514fafb6e44",
+    "../../askVault/scoringFreeze.test.ts": "ac8d01e5c9473853f0cd1c29b2b7721a649e9a3192d4ca32fcca44c6b5f6755e",
+    "../../askVault/storeTypoLaterWord.test.tsx": "aafdf814a9f0df9d87ae840d997ee72d029c491aa4bba65489a2a78fbdf25f47",
+    "../../askVault/typoDispositions.test.tsx": "2a1d3065133ecd22298936bceeb5485cb69fa7b03ee93aaa565bddeec0c90e13",
+    "amendmentReference.ts": "063db604a899bf73b3942e4e1f6d38f1d543cf469eaf244addf56d1ede030205",
+    "amendmentReferences.json": "2b613efd49047c45c488c505ea27459835a41cea0aaadfffb2e723cd36525747",
+    "amendments.json": "398556c16f349202f99f51eb54eed611bfffe3f55d4c1a5fcd1c9894fe1d2aa9",
+    "cases.json": "5e3db9dee47463d737b0f98231591c32e6e85064adf4d5282ebbed1ab4c47522",
+    "clarificationGolds.json": "e6588a47a7f51db92497c9659ae63906d2c9edc9765e27c79c47fc48d44ef6fb",
+    "combinedAcceptance.ts": "de609c4d43e686bbb30e3e86ff2e5b043a056f0e88179c3fb7b350826f60570d",
+    "combinedAcceptanceRoutes.tsx": "c3e332ab4b1123d685333584570a6fff4a1c0ef1b98b9f8f82bd42ca83c1dacf",
+    "contexts.json": "96d9e2043998147bdcd5332fdc2f19647808e9a27d0c8fda5f60523a1756e96c",
+    "counting.ts": "06a5392858f6da6fc25b8f3491667e11504ed4faf37f95d38e8ccc1d1b0d97ee",
+    "displayCheck.ts": "9a99df8952982f888d9a7604915390140c26f31f0776f827e1ace14f0389424c",
+    "exampleMap.ts": "37edb889c56c5da3a678ab3c8849a2f2773bfaf0a7a4e557b944f043d44de86a",
+    "expectedRequests.json": "c321f4a84a7f413407a7574ba6544d3aea78b9c4b14927be45383f15e30c29d1",
+    "flaggedDispositions.json": "a173c54cc623cadad07dcb54bfe72abff872bd3f5d6ec1b95610d9de2f92d696",
+    "freeze.ts": "bd197d2bedd2a6ac5600f87789c8ed35e5fd1765da8097804169e9fffaddcaec",
+    "grader.ts": "01ef6b74207de846aca70b3d527b9edffa9e45099d113ffc24770cbba1206ed2",
+    "helpClaims.ts": "4e917139ae272477061d270bd426fb99d8154555c27f7a156dbd83874bf8d125",
+    "historyCases.json": "587ef6d2bbe2cd96ccf8febd57528c822233bf8c8ad9a588faadb0b3cc2064ae",
+    "historyRoute.tsx": "20e0184981e63da937eeab605210279a9aa23dd5170560b564ccc5890aace31c",
+    "legacyHandoff.json": "a40b277c4571c1ce195cdb092951760ff9772a4b143429b46c1b13ea36a84fed",
+    "m3Scenario.ts": "8fe4ea163944b5d0cd08d8bd01aa15a8d759c2749d38dc36b0148747bc1740d4",
+    "m4RetainedVectors.json": "a8dc1312e01e632c9dc0109dc9ab115d376c0139d4281962c98847cd2797e216",
+    "m4Scenario.ts": "2f04f432b9351765f2704c444c476d48f644c2d609f2208c327076c91f711392",
+    "m5Model.ts": "7cc369cf684a0674ca08df1bcdde40d6c2b7f7cbd025446cc0d107ee5553c063",
+    "m5Scenario.ts": "879c10200578103a90c984c3a7e549f926ffc901fef731e603cbc67e59450dd8",
+    "manifest.ts": "ca5f4b0a2161f137eb021813a3c4767ffd10966b7778684c1cfbdce226deb55e",
+    "nativeEvidence.ts": "ed5c64766e93eed96f306316a2817a178e4665626e70ad5638896749b86cea16",
+    "nativeEvidenceManifest.json": "66fdbcf57218b20a8ef5a2b32b3ee40ec3bda5b31a196e959d7264262038178a",
+    "nativeProofs/native-proof-amendment.json": "108cc94b0914a5c324333c7e5dcb1886f258672528abb1f90fdb714db2148abd",
+    "nativeProofs/native-proof-ordinary.json": "17f4d55bf53c7d4c78336ae25389b3039e61ce340405d8b832bb23eb6b30fd4d",
+    "nativeProofs/native-proof-scenario-prerequisites.json": "86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f",
+    "preparedPackages.ts": "135f86daaa478b8c15f895ba760b3a85b7df705a41d81205a0d5e1a6246b1a1a",
+    "provenance.json": "49b0e17da4299e4518f3024cc9ec9f28cae089af28b304fed928b4ff6ad3145e",
+    "realisticErrors.json": "4adefb81f5bc0cacce534cd07815a4776111f95dfda55ea7695dcf4c0ed1a040",
+    "referenceCalendar.ts": "feda1b1c901ff1040ad57109dde551f95dedfa983e8c0d15bb3d0ade59234cb4",
+    "referenceContract.ts": "2d14db0d5a0b4c4b5eaaaae8971395d3f486977f2257fbae9a61733d8a93a08d",
+    "referenceOracle.ts": "4b285545986b7f5fa467485bdc127feb4a211a0b79744ecd420fd357458bae45",
+    "referenceResults.json": "5233e1432cf4c9c5f40d5f5236e40e94baf53463eb776771cf1a3c0cfe0856e9",
+    "referenceWorld.ts": "78b6f3c37cabf99bb3b24e5d3f47b337c6c5bf3edc7ca7a57043ac1afe5f420b",
+    "registry.ts": "460ebf0d8f5819757bd25e1e2e97148afdea37bcef87febc7d091f9acb8d9f68",
+    "requiredFamilies.json": "0f9ebfd2a30c5a6f456ca44af47ad4c838f9073f7c9c9513519de34348073f70",
+    "routeHarness.tsx": "1dba0ae7848087da00097b3ce2726f0b990dc1cd7074d4bc34ea07ee4727637d",
+    "routeHarnessM3.tsx": "63c6db0c1221ca8b63de46310925263bc6bc7ae6c99eca597872c0f7cd6cc97b",
+    "routeHarnessM4.tsx": "bd2bf06d45b705717be9233005c87f01923a119199a8e38d4e4378c4dda61b27",
+    "routeHarnessM5.tsx": "884115f59975eee4385d72caebf20cb091f4b04c20d55089b326b7a2bcfc52ca",
+    "routingCases.json": "4113964da19f2dd23fb0d50570026b1fabc4d5cc71ee4062b861154c00e60685",
+    "routingRoute.tsx": "e9b94dcd7236025df147306f3e7039222f8f52a7a2763510adb1d1c8baeeb4db",
+    "scenarioM3Cases.json": "0c2ad335557e0ee26b6a1cfbe09f1444e2d1ca07a32ca3e0fd6da0c964999b77",
+    "scenarioM3Contexts.json": "b2b2c0154d83eef1b43b1b589b0dca191358f725a5a95913ba354eff63de2014",
+    "scenarioM3EvidenceManifest.json": "d4fa7edcea32777a68ad3de097c717fce57c32c57287271fd91d07cd3180c436",
+    "scenarioM3Excluded.json": "f8f9ec7d88f5e29ebb5b687f814163f8d828108faa4988b0ac65323d468af17d",
+    "scenarioM3References.json": "3fe184e458b6d5a8f21a6011bc8435fbff8196bd0d8dffd90c899eda2be2168a",
+    "scenarioM3Requests.json": "efb8cb4f7104e64e5b78b2d3b4dddfa58a9c9046fc5ee5f7d5154a58f9e72e2b",
+    "scenarioM4Cases.json": "4bf004f700bda4de564db661b5a866c9cb2a7dc93ae61865298fe5c1c9c896ae",
+    "scenarioM4Contexts.json": "430414c9b0e637bfd2622fb99cdc366841827695959e3476767280f62dbc8295",
+    "scenarioM4EvidenceManifest.json": "550dc0d6ec69d37566041070b5c5245c742644cbe8d370c523e1597fc87ab7be",
+    "scenarioM4References.json": "9480259043c6a02e799ad10adde947fdccfc9cb5919e8fe77a7f67da91ecec48",
+    "scenarioM4Requests.json": "ad860c4bacfa167061e21bb6aaa0f4d95d319ef295166e6bd4e31d82d2a3164f",
+    "scenarioM5Cases.json": "93b8d8ec152c08dacbdf92a20d427efd475df81a39a6159ad90e79e6343611e5",
+    "scenarioM5Contexts.json": "2033cd3da865fe643569751a7990cbc7c517be696683616f1cc81d01efd7e77c",
+    "scenarioM5EvidenceManifest.json": "c2040fc8dd52fd1fbd4735b115f593933c0a4f89d93e79b7b329f581194bf402",
+    "scenarioM5References.json": "de8deb53a3c2f2ce573d50c2aa8414fb4c99d2d931925ae0406175de0c98cdd1",
+    "scenarioM5Requests.json": "9e211b44e51e5b1cd161a8cfe53b97709ffde702171d71026184696420a714ab",
+    "scenarioNativeFixtures.json": "e10e729e333db70d939cf45257f9f06039b8e7198eb755d03a0b93ee315eeaa8",
+    "scenarioNativeProof.ts": "817d393fd5766beea3b717361b6483d9bb46e4e9ec1c69bed977072978c7e2a1",
+    "scenarioNativeReferences.json": "b85621af33d0ee8947754e0c64f071160e8550137ffb3b74c390bb2fb835cc0d",
+    "scenarioNativeRequests.json": "d75a5505d79e9dc2ca23159518d1460fcb78b3d27f2c9474d794f5ba5a7c95c5",
+    "scenarioPreparation.ts": "9c472178cb2dd5a6ec9d026de671eabfbf5af0503b4bbcc425e5d6555a2284f3",
+    "typoRules.json": "fc49c1686b280af1bf6fc8957e22b2ad61c54dbb15add728fc8beed1389d41de",
+    "typoRulesOracle.ts": "036bbd2f769a2db6c26cc7122be2d859233d39f3354b0ff2b0c01ba6c1b59a1e"
+  },
+  "packageMembership": {
+    "ordinary": {
+      "cases": 2159,
+      "sha256": "84901c84615fcd985615a5efcb1d671ed3a54a79ccb257438671241a2c644ac4"
+    },
+    "m3": {
+      "cases": 480,
+      "sha256": "511e34c3ed12d4a13b9ed66db17d4dacaaa7cce4d24e326963ec86ae4c47f9a7"
+    },
+    "m4": {
+      "cases": 24,
+      "sha256": "0596c0414a3abf590e1d8c8923af3d5f6c0bcbf1e0c249144f7fb7e86c03bde8"
+    },
+    "m5": {
+      "cases": 70,
+      "sha256": "e05600bdd6a872ff178d703a5c13f2359489a4d7ad99e349fdae427f426d0717"
+    },
+    "history": {
+      "cases": 6,
+      "sha256": "68f50eb794c0ab25c6790d3d980eb253cf4f6f42d599a633dde4e851828ab845"
+    }
+  },
+  "routingObligations": {
+    "cases": 7,
+    "sha256": "35a389139a704b05368c0e39a913730da883983d97044c2abe607e9662fbc9be"
+  },
+  "populationLabels": {
+    "cases": 2739,
+    "sha256": "f462b023f8b28292bb5c59df1b84c4c7081c9f86e895986040aa77f194a73d17"
+  },
+  "familyRegistry": {
+    "families": 68,
+    "sha256": "aaa0cfd55ff9ad9b1fc991c6bcba553ab121192c44990f7955074f0305e048eb"
+  },
+  "requiredFamilyRegistry": {
+    "families": 42,
+    "sha256": "4a9b99dc04b7370cc89f5b7748744f73591cb061965ebfccc328591b9310e534"
+  },
+  "seedContextMembership": {
+    "cases": 2739,
+    "requirements": 8123,
+    "sha256": "bc75332dbca49f2583b840df07569c3f42d723ae3111fa2715c4c7e47fa6a887"
+  },
+  "reason": "Preserve release branch transactionQa rename in imports, symbols and comments; record line-ending changes from the integrated gitattributes. Archive v13 byte for byte. Original corpora, requests, references, gates, population/family/seed membership and amendments are unchanged."
+}

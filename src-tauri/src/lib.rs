@@ -33,6 +33,8 @@ mod protection_lifecycle;
 mod protection_session;
 mod protection_transition;
 mod request_session;
+#[cfg(debug_assertions)]
+mod retirement_stage_trace;
 mod runtime;
 mod startup;
 mod statement_review;
@@ -290,6 +292,10 @@ pub fn run() {
             commands::get_dashboard_snapshot,
             commands::get_report_summary_snapshot,
             commands::get_report_range_snapshot,
+            commands::get_ask_vault_snapshot,
+            commands::get_ask_vault_baselines,
+            commands::get_ask_vault_retirement_accounts,
+            commands::get_ask_vault_retirement_context,
             commands::list_transactions,
             commands::list_transactions_by_ids,
             commands::correct_category,
@@ -451,6 +457,12 @@ pub fn run() {
             commands::check_sinking_fund_contributions,
             #[cfg(debug_assertions)]
             debug_commands::debug_process_id,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_retirement_fixture_allowed,
+            #[cfg(debug_assertions)]
+            retirement_stage_trace::debug_retirement_stage_begin,
+            #[cfg(debug_assertions)]
+            retirement_stage_trace::debug_retirement_stage_drain,
             #[cfg(debug_assertions)]
             debug_commands::debug_recovery_code_unlocks,
             #[cfg(debug_assertions)]

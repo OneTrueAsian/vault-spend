@@ -21,6 +21,19 @@ compiled `.exe`, IPC included.
   this driver's version, re-download matching the new version.
 - `npm install --save-dev webdriverio` (already in `package.json`).
 
+Spec 172 also launches the installed Microsoft Edge browser, whose version can differ from WebView2.
+Keep its matching, Microsoft-signed EdgeDriver separately and set `MSEDGEDRIVER` for the current shell;
+the Tauri harness continues using the driver in `CARGO_HOME/bin` (or `~/.cargo/bin`). For example, in PowerShell:
+
+```powershell
+$env:MSEDGEDRIVER = 'C:\path\to\browser-matched\msedgedriver.exe'
+npm run e2e
+```
+
+Check the actual browser and driver versions before a measurement window. Their first three version
+components must match, as described in [Microsoft's WebDriver setup](https://learn.microsoft.com/en-us/microsoft-edge/webdriver/).
+Do not replace the working Tauri driver merely to repair a standalone-browser mismatch.
+
 ## Before running any spec
 
 Tauri automation sessions start at `about:blank` (like a browser session) —
@@ -111,11 +124,79 @@ expect. Every date field is `DateField`: a real `<input type="date">` that keeps
 over it while it isn't being edited. Read that text with `lib/dateFields.mjs`. Exported files keep
 `YYYY-MM-DD`.
 
+## Building and running without stepping on each other
+
+Two things share one executable (`target\debug\vaultspend.exe`) and the `target\` folder: the Tauri build and any desktop run. Cargo
+commands that use that folder (build, test, clippy) can rebuild what a desktop run is using. They take **exclusive access** (a lock
+folder, `target\.vs-access`) and never stop another process. Unit tests, lint and `tsc` do not need it.
+
+```
+npm run build:app                      # the same debug Tauri build, under exclusive access; reuses the executable if every input matches
+npm run build:app -- --force           # rebuild regardless
+npm run access -- cargo-test -- cargo test -p budget_core -- --test-threads=1   # any command that uses target\, under exclusive access
+node e2e/run-all.mjs --wait            # queue behind a build or another run instead of refusing
+node e2e/run-all.mjs --allow-stale-artifact   # run anyway; the results are labelled stale
+```
+
+`build:app` records what the executable was built from: the content of every build input (tracked or untracked source, frontend and
+native config, lockfiles), the Node, rustc and cargo versions and the build mode. HEAD alone is never the key. `run-all.mjs` refuses
+(exit 2, nothing started) when someone holds access, or when the executable is stale, replaced after it was recorded, or missing. An
+executable built some other way (for example the hosted release gate's direct `tauri build`) has no record: it runs, labelled
+`artifact=unknown` for diagnostics, but unknown or explicitly allowed stale artifacts cannot count as valid acceptance (exit 3 if assertions otherwise pass). A run during which application, test or harness inputs or the executable change also ends with `INVALID EVIDENCE` (exit 3) naming the files.
+Each run writes `target\e2e-last-run.json` with before/after input manifests, per-spec output, the executable's SHA-256, the build key, what was selected and executed, retries and
+timeouts. Build, desktop and `with-access` holders are crash-protected: an unexpected exit or interrupted desktop run leaves the lock held because descendants may still be using the executable. Before manually removing such a lock, reconcile the recorded owner and its owned descendants; a dead parent PID alone is insufficient. Never stop another agent's processes. Legacy unprotected abandoned locks retain automatic recovery; live holders are always waited for or refused. This is cooperative repository access, not an OS policy intercepting arbitrary raw Cargo or manually launched applications.
+
+## Choosing what to run: `select:specs`, `verify:fast`, `verify:full`, `--schedule`
+
+The build identity includes mobile entry files, reviewed Vite build tools, ignored local dotenv files, Cargo-home and inherited ancestor configuration (including ignored repository Cargo config), and relevant build environment settings (contents and values are hashed, never printed). Relative production imports outside reviewed roots fail closed; installed packages, including relative imports into `node_modules`, rely on lockfile identity just like bare imports. This does not audit installation tampering or universally discover arbitrary build-script inputs. The debug wrapper refuses unsupported Cargo target/output environment overrides rather than recording an old executable at the wrong location. Test/harness edits affect validation identity without forcing an application rebuild.
+
+The retirement screen matrix loads Axe once per document when its exact owned version/API remains intact. Every inspection still runs Axe and its original rules. Reloads or replaced APIs cause reinjection; results are never cached. `VAULTSPEND_AXE_REUSE=0` retains original repeated injection for the explicitly approved diagnostic comparison. Its visual settling now observes finite animations and stable dialog geometry instead of always sleeping 450 ms, with that same 450 ms maximum allowance; missing/replaced dialogs or unsupported animation observation fail. Intentional infinite progress spinners remain observable in motion. Every matrix cell, inspection, screenshot and assertion remains. The 24 October 2026 local catalogue passed all 255 specs, including every matrix shard, with the reviewed classified scheduler. It measured 23m49s against a retained 30m53.8s serial run that failed only at standalone browser creation; the owner accepted that qualified comparison. This is not a clean all-green timing pair or a statistical reliability result. Hosted scheduling remains serial and unmeasured.
+
+### Validation budget and evidence reuse
+
+Follow `AGENTS.md`'s validation scope rules. During development use targeted RED/GREEN tests, then validate the stable batch once. A unit-test-only edit needs affected tests, the inexpensive full unit suite and applicable lint/types; a documentation-only edit needs relevant document checks. Neither automatically requires an app rebuild, a full desktop run or profiling. Documents embedded by production code remain application inputs.
+
+Before an expensive run, record four things: the change since the last valid run, the requirement (file and line or explicit owner instruction), why the previous evidence cannot cover it, and estimated minutes. After a passing final regression, another full run requires a concrete behavioral or infrastructure impact explanation. A changed fingerprint alone is insufficient. Keep application, test/harness/fixture and documentation identities separate; label reused evidence and preserve all failures.
+
+The three-run baseline/candidate protocol is for the agreed performance comparison after correctness is stable, not for every fix. Extra benchmark repetitions need explicit owner approval. Do not overlap another agent's measurement window with tests, lint, builds or additional app sessions.
+
+Inspect the verification plan before execution. Do not use the existing cache's treatment of a test file as an application input to justify another expensive run; resolve or disclose the classification defect and run the checks affected by the actual change. Required milestone and release checks still apply.
+
+```
+npm run select:specs                  # which desktop specs the current changes can affect (vs HEAD), why, and what else is still required
+npm run select:specs -- --since=main  # judge the changes against another git ref
+npm run verify:fast                   # tsc + lint + the FULL unit suite + only the Rust checks and desktop specs this change reaches
+npm run verify:full                   # everything: unit, Rust, build, smoke and the whole desktop suite
+node e2e/run-all.mjs --schedule=classified   # exclusive specs run completely alone, after the parallel-safe pool drains
+```
+
+**Neither verify command is milestone or release acceptance.** Their report says so and keeps four lists apart: executed, reused (the
+build), skipped (with the reason) and outstanding. Mutation checks, performance and memory measurements and the hosted release gate are
+separate gates.
+
+*Selection* (`e2e/affected-map.json`, `e2e/lib/affected.mjs`) is conservative. A file narrows the selection only through an explicit
+rule; shared UI infrastructure, the invocation wrapper, persistence, build configuration, the harness and the runner select every
+spec, and so does any file the map does not know (new, deleted and renamed files included, judged by both paths). A native Ask the
+Vault file selects the Ask the Vault specs and also lists the Rust and TypeScript contract checks, because import analysis cannot see
+across that boundary. Today only the Ask the Vault area is mapped, so most other changes select the whole suite; add an area to the map
+only after reading what its specs exercise.
+
+*Classification* (`e2e/spec-classification.json`, generated by `node e2e/classify-specs.mjs`; `--check` verifies it is current): a spec
+whose source or imported helpers touch OS foreground, focus-sensitive menus, the pointer, the keyboard, window state or the clipboard is
+exclusive; the remaining names are candidates, not runtime approvals. A spec the file does not mention is exclusive. The scan only ever adds reasons to be exclusive.
+The runner defaults to `--schedule=classified`. It additionally requires `e2e/parallel-approvals.json`: each approval names the exact build/executable/source binding and at least two distinct concurrent proof runs. Each receipt reference contains its path and SHA-256; the loader reads the actual runner JSON, checks its identity, membership, complete passing outcomes and concurrency. A changed reached input or requested concurrency above the proof demotes the spec to exclusive. No registry or only old name-based approvals means everything runs exclusively. The binding conservatively covers the union of all collected build/harness inputs, including fixture/helper additions and deletions; it is broader than a minimal import graph. Registry edits remain guarded validation inputs but are excluded from their own approval key. Unit `.test.mjs`, `.test.ts`, `.test.tsx` and Markdown files are excluded from that extra source key; application build identity still covers embedded content.
+
+The registry schema is `{ "approvals": { "spec.mjs": { "binding": { "buildKey": "...", "exeSha256": "...", "sourceKey": "..." }, "receipts": ["run-1", "run-2"] } }, "receipts": { "run-1": { "path": "path/to/runner.json", "sha256": "..." } } }`. Missing, malformed, changed, duplicated, serial, failed or incomplete receipts cannot grant approval. The selected concurrent cohort must have been present together in those proof groups; independently proved pools cannot silently be combined. Keep the associated static resource/isolation review with the external evidence; two passing fixtures alone do not prove arbitrary hardware reliability. The current 109-spec pool was approved only after two complete source-bound proof groups passed. Changed bindings or inaccessible external receipts demote it to serial; the recorded 23m49s does not promise that runtime after future changes. Refreshing proof itself has a cost and requires an approved measurement window.
+
+Explicit `--schedule=pool --concurrency=N` remains available for authorized diagnostics. With N greater than one it bypasses exclusive classifications, reports `unapproved-parallel-pool`, and exits 3 when assertions otherwise pass. Such a source-valid, all-passing diagnostic group can support a separately reviewed approval; it is never a full-regression acceptance pass itself. A serial pool remains valid. `--list` starts nothing; explicit classified preview is conservative before runtime identity and approvals are checked.
+
+*Profiling*: `VAULTSPEND_E2E_PHASES=1` prints launch phases and session close, plus `[efficiency-stage]` JSON for the M5 matrix's fixture, startup, navigation, screen entry, inspection and cleanup. These are awaited wall times including any nested IPC; inspection includes settling, Axe, geometry/semantic checks and screenshots, not pure JavaScript assertion CPU. Nested/root timings must not be added as independent costs. `returned`/`threw` records operation completion, not a test verdict: queued accessibility failures still fail the spec's original final assertion. Other specs do not gain complete stage attribution from this targeted instrumentation.
+
 ## Running the full suite
 
 ```
-node e2e/run-all.mjs                 # smoke.mjs + every feature*.mjs, concurrency 6
-node e2e/run-all.mjs --concurrency=8  # tune for a faster machine
+node e2e/run-all.mjs                 # every spec, classified; only current proof permits parallelism up to concurrency 6
+node e2e/run-all.mjs --concurrency=8  # higher than a spec's proof demotes it to exclusive; not an automatic speed promotion
 node e2e/run-all.mjs --concurrency=1  # one at a time, for debugging a flaky-looking failure in isolation
 ```
 
@@ -123,12 +204,7 @@ A spec that runs longer than 60 seconds is killed as hung. A much slower machine
 runner) can raise that ceiling with `VAULTSPEND_E2E_SPEC_TIMEOUT_MS` (a whole number of milliseconds from
 60000 to 600000; anything else is refused). The hosted release gate sets it to 180000.
 
-Specs run concurrently by default because they're already fully isolated
-from each other: each `launchApp()` call gets its own throwaway SQLite file
-(see "Data safety" above) *and*, since `harness.mjs` asks the OS for a free
-port per call instead of using a hardcoded one, its own `tauri-driver`
-instance — no two specs share any state, so there's nothing for
-parallel runs to race on. An earlier 52-spec benchmark measured 304.5s
+SQLite files and driver ports are isolated, but desktop foreground, pointer, keyboard and clipboard are shared. They require exclusive scheduling even when databases do not overlap. Historical results below do not approve the current dependency closure or change the hosted serial gate. An earlier 52-spec benchmark measured 304.5s
 sequential, 86.7s at concurrency 4, and 50.9s at concurrency 8. The suite
 has grown since then; the default is 6 because later measurements found
 little additional gain at 8 and signs of resource contention. On 2026-10-01
@@ -275,6 +351,12 @@ Windows-only recovery dispatches `release-windows.yml` from a workflow branch wi
 The Windows release workflow pins `windows-2022` and runs a compiled smoke preflight before the full desktop suite. For runner diagnostics, also set `diagnostic_only=true`: it checks out the exact `source_sha` to test an unpublished automation fix, retains the SHA/version and build/test gates, but skips installer publication, build provenance and protected signing. Diagnostics require recovery mode and a workflow branch; normal releases still check out their immutable tag. A successful diagnostic run is not a signed release or an installation acceptance pass. Changing the pinned image requires a fresh diagnostic run; a failed session preflight must never be worked around by skipping the full release gate.
 
 The hosted Windows full gate runs with `--concurrency=1`: focus/blur and protected-profile flows share the OS foreground window even though their databases and driver ports are isolated. Local concurrency remains configurable. The workflow installs two independent Edge drivers: Tauri's driver matches the WebView2 Runtime in `cargo/bin`; `MSEDGEDRIVER` points to a separate driver matching the installed Microsoft Edge browser for feature172. A runtime-matched driver cannot drive a differently versioned Edge browser.
+
+Ask the Vault retirement specs (M5): `feature304` (question to result), `feature305_screens_<style>_<theme>_<width>` (the compiled-screen matrix: three styles, light and dark, 720/960/1280 px, with Axe, geometry, announcements and screenshots; sharded so each fits the 60-second spec ceiling, with the shared engine in `lib/retirementScreenMatrix.mjs`; `feature305_screens_keyboard_and_error` covers the keyboard-only walk and the error card), and `feature306` (in-app writes through the debug build's `window.__vaultspendDebug.invoke`, profile switching, privacy audit). `feature307` takes OS foreground with a second window (a small form it opens itself through `lib/focusWindow.mjs` and closes by its exact process id; it never opens or kills Notepad or any window it did not create) to produce a real blur and focus, and needs an unlocked desktop. The default classified scheduler keeps it exclusive. An explicit diagnostic pool that overlaps foreground-sensitive work can fail with `REAL OS FOCUS BLOCKED` and disturb neighbouring hover/menu measurements. `VS_M5_SHOTS=<folder>` saves screenshots; `VS_M5_QUICK=1` runs one style and width of the matrix engine directly (debugging only).
+
+`feature308_ask_vault_retirement_boundaries` covers an unusable saved retirement month and the debug bridge's fixture restriction. The bridge is exposed only in debug builds after the native guard verifies the configured disposable `VAULTSPEND_DB_DIR`, config location and active database. It rechecks that guard on each call and allows only `set_investment_plan`, `set_profile_ui_state`, `get_transaction_context`, `get_ask_vault_retirement_accounts` and `get_ask_vault_retirement_context`. Writes go through the production invoke/notification wrapper. An adopted database outside that fixture root must be denied; the release frontend must contain neither the bridge nor its guard invocation. Keep this proof on disposable profiles.
+
+`feature309_ask_vault_retirement_refusal_recovery` asks a real question that the app refuses because the result cannot be shown exactly, checks the "A few details need attention" wording (no balance shown), then uses Change the details to reopen the choices (account, extra amount, cadence, retirement month) and recomputes each revised result independently. `feature310_ask_vault_retirement_refusal_lifecycle` checks that the refused card and the choices it reopens retire when the data changes, when the profile changes and when a late reply arrives, and that the whole refusal-and-recovery flow stays local, read-only and unrecorded (it lists every request the page makes and every native command it invokes). Both are exclusive-access specs; the screen matrix (`feature305_*`) also covers the refusal card in every style, theme and width.
 
 The hosted workflow refreshes Evergreen WebView2 using an Authenticode-verified Microsoft installer before matching Tauri's driver. Its test build remains `--debug`, retaining the guarded crash/race fixtures, with `CARGO_PROFILE_DEV_OPT_LEVEL=1` so unoptimized crypto does not dominate the hosted CPU. No crypto parameters, assertions or test deadlines change. Tests on this runtime do not establish compatibility with the older WebView2 131 image.
 

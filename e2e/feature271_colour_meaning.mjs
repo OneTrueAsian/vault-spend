@@ -52,6 +52,16 @@ car = con.execute("SELECT id FROM accounts WHERE name = 'Car Loan'").fetchone()[
 layout = ["stat_net_worth", "stat_cash", "stat_debt", "stat_investments", "needs_a_look", "safe_to_spend", "runway",
           "trend_spending", "budget_bills", "recent_transactions", f"account:{car}"]
 con.execute("INSERT OR REPLACE INTO profile_ui_state (key, value) VALUES ('dashboard_layout', ?)", (json.dumps(layout),))
+# The household is paid on the 1st, 5th, 15th and 20th, so from the 20th to the end of the month every paycheck has arrived and no
+# "income still arriving" (neutral) progress fill exists. This spec checks that fill, so take away this month's 20th paycheck: the
+# state the spec describes then holds on any day. Before the 20th that paycheck does not exist yet and nothing changes.
+import datetime
+last_payday = datetime.date.today().replace(day=20).isoformat()
+con.execute("DELETE FROM transactions WHERE description = 'RIVERSIDE HOSPITAL PAYROLL' AND date = ?", (last_payday,))
+# Hover contrast requires a real actionable row, independent of today's bill schedule.
+account = con.execute("SELECT id FROM accounts WHERE name = 'Joint Checking'").fetchone()[0]
+con.execute("INSERT INTO transactions (account_id,date,description,amount,category,fingerprint) VALUES (?,?,'UI review pending category','-0.01',NULL,'feature271-pending-category')", (account, datetime.date.today().isoformat()))
+assert con.execute("SELECT COUNT(*) FROM transactions WHERE category IS NULL").fetchone()[0] >= 1
 con.commit()
 `,
   path.join(dbDir, "vaultspend.db"),

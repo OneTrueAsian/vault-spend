@@ -1,0 +1,1890 @@
+{
+ "version": "m6-scenario-native-fixtures-2",
+ "writtenBy": "session bec4530a-cba4-40c4-b585-ecb9aed91bfa, 2026-10-21",
+ "note": "Hand-worked fixtures. worlds: the comparison-threshold boundary world (see comparisonThresholdBoundary.test.tsx). retirement: real investment-account stores in the shape of core/src/store/tests/ask_vault_retirement_fixtures.json, one per seed, expected values worked by hand (hand). Version 2 adds twelve contexts for the M5 corpus: the M5 corpus date 2026-09-06 (origin-101), seeds 101, 202 and 303, and the four investment accounts the completing cases name (Roth IRA, Brokerage, Rothé IRA, Save in 2050).",
+ "worlds": {
+  "m6-threshold-boundary": {
+   "name": "m6-threshold-boundary",
+   "today": "2026-10-20",
+   "members": [],
+   "accounts": [
+    {
+     "id": 1,
+     "name": "Checking",
+     "memberId": null
+    }
+   ],
+   "categories": [
+    "Clothing",
+    "Groceries"
+   ],
+   "ledger": [
+    {
+     "id": 1,
+     "accountId": 1,
+     "date": "2026-10-03",
+     "description": "SHOP A",
+     "cents": -10000,
+     "category": "Clothing",
+     "memberId": null
+    },
+    {
+     "id": 2,
+     "accountId": 1,
+     "date": "2026-10-04",
+     "description": "SHOP B",
+     "cents": -10001,
+     "category": "Clothing",
+     "memberId": null
+    },
+    {
+     "id": 3,
+     "accountId": 1,
+     "date": "2026-10-05",
+     "description": "SHOP C",
+     "cents": -9999,
+     "category": "Clothing",
+     "memberId": null
+    },
+    {
+     "id": 4,
+     "accountId": 1,
+     "date": "2026-10-06",
+     "description": "BIG STORE",
+     "cents": -15000,
+     "category": null,
+     "memberId": null,
+     "splits": [
+      {
+       "category": "Clothing",
+       "cents": -6000
+      },
+      {
+       "category": "Groceries",
+       "cents": -9000
+      }
+     ]
+    },
+    {
+     "id": 5,
+     "accountId": 1,
+     "date": "2026-09-02",
+     "description": "SHOP A",
+     "cents": -9999,
+     "category": "Clothing",
+     "memberId": null
+    },
+    {
+     "id": 6,
+     "accountId": 1,
+     "date": "2026-09-03",
+     "description": "SHOP D",
+     "cents": -20000,
+     "category": "Clothing",
+     "memberId": null
+    },
+    {
+     "id": 7,
+     "accountId": 1,
+     "date": "2026-09-04",
+     "description": "SHOP E",
+     "cents": -5000,
+     "category": "Clothing",
+     "memberId": null
+    }
+   ]
+  }
+ },
+ "retirement": [
+  {
+   "id": "m6-retirement-seed-101",
+   "worldSeed": 101,
+   "today": "2026-10-20",
+   "hand": "20 shares x 100.00 = 2000.00 holdings; saved plan 150.00 a month, 5.50 percent, withdraw 2056-01; inflation 2.5",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "20",
+        "price": "100.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "150.00",
+      "returnPct": "5.50",
+      "withdrawMonth": "2056-01"
+     }
+    ],
+    "inflationPct": "2.5"
+   },
+   "accountId": 5,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-10-20",
+     "account": {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "2000",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "150"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "5.5"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "2.5"
+     },
+     "retirementMonth": "2056-01"
+    }
+   }
+  },
+  {
+   "id": "m6-retirement-seed-202",
+   "worldSeed": 202,
+   "today": "2026-10-20",
+   "hand": "8.25 x 40.00 = 330.00 plus 12 x 250.00 = 3000.00 gives 3330.00 holdings; saved plan 200.00 a month, 7.00 percent, withdraw 2056-01; inflation 3.0",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "8.25",
+        "price": "40.00"
+       },
+       {
+        "shares": "12",
+        "price": "250.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "200.00",
+      "returnPct": "7.00",
+      "withdrawMonth": "2056-01"
+     }
+    ],
+    "inflationPct": "3.0"
+   },
+   "accountId": 5,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-10-20",
+     "account": {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "3330",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "200"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "7"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "3"
+     },
+     "retirementMonth": "2056-01"
+    }
+   }
+  },
+  {
+   "id": "m6-retirement-seed-303",
+   "worldSeed": 303,
+   "today": "2026-10-20",
+   "hand": "no holdings, no plan: balance 5000.00 + three deposits of 100.00 = 5300.00 from transactions; deposits in each of the last three full months average 100.00; application default return 7 and inflation 3; no saved month",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "5000.00",
+      "transactions": [
+       {
+        "date": "2026-07-05",
+        "amount": "100.00"
+       },
+       {
+        "date": "2026-08-05",
+        "amount": "100.00"
+       },
+       {
+        "date": "2026-09-05",
+        "amount": "100.00"
+       }
+      ]
+     }
+    ]
+   },
+   "accountId": 5,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-10-20",
+     "account": {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "5300",
+      "basis": "transactions"
+     },
+     "contribution": {
+      "kind": "history",
+      "monthlyAmount": "100",
+      "fromMonth": "2026-07",
+      "toMonth": "2026-09",
+      "monthCount": 3
+     },
+     "returnAssumption": {
+      "kind": "application-default",
+      "annualPct": "7"
+     },
+     "inflation": {
+      "kind": "application-default",
+      "pct": "3"
+     },
+     "retirementMonth": null
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-101-account-5",
+   "worldSeed": 101,
+   "today": "2026-09-06",
+   "hand": "Roth IRA: 100 x 100.00 = 10000 holdings; saved plan 200.00 a month, 7.00 percent, withdraw 2056-01; inflation setting 3.0",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "100",
+        "price": "100.00"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "50",
+        "price": "500.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "10",
+        "price": "150.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "20",
+        "price": "100.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "200.00",
+      "returnPct": "7.00",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "300.00",
+      "returnPct": "6.00",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "100.00",
+      "returnPct": "5.00",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "50.00",
+      "returnPct": "4.00",
+      "withdrawMonth": "2055-06"
+     }
+    ],
+    "inflationPct": "3.0"
+   },
+   "accountId": 5,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "10000",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "200"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "7"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "3"
+     },
+     "retirementMonth": "2056-01"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-101-account-8",
+   "worldSeed": 101,
+   "today": "2026-09-06",
+   "hand": "Brokerage: 50 x 500.00 = 25000 holdings; saved plan 300.00 a month, 6.00 percent, withdraw 2050-06; inflation setting 3.0",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "100",
+        "price": "100.00"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "50",
+        "price": "500.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "10",
+        "price": "150.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "20",
+        "price": "100.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "200.00",
+      "returnPct": "7.00",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "300.00",
+      "returnPct": "6.00",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "100.00",
+      "returnPct": "5.00",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "50.00",
+      "returnPct": "4.00",
+      "withdrawMonth": "2055-06"
+     }
+    ],
+    "inflationPct": "3.0"
+   },
+   "accountId": 8,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "25000",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "300"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "6"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "3"
+     },
+     "retirementMonth": "2050-06"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-101-account-11",
+   "worldSeed": 101,
+   "today": "2026-09-06",
+   "hand": "Rothé IRA: 10 x 150.00 = 1500 holdings; saved plan 100.00 a month, 5.00 percent, withdraw 2045-12; inflation setting 3.0",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "100",
+        "price": "100.00"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "50",
+        "price": "500.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "10",
+        "price": "150.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "20",
+        "price": "100.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "200.00",
+      "returnPct": "7.00",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "300.00",
+      "returnPct": "6.00",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "100.00",
+      "returnPct": "5.00",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "50.00",
+      "returnPct": "4.00",
+      "withdrawMonth": "2055-06"
+     }
+    ],
+    "inflationPct": "3.0"
+   },
+   "accountId": 11,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "1500",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "100"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "5"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "3"
+     },
+     "retirementMonth": "2045-12"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-101-account-9",
+   "worldSeed": 101,
+   "today": "2026-09-06",
+   "hand": "Save in 2050: 20 x 100.00 = 2000 holdings; saved plan 50.00 a month, 4.00 percent, withdraw 2055-06; inflation setting 3.0",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "100",
+        "price": "100.00"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "50",
+        "price": "500.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "10",
+        "price": "150.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "20",
+        "price": "100.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "200.00",
+      "returnPct": "7.00",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "300.00",
+      "returnPct": "6.00",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "100.00",
+      "returnPct": "5.00",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "50.00",
+      "returnPct": "4.00",
+      "withdrawMonth": "2055-06"
+     }
+    ],
+    "inflationPct": "3.0"
+   },
+   "accountId": 9,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "2000",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "50"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "4"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "3"
+     },
+     "retirementMonth": "2055-06"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-202-account-5",
+   "worldSeed": 202,
+   "today": "2026-09-06",
+   "hand": "Roth IRA: 40 x 62.50 = 2500 holdings; saved plan 150.00 a month, 6.00 percent, withdraw 2056-01; inflation application default 3",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "40",
+        "price": "62.50"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "30",
+        "price": "400.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "8",
+        "price": "200.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "25",
+        "price": "80.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "150.00",
+      "returnPct": "6.00",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "250.00",
+      "returnPct": "5.50",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "120.00",
+      "returnPct": "6.50",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "75.00",
+      "returnPct": "3.50",
+      "withdrawMonth": "2055-06"
+     }
+    ]
+   },
+   "accountId": 5,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "2500",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "150"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "6"
+     },
+     "inflation": {
+      "kind": "application-default",
+      "pct": "3"
+     },
+     "retirementMonth": "2056-01"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-202-account-8",
+   "worldSeed": 202,
+   "today": "2026-09-06",
+   "hand": "Brokerage: 30 x 400.00 = 12000 holdings; saved plan 250.00 a month, 5.50 percent, withdraw 2050-06; inflation application default 3",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "40",
+        "price": "62.50"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "30",
+        "price": "400.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "8",
+        "price": "200.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "25",
+        "price": "80.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "150.00",
+      "returnPct": "6.00",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "250.00",
+      "returnPct": "5.50",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "120.00",
+      "returnPct": "6.50",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "75.00",
+      "returnPct": "3.50",
+      "withdrawMonth": "2055-06"
+     }
+    ]
+   },
+   "accountId": 8,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "12000",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "250"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "5.5"
+     },
+     "inflation": {
+      "kind": "application-default",
+      "pct": "3"
+     },
+     "retirementMonth": "2050-06"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-202-account-11",
+   "worldSeed": 202,
+   "today": "2026-09-06",
+   "hand": "Rothé IRA: 8 x 200.00 = 1600 holdings; saved plan 120.00 a month, 6.50 percent, withdraw 2045-12; inflation application default 3",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "40",
+        "price": "62.50"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "30",
+        "price": "400.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "8",
+        "price": "200.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "25",
+        "price": "80.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "150.00",
+      "returnPct": "6.00",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "250.00",
+      "returnPct": "5.50",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "120.00",
+      "returnPct": "6.50",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "75.00",
+      "returnPct": "3.50",
+      "withdrawMonth": "2055-06"
+     }
+    ]
+   },
+   "accountId": 11,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "1600",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "120"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "6.5"
+     },
+     "inflation": {
+      "kind": "application-default",
+      "pct": "3"
+     },
+     "retirementMonth": "2045-12"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-202-account-9",
+   "worldSeed": 202,
+   "today": "2026-09-06",
+   "hand": "Save in 2050: 25 x 80.00 = 2000 holdings; saved plan 75.00 a month, 3.50 percent, withdraw 2055-06; inflation application default 3",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "40",
+        "price": "62.50"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "30",
+        "price": "400.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "8",
+        "price": "200.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "25",
+        "price": "80.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "150.00",
+      "returnPct": "6.00",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "250.00",
+      "returnPct": "5.50",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "120.00",
+      "returnPct": "6.50",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "75.00",
+      "returnPct": "3.50",
+      "withdrawMonth": "2055-06"
+     }
+    ]
+   },
+   "accountId": 9,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "2000",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "75"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "3.5"
+     },
+     "inflation": {
+      "kind": "application-default",
+      "pct": "3"
+     },
+     "retirementMonth": "2055-06"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-303-account-5",
+   "worldSeed": 303,
+   "today": "2026-09-06",
+   "hand": "Roth IRA: 12.5 x 640.00 = 8000 holdings; saved plan 175.00 a month, 7.50 percent, withdraw 2056-01; inflation setting 2.5",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "12.5",
+        "price": "640.00"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "60",
+        "price": "300.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "7",
+        "price": "250.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "16",
+        "price": "125.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "175.00",
+      "returnPct": "7.50",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "400.00",
+      "returnPct": "6.50",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "90.00",
+      "returnPct": "4.50",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "60.00",
+      "returnPct": "5.50",
+      "withdrawMonth": "2055-06"
+     }
+    ],
+    "inflationPct": "2.5"
+   },
+   "accountId": 5,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "8000",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "175"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "7.5"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "2.5"
+     },
+     "retirementMonth": "2056-01"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-303-account-8",
+   "worldSeed": 303,
+   "today": "2026-09-06",
+   "hand": "Brokerage: 60 x 300.00 = 18000 holdings; saved plan 400.00 a month, 6.50 percent, withdraw 2050-06; inflation setting 2.5",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "12.5",
+        "price": "640.00"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "60",
+        "price": "300.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "7",
+        "price": "250.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "16",
+        "price": "125.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "175.00",
+      "returnPct": "7.50",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "400.00",
+      "returnPct": "6.50",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "90.00",
+      "returnPct": "4.50",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "60.00",
+      "returnPct": "5.50",
+      "withdrawMonth": "2055-06"
+     }
+    ],
+    "inflationPct": "2.5"
+   },
+   "accountId": 8,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "18000",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "400"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "6.5"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "2.5"
+     },
+     "retirementMonth": "2050-06"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-303-account-11",
+   "worldSeed": 303,
+   "today": "2026-09-06",
+   "hand": "Rothé IRA: 7 x 250.00 = 1750 holdings; saved plan 90.00 a month, 4.50 percent, withdraw 2045-12; inflation setting 2.5",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "12.5",
+        "price": "640.00"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "60",
+        "price": "300.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "7",
+        "price": "250.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "16",
+        "price": "125.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "175.00",
+      "returnPct": "7.50",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "400.00",
+      "returnPct": "6.50",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "90.00",
+      "returnPct": "4.50",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "60.00",
+      "returnPct": "5.50",
+      "withdrawMonth": "2055-06"
+     }
+    ],
+    "inflationPct": "2.5"
+   },
+   "accountId": 11,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "1750",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "90"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "4.5"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "2.5"
+     },
+     "retirementMonth": "2045-12"
+    }
+   }
+  },
+  {
+   "id": "m6-m5-seed-303-account-9",
+   "worldSeed": 303,
+   "today": "2026-09-06",
+   "hand": "Save in 2050: 16 x 125.00 = 2000 holdings; saved plan 60.00 a month, 5.50 percent, withdraw 2055-06; inflation setting 2.5",
+   "seed": {
+    "profile": {
+     "generation": 3,
+     "sessionRevision": 11,
+     "revision": {
+      "local": 40,
+      "external": 7
+     }
+    },
+    "accounts": [
+     {
+      "id": 5,
+      "name": "Roth IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "12.5",
+        "price": "640.00"
+       }
+      ]
+     },
+     {
+      "id": 8,
+      "name": "Brokerage",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "60",
+        "price": "300.00"
+       }
+      ]
+     },
+     {
+      "id": 11,
+      "name": "Rothé IRA",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "7",
+        "price": "250.00"
+       }
+      ]
+     },
+     {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment",
+      "startingBalance": "0",
+      "holdings": [
+       {
+        "shares": "16",
+        "price": "125.00"
+       }
+      ]
+     }
+    ],
+    "plans": [
+     {
+      "accountId": 5,
+      "monthly": "175.00",
+      "returnPct": "7.50",
+      "withdrawMonth": "2056-01"
+     },
+     {
+      "accountId": 8,
+      "monthly": "400.00",
+      "returnPct": "6.50",
+      "withdrawMonth": "2050-06"
+     },
+     {
+      "accountId": 11,
+      "monthly": "90.00",
+      "returnPct": "4.50",
+      "withdrawMonth": "2045-12"
+     },
+     {
+      "accountId": 9,
+      "monthly": "60.00",
+      "returnPct": "5.50",
+      "withdrawMonth": "2055-06"
+     }
+    ],
+    "inflationPct": "2.5"
+   },
+   "accountId": 9,
+   "expected": {
+    "reply": {
+     "contractVersion": 1,
+     "context": {
+      "generation": 3,
+      "sessionRevision": 11
+     },
+     "revision": {
+      "local": 40,
+      "external": 7
+     },
+     "asOf": "2026-09-06",
+     "account": {
+      "id": 9,
+      "name": "Save in 2050",
+      "type": "investment"
+     },
+     "worth": {
+      "amount": "2000",
+      "basis": "holdings"
+     },
+     "contribution": {
+      "kind": "saved",
+      "monthlyAmount": "60"
+     },
+     "returnAssumption": {
+      "kind": "stored-plan",
+      "annualPct": "5.5"
+     },
+     "inflation": {
+      "kind": "stored",
+      "pct": "2.5"
+     },
+     "retirementMonth": "2055-06"
+    }
+   }
+  }
+ ]
+}

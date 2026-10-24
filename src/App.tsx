@@ -2999,6 +2999,17 @@ function App({
                   setFilterCategory(UNCATEGORIZED_FILTER);
                   setActiveTab("ledger");
                 }}
+                onOpenLedgerFiltered={({ category, accountIds, from, to }) => {
+                  setSearchText("");
+                  setFilterCategory(category);
+                  setFilterAccountIds(accountIds.length > 0 ? new Set(accountIds) : "all");
+                  setFilterMemberIds("all");
+                  setFilterFrom(from);
+                  setFilterTo(to);
+                  setFilterTag("all");
+                  setSelectedIds(new Set());
+                  setActiveTab("ledger");
+                }}
                 safeToSpendForecast={safeToSpendForecast}
                 safeToSpendEnabled={appSettingsLoaded && appSettings.safe_to_spend_enabled}
                 onAddTransaction={() => setNewTransactionOpen(true)}

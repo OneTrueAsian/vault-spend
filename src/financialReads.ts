@@ -1,4 +1,5 @@
 import { createTransactionClient } from "./transactionReads";
+import { traceReadStart, traceValidator } from "./askVault/retirementStageTrace";
 import { TransactionError } from "./transactionContracts";
 import {
   validateBudgetSnapshot,
@@ -7,22 +8,52 @@ import {
   validateReportSummarySnapshot,
 } from "./financialContracts";
 import { toLocalIsoDate } from "./format";
+import { validateAskVaultSnapshot, type AskKnownPeople } from "./askVault/contract";
+import type { AskVaultRequest, AskVaultRequestV2 } from "./askVault/types";
+import { validateBaselineBatchRequest, validateBaselineBatchSnapshot, type AskBaselineBatchRequest } from "./askVault/cutPreviewBatch";
+import {
+  validateRetirementContextWireRequest, validateRetirementRosterWireRequest, validateRetirementContextReply, validateRetirementRosterReply,
+  type RetirementContextWireRequest, type RetirementRosterWireRequest,
+} from "./askVault/retirementNativeContract";
 export function createFinancialClient() {
   const client = createTransactionClient();
   async function read<T extends { context: { generation: number; sessionRevision: number } }>(
     command: string,
-    args: Record<string, number>,
+    args: Record<string, unknown>,
     validate: (value: unknown) => T,
   ): Promise<T> {
-    const origin = await client.context();
-    const result = validate(await client.call(command, args, true));
-    // Disposal must also reject replies already dispatched before unmount.
-    await client.context();
-    if (result.context.generation !== origin.generation || result.context.sessionRevision !== origin.sessionRevision)
-      throw new TransactionError("stale_profile", "These totals belong to another profile session.");
-    return result;
+    const endTrace = import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true ? traceReadStart(command) : null;
+    const check = import.meta.env.TAURI_ENV_DEBUG === "true" || import.meta.env.TAURI_ENV_DEBUG === true ? traceValidator(command, validate) : validate;
+    try {
+      const origin = await client.context();
+      const result = check(await client.call(command, args, true));
+      // Disposal must also reject replies already dispatched before unmount.
+      await client.context();
+      if (result.context.generation !== origin.generation || result.context.sessionRevision !== origin.sessionRevision)
+        throw new TransactionError("stale_profile", "These totals belong to another profile session.");
+      return result;
+    } finally { endTrace?.(); }
   }
   return {
+    askVaultRetirementAccounts: async (request: RetirementRosterWireRequest) => {
+      const captured = validateRetirementRosterWireRequest(request), today = toLocalIsoDate();
+      const result = await read("get_ask_vault_retirement_accounts", { request: captured }, value => validateRetirementRosterReply(value, captured, today));
+      if (toLocalIsoDate() !== today) throw new TransactionError("invalid_response", "The account list belongs to another date. Ask again.");
+      return result;
+    },
+    askVaultRetirementContext: async (request: RetirementContextWireRequest) => {
+      const captured = validateRetirementContextWireRequest(request), today = toLocalIsoDate();
+      const result = await read("get_ask_vault_retirement_context", { request: captured }, value => validateRetirementContextReply(value, captured, today));
+      if (toLocalIsoDate() !== today) throw new TransactionError("invalid_response", "The account details belong to another date. Ask again.");
+      return result;
+    },
+    askVaultBaselines: async (request: AskBaselineBatchRequest) => {
+      const captured = validateBaselineBatchRequest(request);
+      const today = toLocalIsoDate();
+      const result = await read("get_ask_vault_baselines", { request: captured }, value => validateBaselineBatchSnapshot(value, captured));
+      if (result.asOf !== today || toLocalIsoDate() !== today) throw new TransactionError("invalid_response", "The baseline bundle belongs to another date.");
+      return result;
+    },
     dashboard: async () => {
       const today = toLocalIsoDate();
       const result = await read("get_dashboard_snapshot", {}, validateDashboardSnapshot);
@@ -56,6 +87,21 @@ export function createFinancialClient() {
         result.toMonth !== toMonth
       )
         throw new TransactionError("invalid_response", "The report response belongs to another range.");
+      return result;
+    },
+    /** One exact spending read for Ask the Vault. The request is typed data only, never question text. */
+    askVault: async (request: AskVaultRequest | AskVaultRequestV2, known?: AskKnownPeople) => {
+      const today = toLocalIsoDate();
+      // Capture the independent roster before awaiting IPC; a later UI update must not change what this reply is checked against.
+      const familyMembers = known?.familyMembers?.map(member => ({ ...member }));
+      const version2 = "contractVersion" in request && request.contractVersion === 2;
+      if (version2 && (request as AskVaultRequestV2).groupBy === "member" && !familyMembers)
+        throw new TransactionError("invalid_response", "The family member list is unavailable. Reload and ask again.");
+      const result = version2
+        ? await read("get_ask_vault_snapshot", { request }, value => validateAskVaultSnapshot(value, request as AskVaultRequestV2, { familyMembers }))
+        : await read("get_ask_vault_snapshot", { request }, value => validateAskVaultSnapshot(value, request));
+      if (result.asOf !== today)
+        throw new TransactionError("invalid_response", "The answer belongs to another date.");
       return result;
     },
     dispose: client.dispose,

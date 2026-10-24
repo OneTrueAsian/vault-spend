@@ -11,3 +11,13 @@ describe("? Help button hover", () => {
     expect(hover![1]).toMatch(/background(-color)?:\s*var\(--surface-hover\)/);
   });
 });
+
+describe("profile switcher hover contrast", () => {
+  it("keeps the sidebar foreground/background pair instead of inheriting the primary-button accent fill", () => {
+    const css = readFileSync(new URL("./AppShell.css", import.meta.url), "utf8");
+    const hover = css.match(/\.profile-switcher-toggle:hover[^{}]*\{([^}]*)\}/);
+    expect(hover, "scoped profile hover rule").not.toBeNull();
+    expect(hover![1]).toMatch(/background:\s*var\(--sidebar-bg-hover\)/);
+    expect(hover![1]).toMatch(/color:\s*var\(--sidebar-text-active\)/);
+  });
+});

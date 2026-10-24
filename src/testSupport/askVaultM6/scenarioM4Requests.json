@@ -1,0 +1,770 @@
+{
+ "m4q-monthly-0-percent": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "0"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-0-floor-percent": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "0"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-0-floor-money": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "0"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-0.01-percent": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "0.01"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-0.01-floor-percent": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "0.01"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-0.01-floor-money": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "0.01"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-50-percent": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-50-floor-percent": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-50-floor-money": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "50"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-10000-percent": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "10000"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-10000-floor-percent": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "10000"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-monthly-10000-floor-money": {
+  "version": 1,
+  "target": {
+   "kind": "monthly",
+   "amount": "10000"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-0-percent": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "0"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-0-floor-percent": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "0"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-0-floor-money": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "0"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-0.01-percent": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "0.01"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-0.01-floor-percent": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "0.01"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-0.01-floor-money": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "0.01"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-50-percent": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "50"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-50-floor-percent": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "50"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-50-floor-money": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "50"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-10000-percent": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "10000"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "0",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "100"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-10000-floor-percent": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "10000"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "percent",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m4q-total-10000-floor-money": {
+  "version": 1,
+  "target": {
+   "kind": "total",
+   "amount": "10000"
+  },
+  "allocationPolicy": "capacity-proportional",
+  "categories": [
+   {
+    "category": "Dining",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   },
+   {
+    "category": "Groceries",
+    "monthlyFloor": "10",
+    "maximumReduction": {
+     "kind": "money",
+     "amount": "25"
+    }
+   }
+  ],
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ }
+}

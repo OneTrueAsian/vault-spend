@@ -94,7 +94,7 @@ impl Store {
     /// was recorded more recently, which is also the semantically correct
     /// answer either way: a later row was always computed (or typed) with
     /// a fuller view of history than an earlier one dated the same day.
-    fn latest_checkpoint(&self, account_id: i64, as_of: NaiveDate) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
+    pub(super) fn latest_checkpoint(&self, account_id: i64, as_of: NaiveDate) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
         match self.conn.query_row(
             "SELECT reset_date, balance FROM balance_resets
              WHERE account_id = ?1 AND reset_date <= ?2

@@ -1,8 +1,8 @@
 import "./DashboardCards.css";
 import "./FirstRunChecklist.css";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MenuSelect } from "./MenuSelect";
-import { Check, Info, Leaf, LineChart as LineChartIcon, MessageCircleQuestion } from "lucide-react";
+import { Check, Info, Leaf, LineChart as LineChartIcon } from "lucide-react";
 import { CategoryIcon, BudgetGroupIcon, AccountTypeIcon, BucketIcon, IconEntryGlyph, flatIconEntry } from "./icons";
 import type {
   BillAwareForecast,
@@ -24,7 +24,7 @@ import type {
 } from "./types";
 import { DonutChart, LineChart, ProgressRing, Sparkline, fmtMoneyShort } from "./charts";
 import { StatDetailPanel } from "./StatDetailPanel";
-import { formatAmount, formatDisplayDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import { groupOf, isOverdrawn, netWorthContribution, owedAmount } from "./accountGroups";
 import { netWorthByMember } from "./memberBreakdowns";
 import { daysLeft } from "./BucketsView";
@@ -40,7 +40,11 @@ import {
   type SavedLayoutPreset,
   type WidgetId,
 } from "./dashboardLayout";
-import { answerTransactionQuestion, TRANSACTION_QA_EXAMPLES, type QaResult } from "./transactionQa";
+import { answerTransactionQuestion } from "./transactionQa";
+import { AskVaultCard } from "./AskVaultCard";
+import { prepareVendors } from "./askVault/vendor";
+import type { ParseContext } from "./askVault/types";
+import { ledgerSignature } from "./askVault/ledgerSignature";
 import { ensureUiStateMigrated } from "./profileUiState";
 import { attentionItems, type AttentionKind } from "./needsAttention";
 import { effectiveBudget, monthElapsed } from "./budgetPlan";
@@ -58,80 +62,6 @@ const CHECKLIST_DISMISSED_KEY = "meadow-checklist-dismissed";
 
 /** The Layout menu's last entry: turns Customize on or off. Not a layout, so never saved as one. */
 const CUSTOMIZE_OPTION = "__customize__";
-
-/** A single template-matched natural-language question, answered entirely
- * from data already on hand (see transactionQa.ts) — never a hosted LLM call.
- * Always visible above the widget layout, not itself a customizable
- * widget, since it's a utility rather than a report. */
-function TransactionQaBox({
-  onAsk,
-}: {
-  onAsk: (question: string) => QaResult;
-}) {
-  const [question, setQuestion] = useState("");
-  const [result, setResult] = useState<QaResult | null>(null);
-  const [showExamples, setShowExamples] = useState(false);
-  // Picked once per mount, not re-randomized on every render — otherwise
-  // it'd shuffle out from under the user mid-interaction. Previously
-  // always showed the same one example, which (combined with no other
-  // hint of what the box can do) made a genuinely novel feature — natural-
-  // language questions answered entirely from local data — easy to miss.
-  const [placeholderExample] = useState(() => TRANSACTION_QA_EXAMPLES[Math.floor(Math.random() * TRANSACTION_QA_EXAMPLES.length)]);
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    const trimmed = question.trim();
-    if (!trimmed) return;
-    setResult(onAsk(trimmed));
-  }
-
-  return (
-    <div className="card ledger-qa-card">
-      <div className="card-head">
-        <span className="reports-section-title cell-with-icon">
-          <MessageCircleQuestion className="category-legend-icon" />
-          Ask the Vault
-        </span>
-        <button type="button" className="modal-secondary" onClick={() => setShowExamples((v) => !v)}>
-          {showExamples ? "Hide tips" : "Tips & examples"}
-        </button>
-      </div>
-      {showExamples && (
-        <div className="ledger-qa-tips">
-          <p className="field-hint">
-            Ask one thing at a time, using the exact category, account, bucket, or merchant names you use elsewhere
-            in the app. Time periods work too — "this month," "last week," "the past 3 months," a month like "July,"
-            a year like "2026," or "since March."
-          </p>
-          <ul className="ledger-qa-examples">
-            {TRANSACTION_QA_EXAMPLES.map((example) => (
-              <li key={example}>
-                <button type="button" onClick={() => setQuestion(example)}>
-                  {example}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <form className="category-create-form" onSubmit={handleSubmit}>
-        <input
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          placeholder={`e.g. "${placeholderExample}"`}
-        />
-        <button type="submit" disabled={!question.trim()}>
-          Ask
-        </button>
-      </form>
-      {result && (
-        <p className={result.matched ? "ledger-qa-answer" : "ledger-qa-answer ledger-qa-answer-unmatched"}>
-          {result.answer}
-        </p>
-      )}
-    </div>
-  );
-}
 
 /** Same try/parse/catch-fallback shape as `loadNavOrder`/`theme` in
  * App.tsx — a per-viewer UI preference, not app data, so it lives in
@@ -211,6 +141,7 @@ export function DashboardView({
   onOpenAccounts,
   onOpenBuckets,
   onOpenUncategorized,
+  onOpenLedgerFiltered,
   safeToSpendForecast,
   safeToSpendEnabled,
   onAddTransaction,
@@ -288,6 +219,8 @@ export function DashboardView({
   onOpenBuckets: () => void;
   /** Opens Transactions already filtered to just the uncategorized ones. */
   onOpenUncategorized: () => void;
+  /** Opens Transactions filtered to one category, some accounts and a date range (from an Ask the Vault answer). */
+  onOpenLedgerFiltered?: (filter: { category: string; accountIds: number[]; from: string; to: string }) => void;
   /** The bill-aware forecast the "Safe to spend" widget counts down with —
    * `null` until it loads. */
   safeToSpendForecast: BillAwareForecast | null;
@@ -371,6 +304,44 @@ export function DashboardView({
   const netWorthDelta = netWorthHistory.length ? netWorth - parseFloat(netWorthHistory[0].value) : 0;
   const netWorthWithAssets = netWorth + assetsTotal;
 
+  // Ask the Vault: what the question parser may know. Built when a question is asked, so today's date is current.
+  // Built once per loaded list, so a large ledger is not walked again for every question.
+  const askMerchants = useMemo(() => transactions.map((t) => t.description), [transactions]);
+  const [preparedAskMerchants, setPreparedAskMerchants] = useState<readonly string[] | null>(null);
+  useEffect(() => {
+    const preparation = new AbortController();
+    void prepareVendors(askMerchants, preparation.signal).then(ready => {
+      if (ready && !preparation.signal.aborted) setPreparedAskMerchants(askMerchants);
+    });
+    return () => preparation.abort();
+  }, [askMerchants]);
+  const askHistoryStart = useMemo(() => {
+    let earliest: string | undefined;
+    for (const t of transactions) if (earliest === undefined || t.date < earliest) earliest = t.date;
+    return earliest;
+  }, [transactions]);
+  const getAskContext = useCallback(
+    (): ParseContext => ({
+      today: toLocalIsoDate(),
+      categories,
+      accounts: accounts.map((a) => ({ id: a.id, name: a.name })),
+      // Lets the card claim a retirement question that names an investment account. Never authorization: the native roster is read first.
+      investmentAccounts: accounts.filter((a) => groupOf(a.account_type) === "investment").map((a) => ({ id: a.id, name: a.name })),
+      merchants: askMerchants,
+      members: familyMembers.map((m) => m.name),
+      familyMembers: familyMembers.map(({ id, name }) => ({ id, name })),
+      historyStart: askHistoryStart,
+    }),
+    [askMerchants, askHistoryStart, categories, accounts, familyMembers],
+  );
+  const legacyAsk = useCallback(
+    (question: string) =>
+      answerTransactionQuestion(question, { transactions, categories, accounts, buckets, recurring, avgMonthlySpend, today: new Date() }),
+    [transactions, categories, accounts, buckets, recurring, avgMonthlySpend],
+  );
+  // An answer is retired only when the data it came from really changed, not on every reload of the list.
+  const askDataKey = useMemo(() => JSON.stringify([ledgerSignature(transactions), familyMembers.map(({ id, name }) => [id, name])]), [transactions, familyMembers]);
+  const accountNames = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
   const cashAccounts = useMemo(() => accounts.filter((a) => groupOf(a.account_type) === "cash"), [accounts]);
   const debtAccounts = useMemo(
     () =>
@@ -1241,18 +1212,14 @@ export function DashboardView({
       </div>
       {/* Owner decision (1.3.0): Ask the Vault stays this big card, directly under the title row.
           Don't shrink it into the title row. DashboardView.test.tsx and feature270 pin this. */}
-      <TransactionQaBox
-        onAsk={(question) =>
-          answerTransactionQuestion(question, {
-            transactions,
-            categories,
-            accounts,
-            buckets,
-            recurring,
-            avgMonthlySpend,
-            today: new Date(),
-          })
-        }
+      <AskVaultCard
+        ready={preparedAskMerchants === askMerchants}
+        getContext={getAskContext}
+        legacyAsk={legacyAsk}
+        dataKey={askDataKey}
+        reloadKey={transactions}
+        accountNames={accountNames}
+        onOpenTransactions={onOpenLedgerFiltered}
       />
 
       <div className="dashboard-toolbar">

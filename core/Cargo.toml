@@ -25,3 +25,6 @@ zeroize = "1"
 
 [dev-dependencies]
 rust_decimal_macros = "1"
+
+# Exercises the vendored Office ZIP9 compatibility at the public archive boundary.
+zip = { version = "9.0", default-features = false, features = ["deflate"] }

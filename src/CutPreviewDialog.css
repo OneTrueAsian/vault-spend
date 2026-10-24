@@ -1,0 +1,18 @@
+/* M4 only: shared modal/scenario tokens and controls provide typography and states. */
+.cut-preview-content .modal-field { color: var(--text); }
+.cut-preview-content .menu-select-placeholder,
+.cut-preview-content .menu-select-placeholder > span:first-child,
+.cut-preview-content .scenario-problem { color: var(--text); }
+.cut-preview-category { min-width: 0; padding: 12px; margin: 0 0 14px; border: 1px solid var(--border-strong); border-radius: 10px; overflow-wrap: anywhere; }
+.cut-preview-selection { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 8px; }
+.cut-preview-selection input { margin-top: 4px; flex-shrink: 0; }
+.cut-preview-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.cut-preview-controls .modal-field { min-width: 0; }
+.cut-preview-category .scenario-question { margin-top: 12px; }
+.cut-preview-category .scenario-problem { margin: 6px 0; }
+.cut-preview-results { table-layout: fixed; }
+.cut-preview-results th, .cut-preview-results td { overflow-wrap: anywhere; }
+.cut-preview-category h3 { margin: 0 0 8px; font-size: 15px; }
+@media (max-width: 800px) { .cut-preview-controls { grid-template-columns: 1fr; gap: 0; } }
+/* A category name with no spaces made the "Allow up to 100%" button wider than the dialog (found by the M6 narrow-width check). */
+.cut-preview-category > .modal-secondary { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }

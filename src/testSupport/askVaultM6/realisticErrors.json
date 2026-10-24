@@ -1,0 +1,3068 @@
+{
+ "version": "m6-realistic-errors-1",
+ "reviewedBy": "Claude Code actual session 47bd1362-2501-4ab1-8959-f696c4b5bc0f (same-author review; no independent reviewer)",
+ "reviewedOn": "2026-10-22",
+ "authority": "Owner direction D-8 (approved 22 Oct 2026); Requirements-Checklist.md:97 (CG-04); Task7/Open-Items-and-Proposed-Checks.md G-1",
+ "method": "All 300 P-CORE cases carrying the typo tag were read one by one. For each, the one corrupted word, the word the person meant and the kind of slip were identified, and the case kept only if it met every criterion below. The 180 noise-tagged cases (whitespace or letter-case variants) were not selected: none is a typing mistake.",
+ "criteria": [
+  "exactly one misspelled word; every other word is correct (a missing apostrophe in a contraction such as whats is recorded as a second class, not as a second misspelling)",
+  "the intended word is certain from the sentence and the profile's own names",
+  "the slip is a common human one: neighbouring letters swapped, a letter doubled, a letter left out or one extra letter",
+  "the case is a P-CORE case with its original text, expected requests and results unchanged"
+ ],
+ "provenance": "Original questions, expected requests, references and seeds are those of cases.json under freeze v12; this file adds only the review and changes no case, gold or population.",
+ "classes": [
+  "typo",
+  "word-order",
+  "contraction"
+ ],
+ "rejected": [],
+ "rejectedNote": "No case failed a criterion after reading all 300; the count of rejections is therefore zero, and the floor of 100 is met by the reviewed membership below, not by the tag.",
+ "entries": [
+  {
+   "id": "m1/101-0165",
+   "text": "dininng out purchases above $40 last month",
+   "intendedText": "dining out purchases above $40 last month",
+   "token": "dininng",
+   "intended": "dining",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"dininng\" for \"dining\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates dining and dinning; dining is the category named elsewhere in the sentence set."
+  },
+  {
+   "id": "m1/101-0166",
+   "text": "April 2026, how much did I speend on groceries?",
+   "intendedText": "April 2026, how much did I spend on groceries?",
+   "token": "speend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"speend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0167",
+   "text": "spending on Joint Visa in ocotber",
+   "intendedText": "spending on Joint Visa in october",
+   "token": "ocotber",
+   "intended": "october",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"ocotber\" for \"october\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0168",
+   "text": "how much did I spend at mcdonald's and Spotiify in april",
+   "intendedText": "how much did I spend at mcdonald's and Spotify in april",
+   "token": "Spotiify",
+   "intended": "spotify",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Spotiify\" for \"spotify\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0169",
+   "text": "what are my two biggset spending categories in May 2026",
+   "intendedText": "what are my two biggest spending categories in May 2026",
+   "token": "biggset",
+   "intended": "biggest",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"biggset\" for \"biggest\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0170",
+   "text": "what did I sppend the most on year to date",
+   "intendedText": "what did I spend the most on year to date",
+   "token": "sppend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"sppend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0171",
+   "text": "did I sppend more on dining in June 2026 than in July 2026",
+   "intendedText": "did I spend more on dining in June 2026 than in July 2026",
+   "token": "sppend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"sppend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0172",
+   "text": "what did I spend in Augst 2025?",
+   "intendedText": "what did I spend in August 2025?",
+   "token": "Augst",
+   "intended": "august",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Augst\" for \"august\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0173",
+   "text": "did I spend more on home repirs in October 2025 than in November 2025",
+   "intendedText": "did I spend more on home repairs in October 2025 than in November 2025",
+   "token": "repirs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"repirs\" for \"repairs\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0174",
+   "text": "how much did I spend on Grocries in June 2026",
+   "intendedText": "how much did I spend on Groceries in June 2026",
+   "token": "Grocries",
+   "intended": "groceries",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Grocries\" for \"groceries\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0175",
+   "text": "May 2026 rank 4 categories by spendign",
+   "intendedText": "May 2026 rank 4 categories by spending",
+   "token": "spendign",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"spendign\" for \"spending\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0176",
+   "text": "dining at Speeway in September 2025",
+   "intendedText": "dining at Speedway in September 2025",
+   "token": "Speeway",
+   "intended": "speedway",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Speeway\" for \"speedway\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0177",
+   "text": "purrchases at sam's club more than $300.99 this month",
+   "intendedText": "purchases at sam's club more than $300.99 this month",
+   "token": "purrchases",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"purrchases\" for \"purchases\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0178",
+   "text": "how much did I spend on the Joint Visa in Seeptember 2026",
+   "intendedText": "how much did I spend on the Joint Visa in September 2026",
+   "token": "Seeptember",
+   "intended": "september",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Seeptember\" for \"september\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0179",
+   "text": "Eudcation spending this year versus last year",
+   "intendedText": "Education spending this year versus last year",
+   "token": "Eudcation",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Eudcation\" for \"education\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0180",
+   "text": "what are my five biggest sending categories in december",
+   "intendedText": "what are my five biggest spending categories in december",
+   "token": "sending",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"sending\" for \"spending\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0181",
+   "text": "compare dining spening this month to last month",
+   "intendedText": "compare dining spending this month to last month",
+   "token": "spening",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"spening\" for \"spending\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0182",
+   "text": "top 4 dining out puchases in December 2025",
+   "intendedText": "top 4 dining out purchases in December 2025",
+   "token": "puchases",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"puchases\" for \"purchases\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0183",
+   "text": "clothing on my Joit Visa account in december",
+   "intendedText": "clothing on my Joint Visa account in december",
+   "token": "Joit",
+   "intended": "joint",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Joit\" for \"joint\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0184",
+   "text": "what did I spend the most on in Aprl 2026",
+   "intendedText": "what did I spend the most on in April 2026",
+   "token": "Aprl",
+   "intended": "april",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Aprl\" for \"april\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0185",
+   "text": "what did I spend on coffee shoops in October 2025?",
+   "intendedText": "what did I spend on coffee shops in October 2025?",
+   "token": "shoops",
+   "intended": "shops",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"shoops\" for \"shops\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0186",
+   "text": "how much did I spend on the Houssehold Checking last month",
+   "intendedText": "how much did I spend on the Household Checking last month",
+   "token": "Houssehold",
+   "intended": "household",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Houssehold\" for \"household\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0187",
+   "text": "dining on my Cash Wallt account from 2026-06-03 to 2026-06-17",
+   "intendedText": "dining on my Cash Wallet account from 2026-06-03 to 2026-06-17",
+   "token": "Wallt",
+   "intended": "wallet",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Wallt\" for \"wallet\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0188",
+   "text": "total spendnig in February 2026",
+   "intendedText": "total spending in February 2026",
+   "token": "spendnig",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"spendnig\" for \"spending\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0189",
+   "text": "what did I spend at Mcdonald's or krroger in August 2025",
+   "intendedText": "what did I spend at Mcdonald's or kroger in August 2025",
+   "token": "krroger",
+   "intended": "kroger",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"krroger\" for \"kroger\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0190",
+   "text": "spending this month without gifst",
+   "intendedText": "spending this month without gifts",
+   "token": "gifst",
+   "intended": "gifts",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"gifst\" for \"gifts\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0191",
+   "text": "top 3 purchases at whole foods and Mcdonald's in marhc",
+   "intendedText": "top 3 purchases at whole foods and Mcdonald's in march",
+   "token": "marhc",
+   "intended": "march",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"marhc\" for \"march\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0192",
+   "text": "expenses of at least $250 in novembre",
+   "intendedText": "expenses of at least $250 in november",
+   "token": "novembre",
+   "intended": "november",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"novembre\" for \"november\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0193",
+   "text": "how much did I sepnd at Samantha's bakery yesterday",
+   "intendedText": "how much did I spend at Samantha's bakery yesterday",
+   "token": "sepnd",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"sepnd\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates spend and send; the sentence asks how much was spent."
+  },
+  {
+   "id": "m1/101-0194",
+   "text": "clothing in Deember 2025 without walmart",
+   "intendedText": "clothing in December 2025 without walmart",
+   "token": "Deember",
+   "intended": "december",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Deember\" for \"december\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0195",
+   "text": "spending on Cash Wallte in July 2026",
+   "intendedText": "spending on Cash Wallet in July 2026",
+   "token": "Wallte",
+   "intended": "wallet",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Wallte\" for \"wallet\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0196",
+   "text": "this quarter rank 5 categories by sending",
+   "intendedText": "this quarter rank 5 categories by spending",
+   "token": "sending",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"sending\" for \"spending\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0197",
+   "text": "last week rank 3 categores by spending",
+   "intendedText": "last week rank 3 categories by spending",
+   "token": "categores",
+   "intended": "categories",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"categores\" for \"categories\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0198",
+   "text": "total spening yesterday",
+   "intendedText": "total spending yesterday",
+   "token": "spening",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"spening\" for \"spending\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0199",
+   "text": "diniing out month to date without Sam's club",
+   "intendedText": "dining out month to date without Sam's club",
+   "token": "diniing",
+   "intended": "dining",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"diniing\" for \"dining\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates dining and dinning; dining is the category named elsewhere in the sentence set."
+  },
+  {
+   "id": "m1/101-0200",
+   "text": "top 2 Cofefe Shops purchases in May 2026",
+   "intendedText": "top 2 Coffee Shops purchases in May 2026",
+   "token": "Cofefe",
+   "intended": "coffee",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Cofefe\" for \"coffee\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0201",
+   "text": "what are my four biggst spending categories last quarter",
+   "intendedText": "what are my four biggest spending categories last quarter",
+   "token": "biggst",
+   "intended": "biggest",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"biggst\" for \"biggest\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0202",
+   "text": "Gfits in march without walmart",
+   "intendedText": "Gifts in march without walmart",
+   "token": "Gfits",
+   "intended": "gifts",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Gfits\" for \"gifts\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0203",
+   "text": "total home repaiirs spending in January 2026",
+   "intendedText": "total home repairs spending in January 2026",
+   "token": "repaiirs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"repaiirs\" for \"repairs\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0204",
+   "text": "top 3 Shoppinng purchases in July 2026",
+   "intendedText": "top 3 Shopping purchases in July 2026",
+   "token": "Shoppinng",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Shoppinng\" for \"shopping\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0205",
+   "text": "top 2 Transportatoin purchases in October 2025",
+   "intendedText": "top 2 Transportation purchases in October 2025",
+   "token": "Transportatoin",
+   "intended": "transportation",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Transportatoin\" for \"transportation\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0206",
+   "text": "how much did I sppend in the past 3 months besides home repairs",
+   "intendedText": "how much did I spend in the past 3 months besides home repairs",
+   "token": "sppend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"sppend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0207",
+   "text": "purchases at sam's club more than $40.01 in Aguust 2025",
+   "intendedText": "purchases at sam's club more than $40.01 in August 2025",
+   "token": "Aguust",
+   "intended": "august",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Aguust\" for \"august\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0208",
+   "text": "Groceires at kroger, Starbucks and speedway in April 2026",
+   "intendedText": "Groceries at kroger, Starbucks and speedway in April 2026",
+   "token": "Groceires",
+   "intended": "groceries",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Groceires\" for \"groceries\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0209",
+   "text": "how much did I send at spotify last week",
+   "intendedText": "how much did I spend at spotify last week",
+   "token": "send",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"send\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; 'send' is itself a word, but no reading of 'send' fits 'how much did I send / did I send more'; the intended word is spend."
+  },
+  {
+   "id": "m1/101-0210",
+   "text": "top 4 coffee shopps purchases in february",
+   "intendedText": "top 4 coffee shops purchases in february",
+   "token": "shopps",
+   "intended": "shops",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"shopps\" for \"shops\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0211",
+   "text": "what are my four biggest speending categories last week",
+   "intendedText": "what are my four biggest spending categories last week",
+   "token": "speending",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"speending\" for \"spending\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0212",
+   "text": "How much did I spend at Wohle foods?",
+   "intendedText": "How much did I spend at Whole foods?",
+   "token": "Wohle",
+   "intended": "whole",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Wohle\" for \"whole\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0213",
+   "text": "did I spend more on home reppairs this month than last month",
+   "intendedText": "did I spend more on home repairs this month than last month",
+   "token": "reppairs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"reppairs\" for \"repairs\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0214",
+   "text": "what did I spned month to date?",
+   "intendedText": "what did I spend month to date?",
+   "token": "spned",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"spned\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0215",
+   "text": "sepnding in the past 3 months without home repairs",
+   "intendedText": "spending in the past 3 months without home repairs",
+   "token": "sepnding",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"sepnding\" for \"spending\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0216",
+   "text": "what did I spend in Septemmber 2026?",
+   "intendedText": "what did I spend in September 2026?",
+   "token": "Septemmber",
+   "intended": "september",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Septemmber\" for \"september\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0217",
+   "text": "top 4 purchases at walmart, Speedway, Netfliix and aldi in january",
+   "intendedText": "top 4 purchases at walmart, Speedway, Netflix and aldi in january",
+   "token": "Netfliix",
+   "intended": "netflix",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Netfliix\" for \"netflix\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/101-0218",
+   "text": "total dininng out spending in June 2026",
+   "intendedText": "total dining out spending in June 2026",
+   "token": "dininng",
+   "intended": "dining",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"dininng\" for \"dining\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates dining and dinning; dining is the category named elsewhere in the sentence set."
+  },
+  {
+   "id": "m1/101-0219",
+   "text": "what did I speend on coffee shops in the past 3 months?",
+   "intendedText": "what did I spend on coffee shops in the past 3 months?",
+   "token": "speend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"speend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0189",
+   "text": "average groceres and Shopping purchase since May 2026",
+   "intendedText": "average groceries and Shopping purchase since May 2026",
+   "token": "groceres",
+   "intended": "groceries",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"groceres\" for \"groceries\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0190",
+   "text": "top 3 categories for transportation, groceries and Coffee Shops in Auguts 2026",
+   "intendedText": "top 3 categories for transportation, groceries and Coffee Shops in August 2026",
+   "token": "Auguts",
+   "intended": "august",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Auguts\" for \"august\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0191",
+   "text": "average purchase in octoober",
+   "intendedText": "average purchase in october",
+   "token": "octoober",
+   "intended": "october",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"octoober\" for \"october\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0192",
+   "text": "monthly spending at spotiify in July 2026",
+   "intendedText": "monthly spending at spotify in July 2026",
+   "token": "spotiify",
+   "intended": "spotify",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"spotiify\" for \"spotify\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0193",
+   "text": "average monthly education and Home Reapirs in 2025",
+   "intendedText": "average monthly education and Home Repairs in 2025",
+   "token": "Reapirs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Reapirs\" for \"repairs\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0194",
+   "text": "average monthly spending last quartter",
+   "intendedText": "average monthly spending last quarter",
+   "token": "quartter",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"quartter\" for \"quarter\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0195",
+   "text": "how much did sam spend on home repairrs this year",
+   "intendedText": "how much did sam spend on home repairs this year",
+   "token": "repairrs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"repairrs\" for \"repairs\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0196",
+   "text": "how much did jordan spend in Aprl 2026",
+   "intendedText": "how much did jordan spend in April 2026",
+   "token": "Aprl",
+   "intended": "april",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Aprl\" for \"april\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0197",
+   "text": "groceries in appril not assigned to a family member",
+   "intendedText": "groceries in april not assigned to a family member",
+   "token": "appril",
+   "intended": "april",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"appril\" for \"april\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0198",
+   "text": "how much did I spend in otcober that is not assigned to a family member",
+   "intendedText": "how much did I spend in october that is not assigned to a family member",
+   "token": "otcober",
+   "intended": "october",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"otcober\" for \"october\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0199",
+   "text": "total edcuation and Groceries in april",
+   "intendedText": "total education and Groceries in april",
+   "token": "edcuation",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"edcuation\" for \"education\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0200",
+   "text": "how much did I spend last qaurter that is not assigned to a family member",
+   "intendedText": "how much did I spend last quarter that is not assigned to a family member",
+   "token": "qaurter",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"qaurter\" for \"quarter\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0201",
+   "text": "how much did jordan spend on rent and Cffee Shops in october",
+   "intendedText": "how much did jordan spend on rent and Coffee Shops in october",
+   "token": "Cffee",
+   "intended": "coffee",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Cffee\" for \"coffee\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0202",
+   "text": "average gitfs spending per month in 2025",
+   "intendedText": "average gifts spending per month in 2025",
+   "token": "gitfs",
+   "intended": "gifts",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"gitfs\" for \"gifts\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0203",
+   "text": "compare Transportatino so far this year to the same days last year",
+   "intendedText": "compare Transportation so far this year to the same days last year",
+   "token": "Transportatino",
+   "intended": "transportation",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Transportatino\" for \"transportation\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0204",
+   "text": "compare what Sam spent on home repais so far this month to the same days last month",
+   "intendedText": "compare what Sam spent on home repairs so far this month to the same days last month",
+   "token": "repais",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"repais\" for \"repairs\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0205",
+   "text": "rent in apil not assigned to a family member",
+   "intendedText": "rent in april not assigned to a family member",
+   "token": "apil",
+   "intended": "april",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"apil\" for \"april\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0206",
+   "text": "spending by family member in the past 6 moths",
+   "intendedText": "spending by family member in the past 6 months",
+   "token": "moths",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"moths\" for \"months\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0207",
+   "text": "how much did I spend in februayr that is not assigned to a family member",
+   "intendedText": "how much did I spend in february that is not assigned to a family member",
+   "token": "februayr",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"februayr\" for \"february\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0208",
+   "text": "gifs or Clothing in January 2026",
+   "intendedText": "gifts or Clothing in January 2026",
+   "token": "gifs",
+   "intended": "gifts",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"gifs\" for \"gifts\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0209",
+   "text": "cofee shops spending by family member in february",
+   "intendedText": "coffee shops spending by family member in february",
+   "token": "cofee",
+   "intended": "coffee",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"cofee\" for \"coffee\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0210",
+   "text": "how much did I spend in the past 2 monts that is not assigned to a family member",
+   "intendedText": "how much did I spend in the past 2 months that is not assigned to a family member",
+   "token": "monts",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"monts\" for \"months\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates months and month; the sentence says 'the past 2 monts', a plural."
+  },
+  {
+   "id": "m2/m2-101-0211",
+   "text": "compare transporation so far this year to the same days last year",
+   "intendedText": "compare transportation so far this year to the same days last year",
+   "token": "transporation",
+   "intended": "transportation",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"transporation\" for \"transportation\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0212",
+   "text": "average monthly shopping spending in Aguust 2026",
+   "intendedText": "average monthly shopping spending in August 2026",
+   "token": "Aguust",
+   "intended": "august",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Aguust\" for \"august\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0213",
+   "text": "compare gifst so far this month to the same days last month",
+   "intendedText": "compare gifts so far this month to the same days last month",
+   "token": "gifst",
+   "intended": "gifts",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"gifst\" for \"gifts\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0214",
+   "text": "average monthly home reapirs and shopping in May 2026",
+   "intendedText": "average monthly home repairs and shopping in May 2026",
+   "token": "reapirs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"reapirs\" for \"repairs\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0215",
+   "text": "gifs spending by family member in may",
+   "intendedText": "gifts spending by family member in may",
+   "token": "gifs",
+   "intended": "gifts",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"gifs\" for \"gifts\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0216",
+   "text": "compare what Robin spent on shoping so far this month to the same days last month",
+   "intendedText": "compare what Robin spent on shopping so far this month to the same days last month",
+   "token": "shoping",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"shoping\" for \"shopping\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0217",
+   "text": "compare Edducation so far this month to the same days last month",
+   "intendedText": "compare Education so far this month to the same days last month",
+   "token": "Edducation",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Edducation\" for \"education\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0218",
+   "text": "average monthly spending in Auguts 2026",
+   "intendedText": "average monthly spending in August 2026",
+   "token": "Auguts",
+   "intended": "august",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Auguts\" for \"august\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0219",
+   "text": "transportation by month in the past 3 moths",
+   "intendedText": "transportation by month in the past 3 months",
+   "token": "moths",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"moths\" for \"months\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0220",
+   "text": "top 2 categories for transportation, education and groceies in June 2026",
+   "intendedText": "top 2 categories for transportation, education and groceries in June 2026",
+   "token": "groceies",
+   "intended": "groceries",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"groceies\" for \"groceries\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0221",
+   "text": "total education and coffee shops in Jauary 2026",
+   "intendedText": "total education and coffee shops in January 2026",
+   "token": "Jauary",
+   "intended": "january",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Jauary\" for \"january\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0222",
+   "text": "compare what alex spent on clothig so far this month to the same days last month",
+   "intendedText": "compare what alex spent on clothing so far this month to the same days last month",
+   "token": "clothig",
+   "intended": "clothing",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"clothig\" for \"clothing\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0223",
+   "text": "transsportation and gifts by month in June 2026",
+   "intendedText": "transportation and gifts by month in June 2026",
+   "token": "transsportation",
+   "intended": "transportation",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"transsportation\" for \"transportation\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0224",
+   "text": "average purchase in novvember",
+   "intendedText": "average purchase in november",
+   "token": "novvember",
+   "intended": "november",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"novvember\" for \"november\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0225",
+   "text": "transporttaion in September 2025 not assigned to a family member",
+   "intendedText": "transportation in September 2025 not assigned to a family member",
+   "token": "transporttaion",
+   "intended": "transportation",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"transporttaion\" for \"transportation\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0226",
+   "text": "shoopping or rent in june",
+   "intendedText": "shopping or rent in june",
+   "token": "shoopping",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"shoopping\" for \"shopping\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0227",
+   "text": "average rent and home repiars purchase last year",
+   "intendedText": "average rent and home repairs purchase last year",
+   "token": "repiars",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"repiars\" for \"repairs\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0228",
+   "text": "compare Shoopping so far this year to the same days last year",
+   "intendedText": "compare Shopping so far this year to the same days last year",
+   "token": "Shoopping",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Shoopping\" for \"shopping\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0229",
+   "text": "monthly spending at krogeer in the past 2 months",
+   "intendedText": "monthly spending at kroger in the past 2 months",
+   "token": "krogeer",
+   "intended": "kroger",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"krogeer\" for \"kroger\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0230",
+   "text": "gfits in February 2026 not assigned to a family member",
+   "intendedText": "gifts in February 2026 not assigned to a family member",
+   "token": "gfits",
+   "intended": "gifts",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"gfits\" for \"gifts\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0231",
+   "text": "home reparis by month year to date",
+   "intendedText": "home repairs by month year to date",
+   "token": "reparis",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"reparis\" for \"repairs\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0232",
+   "text": "how much did jordan and sam spend in Auust 2025",
+   "intendedText": "how much did jordan and sam spend in August 2025",
+   "token": "Auust",
+   "intended": "august",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Auust\" for \"august\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-101-0233",
+   "text": "clothing spending by family member in Feburary 2026",
+   "intendedText": "clothing spending by family member in February 2026",
+   "token": "Feburary",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Feburary\" for \"february\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0166",
+   "text": "how much did I speend on the Cash Wallet in 2026",
+   "intendedText": "how much did I spend on the Cash Wallet in 2026",
+   "token": "speend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"speend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0167",
+   "text": "education in novembeer but not at domino's",
+   "intendedText": "education in november but not at domino's",
+   "token": "novembeer",
+   "intended": "november",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"novembeer\" for \"november\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0168",
+   "text": "compare traevl spending this month to last month",
+   "intendedText": "compare travel spending this month to last month",
+   "token": "traevl",
+   "intended": "travel",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"traevl\" for \"travel\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0169",
+   "text": "what did I spned the most on in the past 3 months",
+   "intendedText": "what did I spend the most on in the past 3 months",
+   "token": "spned",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"spned\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0170",
+   "text": "how much did I speend in 2025 without Costco, and without insurance",
+   "intendedText": "how much did I spend in 2025 without Costco, and without insurance",
+   "token": "speend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"speend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0171",
+   "text": "what did I spend the most on this qurater",
+   "intendedText": "what did I spend the most on this quarter",
+   "token": "qurater",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"qurater\" for \"quarter\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0172",
+   "text": "top 2 dining purhcases in may",
+   "intendedText": "top 2 dining purchases in may",
+   "token": "purhcases",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"purhcases\" for \"purchases\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0173",
+   "text": "Dining Out on my Emergency Fund account in jaunary",
+   "intendedText": "Dining Out on my Emergency Fund account in january",
+   "token": "jaunary",
+   "intended": "january",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"jaunary\" for \"january\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0174",
+   "text": "travel at walgreens, Sehll and mcdonald's in 2025",
+   "intendedText": "travel at walgreens, Shell and mcdonald's in 2025",
+   "token": "Sehll",
+   "intended": "shell",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Sehll\" for \"shell\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0175",
+   "text": "what did I spend the most on in Febraury 2026",
+   "intendedText": "what did I spend the most on in February 2026",
+   "token": "Febraury",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Febraury\" for \"february\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0176",
+   "text": "What was my total purchasses at netflix in March 2026",
+   "intendedText": "What was my total purchases at netflix in March 2026",
+   "token": "purchasses",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"purchasses\" for \"purchases\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0177",
+   "text": "how much did I spend this quatrer",
+   "intendedText": "how much did I spend this quarter",
+   "token": "quatrer",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"quatrer\" for \"quarter\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0178",
+   "text": "what was my biiggest purchase last week",
+   "intendedText": "what was my biggest purchase last week",
+   "token": "biiggest",
+   "intended": "biggest",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"biiggest\" for \"biggest\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0179",
+   "text": "eveyrthing except dining in june",
+   "intendedText": "everything except dining in june",
+   "token": "eveyrthing",
+   "intended": "everything",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"eveyrthing\" for \"everything\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0180",
+   "text": "spending last year without home repaiirs",
+   "intendedText": "spending last year without home repairs",
+   "token": "repaiirs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"repaiirs\" for \"repairs\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0181",
+   "text": "top 4 travel purchases in janaury",
+   "intendedText": "top 4 travel purchases in january",
+   "token": "janaury",
+   "intended": "january",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"janaury\" for \"january\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0182",
+   "text": "year to date Travel spneding total",
+   "intendedText": "year to date Travel spending total",
+   "token": "spneding",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"spneding\" for \"spending\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0183",
+   "text": "did I spend more on traveel this month than last month",
+   "intendedText": "did I spend more on travel this month than last month",
+   "token": "traveel",
+   "intended": "travel",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"traveel\" for \"travel\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0184",
+   "text": "top 2 purchass at netflix in may",
+   "intendedText": "top 2 purchases at netflix in may",
+   "token": "purchass",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"purchass\" for \"purchases\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates purchases and purchase; plural fits 'top 2'."
+  },
+  {
+   "id": "m1/202-0185",
+   "text": "How much did I sppend at costco?",
+   "intendedText": "How much did I spend at costco?",
+   "token": "sppend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"sppend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0186",
+   "text": "my two bigest expenses in April 2025",
+   "intendedText": "my two biggest expenses in April 2025",
+   "token": "bigest",
+   "intended": "biggest",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"bigest\" for \"biggest\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0187",
+   "text": "how much did I spend in the past 3 monnths",
+   "intendedText": "how much did I spend in the past 3 months",
+   "token": "monnths",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"monnths\" for \"months\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0188",
+   "text": "total Home Repairs spending in Decebmer 2025",
+   "intendedText": "total Home Repairs spending in December 2025",
+   "token": "Decebmer",
+   "intended": "december",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Decebmer\" for \"december\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0189",
+   "text": "spending on Bills Accoount month to date",
+   "intendedText": "spending on Bills Account month to date",
+   "token": "Accoount",
+   "intended": "account",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Accoount\" for \"account\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0190",
+   "text": "Health spending January 2026 versus Feruary 2026",
+   "intendedText": "Health spending January 2026 versus February 2026",
+   "token": "Feruary",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Feruary\" for \"february\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0191",
+   "text": "did I send more on insurance in May 2025 than in June 2025",
+   "intendedText": "did I spend more on insurance in May 2025 than in June 2025",
+   "token": "send",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"send\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; 'send' is itself a word, but no reading of 'send' fits 'how much did I send / did I send more'; the intended word is spend."
+  },
+  {
+   "id": "m1/202-0192",
+   "text": "did I sepnd more on health this quarter than last quarter",
+   "intendedText": "did I spend more on health this quarter than last quarter",
+   "token": "sepnd",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"sepnd\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates spend and send; the sentence asks how much was spent."
+  },
+  {
+   "id": "m1/202-0193",
+   "text": "whats the total I spent on insurane in 2026",
+   "intendedText": "whats the total I spent on insurance in 2026",
+   "token": "insurane",
+   "intended": "insurance",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "alsoClasses": [
+    "contraction"
+   ],
+   "rationale": "\"insurane\" for \"insurance\": one letter is left out, a slip people make at a keyboard; it is the only misspelled word; the missing apostrophe in the contraction (whats) is recorded as its own class, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0194",
+   "text": "whts the total I spent on clothing in July 2025",
+   "intendedText": "whats the total I spent on clothing in July 2025",
+   "token": "whts",
+   "intended": "whats",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "alsoClasses": [
+    "contraction"
+   ],
+   "rationale": "\"whts\" for \"whats\": one letter is left out, a slip people make at a keyboard; it is the only misspelled word; the missing apostrophe in the contraction (whats) is recorded as its own class, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0195",
+   "text": "spending at home depot on my Joint Visa in marcch",
+   "intendedText": "spending at home depot on my Joint Visa in march",
+   "token": "marcch",
+   "intended": "march",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"marcch\" for \"march\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0196",
+   "text": "how much did I speend on the Joint Visa in 2025",
+   "intendedText": "how much did I spend on the Joint Visa in 2025",
+   "token": "speend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"speend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0197",
+   "text": "health on my Cash Walet account in 2025",
+   "intendedText": "health on my Cash Wallet account in 2025",
+   "token": "Walet",
+   "intended": "wallet",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Walet\" for \"wallet\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0198",
+   "text": "top 2 categories from 2025-12-03 to 2025-12-17 without inurance",
+   "intendedText": "top 2 categories from 2025-12-03 to 2025-12-17 without insurance",
+   "token": "inurance",
+   "intended": "insurance",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"inurance\" for \"insurance\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0199",
+   "text": "spending on Emergeency Fund in November 2025",
+   "intendedText": "spending on Emergency Fund in November 2025",
+   "token": "Emergeency",
+   "intended": "emergency",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Emergeency\" for \"emergency\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0200",
+   "text": "may rank 4 categories by spendinng",
+   "intendedText": "may rank 4 categories by spending",
+   "token": "spendinng",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"spendinng\" for \"spending\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0201",
+   "text": "how much did I spend on rent in mrch",
+   "intendedText": "how much did I spend on rent in march",
+   "token": "mrch",
+   "intended": "march",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"mrch\" for \"march\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates march and much; a month is expected after 'in'."
+  },
+  {
+   "id": "m1/202-0202",
+   "text": "how much did I sepnd on the Emergency Fund in the past 3 months",
+   "intendedText": "how much did I spend on the Emergency Fund in the past 3 months",
+   "token": "sepnd",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"sepnd\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates spend and send; the sentence asks how much was spent."
+  },
+  {
+   "id": "m1/202-0203",
+   "text": "how much did I send in April 2025",
+   "intendedText": "how much did I spend in April 2025",
+   "token": "send",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"send\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; 'send' is itself a word, but no reading of 'send' fits 'how much did I send / did I send more'; the intended word is spend."
+  },
+  {
+   "id": "m1/202-0204",
+   "text": "total spendinng in September 2025",
+   "intendedText": "total spending in September 2025",
+   "token": "spendinng",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"spendinng\" for \"spending\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0205",
+   "text": "what was my biggest purchse in august",
+   "intendedText": "what was my biggest purchase in august",
+   "token": "purchse",
+   "intended": "purchase",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"purchse\" for \"purchase\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0206",
+   "text": "Home Repairs on my Emmergency Fund account in November 2025",
+   "intendedText": "Home Repairs on my Emergency Fund account in November 2025",
+   "token": "Emmergency",
+   "intended": "emergency",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Emmergency\" for \"emergency\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0207",
+   "text": "comare this month to last month",
+   "intendedText": "compare this month to last month",
+   "token": "comare",
+   "intended": "compare",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"comare\" for \"compare\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0208",
+   "text": "how much did I spedn from 2025-12-03 to 2025-12-17 besides rent",
+   "intendedText": "how much did I spend from 2025-12-03 to 2025-12-17 besides rent",
+   "token": "spedn",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"spedn\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0209",
+   "text": "what was my biggest purcase in January 2026",
+   "intendedText": "what was my biggest purchase in January 2026",
+   "token": "purcase",
+   "intended": "purchase",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"purcase\" for \"purchase\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0210",
+   "text": "what did I spend at Shel or sam's club year to date",
+   "intendedText": "what did I spend at Shell or sam's club year to date",
+   "token": "Shel",
+   "intended": "shell",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Shel\" for \"shell\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0211",
+   "text": "what did I spnd at sam's club, wendy's or shell this month",
+   "intendedText": "what did I spend at sam's club, wendy's or shell this month",
+   "token": "spnd",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"spnd\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates spend and send; the sentence asks how much was spent."
+  },
+  {
+   "id": "m1/202-0212",
+   "text": "top 2 categoires month to date without dining out",
+   "intendedText": "top 2 categories month to date without dining out",
+   "token": "categoires",
+   "intended": "categories",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"categoires\" for \"categories\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0213",
+   "text": "dining prchases more than $120 last week",
+   "intendedText": "dining purchases more than $120 last week",
+   "token": "prchases",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"prchases\" for \"purchases\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0214",
+   "text": "what did I speend at Netflix, Spotify or wendy's in September 2025",
+   "intendedText": "what did I spend at Netflix, Spotify or wendy's in September 2025",
+   "token": "speend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"speend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0215",
+   "text": "purchsaes over $1500 in December 2025",
+   "intendedText": "purchases over $1500 in December 2025",
+   "token": "purchsaes",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"purchsaes\" for \"purchases\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0216",
+   "text": "cmpare May 2025 to June 2025",
+   "intendedText": "compare May 2025 to June 2025",
+   "token": "cmpare",
+   "intended": "compare",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"cmpare\" for \"compare\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0217",
+   "text": "top 2 spending categories this quartr for transactions more than $75",
+   "intendedText": "top 2 spending categories this quarter for transactions more than $75",
+   "token": "quartr",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"quartr\" for \"quarter\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0218",
+   "text": "clotthing purchases at least $200 in november",
+   "intendedText": "clothing purchases at least $200 in november",
+   "token": "clotthing",
+   "intended": "clothing",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"clotthing\" for \"clothing\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0219",
+   "text": "spending at Spotify on my Emergecny Fund this year",
+   "intendedText": "spending at Spotify on my Emergency Fund this year",
+   "token": "Emergecny",
+   "intended": "emergency",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Emergecny\" for \"emergency\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/202-0220",
+   "text": "groceres in february excluding sam's club and mcdonald's",
+   "intendedText": "groceries in february excluding sam's club and mcdonald's",
+   "token": "groceres",
+   "intended": "groceries",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"groceres\" for \"groceries\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0189",
+   "text": "heallth last year not assigned to a family member",
+   "intendedText": "health last year not assigned to a family member",
+   "token": "heallth",
+   "intended": "health",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"heallth\" for \"health\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0190",
+   "text": "top 5 categories for Home Repairs, Rent and grocerries in august",
+   "intendedText": "top 5 categories for Home Repairs, Rent and groceries in august",
+   "token": "grocerries",
+   "intended": "groceries",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"grocerries\" for \"groceries\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0191",
+   "text": "total Clothing and Home Reapirs in January 2026",
+   "intendedText": "total Clothing and Home Repairs in January 2026",
+   "token": "Reapirs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Reapirs\" for \"repairs\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0192",
+   "text": "spending by family member in Januuary 2026",
+   "intendedText": "spending by family member in January 2026",
+   "token": "Januuary",
+   "intended": "january",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Januuary\" for \"january\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0193",
+   "text": "Educatin and Rent by month last quarter",
+   "intendedText": "Education and Rent by month last quarter",
+   "token": "Educatin",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Educatin\" for \"education\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0194",
+   "text": "how much did sam spend on insuance last year",
+   "intendedText": "how much did sam spend on insurance last year",
+   "token": "insuance",
+   "intended": "insurance",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"insuance\" for \"insurance\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0195",
+   "text": "how much did robin spend by month in Maarch 2026",
+   "intendedText": "how much did robin spend by month in March 2026",
+   "token": "Maarch",
+   "intended": "march",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Maarch\" for \"march\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0196",
+   "text": "average Travel and educattion purchase last month",
+   "intendedText": "average Travel and education purchase last month",
+   "token": "educattion",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"educattion\" for \"education\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0197",
+   "text": "home repairrs in May 2025 not assigned to a family member",
+   "intendedText": "home repairs in May 2025 not assigned to a family member",
+   "token": "repairrs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"repairrs\" for \"repairs\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0198",
+   "text": "top 2 categories for robin in Januarry 2026",
+   "intendedText": "top 2 categories for robin in January 2026",
+   "token": "Januarry",
+   "intended": "january",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Januarry\" for \"january\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0199",
+   "text": "how much did I spend in the past 6 monnths that is not assigned to a family member",
+   "intendedText": "how much did I spend in the past 6 months that is not assigned to a family member",
+   "token": "monnths",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"monnths\" for \"months\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0200",
+   "text": "total Home Repairs and Shopping in the past 3 montsh",
+   "intendedText": "total Home Repairs and Shopping in the past 3 months",
+   "token": "montsh",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"montsh\" for \"months\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates months and month; plural fits 'the past N'."
+  },
+  {
+   "id": "m2/m2-202-0201",
+   "text": "average groceris spending per month last month",
+   "intendedText": "average groceries spending per month last month",
+   "token": "groceris",
+   "intended": "groceries",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"groceris\" for \"groceries\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0202",
+   "text": "what did each family member spend in Dcember 2025",
+   "intendedText": "what did each family member spend in December 2025",
+   "token": "Dcember",
+   "intended": "december",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Dcember\" for \"december\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0203",
+   "text": "how much did alex spend in feruary",
+   "intendedText": "how much did alex spend in february",
+   "token": "feruary",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"feruary\" for \"february\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0204",
+   "text": "Shhopping month to date not assigned to a family member",
+   "intendedText": "Shopping month to date not assigned to a family member",
+   "token": "Shhopping",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Shhopping\" for \"shopping\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0205",
+   "text": "average shopping and educatoin purchase in january",
+   "intendedText": "average shopping and education purchase in january",
+   "token": "educatoin",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"educatoin\" for \"education\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0206",
+   "text": "what did each family member spend in noveber",
+   "intendedText": "what did each family member spend in november",
+   "token": "noveber",
+   "intended": "november",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"noveber\" for \"november\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0207",
+   "text": "total educaton and shopping in july",
+   "intendedText": "total education and shopping in july",
+   "token": "educaton",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"educaton\" for \"education\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0208",
+   "text": "compare educcation so far this year to the same days last year",
+   "intendedText": "compare education so far this year to the same days last year",
+   "token": "educcation",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"educcation\" for \"education\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0209",
+   "text": "how much did I spend on insruance and travel in 2026",
+   "intendedText": "how much did I spend on insurance and travel in 2026",
+   "token": "insruance",
+   "intended": "insurance",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"insruance\" for \"insurance\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0210",
+   "text": "average monthly insurance spending in Novmeber 2025",
+   "intendedText": "average monthly insurance spending in November 2025",
+   "token": "Novmeber",
+   "intended": "november",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Novmeber\" for \"november\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0211",
+   "text": "education spending by family member in the past 3 mnoths",
+   "intendedText": "education spending by family member in the past 3 months",
+   "token": "mnoths",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"mnoths\" for \"months\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0212",
+   "text": "average Shopping and health purchase in the past 3 monnths",
+   "intendedText": "average Shopping and health purchase in the past 3 months",
+   "token": "monnths",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"monnths\" for \"months\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0213",
+   "text": "compare shopipng so far this month to the same days last month",
+   "intendedText": "compare shopping so far this month to the same days last month",
+   "token": "shopipng",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"shopipng\" for \"shopping\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0214",
+   "text": "top 3 categories for jordan in the past 6 monhts",
+   "intendedText": "top 3 categories for jordan in the past 6 months",
+   "token": "monhts",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"monhts\" for \"months\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0215",
+   "text": "traevl in 2026 not assigned to a family member",
+   "intendedText": "travel in 2026 not assigned to a family member",
+   "token": "traevl",
+   "intended": "travel",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"traevl\" for \"travel\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0216",
+   "text": "compare colthing so far this year to the same days last year",
+   "intendedText": "compare clothing so far this year to the same days last year",
+   "token": "colthing",
+   "intended": "clothing",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"colthing\" for \"clothing\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0217",
+   "text": "average monthly home repairs spending last qurater",
+   "intendedText": "average monthly home repairs spending last quarter",
+   "token": "qurater",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"qurater\" for \"quarter\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0218",
+   "text": "how much did Robin spend on education and groceries sicne November 2025",
+   "intendedText": "how much did Robin spend on education and groceries since November 2025",
+   "token": "sicne",
+   "intended": "since",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"sicne\" for \"since\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0219",
+   "text": "compare Heallth so far this month to the same days last month",
+   "intendedText": "compare Health so far this month to the same days last month",
+   "token": "Heallth",
+   "intended": "health",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Heallth\" for \"health\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0220",
+   "text": "what is my average insurrance purchase in February 2026",
+   "intendedText": "what is my average insurance purchase in February 2026",
+   "token": "insurrance",
+   "intended": "insurance",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"insurrance\" for \"insurance\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0221",
+   "text": "total shoppping and insurance in the past 2 months",
+   "intendedText": "total shopping and insurance in the past 2 months",
+   "token": "shoppping",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"shoppping\" for \"shopping\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0222",
+   "text": "top 5 categories for Travel, groceries and rent in Feruary 2026",
+   "intendedText": "top 5 categories for Travel, groceries and rent in February 2026",
+   "token": "Feruary",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Feruary\" for \"february\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0223",
+   "text": "average Educattion spending per month in November 2025",
+   "intendedText": "average Education spending per month in November 2025",
+   "token": "Educattion",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Educattion\" for \"education\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0224",
+   "text": "top 3 categories for robin in Ferbuary 2026",
+   "intendedText": "top 3 categories for robin in February 2026",
+   "token": "Ferbuary",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Ferbuary\" for \"february\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0225",
+   "text": "what did each family member spend in Jaanuary 2026",
+   "intendedText": "what did each family member spend in January 2026",
+   "token": "Jaanuary",
+   "intended": "january",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Jaanuary\" for \"january\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0226",
+   "text": "compare what alex spent on Home Repirs so far this month to the same days last month",
+   "intendedText": "compare what alex spent on Home Repairs so far this month to the same days last month",
+   "token": "Repirs",
+   "intended": "repairs",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Repirs\" for \"repairs\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0227",
+   "text": "compare Travvel so far this month to the same days last month",
+   "intendedText": "compare Travel so far this month to the same days last month",
+   "token": "Travvel",
+   "intended": "travel",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Travvel\" for \"travel\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0228",
+   "text": "average Insurrance spending per month in November 2025",
+   "intendedText": "average Insurance spending per month in November 2025",
+   "token": "Insurrance",
+   "intended": "insurance",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Insurrance\" for \"insurance\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0229",
+   "text": "Sohpping spending by family member this month",
+   "intendedText": "Shopping spending by family member this month",
+   "token": "Sohpping",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Sohpping\" for \"shopping\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0230",
+   "text": "average Groceries and rent purchase in octtober",
+   "intendedText": "average Groceries and rent purchase in october",
+   "token": "octtober",
+   "intended": "october",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"octtober\" for \"october\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0231",
+   "text": "average home repairs and Rent purchase in the past 2 monthhs",
+   "intendedText": "average home repairs and Rent purchase in the past 2 months",
+   "token": "monthhs",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"monthhs\" for \"months\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates months and month's; plural fits 'the past N'."
+  },
+  {
+   "id": "m2/m2-202-0232",
+   "text": "Healh spending by family member year to date",
+   "intendedText": "Health spending by family member year to date",
+   "token": "Healh",
+   "intended": "health",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Healh\" for \"health\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-202-0233",
+   "text": "monthly spending at shhell year to date",
+   "intendedText": "monthly spending at shell year to date",
+   "token": "shhell",
+   "intended": "shell",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"shhell\" for \"shell\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0166",
+   "text": "top 5 dininng purchases yesterday",
+   "intendedText": "top 5 dining purchases yesterday",
+   "token": "dininng",
+   "intended": "dining",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"dininng\" for \"dining\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates dining and dinning; dining is the category named elsewhere in the sentence set."
+  },
+  {
+   "id": "m1/303-0167",
+   "text": "what did I spnd the most on in 2027",
+   "intendedText": "what did I spend the most on in 2027",
+   "token": "spnd",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"spnd\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates spend and send; the sentence asks how much was spent."
+  },
+  {
+   "id": "m1/303-0168",
+   "text": "From 2026-10-03 to 2026-10-17, how much did I send on travel?",
+   "intendedText": "From 2026-10-03 to 2026-10-17, how much did I spend on travel?",
+   "token": "send",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"send\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; 'send' is itself a word, but no reading of 'send' fits 'how much did I send / did I send more'; the intended word is spend."
+  },
+  {
+   "id": "m1/303-0169",
+   "text": "spending on Joint Visa in aprl",
+   "intendedText": "spending on Joint Visa in april",
+   "token": "aprl",
+   "intended": "april",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"aprl\" for \"april\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0170",
+   "text": "puurchases more than $200 in July 2026",
+   "intendedText": "purchases more than $200 in July 2026",
+   "token": "puurchases",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"puurchases\" for \"purchases\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0171",
+   "text": "what did I spend the most on in the past 2 moonths",
+   "intendedText": "what did I spend the most on in the past 2 months",
+   "token": "moonths",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"moonths\" for \"months\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0172",
+   "text": "travle purchases over $1,500 in October 2026",
+   "intendedText": "travel purchases over $1,500 in October 2026",
+   "token": "travle",
+   "intended": "travel",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"travle\" for \"travel\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0173",
+   "text": "purchasses at least $120 in May 2026",
+   "intendedText": "purchases at least $120 in May 2026",
+   "token": "purchasses",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"purchasses\" for \"purchases\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0174",
+   "text": "shoppiing at Domino's in September 2026",
+   "intendedText": "shopping at Domino's in September 2026",
+   "token": "shoppiing",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"shoppiing\" for \"shopping\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0175",
+   "text": "how much did I spend altgether in april",
+   "intendedText": "how much did I spend altogether in april",
+   "token": "altgether",
+   "intended": "altogether",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"altgether\" for \"altogether\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0176",
+   "text": "what did I spend at costco gas, spotify, target or krroger in January 2027",
+   "intendedText": "what did I spend at costco gas, spotify, target or kroger in January 2027",
+   "token": "krroger",
+   "intended": "kroger",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"krroger\" for \"kroger\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0177",
+   "text": "Entertainment at Kroger, petco and Home dept this quarter",
+   "intendedText": "Entertainment at Kroger, petco and Home depot this quarter",
+   "token": "dept",
+   "intended": "depot",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"dept\" for \"depot\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; a slip in the store name 'Home Depot'; the app must offer the store, never pick it."
+  },
+  {
+   "id": "m1/303-0178",
+   "text": "June 2026, how much did I sepnd on Entertainment?",
+   "intendedText": "June 2026, how much did I spend on Entertainment?",
+   "token": "sepnd",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"sepnd\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates spend and send; the sentence asks how much was spent."
+  },
+  {
+   "id": "m1/303-0179",
+   "text": "How much did I sped at home depot?",
+   "intendedText": "How much did I spend at home depot?",
+   "token": "sped",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"sped\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates spend and seed; only spend fits the sentence."
+  },
+  {
+   "id": "m1/303-0180",
+   "text": "total dinign out spending in February 2026",
+   "intendedText": "total dining out spending in February 2026",
+   "token": "dinign",
+   "intended": "dining",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"dinign\" for \"dining\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0181",
+   "text": "spending on Cash Wallet this quartter",
+   "intendedText": "spending on Cash Wallet this quarter",
+   "token": "quartter",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"quartter\" for \"quarter\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0182",
+   "text": "what did I spend at costtco gas, aldi, mcdonald's or walgreens in December 2025",
+   "intendedText": "what did I spend at costco gas, aldi, mcdonald's or walgreens in December 2025",
+   "token": "costtco",
+   "intended": "costco",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"costtco\" for \"costco\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0183",
+   "text": "how much did I spend on the Trvael Card in October 2026",
+   "intendedText": "how much did I spend on the Travel Card in October 2026",
+   "token": "Trvael",
+   "intended": "travel",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Trvael\" for \"travel\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0184",
+   "text": "March, how much did I spned on pets?",
+   "intendedText": "March, how much did I spend on pets?",
+   "token": "spned",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"spned\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0185",
+   "text": "pets on my Cash Wllet account since September 2026",
+   "intendedText": "pets on my Cash Wallet account since September 2026",
+   "token": "Wllet",
+   "intended": "wallet",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Wllet\" for \"wallet\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0186",
+   "text": "dining spending this quater versus last quarter",
+   "intendedText": "dining spending this quarter versus last quarter",
+   "token": "quater",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"quater\" for \"quarter\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0187",
+   "text": "did I spend more on trvel in February 2026 than in March 2026",
+   "intendedText": "did I spend more on travel in February 2026 than in March 2026",
+   "token": "trvel",
+   "intended": "travel",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"trvel\" for \"travel\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0188",
+   "text": "did I spned more on travel in July 2026 than in August 2026",
+   "intendedText": "did I spend more on travel in July 2026 than in August 2026",
+   "token": "spned",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"spned\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0189",
+   "text": "total Shopping sppending in May 2026",
+   "intendedText": "total Shopping spending in May 2026",
+   "token": "sppending",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"sppending\" for \"spending\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0190",
+   "text": "top 2 purchases at Petco in Spetember 2026",
+   "intendedText": "top 2 purchases at Petco in September 2026",
+   "token": "Spetember",
+   "intended": "september",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Spetember\" for \"september\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0191",
+   "text": "entertainment on my Joint Visa account in Novemebr 2026",
+   "intendedText": "entertainment on my Joint Visa account in November 2026",
+   "token": "Novemebr",
+   "intended": "november",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Novemebr\" for \"november\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0192",
+   "text": "how much did I spend at Aldi and petoc last week",
+   "intendedText": "how much did I spend at Aldi and petco last week",
+   "token": "petoc",
+   "intended": "petco",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"petoc\" for \"petco\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0193",
+   "text": "how much did I spend on the Cash Wallt year to date",
+   "intendedText": "how much did I spend on the Cash Wallet year to date",
+   "token": "Wallt",
+   "intended": "wallet",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Wallt\" for \"wallet\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0194",
+   "text": "2026 rank 5 categores by spending",
+   "intendedText": "2026 rank 5 categories by spending",
+   "token": "categores",
+   "intended": "categories",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"categores\" for \"categories\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0195",
+   "text": "top 5 purcases in 2027",
+   "intendedText": "top 5 purchases in 2027",
+   "token": "purcases",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"purcases\" for \"purchases\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0196",
+   "text": "july rank 2 categoreis by spending",
+   "intendedText": "july rank 2 categories by spending",
+   "token": "categoreis",
+   "intended": "categories",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"categoreis\" for \"categories\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0197",
+   "text": "total travel spnding in August 2026",
+   "intendedText": "total travel spending in August 2026",
+   "token": "spnding",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"spnding\" for \"spending\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0198",
+   "text": "Groceries spendding this year versus last year",
+   "intendedText": "Groceries spending this year versus last year",
+   "token": "spendding",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"spendding\" for \"spending\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0199",
+   "text": "how much did I spend on the Jiont Visa in march",
+   "intendedText": "how much did I spend on the Joint Visa in march",
+   "token": "Jiont",
+   "intended": "joint",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Jiont\" for \"joint\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0200",
+   "text": "how much did I spend in the past 2 monhts",
+   "intendedText": "how much did I spend in the past 2 months",
+   "token": "monhts",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"monhts\" for \"months\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0201",
+   "text": "how much did I spnd on the Joint Visa in the past 3 months",
+   "intendedText": "how much did I spend on the Joint Visa in the past 3 months",
+   "token": "spnd",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"spnd\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates spend and send; the sentence asks how much was spent."
+  },
+  {
+   "id": "m1/303-0202",
+   "text": "pruchases over $1000 in 2026",
+   "intendedText": "purchases over $1000 in 2026",
+   "token": "pruchases",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"pruchases\" for \"purchases\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0203",
+   "text": "what did I spend in Mrch 2026?",
+   "intendedText": "what did I spend in March 2026?",
+   "token": "Mrch",
+   "intended": "march",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Mrch\" for \"march\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates march and much; a month is expected after 'in'."
+  },
+  {
+   "id": "m1/303-0204",
+   "text": "spedning at samantha's bakery on my Cash Wallet in june",
+   "intendedText": "spending at samantha's bakery on my Cash Wallet in june",
+   "token": "spedning",
+   "intended": "spending",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"spedning\" for \"spending\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0205",
+   "text": "top 4 categories in Setember 2026 without Entertainment",
+   "intendedText": "top 4 categories in September 2026 without Entertainment",
+   "token": "Setember",
+   "intended": "september",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Setember\" for \"september\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0206",
+   "text": "what did I send last quarter?",
+   "intendedText": "what did I spend last quarter?",
+   "token": "send",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"send\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; 'send' is itself a word, but no reading of 'send' fits 'how much did I send / did I send more'; the intended word is spend."
+  },
+  {
+   "id": "m1/303-0207",
+   "text": "what did I sppend in the past 3 months?",
+   "intendedText": "what did I spend in the past 3 months?",
+   "token": "sppend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"sppend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0208",
+   "text": "Novemer 2026 education spending total",
+   "intendedText": "November 2026 education spending total",
+   "token": "Novemer",
+   "intended": "november",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"Novemer\" for \"november\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0209",
+   "text": "what did I speend the most on in april",
+   "intendedText": "what did I spend the most on in april",
+   "token": "speend",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"speend\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0210",
+   "text": "total Educaton spending in the past 3 months",
+   "intendedText": "total Education spending in the past 3 months",
+   "token": "Educaton",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Educaton\" for \"education\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0211",
+   "text": "Pets purcahses more than $25.50 in March 2026",
+   "intendedText": "Pets purchases more than $25.50 in March 2026",
+   "token": "purcahses",
+   "intended": "purchases",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"purcahses\" for \"purchases\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0212",
+   "text": "how much did I sepnd in August 2026 besides groceries",
+   "intendedText": "how much did I spend in August 2026 besides groceries",
+   "token": "sepnd",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"sepnd\" for \"spend\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates spend and send; the sentence asks how much was spent."
+  },
+  {
+   "id": "m1/303-0213",
+   "text": "did I spend more on dining out in July 2026 than in Augst 2026",
+   "intendedText": "did I spend more on dining out in July 2026 than in August 2026",
+   "token": "Augst",
+   "intended": "august",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Augst\" for \"august\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0214",
+   "text": "top 3 purchases at costcco gas, Sam's club and Target in July 2026",
+   "intendedText": "top 3 purchases at costco gas, Sam's club and Target in July 2026",
+   "token": "costcco",
+   "intended": "costco",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"costcco\" for \"costco\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0215",
+   "text": "How much did I spennd at mcdonald's?",
+   "intendedText": "How much did I spend at mcdonald's?",
+   "token": "spennd",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"spennd\" for \"spend\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0216",
+   "text": "spending on Jont Visa in august",
+   "intendedText": "spending on Joint Visa in august",
+   "token": "Jont",
+   "intended": "joint",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Jont\" for \"joint\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0217",
+   "text": "top 4 sopping purchases last week",
+   "intendedText": "top 4 shopping purchases last week",
+   "token": "sopping",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"sopping\" for \"shopping\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0218",
+   "text": "comprae this month to last month",
+   "intendedText": "compare this month to last month",
+   "token": "comprae",
+   "intended": "compare",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"comprae\" for \"compare\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m1/303-0219",
+   "text": "how much did I send at mcdonald's, aldi, Domino's and Sam's club in june",
+   "intendedText": "how much did I spend at mcdonald's, aldi, Domino's and Sam's club in june",
+   "token": "send",
+   "intended": "spend",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"send\" for \"spend\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; 'send' is itself a word, but no reading of 'send' fits 'how much did I send / did I send more'; the intended word is spend."
+  },
+  {
+   "id": "m1/303-0220",
+   "text": "Occtober 2026 dining spending total",
+   "intendedText": "October 2026 dining spending total",
+   "token": "Occtober",
+   "intended": "october",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "alsoClasses": [
+    "word-order"
+   ],
+   "rationale": "\"Occtober\" for \"october\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0189",
+   "text": "average monthly spending this quarer",
+   "intendedText": "average monthly spending this quarter",
+   "token": "quarer",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"quarer\" for \"quarter\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0190",
+   "text": "monthly Pets spending last quaretr",
+   "intendedText": "monthly Pets spending last quarter",
+   "token": "quaretr",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"quaretr\" for \"quarter\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0191",
+   "text": "how much did jordan spend on Entertianment in april",
+   "intendedText": "how much did jordan spend on Entertainment in april",
+   "token": "Entertianment",
+   "intended": "entertainment",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Entertianment\" for \"entertainment\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0192",
+   "text": "spending by family member in Jaunary 2027",
+   "intendedText": "spending by family member in January 2027",
+   "token": "Jaunary",
+   "intended": "january",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Jaunary\" for \"january\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0193",
+   "text": "average purchase at kroger in februay",
+   "intendedText": "average purchase at kroger in february",
+   "token": "februay",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"februay\" for \"february\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0194",
+   "text": "entertainment and shopping by month in Decembre 2026",
+   "intendedText": "entertainment and shopping by month in December 2026",
+   "token": "Decembre",
+   "intended": "december",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Decembre\" for \"december\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0195",
+   "text": "average Insurance and Entertainment purchase in the past 6 mnths",
+   "intendedText": "average Insurance and Entertainment purchase in the past 6 months",
+   "token": "mnths",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"mnths\" for \"months\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0196",
+   "text": "shopping and edcation on Travel Card in November 2026",
+   "intendedText": "shopping and education on Travel Card in November 2026",
+   "token": "edcation",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"edcation\" for \"education\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0197",
+   "text": "spending by month in Octoer 2026",
+   "intendedText": "spending by month in October 2026",
+   "token": "Octoer",
+   "intended": "october",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Octoer\" for \"october\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0198",
+   "text": "trael and fuel by month last month",
+   "intendedText": "travel and fuel by month last month",
+   "token": "trael",
+   "intended": "travel",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"trael\" for \"travel\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0199",
+   "text": "how much did I spend on shopping and Rent in fberuary",
+   "intendedText": "how much did I spend on shopping and Rent in february",
+   "token": "fberuary",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"fberuary\" for \"february\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0200",
+   "text": "average monthly enetrtainment and rent in 2026",
+   "intendedText": "average monthly entertainment and rent in 2026",
+   "token": "enetrtainment",
+   "intended": "entertainment",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"enetrtainment\" for \"entertainment\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0201",
+   "text": "top 2 purchases for robin in the past 3 monthhs",
+   "intendedText": "top 2 purchases for robin in the past 3 months",
+   "token": "monthhs",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"monthhs\" for \"months\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates months and month's; plural fits 'the past N'."
+  },
+  {
+   "id": "m2/m2-303-0202",
+   "text": "average monthly fuel spending in Decmeber 2026",
+   "intendedText": "average monthly fuel spending in December 2026",
+   "token": "Decmeber",
+   "intended": "december",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Decmeber\" for \"december\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0203",
+   "text": "average purchase in the past 2 monts",
+   "intendedText": "average purchase in the past 2 months",
+   "token": "monts",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"monts\" for \"months\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates months and month; the sentence says 'the past 2 monts', a plural."
+  },
+  {
+   "id": "m2/m2-303-0204",
+   "text": "what is my average Pets purchase in Decemebr 2026",
+   "intendedText": "what is my average Pets purchase in December 2026",
+   "token": "Decemebr",
+   "intended": "december",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Decemebr\" for \"december\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0205",
+   "text": "how much did I spend last quartre that is not assigned to a family member",
+   "intendedText": "how much did I spend last quarter that is not assigned to a family member",
+   "token": "quartre",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"quartre\" for \"quarter\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0206",
+   "text": "average purchase in Septembber 2026",
+   "intendedText": "average purchase in September 2026",
+   "token": "Septembber",
+   "intended": "september",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Septembber\" for \"september\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0207",
+   "text": "Pets and shopping on Cash Walelt in february",
+   "intendedText": "Pets and shopping on Cash Wallet in february",
+   "token": "Walelt",
+   "intended": "wallet",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Walelt\" for \"wallet\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0208",
+   "text": "eduation and entertainment by month in the past 6 months",
+   "intendedText": "education and entertainment by month in the past 6 months",
+   "token": "eduation",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"eduation\" for \"education\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0209",
+   "text": "compare what sam spent on entertaimnent so far this month to the same days last month",
+   "intendedText": "compare what sam spent on entertainment so far this month to the same days last month",
+   "token": "entertaimnent",
+   "intended": "entertainment",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"entertaimnent\" for \"entertainment\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0210",
+   "text": "compare what jordan spent on Enterainment so far this month to the same days last month",
+   "intendedText": "compare what jordan spent on Entertainment so far this month to the same days last month",
+   "token": "Enterainment",
+   "intended": "entertainment",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Enterainment\" for \"entertainment\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0211",
+   "text": "total enterrtainment and pets in the past 6 months",
+   "intendedText": "total entertainment and pets in the past 6 months",
+   "token": "enterrtainment",
+   "intended": "entertainment",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"enterrtainment\" for \"entertainment\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0212",
+   "text": "how much did I spend on rent and Insurance in the past 6 mnoths",
+   "intendedText": "how much did I spend on rent and Insurance in the past 6 months",
+   "token": "mnoths",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"mnoths\" for \"months\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0213",
+   "text": "how much did I spend in the past 3 monthhs that is not assigned to a family member",
+   "intendedText": "how much did I spend in the past 3 months that is not assigned to a family member",
+   "token": "monthhs",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"monthhs\" for \"months\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates months and month's; plural fits 'the past N'."
+  },
+  {
+   "id": "m2/m2-303-0214",
+   "text": "average Educaation spending per month last month",
+   "intendedText": "average Education spending per month last month",
+   "token": "Educaation",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Educaation\" for \"education\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0215",
+   "text": "average purchase at spotify in the past 6 montsh",
+   "intendedText": "average purchase at spotify in the past 6 months",
+   "token": "montsh",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"montsh\" for \"months\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates months and month; plural fits 'the past N'."
+  },
+  {
+   "id": "m2/m2-303-0216",
+   "text": "pets spending by family member in Auggust 2026",
+   "intendedText": "pets spending by family member in August 2026",
+   "token": "Auggust",
+   "intended": "august",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"Auggust\" for \"august\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0217",
+   "text": "compare what alex spent on entertainent so far this month to the same days last month",
+   "intendedText": "compare what alex spent on entertainment so far this month to the same days last month",
+   "token": "entertainent",
+   "intended": "entertainment",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"entertainent\" for \"entertainment\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0218",
+   "text": "average Fuel and grroceries purchase in November 2026",
+   "intendedText": "average Fuel and groceries purchase in November 2026",
+   "token": "grroceries",
+   "intended": "groceries",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"grroceries\" for \"groceries\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0219",
+   "text": "average edcation spending per month in January 2027",
+   "intendedText": "average education spending per month in January 2027",
+   "token": "edcation",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"edcation\" for \"education\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0220",
+   "text": "what did each family member spend in the past 2 monhs",
+   "intendedText": "what did each family member spend in the past 2 months",
+   "token": "monhs",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"monhs\" for \"months\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0221",
+   "text": "average Pets spending per month this quartter",
+   "intendedText": "average Pets spending per month this quarter",
+   "token": "quartter",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"quartter\" for \"quarter\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0222",
+   "text": "top 3 categories for travel, Entertainment and education in the past 6 monhts",
+   "intendedText": "top 3 categories for travel, Entertainment and education in the past 6 months",
+   "token": "monhts",
+   "intended": "months",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"monhts\" for \"months\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0223",
+   "text": "monthly Inusrance spending this year",
+   "intendedText": "monthly Insurance spending this year",
+   "token": "Inusrance",
+   "intended": "insurance",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Inusrance\" for \"insurance\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0224",
+   "text": "average monthly pets spending in Deember 2026",
+   "intendedText": "average monthly pets spending in December 2026",
+   "token": "Deember",
+   "intended": "december",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Deember\" for \"december\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0225",
+   "text": "spending by family member this quarrter",
+   "intendedText": "spending by family member this quarter",
+   "token": "quarrter",
+   "intended": "quarter",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"quarrter\" for \"quarter\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0226",
+   "text": "Education, Insurance and Pets spending in feebruary",
+   "intendedText": "Education, Insurance and Pets spending in february",
+   "token": "feebruary",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"feebruary\" for \"february\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0227",
+   "text": "top 5 categories for groceries, shoping and Education this month",
+   "intendedText": "top 5 categories for groceries, shopping and Education this month",
+   "token": "shoping",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"shoping\" for \"shopping\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0228",
+   "text": "shopipng or Pets year to date",
+   "intendedText": "shopping or Pets year to date",
+   "token": "shopipng",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"shopipng\" for \"shopping\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0229",
+   "text": "average monthly spending in Otober 2026",
+   "intendedText": "average monthly spending in October 2026",
+   "token": "Otober",
+   "intended": "october",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"Otober\" for \"october\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0230",
+   "text": "how much did I spend in marh that is not assigned to a family member",
+   "intendedText": "how much did I spend in march that is not assigned to a family member",
+   "token": "marh",
+   "intended": "march",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"marh\" for \"march\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous; candidates march and mark; a month is expected after 'in'."
+  },
+  {
+   "id": "m2/m2-303-0231",
+   "text": "pets or shopping in februay",
+   "intendedText": "pets or shopping in february",
+   "token": "februay",
+   "intended": "february",
+   "class": "typo",
+   "subclass": "omitted letter",
+   "rationale": "\"februay\" for \"february\": one letter is left out, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0232",
+   "text": "Educatino by month in 2027",
+   "intendedText": "Education by month in 2027",
+   "token": "Educatino",
+   "intended": "education",
+   "class": "typo",
+   "subclass": "transposed letters",
+   "rationale": "\"Educatino\" for \"education\": two neighbouring letters are swapped, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  },
+  {
+   "id": "m2/m2-303-0233",
+   "text": "how much did alex spend on shoppping last month",
+   "intendedText": "how much did alex spend on shopping last month",
+   "token": "shoppping",
+   "intended": "shopping",
+   "class": "typo",
+   "subclass": "doubled letter",
+   "rationale": "\"shoppping\" for \"shopping\": one letter is typed twice, a slip people make at a keyboard; it is the only wrong word in the sentence, so the intended question is unambiguous."
+  }
+ ]
+}

@@ -7,6 +7,9 @@ use crate::models::Transaction;
 
 use chrono::NaiveDate;
 mod accounts;
+mod ask_vault_m2;
+mod ask_vault_m6;
+mod ask_vault_retirement;
 mod assets;
 mod buckets;
 mod budgets;
@@ -18,6 +21,7 @@ mod holding_import;
 mod imports;
 mod insights;
 mod investments;
+mod office_zip_compatibility;
 mod reconcile;
 mod recurring;
 mod reports;

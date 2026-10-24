@@ -421,23 +421,25 @@ function SankeySection({ income, categoryTotals, loading }: { income: number; ca
               </g>
             </svg>
           </div>
-          <table className="sr-only">
-            <caption>Income and spending flow, in full dollar figures</caption>
-            <thead>
-              <tr>
-                <th>Flow</th>
-                <th>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.nodes.map((n) => (
-                <tr key={n.id}>
-                  <td>{n.label}</td>
-                  <td>{formatAmount(n.value.toFixed(2))}</td>
+          <div className="sr-only">
+            <table>
+              <caption>Income and spending flow, in full dollar figures</caption>
+              <thead>
+                <tr>
+                  <th>Flow</th>
+                  <th>Amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.nodes.map((n) => (
+                  <tr key={n.id}>
+                    <td>{n.label}</td>
+                    <td>{formatAmount(n.value.toFixed(2))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>
@@ -530,23 +532,25 @@ function DailySpendHeatmapSection({ daily, from, to, loading }: { daily: DailyAm
             ))}
             <span>More</span>
           </div>
-          <table className="sr-only">
-            <caption>Daily spending totals</caption>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Spent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inRangeDays.map((d) => (
-                <tr key={d.date}>
-                  <td>{formatDisplayDate(d.date)}</td>
-                  <td>{formatAmount(d.amount.toFixed(2))}</td>
+          <div className="sr-only">
+            <table>
+              <caption>Daily spending totals</caption>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Spent</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {inRangeDays.map((d) => (
+                  <tr key={d.date}>
+                    <td>{formatDisplayDate(d.date)}</td>
+                    <td>{formatAmount(d.amount.toFixed(2))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>

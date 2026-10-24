@@ -1,0 +1,21 @@
+/* Retirement what-if dialog. It reuses the scenario dialog's classes (scenario-*, modal-*) and adds only what the retirement card needs. */
+.retirement-content .modal-field { color: var(--text); } /* same fix as CutPreviewDialog.css: field labels need an explicit colour in the Transparent style */
+/* The app's rule sizes the label column per row, so a longer label ("Return in your question") shifts its value out of line; one shared width keeps the column straight. */
+@media (min-width: 641px) {
+  .retirement-facts .scenario-term { grid-template-columns: 11rem 1fr; }
+}
+.retirement-table-wrap { overflow-x: auto; }
+.retirement-table th,
+.retirement-table td { white-space: normal; overflow-wrap: anywhere; }
+.retirement-money { font-variant-numeric: tabular-nums; }
+.retirement-actions-inline { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+.retirement-details summary { cursor: pointer; margin: 6px 0; }
+.retirement-details ul { margin: 6px 0 0 18px; padding: 0; }
+.retirement-inline-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 800px) {
+  .retirement-inline-fields { grid-template-columns: 1fr; }
+}
+/* The month field's empty hint uses the shared muted text colour, which is 4.46:1 on the frosted Transparent panel (4.5:1 is required). Scoped here so the shared field is not changed by this dialog. */
+.retirement-content .date-field-empty .date-field-text { color: var(--text); font-style: italic; }
+/* The shared account menu's trigger text has the same contrast shortfall on the frosted Transparent light panel; scoped here as above. */
+.retirement-content .account-filter-toggle > span:first-child { color: var(--text); }

@@ -53,6 +53,10 @@ const third = writeCsv("third.csv", thirdRows);
 const shots = process.env.VAULTSPEND_E2E_SHOTS;
 const app = await launchApp({ dbDir });
 const { browser } = app;
+// Step trace: when a full run times out this is the only record of how far the spec got (elapsed ms since launch).
+const launchedAt = Date.now();
+const trace = (step) => console.log(`[feature162 +${Date.now() - launchedAt}ms] ${step}`);
+trace("launched");
 
 async function invoke(command, args = {}) {
   const result = await browser.executeAsync(
@@ -77,16 +81,20 @@ const panelMenu = (name) => browser.$(`button[data-import-category-choice][data-
 const reviewCheckbox = (description) => browser.$(`//table[contains(@class,'dup-review-table')]//tr[.//td[normalize-space()='${description}']]//input[@type='checkbox']`);
 
 async function startImport() {
+  trace("start import");
   await (await browser.$("button=Import transactions…")).click();
   const keep = await browser.$("button=Keep as-is");
   await keep.waitForDisplayed({ timeout: 10000, timeoutMsg: "the import should ask about signs first" });
+  trace("sign question shown");
   await keep.click();
   await (await importButton()).waitForDisplayed({ timeout: 10000, timeoutMsg: "the review screen should open" });
+  trace("review open");
 }
 
 /** After an import: the review inbox opens on the new rows only when one of them needs a look
  * (uncategorized, unsure, ...). The status and the inbox are set together once the list refreshes. */
 async function closeInboxIfOpen() {
+  trace("close inbox if open");
   await waitUntilOrDiagnose(browser, async () => (await browser.execute(() => document.body.innerText)).includes("Imported "), {
     timeoutMsg: "the import should report what it saved",
   });

@@ -1,0 +1,45 @@
+{
+  "version": "m6-ordinary-scoring-freeze-1",
+  "status": "PARTIAL",
+  "countingKey": "count-key-v1",
+  "signedOn": "2026-10-21",
+  "preparedAndSignedBy": "Claude session 6f95b5d0-956e-407b-8a5e-83695020d02c (takeover of Role A and Role B task-4 work; Role A session 01a11bfa-3a3a-7c41-af31-b4b4b9dd7216 prepared the ordinary-spending package that this session completed and signs)",
+  "disclosure": "The same session combines the roles that prepare and sign this freeze (Ownership section 9, D-S7). No other session reviewed it. Cross-review by a different session is still available and unperformed. A local freeze cannot waive an approved gate: gates.* in the grader are unchanged.",
+  "typoClassificationLock": null,
+  "typoClassificationLockReason": "Validation-Plan V-U3: the numeric distance and margin policy for typo and did-you-mean classification is not an approved rule and is not invented here. Flagged cases are listed in parallel/agent-a/Flagged-Clarifications.json (30 rows, 17 distinct texts). Grading of the affected populations stays BLOCKED until the owner resolves it.",
+  "notCovered": [
+    "M3 spending-scenario families (retained 1,440 rows / 60 distinct intents / 180 request-vector pairs exist outside this package; no M6 case, expected request or native-linked reference yet)",
+    "M4 savings-target families (120 calculator vectors retained; no linked natural-language cases, no native seed map)",
+    "M5 retirement families (87 retained rows with their own accepted grading; not converted to M6 cases/contexts/references)",
+    "P-ID (insufficient history) and P-NR (numeric-boundary refusal, m5c-027) populations: zero cases",
+    "Three-seed natively linked references exist only for ordinary M1/M2 spending requests; the four scenario references are hand-worked anchors, not native evidence"
+  ],
+  "zeroCaseFamilies": "Every applicable M3, M4 and M5 family is NOT MEASURED until cases exist; this blocks M6 closure (Validation-Plan VP-07).",
+  "files": {
+    "cases.json": "5e3db9dee47463d737b0f98231591c32e6e85064adf4d5282ebbed1ab4c47522",
+    "contexts.json": "96d9e2043998147bdcd5332fdc2f19647808e9a27d0c8fda5f60523a1756e96c",
+    "expectedRequests.json": "c321f4a84a7f413407a7574ba6544d3aea78b9c4b14927be45383f15e30c29d1",
+    "referenceResults.json": "5233e1432cf4c9c5f40d5f5236e40e94baf53463eb776771cf1a3c0cfe0856e9",
+    "provenance.json": "49b0e17da4299e4518f3024cc9ec9f28cae089af28b304fed928b4ff6ad3145e",
+    "manifest.ts": "fde267d63a0beb7dc4773736d2655aa3cec93a3cf911820d47158725cedcd514",
+    "counting.ts": "310892139d9c18032d4cff726a9ebb181ffd7573caa0e1729d066c7d506d4296",
+    "grader.ts": "b085c8787daddff0804cbf6b91e15e11d84f15164ded945b17318f8f193f0a8a",
+    "referenceCalendar.ts": "feda1b1c901ff1040ad57109dde551f95dedfa983e8c0d15bb3d0ade59234cb4",
+    "referenceContract.ts": "2d14db0d5a0b4c4b5eaaaae8971395d3f486977f2257fbae9a61733d8a93a08d",
+    "referenceOracle.ts": "4b285545986b7f5fa467485bdc127feb4a211a0b79744ecd420fd357458bae45",
+    "referenceWorld.ts": "78b6f3c37cabf99bb3b24e5d3f47b337c6c5bf3edc7ca7a57043ac1afe5f420b"
+  },
+  "populationLabels": {
+    "cases": 2159,
+    "sha256": "b50bcd87b74b20a1e73bc45c864a075d622899985f70af16e4ef680ee907d596"
+  },
+  "familyRegistry": {
+    "families": 47,
+    "sha256": "289321757ae4baa5a742b274f539c92e99a98fc14b056c427780d723fa0cd1cc"
+  },
+  "seedContextMembership": {
+    "cases": 2159,
+    "requirements": 6477,
+    "sha256": "88d7c9defb8786affff946f703ee4afa2b5a428d2c645fc1d1830cc39724b3fc"
+  }
+}

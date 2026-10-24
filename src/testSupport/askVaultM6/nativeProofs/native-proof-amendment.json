@@ -1,0 +1,13 @@
+{
+  "checked": [
+    "r-amend-m1-202-0210-s101",
+    "r-amend-m1-202-0210-s202",
+    "r-amend-m1-202-0210-s303"
+  ],
+  "failures": 0,
+  "inputDigests": {
+    "amendmentReferences.json": "2b613efd49047c45c488c505ea27459835a41cea0aaadfffb2e723cd36525747",
+    "contexts.json": "96d9e2043998147bdcd5332fdc2f19647808e9a27d0c8fda5f60523a1756e96c"
+  },
+  "test": "ask_vault_m6_amendment_references"
+}

@@ -1,7 +1,7 @@
 import * as chrono from "chrono-node";
 import type { Bucket, Recurring } from "./types";
 import { groupOf, netWorthContribution, owedAmount } from "./accountGroups";
-import { formatAmount, formatDisplayDate } from "./format";
+import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import {
   compareQuery,
   findAccount,
@@ -97,7 +97,42 @@ function rangeFromComponent(component: chrono.ParsedComponents): DateRange {
   return yearRange(year);
 }
 
+/** A month or day written without a year means the most recent one that has begun: asked in September,
+ * "March" is this year's March, never next year's (chrono, left alone, picks whichever is nearest). */
+function pastRange(component: chrono.ParsedComponents, today: Date): DateRange {
+  const range = rangeFromComponent(component);
+  if (!component.isCertain("year") && toLocalIsoDate(range.from) > toLocalIsoDate(today)) {
+    const year = component.get("year")! - 1;
+    const month = component.get("month")!;
+    if (component.isCertain("day")) {
+      const day = new Date(year, month - 1, component.get("day")!);
+      return { from: day, to: day };
+    }
+    return monthRange(year, month);
+  }
+  return range;
+}
+
+/** "This month", "this year" and a bare current year are recorded activity so far: they stop at today. */
+function thisMonthToDate(today: Date): DateRange {
+  return clipToToday(monthRange(today.getFullYear(), today.getMonth() + 1), today);
+}
+
+function clipToToday(range: DateRange, today: Date): DateRange {
+  if (toLocalIsoDate(range.from) > toLocalIsoDate(today) || toLocalIsoDate(range.to) <= toLocalIsoDate(today)) return range;
+  return { from: range.from, to: new Date(today.getFullYear(), today.getMonth(), today.getDate()) };
+}
+
 export function parsePeriod(phrase: string, today: Date): DateRange | null {
+  const range = rawPeriod(phrase, today);
+  return range ? clipToToday(range, today) : null;
+}
+
+function periodDays(range: DateRange): number {
+  return Math.round((new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate()).getTime() - new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate()).getTime()) / 86_400_000) + 1;
+}
+
+function rawPeriod(phrase: string, today: Date): DateRange | null {
   const lower = phrase.trim().toLowerCase();
   if (!lower) return null;
 
@@ -132,14 +167,14 @@ export function parsePeriod(phrase: string, today: Date): DateRange | null {
   if (since) {
     const parsed = chrono.parse(since[1], today, { forwardDate: false });
     if (parsed.length === 0) return null;
-    return { from: rangeFromComponent(parsed[0].start).from, to: today };
+    return { from: pastRange(parsed[0].start, today).from, to: today };
   }
 
   const parsed = chrono.parse(phrase, today, { forwardDate: false });
   if (parsed.length === 0) return null;
   const r = parsed[0];
   if (r.end) return { from: r.start.date(), to: r.end.date() };
-  return rangeFromComponent(r.start);
+  return pastRange(r.start, today);
 }
 
 function periodLabel(phrase: string): string {
@@ -208,7 +243,7 @@ const INTENTS: Intent[] = [
             const result = runQuery({ metric: "sum", sign: "expense", period: asPeriod }, ctx);
             const when = periodLabel(subjectPhrase);
             return result.count > 0
-              ? `You spent ${formatAmount(-result.value)} (${when}), across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
+              ? `You spent ${formatAmount(result.value)} (${when}), across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
               : `No spending found (${when}).`;
           }
         }
@@ -216,7 +251,7 @@ const INTENTS: Intent[] = [
       }
       const { subject, when, result } = lookup;
       return result.count > 0
-        ? `You spent ${formatAmount(-result.value)} on ${subject.value} (${when}), across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
+        ? `You spent ${formatAmount(result.value)} on ${subject.value} (${when}), across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
         : `No ${subject.value} spending found (${when}).`;
     },
   },
@@ -241,7 +276,7 @@ const INTENTS: Intent[] = [
       const result = runQuery({ metric: "sum", sign: "expense", period: range ?? undefined }, ctx);
       const when = periodPhrase ? periodLabel(periodPhrase) : "all time";
       return result.count > 0
-        ? `You spent ${formatAmount(-result.value)} in total (${when}), across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
+        ? `You spent ${formatAmount(result.value)} in total (${when}), across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
         : `No spending found (${when}).`;
     },
   },
@@ -255,7 +290,7 @@ const INTENTS: Intent[] = [
       if (!lookup.ok) return lookup.error;
       const { subject, when, result } = lookup;
       return result.count > 0
-        ? `Your average spend on ${subject.value} (${when}) was ${formatAmount(-result.value)}, across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
+        ? `Your average spend on ${subject.value} (${when}) was ${formatAmount(result.value)}, across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
         : `No ${subject.value} spending found (${when}).`;
     },
   },
@@ -264,7 +299,7 @@ const INTENTS: Intent[] = [
       /(?:(?:what'?s|what is|what was) my income|what my income (?:is|was)|how much income did i (?:make|have|earn))(?: (?:in|during|for|since) (.+)| (this week|last week|this month|last month|this year|last year|the past \d+ (?:day|week|month|year)s?|\d{4}))?$/,
     handle: (m, ctx) => {
       const periodPhrase = (m[1] ?? m[2])?.trim();
-      const range = periodPhrase ? parsePeriod(periodPhrase, ctx.today) : monthRange(ctx.today.getFullYear(), ctx.today.getMonth() + 1);
+      const range = periodPhrase ? parsePeriod(periodPhrase, ctx.today) : thisMonthToDate(ctx.today);
       if (!range) return `I couldn't figure out what time period "${periodPhrase}" means.`;
       const result = runQuery({ metric: "sum", sign: "income", period: range }, ctx);
       const when = periodPhrase ? periodLabel(periodPhrase) : "this month";
@@ -362,7 +397,7 @@ const INTENTS: Intent[] = [
       /(?:what'?s|what is) my savings rate(?: (?:in|during|for) (.+)| (this week|last week|this month|last month|this year|last year|the past \d+ (?:day|week|month|year)s?|\d{4}))?$/,
     handle: (m, ctx) => {
       const periodPhrase = (m[1] ?? m[2])?.trim();
-      const range = periodPhrase ? parsePeriod(periodPhrase, ctx.today) : monthRange(ctx.today.getFullYear(), ctx.today.getMonth() + 1);
+      const range = periodPhrase ? parsePeriod(periodPhrase, ctx.today) : thisMonthToDate(ctx.today);
       if (!range) return `I couldn't figure out what time period "${periodPhrase}" means.`;
       const income = runQuery({ metric: "sum", sign: "income", period: range }, ctx).value;
       const expense = runQuery({ metric: "sum", sign: "expense", period: range }, ctx).value;
@@ -389,7 +424,7 @@ const INTENTS: Intent[] = [
       /(?:what(?:'?s| is| was) my (?:biggest|top|highest) spending category|what did i spend the most (?:money )?on|where did i spend the most(?: money)?)(?: (in|during|for|since) (.+)| (this week|last week|this month|last month|this year|last year|the past \d+ (?:day|week|month|year)s?|\d{4}))?$/,
     handle: (m, ctx) => {
       const periodPhrase = m[3] ?? (m[2] ? (m[1] === "since" ? `since ${m[2]}` : m[2]) : undefined);
-      const range = periodPhrase ? parsePeriod(periodPhrase, ctx.today) : monthRange(ctx.today.getFullYear(), ctx.today.getMonth() + 1);
+      const range = periodPhrase ? parsePeriod(periodPhrase, ctx.today) : thisMonthToDate(ctx.today);
       if (!range) return `I couldn't figure out what time period "${periodPhrase}" means.`;
       const result = runQuery({ metric: "sum", sign: "expense", period: range, groupBy: "category" }, ctx);
       const when = periodPhrase ? periodLabel(periodPhrase) : "this month";
@@ -412,7 +447,7 @@ const INTENTS: Intent[] = [
       const when = periodPhrase ? periodLabel(periodPhrase) : "all time";
       if (result.count === 0) return `No spending found (${when}).`;
       const biggest = result.matches.reduce((a, b) => (Math.abs(parseFloat(a.amount)) >= Math.abs(parseFloat(b.amount)) ? a : b));
-      return `Your biggest expense (${when}) was ${biggest.description} for ${formatAmount(-Math.abs(parseFloat(biggest.amount)))} on ${formatDisplayDate(biggest.date, ctx.today)}.`;
+      return `Your biggest expense (${when}) was ${biggest.description} for ${formatAmount(Math.abs(parseFloat(biggest.amount)))} on ${formatDisplayDate(biggest.date, ctx.today)}.`;
     },
   },
   {
@@ -449,7 +484,7 @@ const INTENTS: Intent[] = [
       const result = runQuery({ metric: "sum", sign: "expense", subject, period: range ?? undefined }, ctx);
       const when = periodPhrase ? periodLabel(periodPhrase) : "all time";
       return result.count > 0
-        ? `${subject.value} spent ${formatAmount(-result.value)} (${when}), across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
+        ? `${subject.value} spent ${formatAmount(result.value)} (${when}), across ${result.count} transaction${result.count === 1 ? "" : "s"}.`
         : `No spending found for ${subject.value} (${when}).`;
     },
   },
@@ -495,7 +530,10 @@ function compareSpendAnswer(phraseA: string, phraseB: string, ctx: QaContext): s
   return (
     `You spent ${formatAmount(a.value)} during ${periodLabel(phraseA)} and ${formatAmount(b.value)} during ${periodLabel(phraseB)}` +
     (diff === 0 ? " — " : ` — that's ${formatAmount(Math.abs(diff))} ${direction} `) +
-    `during ${periodLabel(phraseA)}.`
+    `during ${periodLabel(phraseA)}.` +
+    (periodDays(rangeA) === periodDays(rangeB)
+      ? ""
+      : ` Note: ${periodLabel(phraseA)} covers ${periodDays(rangeA)} days and ${periodLabel(phraseB)} covers ${periodDays(rangeB)} days, so this is not a like-for-like comparison.`)
   );
 }
 

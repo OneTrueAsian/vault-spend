@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerTransactionQuestion, TRANSACTION_QA_EXAMPLES, type QaContext } from "./transactionQa";
+import { answerTransactionQuestion, TRANSACTION_QA_EXAMPLES, parsePeriod, type QaContext } from "./transactionQa";
 import type { Account, Bucket, Recurring, Transaction } from "./types";
 
 const TODAY = new Date(2026, 8, 6); // Sat 2026-09-06
@@ -647,4 +647,126 @@ describe("the Dashboard's curated example questions", () => {
       expect(r.matched, `expected "${example}" to match an intent, got: ${r.answer}`).toBe(true);
     });
   }
+});
+
+// Corrections found while building the new Ask the Vault grammar (plan section 5): money spent is shown
+// as a positive amount, a bare month name means the most recent month that has begun, "this month/year"
+// stop at today, and a comparison of unequal lengths says so. All 12 question families keep working
+// (the suites above); these pin the corrected behaviour.
+describe("spending is shown as a positive amount", () => {
+  const spendCtx = () =>
+    ctx({
+      transactions: [
+        tx({ date: "2026-07-05", amount: "-60.00", category: "Dining Out", description: "Sushi Place", member_id: 1, member_name: "Alex" }),
+        tx({ date: "2026-07-12", amount: "-35.00", category: "Dining Out", description: "Sushi Place", member_id: 1, member_name: "Alex" }),
+        tx({ date: "2026-07-15", amount: "-899.00", category: "Shopping", description: "New Laptop" }),
+      ],
+      categories: ["Dining Out", "Shopping"],
+    });
+  it("category total", () => {
+    expect(ask("how much did I spend on dining out in July", spendCtx()).answer).toMatch(/^You spent \$95\.00 on Dining Out/);
+  });
+  it("merchant total", () => {
+    expect(ask("how much did I spend at sushi place", spendCtx()).answer).toMatch(/^You spent \$95\.00 on Sushi Place/);
+  });
+  it("period-only total and bare total", () => {
+    expect(ask("how much did I spend in the past 3 months", spendCtx()).answer).toMatch(/^You spent \$994\.00 \(/);
+    expect(ask("how much did I spend", spendCtx()).answer).toMatch(/^You spent \$994\.00 in total/);
+  });
+  it("average", () => {
+    expect(ask("what's my average spend on dining out in July", spendCtx()).answer).toContain("was $47.50,");
+  });
+  it("family member", () => {
+    expect(ask("how much did Alex spend in July", spendCtx()).answer).toMatch(/^Alex spent \$95\.00/);
+  });
+  it("biggest expense", () => {
+    expect(ask("what was my biggest purchase in July", spendCtx()).answer).toContain("New Laptop for $899.00");
+  });
+  it("never shows a minus sign on any spending answer", () => {
+    for (const q of [
+      "how much did I spend on dining out in July",
+      "how much did I spend at sushi place",
+      "how much did I spend",
+      "what's my average spend on dining out in July",
+      "how much did Alex spend in July",
+      "what was my biggest purchase in July",
+    ]) expect(ask(q, spendCtx()).answer, q).not.toContain("-$");
+  });
+});
+
+describe("a bare month name means the most recent month that has begun", () => {
+  const monthCtx = () =>
+    ctx({
+      transactions: [
+        tx({ date: "2026-03-14", amount: "-100.00", category: "Groceries" }),
+        tx({ date: "2027-03-05", amount: "-999.00", category: "Groceries" }), // a future-dated row must never be picked up by "March"
+        tx({ date: "2025-12-12", amount: "-25.00", category: "Groceries" }),
+      ],
+    });
+  it("March asked in September is this year's March, not next year's", () => {
+    expect(ask("how much did I spend on groceries in march", monthCtx()).answer).toContain("$100.00");
+    expect(ask("what was my biggest purchase in march", monthCtx()).answer).toContain("$100.00");
+  });
+  it("December asked in September is last year's December", () => {
+    expect(ask("how much did I spend on groceries in december", monthCtx()).answer).toContain("$25.00");
+  });
+  it("the same rule applies after 'since'", () => {
+    expect(parsePeriod("since march", TODAY)).toEqual({ from: new Date(2026, 2, 1), to: TODAY });
+  });
+});
+
+describe("this month and this year stop at today", () => {
+  const toDateCtx = () =>
+    ctx({
+      transactions: [
+        tx({ date: "2026-09-02", amount: "-40.00", category: "Groceries" }),
+        tx({ date: "2026-09-20", amount: "-500.00", category: "Groceries" }), // future-dated
+        tx({ date: "2026-03-02", amount: "-60.00", category: "Groceries" }),
+        tx({ date: "2026-12-01", amount: "-700.00", category: "Groceries" }), // future-dated
+        tx({ date: "2026-09-01", amount: "3000.00", category: "Income", description: "Paycheck" }),
+        tx({ date: "2026-09-25", amount: "3000.00", category: "Income", description: "Paycheck" }), // future-dated
+      ],
+    });
+  it("this month", () => {
+    expect(ask("how much did I spend this month", toDateCtx()).answer).toContain("$40.00");
+  });
+  it("this year, spelled either way", () => {
+    expect(ask("how much did I spend this year", toDateCtx()).answer).toContain("$100.00");
+    expect(ask("how much did I spend on groceries in 2026", toDateCtx()).answer).toContain("$100.00");
+  });
+  it("a default 'this month' (income, savings rate, top category)", () => {
+    expect(ask("what's my income", toDateCtx()).answer).toContain("$3,000.00");
+    expect(ask("what did I spend the most on", toDateCtx()).answer).toContain("$40.00");
+    expect(ask("what's my savings rate", toDateCtx()).answer).toContain("99%");
+  });
+  it("the range itself ends today", () => {
+    expect(parsePeriod("this month", TODAY)).toEqual({ from: new Date(2026, 8, 1), to: TODAY });
+    expect(parsePeriod("this year", TODAY)).toEqual({ from: new Date(2026, 0, 1), to: TODAY });
+    expect(parsePeriod("2026", TODAY)).toEqual({ from: new Date(2026, 0, 1), to: TODAY });
+    expect(parsePeriod("last month", TODAY)).toEqual({ from: new Date(2026, 7, 1), to: new Date(2026, 7, 31) });
+    expect(parsePeriod("2025", TODAY)).toEqual({ from: new Date(2025, 0, 1), to: new Date(2025, 11, 31) });
+  });
+});
+
+describe("a comparison of unequal lengths says so and never gives a percentage", () => {
+  const cmpCtx = () =>
+    ctx({
+      transactions: [
+        tx({ date: "2026-08-05", amount: "-500.00" }),
+        tx({ date: "2026-09-05", amount: "-300.00" }),
+        tx({ date: "2026-07-05", amount: "-100.00" }),
+      ],
+    });
+  it("this month so far against a whole month", () => {
+    const a = ask("compare this month to last month", cmpCtx()).answer;
+    expect(a).toContain("$300.00");
+    expect(a).toContain("$500.00");
+    expect(a).toContain("6 days");
+    expect(a).toContain("31 days");
+    expect(a).toContain("not a like-for-like comparison");
+    expect(a).not.toMatch(/%|percent/i);
+  });
+  it("two whole months of the same length add no note", () => {
+    expect(ask("compare july to august", cmpCtx()).answer).not.toContain("like-for-like");
+  });
 });

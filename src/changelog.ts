@@ -6,8 +6,13 @@
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, string[]> = {
   "1.3.1": [
-    "Updates can now download verified installers from the official release, with progress, cancellation and confirmation before opening the installer.",
-    "Update authenticity is checked against a publisher public key embedded in the app; unavailable or invalid metadata keeps the manual release link available.",
+    "Ask the Vault understands more spending questions, including several categories or stores, family members, top purchases, averages and period comparisons. Unclear names offer choices instead of guessing.",
+    "Preview spending cuts or a savings target across chosen categories, with minimum spending limits, optional caps and clear shortfalls. Confirmed previews use your spending history or an amount you supply; they do not change your budgets.",
+    "Explore an extra monthly or one-time contribution to one investment account, with explicit retirement dates and return assumptions. These are illustrations, not financial advice or guaranteed returns.",
+    "Reconcile accounts by uploading a statement PDF or entering balances manually. Review matched and unmatched transactions, teach an unfamiliar statement layout locally, and check investment holdings and share counts before finishing.",
+    "Import investment holdings in bulk and review them before saving.",
+    "Download verified update installers from the official release, with progress, cancellation and confirmation before opening. The app checks update authenticity against its embedded publisher public key and keeps a manual release link when verification is unavailable.",
+    "Improved protection and profile-switch safeguards, financial-read freshness, and the wording and Help for Transactions. Ask the Vault calculations stay on your device.",
   ],
   "1.1.2": [
     "Ledger columns are now sortable — click a header to sort by it, click again to flip direction.",

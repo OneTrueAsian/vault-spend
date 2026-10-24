@@ -2079,6 +2079,8 @@ table.ledger.recurring-table .actions-col {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  /* The global button rule is white-space: nowrap; this banner holds a whole sentence and must wrap. */
+  white-space: normal;
 }
 
 /* Only budgets used exactly in full: nothing needs doing (s4), so plain text on a quiet strip. */

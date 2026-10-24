@@ -14,8 +14,17 @@ const invokeMock = vi.hoisted(() =>
   }),
 );
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+const askContextMock = vi.hoisted(() => vi.fn());
+vi.mock("./AskVaultCard", async importOriginal => {
+  const actual = await importOriginal<typeof import("./AskVaultCard")>();
+  return { ...actual, AskVaultCard: (p: ComponentProps<typeof actual.AskVaultCard>) => {
+    askContextMock(p.getContext());
+    return <actual.AskVaultCard {...p} />;
+  } };
+});
 
 import { DashboardView } from "./DashboardView";
+import * as vendor from "./askVault/vendor";
 import { DEFAULT_LAYOUT, type WidgetId } from "./dashboardLayout";
 import type { Account } from "./types";
 
@@ -100,6 +109,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   document.body.innerHTML = "";
+  vi.restoreAllMocks();
 });
 
 async function render(p: Props) {
@@ -109,6 +119,20 @@ async function render(p: Props) {
 }
 
 const layoutTrigger = () => container.querySelector<HTMLButtonElement>(".layout-select-toggle")!;
+
+it("Task7: waits for the current roster preparation and ignores a cancelled earlier roster", async()=>{
+  const pending:{signal:AbortSignal;resolve:(ready:boolean)=>void}[]=[];
+  vi.spyOn(vendor,"prepareVendors").mockImplementation((_names,signal)=>new Promise(resolve=>pending.push({signal,resolve})));
+  const first=props();await render(first);expect(pending).toHaveLength(1);
+  const input=container.querySelector<HTMLInputElement>('.ledger-qa-card input')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")!.set!.call(input,"Costco last month");input.dispatchEvent(new Event("input",{bubbles:true}));});
+  const ask=()=>container.querySelector<HTMLButtonElement>('.ledger-qa-card button[type="submit"]')!;
+  expect(ask().disabled).toBe(true);
+  await render({...first,transactions:[...first.transactions]});expect(pending).toHaveLength(2);expect(pending[0].signal.aborted).toBe(true);
+  await act(async()=>{pending[0].resolve(true);await Promise.resolve();});expect(ask().disabled).toBe(true);expect(input.value).toBe("Costco last month");
+  await act(async()=>{pending[1].resolve(true);await Promise.resolve();});expect(ask().disabled).toBe(false);expect(input.value).toBe("Costco last month");
+  vi.restoreAllMocks();
+});
 const menuLabels = () => [...container.querySelectorAll("[role='menuitemradio']")].map((b) => b.textContent?.replace("✓", "").trim());
 function chooseLayoutOption(label: string) {
   act(() => layoutTrigger().click());
@@ -121,6 +145,27 @@ function chooseLayoutOption(label: string) {
 const widgetOrder = () => [...container.querySelectorAll<HTMLElement>("[data-widget-id]")].map((el) => el.dataset.widgetId);
 
 describe("Dashboard header", () => {
+  it("supplies member IDs and names to the M2 parser while keeping legacy member names", async () => {
+    const familyMembers = [{ id: 7, name: "Sam" }, { id: 8, name: "Robin" }];
+    await render(props({ familyMembers }));
+    expect(askContextMock.mock.lastCall?.[0]).toMatchObject({ familyMembers, members: ["Sam", "Robin"] });
+  });
+  describe("Ask context investment accounts (M5 A1)", () => {
+    const mixed = [
+      account({ id: 1, name: "Everyday checking", account_type: "checking" }), account({ id: 2, name: "Roth IRA", account_type: "investment", institution: "Fidelity", mask: "1234", current_balance: "9999.00" }),
+      account({ id: 3, name: "Card", account_type: "credit" }), account({ id: 4, name: "Brokerage", account_type: "investment" }), account({ id: 5, name: "Rental", account_type: "other" }),
+    ];
+    it("lists only investment-type accounts, with ids and names and nothing else", async () => {
+      await render(props({ accounts: mixed }));
+      const context = askContextMock.mock.lastCall?.[0] as { investmentAccounts?: unknown; accounts: unknown };
+      expect(context.investmentAccounts).toStrictEqual([{ id: 2, name: "Roth IRA" }, { id: 4, name: "Brokerage" }]);
+      expect(context.accounts).toHaveLength(5);
+    });
+    it("is an empty list, not missing, when there are no investment accounts", async () => {
+      await render(props({ accounts: [account({})] }));
+      expect((askContextMock.mock.lastCall?.[0] as { investmentAccounts?: unknown }).investmentAccounts).toStrictEqual([]);
+    });
+  });
   it("keeps Ask the Vault as the full card directly under the title row (owner rule)", async () => {
     await render(props());
 

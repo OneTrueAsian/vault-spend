@@ -1,0 +1,128 @@
+[
+ {
+  "id": "pid/m3-0",
+  "flow": "m3",
+  "complete": 0,
+  "text": "Cut Groceries by $50 monthly from November through December 2026",
+  "population": "P-ID",
+  "family": "m3:monthly-money",
+  "cluster": "pid:m3",
+  "tags": [
+   "insufficient-history"
+  ],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "pid-m3-0",
+    "requestId": null,
+    "referenceId": null,
+    "stop": "history-choice"
+   }
+  ]
+ },
+ {
+  "id": "pid/m3-1",
+  "flow": "m3",
+  "complete": 1,
+  "text": "Cut Groceries by $50 monthly from November through December 2026",
+  "population": "P-ID",
+  "family": "m3:monthly-money",
+  "cluster": "pid:m3",
+  "tags": [
+   "insufficient-history"
+  ],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "pid-m3-1",
+    "requestId": null,
+    "referenceId": null,
+    "stop": "history-choice"
+   }
+  ]
+ },
+ {
+  "id": "pid/m3-2",
+  "flow": "m3",
+  "complete": 2,
+  "text": "Cut Groceries by $50 monthly from November through December 2026",
+  "population": "P-ID",
+  "family": "m3:monthly-money",
+  "cluster": "pid:m3",
+  "tags": [
+   "insufficient-history"
+  ],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "pid-m3-2",
+    "requestId": null,
+    "referenceId": null,
+    "stop": "history-choice"
+   }
+  ]
+ },
+ {
+  "id": "pid/m4-0",
+  "flow": "m4",
+  "complete": 0,
+  "text": "Save $50 monthly across Groceries with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-ID",
+  "family": "m4:monthly-target",
+  "cluster": "pid:m4",
+  "tags": [
+   "insufficient-history"
+  ],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "pid-m4-0",
+    "requestId": null,
+    "referenceId": null,
+    "stop": "history-choice"
+   }
+  ]
+ },
+ {
+  "id": "pid/m4-1",
+  "flow": "m4",
+  "complete": 1,
+  "text": "Save $50 monthly across Groceries with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-ID",
+  "family": "m4:monthly-target",
+  "cluster": "pid:m4",
+  "tags": [
+   "insufficient-history"
+  ],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "pid-m4-1",
+    "requestId": null,
+    "referenceId": null,
+    "stop": "history-choice"
+   }
+  ]
+ },
+ {
+  "id": "pid/m4-2",
+  "flow": "m4",
+  "complete": 2,
+  "text": "Save $50 monthly across Groceries with Groceries floor $0 and maximum cut 100% from November through December 2026",
+  "population": "P-ID",
+  "family": "m4:monthly-target",
+  "cluster": "pid:m4",
+  "tags": [
+   "insufficient-history"
+  ],
+  "required": [
+   {
+    "seed": 101,
+    "contextId": "pid-m4-2",
+    "requestId": null,
+    "referenceId": null,
+    "stop": "history-choice"
+   }
+  ]
+ }
+]

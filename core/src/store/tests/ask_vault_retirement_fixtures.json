@@ -1,0 +1,2978 @@
+[
+  {
+    "id": "full-saved-plan-holdings",
+    "covers": [
+      "N1",
+      "N2",
+      "N3",
+      "N4"
+    ],
+    "note": "holdings value, saved monthly amount, stored 6% return, saved inflation, saved withdraw month",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "10.5",
+              "price": "200.00"
+            },
+            {
+              "shares": "3",
+              "price": "1500.25"
+            }
+          ]
+        }
+      ],
+      "plans": [
+        {
+          "accountId": 5,
+          "monthly": "300.00",
+          "returnPct": "6.00",
+          "withdrawMonth": "2050-06"
+        }
+      ],
+      "inflationPct": "2.5"
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "6600.75",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "saved",
+          "monthlyAmount": "300"
+        },
+        "returnAssumption": {
+          "kind": "stored-plan",
+          "annualPct": "6"
+        },
+        "inflation": {
+          "kind": "stored",
+          "pct": "2.5"
+        },
+        "retirementMonth": "2050-06"
+      }
+    }
+  },
+  {
+    "id": "no-plan-row-default-return",
+    "covers": [
+      "N2",
+      "E1"
+    ],
+    "note": "no plan row: the 7% default is application-default, never stored-plan",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "1",
+              "price": "1000"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "1000",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "saved-zero-return",
+    "covers": [
+      "N2",
+      "E1"
+    ],
+    "note": "a saved 0% return is stored-plan 0, distinct from missing and from the default",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "1",
+              "price": "1000"
+            }
+          ]
+        }
+      ],
+      "plans": [
+        {
+          "accountId": 5,
+          "monthly": null,
+          "returnPct": "0",
+          "withdrawMonth": null
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "1000",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "stored-plan",
+          "annualPct": "0"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "saved-seven-is-only-a-candidate",
+    "covers": [
+      "N2",
+      "E1"
+    ],
+    "note": "a saved 7% is stored-plan 7; history cannot tell it from an untouched default (documented limit)",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "1",
+              "price": "1000"
+            }
+          ]
+        }
+      ],
+      "plans": [
+        {
+          "accountId": 5,
+          "monthly": null,
+          "returnPct": "7.00",
+          "withdrawMonth": null
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "1000",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "stored-plan",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "saved-zero-contribution-beats-history",
+    "covers": [
+      "N4",
+      "E7"
+    ],
+    "note": "a saved 0 contribution is a saved choice and wins over deposit history",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-08-05",
+              "amount": "500"
+            },
+            {
+              "date": "2026-09-05",
+              "amount": "500"
+            }
+          ],
+          "holdings": [
+            {
+              "shares": "1",
+              "price": "2000"
+            }
+          ]
+        }
+      ],
+      "plans": [
+        {
+          "accountId": 5,
+          "monthly": "0.00",
+          "returnPct": "6",
+          "withdrawMonth": null
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "2000",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "saved",
+          "monthlyAmount": "0"
+        },
+        "returnAssumption": {
+          "kind": "stored-plan",
+          "annualPct": "6"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "history-three-months",
+    "covers": [
+      "N3",
+      "N4"
+    ],
+    "note": "no saved amount: mean of three complete months from the first deposit",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-07-10",
+              "amount": "300"
+            },
+            {
+              "date": "2026-08-10",
+              "amount": "300"
+            },
+            {
+              "date": "2026-09-10",
+              "amount": "300"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "900",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "300",
+          "fromMonth": "2026-07",
+          "toMonth": "2026-09",
+          "monthCount": 3
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "only-current-month-deposit",
+    "covers": [
+      "N4",
+      "E7"
+    ],
+    "note": "a deposit only in the current month gives no usable contribution basis",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-10-02",
+              "amount": "400"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "400",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "no-deposits-at-all",
+    "covers": [
+      "N4",
+      "E7"
+    ],
+    "note": "no deposits: contribution is missing, not zero",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "250"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "250",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "withdrawals-only",
+    "covers": [
+      "N3",
+      "N4"
+    ],
+    "note": "money out is not a contribution; worth can be negative",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-05-01",
+              "amount": "-700"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "-700",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "first-deposit-two-months-ago",
+    "covers": [
+      "N3",
+      "N4"
+    ],
+    "note": "window starts at the first deposit month; the empty month counts as zero",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-08-20",
+              "amount": "200"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "200",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "100",
+          "fromMonth": "2026-08",
+          "toMonth": "2026-09",
+          "monthCount": 2
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "more-than-six-months-uses-six",
+    "covers": [
+      "N3",
+      "N4"
+    ],
+    "note": "only the six complete months before this one count",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-01-05",
+              "amount": "9999"
+            },
+            {
+              "date": "2026-04-05",
+              "amount": "600"
+            },
+            {
+              "date": "2026-05-05",
+              "amount": "600"
+            },
+            {
+              "date": "2026-06-05",
+              "amount": "600"
+            },
+            {
+              "date": "2026-07-05",
+              "amount": "600"
+            },
+            {
+              "date": "2026-08-05",
+              "amount": "600"
+            },
+            {
+              "date": "2026-09-05",
+              "amount": "600"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "13599",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "600",
+          "fromMonth": "2026-04",
+          "toMonth": "2026-09",
+          "monthCount": 6
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "gap-months-count-as-zero",
+    "covers": [
+      "N3",
+      "N4"
+    ],
+    "note": "zero months inside the window lower the mean",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-04-05",
+              "amount": "100"
+            },
+            {
+              "date": "2026-09-05",
+              "amount": "50"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "150",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "25",
+          "fromMonth": "2026-04",
+          "toMonth": "2026-09",
+          "monthCount": 6
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "mean-rounds-half-away",
+    "covers": [
+      "N3"
+    ],
+    "note": "5 cents over two months is 2.5 cents, which rounds to 3 cents",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-08-01",
+              "amount": "0.05"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "0.05",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "0.03",
+          "fromMonth": "2026-08",
+          "toMonth": "2026-09",
+          "monthCount": 2
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "tiny-mean-rounds-to-zero-history",
+    "covers": [
+      "N3",
+      "N4"
+    ],
+    "note": "a history mean that rounds to 0.00 is still labelled history (not a saved 0)",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-04-01",
+              "amount": "0.01"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "0.01",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "0",
+          "fromMonth": "2026-04",
+          "toMonth": "2026-09",
+          "monthCount": 6
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "soft-deleted-and-future-deposits-ignored",
+    "covers": [
+      "N3"
+    ],
+    "note": "deleted rows and deposits dated after today never count",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-08-05",
+              "amount": "300"
+            },
+            {
+              "date": "2026-09-05",
+              "amount": "999",
+              "deleted": true
+            },
+            {
+              "date": "2026-10-30",
+              "amount": "777"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "300",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "150",
+          "fromMonth": "2026-08",
+          "toMonth": "2026-09",
+          "monthCount": 2
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "transfer-leg-counts-once",
+    "covers": [
+      "N3"
+    ],
+    "note": "a linked transfer into the account is one positive transaction on this account and counts once",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-09-12",
+              "amount": "250"
+            }
+          ]
+        },
+        {
+          "id": 1,
+          "name": "Everyday Checking",
+          "type": "checking",
+          "startingBalance": "1000",
+          "transactions": [
+            {
+              "date": "2026-09-12",
+              "amount": "-250"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "250",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "250",
+          "fromMonth": "2026-09",
+          "toMonth": "2026-09",
+          "monthCount": 1
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "holdings-replace-transaction-balance",
+    "covers": [
+      "N3",
+      "E7"
+    ],
+    "note": "once holdings exist their value replaces the transaction balance entirely",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "10",
+          "transactions": [
+            {
+              "date": "2026-09-05",
+              "amount": "100"
+            }
+          ],
+          "holdings": [
+            {
+              "shares": "2",
+              "price": "25.5"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "51",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "100",
+          "fromMonth": "2026-09",
+          "toMonth": "2026-09",
+          "monthCount": 1
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "balance-reset-checkpoint",
+    "covers": [
+      "N3"
+    ],
+    "note": "the latest checkpoint on or before today starts the balance; only later rows are added",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "5",
+          "resets": [
+            {
+              "date": "2026-06-30",
+              "balance": "1000"
+            },
+            {
+              "date": "2026-08-31",
+              "balance": "2000"
+            }
+          ],
+          "transactions": [
+            {
+              "date": "2026-07-05",
+              "amount": "100"
+            },
+            {
+              "date": "2026-09-05",
+              "amount": "30"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "2030",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "43.33",
+          "fromMonth": "2026-07",
+          "toMonth": "2026-09",
+          "monthCount": 3
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "backdated-checkpoint-latest-date-wins",
+    "covers": [
+      "N3",
+      "F2"
+    ],
+    "note": "a checkpoint inserted later but dated earlier loses: the latest reset DATE wins, as in the native balance rule",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "5",
+          "resets": [
+            {
+              "date": "2026-08-31",
+              "balance": "2000"
+            },
+            {
+              "date": "2026-06-30",
+              "balance": "1000"
+            }
+          ],
+          "transactions": [
+            {
+              "date": "2026-07-05",
+              "amount": "100"
+            },
+            {
+              "date": "2026-09-05",
+              "amount": "30"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "2030",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "43.33",
+          "fromMonth": "2026-07",
+          "toMonth": "2026-09",
+          "monthCount": 3
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "same-date-checkpoints-later-insertion-wins",
+    "covers": [
+      "N3",
+      "F2"
+    ],
+    "note": "two checkpoints on one date: the one recorded later wins",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "resets": [
+            {
+              "date": "2026-08-31",
+              "balance": "1500"
+            },
+            {
+              "date": "2026-08-31",
+              "balance": "2000"
+            }
+          ],
+          "transactions": [
+            {
+              "date": "2026-09-05",
+              "amount": "30"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "2030",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "30",
+          "fromMonth": "2026-09",
+          "toMonth": "2026-09",
+          "monthCount": 1
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "same-date-checkpoints-reverse-order",
+    "covers": [
+      "N3",
+      "F2"
+    ],
+    "note": "the same two checkpoints recorded in the opposite order give the other balance",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "resets": [
+            {
+              "date": "2026-08-31",
+              "balance": "2000"
+            },
+            {
+              "date": "2026-08-31",
+              "balance": "1500"
+            }
+          ],
+          "transactions": [
+            {
+              "date": "2026-09-05",
+              "amount": "30"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "1530",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "30",
+          "fromMonth": "2026-09",
+          "toMonth": "2026-09",
+          "monthCount": 1
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "sub-cent-deposits-sum-before-rounding",
+    "covers": [
+      "N3",
+      "F1"
+    ],
+    "note": "0.004 + 0.004 in one month is 0.008, which rounds once to 0.01 (rounding each deposit first would give 0)",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-09-05",
+              "amount": "0.004"
+            },
+            {
+              "date": "2026-09-20",
+              "amount": "0.004"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "0.008",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "0.01",
+          "fromMonth": "2026-09",
+          "toMonth": "2026-09",
+          "monthCount": 1
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "decimal-tie-rounds-away-from-zero",
+    "covers": [
+      "N3",
+      "F1"
+    ],
+    "note": "1.005 is an exact tie in decimal and rounds up to 1.01 (a binary float gives 1)",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-09-05",
+              "amount": "1.005"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "1.005",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "1.01",
+          "fromMonth": "2026-09",
+          "toMonth": "2026-09",
+          "monthCount": 1
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "deposit-beyond-float-precision-stays-exact",
+    "covers": [
+      "N3",
+      "F1"
+    ],
+    "note": "9007199254740993 is not representable as a double and must survive unchanged",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-09-05",
+              "amount": "9007199254740993"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "9007199254740993",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "9007199254740993",
+          "fromMonth": "2026-09",
+          "toMonth": "2026-09",
+          "monthCount": 1
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "many-small-deposits-across-months-exact-mean",
+    "covers": [
+      "N3",
+      "F1"
+    ],
+    "note": "0.01 + 0.02 + 0.02 over three months is 0.05 / 3 = 0.01666..., which rounds to 0.02",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-07-05",
+              "amount": "0.01"
+            },
+            {
+              "date": "2026-08-05",
+              "amount": "0.02"
+            },
+            {
+              "date": "2026-09-05",
+              "amount": "0.02"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "0.05",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "0.02",
+          "fromMonth": "2026-07",
+          "toMonth": "2026-09",
+          "monthCount": 3
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "empty-account-worth-is-missing",
+    "covers": [
+      "N3",
+      "E7"
+    ],
+    "note": "no holdings, no transactions, zero starting balance: worth is missing, never an invented zero",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": null,
+          "basis": "none"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "future-only-transaction-is-not-evidence",
+    "covers": [
+      "N3",
+      "E7"
+    ],
+    "note": "a transaction dated after today does not make the worth known",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2026-11-01",
+              "amount": "100"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": null,
+          "basis": "none"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "recorded-zero-is-not-missing",
+    "covers": [
+      "N3",
+      "E7"
+    ],
+    "note": "holdings valued at 0 are a recorded 0, distinct from missing",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "5",
+              "price": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "0",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "negative-starting-balance",
+    "covers": [
+      "N3"
+    ],
+    "note": "a negative worth is reported exactly",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "-500.50"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "-500.5",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "fractional-holdings-exact",
+    "covers": [
+      "N3"
+    ],
+    "note": "up to 28 decimal places stay exact",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "0.0000000000000000000000000003",
+              "price": "3"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "0.0000000000000000000000000009",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "past-withdraw-month-stays-evidence",
+    "covers": [
+      "N2",
+      "E3"
+    ],
+    "note": "a passed saved withdraw month is returned as a candidate; the calculator refuses it later",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "1",
+              "price": "10"
+            }
+          ]
+        }
+      ],
+      "plans": [
+        {
+          "accountId": 5,
+          "monthly": "50",
+          "returnPct": "5",
+          "withdrawMonth": "2024-01"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "10",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "saved",
+          "monthlyAmount": "50"
+        },
+        "returnAssumption": {
+          "kind": "stored-plan",
+          "annualPct": "5"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": "2024-01"
+      }
+    }
+  },
+  {
+    "id": "inflation-default-versus-stored-zero",
+    "covers": [
+      "N2",
+      "U8"
+    ],
+    "note": "a stored 0% inflation is stored, not the default 3",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "1",
+              "price": "10"
+            }
+          ]
+        }
+      ],
+      "inflationPct": "0.00"
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "10",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "stored",
+          "pct": "0"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "year-boundary-window",
+    "covers": [
+      "N3",
+      "N4"
+    ],
+    "note": "in January the window ends in December of the previous year",
+    "today": "2026-01-15",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2025-10-05",
+              "amount": "100"
+            },
+            {
+              "date": "2025-12-05",
+              "amount": "200"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-01-15",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "300",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "100",
+          "fromMonth": "2025-10",
+          "toMonth": "2025-12",
+          "monthCount": 3
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "leap-day-as-of",
+    "covers": [
+      "N1",
+      "N3"
+    ],
+    "note": "29 February as-of date: window ends in January",
+    "today": "2024-02-29",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "transactions": [
+            {
+              "date": "2024-01-10",
+              "amount": "90"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2024-02-29",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "90",
+          "basis": "transactions"
+        },
+        "contribution": {
+          "kind": "history",
+          "monthlyAmount": "90",
+          "fromMonth": "2024-01",
+          "toMonth": "2024-01",
+          "monthCount": 1
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  },
+  {
+    "id": "other-account-types-never-selectable",
+    "covers": [
+      "N1",
+      "S1"
+    ],
+    "note": "a checking account is not an investment account",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0"
+        },
+        {
+          "id": 1,
+          "name": "Everyday Checking",
+          "type": "checking",
+          "startingBalance": "100"
+        }
+      ]
+    },
+    "accountId": 1,
+    "expected": {
+      "error": "account_unavailable"
+    }
+  },
+  {
+    "id": "deleted-account-is-unavailable",
+    "covers": [
+      "N1",
+      "S1"
+    ],
+    "note": "a deleted account no longer exists (accounts are hard-deleted)",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0"
+        }
+      ]
+    },
+    "accountId": 99,
+    "expected": {
+      "error": "account_unavailable"
+    }
+  },
+  {
+    "id": "profile-locked",
+    "covers": [
+      "N1",
+      "I2"
+    ],
+    "note": "a locked profile never returns data",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "locked": true
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "error": "stale_profile"
+    }
+  },
+  {
+    "id": "profile-switched-generation",
+    "covers": [
+      "N1",
+      "I2"
+    ],
+    "note": "the caller's generation no longer matches the open profile",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "error": "stale_profile"
+    },
+    "origin": {
+      "generation": 2,
+      "sessionRevision": 11
+    }
+  },
+  {
+    "id": "session-revision-moved",
+    "covers": [
+      "N1",
+      "I2"
+    ],
+    "note": "the caller's session revision no longer matches",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "error": "stale_profile"
+    },
+    "origin": {
+      "generation": 3,
+      "sessionRevision": 10
+    }
+  },
+  {
+    "id": "expected-revision-local-differs",
+    "covers": [
+      "N1",
+      "I2",
+      "E8"
+    ],
+    "note": "an expected revision that differs in the local counter is stale data",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "error": "stale_data"
+    },
+    "expectedRevision": {
+      "local": 39,
+      "external": 7
+    }
+  },
+  {
+    "id": "expected-revision-external-differs",
+    "covers": [
+      "N1",
+      "I2",
+      "E8"
+    ],
+    "note": "an expected revision that differs in the external counter is stale data",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "error": "stale_data"
+    },
+    "expectedRevision": {
+      "local": 40,
+      "external": 8
+    }
+  },
+  {
+    "id": "expected-revision-matches",
+    "covers": [
+      "N1",
+      "I2"
+    ],
+    "note": "a matching expected revision reads normally",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0"
+        }
+      ]
+    },
+    "accountId": 5,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": null,
+          "basis": "none"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    },
+    "expectedRevision": {
+      "local": 40,
+      "external": 7
+    }
+  },
+  {
+    "id": "duplicate-names-are-different-accounts",
+    "covers": [
+      "N1",
+      "P2"
+    ],
+    "note": "two accounts may share a name; the id selects one",
+    "today": "2026-10-17",
+    "seed": {
+      "profile": {
+        "generation": 3,
+        "sessionRevision": 11,
+        "revision": {
+          "local": 40,
+          "external": 7
+        }
+      },
+      "accounts": [
+        {
+          "id": 5,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "1",
+              "price": "5"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "name": "Roth IRA",
+          "type": "investment",
+          "startingBalance": "0",
+          "holdings": [
+            {
+              "shares": "1",
+              "price": "6"
+            }
+          ]
+        }
+      ]
+    },
+    "accountId": 6,
+    "expected": {
+      "reply": {
+        "contractVersion": 1,
+        "context": {
+          "generation": 3,
+          "sessionRevision": 11
+        },
+        "revision": {
+          "local": 40,
+          "external": 7
+        },
+        "asOf": "2026-10-17",
+        "account": {
+          "id": 6,
+          "name": "Roth IRA",
+          "type": "investment"
+        },
+        "worth": {
+          "amount": "6",
+          "basis": "holdings"
+        },
+        "contribution": {
+          "kind": "missing"
+        },
+        "returnAssumption": {
+          "kind": "application-default",
+          "annualPct": "7"
+        },
+        "inflation": {
+          "kind": "application-default",
+          "pct": "3"
+        },
+        "retirementMonth": null
+      }
+    }
+  }
+]

@@ -24,9 +24,20 @@ import { chooseMenuOption, chooseStyle, launchApp, waitUntilOrDiagnose } from ".
 import { seedHouseholdDatabase } from "./household-demo.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
+import { execFileSync } from "node:child_process";
 
 const dbDir = freshTestDbDir();
 await seedHouseholdDatabase(dbDir);
+// A tidy household can have no pending actions on some calendar days. This
+// spec requires a real To do row, so seed one explicitly without changing
+// the shared household generator or relying on a bill being due today.
+execFileSync("python", ["-c", `
+import datetime, sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as con:
+    account = con.execute("SELECT id FROM accounts WHERE name = 'Joint Checking'").fetchone()[0]
+    con.execute("INSERT INTO transactions (account_id,date,description,amount,category,fingerprint) VALUES (?,?,'UI review pending category','-0.01',NULL,'feature270-pending-category')", (account, datetime.date.today().isoformat()))
+    assert con.execute("SELECT COUNT(*) FROM transactions WHERE category IS NULL").fetchone()[0] >= 1
+`, path.join(dbDir, "vaultspend.db")]);
 const shotsDir = process.env.VS_SCREENS_DIR ?? makeTempDir("vaultspend-feature270-");
 fs.mkdirSync(shotsDir, { recursive: true });
 
