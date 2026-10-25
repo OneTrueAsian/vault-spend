@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { chooseStyle, launchApp, withFocusRetry } from "../harness.mjs";
 import { askHelpers, LONG_NAME, NEAR_NAME_A, QUESTION, QUESTION_NO_ACCOUNT, QUESTION_REFUSED, REFUSAL_MESSAGE, seedRetirementProfile } from "./askRetirement.mjs";
 import { seedFixture } from "./seed.mjs";
-import { withAskReady } from "./askReady.mjs";
+import { askByKeyboard, withAskReady } from "./askReady.mjs";
 import { ensureAxe, waitForVisualStability, measurePhase } from "./axeSession.mjs";
 
 // M5 compiled-screen acceptance (V3): every reachable screen, in the three styles, light and dark, at 720, 960 and 1280 px wide, with long and
@@ -163,8 +163,7 @@ try {
   if (RUN_EXTRAS) {
 
   // ---- Keyboard only: type, ask, move through the dialog, confirm, close; nothing needs a pointer. ------------------------------------------------------------
-  await b.execute(() => document.querySelector(".ledger-qa-card input").focus());
-  await b.keys(QUESTION()); await b.keys("Enter");
+  await askByKeyboard(b, QUESTION());
   await h.waitText("Use my saved plan", "keyboard: review");
   assert.ok(await b.execute(() => document.querySelector('[role="dialog"]').contains(document.activeElement)), "keyboard: focus moves into the dialog when it opens");
   const order = [];
@@ -181,16 +180,15 @@ try {
   await b.waitUntil(async () => !(await h.dialogOpen()), { timeout: 5000, timeoutMsg: "keyboard: Escape closes the result" });
   assert.ok(await h.focusOnQuestion(), "keyboard: focus returns to the question after Escape");
   // Choices by keyboard: pick an account with the arrow keys and continue.
-  await b.execute(() => { window.__focusLog = []; document.addEventListener("focusin", e => window.__focusLog.push(`${Math.round(performance.now())} ${e.target.tagName}${e.target.getAttribute?.("role") ? `[${e.target.getAttribute("role")}]` : ""}${e.target.closest?.('[role="dialog"]') ? " in-dialog" : ""}`), true); document.querySelector(".ledger-qa-card input").select(); });
-  await b.keys(QUESTION_NO_ACCOUNT); await b.keys("Enter"); await h.waitText("Nothing has been calculated yet", "keyboard: choices");
+  await b.execute(() => { window.__focusLog = []; document.addEventListener("focusin", e => window.__focusLog.push(`${Math.round(performance.now())} ${e.target.tagName}${e.target.getAttribute?.("role") ? `[${e.target.getAttribute("role")}]` : ""}${e.target.closest?.('[role="dialog"]') ? " in-dialog" : ""}`), true); });
+  await askByKeyboard(b, QUESTION_NO_ACCOUNT); await h.waitText("Nothing has been calculated yet", "keyboard: choices");
   const focusInChoices = () => b.execute(() => document.querySelector('[role="dialog"]').contains(document.activeElement));
   await b.pause(500);
   assert.ok(await focusInChoices(), `keyboard: focus is inside the choices card; it is on ${await b.execute(() => { const e = document.activeElement; return `${e.tagName} type=${e.type} in-qa-card=${!!e.closest(".ledger-qa-card")} aria=${e.getAttribute("aria-label")}`; })}; focus log: ${JSON.stringify(await b.execute(() => window.__focusLog.slice(-12)))}`);
   await b.keys("Escape"); await b.waitUntil(async () => !(await h.dialogOpen()), { timeout: 5000 });
 
   // ---- Keyboard only: a numeric refusal, focus containment, recovery with "Change the details", and focus restored on Escape. ---------------------------------
-  await b.execute(() => { const input = document.querySelector(".ledger-qa-card input"); input.focus(); input.select(); });
-  await b.keys(QUESTION_REFUSED()); await b.keys("Enter");
+  await askByKeyboard(b, QUESTION_REFUSED());
   await h.waitText("Retirement month", "keyboard: review of the refused question");
   await b.execute(() => [...document.querySelectorAll('[role="dialog"] .modal-actions button')].at(-1).focus()); await b.keys("Enter");
   await h.waitText("A few details need attention", "keyboard: numeric refusal");
