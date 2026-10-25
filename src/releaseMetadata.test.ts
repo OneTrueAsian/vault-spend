@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CHANGELOG } from "./changelog";
+import { CHANGELOG, changelogNotes } from "./changelog";
 
 // Current metadata must agree; historical feature promises remain attached to their release.
 
@@ -28,11 +28,11 @@ describe("release metadata", () => {
   });
 
   it("has a What's New entry with content for the current version", () => {
-    expect(CHANGELOG[pkg]?.length ?? 0).toBeGreaterThan(0);
+    expect(changelogNotes(CHANGELOG[pkg] ?? []).length).toBeGreaterThan(0);
   });
 
   it("preserves the feature notes that shipped in 1.3.0", () => {
-    const notes = (CHANGELOG["1.3.0"] ?? []).join("\n");
+    const notes = changelogNotes(CHANGELOG["1.3.0"] ?? []).join("\n");
     expect(notes).toMatch(/mobile/i);
     expect(notes).toMatch(/snapshot/i);
     expect(notes).toMatch(/Settings/);
@@ -55,7 +55,7 @@ describe("release metadata", () => {
   });
 
   it("preserves the 1.2.9 release notes", () => {
-    const notes = (CHANGELOG["1.2.9"] ?? []).join("\n");
+    const notes = changelogNotes(CHANGELOG["1.2.9"] ?? []).join("\n");
     expect(notes).toMatch(/comparisons/i);
     expect(notes).toMatch(/flip the signs/i);
     expect(notes).toMatch(/note to any transaction/i);

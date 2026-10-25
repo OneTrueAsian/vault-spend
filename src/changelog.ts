@@ -1,19 +1,44 @@
+/** A release entry is either a flat list (older versions) or labelled groups such as "New features", "Enhancements" and "Bug fixes", shown in the order written. */
+export type ChangelogEntry = string[] | Record<string, string[]>;
+
+export function changelogSections(entry: ChangelogEntry): { heading: string | null; notes: string[] }[] {
+  if (Array.isArray(entry)) return [{ heading: null, notes: entry }];
+  return Object.entries(entry).filter(([, notes]) => notes.length > 0).map(([heading, notes]) => ({ heading, notes }));
+}
+
+export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSections(entry).flatMap((section) => section.notes);
+
 /** One entry per released version — shown once via `WhatsNewDialog` when
  * the installed version differs from what this viewer last saw (tracked in
  * localStorage by App.tsx). Bundled locally rather than fetched from
  * GitHub, so it works fully offline like the rest of the app. Add an entry
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
-export const CHANGELOG: Record<string, string[]> = {
-  "1.3.1": [
-    "Ask the Vault understands more spending questions, including several categories or stores, family members, top purchases, averages and period comparisons. Unclear names offer choices instead of guessing.",
-    "Preview spending cuts or a savings target across chosen categories, with minimum spending limits, optional caps and clear shortfalls. Confirmed previews use your spending history or an amount you supply; they do not change your budgets.",
-    "Explore an extra monthly or one-time contribution to one investment account, with explicit retirement dates and return assumptions. These are illustrations, not financial advice or guaranteed returns.",
-    "Reconcile accounts by uploading a statement PDF or entering balances manually. Review matched and unmatched transactions, teach an unfamiliar statement layout locally, and check investment holdings and share counts before finishing.",
-    "Import investment holdings in bulk and review them before saving.",
-    "Download verified update installers from the official release, with progress, cancellation and confirmation before opening. The app checks update authenticity against its embedded publisher public key and keeps a manual release link when verification is unavailable.",
-    "Improved protection and profile-switch safeguards, financial-read freshness, and the wording and Help for Transactions. Ask the Vault calculations stay on your device.",
-  ],
+export const CHANGELOG: Record<string, ChangelogEntry> = {
+  "1.3.1": {
+    "New features": [
+      "Ask the Vault answers more spending questions: several categories or stores at once, family members, your biggest purchases, averages, and one period against another. If a name could mean more than one thing, it asks you to choose instead of guessing.",
+      "Try a spending what-if. Ask what happens if you spend less in chosen categories, or what you would need to cut to reach a savings target. You see a preview with your limits and any shortfall. It never changes your budgets.",
+      "Ask what extra money put into one investment account, each month or once, could grow to by a retirement date you choose. It is an illustration only. It is not financial advice and not a promise of returns.",
+      "Reconcile an account against its statement. Upload the statement PDF, or type the balances yourself, then see which transactions match and which do not. Works for bank, card, loan and investment accounts, including share counts. Statements are read on your computer.",
+      "If a statement looks different from any the app knows, show it which numbers are which. Vault Spend remembers that layout for the profile, and you can see the saved layouts in Settings.",
+      "Add many investment holdings at once from a file, and look them over before saving.",
+      "Updates now download inside the app, with progress and a Cancel button, and ask before opening the installer. Vault Spend checks that an update really comes from us before you can install it. If it cannot check, you still get a link to download it yourself.",
+    ],
+    Enhancements: [
+      "Reconciling an account picks up where your last reconciliation ended, and asks for a starting balance only when it needs one.",
+      "Ask the Vault hides an answer while it double-checks it, and drops the answer if your transactions change in the meantime, so an old number is never shown as current.",
+      "The Dashboard appears faster when you reload the app, and large profiles load noticeably quicker.",
+      "Extra safeguards when you switch profiles or turn on password protection, so one profile's numbers never show up under another.",
+      "Exported CSV files are safer to open in a spreadsheet: text that looks like a formula is marked so it cannot run.",
+      "Wording is more consistent: the app now calls them transactions everywhere, including Help and the Ask the Vault messages.",
+    ],
+    "Bug fixes": [
+      "Fixed pages, such as Reports and Investments, that let you scroll past the bottom of the screen. Scrolling now stays inside the page's main area in every style.",
+      "Fixed a misaligned button next to the local network port on the phone setup screen.",
+      "The \"over budget\" label is easier to read.",
+    ],
+  },
   "1.1.2": [
     "Ledger columns are now sortable — click a header to sort by it, click again to flip direction.",
     "The Ledger's account filter is now a dropdown grouped by account type, with a checkbox per account so you can filter to several at once.",

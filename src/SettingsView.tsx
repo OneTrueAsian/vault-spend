@@ -6,7 +6,7 @@ import type { AppSettings, Backup, BackgroundSettings, LivePriceProviderId, Live
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { RulesManager } from "./RulesManager";
 import { StatementLayoutsSection } from "./StatementLayoutsSection";
-import { CHANGELOG } from "./changelog";
+import { CHANGELOG, changelogSections } from "./changelog";
 import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
 import { ProfileProtectionSection } from "./ProfileProtectionSection";
 import { ProtectionLeftovers } from "./ProtectionLeftovers";
@@ -1083,11 +1083,16 @@ function ReleaseNotesSection({ currentVersion }: { currentVersion: string | null
               <span>Version {v}</span>
               {v === currentVersion && <span className="release-note-current">Current</span>}
             </summary>
-            <ul className="modal-changelog-list">
-              {CHANGELOG[v].map((note, j) => (
-                <li key={j}>{note}</li>
-              ))}
-            </ul>
+            {changelogSections(CHANGELOG[v]).map(({ heading, notes }) => (
+              <section key={heading ?? ""}>
+                {heading && <h3 className="modal-changelog-heading">{heading}</h3>}
+                <ul className="modal-changelog-list">
+                  {notes.map((note, j) => (
+                    <li key={j}>{note}</li>
+                  ))}
+                </ul>
+              </section>
+            ))}
           </details>
         ))}
       </div>

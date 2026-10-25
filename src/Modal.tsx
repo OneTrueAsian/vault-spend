@@ -1,6 +1,7 @@
 import { EditableCombobox } from "./EditableCombobox";
 import { FinancialReadState } from "./FinancialReadState";
 import "./Modal.css";
+import { changelogSections, type ChangelogEntry } from "./changelog";
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
@@ -232,16 +233,21 @@ export function WhatsNewDialog({
   onClose,
 }: {
   version: string;
-  notes: string[];
+  notes: ChangelogEntry;
   onClose: () => void;
 }) {
   return (
     <ModalShell title={`What's new in ${version}`} onCancel={onClose} wide>
-      <ul className="modal-changelog-list">
-        {notes.map((note, i) => (
-          <li key={i}>{note}</li>
-        ))}
-      </ul>
+      {changelogSections(notes).map(({ heading, notes: items }) => (
+        <section key={heading ?? ""}>
+          {heading && <h3 className="modal-changelog-heading">{heading}</h3>}
+          <ul className="modal-changelog-list">
+            {items.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))}
+          </ul>
+        </section>
+      ))}
       <div className="modal-actions">
         <button type="button" onClick={onClose}>
           Got it
