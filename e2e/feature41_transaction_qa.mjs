@@ -13,6 +13,7 @@ import { launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth, monthFromNow } from "./lib/dates.mjs";
 import { runAskLayoutChecks } from "./lib/askLayoutChecks.mjs";
+import { waitForAskDialog } from "./lib/askDialogWait.mjs";
 import fs from "node:fs";
 import { invoke } from "./lib/change-password.mjs";
 import { assertTrafficAudit, installTrafficRecorder } from "./askVaultTrafficAudit.mjs";
@@ -210,7 +211,7 @@ try {
   await app.browser.keys("Backspace");
   await scenarioInput.addValue(`Cut Dining Out by $5 once on ${dateInMonth(1, 15)}`);
   await (await (await app.browser.$(".ledger-qa-card")).$("button=Ask")).click();
-  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Check these details"), { timeout: 8000 });
+  await waitForAskDialog(app.browser, "Check these details", { timeout: 8000 });
   if (await app.browser.$(".scenario-total").isExisting()) throw new Error("no scenario result before confirmation");
   const review = await app.browser.$("[role='dialog']");
   const reviewText = await review.getText();
@@ -232,7 +233,7 @@ try {
   await app.browser.keys("Backspace");
   await saveInput.addValue(`Help me save $5 on Dining Out once on ${dateInMonth(1, 15)}`);
   await (await (await app.browser.$(".ledger-qa-card")).$("button=Ask")).click();
-  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Check these details"), { timeout: 8000, timeoutMsg: "a plain save phrase for one category should reach the spending-cut review" });
+  await waitForAskDialog(app.browser, "Check these details", { timeout: 8000, timeoutMsg: "a plain save phrase for one category should reach the spending-cut review" });
   const saveReview = await (await app.browser.$("[role='dialog']")).getText();
   if (!saveReview.includes("$95.00")) throw new Error(`the review must use the native baseline: ${saveReview}`);
   if (!saveReview.includes("This assumes you spend $5.00 less on Dining Out once, on ") || !saveReview.includes("It is a what-if, not advice, and nothing in your budget changes.")) throw new Error(`the review must state the assumption: ${saveReview}`);
@@ -245,7 +246,7 @@ try {
   await (await app.browser.$("button=What if I cut Groceries by $50 a month?")).click();
   if ((await (await app.browser.$(".ledger-qa-card input")).getValue()) !== "What if I cut Groceries by $50 a month?") throw new Error("the example must fill the box with exactly its sentence");
   await (await (await app.browser.$(".ledger-qa-card")).$("button=Ask")).click();
-  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").isExisting()) && (await app.browser.$("[role='dialog']").getText()).includes("Groceries"), { timeout: 8000, timeoutMsg: "the example should open the spending-cut choices for Groceries" });
+  await waitForAskDialog(app.browser, "Groceries", { timeout: 8000, timeoutMsg: "the example should open the spending-cut choices for Groceries" });
   await app.browser.keys("Escape");
   await app.browser.waitUntil(async () => !(await app.browser.$("[role='dialog']").isExisting()), { timeout: 5000 });
   await (await app.browser.$("button=Hide tips")).click();
@@ -266,12 +267,12 @@ try {
   await cutInput.click(); await app.browser.keys(["Control", "a"]); await app.browser.keys("Backspace");
   await cutInput.addValue(`Save $5 monthly across Dining Out with Dining Out floor $0 and maximum cut 100% from ${dateInMonth(1, 1)} through ${dateInMonth(2, 28)}`);
   await (await app.browser.$(".ledger-qa-card")).$("button=Ask").click();
-  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Where would you like to cut back?"), { timeout: 5000 });
+  await waitForAskDialog(app.browser, "Where would you like to cut back?", { timeout: 5000 });
   // The final month may be partial: deliberately choose inclusive daily proration if prompted.
   const partChoice = await app.browser.$('label*=Count the part month by the day');
   if (await partChoice.isExisting()) await (await partChoice.$('input')).click();
   await app.browser.$('button=Review the details').click();
-  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Check every detail"), { timeout: 8000 });
+  await waitForAskDialog(app.browser, "Check every detail", { timeout: 8000 });
   if (await app.browser.$('.cut-preview-results').isExisting()) throw new Error('M4 cannot calculate before final consent');
   if (!(await app.browser.$("[role='dialog']").getText()).includes('$95.00')) throw new Error('M4 must review the native95.00 evidence');
   const shortChoice = await app.browser.$('label*=Use 2 recorded months for Dining Out');
@@ -294,7 +295,7 @@ try {
   await app.browser.$('input[aria-label="Dining Out monthly floor"]').setValue('0');
   if (await partChoice.isExisting()) await (await partChoice.$('input')).click();
   await app.browser.$('button=Review the details').click();
-  await app.browser.waitUntil(async () => (await app.browser.$("[role='dialog']").getText()).includes("Check every detail"), { timeout: 8000 });
+  await waitForAskDialog(app.browser, "Check every detail", { timeout: 8000 });
   if (await shortChoice.isExisting()) await (await shortChoice.$('input')).click();
   if (await app.browser.$('.cut-preview-results').isExisting()) throw new Error('Natural wording is not calculation consent');
   await app.browser.$('button=Show the preview').click();
