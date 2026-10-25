@@ -5,6 +5,7 @@ import { chooseStyle, launchApp } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { invoke } from "./lib/change-password.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
+import { askPreparedQuestion } from "./lib/askPreparedQuestion.mjs";
 
 // M5 acceptance in the compiled app: the Ask card takes a question about extra money into one investment account through
 // choices, a review of the saved plan, a re-read bound to the reviewed revision, and a result. It must retire itself on an
@@ -33,19 +34,8 @@ async function openDashboard() {
   await (await b.$(".nav-item[data-tab=dashboard]")).click();
   await (await b.$(".ledger-qa-card input")).waitForExist({ timeout: 10000 });
 }
-async function ask(question) {
-  const input = await b.$(".ledger-qa-card input");
-  await input.click();
-  await b.execute(el => { el.select(); }, input);
-  await input.setValue(question);
-  // The field must hold exactly what was meant (see lib/askRetirement.mjs): damaged text would look like a product refusal. A mismatch is typed again and printed.
-  for (let attempt = 1; (await input.getValue()) !== question; attempt++) {
-    console.log(`[feature304] the field held "${await input.getValue()}" instead of the question (attempt ${attempt}); typing it again`);
-    assert.ok(attempt < 3, `the question could not be typed intact: "${await input.getValue()}"`);
-    await b.execute(el => { el.select(); }, input); await input.setValue(question);
-  }
-  await (await (await b.$(".ledger-qa-card")).$("button=Ask")).click();
-}
+const ask = question => askPreparedQuestion(b, question);
+
 async function waitText(fragment, label, timeout = 10000) {
   try { await b.waitUntil(async () => (await dialogOpen()) && (await text()).includes(fragment), { timeout }); }
   catch { throw new Error(`${label}: the dialog should say "${fragment}"; it says "${(await dialogOpen()) ? await text() : "(no dialog)"}"`); }
