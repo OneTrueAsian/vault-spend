@@ -59,6 +59,11 @@ describe.each(["release-windows.yml", "prepare-signed-installers.yml"])("hosted 
   it("retains medium integrity, serial full coverage and the hosted timeout", () => {
     for (const gate of ["smoke", "full"]) expect(gateStep(gate)).toContain("--integrity Medium --direct");
     expect(gateStep("full")).toContain("VAULTSPEND_E2E_SPEC_TIMEOUT_MS: '180000'");
-    expect(fs.readFileSync("tools/run-hosted-desktop-tests.ps1", "utf8")).toContain("@('run', 'e2e', '--', '--concurrency=1')");
+    expect(fs.readFileSync("tools/run-hosted-desktop-tests.ps1", "utf8")).toContain("@('run', 'e2e', '--', '--concurrency=1', '--retry-failed')");
+  });
+  it("retries a failed full-gate spec once, alone, and only in the full gate", () => {
+    const script = fs.readFileSync("tools/run-hosted-desktop-tests.ps1", "utf8");
+    expect(script.match(/--retry-failed/g)).toHaveLength(1);
+    expect(script.slice(script.indexOf("if ($Gate -eq 'smoke')"), script.indexOf("} else {"))).not.toContain("--retry-failed");
   });
 });

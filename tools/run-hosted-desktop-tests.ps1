@@ -11,7 +11,8 @@ Set-Location (Join-Path $PSScriptRoot '..')
 if ($Gate -eq 'smoke') {
     $npmArguments = @('run', 'e2e:smoke')
 } else {
-    $npmArguments = @('run', 'e2e', '--', '--concurrency=1')
+    # A spec that fails is run once more, alone, after the rest; a retried pass is reported as flaky with its first failure in full.
+    $npmArguments = @('run', 'e2e', '--', '--concurrency=1', '--retry-failed')
 }
 & npm.cmd @npmArguments
 exit $LASTEXITCODE

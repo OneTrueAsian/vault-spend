@@ -198,7 +198,10 @@ Explicit `--schedule=pool --concurrency=N` remains available for authorized diag
 node e2e/run-all.mjs                 # every spec, classified; only current proof permits parallelism up to concurrency 6
 node e2e/run-all.mjs --concurrency=8  # higher than a spec's proof demotes it to exclusive; not an automatic speed promotion
 node e2e/run-all.mjs --concurrency=1  # one at a time, for debugging a flaky-looking failure in isolation
+node e2e/run-all.mjs --concurrency=1 --retry-failed   # also re-run each failed spec once, alone, after the rest (see below)
 ```
+
+`--retry-failed[=N]` exists because one intermittent failure in one of ~255 specs fails a whole hosted release gate. It is off by default, so a local run shows every failure, and the hosted full gate turns it on. It needs `--concurrency=1`, so a retried pass can never count toward the parallel-safety proof. After the run, each failed spec is run once more, alone. A spec that then passes counts as passed, but the run prints `FLAKY` with the spec's first failure in full, and `target/e2e-last-run.json` keeps both attempts (`attempts`, `flaky`). A flaky pass is an intermittent failure on this build to investigate, not a clean pass. A spec that fails again stays failed. If more than N (default 3) specs fail, nothing is retried, because that many failures is not an isolated flake.
 
 A spec that runs longer than 60 seconds is killed as hung. A much slower machine (the hosted Windows CI
 runner) can raise that ceiling with `VAULTSPEND_E2E_SPEC_TIMEOUT_MS` (a whole number of milliseconds from

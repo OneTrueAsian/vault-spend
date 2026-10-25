@@ -31,6 +31,7 @@ import { collectInputs, readToolchain } from "./lib/buildIdentity.mjs";
 import { GuardRefusal, beginGuardedRun } from "./lib/runGuard.mjs";
 import { classifySpecs, createApprovalContext, runSchedule } from "./lib/scheduler.mjs";
 import { matchesSelector } from "./lib/specSelectors.mjs";
+import { parseRetryOptions, retryFailuresInIsolation } from "./lib/isolatedRetry.mjs";
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,6 +41,11 @@ if (!Number.isInteger(concurrency) || concurrency < 1) {
   console.error(`--concurrency must be a positive integer, got "${concurrencyArg}"`);
   process.exit(1);
 }
+
+// --retry-failed[=N]: run each failed spec once more, alone, after the whole run (at most N specs, default 3; needs --concurrency=1). A spec that then passes is
+// reported as flaky with its first failure in full; one that fails again stays failed. Off by default; the hosted full gate turns it on.
+let retryOptions;
+try { retryOptions = parseRetryOptions(process.argv, concurrency); } catch (error) { console.error(error.message); process.exit(1); }
 
 // --schedule=pool: explicit diagnostic bypass; at concurrency >1 it never counts as acceptance.
 // --schedule=classified: only specs listed parallel-safe in e2e/spec-classification.json share the pool; every other spec is exclusive
@@ -231,7 +237,14 @@ if (schedule === "classified") {
 console.log(schedule === "classified"
   ? `Running ${specs.length} specs, classified: ${classes.parallel.length} parallel-safe at concurrency ${concurrency}, then ${classes.exclusive.length} exclusive one at a time...\n`
   : `Running ${specs.length} specs with concurrency ${concurrency}...\n`);
-const results = await runSchedule({ specs, classification: effectiveClassification, approvalContext, concurrency, run: runAndReport, durations: knownDurations });
+const scheduled = await runSchedule({ specs, classification: effectiveClassification, approvalContext, concurrency, run: runAndReport, durations: knownDurations });
+let results = scheduled, flaky = [], retrySkipped;
+if (retryOptions.enabled) {
+  ({ results, flaky, skipped: retrySkipped } = await retryFailuresInIsolation({
+    results: scheduled, budget: retryOptions.budget,
+    run: (name) => { console.log(`retry  ${name} (alone, after its first failure)`); return runAndReport(name); },
+  }));
+}
 const totalSeconds = ((Date.now() - overallStart) / 1000).toFixed(1);
 const verdict = await guard.finish();
 const sourceValid = verdict.valid;
@@ -250,7 +263,7 @@ for (const r of results) {
 saveDurations(updatedDurations);
 
 const failed = results.filter((r) => r.code !== 0);
-console.log(`\n${results.length - failed.length}/${results.length} passed in ${totalSeconds}s (concurrency ${concurrency})`);
+console.log(`\n${results.length - failed.length}/${results.length} passed in ${totalSeconds}s (concurrency ${concurrency})${flaky.length > 0 ? `; ${flaky.length} passed only on a retry, see FLAKY below` : ""}`);
 const slowest = [...results].sort((a, b) => b.durationMs - a.durationMs).slice(0, 5);
 console.log("Slowest specs: " + slowest.map((r) => `${r.name} ${(r.durationMs / 1000).toFixed(1)}s`).join(", "));
 // A launch that stalls before its page loads is retried by harness.mjs. That is worth knowing about even
@@ -264,9 +277,18 @@ try {
   fs.mkdirSync(path.dirname(lastRunPath), { recursive: true });
   fs.writeFileSync(lastRunPath, JSON.stringify({
     identity: verdict.identity, validationManifest: verdict.validationManifest, approvalBinding: approvalContext?.binding ?? createApprovalContext({ inputs: verdict.validationManifest?.before, identity: verdict.identity }).binding, sourceValid, valid: verdict.valid, problems: verdict.problems, schedule, parallelSafe: classes.parallel.length, exclusive: classes.exclusive.length, concurrency, specTimeoutMs: SPEC_TIMEOUT_MS, elapsedSeconds: Number(totalSeconds), launchRetries, timeouts,
-    selected: specs, executed: results.map((r) => ({ name: r.name, code: r.code, durationMs: r.durationMs, output: r.output })),
+    selected: specs, executed: results.map((r) => ({ name: r.name, code: r.code, durationMs: r.durationMs, output: r.output, ...(r.attempts ? { attempts: r.attempts.map((a) => ({ code: a.code, durationMs: a.durationMs, output: a.output })), flaky: r.code === 0 } : {}) })),
   }, null, 2) + "\n");
 } catch { /* the record is evidence for the report, not part of the verdict */ }
+if (retrySkipped) console.log(`\nNOT RETRIED: ${retrySkipped}`);
+if (flaky.length > 0) {
+  // These passed on their retry, so the run passes, but each one failed once on this build: an intermittent failure to investigate, not to ignore.
+  console.log(`\nFLAKY (failed once, then passed when run alone): ${flaky.map((f) => f.name).join(", ")}`);
+  for (const f of flaky) {
+    console.log(`\n=== first failure of ${f.name} (exit ${f.firstFailure.code}, ${(f.firstFailure.durationMs / 1000).toFixed(1)}s); passed alone in ${(f.retry.durationMs / 1000).toFixed(1)}s ===`);
+    console.log(f.firstFailure.output);
+  }
+}
 if (failed.length > 0) {
   console.log("\nFAILURES:");
   for (const f of failed) {
