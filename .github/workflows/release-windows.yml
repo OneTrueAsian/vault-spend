@@ -41,6 +41,10 @@ jobs:
       run:
         shell: pwsh
     steps:
+      - name: Use LF line endings for checkout
+        # Windows checkouts default to CRLF, and the Tauri CLI rewrites src-tauri/Cargo.toml to LF during the desktop test
+        # build. The build-identity check then sees a changed input and refuses the executable.
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           # Diagnostics can validate an unpublished harness fix without changing a release tag.
