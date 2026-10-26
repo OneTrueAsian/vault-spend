@@ -56,6 +56,8 @@ tx(everyday, "${day(-2, 12)}", "Gas Station", "-30.00")
 
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Riverbend Checking', 'checking', '0.00')")
 
+cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Corner Credit Union', 'checking', '0.00')")
+
 cur.execute("INSERT INTO accounts (name, account_type, starting_balance) VALUES ('Harborview Brokerage', 'investment', '0.00')")
 broker = cur.lastrowid
 tx(broker, "${day(-2, 2)}", "Deposit from bank", "1000.00")
@@ -138,6 +140,18 @@ tx(card, "${day(-2, 21)}", "Fuel Stop", "-38.40")
   // A picture of a statement: no text to read.
   write("7-picture-only.pdf", buildPdf([[]]));
 
+  // Corner Credit Union: transaction downloads (CSV) whose column names the app doesn't know. Import them
+  // with "Import transactions" into Corner Credit Union to try the "Match your columns" window.
+  const csv = (header, rows) => [header, ...rows.map(([d, desc, amt]) => `${d},${desc},${amt}`), ""].join("\n");
+  const cornerRows = (offset) => [
+    [day(offset, 3), "Corner Cafe", "-12.50"],
+    [day(offset, 4), "Bravo Market", "-40.00"],
+    [day(offset, 5), "Employer Payroll", "1500.00"],
+  ];
+  write("8-corner-download-unfamiliar-headers.csv", csv("Posted,Memo,Amt", cornerRows(-1)));
+  write("9-corner-download-same-headers.csv", csv("Posted,Memo,Amt", [[day(0, 2), "Hardware Outlet", "-23.10"]]));
+  write("10-corner-download-renamed-header.csv", csv("Posted,Details,Amt", [[day(0, 3), "Garden Centre", "-18.75"]]));
+
   const range = (start, end) => `${displayDate(start)} to ${displayDate(end)} (type these into the account page as the statement's start and end dates: ${start} and ${end})`;
   fs.writeFileSync(
     path.join(filesDir, "README.txt"),
@@ -154,6 +168,11 @@ tx(card, "${day(-2, 21)}", "Fuel Stop", "-38.40")
       "5-harborview-month-1.pdf Harborview Brokerage, month 1. Cash activity plus share counts (QQQZ differs, VTIZ is new).",
       "6-harborview-month-2.pdf Harborview Brokerage, month 2. Recognized; holdings read without help.",
       "7-picture-only.pdf       A picture of a statement: the app says it can't read it.",
+      "",
+      "Transaction downloads (CSV) for Corner Credit Union, to try \"Match your columns\" (use Import transactions, not Upload a statement):",
+      "8-corner-download-unfamiliar-headers.csv  Columns Posted, Memo, Amt that the app doesn't know: it asks which is which, then remembers.",
+      "9-corner-download-same-headers.csv        Same headers as file 8: imports without asking.",
+      "10-corner-download-renamed-header.csv     Memo is now called Details: it asks again, with the date and amount already picked.",
       "",
     ].join("\n"),
   );

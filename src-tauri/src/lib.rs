@@ -281,6 +281,7 @@ pub fn run() {
             commands::preview_setup_import,
             commands::commit_setup_import,
             commands::count_import_signs,
+            commands::inspect_import_columns,
             commands::flip_transaction_signs,
             commands::preview_import,
             commands::commit_import,

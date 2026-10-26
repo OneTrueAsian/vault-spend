@@ -1,0 +1,73 @@
+.column-mapping-fields {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.column-mapping-field {
+  display: grid;
+  gap: 4px;
+}
+
+.column-mapping-question {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.column-mapping-split {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+
+.column-mapping-caption {
+  margin-bottom: 6px;
+}
+
+.column-mapping-preview {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0 0 12px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+}
+
+.column-mapping-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.column-mapping-preview th,
+.column-mapping-preview td {
+  padding: 5px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.column-mapping-preview th {
+  position: sticky;
+  top: 0;
+  background: var(--surface, Canvas);
+}
+
+/* Continue is plainly off until each column is chosen: grey, no hover change, a "not allowed" pointer. */
+[data-column-continue]:disabled,
+[data-column-continue]:disabled:hover {
+  opacity: 1;
+  cursor: not-allowed;
+  background-color: var(--surface-hover);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.column-mapping-problem {
+  margin: 0 0 8px;
+  text-align: right;
+}
+
+.column-mapping-problem:empty {
+  margin: 0;
+}

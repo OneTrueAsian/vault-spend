@@ -44,6 +44,7 @@ export function ModalShell({
   headerAction,
   footer,
   dismissOnOverlayClick = true,
+  panelAttrs,
 }: {
   title: string;
   onCancel: () => void;
@@ -59,6 +60,8 @@ export function ModalShell({
   /** A click outside the panel cancels it. Pass `false` for a dialog holding work a stray click
    * shouldn't throw away (an import review); Escape still cancels. */
   dismissOnOverlayClick?: boolean;
+  /** Extra attributes for the dialog panel, e.g. a `data-*` hook that tests rely on. */
+  panelAttrs?: Record<string, string | number | boolean | undefined>;
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -172,6 +175,7 @@ export function ModalShell({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
+        {...panelAttrs}
       >
         {headerAction ? (
           <div className="modal-header">

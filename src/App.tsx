@@ -87,6 +87,8 @@ import {
   WhatsNewDialog,
 } from "./Modal";
 import { TransactionNotesDialog } from "./TransactionNotesDialog";
+import { ColumnMappingDialog } from "./ColumnMappingDialog";
+import { needsMapping, type ColumnInspection, type ColumnMap, type ColumnMapSource } from "./columnMapping";
 import { importSignSuggestion, type ImportSignCounts, type ImportSignSuggestion } from "./importSigns";
 import {
   DEFAULT_LAYOUT,
@@ -1363,6 +1365,9 @@ function App({
   function askConfirmInvert(accountName?: string, suggestion?: ImportSignSuggestion): Promise<boolean> {
     return new Promise((resolve) => setDialog({ kind: "confirmInvert", resolve, accountName, suggestion }));
   }
+  function askColumnMap(inspection: ColumnInspection, accountName?: string, changing = false): Promise<ColumnMap | null> {
+    return new Promise((resolve) => setDialog({ kind: "columnMapping", resolve, inspection, accountName, changing }));
+  }
   function askCsvExportWarning(): Promise<boolean> {
     return new Promise((resolve) => setDialog({ kind: "csvExportWarning", resolve }));
   }
@@ -2596,10 +2601,39 @@ function App({
     // Offer the answer this account's last import used, or flipping for a credit card file that is mostly
     // positive (charges shown as positive). Reading ahead is only a hint, so a file it can't read asks plainly.
     const account = accounts.find((a) => a.id === accountId);
-    const counts = await invoke<ImportSignCounts>("count_import_signs", { path }).catch(() => null);
+
+    // A CSV whose headers aren't recognised asks which columns are which, before anything is read or saved.
+    // If the look-ahead itself fails, the import below reports the problem the way it always did.
+    let columnMap: ColumnMap | null = null;
+    let columns: { inspection: ColumnInspection; source: ColumnMapSource } | null = null;
+    const inspection = await invoke<ColumnInspection>("inspect_import_columns", { path, accountId }).catch(() => null);
+    if (inspection && !needsMapping(inspection)) {
+      columnMap = inspection.map;
+      if (columnMap) columns = { inspection, source: "saved" };
+    }
+    if (inspection && needsMapping(inspection)) {
+      columnMap = await askColumnMap(inspection, account?.name);
+      if (!columnMap) return; // cancelled: nothing read, nothing saved
+      columns = { inspection, source: "chosen" };
+    }
+
+    const counts = await invoke<ImportSignCounts>("count_import_signs", {
+      path,
+      columnMap,
+      columnHeaders: columnMap && columns ? columns.inspection.headers : null,
+    }).catch(() => null);
     const invertAmounts = await askConfirmInvert(account?.name, importSignSuggestion(account, counts));
 
-    await importReview.begin(path, invertAmounts, accountId);
+    await importReview.begin(path, invertAmounts, accountId, columnMap, columns);
+  }
+
+  /** "Change columns" on the import review: pick other columns for the same file, then read it again. */
+  async function handleChangeImportColumns() {
+    const inspection = importReview.columnsToChange();
+    if (!inspection) return;
+    const account = accounts.find((a) => a.id === importReview.pendingImport?.defaultAccountId);
+    const map = await askColumnMap(inspection, account?.name, true);
+    if (map) await importReview.changeColumns(map);
   }
 
   /** A category fix just saved a rule for each of these merchants (one for a
@@ -3065,7 +3099,7 @@ function App({
 
           {/* Pop-ups over whichever tab started them, so they are in front of the person wherever
               they had scrolled (the setup-data one is started from Settings). */}
-          <ImportReviewDialog review={importReview} accounts={accounts} categoryOptions={categoryOptions} busy={busy} />
+          <ImportReviewDialog review={importReview} accounts={accounts} categoryOptions={categoryOptions} busy={busy} onChangeColumns={handleChangeImportColumns} />
           {pendingSetupImport && (
             <SetupImportReviewDialog
               pending={pendingSetupImport}
@@ -3649,6 +3683,21 @@ function App({
               }}
               onConfirm={() => {
                 dialog.resolve(true);
+                setDialog(null);
+              }}
+            />
+          )}
+          {dialog?.kind === "columnMapping" && (
+            <ColumnMappingDialog
+              inspection={dialog.inspection}
+              accountName={dialog.accountName}
+              changing={dialog.changing}
+              onCancel={() => {
+                dialog.resolve(null);
+                setDialog(null);
+              }}
+              onConfirm={(map) => {
+                dialog.resolve(map);
                 setDialog(null);
               }}
             />

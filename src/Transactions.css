@@ -2346,3 +2346,11 @@ table.ledger.recurring-table .actions-col {
   align-self: center;
   color: var(--text-muted);
 }
+
+.import-review-columns {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 10px;
+  font-size: 13px;
+}

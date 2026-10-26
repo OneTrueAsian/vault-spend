@@ -20,11 +20,14 @@ export function ImportReviewDialog({
   accounts,
   categoryOptions,
   busy,
+  onChangeColumns,
 }: {
   review: ImportReview;
   accounts: Account[];
   categoryOptions: string[];
   busy: boolean;
+  /** Reopens "Match your columns" over the review, to pick other columns for this file. */
+  onChangeColumns?: () => void;
 }) {
   const {
     pendingImport,
@@ -81,6 +84,14 @@ export function ImportReviewDialog({
         {notice && (
           <p role="alert" className="import-review-notice">
             {notice}
+          </p>
+        )}
+        {pendingImport.columnMap && pendingImport.columns && onChangeColumns && (
+          <p className="import-review-columns" data-import-columns-note>
+            <span>{pendingImport.columns.source === "saved" ? "Using the columns you picked last time." : "Using the columns you picked."}</span>
+            <button type="button" className="modal-secondary" data-change-columns onClick={onChangeColumns} disabled={busy}>
+              Change columns
+            </button>
           </p>
         )}
         <p className="dup-review-summary">
