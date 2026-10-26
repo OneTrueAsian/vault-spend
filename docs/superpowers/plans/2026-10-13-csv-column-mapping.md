@@ -298,12 +298,12 @@ fn the_column_is_added_to_an_older_database_and_the_migration_is_idempotent() {
 ### Task 5: End-to-end spec, docs and the full gate
 
 **Files:**
-- Create: `e2e/feature303_csv_column_mapping.mjs` (use the next free number; check `ls e2e | sort -V | tail`), a made-up CSV written to a temp dir by the spec itself
+- Create: `e2e/feature315_csv_column_mapping.mjs` (use the next free number; check `ls e2e | sort -V | tail`), a made-up CSV written to a temp dir by the spec itself
 - Modify: `docs/CSV-EXPORT.md` only if it describes import (check; otherwise add a short "Importing a file with unfamiliar headers" section to the Help text that already documents Import — find it with `grep -rn "Which way do the amounts go" src docs`), `e2e/README.md` if it lists specs
 
 - [ ] **Step 1: Write the spec.** Seed one checking account (`seedFixture`, as in `e2e/feature300_statement_upload.mjs`). Write `bank.csv` with headers `Posted,Memo,Amt` and three made-up rows. Drive the import through the existing helpers used by `feature164_import_review_dialogs.mjs` (find how it chooses a file; the native picker can't be driven, so follow that spec's mechanism). Assert: (1) the "Match your columns" window opens instead of an error; Continue is disabled; (2) after picking date/description/amount it enables and the normal review lists the three rows with the right amounts; (3) importing succeeds; (4) importing a second file with the same headers goes straight to the review with no window; (5) a third file with a renamed header (`Memo` → `Details`) opens the window again with the other fields pre-filled; (6) Cancel on the window imports nothing and leaves the account unchanged.
 
-- [ ] **Step 2: Run** `node e2e/feature303_csv_column_mapping.mjs` — expected to FAIL first if run before Tasks 1-4 are built into the desktop binary; run after `cargo build --workspace --bins; npx tauri build --debug --no-bundle`. Expected: PASS.
+- [ ] **Step 2: Run** `node e2e/feature315_csv_column_mapping.mjs` — expected to FAIL first if run before Tasks 1-4 are built into the desktop binary; run after `cargo build --workspace --bins; npx tauri build --debug --no-bundle`. Expected: PASS.
 
 - [ ] **Step 3: Full gate** (PowerShell, outputs to `$env:TEMP`): `npx vitest run`, `npm run lint`, `npx tsc --noEmit`, `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all -- --check`, then `node e2e/run-all.mjs` (all specs, parallel). A failure is fixed, never deferred, and the gate re-run.
 

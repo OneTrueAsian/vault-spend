@@ -12,7 +12,7 @@
 // dropdowns are the app's MenuSelect, driven with chooseMenuOption. Set VAULTSPEND_E2E_SHOTS to a
 // folder to save a screenshot of the window.
 //
-// Run with: node e2e/run-all.mjs --spec=303
+// Run with: node e2e/run-all.mjs --spec=315
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -59,7 +59,7 @@ const windowOpen = () => browser.execute(() => !!document.querySelector("[data-c
 const field = (name) => browser.$(`button[data-column-field="${name}"]`);
 const continueButton = () => browser.$("button[data-column-continue]");
 async function shot(name) {
-  if (process.env.VAULTSPEND_E2E_SHOTS) await browser.saveScreenshot(`${process.env.VAULTSPEND_E2E_SHOTS}/feature303-${name}.png`);
+  if (process.env.VAULTSPEND_E2E_SHOTS) await browser.saveScreenshot(`${process.env.VAULTSPEND_E2E_SHOTS}/feature315-${name}.png`);
 }
 async function startImport() {
   await (await browser.$("button=Import transactions…")).click();
@@ -207,7 +207,7 @@ try {
   const hotel = (await qqxz()).find((t) => t.description === "QQXZ HOTEL SHOP");
   assert.equal(Number(hotel.amount), -3, "the changed column is what was imported");
 
-  console.log("FEATURE 303 E2E TEST PASSED");
+  console.log("FEATURE 315 E2E TEST PASSED");
 } finally {
   await app.close();
   fs.rmSync(dir, { recursive: true, force: true });

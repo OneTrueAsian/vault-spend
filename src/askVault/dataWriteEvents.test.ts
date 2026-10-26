@@ -22,7 +22,7 @@ const NOT_RELEVANT: string[] = [
   "get_budget_snapshot", "get_cash_flow", "get_comparison_setup", "get_current_generation", "get_dashboard_snapshot", "get_data_file_location",
   "get_financial_comparisons", "get_inflation_pct", "get_legal_notice_acknowledgement", "get_live_price_settings", "get_profile_ui_state", "get_report",
   "get_report_range_snapshot", "get_report_summary_snapshot", "get_startup_state", "get_stats", "get_transaction_context", "get_transaction_snapshot",
-  "get_transaction_snapshot_compact", "get_transaction_splits", "investment_accumulation", "is_ui_state_migrated", "last_reconciliation",
+  "get_transaction_snapshot_compact", "get_transaction_splits", "inspect_import_columns", "investment_accumulation", "is_ui_state_migrated", "last_reconciliation",
   "list_account_transactions", "list_accounts", "list_all_tags", "list_all_transfer_candidate_pairs", "list_allocation_targets", "list_anomaly_flags",
   "list_assets", "list_auto_linked_transfers", "list_backups", "list_buckets", "list_categories", "list_categories_with_icons", "list_family_members",
   "list_holding_import_files", "list_holdings", "list_investment_accumulation", "list_profiles", "list_protection_leftovers", "list_recurring",
