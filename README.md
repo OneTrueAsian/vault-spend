@@ -2,13 +2,13 @@
 
 *Own your Data, Own your Money!*
 
-A local, private budgeting and transaction ledger for Windows and macOS.
+A local, private budgeting and transaction tracker for Windows and macOS.
 There's no service account, no cloud synchronization, and no subscription —
 your main data lives in files on your own computer, in independent profiles you
-can each password-protect. Vault Spend only reaches out to the internet for
-three things: its typefaces from Google Fonts and a check on GitHub for a newer
-version, both when it opens, and live investment prices if you set up a price
-provider. None of them sends your financial data. The full
+can each password-protect. Vault Spend reaches out to the internet for a check
+on GitHub for a newer version and live investment prices if you set up a price
+provider. Its typefaces are bundled locally. Neither service receives your
+transaction data. The full
 [legal notice](docs/LEGAL-NOTICE.md) covers these, estimates, backups and
 recovery codes.
 
@@ -73,6 +73,57 @@ nothing is protected unless you turn it on.
   each shown as a picture. Below 1000 pixels wide the sidebar shows icons,
   with a Show names button.
 
+## Ask the Vault spending previews
+
+On the Dashboard, try **"Where can I cut back to save $200 a month?"** or
+**"Save $200 in total this year"**. Choose a monthly or total-period target,
+up to 20 categories, and an explicit monthly floor and maximum cut for each.
+The preview spreads cuts within those limits and shows the achievable amount,
+maximum and shortfall. It does not choose which obligations are safe to reduce.
+
+Review the preceding three full calendar months. Only sufficiently recorded
+months enter the usual-month average; short history needs your explicit choice,
+and missing history needs your own usual-month amount or removal of the category.
+Recording labels cannot certify import completeness. Choose dates within a
+12-month horizon and confirm remaining-year versus full-year hypothetical and
+partial-month handling where needed, then review every detail before calculating.
+The result labels rounded monthly equivalents and exact allocated target-unit
+amounts separately. It is a local, read-only spending illustration, with no
+investment growth or automatic budget changes. Edits, data refresh, locking and
+profile changes retire the preview; questions and choices are not saved as history.
+
+For a fixed single-category what-if, use **"What if I cut Groceries by $50 a month?"**
+or **"Cut Dining Out by $50 monthly"**, substituting one of your exact saved category names, then choose the dates in the app.
+Wording such as **"Help me save $50 on Groceries each month"** works the same way. The review states the assumption in words
+(you spend that much less on that category), and it is a what-if, not advice, and never changes your budget. The supported phrasing is bounded;
+unresolved or unsupported conditions need a choice or a revised question.
+
+## Ask the Vault: extra money into an investment account
+
+On the Dashboard, try **"Extra $50 a month into Roth IRA until January 2056"**,
+using the name of one of your investment accounts. It looks at one investment
+account at a time: an extra monthly or one-time amount and a retirement month.
+Anything you leave out is asked as a choice, and your plan's saved month is only
+offered as a button, never chosen for you. You confirm the account's recorded
+value, the amount you add now and your plan's saved return once; without a saved
+return you still see the exact extra deposits and a no-growth balance, and can
+type a return of your own. If you write "Save $50 a month into Roth IRA" without saying the money is extra,
+it first asks "Do you mean adding an extra $50 a month to this account?", and a Yes continues with the same account, amount and dates.
+**Change the details** asks again for the account,
+amount, how often and the month. If the numbers would be too large to show exactly,
+you see "A few details need attention" and nothing is calculated; choose **Change the details**,
+then a nearer month or a smaller return, and confirm again.
+
+The result shows an illustrative balance at the retirement month, with and
+without the extra, with no investment growth and with your confirmed return;
+balances are rounded and the exact extra deposits are shown to the cent. You can
+explore other returns you choose, and show amounts in today's dollars using the
+inflation you confirm. These are illustrations, not predictions, and leave out
+taxes, fees, an employer match, contribution limits and advice. Nothing is saved
+or changed and the question is not kept. A related write, a new day, locking,
+profile switching or editing the question closes the result. Everything stays on
+your computer.
+
 ## Mobile snapshots
 
 On the computer, open **Settings → Mobile snapshots → Set up a phone**. The guide explains the local QR connection, one-time certificate installation and trust, and desktop approval of the phone's profiles. Keep both devices on the same private home network. No online account, domain service, financial cloud storage or relay is used.
@@ -88,6 +139,9 @@ Access is remembered. An unlocked phone can read saved copies. Browser storage c
 Support evidence is version-specific. The owner confirmed pairing and functionality on an iPhone 16 Pro using Google Chrome, including all saved data loading in airplane mode with Wi-Fi off. OS/browser versions, tab versus home-screen mode, Android and wider router/macOS acceptance remain separate checks. Do not treat automated desktop browser tests as all-phone support. See Help for the on-screen instructions and `mobile/README.md` for the implementation/testing boundaries.
 
 ## Learn more
+
+For source development, start with the [architecture and invariants guide](docs/ARCHITECTURE.md)
+and [build instructions](docs/BUILDING.md).
 
 Open the **Help** tab inside the app for full guidance on every feature
 above, a searchable FAQ, and troubleshooting. The **?** beside any page's

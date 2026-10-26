@@ -15,6 +15,7 @@ import {
   requestedWindowSize,
   trackWindowSize,
   withFocusRetry,
+  wrapScriptResults,
 } from "./harness.mjs";
 
 // Unit tests for the harness's own logic, against a stand-in for WebdriverIO: no app, no driver. The
@@ -22,6 +23,54 @@ import {
 // close — what a real window losing OS focus to another spec's window does — at a chosen moment.
 
 const realDocument = globalThis.document;
+
+describe("classic WebDriver script results", () => {
+  function classicBrowser() {
+    const deliver = (value) => {
+      if (value?.error) throw new Error(`protocol error: ${value.error}`);
+      return value;
+    };
+    return {
+      overwriteCommand(name, wrapper) {
+        const original = this[name].bind(this);
+        this[name] = (...args) => wrapper(original, ...args);
+      },
+      async execute(script, ...args) {
+        const fn = typeof script === "string" ? new Function(script) : script;
+        return deliver(await fn(...args));
+      },
+      async executeAsync(script, ...args) {
+        const fn = typeof script === "string" ? new Function(script) : script;
+        return new Promise((resolve, reject) => {
+          try {
+            fn(...args, (value) => { try { resolve(deliver(value)); } catch (e) { reject(e); } });
+          } catch (e) { reject(e); }
+        });
+      },
+    };
+  }
+
+  it("preserves expected IPC refusal objects through the classic transport", async () => {
+    const browser = wrapScriptResults(classicBrowser());
+    await expect(browser.executeAsync((message, done) => done({ allowed: false, error: message }), "refused")).resolves.toEqual({ allowed: false, error: "refused" });
+    await expect(browser.execute((message) => ({ error: message }), "refused")).resolves.toEqual({ error: "refused" });
+  });
+
+  it("preserves successful, primitive, null and string-script results", async () => {
+    const browser = wrapScriptResults(classicBrowser());
+    await expect(browser.execute((value) => value, null)).resolves.toBeNull();
+    await expect(browser.execute((value) => value, 12)).resolves.toBe(12);
+    await expect(browser.execute(async () => ({ error: "async refusal" }))).resolves.toEqual({ error: "async refusal" });
+    await expect(browser.executeAsync((done) => done({ ok: [1, 2] }))).resolves.toEqual({ ok: [1, 2] });
+    await expect(browser.execute("return { error: arguments[0] };", "refused")).resolves.toEqual({ error: "refused" });
+  });
+
+  it("continues to reject real script failures", async () => {
+    const browser = wrapScriptResults(classicBrowser());
+    await expect(browser.execute(() => { throw new Error("script failed"); })).rejects.toThrow("script failed");
+    await expect(browser.executeAsync(() => { throw new Error("script failed"); })).rejects.toThrow("script failed");
+  });
+});
 afterEach(() => {
   globalThis.document = realDocument;
 });

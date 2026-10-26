@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeProfile } from "./profileIpc";
 import type { StartupState } from "./startup";
 import { errorMessage } from "./errorMessage";
 
@@ -16,7 +16,7 @@ export function EmptyRegistryScreen({ onResolved }: { onResolved: (next: Startup
     setBusy(true);
     setError("");
     try {
-      await invoke<string>("create_profile", { name });
+      await invokeProfile("create_profile", { name });
       onResolved({ status: "open" });
     } catch (e) {
       setError(errorMessage(e));

@@ -1,0 +1,53 @@
+[
+ {
+  "id": "m5c-002",
+  "text": "What about $100 instead?",
+  "family": "m5:follow-up",
+  "expectedRoute": "ordinary-refusal",
+  "authority": "retirementCorpus.ts frozen route-elsewhere gold; retirementScoringPlan routeNonInterference",
+  "note": "Original frozen gold requires route-elsewhere and labels follow-ups unsupported in first scope. The new test initially assumed legacy callback; ordinary safe refusal also satisfies the older-route boundary. Original corpus/gold unchanged."
+ },
+ {
+  "id": "m5c-072",
+  "text": "how much did I spend on dining last month",
+  "family": "m5:route-elsewhere",
+  "expectedRoute": "ordinary",
+  "authority": "retirementCorpus.ts frozen route-elsewhere gold; retirementScoringPlan routeNonInterference"
+ },
+ {
+  "id": "m5c-073",
+  "text": "what if I spent $50 less on dining each month",
+  "family": "m5:route-elsewhere",
+  "expectedRoute": "m3",
+  "authority": "retirementCorpus.ts frozen route-elsewhere gold; retirementScoringPlan routeNonInterference"
+ },
+ {
+  "id": "m5c-074",
+  "text": "save $300 a month across dining and shopping",
+  "family": "m5:route-elsewhere",
+  "expectedRoute": "m4",
+  "authority": "retirementCorpus.ts frozen route-elsewhere gold; retirementScoringPlan routeNonInterference"
+ },
+ {
+  "id": "m5c-075",
+  "text": "how much did I spend on retirement gifts last month",
+  "family": "m5:route-elsewhere",
+  "expectedRoute": "ordinary",
+  "authority": "retirementCorpus.ts frozen route-elsewhere gold; retirementScoringPlan routeNonInterference"
+ },
+ {
+  "id": "m5c-076",
+  "text": "what is my Roth IRA worth",
+  "family": "m5:route-elsewhere",
+  "expectedRoute": "legacy",
+  "authority": "retirementCorpus.ts frozen route-elsewhere gold; retirementScoringPlan routeNonInterference"
+ },
+ {
+  "id": "m5c-077",
+  "text": "and what about $100 instead",
+  "family": "m5:follow-up",
+  "expectedRoute": "ordinary-refusal",
+  "authority": "retirementCorpus.ts frozen route-elsewhere gold; retirementScoringPlan routeNonInterference",
+  "note": "Original frozen gold requires route-elsewhere and labels follow-ups unsupported in first scope. The new test initially assumed legacy callback; ordinary safe refusal also satisfies the older-route boundary. Original corpus/gold unchanged."
+ }
+]

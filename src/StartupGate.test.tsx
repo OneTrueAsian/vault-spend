@@ -36,7 +36,14 @@ import { StartupGate } from "./StartupGate";
 
 const brokenState = {
   status: "error",
-  error: { kind: "data_file_unreadable", message: "It can't be opened.", details: "x", db_path: "E:\\a.db", can_restore_registry: false, other_profiles: [] },
+  error: {
+    kind: "data_file_unreadable",
+    message: "It can't be opened.",
+    details: "x",
+    db_path: "E:\\a.db",
+    can_restore_registry: false,
+    other_profiles: [],
+  },
 };
 
 describe("StartupGate", () => {
@@ -154,9 +161,9 @@ describe("StartupGate", () => {
       }),
     );
     let answerRecheck: ((state: unknown) => void) | undefined;
-    startup.getStartupState.mockResolvedValueOnce(brokenState).mockImplementationOnce(
-      () => new Promise((resolve) => (answerRecheck = resolve)),
-    );
+    startup.getStartupState
+      .mockResolvedValueOnce(brokenState)
+      .mockImplementationOnce(() => new Promise((resolve) => (answerRecheck = resolve)));
     startup.retryStartup.mockResolvedValue({ status: "open" });
     await mount();
 
@@ -214,5 +221,28 @@ describe("StartupGate", () => {
     await mount();
 
     expect(container.querySelector("[data-empty-registry] h1")?.textContent).toMatch(/no profiles/i);
+  });
+
+  it("fails closed on a malformed profile-state event and rejects a later stale open reply", async () => {
+    let emit: (state: unknown) => void = () => {};
+    let answer: (state: unknown) => void = () => {};
+    listenMock.mockImplementation((_name, handler) => {
+      emit = (payload) => handler({ payload });
+      return Promise.resolve(() => {});
+    });
+    startup.getStartupState.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    await mount();
+    await act(async () => emit({ status: "unexpected", privateValue: "do-not-render-this" }));
+    await act(async () => answer({ status: "open" }));
+    expect(container.querySelector("[data-app]")).toBeNull();
+    expect(container.querySelector("[data-launch-error-kind='startup_failed']")).not.toBeNull();
+    expect(container.textContent).not.toContain("do-not-render-this");
+    await act(async () => emit({ status: "locked", profile_id: "a", profile_name: "Alex" }));
+    expect(container.querySelector("[data-profile-lock-screen]")).not.toBeNull();
   });
 });

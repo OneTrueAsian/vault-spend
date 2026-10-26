@@ -1,0 +1,833 @@
+{
+ "version": "m6-flagged-dispositions-1",
+ "writtenBy": "session bec4530a-cba4-40c4-b585-ecb9aed91bfa, 2026-10-21",
+ "authority": "Owner decision Q1, 21 October 2026; rules in typoRules.json",
+ "standing": [
+  "A unique bounded correction may answer when the contract permits, with the correction disclosed",
+  "Genuine ambiguity must ask",
+  "A permitted candidate choice is a direct-answer miss; a correct completion may count toward the 600",
+  "Flagged supported cases stay in their existing P-CORE denominators",
+  "No universal edit distance or margin, no wider matching, no account aliases"
+ ],
+ "entries": [
+  {
+   "caseId": "m1/101-0168",
+   "text": "how much did I spend at mcdonald's and Spotiify in april",
+   "population": "P-CORE",
+   "family": "m1:several-stores",
+   "flaggedSources": [
+    "m1:101-0168@101",
+    "m2:101-0168@101"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "Spotiify",
+   "intendedSubject": "Spotify",
+   "permittedCandidates": [
+    "spotify"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2026-04-01",
+      "to": "2026-04-30"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [
+     "mcdonalds"
+    ],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-0ce5a47a312808970afdb1e5",
+    "q-0ce5a47a312808970afdb1e5",
+    "q-0ce5a47a312808970afdb1e5"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/101-0176",
+   "text": "dining at Speeway in September 2025",
+   "population": "P-CORE",
+   "family": "m1:store",
+   "flaggedSources": [
+    "m1:101-0176@101",
+    "m2:101-0176@101"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "Speeway",
+   "intendedSubject": "Speedway",
+   "permittedCandidates": [
+    "speedway"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2025-09-01",
+      "to": "2025-09-30"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [
+     "Dining"
+    ],
+    "vendors": [],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-d7d6315186e3fd7ecdcffbb6",
+    "q-d7d6315186e3fd7ecdcffbb6",
+    "q-d7d6315186e3fd7ecdcffbb6"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/101-0189",
+   "text": "what did I spend at Mcdonald's or krroger in August 2025",
+   "population": "P-CORE",
+   "family": "m1:several-stores",
+   "flaggedSources": [
+    "m1:101-0189@101",
+    "m2:101-0189@101"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "krroger",
+   "intendedSubject": "Kroger",
+   "permittedCandidates": [
+    "kroger"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2025-08-01",
+      "to": "2025-08-31"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [
+     "mcdonalds"
+    ],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-252c1186388534f99824ef0d",
+    "q-252c1186388534f99824ef0d",
+    "q-252c1186388534f99824ef0d"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/101-0212",
+   "text": "How much did I spend at Wohle foods?",
+   "population": "P-CORE",
+   "family": "m1:store",
+   "flaggedSources": [
+    "m1:101-0212@101",
+    "m2:101-0212@101"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "Wohle foods",
+   "intendedSubject": "Whole Foods",
+   "permittedCandidates": [
+    "whole foods"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2025-07-01",
+      "to": "2026-09-06"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-4c0177817ae7df35370ad78c",
+    "q-4c0177817ae7df35370ad78c",
+    "q-4c0177817ae7df35370ad78c"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/101-0217",
+   "text": "top 4 purchases at walmart, Speedway, Netfliix and aldi in january",
+   "population": "P-CORE",
+   "family": "m1:several-stores",
+   "flaggedSources": [
+    "m1:101-0217@101",
+    "m2:101-0217@101"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "Netfliix",
+   "intendedSubject": "Netflix",
+   "permittedCandidates": [
+    "netflix"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "rank-purchases",
+    "periods": [
+     {
+      "from": "2026-01-01",
+      "to": "2026-01-31"
+     }
+    ],
+    "limit": 4,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [
+     "walmart",
+     "speedway",
+     "aldi"
+    ],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-58fbebd56f3db29321bb565b",
+    "q-58fbebd56f3db29321bb565b",
+    "q-58fbebd56f3db29321bb565b"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/202-0174",
+   "text": "travel at walgreens, Sehll and mcdonald's in 2025",
+   "population": "P-CORE",
+   "family": "m1:several-stores",
+   "flaggedSources": [
+    "m1:202-0174@202",
+    "m2:202-0174@202"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "Sehll",
+   "intendedSubject": "Shell",
+   "permittedCandidates": [
+    "shell"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2025-01-01",
+      "to": "2025-12-31"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [
+     "Travel"
+    ],
+    "vendors": [
+     "walgreens",
+     "mcdonalds"
+    ],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-861fb2a16f4a33b79ceaa736",
+    "q-861fb2a16f4a33b79ceaa736",
+    "q-861fb2a16f4a33b79ceaa736"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/303-0166",
+   "text": "top 5 dininng purchases yesterday",
+   "population": "P-CORE",
+   "family": "m1:rank-purchases",
+   "flaggedSources": [
+    "m1:303-0166@303",
+    "m2:303-0166@303"
+   ],
+   "entityClass": "ordinary-entity",
+   "rule": "R-ORDINARY",
+   "typedClause": "dininng",
+   "intendedSubject": "Dining",
+   "permittedCandidates": [
+    "Dining",
+    "Dining Out"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "rank-purchases",
+    "periods": [
+     {
+      "from": "2027-01-30",
+      "to": "2027-01-30"
+     }
+    ],
+    "limit": 5,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-faf768db20825a1ab49915a2",
+    "q-faf768db20825a1ab49915a2",
+    "q-faf768db20825a1ab49915a2"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/303-0172",
+   "text": "travle purchases over $1,500 in October 2026",
+   "population": "P-CORE",
+   "family": "m1:threshold",
+   "flaggedSources": [
+    "m1:303-0172@303",
+    "m2:303-0172@303"
+   ],
+   "entityClass": "ordinary-entity",
+   "rule": "R-ORDINARY",
+   "typedClause": "travle",
+   "intendedSubject": "Travel",
+   "permittedCandidates": [
+    "Travel",
+    "Travel Card"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2026-10-01",
+      "to": "2026-10-31"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": {
+     "amount": "1500.00",
+     "inclusive": false
+    },
+    "categories": [],
+    "vendors": [],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-0573a619ff8f59e5f960ec41",
+    "q-0573a619ff8f59e5f960ec41",
+    "q-0573a619ff8f59e5f960ec41"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/303-0176",
+   "text": "what did I spend at costco gas, spotify, target or krroger in January 2027",
+   "population": "P-CORE",
+   "family": "m1:several-stores",
+   "flaggedSources": [
+    "m1:303-0176@303",
+    "m2:303-0176@303"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "krroger",
+   "intendedSubject": "Kroger",
+   "permittedCandidates": [
+    "kroger"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2027-01-01",
+      "to": "2027-01-31"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [
+     "costco gas",
+     "spotify",
+     "target"
+    ],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-65d63d3497f8df1ca05f4780",
+    "q-65d63d3497f8df1ca05f4780",
+    "q-65d63d3497f8df1ca05f4780"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/303-0182",
+   "text": "what did I spend at costtco gas, aldi, mcdonald's or walgreens in December 2025",
+   "population": "P-CORE",
+   "family": "m1:several-stores",
+   "flaggedSources": [
+    "m1:303-0182@303",
+    "m2:303-0182@303"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "costtco gas",
+   "intendedSubject": "Costco Gas",
+   "permittedCandidates": [
+    "costco gas"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2025-12-01",
+      "to": "2025-12-31"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [
+     "aldi",
+     "mcdonalds",
+     "walgreens"
+    ],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-b49c6bb6f7f58c312a1913c3",
+    "q-b49c6bb6f7f58c312a1913c3",
+    "q-b49c6bb6f7f58c312a1913c3"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/303-0187",
+   "text": "did I spend more on trvel in February 2026 than in March 2026",
+   "population": "P-CORE",
+   "family": "m1:compare",
+   "flaggedSources": [
+    "m1:303-0187@303",
+    "m2:303-0187@303"
+   ],
+   "entityClass": "ordinary-entity",
+   "rule": "R-ORDINARY",
+   "typedClause": "trvel",
+   "intendedSubject": "Travel",
+   "permittedCandidates": [
+    "Travel",
+    "Travel Card"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "compare",
+    "periods": [
+     {
+      "from": "2026-02-01",
+      "to": "2026-02-28"
+     },
+     {
+      "from": "2026-03-01",
+      "to": "2026-03-31"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-2f409bea9a7ab3a0f2d1d090",
+    "q-2f409bea9a7ab3a0f2d1d090",
+    "q-2f409bea9a7ab3a0f2d1d090"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/303-0192",
+   "text": "how much did I spend at Aldi and petoc last week",
+   "population": "P-CORE",
+   "family": "m1:several-stores",
+   "flaggedSources": [
+    "m1:303-0192@303",
+    "m2:303-0192@303"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "petoc",
+   "intendedSubject": "Petco",
+   "permittedCandidates": [
+    "petco"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2027-01-24",
+      "to": "2027-01-30"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [
+     "aldi"
+    ],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-e125d127e2cdd111e93bc81b",
+    "q-e125d127e2cdd111e93bc81b",
+    "q-e125d127e2cdd111e93bc81b"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m1/303-0214",
+   "text": "top 3 purchases at costcco gas, Sam's club and Target in July 2026",
+   "population": "P-CORE",
+   "family": "m1:several-stores",
+   "flaggedSources": [
+    "m1:303-0214@303",
+    "m2:303-0214@303"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "costcco gas",
+   "intendedSubject": "Costco Gas",
+   "permittedCandidates": [
+    "costco gas"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "rank-purchases",
+    "periods": [
+     {
+      "from": "2026-07-01",
+      "to": "2026-07-31"
+     }
+    ],
+    "limit": 3,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [
+     "sams club",
+     "target"
+    ],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 1,
+    "groupBy": "none",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-27d54fbf098d1be811b7f66e",
+    "q-27d54fbf098d1be811b7f66e",
+    "q-27d54fbf098d1be811b7f66e"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m2/m2-101-0192",
+   "text": "monthly spending at spotiify in July 2026",
+   "population": "P-CORE",
+   "family": "m2:by-month",
+   "flaggedSources": [
+    "m2:m2-101-0192@101"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "Spotiify",
+   "intendedSubject": "Spotify",
+   "permittedCandidates": [
+    "spotify"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2026-07-01",
+      "to": "2026-07-31"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 2,
+    "groupBy": "month",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-167b2fcc0a506ee213bfccb2",
+    "q-167b2fcc0a506ee213bfccb2",
+    "q-167b2fcc0a506ee213bfccb2"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m2/m2-101-0229",
+   "text": "monthly spending at krogeer in the past 2 months",
+   "population": "P-CORE",
+   "family": "m2:by-month",
+   "flaggedSources": [
+    "m2:m2-101-0229@101"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "krogeer",
+   "intendedSubject": "Kroger",
+   "permittedCandidates": [
+    "kroger"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2026-07-06",
+      "to": "2026-09-06"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 2,
+    "groupBy": "month",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-2bedf1c74cd08191cef9fa21",
+    "q-2bedf1c74cd08191cef9fa21",
+    "q-2bedf1c74cd08191cef9fa21"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m2/m2-202-0233",
+   "text": "monthly spending at shhell year to date",
+   "population": "P-CORE",
+   "family": "m2:by-month",
+   "flaggedSources": [
+    "m2:m2-202-0233@202"
+   ],
+   "entityClass": "store",
+   "rule": "R-STORE",
+   "typedClause": "shhell",
+   "intendedSubject": "Shell",
+   "permittedCandidates": [
+    "shell"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2026-01-01",
+      "to": "2026-03-18"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [],
+    "vendors": [],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 2,
+    "groupBy": "month",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-8b8fe2512c2fda83eef72ceb",
+    "q-8b8fe2512c2fda83eef72ceb",
+    "q-8b8fe2512c2fda83eef72ceb"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  },
+  {
+   "caseId": "m2/m2-303-0198",
+   "text": "trael and fuel by month last month",
+   "population": "P-CORE",
+   "family": "m2:by-month",
+   "flaggedSources": [
+    "m2:m2-303-0198@303"
+   ],
+   "entityClass": "ordinary-entity",
+   "rule": "R-ORDINARY",
+   "typedClause": "trael",
+   "intendedSubject": "Travel",
+   "permittedCandidates": [
+    "Travel",
+    "Travel Card"
+   ],
+   "classification": "candidate-choice",
+   "preservedClauses": {
+    "kind": "total",
+    "periods": [
+     {
+      "from": "2026-12-01",
+      "to": "2026-12-31"
+     }
+    ],
+    "limit": 1,
+    "minimumPurchase": null,
+    "categories": [
+     "Fuel"
+    ],
+    "vendors": [],
+    "excludeVendors": [],
+    "excludeCategories": [],
+    "contractVersion": 2,
+    "groupBy": "month",
+    "average": "none"
+   },
+   "goldRequestIds": [
+    "q-75670e52d3269ecbfb22b567",
+    "q-75670e52d3269ecbfb22b567",
+    "q-75670e52d3269ecbfb22b567"
+   ],
+   "countsAs": {
+    "directAnswer": false,
+    "completionCountsToward600": true,
+    "denominator": "P-CORE"
+   }
+  }
+ ]
+}

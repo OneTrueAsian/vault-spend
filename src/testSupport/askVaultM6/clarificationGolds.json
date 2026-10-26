@@ -1,0 +1,1004 @@
+{
+  "version": "original-clarification-golds-1",
+  "source": "M6/parallel/agent-a/task4-corpus-draft/original-generated-cases.json",
+  "sourceSha256": "82ae62bfc80ea0a147a6b8282c54416e0ca1fd7bf4a34c36f470015cb2a80902",
+  "authority": "M1/acceptance/generate.ts; M2/acceptance/generate.ts; Validation-Plan.md VP-05/06/08",
+  "disclosure": "Verbatim pre-existing gold constraints, recovered without running the parser. mustOffer is a required subset, not an invented exhaustive label list. Original cases and expectations are unchanged.",
+  "cases": {
+    "m1/101-0250": {
+      "text": "how much did I spend on home repairs",
+      "family": "m1:missing-period",
+      "sourceCaseId": "101-0250",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/101-0251": {
+      "text": "how much did I spend on dining",
+      "family": "m1:missing-period",
+      "sourceCaseId": "101-0251",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/101-0252": {
+      "text": "total spending",
+      "family": "m1:missing-period",
+      "sourceCaseId": "101-0252",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/101-0253": {
+      "text": "top spending categories in the past 3 months",
+      "family": "m1:missing-count",
+      "sourceCaseId": "101-0253",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/101-0254": {
+      "text": "top 3 spending in december",
+      "family": "m1:which-kind",
+      "sourceCaseId": "101-0254",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Categories",
+          "Purchases"
+        ]
+      }
+    },
+    "m1/101-0255": {
+      "text": "total spending on din in november",
+      "family": "m1:near-duplicate",
+      "sourceCaseId": "101-0255",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Dining",
+          "Dining Out"
+        ]
+      }
+    },
+    "m1/101-0256": {
+      "text": "how much did I spend on dinning last quarter",
+      "family": "m1:near-duplicate",
+      "sourceCaseId": "101-0256",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Dining",
+          "Dining Out"
+        ]
+      }
+    },
+    "m1/101-0257": {
+      "text": "groceries in september",
+      "family": "m1:which-year",
+      "sourceCaseId": "101-0257",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "September 2025",
+          "September 2026"
+        ]
+      }
+    },
+    "m1/101-0258": {
+      "text": "how much did I spend in september",
+      "family": "m1:which-year",
+      "sourceCaseId": "101-0258",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "September 2025",
+          "September 2026"
+        ]
+      }
+    },
+    "m1/101-0259": {
+      "text": "groceries in august",
+      "family": "m1:which-year",
+      "sourceCaseId": "101-0259",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "August 2025",
+          "August 2026"
+        ]
+      }
+    },
+    "m1/101-0260": {
+      "text": "how much did I spend in august",
+      "family": "m1:which-year",
+      "sourceCaseId": "101-0260",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "August 2025",
+          "August 2026"
+        ]
+      }
+    },
+    "m1/101-0261": {
+      "text": "groceries in july",
+      "family": "m1:which-year",
+      "sourceCaseId": "101-0261",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "July 2025",
+          "July 2026"
+        ]
+      }
+    },
+    "m1/101-0262": {
+      "text": "how much did I spend in july",
+      "family": "m1:which-year",
+      "sourceCaseId": "101-0262",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "July 2025",
+          "July 2026"
+        ]
+      }
+    },
+    "m1/101-0263": {
+      "text": "how much did I spend at sam in february",
+      "family": "m1:short-store",
+      "sourceCaseId": "101-0263",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/101-0264": {
+      "text": "what did i spend at sam in June 2026",
+      "family": "m1:short-store",
+      "sourceCaseId": "101-0264",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-101-0301": {
+      "text": "what is my average spending this year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-101-0301",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-101-0302": {
+      "text": "average monthly purchase this year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-101-0302",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-101-0303": {
+      "text": "sam this year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-101-0303",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Sam, a family member"
+        ]
+      }
+    },
+    "m2/m2-101-0304": {
+      "text": "how much did I spend on sam this year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-101-0304",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-101-0305": {
+      "text": "what is my average spending last year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-101-0305",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-101-0306": {
+      "text": "average monthly purchase last year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-101-0306",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-101-0307": {
+      "text": "sam last year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-101-0307",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Sam, a family member"
+        ]
+      }
+    },
+    "m2/m2-101-0308": {
+      "text": "how much did I spend on sam last year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-101-0308",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-101-0309": {
+      "text": "what is my average spending last month",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-101-0309",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-101-0310": {
+      "text": "average monthly purchase last month",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-101-0310",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-101-0311": {
+      "text": "sam last month",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-101-0311",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Sam, a family member"
+        ]
+      }
+    },
+    "m2/m2-101-0312": {
+      "text": "how much did I spend on sam last month",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-101-0312",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-101-0313": {
+      "text": "average monthly education spending in the past 3 months",
+      "family": "m2:partial-months",
+      "sourceCaseId": "m2-101-0313",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-101-0314": {
+      "text": "average monthly clothing spending in the past 4 months",
+      "family": "m2:partial-months",
+      "sourceCaseId": "m2-101-0314",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-101-0315": {
+      "text": "average monthly clothing spending in the past 6 months",
+      "family": "m2:partial-months",
+      "sourceCaseId": "m2-101-0315",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-101-0316": {
+      "text": "spending by month over the past 5 years",
+      "family": "m2:too-many-months",
+      "sourceCaseId": "m2-101-0316",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "The last 12 months",
+          "The last 4 years"
+        ]
+      }
+    },
+    "m2/m2-101-0317": {
+      "text": "what did each family member spend",
+      "family": "m2:missing-period",
+      "sourceCaseId": "m2-101-0317",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-101-0318": {
+      "text": "average monthly transportation spending",
+      "family": "m2:missing-period",
+      "sourceCaseId": "m2-101-0318",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/202-0251": {
+      "text": "how much did I spend on health",
+      "family": "m1:missing-period",
+      "sourceCaseId": "202-0251",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/202-0252": {
+      "text": "how much did I spend on dining",
+      "family": "m1:missing-period",
+      "sourceCaseId": "202-0252",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/202-0253": {
+      "text": "how much did I spend on dining out",
+      "family": "m1:missing-period",
+      "sourceCaseId": "202-0253",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/202-0254": {
+      "text": "total spending",
+      "family": "m1:missing-period",
+      "sourceCaseId": "202-0254",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/202-0255": {
+      "text": "top spending categories in June 2025",
+      "family": "m1:missing-count",
+      "sourceCaseId": "202-0255",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/202-0256": {
+      "text": "top 3 spending in july",
+      "family": "m1:which-kind",
+      "sourceCaseId": "202-0256",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Categories",
+          "Purchases"
+        ]
+      }
+    },
+    "m1/202-0257": {
+      "text": "total spending on din this month",
+      "family": "m1:near-duplicate",
+      "sourceCaseId": "202-0257",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Dining",
+          "Dining Out"
+        ]
+      }
+    },
+    "m1/202-0258": {
+      "text": "how much did I spend on dinning year to date",
+      "family": "m1:near-duplicate",
+      "sourceCaseId": "202-0258",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Dining",
+          "Dining Out"
+        ]
+      }
+    },
+    "m1/202-0259": {
+      "text": "how much did I spend at sam in November 2025",
+      "family": "m1:short-store",
+      "sourceCaseId": "202-0259",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/202-0260": {
+      "text": "what did i spend at sam in july",
+      "family": "m1:short-store",
+      "sourceCaseId": "202-0260",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-202-0300": {
+      "text": "what is my average spending this year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-202-0300",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-202-0301": {
+      "text": "average monthly purchase this year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-202-0301",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-202-0302": {
+      "text": "sam this year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-202-0302",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Sam, a family member"
+        ]
+      }
+    },
+    "m2/m2-202-0303": {
+      "text": "how much did I spend on sam this year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-202-0303",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-202-0304": {
+      "text": "what is my average spending last year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-202-0304",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-202-0305": {
+      "text": "average monthly purchase last year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-202-0305",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-202-0306": {
+      "text": "sam last year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-202-0306",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Sam, a family member"
+        ]
+      }
+    },
+    "m2/m2-202-0307": {
+      "text": "how much did I spend on sam last year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-202-0307",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-202-0308": {
+      "text": "what is my average spending last month",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-202-0308",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-202-0309": {
+      "text": "average monthly purchase last month",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-202-0309",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-202-0310": {
+      "text": "sam last month",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-202-0310",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Sam, a family member"
+        ]
+      }
+    },
+    "m2/m2-202-0311": {
+      "text": "how much did I spend on sam last month",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-202-0311",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-202-0312": {
+      "text": "average monthly travel spending in the past 3 months",
+      "family": "m2:partial-months",
+      "sourceCaseId": "m2-202-0312",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-202-0313": {
+      "text": "average monthly insurance spending in the past 4 months",
+      "family": "m2:partial-months",
+      "sourceCaseId": "m2-202-0313",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-202-0314": {
+      "text": "average monthly shopping spending in the past 6 months",
+      "family": "m2:partial-months",
+      "sourceCaseId": "m2-202-0314",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-202-0315": {
+      "text": "spending by month over the past 5 years",
+      "family": "m2:too-many-months",
+      "sourceCaseId": "m2-202-0315",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "The last 12 months",
+          "The last 4 years"
+        ]
+      }
+    },
+    "m2/m2-202-0316": {
+      "text": "what did each family member spend",
+      "family": "m2:missing-period",
+      "sourceCaseId": "m2-202-0316",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-202-0317": {
+      "text": "average monthly clothing spending",
+      "family": "m2:missing-period",
+      "sourceCaseId": "m2-202-0317",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/303-0251": {
+      "text": "how much did I spend on fuel",
+      "family": "m1:missing-period",
+      "sourceCaseId": "303-0251",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/303-0252": {
+      "text": "how much did I spend on education",
+      "family": "m1:missing-period",
+      "sourceCaseId": "303-0252",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/303-0253": {
+      "text": "total spending",
+      "family": "m1:missing-period",
+      "sourceCaseId": "303-0253",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/303-0254": {
+      "text": "top spending categories in April 2026",
+      "family": "m1:missing-count",
+      "sourceCaseId": "303-0254",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/303-0255": {
+      "text": "top 3 spending in may",
+      "family": "m1:which-kind",
+      "sourceCaseId": "303-0255",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Categories",
+          "Purchases"
+        ]
+      }
+    },
+    "m1/303-0256": {
+      "text": "total spending on din in the past 2 months",
+      "family": "m1:near-duplicate",
+      "sourceCaseId": "303-0256",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Dining",
+          "Dining Out"
+        ]
+      }
+    },
+    "m1/303-0257": {
+      "text": "how much did I spend on dinning in March 2026",
+      "family": "m1:near-duplicate",
+      "sourceCaseId": "303-0257",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Dining",
+          "Dining Out"
+        ]
+      }
+    },
+    "m1/303-0258": {
+      "text": "groceries in january",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0258",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "January 2026",
+          "January 2027"
+        ]
+      }
+    },
+    "m1/303-0259": {
+      "text": "how much did I spend in january",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0259",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "January 2026",
+          "January 2027"
+        ]
+      }
+    },
+    "m1/303-0260": {
+      "text": "groceries in december",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0260",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "December 2025",
+          "December 2026"
+        ]
+      }
+    },
+    "m1/303-0261": {
+      "text": "how much did I spend in december",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0261",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "December 2025",
+          "December 2026"
+        ]
+      }
+    },
+    "m1/303-0262": {
+      "text": "groceries in november",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0262",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "November 2025",
+          "November 2026"
+        ]
+      }
+    },
+    "m1/303-0263": {
+      "text": "how much did I spend in november",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0263",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "November 2025",
+          "November 2026"
+        ]
+      }
+    },
+    "m1/303-0264": {
+      "text": "groceries in october",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0264",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "October 2025",
+          "October 2026"
+        ]
+      }
+    },
+    "m1/303-0265": {
+      "text": "how much did I spend in october",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0265",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "October 2025",
+          "October 2026"
+        ]
+      }
+    },
+    "m1/303-0266": {
+      "text": "groceries in september",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0266",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "September 2025",
+          "September 2026"
+        ]
+      }
+    },
+    "m1/303-0267": {
+      "text": "how much did I spend in september",
+      "family": "m1:which-year",
+      "sourceCaseId": "303-0267",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "September 2025",
+          "September 2026"
+        ]
+      }
+    },
+    "m1/303-0268": {
+      "text": "how much did I spend at sam month to date",
+      "family": "m1:short-store",
+      "sourceCaseId": "303-0268",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m1/303-0269": {
+      "text": "what did i spend at sam this year",
+      "family": "m1:short-store",
+      "sourceCaseId": "303-0269",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-303-0299": {
+      "text": "what is my average spending this year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-303-0299",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-303-0300": {
+      "text": "average monthly purchase this year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-303-0300",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-303-0301": {
+      "text": "sam this year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-303-0301",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Sam, a family member"
+        ]
+      }
+    },
+    "m2/m2-303-0302": {
+      "text": "how much did I spend on sam this year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-303-0302",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-303-0303": {
+      "text": "what is my average spending last year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-303-0303",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-303-0304": {
+      "text": "average monthly purchase last year",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-303-0304",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-303-0305": {
+      "text": "sam last year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-303-0305",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Sam, a family member"
+        ]
+      }
+    },
+    "m2/m2-303-0306": {
+      "text": "how much did I spend on sam last year",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-303-0306",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-303-0307": {
+      "text": "what is my average spending last month",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-303-0307",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-303-0308": {
+      "text": "average monthly purchase last month",
+      "family": "m2:average-basis",
+      "sourceCaseId": "m2-303-0308",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Per purchase",
+          "Per month"
+        ]
+      }
+    },
+    "m2/m2-303-0309": {
+      "text": "sam last month",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-303-0309",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "Sam, a family member"
+        ]
+      }
+    },
+    "m2/m2-303-0310": {
+      "text": "how much did I spend on sam last month",
+      "family": "m2:member-vs-store",
+      "sourceCaseId": "m2-303-0310",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-303-0311": {
+      "text": "average monthly insurance spending in the past 3 months",
+      "family": "m2:partial-months",
+      "sourceCaseId": "m2-303-0311",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-303-0312": {
+      "text": "average monthly rent spending in the past 4 months",
+      "family": "m2:partial-months",
+      "sourceCaseId": "m2-303-0312",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-303-0313": {
+      "text": "average monthly rent spending in the past 6 months",
+      "family": "m2:partial-months",
+      "sourceCaseId": "m2-303-0313",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-303-0314": {
+      "text": "spending by month over the past 5 years",
+      "family": "m2:too-many-months",
+      "sourceCaseId": "m2-303-0314",
+      "expected": {
+        "status": "clarify",
+        "mustOffer": [
+          "The last 12 months",
+          "The last 4 years"
+        ]
+      }
+    },
+    "m2/m2-303-0315": {
+      "text": "what did each family member spend",
+      "family": "m2:missing-period",
+      "sourceCaseId": "m2-303-0315",
+      "expected": {
+        "status": "clarify"
+      }
+    },
+    "m2/m2-303-0316": {
+      "text": "average monthly shopping spending",
+      "family": "m2:missing-period",
+      "sourceCaseId": "m2-303-0316",
+      "expected": {
+        "status": "clarify"
+      }
+    }
+  }
+}

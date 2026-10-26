@@ -48,7 +48,7 @@ pub fn relocate_data_file(
         Some(key) => AppState::open_with_key(&new_db_path, budget_core::store::DatabaseKey::Raw(key))?,
         None => AppState::open(&new_db_path)?,
     };
-    *state = reopened;
+    state.replace(reopened);
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = new_db_path.clone();
     paths.bump_generation();
     // If the profile that was just live is a registered profile (not the
@@ -161,7 +161,8 @@ pub struct BackupDto {
 
 #[tauri::command]
 pub fn list_backups(paths: tauri::State<crate::config::AppPaths>, state: tauri::State<AppStateHandle>) -> Result<Vec<BackupDto>, String> {
-    let is_encrypted = state.lock()?.store.is_encrypted();
+    let origin = state.lock()?;
+    let is_encrypted = origin.store.is_encrypted();
     let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths), is_encrypted);
     Ok(crate::backups::list_backups(&backups_dir, is_encrypted)?
         .into_iter()
@@ -233,6 +234,9 @@ pub fn set_backup_copy_dir(
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
 ) -> Result<String, String> {
+    // Clearing a mirror is also a profile-specific write. Retain the origin
+    // through both the filesystem operation and device-settings publication.
+    let origin = state.lock()?;
     let profile_id = active_profile_id(&paths);
     let dir = dir.map(|d| d.trim().to_string()).filter(|d| !d.is_empty());
     let Some(dir) = dir else {
@@ -242,7 +246,7 @@ pub fn set_backup_copy_dir(
         return Ok("Backups will no longer be copied to a second folder.".to_string());
     };
 
-    let is_encrypted = state.lock()?.store.is_encrypted();
+    let is_encrypted = origin.store.is_encrypted();
     let backups_dir = crate::backups::backups_dir_for(&current_db_path(&paths), is_encrypted);
     let copy_dir = std::path::Path::new(&dir);
     crate::backups::check_copy_dir(&backups_dir, copy_dir)?;
@@ -285,38 +289,41 @@ pub fn restore_backup(
         return Err("The active profile changed before the backup could be restored.".to_string());
     }
     let runtime = &*state;
-    let mut state = runtime.lock()?;
+    let state = runtime.lock()?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the backup could be restored.".into());
+    }
     let live_db_path = current_db_path(&paths);
     let is_encrypted = state.store.is_encrypted();
+    drop(state);
     let backups_dir = crate::backups::backups_dir_for(&live_db_path, is_encrypted);
     let copy_dir = device
         .snapshot()
         .backup_mirror_dir(&active_profile_id(&paths))
         .map(std::path::PathBuf::from);
-    let profile_id = active_profile_id(&paths);
     let mut restored_key_file = None;
     let restored_dek = if is_encrypted {
-        let remaining = sessions.delay_remaining(&profile_id);
-        if !remaining.is_zero() {
-            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
-        }
         let backup_path = backups_dir.join(&filename);
         let key_file = budget_core::protection::keyfile::KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&backup_path))
             .map_err(|e| e.to_string())?;
-        match key_file.unlock_with_password(password.as_deref().unwrap_or_default()) {
-            Ok(dek) => {
-                sessions.record_success(&profile_id);
-                restored_key_file = Some(key_file);
-                Some(dek)
-            }
-            Err(_) => {
-                sessions.record_failure(&profile_id);
-                return Err("That password didn't work for this backup.".to_string());
-            }
-        }
+        let dek = sessions
+            .check_password(&key_file, password.as_deref().unwrap_or_default())
+            .map_err(|error| {
+                if error == "That password didn't work." {
+                    "That password didn't work for this backup.".to_owned()
+                } else {
+                    error
+                }
+            })?;
+        restored_key_file = Some(key_file);
+        Some(dek)
     } else {
         None
     };
+    let mut state = runtime.lock()?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the backup could be restored.".into());
+    }
     let restored_path = match restored_dek.as_ref() {
         Some(dek) => crate::backups::restore_backup_with_key(
             &state.store,
@@ -338,7 +345,7 @@ pub fn restore_backup(
         Some(dek) => AppState::open_with_key(&restored_path, budget_core::store::DatabaseKey::Raw(dek.as_bytes()))?,
         None => AppState::open(&restored_path)?,
     };
-    *state = reopened;
+    state.replace(reopened);
     // Same registry-sync reasoning as `relocate_data_file` — do this before
     // `restored_path` is moved into `paths.db_path` below.
     crate::profiles::update_active_db_path(&paths.config_path, &live_db_path, &restored_path)?;
@@ -371,7 +378,8 @@ pub fn restore_backup(
 /// back as mojibake. `setup_import::load_setup_csv` strips a leading BOM
 /// back out when reading a file this produced, so the round trip is safe.
 #[tauri::command]
-pub fn write_text_file(path: String, content: String) -> Result<(), String> {
+pub fn write_text_file(path: String, content: String, state: tauri::State<AppStateHandle>) -> Result<(), String> {
+    let _origin = state.lock()?;
     let mut bytes = vec![0xEF, 0xBB, 0xBF];
     bytes.extend_from_slice(content.as_bytes());
     std::fs::write(&path, bytes).map_err(|e| e.to_string())

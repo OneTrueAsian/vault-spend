@@ -1,29 +1,15 @@
-/** A field that's nothing but a plain decimal number (optionally negative)
- * — the shape every amount column in this app's exports actually uses.
- * Recognizing this lets `sanitizeCsvText` defuse formula-shaped text
- * everywhere without also mangling a legitimate negative amount, whose
- * leading `-` would otherwise look identical to a formula's. */
-function isPlainNumber(value: string): boolean {
-  return /^-?\d+(\.\d+)?$/.test(value);
-}
+export type CsvColumnType = "text" | "decimal";
 
-/** Neutralizes "CSV injection": a field whose text starts with `=`, `+`,
- * `-`, or `@` opens as a live formula in Excel/Sheets/LibreOffice instead
- * of literal text — e.g. a transaction description of `=1+1`, or worse, a
- * formula that shells out or pulls from a remote URL. A leading `'` is the
- * standard mitigation (widely used by financial exports): every mainstream
- * spreadsheet app treats it as "force this cell to text" and doesn't
- * display the quote itself, so the visible content is unchanged for a
- * normal description while a formula-shaped one is defused.
- *
- * Skips anything that's already a plain number (see `isPlainNumber`) —
- * this is what lets `toCsv` apply it to *every* field unconditionally
- * (including a numeric amount column) without turning `-50.00` into text
- * and breaking the exact column an export is often opened in a
- * spreadsheet to total up. */
+/** Conservative text prefixing for spreadsheet consumption, not a universal
+ * consumer guarantee. The apostrophe is real CSV data and may remain visible
+ * or survive reimport. Never trim/normalize user text or guess its column type. */
 export function sanitizeCsvText(value: string): string {
-  if (isPlainNumber(value)) return value;
-  return /^[=+\-@]/.test(value) ? `'${value}` : value;
+  // These ranges intentionally detect leading CSV control characters.
+  // eslint-disable-next-line no-control-regex
+  const formula = /^[\s\u0000-\u001f\u007f-\u009f]*[=+\-@＝＋－＠]/;
+  // eslint-disable-next-line no-control-regex
+  const leadingControl = /^\s*[\u0000-\u001f\u007f-\u009f]/;
+  return formula.test(value) || leadingControl.test(value) ? `'${value}` : value;
 }
 
 /** Quotes a single CSV field only when it needs it (contains a comma,
@@ -31,20 +17,29 @@ export function sanitizeCsvText(value: string): string {
  * Checks for a bare `\r` as well as `\n`: a field can contain either on its
  * own (not just the `\r\n` pair this module itself joins rows with), and
  * leaving one unquoted lets it read as an extra row break to any other CSV
- * reader, silently splitting one field into two "records". Also runs every
- * field through `sanitizeCsvText` first — applied here, not left to
- * individual callers, so no export (present or future) can forget it. */
+ * reader, silently splitting one field into two "records". */
 function csvField(value: string): string {
-  const safe = sanitizeCsvText(value);
-  if (/["\r\n,]/.test(safe)) {
-    return `"${safe.replace(/"/g, '""')}"`;
+  if (/["\r\n,]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
   }
-  return safe;
+  return value;
 }
 
-/** Builds CSV text (with a header row) from a table of plain string cells —
- * callers format each value (dates, money, etc.) before passing it in. */
-export function toCsv(headers: string[], rows: string[][]): string {
-  const lines = [headers, ...rows].map((row) => row.map(csvField).join(","));
+/** Decimal strings remain byte-exact (no floating-point conversion). All
+ * undeclared columns are text; headers always receive text safeguards.
+ * CSV is plaintext, with no encryption or reliable spreadsheet cell types. */
+export function toCsv(headers: string[], rows: string[][], types: CsvColumnType[] = headers.map(() => "text")): string {
+  if (types.length !== headers.length) throw new Error("CSV column type count does not match headers");
+  const lines = [headers.map(value => csvField(sanitizeCsvText(value))).join(",")];
+  for (const row of rows) {
+    if (row.length !== headers.length) throw new Error("CSV row width does not match headers");
+    lines.push(row.map((value, column) => {
+      if (types[column] === "decimal") {
+        if (value !== "" && !/^-?\d+(\.\d+)?$/.test(value)) throw new Error("CSV decimal column contains a non-decimal value");
+        return csvField(value);
+      }
+      return csvField(sanitizeCsvText(value));
+    }).join(","));
+  }
   return lines.join("\r\n") + "\r\n";
 }

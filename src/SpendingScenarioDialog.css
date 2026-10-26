@@ -1,0 +1,232 @@
+/* The what-if dialog (M3). Built on the shared Modal shell; every colour is an app token so every style and theme works. */
+
+.scenario-banner {
+  margin: 0 0 12px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.scenario-banner-warn {
+  border-left-color: var(--warning);
+}
+
+.scenario-banner-error {
+  border-left-color: var(--negative);
+}
+
+.scenario-question {
+  border: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  min-width: 0;
+}
+
+.scenario-question legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.scenario-option {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 0 0 6px;
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.scenario-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.scenario-option input {
+  margin-top: 3px;
+}
+
+.scenario-option small {
+  display: block;
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.scenario-terms {
+  margin: 0 0 14px;
+}
+
+.scenario-term {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) 1fr auto;
+  gap: 4px 14px;
+  align-items: baseline;
+  padding: 5px 0;
+}
+
+.scenario-term dt {
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.scenario-term dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.scenario-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  text-decoration: underline;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.scenario-link:hover,
+.scenario-link:focus-visible,
+.scenario-link:active {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .scenario-term {
+    grid-template-columns: 1fr auto;
+  }
+
+  .scenario-term dt {
+    grid-column: 1 / -1;
+  }
+}
+
+.scenario-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0 4px;
+}
+
+.scenario-table caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 0 0 4px;
+}
+
+.scenario-table th,
+.scenario-table td {
+  text-align: left;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+
+.scenario-table .amount-col {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.scenario-tag-out {
+  border-color: var(--warning);
+}
+
+.scenario-result {
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.scenario-result p {
+  margin: 4px 0;
+}
+
+.scenario-lead {
+  font-size: 15px;
+}
+
+.scenario-total {
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-caution {
+  margin: 12px 0 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--border-strong);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.scenario-manual {
+  max-width: 260px;
+}
+
+.scenario-problem {
+  margin: -8px 0 8px;
+  color: var(--negative);
+  font-size: 12.5px;
+}
+
+.scenario-option[aria-disabled="true"] {
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+/* These explanations carry financial assumptions and need full text contrast on glass surfaces. */
+.scenario-secondary {
+  color: var(--text);
+}
+
+.scenario-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+  margin-top: 8px;
+}
+
+.scenario-dates .modal-field {
+  margin-bottom: 8px;
+}
+
+.scenario-dates p {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+}
+
+.scenario-date {
+  max-width: 220px;
+}
+
+@media (max-width: 480px) {
+  .scenario-dates {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A long category name wraps instead of widening the dialog. */
+.scenario-banner,
+.scenario-result,
+.scenario-table th,
+.scenario-option {
+  overflow-wrap: anywhere;
+}

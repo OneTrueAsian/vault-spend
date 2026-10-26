@@ -24,16 +24,17 @@ pub struct ReportDto {
 
 #[tauri::command]
 pub fn get_report(state: tauri::State<AppStateHandle>) -> Result<ReportDto, String> {
-    use chrono::Datelike;
-
     let state = state.lock()?;
-    let today = chrono::Local::now().date_naive();
+    report_for_store(&state.store, chrono::Local::now().date_naive())
+}
+
+pub(super) fn report_for_store(store: &Store, today: chrono::NaiveDate) -> Result<ReportDto, String> {
+    use chrono::Datelike;
     let (year, month) = (today.year(), today.month());
 
-    let total_saved = state.store.total_saved().map_err(|e| e.to_string())?;
-    let income_total = state.store.income_total().map_err(|e| e.to_string())?;
-    let budget_actuals = state
-        .store
+    let total_saved = store.total_saved().map_err(|e| e.to_string())?;
+    let income_total = store.income_total().map_err(|e| e.to_string())?;
+    let budget_actuals = store
         .monthly_budget_actuals(year, month)
         .map_err(|e| e.to_string())?
         .into_iter()
@@ -377,7 +378,11 @@ pub fn cash_flow_for_range(
     state: tauri::State<AppStateHandle>,
 ) -> Result<CashFlowDto, String> {
     let state = state.lock()?;
-    let month_totals = month_totals_for_range(&state.store, from_year, from_month, to_year, to_month, "%b '%y")?;
+    cash_flow_for_store(&state.store, from_year, from_month, to_year, to_month)
+}
+
+pub(super) fn cash_flow_for_store(store: &Store, from_year: i32, from_month: u32, to_year: i32, to_month: u32) -> Result<CashFlowDto, String> {
+    let month_totals = month_totals_for_range(store, from_year, from_month, to_year, to_month, "%b '%y")?;
 
     let mut total_income = Decimal::ZERO;
     let mut total_expense = Decimal::ZERO;
@@ -390,8 +395,7 @@ pub fn cash_flow_for_range(
         chrono::NaiveDate::from_ymd_opt(from_year, from_month, 1).ok_or_else(|| format!("invalid start month: {from_year:04}-{from_month:02}"))?;
     let end_date = last_day_of_month(to_year, to_month);
 
-    let top_categories = state
-        .store
+    let top_categories = store
         .spending_by_category(start_date, end_date)
         .map_err(|e| e.to_string())?
         .into_iter()
@@ -401,8 +405,7 @@ pub fn cash_flow_for_range(
             amount: amount.to_string(),
         })
         .collect();
-    let top_merchants = state
-        .store
+    let top_merchants = store
         .top_merchants(start_date, end_date, 8)
         .map_err(|e| e.to_string())?
         .into_iter()
@@ -639,11 +642,12 @@ pub struct NetWorthPointDto {
 /// read (not "as of the end of a month that hasn't happened yet").
 #[tauri::command]
 pub fn net_worth_history(months: u32, state: tauri::State<AppStateHandle>) -> Result<Vec<NetWorthPointDto>, String> {
-    use chrono::Datelike;
-
     let state = state.lock()?;
-    let today = chrono::Local::now().date_naive();
+    net_worth_for_store(&state.store, chrono::Local::now().date_naive(), months)
+}
 
+pub(super) fn net_worth_for_store(store: &Store, today: chrono::NaiveDate, months: u32) -> Result<Vec<NetWorthPointDto>, String> {
+    use chrono::Datelike;
     let mut year_months = Vec::with_capacity(months as usize);
     let (mut y, mut m) = (today.year(), today.month());
     for _ in 0..months {
@@ -661,7 +665,7 @@ pub fn net_worth_history(months: u32, state: tauri::State<AppStateHandle>) -> Re
     let mut points = Vec::with_capacity(year_months.len());
     for (i, (year, month)) in year_months.into_iter().enumerate() {
         let as_of = if i == last_index { today } else { last_day_of_month(year, month) };
-        let breakdown = state.store.net_worth_breakdown_as_of(as_of).map_err(|e| e.to_string())?;
+        let breakdown = store.net_worth_breakdown_as_of(as_of).map_err(|e| e.to_string())?;
         let label = chrono::NaiveDate::from_ymd_opt(year, month, 1)
             .expect("a year/month this loop generated must be valid")
             .format("%b")

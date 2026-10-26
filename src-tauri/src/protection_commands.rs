@@ -16,6 +16,16 @@ fn current_db_path(paths: &AppPaths) -> std::path::PathBuf {
     paths.db_path.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
+fn current_key_file(paths: &AppPaths, runtime: &AppStateHandle, expected_generation: u64) -> Result<(std::path::PathBuf, KeyFile), String> {
+    let _open = runtime.lock()?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the password could be checked.".into());
+    }
+    let db_path = current_db_path(paths);
+    let key = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&db_path)).map_err(|e| e.to_string())?;
+    Ok((db_path, key))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct AutoLockSettingsDto {
     pub inactivity_minutes: u32,
@@ -125,10 +135,7 @@ pub fn unlock_profile(
     device: tauri::State<DeviceSettingsStore>,
     sessions: tauri::State<Sessions>,
 ) -> Result<StartupState, String> {
-    let remaining = sessions.delay_remaining(&id);
-    if !remaining.is_zero() {
-        return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
-    }
+    let expected_generation = paths.current_generation();
     let target = profiles::registered_profiles_strict(&paths.config_path)
         .map_err(|p| p.reason)?
         .into_iter()
@@ -140,15 +147,11 @@ pub fn unlock_profile(
     }
     let key_file_path = budget_core::protection::keyfile::key_file_path_for(&target.db_path);
     let key_file = KeyFile::read(&key_file_path).map_err(|e| e.to_string())?;
-    let dek = match key_file.unlock_with_password(&password) {
-        Ok(dek) => dek,
-        Err(_) => {
-            sessions.record_failure(&id);
-            return Err("That password didn't work.".to_string());
-        }
-    };
+    let dek = sessions.check_password(&key_file, &password)?;
     let state = AppState::open_with_key(&target.db_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
-    sessions.record_success(&id);
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before this profile could be unlocked.".into());
+    }
     let _ = device.update(|s| s.note_last_used(&id));
     startup::activate(
         &app,
@@ -218,15 +221,22 @@ pub fn enable_profile_protection_with_recovery(
 }
 
 #[tauri::command]
-pub fn verify_current_password(password: String, expected_generation: u64, paths: tauri::State<AppPaths>) -> Result<(), String> {
+pub fn verify_current_password(
+    password: String,
+    expected_generation: u64,
+    paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
+    sessions: tauri::State<Sessions>,
+) -> Result<(), String> {
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the password could be checked.".to_string());
     }
-    let db_path = current_db_path(&paths);
-    let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&db_path)).map_err(|e| e.to_string())?;
-    key_file
-        .unlock_with_password(&password)
-        .map_err(|_| "That password didn't work.".to_string())?;
+    let (_db_path, key_file) = current_key_file(&paths, &runtime, expected_generation)?;
+    sessions.check_password(&key_file, &password)?;
+    let _open = runtime.lock()?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the password could be checked.".into());
+    }
     Ok(())
 }
 
@@ -244,10 +254,14 @@ pub fn change_password(
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the password could be changed.".to_string());
     }
-    let db_path = current_db_path(&paths);
+    let (db_path, key_file) = current_key_file(&paths, &runtime, expected_generation)?;
     let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    sessions.check_password(&key_file, &current_password)?;
     let (key_file, committed_recovery_code, target_path) = {
         let session = runtime.lock()?;
+        if paths.current_generation() != expected_generation {
+            return Err("The active profile changed before this operation could finish.".into());
+        }
         crate::protection_lifecycle::rotate_password_with_recovery(
             &paths.config_path,
             &profile_id,
@@ -274,23 +288,18 @@ pub fn begin_regenerate_recovery(
     current_password: String,
     expected_generation: u64,
     paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
     sessions: tauri::State<Sessions>,
 ) -> Result<SetupChallenge, String> {
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the password could be checked.".to_string());
     }
-    let db_path = current_db_path(&paths);
-    let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
-    let remaining = sessions.delay_remaining(&profile_id);
-    if !remaining.is_zero() {
-        return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
+    let (_db_path, key_file) = current_key_file(&paths, &runtime, expected_generation)?;
+    sessions.check_password(&key_file, &current_password)?;
+    let _open = runtime.lock()?;
+    if paths.current_generation() != expected_generation {
+        return Err("The active profile changed before the password could be checked.".into());
     }
-    let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&db_path)).map_err(|e| e.to_string())?;
-    if key_file.unlock_with_password(&current_password).is_err() {
-        sessions.record_failure(&profile_id);
-        return Err("That password didn't work.".to_string());
-    }
-    sessions.record_success(&profile_id);
     Ok(sessions.begin_setup(&current_password, expected_generation))
 }
 
@@ -299,9 +308,11 @@ pub fn commit_regenerate_recovery(
     token: String,
     answers: [String; 2],
     paths: tauri::State<AppPaths>,
+    runtime: tauri::State<AppStateHandle>,
     sessions: tauri::State<Sessions>,
 ) -> Result<String, String> {
     let (current_password, recovery_code, expected_generation) = sessions.take_verified_setup(&token, &answers)?;
+    let _open = runtime.lock()?;
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the recovery key could be regenerated.".to_string());
     }
@@ -318,14 +329,19 @@ pub fn remove_protection(
     app: tauri::AppHandle,
     paths: tauri::State<AppPaths>,
     runtime: tauri::State<AppStateHandle>,
+    sessions: tauri::State<Sessions>,
 ) -> Result<(), String> {
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before protection could be removed.".to_string());
     }
-    let db_path = current_db_path(&paths);
+    let (db_path, key_file) = current_key_file(&paths, &runtime, expected_generation)?;
     let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
+    sessions.check_password(&key_file, &current_password)?;
     let target_path = {
         let session = runtime.lock()?;
+        if paths.current_generation() != expected_generation {
+            return Err("The active profile changed before this operation could finish.".into());
+        }
         crate::protection_lifecycle::remove_protection(
             &paths.config_path,
             &profile_id,
@@ -348,26 +364,17 @@ pub fn remove_protection(
 /// before the person is asked to choose a new password. `commit_recovery` re-verifies for real
 /// (against the on-disk key file, inside `rotate_dek`) regardless of what this returns. Subject to
 /// the same per-profile attempt delays as a password attempt — the two share one `Sessions` table
-/// keyed on profile id, so a person can't bypass the delay by switching between password and
+/// keyed on the profile key file protection identity, so a person can't bypass the delay by switching between password and
 /// recovery-code guesses.
 #[tauri::command]
 pub fn verify_recovery_code(id: String, code: String, paths: tauri::State<AppPaths>, sessions: tauri::State<Sessions>) -> Result<(), String> {
-    let remaining = sessions.delay_remaining(&id);
-    if !remaining.is_zero() {
-        return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
-    }
     let target = profiles::registered_profiles_strict(&paths.config_path)
         .map_err(|p| p.reason)?
         .into_iter()
         .find(|p| p.id == id)
         .ok_or_else(|| "That profile no longer exists.".to_string())?;
     let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&target.db_path)).map_err(|e| e.to_string())?;
-    let parsed = RecoveryCode::parse(&code).map_err(|_| "That recovery key didn't work.".to_string())?;
-    if key_file.unlock_with_recovery(&parsed).is_err() {
-        sessions.record_failure(&id);
-        return Err("That recovery key didn't work.".to_string());
-    }
-    sessions.record_success(&id);
+    sessions.check_recovery(&key_file, &code)?;
     Ok(())
 }
 
@@ -397,10 +404,10 @@ pub fn begin_recovery(
         .find(|p| p.id == id)
         .ok_or_else(|| "That profile no longer exists.".to_string())?;
     let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&target.db_path)).map_err(|e| e.to_string())?;
-    let parsed = RecoveryCode::parse(&code).map_err(|_| "That recovery key didn't work.".to_string())?;
-    key_file
-        .unlock_with_recovery(&parsed)
-        .map_err(|_| "That recovery key didn't work.".to_string())?;
+    sessions.check_recovery(&key_file, &code)?;
+    if paths.current_generation() != expected_generation {
+        return Err("Something else changed before recovery could continue.".into());
+    }
     Ok(sessions.begin_setup(&new_password, expected_generation))
 }
 
@@ -430,10 +437,11 @@ pub fn commit_recovery(
         .find(|p| p.id == id)
         .ok_or_else(|| "That profile no longer exists.".to_string())?;
     let key_file = KeyFile::read(&budget_core::protection::keyfile::key_file_path_for(&target.db_path)).map_err(|e| e.to_string())?;
+    let dek = sessions.check_recovery(&key_file, &code)?;
     let parsed = RecoveryCode::parse(&code).map_err(|_| "That recovery key didn't work.".to_string())?;
-    let dek = key_file
-        .unlock_with_recovery(&parsed)
-        .map_err(|_| "That recovery key didn't work.".to_string())?;
+    if paths.current_generation() != expected_generation {
+        return Err("Something else changed before recovery could finish.".into());
+    }
     let opened = Store::open_with_key(&target.db_path, DatabaseKey::Raw(dek.as_bytes())).map_err(|e| e.to_string())?;
     let (new_key_file, committed_recovery_code, target_path) = crate::protection_lifecycle::recover_password_with_recovery(
         &paths.config_path,
@@ -535,13 +543,18 @@ pub fn commit_protection_setup(
 /// ProfileEntry::former_plaintext_path`'s doc comment).
 #[tauri::command]
 pub fn list_protection_leftovers(
+    expected_profile_id: String,
+    expected_generation: u64,
     paths: tauri::State<AppPaths>,
     device: tauri::State<DeviceSettingsStore>,
-) -> Vec<crate::protection_leftovers::LeftoverEntry> {
+    runtime: tauri::State<AppStateHandle>,
+) -> Result<Vec<crate::protection_leftovers::LeftoverEntry>, String> {
+    let _open = runtime.lock()?;
+    ensure_cleanup_origin(&paths, &expected_profile_id, expected_generation)?;
     let db_path = current_db_path(&paths);
     let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
-    let Some(former_path) = profiles::former_plaintext_path_for(&paths.config_path, &db_path, &profile_id) else {
-        return Vec::new();
+    let Some(former_path) = profiles::former_plaintext_path_for(&paths.config_path, &db_path, &profile_id)? else {
+        return Ok(Vec::new());
     };
     let mirror = device.snapshot().backup_mirror_dir(&profile_id).map(std::path::PathBuf::from);
     crate::protection_leftovers::list_leftovers(&former_path, mirror.as_deref())
@@ -550,16 +563,31 @@ pub fn list_protection_leftovers(
 #[tauri::command]
 pub fn delete_protection_leftovers(
     paths_to_delete: Vec<String>,
+    expected_profile_id: String,
+    expected_generation: u64,
     paths: tauri::State<AppPaths>,
     device: tauri::State<DeviceSettingsStore>,
+    runtime: tauri::State<AppStateHandle>,
 ) -> Result<Vec<String>, String> {
+    let _open = runtime.lock()?;
+    ensure_cleanup_origin(&paths, &expected_profile_id, expected_generation)?;
     let db_path = current_db_path(&paths);
     let profile_id = profiles::profile_id_for(&paths.config_path, &db_path);
-    let Some(former_path) = profiles::former_plaintext_path_for(&paths.config_path, &db_path, &profile_id) else {
+    let Some(former_path) = profiles::former_plaintext_path_for(&paths.config_path, &db_path, &profile_id)? else {
         return Ok(paths_to_delete);
     };
     let mirror = device.snapshot().backup_mirror_dir(&profile_id).map(std::path::PathBuf::from);
     crate::protection_leftovers::delete_leftovers(&paths_to_delete, &former_path, mirror.as_deref(), &db_path)
+}
+
+/// Called only while holding the runtime slot: transitions cannot change the
+/// profile/path between identity validation, inventory and bounded deletion.
+fn ensure_cleanup_origin(paths: &AppPaths, expected_profile_id: &str, expected_generation: u64) -> Result<(), String> {
+    let db_path = current_db_path(paths);
+    if paths.current_generation() != expected_generation || profiles::profile_id_for(&paths.config_path, &db_path) != expected_profile_id {
+        return Err("The active profile changed before plaintext cleanup could run. Check cleanup status again.".into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]

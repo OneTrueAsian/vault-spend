@@ -11,7 +11,7 @@ import { launchApp, chooseStyle, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
-cur.execute("INSERT INTO accounts (id,name,account_type,starting_balance) VALUES (301,'First Checking','checking','100'),(302,'Second Savings','savings','200'),(303,'Third Savings','savings','300')")
+cur.execute("INSERT INTO accounts (id,name,account_type,starting_balance) VALUES (301,'First Checking','checking','300'),(302,'Second Savings','savings','200'),(303,'Third Savings','savings','100')")
 `);
 const app = await launchApp({ dbDir });
 try {
@@ -20,6 +20,7 @@ try {
   await (await browser.$('button.nav-item[data-tab="accounts"]')).click();
   const first = await browser.$('.account-card[data-account-id="301"]');
   await first.waitForExist({ timeout: 10000, timeoutMsg: "the first account row should show" });
+  assert.deepEqual(await browser.execute(() => [...document.querySelectorAll('.account-card')].map(row => row.dataset.accountId)), ["301", "302", "303"], "the tested picker must have two account rows below it");
   await (await first.$(".type-badge")).click();
   await (await first.$(".icon-picker-popover")).waitForDisplayed({ timeout: 5000, timeoutMsg: "the icon picker should open" });
 
@@ -94,6 +95,9 @@ try {
       await (await browser.$('button.nav-item[data-tab="accounts"]')).click();
       const row = await browser.$('.account-card[data-account-id="301"]');
       await row.waitForDisplayed({ timeout: 5000 });
+      // Palette changes can load a new bundled font after the row is already displayed. Settle
+      // that layout before WebDriver obtains coordinates; no fixed sleep or bypassed pointer click.
+      await browser.executeAsync(done => document.fonts.ready.then(() => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
       await (await row.$(".type-badge")).click();
       await waitUntilOrDiagnose(browser, () => browser.execute(() => {
         const picker = document.querySelector('.account-card[data-account-id="301"] .icon-picker-popover');

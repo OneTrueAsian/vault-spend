@@ -6,6 +6,7 @@ pub mod classifier;
 pub mod comparisons;
 pub mod csv_loader;
 pub mod fsutil;
+pub mod holding_import;
 pub mod import_resolution;
 pub mod importer;
 pub mod learner;
@@ -17,7 +18,9 @@ pub mod protection;
 pub mod qif_loader;
 pub mod rules;
 pub mod setup_import;
+pub mod statement;
 pub mod store;
+pub mod update_manifest;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

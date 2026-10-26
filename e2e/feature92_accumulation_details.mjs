@@ -225,6 +225,8 @@ try {
   await browser.$("[data-reconcile-card]").waitForExist({ timeout: 10000 });
   if (await browser.$(`[data-accumulation]`).isExisting()) fail("a checking account must not get the accumulation section");
   await (await browser.$("[data-statement-balance]")).setValue("995.50");
+  // Every account's first reconciliation also asks where its statement started.
+  await (await browser.$("[data-statement-start-balance]")).setValue("1000.00");
   await (await browser.$("[data-reconcile-start]")).click();
   await browser.$("[data-reconcile-summary]").waitForExist({ timeout: 10000, timeoutMsg: "reconciliation should still start on a checking account" });
   console.log("checking account", checkingId, "still reconciles");

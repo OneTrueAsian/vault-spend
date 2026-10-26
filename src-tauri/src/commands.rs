@@ -22,6 +22,14 @@ mod profiles;
 pub use self::profiles::*;
 mod import;
 pub use self::import::*;
+mod transaction_snapshot;
+pub use self::transaction_snapshot::*;
+mod financial_snapshot;
+pub use self::financial_snapshot::*;
+mod ask_vault;
+mod ask_vault_retirement;
+pub use self::ask_vault::*;
+pub use self::ask_vault_retirement::*;
 mod transactions;
 pub use self::transactions::*;
 mod categories;
@@ -36,8 +44,12 @@ mod recurring;
 pub use self::recurring::*;
 mod investments;
 pub use self::investments::*;
+mod holding_import;
+pub use self::holding_import::*;
 mod assets;
 pub use self::assets::*;
+mod statements;
+pub use self::statements::*;
 
 /// The data file path this session is actually using right now — may
 /// differ from what `startup::open_from_disk` opened at launch, since
@@ -60,7 +72,11 @@ struct ValidatedProtectedPackage {
     dek: budget_core::protection::keyfile::UnlockedKey,
 }
 
-fn validate_protected_package(package_dir: &std::path::Path, password: &str) -> Result<ValidatedProtectedPackage, String> {
+fn validate_protected_package(
+    package_dir: &std::path::Path,
+    password: &str,
+    sessions: &crate::protection_session::Sessions,
+) -> Result<ValidatedProtectedPackage, String> {
     use budget_core::protection::package::{sha256_file, DATABASE_FILENAME, MANIFEST_FILENAME};
     use budget_core::protection::PACKAGE_FORMAT;
 
@@ -89,21 +105,22 @@ fn validate_protected_package(package_dir: &std::path::Path, password: &str) -> 
     if key_file.format != manifest.protection_format {
         return Err("This package's protection information doesn't match its manifest.".to_string());
     }
-    let dek = key_file
-        .unlock_with_password(password)
-        .map_err(|_| "That password didn't work.".to_string())?;
+    let dek = sessions.check_password(&key_file, password)?;
     Ok(ValidatedProtectedPackage { manifest, key_file, dek })
 }
 
 fn parse_amount(amount: &str) -> Result<Decimal, String> {
-    amount.parse().map_err(|_| format!("invalid amount: {amount}"))
+    amount
+        .parse()
+        .map_err(|_| format!("\"{amount}\" isn't an amount the app can use. Enter a number like 12.34."))
 }
 
 /// A date typed into the app. Kept to the years 1900-2100, the same range the date fields allow
 /// (`src/dateRange.ts`), so a typo like year 9643 is refused instead of saved.
 fn parse_date(date: &str) -> Result<chrono::NaiveDate, String> {
     use chrono::Datelike;
-    let parsed = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| format!("invalid date: {date}"))?;
+    let parsed = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map_err(|_| format!("\"{date}\" isn't a date the app can use. Choose a date from the calendar."))?;
     if !(1900..=2100).contains(&parsed.year()) {
         return Err("Choose a date between 1900 and 2100.".to_string());
     }
@@ -223,7 +240,16 @@ fn refresh_open_reminders(store: &Store, paths: &crate::config::AppPaths, device
 
 #[cfg(test)]
 mod parse_date_tests {
-    use super::parse_date;
+    use super::{parse_amount, parse_date};
+
+    #[test]
+    fn an_amount_that_is_not_a_number_is_refused_in_plain_words() {
+        assert_eq!(
+            parse_amount("12,34x").unwrap_err(),
+            "\"12,34x\" isn't an amount the app can use. Enter a number like 12.34."
+        );
+        assert_eq!(parse_amount("12.34").unwrap().to_string(), "12.34");
+    }
 
     #[test]
     fn accepts_dates_from_1900_to_2100() {
@@ -241,6 +267,9 @@ mod parse_date_tests {
 
     #[test]
     fn still_refuses_text_that_is_not_a_date() {
-        assert_eq!(parse_date("2026-02-30").unwrap_err(), "invalid date: 2026-02-30");
+        assert_eq!(
+            parse_date("2026-02-30").unwrap_err(),
+            "\"2026-02-30\" isn't a date the app can use. Choose a date from the calendar."
+        );
     }
 }

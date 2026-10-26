@@ -26,6 +26,7 @@ export function useImportReview({
   setStatus,
   refresh,
   onImported,
+  call = invoke,
 }: {
   accounts: Account[];
   busy: boolean;
@@ -34,6 +35,7 @@ export function useImportReview({
   refresh: () => Promise<void>;
   /** The new transactions' ids, once the list has been read back (the page opens its review inbox on them). */
   onImported: (ids: number[]) => void;
+  call?: <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 }) {
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [includedIndices, setIncludedIndices] = useState<Set<number>>(new Set());
@@ -55,7 +57,7 @@ export function useImportReview({
     setBusy(true);
     setStatus("Reading file…", "info");
     try {
-      const preview = await invoke<ImportPreview>("preview_import", {
+      const preview = await call<ImportPreview>("preview_import", {
         path,
         invertAmounts,
         accountId,
@@ -153,7 +155,7 @@ export function useImportReview({
     const includedCount = includedIndices.size;
     let summary: ImportSummary;
     try {
-      summary = await invoke<ImportSummary>("commit_import", {
+      summary = await call<ImportSummary>("commit_import", {
         path: pendingImport.path,
         invertAmounts: pendingImport.invertAmounts,
         defaultAccountId: pendingImport.defaultAccountId,
@@ -169,12 +171,12 @@ export function useImportReview({
       // is kept; the person checks the updated review and tries again.
       const message = errorMessage(e);
       try {
-        const next = await invoke<ImportPreview>("preview_import", {
+        const next = await call<ImportPreview>("preview_import", {
           path: pendingImport.path,
           invertAmounts: pendingImport.invertAmounts,
           accountId: pendingImport.defaultAccountId,
         });
-        const categories = await invoke<string[]>("list_categories");
+        const categories = await call<string[]>("list_categories");
         const carried = carryOverReview(
           {
             preview: pendingImport.preview,

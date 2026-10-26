@@ -7,6 +7,7 @@ import { launchApp } from "./harness.mjs";
 
 const app = await launchApp();
 try {
+  if (app.browser.isBidi) throw new Error("Tauri desktop automation must use classic WebDriver, not BiDi");
   const brand = await app.browser.$(".brand-word");
   const brandText = await brand.getText();
 
@@ -15,7 +16,7 @@ try {
   if (brandText !== "Vault Spend") throw new Error(`expected brand "Vault Spend", got "${brandText}"`);
   if (navButtons.length < 1) throw new Error("expected at least one nav button");
 
-  console.log("SMOKE TEST PASSED —", navButtons.length, "nav buttons found, brand:", brandText);
+  console.log("SMOKE TEST PASSED — classic WebDriver;", navButtons.length, "nav buttons found, brand:", brandText);
 } finally {
   await app.close();
 }

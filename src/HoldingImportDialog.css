@@ -1,0 +1,29 @@
+.modal-panel:has(.holding-import) { background: var(--status-base); width: min(860px, calc(100vw - 40px)); }
+.holding-import .modal-field { margin-bottom: 14px; }
+.holding-import-source-actions, .holding-import-folder-actions, .holding-import-actions, .holding-import-pages { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.holding-import-source-actions { margin: 12px 0; }
+.holding-import-source-actions [aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); }
+.holding-import-drop, .holding-import-browser { border: 1px solid var(--border-strong); padding: 14px; border-radius: 8px; background: var(--surface-2); margin-bottom: 14px; }
+.holding-import-drop.is-over { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.holding-import-drop .modal-field { margin-bottom: 10px; }
+.holding-import-mappings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.holding-import-folder-path { display: flex; gap: 8px; align-items: flex-end; margin: 12px 0; }
+.holding-import-folder-path .modal-field { flex: 1; min-width: 0; margin: 0; }
+.holding-import-files { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
+.holding-import-files button { display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; overflow-wrap: anywhere; margin-bottom: 4px; }
+.holding-import-file-kind { color: var(--text-muted); flex: 0 0 44px; font-size: 12px; }
+.holding-import-error { padding: 10px 0; }
+.holding-import-warning { border-left: 3px solid var(--warning); padding: 8px 12px; background: var(--surface-2); font-size: 13px; color: var(--text); }
+.holding-import-review .ledger { min-width: 760px; table-layout: fixed; }
+.holding-import-review .holding-col-check { width: 60px; }
+.holding-import-review .holding-col-row { width: 54px; }
+.holding-import-review .holding-col-symbol { width: 130px; }
+.holding-import-review .holding-col-status { width: 170px; }
+.holding-import-review td { overflow-wrap: anywhere; white-space: normal; }
+.holding-import-review input[type="checkbox"] { accent-color: var(--accent); }
+.holding-import-name { display: block; color: var(--text-muted); font-size: 12px; }
+.holding-import-pages { justify-content: space-between; font-size: 13px; }
+.holding-import details summary { color: var(--text); cursor: pointer; padding: 8px 0; }
+.holding-import details table { min-width: 600px; }
+.holding-import textarea { font-family: inherit; }
+@media (max-width: 600px) { .holding-import-mappings { grid-template-columns: 1fr; } .holding-import-folder-path { flex-wrap: wrap; } .holding-import-folder-path .modal-field { flex-basis: 100%; } }

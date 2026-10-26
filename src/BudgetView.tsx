@@ -14,6 +14,7 @@ import { RowMenu, type RowMenuItem } from "./RowMenu";
 import { groupProgressLabel } from "./budgetSummary";
 import { budgetGroupFillClass, incomeProgressTone, netTone, toneFillClass, usedInFull as isUsedInFull, viewedMonth, type ViewedMonth } from "./colourStatus";
 import { HelpLink } from "./HelpLink";
+import { FinancialReadState } from "./FinancialReadState";
 import type { Tab } from "./appTypes";
 
 type MonthElapsed = NonNullable<ReturnType<typeof monthElapsed>>;
@@ -567,6 +568,10 @@ export function BudgetView({
   onOpenMonthReview,
   amountsHidden,
   onOpenHelp,
+  readReady = true,
+  readLoading = false,
+  readError = null,
+  onRetryRead = () => {},
 }: {
   categories: string[];
   budgetActuals: ReportBudgetLine[];
@@ -597,11 +602,21 @@ export function BudgetView({
   amountsHidden: boolean;
   /** Opens Help at this page's section (the ? beside the title). */
   onOpenHelp?: (tab: Tab) => void;
+  readReady?: boolean;
+  readLoading?: boolean;
+  readError?: string | null;
+  onRetryRead?: () => void;
 }) {
   const [suggestions, setSuggestions] = useState<BudgetSuggestions | null>(null);
+  const suggestionRequest = useRef(0);
+  useEffect(() => {
+    setSuggestions(null);
+    return () => { suggestionRequest.current++; };
+  }, [year, month]);
   async function openSuggestions() {
+    const request = ++suggestionRequest.current;
     const result = await onSuggest();
-    if (result) setSuggestions(result);
+    if (result && request === suggestionRequest.current) setSuggestions(result);
   }
   const alertByCategory = new Map(budgetAlerts.map((a) => [a.category, a.level]));
   const elapsed = monthElapsed(year, month, new Date());
@@ -739,6 +754,8 @@ export function BudgetView({
         </button>
       </div>
 
+      <FinancialReadState label="Budget totals" initial={!readReady} loading={readLoading} error={readError} onRetry={onRetryRead} />
+      {readReady && <>
       {/* One strip for the month's totals (s2). The two money-left breakdowns stay as the net
           cell's tooltip and as the small line under the strip, so nothing they said is lost. */}
       <section className="card budget-summary" data-budget-summary aria-label="This month's budget">
@@ -882,6 +899,7 @@ export function BudgetView({
       {budgetActuals.length === 0 && <p className="empty-state">No budget lines yet.</p>}
 
       <NewBudgetLineForm availableCategories={availableCategories} onSet={onSetBudget} />
+      </>}
       {suggestions && (
         <BudgetSuggestDialog
           monthLabel={monthLabel}

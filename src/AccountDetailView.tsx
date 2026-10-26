@@ -5,23 +5,33 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";
 import { LineChart } from "./charts";
 import { formatAmount, formatDisplayDate, isValidDecimalString, shortMonthDay, toLocalIsoDate } from "./format";
+import { addAmounts } from "./reconcileMath";
+import { ModalShell } from "./Modal";
+import { StatementReviewDialog } from "./StatementReviewDialog";
+import { StatementTeachDialog } from "./StatementTeachDialog";
+import { useStatementReconcile } from "./useStatementReconcile";
 import { DateField } from "./DateField";
 import { errorMessage } from "./errorMessage";
 // Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
 const AccountAccumulationSection = lazy(() => import("./AccumulationSection").then((m) => ({ default: m.AccountAccumulationSection })));
 
 type BalancePoint = { date: string; balance: string };
-type ReconciliationStatus = { cleared_balance: string; difference: string; cleared_count: number };
-type LastReconciliation = { statement_date: string; statement_balance: string };
+type ReconcileStatus = { starting_point: string | null; needs_starting_balance: boolean; ticked_change: string; ticked_count: number; difference: string | null };
+/** `statement_date`: the last reconciliation of any kind; `statement_balance`: the ending balance of the
+ * last one that states a balance (an investment statement's record never does). */
+type LastReconciliation = { statement_date: string; statement_balance: string | null };
 
-/** Reconciliation compares a statement to the transactions you tick, which
- * only makes sense where the balance is plain money in and out. */
-const RECONCILABLE_TYPES = new Set(["checking", "savings"]);
+/** What a statement calls this account's balance, in plain words. */
+function balanceWords(accountType: string): { start: string; end: string } {
+  if (accountType === "credit") return { start: "Amount owed at the start of the statement", end: "Amount owed at the end of the statement" };
+  if (accountType === "loan") return { start: "Amount you owed on the loan at the start of the statement", end: "Amount you owed on the loan at the end of the statement" };
+  return { start: "Starting balance on the statement", end: "Ending balance on the statement" };
+}
 
 /** One account on its own page: how its balance has moved, the recent
- * transactions, and — for a checking or savings account — a reconciliation
- * against a bank statement (enter the statement's ending balance, tick what
- * shows up on it, and finish once the difference is $0.00). */
+ * transactions, and a reconciliation against a bank statement (enter the
+ * statement's dates and balances, tick what shows up on it, and finish once
+ * the difference is $0.00). Every account type can be reconciled. */
 export function AccountDetailView({
   account,
   onBack,
@@ -29,6 +39,7 @@ export function AccountDetailView({
   onOpenTransactions,
   onOpenPayment,
   onMessage,
+  onDataChanged,
   focus = null,
 }: {
   account: Account;
@@ -38,6 +49,9 @@ export function AccountDetailView({
   onOpenTransactions: () => void;
   onOpenPayment: (sourceId: number) => void;
   onMessage: (text: string, kind: "success" | "error" | "info") => void;
+  /** Called after a statement was finished: it can add transactions and change holdings, so the rest of the
+   * app reloads its shared data. */
+  onDataChanged?: () => Promise<void>;
   /** "reconcile": opened from an account row's "Reconcile with a statement…", so the page starts at
    * the reconcile card with its first field ready to type in. */
   focus?: "reconcile" | null;
@@ -46,14 +60,24 @@ export function AccountDetailView({
   const [transactions, setTransactions] = useState<AccountTransaction[]>([]);
   const [lastRec, setLastRec] = useState<LastReconciliation | null>(null);
 
+  const [periodStart, setPeriodStart] = useState("");
   const [statementDate, setStatementDate] = useState(toLocalIsoDate());
+  const [statementStart, setStatementStart] = useState("");
   const [statementBalance, setStatementBalance] = useState("");
   const [reconciling, setReconciling] = useState(false);
   const [candidates, setCandidates] = useState<AccountTransaction[]>([]);
-  const [status, setStatus] = useState<ReconciliationStatus | null>(null);
+  const [status, setStatus] = useState<ReconcileStatus | null>(null);
+  /** Where a statement ending on `statementDate` picks up from, before any balance is typed. */
+  const [preview, setPreview] = useState<ReconcileStatus | null>(null);
+  const statementDateRef = useRef(statementDate);
+  statementDateRef.current = statementDate;
 
-  const canReconcile = RECONCILABLE_TYPES.has(account.account_type);
   const reconcileCardRef = useRef<HTMLDivElement>(null);
+  const statement = useStatementReconcile(account.id, (done) => {
+    // The page was left while the statement saved: reload the rest of the app and say it finished.
+    Promise.resolve(onDataChanged?.()).catch(() => {});
+    onMessage(`Reconciled ${account.name}.${done.added ? ` Added ${done.added} transaction${done.added === 1 ? "" : "s"}.` : ""}`, "success");
+  });
   const statementBalanceRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (focus !== "reconcile") return;
@@ -63,23 +87,70 @@ export function AccountDetailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const fetchPreview = useCallback(
+    async (date: string): Promise<ReconcileStatus | null> =>
+      date
+        ? invoke<ReconcileStatus>("reconcile_status", { accountId: account.id, statementDate: date, statementStart: null, statementEnd: null })
+        : null,
+    [account.id],
+  );
+
+  // Everything is fetched first and set together, so the page never shows a new last reconciliation
+  // with an old answer to whether the next statement needs its starting balance.
   const loadOverview = useCallback(async () => {
-    setHistory(await invoke<BalancePoint[]>("account_balance_history", { accountId: account.id, months: 12 }));
-    setTransactions(await invoke<AccountTransaction[]>("list_account_transactions", { accountId: account.id, limit: 200 }));
-    setLastRec(await invoke<LastReconciliation | null>("last_reconciliation", { accountId: account.id }));
-  }, [account.id]);
+    const [nextHistory, nextTransactions, nextLastRec, nextPreview] = await Promise.all([
+      invoke<BalancePoint[]>("account_balance_history", { accountId: account.id, months: 12 }),
+      invoke<AccountTransaction[]>("list_account_transactions", { accountId: account.id, limit: 200 }),
+      invoke<LastReconciliation | null>("last_reconciliation", { accountId: account.id }),
+      fetchPreview(statementDateRef.current),
+    ]);
+    setHistory(nextHistory);
+    setTransactions(nextTransactions);
+    setLastRec(nextLastRec);
+    setPreview(nextPreview);
+  }, [account.id, fetchPreview]);
 
   useEffect(() => {
     loadOverview().catch((e) => onMessage(errorMessage(e), "error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadOverview]);
 
+  // A different statement date can pick up from a different reconciliation (an older month starts
+  // from the one before it), or need its own starting balance.
+  const previewedDate = useRef(statementDate);
+  useEffect(() => {
+    if (statementDate === previewedDate.current) return;
+    let live = true;
+    previewedDate.current = statementDate;
+    fetchPreview(statementDate)
+      .then((next) => live && setPreview(next))
+      .catch((e) => live && onMessage(errorMessage(e), "error"));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchPreview, statementDate]);
+
+  // Until the app has said otherwise, ask for the starting balance (an account's first reconciliation).
+  const needsStart = preview?.needs_starting_balance ?? true;
+
   const loadReconciliation = useCallback(async () => {
     setCandidates(await invoke<AccountTransaction[]>("reconcile_candidates", { accountId: account.id, statementDate }));
-    setStatus(await invoke<ReconciliationStatus>("reconciliation_status", { accountId: account.id, statementBalance }));
-  }, [account.id, statementDate, statementBalance]);
+    setStatus(
+      await invoke<ReconcileStatus>("reconcile_status", {
+        accountId: account.id,
+        statementDate,
+        statementStart: needsStart ? statementStart : null,
+        statementEnd: statementBalance,
+      }),
+    );
+  }, [account.id, statementDate, statementStart, statementBalance, needsStart]);
 
-  const balanceValid = statementBalance.trim() !== "" && isValidDecimalString(statementBalance);
+  const words = balanceWords(account.account_type);
+  const balanceValid =
+    statementBalance.trim() !== "" &&
+    isValidDecimalString(statementBalance) &&
+    (!needsStart || (statementStart.trim() !== "" && isValidDecimalString(statementStart)));
 
   async function startReconciling() {
     if (!balanceValid) return;
@@ -102,13 +173,21 @@ export function AccountDetailView({
 
   async function finish() {
     try {
-      const ok = await invoke<boolean>("finish_reconciliation", { accountId: account.id, statementDate, statementBalance });
+      const ok = await invoke<boolean>("finish_reconciliation", {
+        accountId: account.id,
+        periodStart: periodStart || null,
+        statementDate,
+        statementStart: needsStart ? statementStart : null,
+        statementEnd: statementBalance,
+      });
       if (!ok) {
         onMessage("That doesn't balance yet — the difference has to be $0.00.", "error");
         return;
       }
       setReconciling(false);
       setStatementBalance("");
+      setStatementStart("");
+      setPeriodStart("");
       await loadOverview();
       onMessage(`Reconciled ${account.name} through ${formatDisplayDate(statementDate)}.`, "success");
     } catch (e) {
@@ -116,8 +195,22 @@ export function AccountDetailView({
     }
   }
 
-  const difference = status ? parseFloat(status.difference) : null;
+  const difference = status && status.difference !== null ? parseFloat(status.difference) : null;
   const balances = history.map((p) => parseFloat(p.balance));
+
+  // A finished statement: refresh the page, say what happened, and close the flow.
+  const finished = statement.phase.kind === "done" ? statement.phase.finished : null;
+  const closeStatement = statement.cancel;
+  useEffect(() => {
+    if (!finished) return;
+    const added = finished.added ? ` Added ${finished.added} transaction${finished.added === 1 ? "" : "s"}.` : "";
+    const learned = finished.layout_saved ? ` The app will recognize ${finished.layout_saved} statements next time.` : "";
+    loadOverview().catch((e) => onMessage(errorMessage(e), "error"));
+    Promise.resolve(onDataChanged?.()).catch((e) => onMessage(`The statement was saved, but the rest of the app couldn't reload: ${errorMessage(e)}`, "error"));
+    onMessage(`Reconciled ${account.name} through ${formatDisplayDate(statementDateRef.current)}.${added}${learned}`, "success");
+    closeStatement();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished]);
 
   return (
     <div className="account-detail" data-account-detail={account.id}>
@@ -174,14 +267,17 @@ export function AccountDetailView({
         <div className="card-head">
           <span className="reports-section-title">Reconcile with a statement</span>
         </div>
-        {!canReconcile ? (
-          <p className="modal-message-secondary">Reconciliation is for checking and savings accounts.</p>
-        ) : !reconciling ? (
+        {!reconciling ? (
           <>
             <p className="modal-message-secondary">
-              Enter the ending balance from your bank statement, then tick each transaction that appears on it. When the
+              Enter the dates and balances from your statement, then tick each transaction that appears on it. When the
               difference reaches $0.00 the two agree.
             </p>
+            {account.account_type === "investment" && (
+              <p className="modal-message-secondary">
+                For an investment account this checks its cash activity. Uploading the statement also checks your share counts.
+              </p>
+            )}
             <form
               className="reconcile-form"
               onSubmit={(e) => {
@@ -190,11 +286,32 @@ export function AccountDetailView({
               }}
             >
               <label className="labeled-field">
-                <span className="labeled-field-label">Statement ending date</span>
-                <DateField value={statementDate} onChange={setStatementDate} ariaLabel="Statement ending date" data-statement-date />
+                <span className="labeled-field-label">Statement start date</span>
+                <DateField value={periodStart} onChange={setPeriodStart} ariaLabel="Statement start date" data-statement-period-start />
               </label>
               <label className="labeled-field">
-                <span className="labeled-field-label">Statement ending balance</span>
+                <span className="labeled-field-label">Statement end date</span>
+                <DateField value={statementDate} onChange={setStatementDate} ariaLabel="Statement end date" data-statement-date />
+              </label>
+              {!needsStart ? (
+                preview?.starting_point != null && (
+                  <p className="modal-message-secondary" data-reconcile-picks-up>
+                    Picks up from your last reconciliation before this statement: {formatAmount(preview.starting_point)}.
+                  </p>
+                )
+              ) : (
+                <label className="labeled-field">
+                  <span className="labeled-field-label">{words.start}</span>
+                  <input
+                    value={statementStart}
+                    onChange={(e) => setStatementStart(e.target.value)}
+                    placeholder="0.00"
+                    data-statement-start-balance
+                  />
+                </label>
+              )}
+              <label className="labeled-field">
+                <span className="labeled-field-label">{words.end}</span>
                 <input
                   ref={statementBalanceRef}
                   value={statementBalance}
@@ -207,18 +324,45 @@ export function AccountDetailView({
                 Start reconciling
               </button>
             </form>
+            <div className="reconcile-upload">
+              <p className="modal-message-secondary">
+                Or let the app check your statement for you. Enter the statement's start and end dates above, then upload it.
+              </p>
+              <button
+                type="button"
+                disabled={!periodStart || statement.busy}
+                onClick={() => void statement.start(periodStart, statementDate)}
+                data-upload-statement
+              >
+                Upload a statement
+              </button>
+              <button
+                type="button"
+                className="modal-secondary"
+                disabled={!periodStart || statement.busy}
+                onClick={() => void statement.start(periodStart, statementDate, "download")}
+                data-upload-download
+              >
+                Use a CSV or OFX download
+              </button>
+              {statement.error && statement.phase.kind === "idle" && (
+                <p className="statement-error" role="alert" data-statement-error>
+                  {statement.error}
+                </p>
+              )}
+            </div>
           </>
         ) : (
           <>
             <div className="reconcile-summary" data-reconcile-summary>
               <div>
-                <span className="reconcile-label">Statement</span>
+                <span className="reconcile-label">Statement ending</span>
                 <span className="reconcile-figure">{formatAmount(statementBalance)}</span>
               </div>
               <div>
-                <span className="reconcile-label">Cleared</span>
+                <span className="reconcile-label">Ticked so far</span>
                 <span className="reconcile-figure" data-cleared-balance>
-                  {status ? formatAmount(status.cleared_balance) : "—"}
+                  {status && status.starting_point !== null ? formatAmount(addAmounts([status.starting_point, status.ticked_change])) : "—"}
                 </span>
               </div>
               <div>
@@ -228,14 +372,14 @@ export function AccountDetailView({
                   data-difference
                   data-balanced={difference === 0 ? "true" : "false"}
                 >
-                  {status ? formatAmount(status.difference) : "—"}
+                  {status && status.difference !== null ? formatAmount(status.difference) : "—"}
                 </span>
               </div>
             </div>
             <table className="ledger">
               <thead>
                 <tr>
-                  <th className="dup-review-check">Cleared</th>
+                  <th className="dup-review-check">On statement</th>
                   <th>Date</th>
                   <th>Description</th>
                   <th className="amount-col">Amount</th>
@@ -245,7 +389,7 @@ export function AccountDetailView({
                 {candidates.map((t) => (
                   <tr key={t.id} data-reconcile-row={t.description}>
                     <td className="dup-review-check">
-                      <input type="checkbox" checked={t.cleared} onChange={() => void toggleCleared(t)} aria-label={`Cleared: ${t.description}`} />
+                      <input type="checkbox" checked={t.cleared} onChange={() => void toggleCleared(t)} aria-label={`On statement: ${t.description}`} />
                     </td>
                     <td className="date-cell">{formatDisplayDate(t.date)}</td>
                     <td>{t.description}</td>
@@ -272,6 +416,66 @@ export function AccountDetailView({
           </>
         )}
       </div>
+
+      {statement.phase.kind === "choose_section" && (
+        <ModalShell title="Which account is this?" onCancel={statement.cancel}>
+          <p className="modal-message-secondary">This statement covers more than one account. Choose the part for {account.name}.</p>
+          {statement.error && (
+            <p className="statement-error" role="alert">
+              {statement.error}
+            </p>
+          )}
+          {statement.phase.read.sections.map((section) => (
+            <button
+              key={section.index}
+              type="button"
+              className="modal-secondary"
+              disabled={statement.busy}
+              onClick={() => void statement.chooseSection(section.index)}
+              data-statement-section={section.index}
+            >
+              {section.name} ({section.row_count} transactions{section.holding_count ? `, ${section.holding_count} holdings` : ""})
+            </button>
+          ))}
+        </ModalShell>
+      )}
+      {statement.phase.kind === "review" && (
+        <StatementReviewDialog
+          key={statement.phase.review.token}
+          review={statement.phase.review}
+          accountName={account.name}
+          busy={statement.busy}
+          error={statement.error}
+          onFlip={(flip) => void statement.setFlip(flip)}
+          onTeach={() => void statement.openTeach()}
+          onUseDownload={() => {
+            statement.cancel();
+            void statement.start(periodStart, statementDate, "download");
+          }}
+          onReconcileByHand={() => {
+            statement.cancel();
+            reconcileCardRef.current?.scrollIntoView({ block: "start" });
+          }}
+          onFinish={(decisions) => void statement.finish(decisions)}
+          onCancel={statement.cancel}
+        />
+      )}
+      {statement.phase.kind === "teach" && (
+        <StatementTeachDialog
+          lines={statement.phase.lines}
+          kind={statement.phase.review.account_kind}
+          attempts={statement.phase.attempts}
+          busy={statement.busy}
+          error={statement.error}
+          needs={{
+            rows: statement.phase.review.activity_check.outcome !== "passed",
+            holdings: statement.phase.review.account_kind === "investment" && statement.phase.review.holdings_check.outcome === "failed",
+          }}
+          onTeach={(marks) => void statement.teach(marks)}
+          onBack={statement.backToReview}
+          onGiveUp={statement.backToReview}
+        />
+      )}
 
       <div className="card">
         <div className="card-head">

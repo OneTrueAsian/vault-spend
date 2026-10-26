@@ -1,4 +1,7 @@
+import { EditableCombobox } from "./EditableCombobox";
+import { FinancialReadState } from "./FinancialReadState";
 import "./Modal.css";
+import { changelogSections, type ChangelogEntry } from "./changelog";
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
@@ -104,6 +107,10 @@ export function ModalShell({
       panelRef.current?.focus();
     }
     function onKeyDown(e: KeyboardEvent) {
+      // A manual-lock confirmation can cover another dialog containing unsaved work. Only the
+      // uppermost dialog handles Escape and traps Tab; cancelling it must preserve the draft below.
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      if (dialogs[dialogs.length - 1] !== panelRef.current) return;
       if (e.key === "Escape") {
         onCancelRef.current();
         return;
@@ -226,16 +233,21 @@ export function WhatsNewDialog({
   onClose,
 }: {
   version: string;
-  notes: string[];
+  notes: ChangelogEntry;
   onClose: () => void;
 }) {
   return (
     <ModalShell title={`What's new in ${version}`} onCancel={onClose} wide>
-      <ul className="modal-changelog-list">
-        {notes.map((note, i) => (
-          <li key={i}>{note}</li>
-        ))}
-      </ul>
+      {changelogSections(notes).map(({ heading, notes: items }) => (
+        <section key={heading ?? ""}>
+          {heading && <h3 className="modal-changelog-heading">{heading}</h3>}
+          <ul className="modal-changelog-list">
+            {items.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))}
+          </ul>
+        </section>
+      ))}
       <div className="modal-actions">
         <button type="button" onClick={onClose}>
           Got it
@@ -441,6 +453,10 @@ export function NewTransactionDialog({
   familyMembers,
   defaultAccountId,
   budgetActuals,
+  budgetReadReady = true,
+  budgetLoading = false,
+  budgetError = null,
+  onRetryBudgets = () => {},
   onCancel,
   onSubmit,
 }: {
@@ -448,14 +464,13 @@ export function NewTransactionDialog({
   categories: string[];
   familyMembers: FamilyMember[];
   defaultAccountId: number | null;
-  /** Current calendar month's budget-vs-actual (from `report`, which
-   * `get_report` always computes for *today's* month regardless of what
-   * the Budget page happens to be scrolled to) — reused here rather than
-   * a new fetch, to show "$602 of $700 used — $98 left" live as the user
-   * picks a category. Deliberately not `budgetMonthActuals` (the Budget
-   * page's own state): that one only populates after the Budget tab has
-   * been visited, which this dialog is opened without needing to. */
+  /** Current calendar month's validated planning snapshot, independent of
+   * the Budget page's month cursor. Optional hints do not block transaction entry. */
   budgetActuals: ReportBudgetLine[];
+  budgetReadReady?: boolean;
+  budgetLoading?: boolean;
+  budgetError?: string | null;
+  onRetryBudgets?: () => void;
   onCancel: () => void;
   onSubmit: (
     accountId: number,
@@ -492,7 +507,7 @@ export function NewTransactionDialog({
           : null;
   const valid = accountId !== "" && description.trim() !== "" && signed !== null && date !== "";
 
-  const budgetImpact = budgetActuals.find((b) => b.category === category);
+  const budgetImpact = budgetReadReady ? budgetActuals.find((b) => b.category === category) : undefined;
   const selectedAccount = accounts.find((a) => String(a.id) === accountId);
   const backdated = selectedAccount ? isBeforeAccountCheckpoint(selectedAccount, date) : false;
   const [outLabel, inLabel] = directionLabels(selectedAccount?.account_type);
@@ -516,6 +531,8 @@ export function NewTransactionDialog({
   return (
     <ModalShell title="Add transaction" onCancel={onCancel}>
       <form onSubmit={handleSubmit}>
+        <FinancialReadState label="Budget hints" initial={!budgetReadReady} loading={budgetLoading}
+          error={budgetError} onRetry={onRetryBudgets} />
         <label className="modal-field">
           <span>Account</span>
           <MenuSelect
@@ -1541,7 +1558,6 @@ export function RuleEditorDialog({
   const [category, setCategory] = useState(initial?.category ?? "");
   const [preview, setPreview] = useState<RulePreview | null>(null);
   const [applyToExisting, setApplyToExisting] = useState(true);
-  const datalistId = useId();
 
   // Latest `onPreview` without making it an effect dependency — the parent
   // hands in a fresh closure every render, and re-running the debounce on
@@ -1593,17 +1609,13 @@ export function RuleEditorDialog({
         </label>
         <label className="modal-field">
           <span>Give it this category</span>
-          <input
-            list={datalistId}
+          <EditableCombobox
+            options={categories}
+            aria-label="Give it this category"
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={setCategory}
             placeholder="Pick one, or type a new one"
           />
-          <datalist id={datalistId}>
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
         </label>
         <p className="modal-message modal-message-secondary" data-rule-preview={preview ? "ready" : "none"}>
           {preview === null

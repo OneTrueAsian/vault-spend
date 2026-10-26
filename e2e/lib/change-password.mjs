@@ -39,7 +39,11 @@ export async function createProtectedFixture() {
   await seedPopulatedProfile(testDbDir);
   const app = await launchApp({ dbDir: testDbDir });
   await (await app.browser.$("button*=Settings")).click();
+  const started = Date.now();
   await enableProtectionThroughUI(app.browser, OLD_PASSWORD);
-  await app.browser.$("button=Change password…").waitForExist({ timeout: 15000 });
+  // Turning protection on derives keys and re-encrypts the profile and its backups; a hosted runner needs
+  // several times a developer machine's time. The elapsed time is logged for the next measurement.
+  await app.browser.$("button=Change password…").waitForExist({ timeout: 45000 });
+  console.log(`[timing] protection turned on in ${Date.now() - started}ms`);
   return { testDbDir, app };
 }

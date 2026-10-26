@@ -5,7 +5,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AppSettings, Backup, BackgroundSettings, LivePriceProviderId, LivePriceSettings, Profile, ThemeStyle } from "./types";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { RulesManager } from "./RulesManager";
-import { CHANGELOG } from "./changelog";
+import { StatementLayoutsSection } from "./StatementLayoutsSection";
+import { CHANGELOG, changelogSections } from "./changelog";
 import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
 import { ProfileProtectionSection } from "./ProfileProtectionSection";
 import { ProtectionLeftovers } from "./ProtectionLeftovers";
@@ -1082,11 +1083,16 @@ function ReleaseNotesSection({ currentVersion }: { currentVersion: string | null
               <span>Version {v}</span>
               {v === currentVersion && <span className="release-note-current">Current</span>}
             </summary>
-            <ul className="modal-changelog-list">
-              {CHANGELOG[v].map((note, j) => (
-                <li key={j}>{note}</li>
-              ))}
-            </ul>
+            {changelogSections(CHANGELOG[v]).map(({ heading, notes }) => (
+              <section key={heading ?? ""}>
+                {heading && <h3 className="modal-changelog-heading">{heading}</h3>}
+                <ul className="modal-changelog-list">
+                  {notes.map((note, j) => (
+                    <li key={j}>{note}</li>
+                  ))}
+                </ul>
+              </section>
+            ))}
           </details>
         ))}
       </div>
@@ -1233,8 +1239,7 @@ export function SettingsView({
   onRenameProfile: (id: string, newName: string) => void;
   onSetProfileIcon: (id: string, iconKey: string | null) => void;
   onDeleteProfile: (id: string) => void;
-  /** Password-protection state changed. Refresh profile metadata and any Settings values whose
-   * backing files can move during a protection transition. */
+  /** Protection changed: reload bound owners for the new Store session, retaining Settings. */
   onProtected: () => void;
   livePriceSettings: LivePriceSettings | null;
   onSetLivePriceApiKey: (provider: LivePriceProviderId, apiKey: string | null) => void;
@@ -1328,6 +1333,7 @@ export function SettingsView({
         onSetSafeToSpendEnabled={onSetSafeToSpendEnabled}
       />
       <RulesManager categories={categories} onRulesApplied={onRulesApplied} onMessage={onMessage} />
+      <StatementLayoutsSection onMessage={onMessage} />
       <ReleaseNotesSection currentVersion={appVersion} />
       <IconCreditsSection />
       <AboutSection />

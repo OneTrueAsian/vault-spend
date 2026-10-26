@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeProfile } from "./profileIpc";
 
 export type AutoLockSettings = {
   inactivity_minutes: 0 | 1 | 5 | 15 | 30 | 60;
@@ -10,10 +10,10 @@ export type AutoLockSettings = {
 
 export type SavedAutoLockSettings = Omit<AutoLockSettings, "system_event_supported">;
 
-export const getAutoLockSettings = () => invoke<AutoLockSettings>("get_auto_lock_settings");
+export const getAutoLockSettings = () => invokeProfile("get_auto_lock_settings");
 
 export const setAutoLockSettings = (settings: SavedAutoLockSettings, expectedGeneration: number) =>
-  invoke<void>("set_auto_lock_settings", { settings, expectedGeneration });
+  invokeProfile("set_auto_lock_settings", { settings, expectedGeneration });
 
 export type AutoLockReason = "inactivity";
 
@@ -26,10 +26,10 @@ export type AutoLockCountdownPayload = {
 
 export type AutoLockCountdownIdentity = Pick<AutoLockCountdownPayload, "profile_id" | "generation">;
 
-export const getCurrentGeneration = () => invoke<number>("get_current_generation");
+export const getCurrentGeneration = () => invokeProfile("get_current_generation");
 
 export const recordTrustedActivity = (expectedGeneration: number) =>
-  invoke<void>("record_trusted_activity", { expectedGeneration });
+  invokeProfile("record_trusted_activity", { expectedGeneration });
 
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
 const REPORT_INTERVAL_MS = 15_000;

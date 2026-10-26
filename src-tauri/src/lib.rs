@@ -9,6 +9,7 @@ mod config;
 mod debug_commands;
 mod device_settings;
 mod finnhub;
+mod holding_import;
 mod launch_commands;
 mod legacy_migration;
 mod live_price_provider;
@@ -31,12 +32,16 @@ mod protection_leftovers;
 mod protection_lifecycle;
 mod protection_session;
 mod protection_transition;
+mod request_session;
+#[cfg(debug_assertions)]
+mod retirement_stage_trace;
 mod runtime;
 mod startup;
+mod statement_review;
 mod stockdata;
 mod system_session;
 mod twelve_data;
-mod updater;
+pub mod updater;
 mod window_state;
 
 use commands::AppStateHandle;
@@ -47,21 +52,21 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .manage(command_thread::CommandQueue::start())
+        .manage(holding_import::Sessions::default())
+        .manage(statement_review::Sessions::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .on_window_event(background::handle_window_event)
         .setup(|app| {
-            // Identifier (tauri.conf.json) and this filename were renamed
-            // from "com.joeyf.meadow" / "meadow.db" to "com.joeyf.pennywise"
-            // / "pennywise.db" alongside the Meadow -> Penny Wise rebrand,
-            // again to "com.joeyf.pennyworth" / "pennyworth.db" alongside
-            // the Penny Wise -> Penny Worth rebrand, and again to
-            // "com.joeyf.vaultspend" / "vaultspend.db" alongside the Penny
-            // Worth -> Vault Spend rebrand. Each time, the pre-existing
-            // database was copied by hand from the old AppData folder into
-            // the new one at rename time — this does not auto-migrate on
-            // its own.
+            // This app's earlier names were Meadow, Pennywise and Penny Worth;
+            // its current name is Vault Spend. Each rename changed the
+            // identifier (tauri.conf.json) and the default database filename
+            // ("com.joeyf.<name>" / "<name>.db"), and the AppData folder is
+            // keyed by that identifier. The old names are still spelled out
+            // in legacy_migration.rs on purpose: that is how an install made
+            // under an earlier name finds its data and carries it forward
+            // into the Vault Spend folder on first launch.
             //
             // VAULTSPEND_DB_DIR lets E2E tests (see e2e/) point the app at a
             // throwaway directory instead of the real AppData folder, so
@@ -97,6 +102,8 @@ pub fn run() {
                 None => app.path().app_data_dir()?,
             };
             std::fs::create_dir_all(&default_dir)?;
+            // Global, nonfinancial update cache remains independent of profile lock/switch.
+            app.manage(updater::service::UpdateService::new(&default_dir.join("updates")));
             // Only against a real install's real AppData folder — never a
             // throwaway test/dev directory, which wouldn't have a genuine
             // sibling legacy-identifier folder to find anyway. A failure
@@ -216,7 +223,10 @@ pub fn run() {
             launch_commands::start_with_new_profile_list,
             commands::write_text_file,
             commands::fetch_latest_release,
-            commands::download_update_asset,
+            updater::service::prepare_signed_update,
+            updater::service::download_signed_update,
+            updater::service::cancel_signed_update,
+            updater::service::install_signed_update,
             commands::get_data_file_location,
             commands::relocate_data_file,
             commands::export_database,
@@ -275,6 +285,17 @@ pub fn run() {
             commands::preview_import,
             commands::commit_import,
             commands::create_manual_transaction,
+            commands::get_transaction_context,
+            commands::get_transaction_snapshot,
+            commands::get_transaction_snapshot_compact,
+            commands::get_budget_snapshot,
+            commands::get_dashboard_snapshot,
+            commands::get_report_summary_snapshot,
+            commands::get_report_range_snapshot,
+            commands::get_ask_vault_snapshot,
+            commands::get_ask_vault_baselines,
+            commands::get_ask_vault_retirement_accounts,
+            commands::get_ask_vault_retirement_context,
             commands::list_transactions,
             commands::list_transactions_by_ids,
             commands::correct_category,
@@ -372,6 +393,11 @@ pub fn run() {
             commands::dismiss_recurring_candidate,
             commands::dismiss_recurring_price_change,
             commands::create_holding,
+            commands::load_holding_import,
+            commands::preview_holding_import,
+            commands::commit_holding_import,
+            commands::cancel_holding_import,
+            commands::list_holding_import_files,
             commands::list_holdings,
             commands::update_holding_price,
             commands::portfolio_history,
@@ -381,9 +407,18 @@ pub fn run() {
             commands::list_account_transactions,
             commands::reconcile_candidates,
             commands::set_transactions_cleared,
-            commands::reconciliation_status,
+            commands::reconcile_status,
             commands::finish_reconciliation,
             commands::last_reconciliation,
+            commands::read_statement,
+            commands::review_statement,
+            commands::statement_lines,
+            commands::teach_statement_layout,
+            commands::finish_statement_reconciliation,
+            commands::cancel_statement_review,
+            commands::list_statement_layouts,
+            commands::rename_statement_layout,
+            commands::delete_statement_layout,
             commands::investment_accumulation,
             commands::list_investment_accumulation,
             commands::account_value_history,
@@ -422,6 +457,12 @@ pub fn run() {
             commands::check_sinking_fund_contributions,
             #[cfg(debug_assertions)]
             debug_commands::debug_process_id,
+            #[cfg(debug_assertions)]
+            debug_commands::debug_retirement_fixture_allowed,
+            #[cfg(debug_assertions)]
+            retirement_stage_trace::debug_retirement_stage_begin,
+            #[cfg(debug_assertions)]
+            retirement_stage_trace::debug_retirement_stage_drain,
             #[cfg(debug_assertions)]
             debug_commands::debug_recovery_code_unlocks,
             #[cfg(debug_assertions)]

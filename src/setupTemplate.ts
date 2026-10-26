@@ -19,22 +19,25 @@ export function buildSetupTemplate(): string {
     toCsv(
       ["Name", "Type", "Starting Balance", "Institution", "Mask"],
       [["Everyday Checking", "checking", "1000.00", "Ally", "1234"]],
+      ["text", "text", "decimal", "text", "text"],
     );
   const categories = "Categories\r\n" + toCsv(["Name"], [["Groceries"]]);
   const budgets =
     "Budgets\r\n" +
-    toCsv(["Category", "Group", "Monthly Amount", "Period"], [["Groceries", "flexible", "400.00", ""]]);
+    toCsv(["Category", "Group", "Monthly Amount", "Period"], [["Groceries", "flexible", "400.00", ""]], ["text", "text", "decimal", "text"]);
   const buckets =
     "Buckets\r\n" +
     toCsv(
       ["Name", "Target Amount", "Target Date", "Linked Account"],
       [["Emergency Fund", "5000.00", "", "Everyday Checking"]],
+      ["text", "decimal", "text", "text"],
     );
   const holdings =
     "Holdings\r\n" +
     toCsv(
       ["Account", "Symbol", "Name", "Shares", "Price", "Cost Basis", "Asset Class"],
       [["Brokerage", "AAPL", "Apple Inc.", "10", "231.20", "1450.00", "US Stocks"]],
+      ["text", "text", "text", "decimal", "decimal", "decimal", "text"],
     );
   return intro + accounts + "\r\n" + categories + "\r\n" + budgets + "\r\n" + buckets + "\r\n" + holdings;
 }

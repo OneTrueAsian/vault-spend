@@ -77,7 +77,7 @@ export type Theme = "light" | "dark" | "system";
 
 export type StatusKind = "success" | "error" | "info";
 
-export type LedgerSortColumn = "date" | "description" | "amount" | "account" | "category" | "source";
+export type TransactionSortColumn = "date" | "description" | "amount" | "account" | "category" | "source";
 
 /** The sidebar's reorderable tabs — grouped for display (see `NavGroup`)
  * but reordered as one flat sequence via drag-and-drop; rendering then
@@ -119,7 +119,7 @@ export const UNCATEGORIZED_FILTER = "__uncategorized__";
  * `applySavedFilter`. A saved account/category/tag that's since been
  * deleted just matches nothing once applied, the same as typing a filter
  * that happens to match zero rows — nothing here needs it to still exist. */
-export type SavedLedgerFilter = {
+export type SavedTransactionFilter = {
   name: string;
   searchText: string;
   filterCategory: string;

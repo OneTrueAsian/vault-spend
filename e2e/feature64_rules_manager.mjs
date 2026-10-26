@@ -70,7 +70,7 @@ try {
   const dialog = await browser.$("[role='dialog']");
   await dialog.waitForExist({ timeout: 10000 });
   await (await dialog.$("input[placeholder*='Ferrywood']")).setValue("ferrywood coffee");
-  await (await dialog.$("input[list]")).setValue("Dining Out");
+  await (await dialog.$('input[role="combobox"][aria-label="Give it this category"]')).setValue("Dining Out");
   const preview = await dialog.$("[data-rule-preview='ready']");
   await preview.waitForExist({ timeout: 10000 });
   const previewText = await preview.getText();

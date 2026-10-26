@@ -1,0 +1,9 @@
+{
+  "category": "Fixture",
+  "budget_group": "flexible",
+  "budgeted": "9007199254740992.01",
+  "actual": "12.34",
+  "cap_enabled": false,
+  "rollover": "0",
+  "rollover_enabled": false
+}

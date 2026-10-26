@@ -1,0 +1,1057 @@
+{
+ "s-15879e806e4005c3d09ee5cd": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Clothing"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-b85d8394c28ba71efaab2c15": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Coffee Shops"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-2dec4e6edba71f90036e4ff7": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Dining"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-9f65f2716988bff7bd47757e": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Dining Out"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-abc78ae2905d43d5abcf1d5e": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Education"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-dd078bc940f995d71dafaa57": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Gifts"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-34ff95c0e4edbe646bdd57ec": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Groceries"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-1dfd0b369c2e48766db65242": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Home Repairs"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-95799cd7562e6d65cd35264e": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Rent"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-5ddc4d7a13dfae78a732371c": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Shopping"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-58449febcedb965217a51a99": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Transportation"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-06-01",
+    "to": "2026-08-31"
+   }
+  ]
+ },
+ "s-3c5d7fdc4d3a8eac3bc0c1b5": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Clothing"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-cc481cdaff650a86eb11ab44": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Dining"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-4cda50a566fac538f4f00d89": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Dining Out"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-6ef88d596db6c97e2cc2697e": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Education"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-300b056722360e324109e8ef": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Groceries"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-b49b5acdd553316ee2c19528": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Health"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-9a0e5a904d6c9ac14c1b4a00": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Home Repairs"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-c6c47548b55c3eec22382b59": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Insurance"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-59c34e7840f8177df718a82a": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Rent"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-683d49820153403ee242d5ec": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Shopping"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-8ad89f8e2dc611c67c60f540": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Travel"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2025-12-01",
+    "to": "2026-02-28"
+   }
+  ]
+ },
+ "s-012ac60a44b6884cd029a87c": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Dining"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-3b328a18a8f997d88d08c4f3": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Dining Out"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-73bc85fd8ed3014859f4358f": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Education"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-ceec205b37aba6ba378af808": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Entertainment"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-dc858e7bccae6c1f4d05e6f3": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Fuel"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-30fda2e0a7fa4671bf19cd8c": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Groceries"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-7d3fc4782d8d6369d9e2cc24": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Insurance"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-82cdd98607b1c45bbc85885b": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Pets"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-b05d0ec3d49b3cebb0ff25d7": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Rent"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-764bcf4767699bc6f63485a6": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Shopping"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-1a98a4b5137c91d55282d625": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Travel"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": null,
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "month",
+  "average": "per-month",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-12-31"
+   }
+  ]
+ },
+ "s-85e4326bdb02b92606cd8c8d": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Clothing"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": {
+   "amount": "100.00",
+   "inclusive": false
+  },
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "none",
+  "average": "none",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "compare",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-10-20"
+   },
+   {
+    "from": "2026-09-01",
+    "to": "2026-09-30"
+   }
+  ]
+ },
+ "s-846efce9dc2760d89f81eb92": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Clothing"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": {
+   "amount": "100.00",
+   "inclusive": true
+  },
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "none",
+  "average": "none",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "compare",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-10-20"
+   },
+   {
+    "from": "2026-09-01",
+    "to": "2026-09-30"
+   }
+  ]
+ },
+ "s-14086be6064686817a8f7bc8": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Clothing"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": {
+   "amount": "100.01",
+   "inclusive": false
+  },
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "none",
+  "average": "none",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "compare",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-10-20"
+   },
+   {
+    "from": "2026-09-01",
+    "to": "2026-09-30"
+   }
+  ]
+ },
+ "s-f3a781dd94bc1cdbcbb3aaa6": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [
+   "Clothing"
+  ],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": {
+   "amount": "100.01",
+   "inclusive": true
+  },
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "none",
+  "average": "none",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "compare",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-10-20"
+   },
+   {
+    "from": "2026-09-01",
+    "to": "2026-09-30"
+   }
+  ]
+ },
+ "s-799b7dda1e10a3a7369da757": {
+  "contractVersion": 2,
+  "accountIds": [],
+  "categories": [],
+  "members": {
+   "ids": [],
+   "unassigned": false
+  },
+  "minimumPurchase": {
+   "amount": "100.00",
+   "inclusive": false
+  },
+  "vendors": [],
+  "excludeVendors": [],
+  "excludeCategories": [],
+  "limit": 1,
+  "groupBy": "none",
+  "average": "none",
+  "alignment": "as-requested",
+  "expectedRevision": null,
+  "kind": "total",
+  "periods": [
+   {
+    "from": "2026-10-01",
+    "to": "2026-10-20"
+   }
+  ]
+ }
+}

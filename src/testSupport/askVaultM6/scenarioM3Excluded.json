@@ -1,0 +1,5 @@
+{
+ "note": "Rows whose outcome is not the same on all three seeds, or that every seed refuses, are not P-CORE completions. Disclosed, never dropped silently.",
+ "mixedOutcome": [],
+ "refusedOnEverySeed": []
+}

@@ -117,6 +117,28 @@ export async function enableProtectionThroughUI(browser, password) {
   return recoveryDisplay;
 }
 
+/** Finish starts an asynchronous encryption/conversion operation. Wait for its
+ * completion separately from subsequent Settings/banner assertions; crash tests
+ * deliberately use enableProtectionThroughUI alone to stop inside the operation.
+ * Match the existing protected-profile setup allowance in change-password.mjs.
+ */
+export async function waitForProtectionSetupCompletion(browser) {
+  const started = Date.now();
+  await browser.waitUntil(async () => {
+    const wizard = await browser.$(".protection-setup");
+    if (!(await wizard.isExisting())) return true;
+    const error = await wizard.$('[role="alert"]');
+    if (await error.isExisting()) {
+      const message = (await error.getText()).trim();
+      if (message) throw Error(`Password protection setup failed: ${message}`);
+    }
+    return false;
+  }, { timeout: 45000, timeoutMsg: "password protection conversion must complete and close its setup wizard" });
+  console.log(`[timing] password protection conversion completed ${Date.now() - started}ms after Finish returned`);
+}
+
+const FAILPOINT_WAIT_MS = 30_000;
+
 function isProcessAlive(pid) {
   try {
     return execSync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`).toString().includes(`"${pid}"`);
@@ -140,11 +162,16 @@ export async function killAtFailpoint(testDbDir, failpointName, pid, action) {
   const markerPath = path.join(testDbDir, "failpoint-reached.txt");
   fs.rmSync(markerPath, { force: true });
   await action();
-  const deadline = Date.now() + 5000;
+  // Reaching the marker takes two Argon2id key derivations plus the encrypted exports: about 1.5 s on a
+  // developer machine, and several times that on a hosted CI runner. The marker is a certain event, so
+  // wait for it generously; the elapsed time is logged so a slow runner shows up as a number, not a failure.
+  const startedWaiting = Date.now();
+  const deadline = startedWaiting + FAILPOINT_WAIT_MS;
   while (!fs.existsSync(markerPath) || fs.readFileSync(markerPath, "utf8").trim() !== failpointName) {
-    if (Date.now() > deadline) throw new Error(`Never saw the ${failpointName} failpoint marker within 5s`);
+    if (Date.now() > deadline) throw new Error(`Never saw the ${failpointName} failpoint marker within ${FAILPOINT_WAIT_MS / 1000}s`);
     await new Promise((r) => setTimeout(r, 20));
   }
+  console.log(`[timing] ${failpointName} failpoint reached ${Date.now() - startedWaiting}ms after the gesture returned`);
   execSync(`taskkill /PID ${pid} /F`, { stdio: "ignore" });
   const goneBy = Date.now() + 5000;
   while (isProcessAlive(pid)) {

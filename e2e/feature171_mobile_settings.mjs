@@ -36,13 +36,31 @@ try{
  await app.browser.execute(await readFile(createRequire(import.meta.url).resolve("axe-core/axe.min.js"),"utf8"));
  const original=await app.browser.execute(()=>({palette:document.documentElement.dataset.palette,theme:document.documentElement.dataset.theme,motion:document.documentElement.dataset.motion}));
  await app.browser.execute(()=>document.querySelector("[data-mobile-settings]").scrollIntoView({block:"start"}));
+ await app.browser.execute(()=>document.querySelector(".mobile-desktop-fields").closest("details").open=true);
+ const assertConnectionAlignment=async()=>{
+  const fields=await app.browser.execute(()=>{
+   const controls=[document.querySelector(".mobile-desktop-fields .menu-select-toggle"),document.querySelector(".mobile-desktop-fields input")];
+   const labels=[...document.querySelectorAll(".mobile-desktop-fields label > span")];
+   return {controls:controls.map(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom};}),labels:labels.map(el=>el.getBoundingClientRect().top)};
+  });
+  assert.ok(Math.abs(fields.controls[0].top-fields.controls[1].top)<1,"Connection inputs must share a top edge");
+  assert.ok(Math.abs(fields.controls[0].bottom-fields.controls[1].bottom)<1,"Connection inputs must share a bottom edge");
+  assert.ok(Math.abs(fields.labels[0]-fields.labels[1])<1,"Connection labels must share a baseline");
+ };
  for(const palette of ["transparent","futuristic","retro"])for(const theme of ["light","dark"]){
   await app.browser.execute((palette,theme)=>{document.documentElement.dataset.palette=palette;document.documentElement.dataset.theme=theme;document.documentElement.dataset.motion="reduced";},palette,theme);
   await app.browser.pause(200);
+  await assertConnectionAlignment();
   const violations=await app.browser.executeAsync(done=>window.axe.run(document.querySelector("[data-mobile-settings]"),{runOnly:{type:"tag",values:["wcag2a","wcag2aa"]}}).then(result=>done(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})))));
   assert.deepEqual(violations,[],`${palette}/${theme} settings accessibility`);await app.browser.saveScreenshot(path.join(output,`settings-${palette}-${theme}.png`));
  }
  await app.browser.execute(original=>{for(const key of ["palette","theme","motion"]){if(original[key])document.documentElement.dataset[key]=original[key];else delete document.documentElement.dataset[key];}},original);
+ await app.browser.setWindowSize(800,600);
+ await assertConnectionAlignment();
+ assert.equal(await app.browser.execute(()=>{const fields=document.querySelector(".mobile-desktop-fields");return fields.scrollWidth<=fields.clientWidth+1;}),true,"Connection fields must fit the narrow settings card");
+ await app.browser.execute(()=>document.querySelector(".mobile-desktop-fields").scrollIntoView({block:"center"}));
+ await app.browser.saveScreenshot(path.join(output,"settings-narrow-alignment.png"));
+ await app.browser.setWindowSize(1280,800);
  await clickSetting("Remove profile access");
  assert.equal((await request("/api/status",{cookie})).status,200,"Opening confirmation must not mutate grants");
  await clickConfirm();

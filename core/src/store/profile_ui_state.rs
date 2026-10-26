@@ -14,7 +14,7 @@ pub enum UiStateKey {
     CategoryOrder,
     ShowBillNamesInReminders,
     /// The Dashboard's widget arrangement (plan v2 §4.12 follow-up, Phase E Task 8): used to live in
-    /// `localStorage` under `meadow-dashboard-layout` alongside genuine per-viewer preferences like
+    /// `localStorage` under `meadow-dashboard-layout` (the key keeps the app's earliest name, Meadow, so saved settings carry over) alongside genuine per-viewer preferences like
     /// theme/nav-order, until an investment widget's id (`investment:<account name>`) started
     /// embedding a real account name — profile financial content, not a display choice — into
     /// unencrypted, never-cleared, cross-profile browser storage. Moved here so it shares the same

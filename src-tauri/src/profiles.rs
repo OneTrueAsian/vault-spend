@@ -16,6 +16,88 @@ const REGISTRY_FILENAME: &str = "profiles.json";
 const DEFAULT_PROFILE_ID: &str = "default";
 const DEFAULT_PROFILE_NAME: &str = "Default";
 
+/// A refused profile action. `code` is the stable identity callers branch on; `message` is written
+/// for people and may be reworded. Failures without a named domain meaning keep their text and
+/// share one generic code instead of having a meaning guessed from their wording.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ProfileRefusal {
+    pub code: &'static str,
+    pub message: String,
+}
+
+impl ProfileRefusal {
+    fn duplicate_name(name: &str) -> Self {
+        Self {
+            code: "duplicate_profile_name",
+            message: format!("A profile named '{name}' already exists."),
+        }
+    }
+
+    fn already_registered(path: &Path, existing_name: &str) -> Self {
+        Self {
+            code: "profile_already_registered",
+            message: format!("{} is already registered as the '{}' profile.", path.display(), existing_name),
+        }
+    }
+
+    pub fn profile_not_found() -> Self {
+        Self {
+            code: "profile_not_found",
+            message: "That profile no longer exists.".to_string(),
+        }
+    }
+
+    pub fn data_file_missing(name: &str, path: &Path) -> Self {
+        Self {
+            code: "data_file_missing",
+            message: format!(
+                "{name}'s data file wasn't found at {} — was it moved, or is a removable drive disconnected?",
+                path.display()
+            ),
+        }
+    }
+
+    pub fn profile_changed() -> Self {
+        Self {
+            code: "profile_changed",
+            message: "The active profile changed before this profile could be added.".to_string(),
+        }
+    }
+
+    pub fn wrong_password() -> Self {
+        Self {
+            code: "wrong_password",
+            message: "That password didn't work for this profile.".to_string(),
+        }
+    }
+
+    pub fn file_not_found(path: &Path) -> Self {
+        Self {
+            code: "file_not_found",
+            message: format!("{} doesn't exist.", path.display()),
+        }
+    }
+}
+
+impl From<String> for ProfileRefusal {
+    /// The runtime's `STALE_PROFILE:` prefix is its machine marker for a request from a closed
+    /// profile session, not prose, so it keeps its own code. Nothing else is classified.
+    fn from(message: String) -> Self {
+        let code = if message.starts_with("STALE_PROFILE:") {
+            "stale_profile"
+        } else {
+            "profile_operation_failed"
+        };
+        Self { code, message }
+    }
+}
+
+impl From<ProfileRefusal> for String {
+    fn from(refusal: ProfileRefusal) -> Self {
+        refusal.message
+    }
+}
+
 /// The on-disk shape of one registry entry. `icon_key` is a purely
 /// cosmetic pick from the bundled `account-avatar-profile-*` set (see
 /// `flatIcons.ts` on the frontend) — `#[serde(default)]` so a
@@ -340,10 +422,10 @@ pub fn list_profiles(config_path: &Path, live_db_path: &Path) -> Vec<Profile> {
 /// half of `create_profile`, split out so protected creation (Phase C, Task 6) can write the
 /// database file in between choosing the path and registering it: verify before registering, never
 /// the reverse.
-pub fn plan_new_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<(String, PathBuf), String> {
+pub fn plan_new_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<(String, PathBuf), ProfileRefusal> {
     let entries = entries_or_synthesize(config_path, live_db_path);
     if entries.iter().any(|p| p.name.eq_ignore_ascii_case(name)) {
-        return Err(format!("A profile named '{name}' already exists."));
+        return Err(ProfileRefusal::duplicate_name(name));
     }
     let id = unique_profile_id(&entries, name, now);
     let db_path = profiles_dir(config_path).join(&id).join("vaultspend.db");
@@ -376,7 +458,7 @@ pub fn register_prepared_profile(
     write_registry(config_path, &Registry { profiles: entries })
 }
 
-pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<Profile, String> {
+pub fn create_profile(config_path: &Path, live_db_path: &Path, name: &str, now: NaiveDateTime) -> Result<Profile, ProfileRefusal> {
     let (id, db_path) = plan_new_profile(config_path, live_db_path, name, now)?;
     register_prepared_profile(config_path, live_db_path, &id, name, &db_path, None)?;
     Ok(Profile {
@@ -407,10 +489,10 @@ pub fn add_existing_profile(
     existing_db_path: &Path,
     protection: Option<Protection>,
     now: NaiveDateTime,
-) -> Result<Profile, String> {
+) -> Result<Profile, ProfileRefusal> {
     let mut entries = entries_or_synthesize(config_path, live_db_path);
     if entries.iter().any(|p| p.name.eq_ignore_ascii_case(name)) {
-        return Err(format!("A profile named '{name}' already exists."));
+        return Err(ProfileRefusal::duplicate_name(name));
     }
     // Case-insensitive, matching Windows/macOS filesystem semantics (this
     // app's only two build targets — see the CI workflow) — an exact,
@@ -419,11 +501,7 @@ pub fn add_existing_profile(
     // stored, silently defeating the whole point of this check.
     let picked_lossy = existing_db_path.to_string_lossy();
     if let Some(existing) = entries.iter().find(|p| p.db_path.eq_ignore_ascii_case(&picked_lossy)) {
-        return Err(format!(
-            "{} is already registered as the '{}' profile.",
-            existing_db_path.display(),
-            existing.name
-        ));
+        return Err(ProfileRefusal::already_registered(existing_db_path, &existing.name));
     }
 
     let id = unique_profile_id(&entries, name, now);
@@ -453,20 +531,20 @@ pub fn add_existing_profile(
 /// never actually been renamed. Rejects a case-insensitive duplicate of
 /// *another* profile's name; renaming a profile to its own current name is
 /// always allowed.
-pub fn rename_profile(config_path: &Path, live_db_path: &Path, id: &str, new_name: &str) -> Result<(), String> {
+pub fn rename_profile(config_path: &Path, live_db_path: &Path, id: &str, new_name: &str) -> Result<(), ProfileRefusal> {
     let mut entries = entries_or_synthesize(config_path, live_db_path);
     if !entries.iter().any(|p| p.id == id) {
         return Ok(());
     }
     if entries.iter().any(|p| p.id != id && p.name.eq_ignore_ascii_case(new_name)) {
-        return Err(format!("A profile named '{new_name}' already exists."));
+        return Err(ProfileRefusal::duplicate_name(new_name));
     }
     for p in entries.iter_mut() {
         if p.id == id {
             p.name = new_name.to_string();
         }
     }
-    write_registry(config_path, &Registry { profiles: entries })
+    Ok(write_registry(config_path, &Registry { profiles: entries })?)
 }
 
 /// Sets (or clears, with `None`) a profile's icon — a purely cosmetic pick
@@ -564,12 +642,16 @@ pub fn commit_protection_conversion(
 /// where nothing was ever plaintext). See `ProfileEntry::former_plaintext_path`'s own doc comment
 /// for why `protection_leftovers::list_leftovers` needs this rather than the profile's current
 /// (already-encrypted) `db_path`.
-pub fn former_plaintext_path_for(config_path: &Path, live_db_path: &Path, id: &str) -> Option<PathBuf> {
-    entries_or_synthesize(config_path, live_db_path)
+pub fn former_plaintext_path_for(config_path: &Path, live_db_path: &Path, id: &str) -> Result<Option<PathBuf>, String> {
+    let entries = read_registry_strict(config_path)
+        .map_err(|problem| format!("Couldn't check the profile registry: {}", problem.reason))?
+        .map(|registry| registry.profiles)
+        .unwrap_or_else(|| vec![default_entry(live_db_path)]);
+    let entry = entries
         .into_iter()
-        .find(|p| p.id == id)
-        .and_then(|p| p.former_plaintext_path)
-        .map(PathBuf::from)
+        .find(|p| p.id == id && Path::new(&p.db_path) == live_db_path)
+        .ok_or_else(|| "The active profile changed before plaintext cleanup could be checked.".to_string())?;
+    Ok(entry.former_plaintext_path.map(PathBuf::from))
 }
 
 /// Removes a profile from the registry — the file it points at is left on
@@ -584,16 +666,19 @@ pub fn former_plaintext_path_for(config_path: &Path, live_db_path: &Path, id: &s
 /// locked profile's registry entry is safe (no open connection holds it) and
 /// is exactly what the "forgot password, remove this profile" escape needs.
 /// Unknown id is a harmless no-op.
-pub fn delete_profile(config_path: &Path, live_db_path: &Path, currently_open: bool, id: &str) -> Result<(), String> {
+pub fn delete_profile(config_path: &Path, live_db_path: &Path, currently_open: bool, id: &str) -> Result<(), ProfileRefusal> {
     let entries = entries_or_synthesize(config_path, live_db_path);
     let Some(target) = entries.iter().find(|p| p.id == id) else {
         return Ok(());
     };
     if currently_open && &target.db_path == live_db_path {
-        return Err("Can't delete the profile you're currently using — switch to another one first.".to_string());
+        return Err(ProfileRefusal {
+            code: "profile_in_use",
+            message: "Can't delete the profile you're currently using — switch to another one first.".to_string(),
+        });
     }
     let remaining: Vec<ProfileEntry> = entries.into_iter().filter(|p| p.id != id).collect();
-    write_registry(config_path, &Registry { profiles: remaining })
+    Ok(write_registry(config_path, &Registry { profiles: remaining })?)
 }
 
 /// Called by `relocate_data_file`/`restore_backup` after they hot-swap the
@@ -889,7 +974,11 @@ mod tests {
         let result = add_existing_profile(&config_path, &live_db_path, "Alex Again", &alex.db_path, None, dt("2026-09-02 09:00:01"));
 
         let err = result.unwrap_err();
-        assert!(err.contains("Alex"), "error should name the profile already using that file: {err}");
+        assert!(
+            err.message.contains("Alex"),
+            "error should name the profile already using that file: {}",
+            err.message
+        );
     }
 
     #[test]
@@ -914,7 +1003,42 @@ mod tests {
         );
 
         let err = result.unwrap_err();
-        assert!(err.contains("Alex"), "error should name the profile already using that file: {err}");
+        assert!(
+            err.message.contains("Alex"),
+            "error should name the profile already using that file: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn switching_and_adding_refusals_carry_stable_codes_independent_of_wording() {
+        let dir = temp_dir("switch-add-codes");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("vaultspend.db");
+        let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-09-02 09:00:00")).unwrap();
+
+        let same_name = add_existing_profile(
+            &config_path,
+            &live_db_path,
+            "ALEX",
+            &dir.join("other.db"),
+            None,
+            dt("2026-09-02 09:00:01"),
+        )
+        .unwrap_err();
+        assert_eq!(same_name.code, "duplicate_profile_name");
+        let same_file = add_existing_profile(&config_path, &live_db_path, "Again", &alex.db_path, None, dt("2026-09-02 09:00:02")).unwrap_err();
+        assert_eq!(same_file.code, "profile_already_registered");
+        assert!(same_file.message.contains("Alex"));
+
+        assert_eq!(ProfileRefusal::profile_not_found().code, "profile_not_found");
+        let missing = ProfileRefusal::data_file_missing("Alex", Path::new("D:/gone.db"));
+        assert_eq!(missing.code, "data_file_missing");
+        assert!(missing.message.contains("Alex") && missing.message.contains("gone.db"));
+        assert_eq!(ProfileRefusal::profile_changed().code, "profile_changed");
+        assert_eq!(ProfileRefusal::wrong_password().code, "wrong_password");
+        assert_eq!(ProfileRefusal::wrong_password().message, "That password didn't work for this profile.");
+        assert_eq!(ProfileRefusal::file_not_found(Path::new("D:/x.db")).code, "file_not_found");
     }
 
     #[test]
@@ -943,6 +1067,36 @@ mod tests {
         let result = rename_profile(&config_path, &live_db_path, &alex.id, "SAM");
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn refusals_carry_a_stable_code_apart_from_their_wording() {
+        let dir = temp_dir("refusal-codes");
+        let config_path = dir.join("config.json");
+        let live_db_path = dir.join("vaultspend.db");
+        let alex = create_profile(&config_path, &live_db_path, "Alex", dt("2026-08-30 12:00:00")).unwrap();
+        let sam = create_profile(&config_path, &live_db_path, "Sam", dt("2026-08-30 12:00:01")).unwrap();
+
+        let renamed = rename_profile(&config_path, &live_db_path, &alex.id, "SAM").unwrap_err();
+        assert_eq!(renamed.code, "duplicate_profile_name");
+        let created = create_profile(&config_path, &live_db_path, "sam", dt("2026-08-30 12:00:02")).unwrap_err();
+        assert_eq!(created.code, "duplicate_profile_name");
+        let planned = plan_new_profile(&config_path, &live_db_path, "SAM", dt("2026-08-30 12:00:03")).unwrap_err();
+        assert_eq!(planned.code, "duplicate_profile_name");
+        let deleted = delete_profile(&config_path, &sam.db_path, true, &sam.id).unwrap_err();
+        assert_eq!(deleted.code, "profile_in_use");
+
+        // The wire shape is exactly {code, message}; the message is still written for people.
+        let wire = serde_json::to_value(&deleted).unwrap();
+        assert_eq!(wire["code"], "profile_in_use");
+        assert!(wire["message"].as_str().unwrap().contains("switch to another one"));
+        assert_eq!(wire.as_object().unwrap().len(), 2);
+        // Other failures keep working as plain text and get one generic code.
+        let other: ProfileRefusal = String::from("disk full").into();
+        assert_eq!(other.code, "profile_operation_failed");
+        let stale: ProfileRefusal = String::from("STALE_PROFILE: This request belongs to a previous profile session.").into();
+        assert_eq!(stale.code, "stale_profile");
+        assert_eq!(String::from(other), "disk full");
     }
 
     #[test]
@@ -1537,7 +1691,7 @@ mod tests {
         commit_protection_conversion(&dir.join("config.json"), &alex.db_path, &alex.id, &new_path, Protection::new(1)).unwrap();
 
         assert_eq!(
-            former_plaintext_path_for(&dir.join("config.json"), &new_path, &alex.id),
+            former_plaintext_path_for(&dir.join("config.json"), &new_path, &alex.id).unwrap(),
             Some(alex.db_path)
         );
     }
@@ -1546,10 +1700,23 @@ mod tests {
     fn a_profile_with_no_conversion_behind_it_has_no_former_plaintext_path() {
         let dir = temp_dir("no-former-path");
         let live = dir.join("v.db");
-        create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
-        let id = list_profiles(&dir.join("config.json"), &live)[1].id.clone();
+        let alex = create_profile(&dir.join("config.json"), &live, "Alex", dt("2026-09-21 09:00:00")).unwrap();
+        assert_eq!(
+            former_plaintext_path_for(&dir.join("config.json"), &alex.db_path, &alex.id).unwrap(),
+            None
+        );
+    }
 
-        assert_eq!(former_plaintext_path_for(&dir.join("config.json"), &live, &id), None);
+    #[test]
+    fn plaintext_discovery_refuses_stale_identity_and_corrupt_registry() {
+        let dir = temp_dir("strict-plaintext-discovery");
+        let config = dir.join("config.json");
+        let live = dir.join("vaultspend.db");
+        let alex = create_profile(&config, &live, "Alex", dt("2026-08-30 12:00:00")).unwrap();
+        assert!(former_plaintext_path_for(&config, &live, &alex.id).is_err());
+        assert!(former_plaintext_path_for(&config, &live, "unknown-profile").is_err());
+        std::fs::write(registry_path(&config), b"{invalid registry").unwrap();
+        assert!(former_plaintext_path_for(&config, &live, DEFAULT_PROFILE_ID).is_err());
     }
 
     #[test]

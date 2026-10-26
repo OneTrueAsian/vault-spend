@@ -1,0 +1,72 @@
+{
+ "version": "m6-scoring-amendments-1",
+ "writtenBy": "session a3fdc854-0d17-4a58-80ba-13f242e6daf9, 2026-10-21, same author as the grader changes and the freeze signature (disclosed)",
+ "decisions": {
+  "D-R2": "Owner decision, 21 October 2026 (Task5-Remediation-Completion/Task-Authority-2.txt:61-105): for the frozen m1:several-stores family ONLY, the existing direct metric and its 90% threshold are retained and reported; a separate family-resolution measure counts correct direct answers plus the eight contract-permitted store-typo clarifications, each only after the approved choice is clicked, the original question is reparsed, and the full request and exact displayed result are correct on every required seed/context. A resolution score of at least 90% may satisfy closure for this family. Deliberate refusals and incomplete flows remain misses (option 3 not applied).",
+  "D-R3": "Owner decision, 21 October 2026 (Task-Authority-2.txt:107-126): m1/202-0210 receives an explicit alternate request, vendors [\"shel\",\"sams club\"], with a separately calculated, natively proved reference per seed. The original request and gold are preserved and still count."
+ },
+ "familyResolution": {
+  "family": "m1:several-stores",
+  "thresholdPercent": 90,
+  "approvedChoices": {
+   "m1/101-0168": "spotify",
+   "m1/101-0189": "kroger",
+   "m1/101-0217": "netflix",
+   "m1/202-0174": "shell",
+   "m1/303-0176": "kroger",
+   "m1/303-0182": "costco gas",
+   "m1/303-0192": "petco",
+   "m1/303-0214": "costco gas"
+  },
+  "approvedChoicesSource": "flaggedDispositions.json: the eight m1:several-stores entries classified candidate-choice, permittedCandidates[0] (typo lock a173c54c...)",
+  "doesNotChange": [
+   "the overall 95% direct-success gate",
+   "every other family's direct-success gate",
+   "counting normalization, populations, original texts and seed requirements",
+   "the zero-wrong rule (an answer accepted or read before the person chose, or a wrong request or result, still fails it)",
+   "the rule that a store typo is never answered without a user choice",
+   "the existing direct metric and its 90% threshold, which stay reported beside the resolution score"
+  ]
+ },
+ "alternates": [
+  {
+   "caseId": "m1/202-0210",
+   "reason": "The card's actual request for 'Shel or sam's club' uses the typed prefix as the term. A typed term that starts a word of a recorded name matches (src/askVault/vendor.ts:29-33; typoRules.json store bound: 'A typed name that starts a recorded name's words matches'; the native read uses the same rule). In all three contexts 'shel' and 'shell' select the same two recorded names, so the totals are the same; the reply differs only in the echoed term (amendmentReferences.test.ts verifies both). The original gold request stays accepted.",
+   "perSeed": [
+    {
+     "seed": 101,
+     "contextId": "m1-origin-202-seed-101",
+     "requestId": "q-amend-m1-202-0210",
+     "referenceId": "r-amend-m1-202-0210-s101"
+    },
+    {
+     "seed": 202,
+     "contextId": "m1-origin-202-seed-202",
+     "requestId": "q-amend-m1-202-0210",
+     "referenceId": "r-amend-m1-202-0210-s202"
+    },
+    {
+     "seed": 303,
+     "contextId": "m1-origin-202-seed-303",
+     "requestId": "q-amend-m1-202-0210",
+     "referenceId": "r-amend-m1-202-0210-s303"
+    }
+   ]
+  }
+ ],
+ "nativeEvidence": {
+  "proofFile": "native-proof-amendment.json",
+  "proofSha256": "108cc94b0914a5c324333c7e5dcb1886f258672528abb1f90fdb714db2148abd",
+  "referenceFileSha256": "2b613efd49047c45c488c505ea27459835a41cea0aaadfffb2e723cd36525747",
+  "identities": {
+   "r-amend-m1-202-0210-s101": "32af67161e1924b72a16c6049ca6b48ecd195edf134b5566028c7890f466b3e7",
+   "r-amend-m1-202-0210-s202": "ed3016ae8ba675515822b37fc170bdef25beedf4ccbdbfb60bf64f597f0e1f19",
+   "r-amend-m1-202-0210-s303": "7232fd7bf7c2c66c2e8fc25a8355f0d5b166e18a22bfb04171173e03efacf957"
+  },
+  "receipts": {
+   "r-amend-m1-202-0210-s101": "native-proof-amendment.json#sha256:108cc94b0914a5c324333c7e5dcb1886f258672528abb1f90fdb714db2148abd#r-amend-m1-202-0210-s101",
+   "r-amend-m1-202-0210-s202": "native-proof-amendment.json#sha256:108cc94b0914a5c324333c7e5dcb1886f258672528abb1f90fdb714db2148abd#r-amend-m1-202-0210-s202",
+   "r-amend-m1-202-0210-s303": "native-proof-amendment.json#sha256:108cc94b0914a5c324333c7e5dcb1886f258672528abb1f90fdb714db2148abd#r-amend-m1-202-0210-s303"
+  }
+ }
+}

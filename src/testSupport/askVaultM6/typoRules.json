@@ -1,0 +1,53 @@
+{
+  "version": "m6-typo-rules-1",
+  "writtenBy": "session bec4530a-cba4-40c4-b585-ecb9aed91bfa, 2026-10-21",
+  "authority": "Owner decision Q1, 21 October 2026: keep the existing matching bounds for this batch; record the rules and source lines separately for ordinary entities, stores and investment accounts; no universal edit distance or margin, no wider matching, no account aliases.",
+  "standing": [
+    "A unique, bounded correction may answer when the existing contract permits it, with the correction visibly disclosed.",
+    "Genuine ambiguity must ask.",
+    "A permitted candidate choice remains a direct-answer miss; a correct completion can count toward the 600.",
+    "Flagged supported cases stay in their existing denominators; M5's approved clarification expectations are preserved."
+  ],
+  "classes": {
+    "ordinary-entity": {
+      "covers": "categories, accounts and family members named in an ordinary spending question",
+      "bound": "Adjacent-swap edit distance (distance.ts) of at most 1. A single typed word must be at least 3 letters and either start the name's first word or be within 1 of it. A multi-word phrase of at least 3 characters must be within 1 of the whole name. An account may also be matched by a typed part of at least 5 letters.",
+      "decision": "A guess at the first word of a longer name (rest not typed) asks. More than one distinct candidate asks (\"Which one did you mean?\"). Exactly one candidate answers, and the correction is disclosed (\"I read ... as ...\").",
+      "grammarWords": "A misspelled grammar word is corrected only when it is at least 4 letters, within 1 of exactly one correctable word, and the typed or known word has 5 or more letters; negation, scope, amount, command, forecast and leaving-out words are never corrected."
+    },
+    "store": {
+      "covers": "store or payee names matched against recorded descriptions",
+      "bound": "A typed name that starts a recorded name's words matches. Otherwise the first typed word (at least 3 letters) is compared with each recorded name's first word cut to one letter longer than the typed word: tolerance 1 when the typed word has 5 letters or fewer, 2 when longer. At most 3 candidates are offered.",
+      "decision": "A store typo is never answered without a choice: the close names are offered as choices, even when there is only one. Several brands behind one typed prefix also ask. No close name gives a plain not-found message."
+    },
+    "investment-account": {
+      "covers": "an investment account named in an extra-money question (M5)",
+      "bound": "Plain edit distance (no adjacent swap) from that parser's own function; the names must differ in length by at most 2; at most 1 slip for a typed name under 8 characters, at most 2 from 8 characters. At most 3 candidates. No alias or shortened name is accepted.",
+      "decision": "A close name asks (\"Did you mean this account?\") and never answers. No close name is a refusal. Exact names, quoted names and \"A or B\" alternatives follow the M5 frozen clarification expectations, which are unchanged."
+    }
+  },
+  "sources": [
+    { "class": "ordinary-entity", "file": "src/askVault/distance.ts", "line": 2, "snippet": "export function distance(a: string, b: string, maximum = Infinity): number {" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 247, "snippet": "distance(phrase, entity.parts.join(\" \"), 1) <= 1" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 253, "snippet": "const singleWord = w.length >= minimum" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 254, "snippet": "const anyPart = entity.kind === \"account\" && w.length >= 5" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 259, "snippet": "weak: singleWord" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 805, "snippet": "const guessOnly = candidates.length > 0 && candidates.every((m) => m.weak);" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 810, "snippet": "if (names.length > 1) {" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 815, "snippet": "if (!guessOnly && (candidates.length === 1 || names.length === 1)) {" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 819, "snippet": "corrections.push({ from: text, to: entity.name })" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 83, "snippet": "function correctedWord(word: string): string | null {" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 88, "snippet": "NEVER_GUESSED.some((w) => w.length >= 4 && distance(word, w) <= 1)" },
+    { "class": "ordinary-entity", "file": "src/askVault/parser.ts", "line": 91, "snippet": "return known.length === 1 && CORRECTABLE.includes(known[0])" },
+    { "class": "ordinary-entity", "file": "src/askVault/cutPreviewParser.ts", "line": 224, "snippet": "counts.get(norm(label)) === 1 && distance(key, norm(label), 1) <= 1" },
+    { "class": "ordinary-entity", "file": "src/askVault/spendingScenarioParser.ts", "line": 247, "snippet": "distance(raw, normalize(name), 1) <= 1" },
+    { "class": "store", "file": "src/askVault/vendor.ts", "line": 100, "snippet": "export function resolveVendor(" },
+    { "class": "store", "file": "src/askVault/vendor.ts", "line": 118, "snippet": "const tolerance = first.length <= 5 ? 1 : 2;" },
+    { "class": "store", "file": "src/askVault/vendor.ts", "line": 123, "snippet": "distance(first, word.slice(0, first.length + 1), tolerance) <= tolerance" },
+    { "class": "store", "file": "src/askVault/vendor.ts", "line": 9, "snippet": "const MAX_SUGGESTIONS = 3;" },
+    { "class": "investment-account", "file": "src/askVault/retirementParser.ts", "line": 12, "snippet": "function distance(a: string, b: string): number {" },
+    { "class": "investment-account", "file": "src/askVault/retirementParser.ts", "line": 134, "snippet": "Math.abs(a.name.length - phrase.length) <= 2 && distance(a.name, phrase) <= (phrase.length >= 8 ? 2 : 1)" },
+    { "class": "investment-account", "file": "src/askVault/retirementParser.ts", "line": 135, "snippet": "Did you mean this account?" },
+    { "class": "investment-account", "file": "src/askVault/retirementParser.ts", "line": 136, "snippet": "return refuse(\"account-not-found\");" }
+  ]
+}

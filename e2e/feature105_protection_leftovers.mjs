@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
-import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
+import { enableProtectionThroughUI, seedPopulatedProfile, waitForProtectionSetupCompletion } from "./lib/protection.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 
 const PASSWORD = "correct horse battery staple";
@@ -24,6 +24,7 @@ try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
   await enableProtectionThroughUI(browser, PASSWORD);
+  await waitForProtectionSetupCompletion(browser);
   await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), {
     timeout: 10000,
     timeoutMsg: "expected Password protection: On after finishing setup",
@@ -31,6 +32,7 @@ try {
 
   const region = await browser.$(REGION);
   await region.waitForExist({ timeout: 10000, timeoutMsg: "the leftovers banner should appear once conversion finishes" });
+  await browser.waitUntil(async () => (await region.getText()).includes("vaultspend.db"), { timeout: 10000, timeoutMsg: "wait for the actual plaintext inventory after its checking state" });
   const regionText = await region.getText();
   assert.match(regionText, /vaultspend\.db/, `expected the original database's path, got:\n${regionText}`);
   assert.match(regionText, /vaultspend-20260918-090000\.db/, `expected the first backup's path, got:\n${regionText}`);
@@ -61,6 +63,8 @@ try {
   const region = await browser.$(REGION);
   await region.waitForExist({ timeout: 10000, timeoutMsg: "Keep for now must not persist — the banner should reappear on the next launch" });
 
+  await browser.waitUntil(() => browser.$("button=Delete plaintext copies now").isEnabled(), { timeout: 10000 });
+
   await (await browser.$("button=Delete plaintext copies now")).click();
   await browser.waitUntil(async () => !(await browser.$(REGION).isExisting()), {
     timeout: 10000,
@@ -86,7 +90,10 @@ try {
   await dismissFirstLaunchDialogs(browser);
   await (await browser.$("button*=Settings")).click();
   await (await browser.$("[data-data-file]")).waitForExist({ timeout: 10000 }); // Settings has fully rendered
-  assert.ok(!(await browser.$(REGION).isExisting()), "with nothing left to delete, the banner must not appear at all");
+  await browser.waitUntil(async () => !(await browser.$(REGION).isExisting()), {
+    timeout: 10000,
+    timeoutMsg: "with nothing left to delete, the completed cleanup check must remove the banner",
+  });
 } finally {
   await app.close();
 }

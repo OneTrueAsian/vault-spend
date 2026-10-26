@@ -8,7 +8,7 @@
 // Run with: node e2e/feature155_duplicate_account_name.mjs
 
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedDemoDatabase } from "./lib/demo-seed.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 
@@ -34,7 +34,10 @@ try {
   await name.setValue("  car LOAN ");
   const error = await browser.$("#new-account-name-error");
   await error.waitForExist({ timeout: 3000, timeoutMsg: "the taken name should be flagged" });
-  assert.match(await error.getText(), /You already have an account called "Car Loan"/);
+  await waitUntilOrDiagnose(browser, async () => /You already have an account called "Car Loan"/.test(await error.getText()), {
+    timeout: 3000,
+    timeoutMsg: "the duplicate-name refusal should visibly name the existing Car Loan account",
+  });
   assert.equal(await name.getAttribute("aria-invalid"), "true");
   const create = await browser.$("button=Create account");
   assert.equal(await create.isEnabled(), false, "Create account stays disabled for a taken name");

@@ -52,7 +52,14 @@ pub fn create_profile(
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
-) -> Result<String, String> {
+) -> Result<String, crate::profiles::ProfileRefusal> {
+    // A request from an open app must retain its origin guard through publication.
+    // The empty-registry entry point has no origin and can still install a profile.
+    let mut previous = if crate::request_session::expected().is_some() {
+        Some(state.lock()?)
+    } else {
+        None
+    };
     let live_db_path = current_db_path(&paths);
     let profile = crate::profiles::create_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
 
@@ -63,11 +70,19 @@ pub fn create_profile(
     // live on the old profile instead of silently drifting out of sync with
     // `config.json`.
     crate::config::write_db_location_config(&paths.config_path, &profile.db_path).map_err(|e| e.to_string())?;
-    state.install(AppState::open(&profile.db_path)?);
+    let opened = AppState::open(&profile.db_path)?;
+    if let Some(session) = previous.as_mut() {
+        session.replace(opened);
+    } else {
+        state.install(opened);
+    }
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = profile.db_path.clone();
     paths.bump_generation();
 
-    let session = state.lock()?;
+    let session = match previous {
+        Some(session) => session,
+        None => state.lock()?,
+    };
     let summary = crate::startup::after_profile_opened(
         &paths.config_path,
         &profile.db_path,
@@ -93,21 +108,17 @@ pub fn switch_profile(
     paths: tauri::State<crate::config::AppPaths>,
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
-) -> Result<String, String> {
+) -> Result<String, crate::profiles::ProfileRefusal> {
     let runtime = &*state;
     let mut state = runtime.lock()?;
     let live_db_path = current_db_path(&paths);
     let target = crate::profiles::list_profiles(&paths.config_path, &live_db_path)
         .into_iter()
         .find(|p| p.id == id)
-        .ok_or_else(|| "That profile no longer exists.".to_string())?;
+        .ok_or_else(crate::profiles::ProfileRefusal::profile_not_found)?;
 
     if !target.db_path.exists() {
-        return Err(format!(
-            "{}'s data file wasn't found at {} — was it moved, or is a removable drive disconnected?",
-            target.name,
-            target.db_path.display()
-        ));
+        return Err(crate::profiles::ProfileRefusal::data_file_missing(&target.name, &target.db_path));
     }
 
     // Unlike `create_profile` (whose target is a file this app just
@@ -122,7 +133,7 @@ pub fn switch_profile(
     // the live connection, and `paths.db_path` all left untouched.
     let new_state = AppState::open(&target.db_path)?;
     crate::config::write_db_location_config(&paths.config_path, &target.db_path).map_err(|e| e.to_string())?;
-    *state = new_state;
+    state.replace(new_state);
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = target.db_path.clone();
     paths.bump_generation();
 
@@ -174,32 +185,16 @@ pub fn add_existing_profile(
     state: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
     sessions: tauri::State<crate::protection_session::Sessions>,
-) -> Result<String, String> {
+) -> Result<String, crate::profiles::ProfileRefusal> {
     if paths.current_generation() != expected_generation {
-        return Err("The active profile changed before this profile could be added.".to_string());
+        return Err(crate::profiles::ProfileRefusal::profile_changed());
     }
     let picked_path = std::path::PathBuf::from(&db_path);
     if !picked_path.exists() {
-        return Err(format!("{} doesn't exist.", picked_path.display()));
+        return Err(crate::profiles::ProfileRefusal::file_not_found(&picked_path));
     }
     if picked_path.is_dir() {
-        let attempt_id = format!("package:{}", picked_path.to_string_lossy().to_lowercase());
-        let remaining = sessions.delay_remaining(&attempt_id);
-        if !remaining.is_zero() {
-            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
-        }
-        let validated = match validate_protected_package(&picked_path, password.as_deref().unwrap_or_default()) {
-            Ok(package) => {
-                sessions.record_success(&attempt_id);
-                package
-            }
-            Err(error) => {
-                if error == "That password didn't work." {
-                    sessions.record_failure(&attempt_id);
-                }
-                return Err(error);
-            }
-        };
+        let validated = validate_protected_package(&picked_path, password.as_deref().unwrap_or_default(), &sessions)?;
         let live_db_path = current_db_path(&paths);
         let (id, imported_db_path) = crate::profiles::plan_new_profile(&paths.config_path, &live_db_path, &name, chrono::Local::now().naive_local())?;
         let imported_dir = imported_db_path.parent().ok_or_else(|| "invalid imported profile path".to_string())?;
@@ -221,12 +216,15 @@ pub fn add_existing_profile(
             Ok(state) => state,
             Err(error) => {
                 let _ = std::fs::remove_dir_all(imported_dir);
-                return Err(error);
+                return Err(error.into());
             }
         };
 
         let runtime = &*state;
         let mut state = runtime.lock()?;
+        if paths.current_generation() != expected_generation {
+            return Err(crate::profiles::ProfileRefusal::profile_changed());
+        }
         if let Err(error) = crate::profiles::register_prepared_profile(
             &paths.config_path,
             &live_db_path,
@@ -236,10 +234,10 @@ pub fn add_existing_profile(
             Some(crate::profiles::Protection::new(validated.manifest.protection_format)),
         ) {
             let _ = std::fs::remove_dir_all(imported_dir);
-            return Err(error);
+            return Err(error.into());
         }
         crate::config::write_db_location_config(&paths.config_path, &imported_db_path).map_err(|e| e.to_string())?;
-        *state = new_state;
+        state.replace(new_state);
         *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = imported_db_path.clone();
         paths.bump_generation();
         let summary = crate::startup::after_profile_opened(
@@ -263,34 +261,33 @@ pub fn add_existing_profile(
         let key_file_path = budget_core::protection::keyfile::key_file_path_for(&picked_path);
         if !key_file_path.exists() {
             return Err(
-                "Choose the .vaultspend package folder, or a database with its matching .key file, not a bare encrypted database file.".to_string(),
+                "Choose the .vaultspend package folder, or a database with its matching .key file, not a bare encrypted database file."
+                    .to_string()
+                    .into(),
             );
         }
         // A profile removed from the list ("forgot the password? remove this profile" or a plain
         // Delete) leaves exactly this shape on disk — an encrypted `.db` with its `.key` beside it,
         // no manifest — and the lock screen's own wording says it "can't be opened without the
         // password or recovery key", so re-adding it here with the right one must actually work.
-        let attempt_id = format!("existing-encrypted:{}", picked_path.to_string_lossy().to_lowercase());
-        let remaining = sessions.delay_remaining(&attempt_id);
-        if !remaining.is_zero() {
-            return Err(format!("Try again in {} seconds.", remaining.as_secs().max(1)));
-        }
         let key_file = budget_core::protection::keyfile::KeyFile::read(&key_file_path).map_err(|e| e.to_string())?;
-        let dek = match key_file.unlock_with_password(password.as_deref().unwrap_or_default()) {
-            Ok(dek) => {
-                sessions.record_success(&attempt_id);
-                dek
-            }
-            Err(_) => {
-                sessions.record_failure(&attempt_id);
-                return Err("That password didn't work for this profile.".to_string());
-            }
-        };
+        let dek = sessions
+            .check_password(&key_file, password.as_deref().unwrap_or_default())
+            .map_err(|error| {
+                if error == crate::protection_session::WRONG_PASSWORD {
+                    crate::profiles::ProfileRefusal::wrong_password()
+                } else {
+                    crate::profiles::ProfileRefusal::from(error)
+                }
+            })?;
         let new_state = AppState::open_with_key(&picked_path, budget_core::store::DatabaseKey::Raw(dek.as_bytes()))
             .map_err(|e| format!("Couldn't open {} as a Vault Spend data file: {e}", picked_path.display()))?;
 
         let runtime = &*state;
         let mut state = runtime.lock()?;
+        if paths.current_generation() != expected_generation {
+            return Err(crate::profiles::ProfileRefusal::profile_changed());
+        }
         let live_db_path = current_db_path(&paths);
         let profile = crate::profiles::add_existing_profile(
             &paths.config_path,
@@ -302,7 +299,7 @@ pub fn add_existing_profile(
         )?;
 
         crate::config::write_db_location_config(&paths.config_path, &picked_path).map_err(|e| e.to_string())?;
-        *state = new_state;
+        state.replace(new_state);
         *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
         paths.bump_generation();
 
@@ -345,7 +342,7 @@ pub fn add_existing_profile(
     // comment on the same ordering. `new_state` was already proven openable
     // above, so this reordering costs nothing: the swap itself can't fail.
     crate::config::write_db_location_config(&paths.config_path, &picked_path).map_err(|e| e.to_string())?;
-    *state = new_state;
+    state.replace(new_state);
     *paths.db_path.lock().map_err(|_| "db path poisoned".to_string())? = picked_path.clone();
     paths.bump_generation();
 
@@ -367,7 +364,7 @@ pub fn rename_profile(
     new_name: String,
     paths: tauri::State<crate::config::AppPaths>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
-) -> Result<(), String> {
+) -> Result<(), crate::profiles::ProfileRefusal> {
     let mut result = Ok(());
     device.update(|settings| {
         result = crate::profiles::rename_profile(&paths.config_path, &current_db_path(&paths), &id, &new_name);
@@ -393,7 +390,7 @@ pub fn delete_profile(
     runtime: tauri::State<AppStateHandle>,
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
     mobile: tauri::State<crate::mobile_api::MobileAccess>,
-) -> Result<(), String> {
+) -> Result<(), crate::profiles::ProfileRefusal> {
     // Revoke before removing the registry entry: an I/O failure must never leave old grants
     // able to match a later profile with a reused internal ID.
     mobile.devices.remove_profile(&id)?;

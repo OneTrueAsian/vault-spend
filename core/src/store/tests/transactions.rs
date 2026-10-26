@@ -112,7 +112,7 @@ fn save_transactions_inserts_a_flagged_duplicate_when_asked() {
 
 #[test]
 fn persists_to_disk_across_reopen() {
-    let dir = std::env::temp_dir().join(format!("meadow-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("test.db");
     if db_path.exists() {
@@ -165,7 +165,7 @@ fn backup_to_copies_every_row_to_a_new_file() {
 fn opening_a_pre_accounts_database_migrates_it_without_losing_data() {
     // Simulates a real database created before Step 11 added accounts:
     // a `transactions` table with no `account_id` column at all.
-    let dir = std::env::temp_dir().join(format!("meadow-migration-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("vaultspend-migration-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("pre_accounts.db");
     if db_path.exists() {
@@ -305,7 +305,7 @@ fn assigning_a_brand_new_category_to_a_transaction_registers_it_for_every_other_
 }
 
 #[test]
-fn transactions_by_ids_returns_exactly_those_rows_as_the_full_ledger_shows_them() {
+fn transactions_by_ids_returns_exactly_those_rows_as_the_full_transactions_shows_them() {
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);
     store
@@ -336,7 +336,7 @@ fn transactions_by_ids_returns_exactly_those_rows_as_the_full_ledger_shows_them(
 }
 
 #[test]
-fn category_counts_and_description_lookup_match_the_full_ledger() {
+fn category_counts_and_description_lookup_match_the_full_transactions() {
     // get_stats and correct_category used to load every transaction (0.4 s each at 50,000 rows,
     // 2026-10-02 QA, M1). Their narrow queries must see exactly the rows all_transactions lists.
     let store = Store::open_in_memory().unwrap();
@@ -1132,6 +1132,25 @@ fn update_transaction_account_moves_it_to_the_new_account() {
     let stored = store.all_transactions().unwrap();
     assert_eq!(stored[0].account_id, savings);
     assert_eq!(stored[0].account_name, "Nest Egg");
+}
+
+#[test]
+fn moving_a_transaction_clears_its_tick_and_settled_ones_are_reported() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = store.get_or_create_account("Everyday Checking", AccountType::Checking).unwrap();
+    let savings = store.get_or_create_account("Nest Egg", AccountType::Savings).unwrap();
+    store
+        .save_transactions(checking, &[tx("2026-08-20", "Ferrywood Coffee", "-6.75")])
+        .unwrap();
+    let id = store.all_transactions().unwrap()[0].id;
+    store.set_transactions_cleared(&[id], true).unwrap();
+    assert!(!store.transaction_is_settled(id).unwrap());
+    store.update_transaction_account(id, savings).unwrap();
+    let ticked: bool = store
+        .conn
+        .query_row("SELECT cleared FROM transactions WHERE id = ?1", [id], |r| r.get(0))
+        .unwrap();
+    assert!(!ticked, "it arrives unticked");
 }
 
 #[test]

@@ -119,6 +119,26 @@ const menuLabels = (panel: HTMLElement) => [...panel.querySelectorAll("[role^='m
 const menuItem = (panel: HTMLElement, label: string) =>
   [...panel.querySelectorAll<HTMLButtonElement>("[role^='menuitem']")].find((b) => b.textContent?.trim() === label)!;
 
+describe("Budget read state", () => {
+  it("discards a suggestion reply after the viewed month changes", async () => {
+    let resolve!: (value: { months_used: number; lines: [] }) => void;
+    const onSuggest = () => new Promise<{ months_used: number; lines: [] }>(done => { resolve = done; });
+    await render(props({ onSuggest }));
+    act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("Suggest from"))!.click());
+    await render(props({ month: 4, monthLabel: "April 2026", onSuggest }));
+    await act(async () => resolve({ months_used: 0, lines: [] }));
+    expect(document.querySelector('[data-suggest-empty="no-history"]')).toBeNull();
+  });
+  it("keeps independent suggestions usable when aggregate totals fail", async () => {
+    await render(props({ readReady: false, readError: "Fixture read failed", onSuggest: async () => ({ months_used: 0, lines: [] }) }));
+    expect(container.querySelector("[data-budget-summary]")).toBeNull();
+    await act(async () => {
+      [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("Suggest from"))!.click();
+    });
+    expect(document.querySelector('[data-suggest-empty="no-history"]')).not.toBeNull();
+  });
+});
+
 describe("BudgetView summary", () => {
   it("shows one summary strip with all four totals and keeps both money-left figures", async () => {
     await render(props());

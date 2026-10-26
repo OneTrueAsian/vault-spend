@@ -50,7 +50,7 @@ function hits(re: RegExp, skip: (rel: string) => boolean = () => false): string[
 
 describe("one date format", () => {
   it("scans the app's components", () => {
-    expect(sources.some((s) => s.rel === "LedgerTable.tsx")).toBe(true);
+    expect(sources.some((s) => s.rel === "TransactionsTable.tsx")).toBe(true);
     expect(sources.some((s) => s.rel === "comparisons/AmountEditor.tsx")).toBe(true);
   });
 

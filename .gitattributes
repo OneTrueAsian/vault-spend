@@ -1,2 +1,42 @@
 # The benchmark package is checksummed byte for byte; never convert its line endings.
 core/data/benchmarks/* -text
+
+# M6 corpus freeze records exact bytes, including line endings, across checkouts.
+src/testSupport/askVaultM6/** -text
+src/testSupport/askVaultM6/freeze.ts whitespace=cr-at-eol
+src/testSupport/askVaultM6/manifest.ts whitespace=cr-at-eol
+src/testSupport/askVaultM6/nativeEvidence.ts whitespace=cr-at-eol
+src/askVault/combinedCorpusGrader.test.ts -text
+src/askVault/combinedCorpusGraderGaps.test.ts -text
+src/askVault/combinedCorpusGraderMutation.test.ts -text
+src/askVault/combinedRouteHarness.test.tsx -text
+src/askVault/exampleEvidence.test.tsx -text
+src/askVault/insufficientHistoryCorpus.test.tsx -text
+src/askVault/m3Scenario.test.tsx -text
+src/askVault/m4Scenario.test.tsx -text
+src/askVault/m5Model.test.ts -text
+src/askVault/m5RouteElsewhere.test.tsx -text
+src/askVault/m5Scenario.test.tsx -text
+src/askVault/m6PreparedPackages.test.ts -text
+src/askVault/routeDisplayCheck.test.tsx -text
+src/askVault/scenarioNativeProof.test.ts -text
+src/askVault/typoDispositions.test.tsx -text
+src/askVault/combinedAcceptance.test.tsx -text
+src/askVault/combinedAcceptanceIntegrity.test.ts -text
+src/askVault/clarificationExchanges.test.tsx -text
+src/askVault/scoringFreeze.test.ts -text
+
+# Frozen regressions added in later M6 freeze versions must also retain exact checkout bytes.
+src/askVault/amendmentReferences.test.ts -text whitespace=cr-at-eol
+src/askVault/familyResolution.test.ts -text whitespace=cr-at-eol
+src/askVault/familyResolutionRoute.test.tsx -text whitespace=cr-at-eol
+src/askVault/legacyHandoffRoute.test.tsx -text whitespace=cr-at-eol
+src/askVault/realisticErrors.test.ts -text whitespace=cr-at-eol
+src/askVault/storeTypoLaterWord.test.tsx -text whitespace=cr-at-eol
+
+# Preserve the approved upstream compatibility patch and its license/source bytes.
+core/vendor/office_oxide/** -text
+
+# Exact-byte frozen inputs may retain CRLF; CR is a line ending, not trailing source whitespace.
+src/askVault/*.test.* whitespace=cr-at-eol
+src/testSupport/askVaultM6/** whitespace=cr-at-eol

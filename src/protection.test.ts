@@ -1,6 +1,7 @@
 // Argument names here are the contract with Rust (Tauri turns camelCase into snake_case); a typo
 // would otherwise only show up in the real app.
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import fixtures from "../core/tests/fixtures/profile_ipc.json";
 
 const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
@@ -19,7 +20,19 @@ import {
 
 beforeEach(() => {
   invokeMock.mockReset();
-  invokeMock.mockResolvedValue({ status: "open" });
+  invokeMock.mockImplementation((command) =>
+    Promise.resolve(
+      command === "begin_protection_setup"
+        ? fixtures.challenge
+        : command === "cancel_protection_setup"
+          ? null
+          : command === "list_protection_leftovers"
+            ? fixtures.leftovers
+            : command === "delete_protection_leftovers"
+              ? []
+              : { status: "open" },
+    ),
+  );
 });
 
 describe("protection.ts invoke wrappers", () => {
@@ -31,8 +44,8 @@ describe("protection.ts invoke wrappers", () => {
     await beginProtectionSetup("hunter2hunter2", 5);
     await cancelProtectionSetup("tok-1");
     await commitProtectionSetup("tok-1", ["AAAA", "BBBB"], "alpha", null);
-    await listProtectionLeftovers();
-    await deleteProtectionLeftovers(["a.db", "b.db"]);
+    await listProtectionLeftovers("alpha", 5);
+    await deleteProtectionLeftovers(["a.db", "b.db"], "alpha", 5);
 
     expect(invokeMock.mock.calls).toEqual([
       ["show_profile_selector"],
@@ -45,8 +58,11 @@ describe("protection.ts invoke wrappers", () => {
         "commit_protection_setup",
         { token: "tok-1", answers: ["AAAA", "BBBB"], targetProfileId: "alpha", newProfileName: null },
       ],
-      ["list_protection_leftovers"],
-      ["delete_protection_leftovers", { pathsToDelete: ["a.db", "b.db"] }],
+      ["list_protection_leftovers", { expectedProfileId: "alpha", expectedGeneration: 5 }],
+      [
+        "delete_protection_leftovers",
+        { pathsToDelete: ["a.db", "b.db"], expectedProfileId: "alpha", expectedGeneration: 5 },
+      ],
     ]);
   });
 });

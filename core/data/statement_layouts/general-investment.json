@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "id": "general-investment",
+  "name": "General investment",
+  "dates": { "formats": ["mm_dd", "mm_dd_yy", "mm_dd_yyyy", "mon_dd", "mon_dd_yyyy", "yyyy_mm_dd"], "second_date": true, "ignore_markers": ["*"] },
+  "amounts": { "negatives": ["leading_minus", "spaced_minus", "parentheses"], "currency": "optional", "thousands": "comma", "decimal": "period" },
+  "rows": { "amount": "last" },
+  "balances": {
+    "pairs": [
+      { "start": "Beginning Cash Balance", "end": "Ending Cash Balance" },
+      { "start": "Opening Cash Balance", "end": "Closing Cash Balance" },
+      { "start": "Cash Beginning Balance", "end": "Cash Ending Balance" }
+    ],
+    "section_start": ["Account Summary"],
+    "activity_totals": [
+      { "additions": "Total Additions", "subtractions": "Total Subtractions" },
+      { "additions": "Total Credits", "subtractions": "Total Debits" }
+    ],
+    "value": { "start": "Starting Value", "end": "Total Ending Value" }
+  },
+  "skip_sections": ["Cash Sweep Activity", "Sweep Activity"],
+  "holdings": {
+    "heading": ["Account Holdings", "Portfolio Holdings", "Holdings"],
+    "order": ["symbol", "name", "quantity", "price", "market_value"],
+    "quantity_decimals": 3,
+    "price_decimals": 4,
+    "total": ["Total Account Holdings", "Total Market Value", "Total Securities", "Total Holdings"],
+    "cash": ["Total Cash and Cash Equivalents"]
+  }
+}

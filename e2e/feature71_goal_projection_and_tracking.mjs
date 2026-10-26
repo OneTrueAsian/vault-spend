@@ -99,14 +99,14 @@ try {
   if (!emergencySaved.includes("$1,600.00")) throw new Error(`Emergency Fund should show the $1,600.00 balance, got: ${emergencySaved}`);
   const emergencyText = await emergency.getText();
   if (!emergencyText.includes("Follows the High-Yield Savings balance")) throw new Error(`should say it follows the account: ${emergencyText}`);
-  if ((await emergency.$("//button[normalize-space()='+ Add']").isExisting())) throw new Error("a goal that follows an account has no manual + Add");
+  if ((await emergency.$(".//button[normalize-space()='+ Add']").isExisting())) throw new Error("a goal that follows an account has no manual + Add");
   if ((await (await emergency.$("[data-goal-status]")).getAttribute("data-goal-status")) !== "no_deadline") {
     throw new Error("Emergency Fund has a pace but no deadline");
   }
 
   // --- 8a: compact contribute ------------------------------------------
   if (await trip.$("input[aria-label='Contribution amount']").isExisting()) throw new Error("the amount input should be hidden until + Add is clicked");
-  await (await trip.$("//button[normalize-space()='+ Add']")).click();
+  await (await trip.$(".//button[normalize-space()='+ Add']")).click();
   const amount = await trip.$("input[aria-label='Contribution amount']");
   await amount.waitForDisplayed({ timeout: 5000 });
   await amount.setValue("100");
@@ -120,7 +120,7 @@ try {
   }
 
   // --- 8b: switch tracking off in Edit ---------------------------------
-  await (await (await card("Emergency Fund")).$("//button[normalize-space()='Edit']")).click();
+  await (await (await card("Emergency Fund")).$(".//button[normalize-space()='Edit']")).click();
   const toggle = await browser.$(".bucket-track-toggle input");
   await toggle.waitForExist({ timeout: 5000 });
   if (!(await toggle.isSelected())) throw new Error("the tracking box should start ticked for a tracking goal");
@@ -129,7 +129,7 @@ try {
   await browser.waitUntil(
     async () => {
       const c = await card("Emergency Fund");
-      return (await (await c.$(".bucket-saved")).getText()).includes("$0.00") && (await c.$("//button[normalize-space()='+ Add']").isExisting());
+      return (await (await c.$(".bucket-saved")).getText()).includes("$0.00") && (await c.$(".//button[normalize-space()='+ Add']").isExisting());
     },
     { timeout: 10000, timeoutMsg: "with tracking off the goal should fall back to its (empty) contributions and offer + Add" },
   );

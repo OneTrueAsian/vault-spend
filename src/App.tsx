@@ -1,3 +1,8 @@
+import { useFinancialRead } from "./useFinancialRead";
+import type { DashboardSnapshot, ReportSummarySnapshot } from "./financialContracts";
+import { FinancialReadState } from "./FinancialReadState";
+import type { BudgetSnapshot } from "./financialContracts";
+import { captureManualLockGeneration, useManualProfileLock } from "./useManualProfileLock";
 // Eager stylesheet modules keep the original cascade and prevent lazy views from reloading base rules.
 import "./App.css";
 import "./AppShell.css";
@@ -6,7 +11,7 @@ import "./SharedCards.css";
 import "./AccountsCards.css";
 import "./BudgetAndGoals.css";
 import "./DashboardCards.css";
-import "./Ledger.css";
+import "./Transactions.css";
 import "./Rules.css";
 import "./FirstRunChecklist.css";
 import "./Modal.css";
@@ -22,26 +27,33 @@ import "./LegalNotice.css";
 import "./MenuSelect.css";
 import "./themes/retro.css";
 import "./themes/futuristic.css";
-import { LedgerSavedFilters } from "./LedgerSavedFilters";
-import { useLedgerFilters } from "./useLedgerFilters";
-import { LedgerTable } from "./LedgerTable";
-import { LedgerNeedsCategory } from "./LedgerNeedsCategory";
+import { TransactionSavedFilters } from "./TransactionSavedFilters";
+import { useTransactionList } from "./useTransactionList";
+import { recordTransactionPerf } from "./transactionPerf";
+import { TransactionReadState } from "./TransactionReadState";
+import { useTransactionData } from "./useTransactionData";
+import { useTransactionTransfers } from "./useTransactionTransfers";
+import { useTransactionBulkActions } from "./useTransactionBulkActions";
+import { useTransactionRowActions } from "./useTransactionRowActions";
+import { TransactionsTable } from "./TransactionsTable";
+import { TransactionsNeedsCategory } from "./TransactionsNeedsCategory";
 import { SidebarControls } from "./SidebarControls";
 import { useResolvedTheme } from "./useResolvedTheme";
 import { HelpLink } from "./HelpLink";
-import { LedgerPageActions } from "./LedgerPageActions";
-import { LedgerBulkActions } from "./LedgerBulkActions";
-import { LedgerFilterBar } from "./LedgerFilterBar";
+import { TransactionsPageActions } from "./TransactionsPageActions";
+import { TransactionBulkActionsBar } from "./TransactionBulkActionsBar";
+import { TransactionFilterBar } from "./TransactionFilterBar";
 import { SetupImportReviewDialog } from "./SetupImportReviewDialog";
 import { RecategorizedReviewPanel } from "./RecategorizedReviewPanel";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { accountTypeLabel, pickDefaultAccountId } from "./accountGroups";
-import { invoke } from "@tauri-apps/api/core";
+import { useApplicationCalls } from "./useApplicationCalls";
 import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "./nativeDialog";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
+import { createTransactionExporter } from "./transactionExport";
 import { toCsv } from "./csv";
 import { buildSetupTemplate } from "./setupTemplate";
 import { CHANGELOG } from "./changelog";
@@ -55,6 +67,7 @@ import {
   type AppearancePrefs,
 } from "./themeBootstrap";
 import {
+  ModalShell,
   AddWidgetDialog,
   CategoryTransactionsDialog,
   ConfirmInvertDialog,
@@ -87,7 +100,7 @@ import { MobilePairingPrompt } from "./MobilePairingPrompt";
 import { lockCurrentProfile, unlockProfile } from "./protection";
 import { hasObservableUnsavedInput } from "./unsavedInput";
 
-import { matchesPaymentAccount, paymentDisplayIndex } from "./paymentDiscovery";
+import { paymentDisplayIndex } from "./paymentDiscovery";
 import { usePaymentSource } from "./usePaymentSource";
 
 import { MonthReviewDialog } from "./MonthReviewDialog";
@@ -95,16 +108,8 @@ import { AccountDetailView } from "./AccountDetailView";
 
 import { ImportReviewDialog } from "./ImportReviewDialog";
 import { useImportReview } from "./useImportReview";
-import { LEDGER_STEPS, ledgerShownLabel, rowsToShowFor, showMoreLabel, transactionsInRows } from "./ledgerPaging";
-import {
-  SELECT_ALL_CAP,
-  canSelectMore,
-  isBatchSelected,
-  selectAllNext,
-  selectAllNote,
-  unselectBatch,
-  type SelectAllBatch,
-} from "./ledgerSelection";
+import { LEDGER_STEPS, transactionsShownLabel, rowsToShowFor, showMoreLabel } from "./transactionPaging";
+import { SELECT_ALL_CAP } from "./transactionSelection";
 
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
@@ -112,32 +117,56 @@ import type { PaletteEntry } from "./paletteSearch";
 import { buildInbox, type InboxItem } from "./importInbox";
 import { monthReviewDue } from "./monthReview";
 import { loadPrivacyPrefs, savePrivacyPrefs, startPrivacyMask, type PrivacyPrefs } from "./privacy";
-import { distinctMerchants, similarOfferText } from "./similarRules";
-import { canLinkAsTransfer, collapseTransferPairs } from "./transfers";
 // Each tab view is its own chunk, loaded only the first time its tab is
 // actually opened, instead of every tab's code shipping in the one
 // startup bundle regardless of whether the user ever visits it.
-const AccountsView = lazy(() => import("./AccountsView").then((m) => ({ default: m.AccountsView })));
-const RecurringView = lazy(() => import("./RecurringView").then((m) => ({ default: m.RecurringView })));
-const BucketsView = lazy(() => import("./BucketsView").then((m) => ({ default: m.BucketsView })));
-const BudgetView = lazy(() => import("./BudgetView").then((m) => ({ default: m.BudgetView })));
-const ReportsView = lazy(() => import("./ReportsView").then((m) => ({ default: m.ReportsView })));
-const SettingsView = lazy(() => import("./SettingsView").then((m) => ({ default: m.SettingsView })));
-const InvestmentsView = lazy(() => import("./InvestmentsView").then((m) => ({ default: m.InvestmentsView })));
-const HouseholdView = lazy(() => import("./HouseholdView").then((m) => ({ default: m.HouseholdView })));
-const CashFlowView = lazy(() => import("./CashFlowView").then((m) => ({ default: m.CashFlowView })));
-const DashboardView = lazy(() => import("./DashboardView").then((m) => ({ default: m.DashboardView })));
-const HelpView = lazy(() => import("./HelpView").then((m) => ({ default: m.HelpView })));
+// Each view's code is fetched once and ahead of time (see viewLoaders.ts), so opening a view never
+// waits behind React's hold-back of freshly loaded lazy content.
+const viewLoaders = createViewLoaders<unknown, string>({
+  accounts: () => import("./AccountsView").then((m) => ({ default: m.AccountsView })),
+  recurring: () => import("./RecurringView").then((m) => ({ default: m.RecurringView })),
+  buckets: () => import("./BucketsView").then((m) => ({ default: m.BucketsView })),
+  budget: () => import("./BudgetView").then((m) => ({ default: m.BudgetView })),
+  reports: () => import("./ReportsView").then((m) => ({ default: m.ReportsView })),
+  settings: () => import("./SettingsView").then((m) => ({ default: m.SettingsView })),
+  investments: () => import("./InvestmentsView").then((m) => ({ default: m.InvestmentsView })),
+  household: () => import("./HouseholdView").then((m) => ({ default: m.HouseholdView })),
+  cashflow: () => import("./CashFlowView").then((m) => ({ default: m.CashFlowView })),
+  dashboard: () => import("./DashboardView").then((m) => ({ default: m.DashboardView })),
+  help: () => import("./HelpView").then((m) => ({ default: m.HelpView })),
+});
+// Once a view's code has arrived it is drawn directly; React.lazy would suspend on every first draw,
+// even for code already in memory, and then hold the content back for about 300 ms.
+function lazyView<C extends ComponentType<any>>(name: string) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const Lazy = lazy(() => viewLoaders.load(name) as Promise<{ default: C }>);
+  return function View(props: ComponentProps<C>) {
+    const ready = viewLoaders.peek(name) as { default: C } | undefined;
+    return ready ? createElement(ready.default, props) : createElement(Lazy, props as ComponentProps<typeof Lazy>);
+  };
+}
+const AccountsView = lazyView<typeof import("./AccountsView").AccountsView>("accounts");
+const RecurringView = lazyView<typeof import("./RecurringView").RecurringView>("recurring");
+const BucketsView = lazyView<typeof import("./BucketsView").BucketsView>("buckets");
+const BudgetView = lazyView<typeof import("./BudgetView").BudgetView>("budget");
+const ReportsView = lazyView<typeof import("./ReportsView").ReportsView>("reports");
+const SettingsView = lazyView<typeof import("./SettingsView").SettingsView>("settings");
+const InvestmentsView = lazyView<typeof import("./InvestmentsView").InvestmentsView>("investments");
+const HouseholdView = lazyView<typeof import("./HouseholdView").HouseholdView>("household");
+const CashFlowView = lazyView<typeof import("./CashFlowView").CashFlowView>("cashflow");
+const DashboardView = lazyView<typeof import("./DashboardView").DashboardView>("dashboard");
+const HelpView = lazyView<typeof import("./HelpView").HelpView>("help");
 
 import { UpdateBanner } from "./UpdateBanner";
 import { SidebarNav } from "./SidebarNav";
 import { useSidebarOverlay } from "./useSidebarOverlay";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
 import { summarizeLivePriceRefresh } from "./livePriceStatus";
-import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { useDelayedVisibility } from "./useDelayedVisibility";
 import { DataLoading } from "./DataLoading";
 
+import { invokeProfile } from "./profileIpc";
+import { createViewLoaders } from "./viewLoaders";
+import { createElement, type ComponentProps, type ComponentType } from "react";
 import { ensureUiStateMigrated, getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
 import type {
   Account,
@@ -148,7 +177,6 @@ import type {
   Asset,
   Backup,
   Bucket,
-  BudgetAlert,
   BudgetSuggestions,
   CashFlow,
   MonthReview,
@@ -159,71 +187,72 @@ import type {
   FamilyMember,
   BillAwareForecast,
   Holding,
-  AccountContributionDelta,
-  Insight,
   LivePriceProviderId,
   LivePriceRefreshSummary,
   LivePriceSettings,
-  MemberBudgetActual,
   MonthExpenseDetail,
-  NetWorthPoint,
   Profile,
   PortfolioPoint,
   Recurring,
   RecurringCandidate,
   RecurringMatch,
   RecurringTotals,
-  Report,
-  ReportBudgetLine,
   MaintenanceSummary,
   SetupImportPreview,
   SetupImportSummary,
   SinkingFundContribution,
   ThemeStyle,
   Transaction,
-  TransactionSplit,
   YoyCashFlow,
 } from "./types";
 import { MenuSelect } from "./MenuSelect";
 import { errorMessage } from "./errorMessage";
 import { sumMoney } from "./money";
 import { StatusBanner } from "./StatusBanner";
-import { compareTransactionsBy, ledgerColumnCount as computeLedgerColumnCount } from "./ledgerHelpers";
+import { transactionColumnCount as computeTransactionColumnCount } from "./transactionHelpers";
 import {
   NAV_ORDER_STORAGE_KEY,
   getLastUsedAccountId,
-  loadLedgerDensity,
+  loadTransactionDensity,
   loadNavOrder,
   setLastUsedAccountId,
-  type LedgerDensity,
+  type TransactionDensity,
 } from "./appStorage";
 import {
   NAV_ITEMS,
   PINNED_NAV_ITEMS,
   UNCATEGORIZED_FILTER,
-  type LedgerSortColumn,
+  type TransactionSortColumn,
   type NewAccountResult,
   type PendingDialog,
-  type Stats,
   type StatusKind,
   type Tab,
   type Theme,
 } from "./appTypes";
 
+const EMPTY_TRANSACTIONS: Transaction[] = [];
+const EMPTY_FLAGS: AnomalyFlag[] = [];
+const EMPTY_ACCOUNTS: Account[] = [];
+const EMPTY_MEMBERS: FamilyMember[] = [];
+const EMPTY_STRINGS: string[] = [];
+const EMPTY_ICONS: CategoryIconEntry[] = [];
+
 function App({
   initialStatus,
+  initialTab,
   onDataFileChanged,
 }: {
   initialStatus: string;
+  initialTab: Tab;
   /** Called after `relocate_data_file`/`restore_backup` succeeds — the Rust
    * side has already hot-swapped its live connection to the new file (see
    * commands.rs), so all this needs to do is force every piece of frontend
    * state to re-fetch from scratch. The wrapper below does that by
    * remounting this whole component under a fresh `key`, carrying `message`
    * over as the freshly-mounted instance's starting status banner. */
-  onDataFileChanged: (message: string) => void;
+  onDataFileChanged: (message: string, tab?: Tab) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   // The page whose ? button opened Help: Help opens that page's section. Cleared once Help is left,
   // so opening Help from the sidebar later starts with every section closed.
   const [helpFocus, setHelpFocus] = useState<Tab | null>(null);
@@ -269,8 +298,73 @@ function App({
   // asynchronously after mount) can't land afterwards and undo what they just did.
   const layoutEditedRef = useRef(false);
   const [addWidgetModalOpen, setAddWidgetModalOpen] = useState(false);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [anomalyFlags, setAnomalyFlags] = useState<AnomalyFlag[]>([]);
+  useLayoutEffect(() => { recordTransactionPerf("app-commit"); });
+  const transactionData = useTransactionData();
+  const { refresh, call: rawTransactionCall, revision: transactionRevision } = transactionData;
+  const applicationCalls = useApplicationCalls(rawTransactionCall);
+  const invoke = applicationCalls.call;
+  const callTransaction = invoke;
+  const financialRevision = applicationCalls.revision;
+  const dependentRevision = transactionRevision + ":" + financialRevision;
+  const transactions = transactionData.snapshot?.transactions ?? EMPTY_TRANSACTIONS;
+  const anomalyFlags = transactionData.snapshot?.flags ?? EMPTY_FLAGS;
+  const accounts = transactionData.snapshot?.accounts ?? EMPTY_ACCOUNTS;
+  const familyMembers = transactionData.snapshot?.members ?? EMPTY_MEMBERS;
+  const allTags = transactionData.snapshot?.tags ?? EMPTY_STRINGS;
+  const usedCategories = transactionData.snapshot?.categories ?? EMPTY_STRINGS;
+  const categoryIcons = transactionData.snapshot?.categoryIcons ?? EMPTY_ICONS;
+  const stats = transactionData.snapshot?.stats ?? null;
+  const dataLoaded = transactionData.snapshot !== null;
+  const {
+    editingAmount,
+    editingDate,
+    editingDescription,
+    confirmingDeleteId,
+    applyingDebtId,
+    applyDebtForm,
+    editingPrincipalId,
+    principalDraft,
+    expandedSplitId,
+    splitLines,
+    newTagText,
+    taggingId,
+    notesDialogFor,
+    setEditingAmount,
+    setEditingDate,
+    setEditingDescription,
+    setConfirmingDeleteId,
+    setApplyingDebtId,
+    setApplyDebtForm,
+    setEditingPrincipalId,
+    setPrincipalDraft,
+    setExpandedSplitId,
+    setNewTagText,
+    setTaggingId,
+    setNotesDialogFor,
+    commitAmountEdit,
+    commitDateEdit,
+    commitDescriptionEdit,
+    handleAccountChangeForTransaction,
+    handleMemberChangeForTransaction,
+    handleDeleteTransaction,
+    startApplyingDebtPayment,
+    handleApplyDebtPayment,
+    handleUnapplyDebtPayment,
+    startEditingPrincipal,
+    handleSetPrincipalAmount,
+    handleResetPrincipalAmount,
+    toggleSplitEditor,
+    addSplitLine,
+    removeSplitLine,
+    updateSplitLine,
+    splitRemaining,
+    saveSplits,
+    clearSplits,
+    handleSaveNotes,
+    handleAddTag,
+    handleRemoveTag,
+  } = useTransactionRowActions({ data: transactionData, accounts, categories: usedCategories, onStatus: setStatus });
+  const [pendingPaymentId, setPendingPaymentId] = useState<number | null>(null);
   const {
     searchText,
     setSearchText,
@@ -294,11 +388,38 @@ function App({
     saveCurrentFilter,
     applySavedFilter,
     deleteSavedFilter,
-  } = useLedgerFilters();
-  const [pendingPaymentId, setPendingPaymentId] = useState<number | null>(null);
+    sortColumn,
+    setSortColumn,
+    sortDirection,
+    setSortDirection,
+    pageSize,
+    setPageSize,
+    shownCount,
+    setShownCount,
+    selectAllBatch,
+    selectAllMessage,
+    selectedIds,
+    setSelectedIds,
+    filteredTransactions,
+    sortedTransactions,
+    displayTransactions,
+    inLegByOutId,
+    pagedTransactions,
+    shownTransactions,
+    selectedPairForLink,
+    selectedAccountNames,
+    toggleSort,
+    toggleSelectedMany,
+    toggleSelected,
+    toggleSelectAll,
+  } = useTransactionList({
+    transactions,
+    active: activeTab === "ledger",
+    pendingPaymentId,
+    onSelectionLimit: () => setStatus(`A change can apply to at most ${SELECT_ALL_CAP} transactions at a time.`, "info"),
+  });
   const [highlightedPaymentRow, setHighlightedPaymentRow] = useState<number | null>(null);
-  const loadPaymentSource = usePaymentSource((source, fresh) => {
-    setTransactions(fresh);
+  const loadPaymentSource = usePaymentSource((source) => {
     setSearchText("");
     setFilterCategory("all");
     setFilterAccountIds("all");
@@ -310,7 +431,7 @@ function App({
     setPendingPaymentId(source.id);
     setActiveTab("ledger");
     setStatus(`Opened payment from ${source.account_name}.`, "info");
-  }, message => setStatus(message, "info"));
+  }, message => setStatus(message, "info"), async () => (await refresh()).transactions);
 
   function openPayment(sourceId: number) {
     setPendingPaymentId(null);
@@ -331,16 +452,8 @@ function App({
     };
   }, []);
 
-  const [sortColumn, setSortColumn] = useState<LedgerSortColumn>("date");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [allTags, setAllTags] = useState<string[]>([]);
-  const [newTagText, setNewTagText] = useState<Record<number, string>>({});
   // The ledger row whose tag field is open (its ⋯ menu's "Add tag…").
-  const [taggingId, setTaggingId] = useState<number | null>(null);
-  const [notesDialogFor, setNotesDialogFor] = useState<Transaction | null>(null);
-  const [bulkTagText, setBulkTagText] = useState("");
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [recurring, setRecurring] = useState<Recurring[]>([]);
   const [recurringMatches, setRecurringMatches] = useState<RecurringMatch[]>([]);
@@ -372,10 +485,20 @@ function App({
   });
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
 
+  // Fetch the first screen's code right away and every other view's once the app is idle, so a
+  // first visit to any view draws as soon as its data is ready instead of after React's hold-back.
+  useEffect(() => {
+    void viewLoaders.preload(["dashboard"]);
+    const hasIdle = "requestIdleCallback" in window;
+    const idle = hasIdle
+      ? window.requestIdleCallback(() => void viewLoaders.preloadRest())
+      : window.setTimeout(() => void viewLoaders.preloadRest(), 1000);
+    return () => (hasIdle ? window.cancelIdleCallback(idle) : window.clearTimeout(idle));
+  }, []);
   const [backupCopyDir, setBackupCopyDir] = useState<string | null>(null);
   const [backgroundSettings, setBackgroundSettings] = useState<BackgroundSettings | null>(null);
   useEffect(() => {
-    invoke<BackgroundSettings>("get_background_settings")
+    invokeProfile("get_background_settings")
       .then(setBackgroundSettings)
       .catch(() => undefined);
   }, []);
@@ -400,25 +523,25 @@ function App({
   const refreshBackups = useCallback(async () => {
     setBackups(await invoke<Backup[]>("list_backups"));
     setBackupCopyDir(await invoke<string | null>("get_backup_copy_dir"));
-  }, []);
+  }, [invoke]);
 
   const refreshProfiles = useCallback(async () => {
-    setProfiles(await invoke<Profile[]>("list_profiles"));
+    setProfiles(await invokeProfile("list_profiles"));
   }, []);
 
   const refreshDataFileLocation = useCallback(async () => {
     setDataFileLocation(await invoke<string>("get_data_file_location"));
-  }, []);
+  }, [invoke]);
 
   const refreshLivePriceSettings = useCallback(async () => {
     setLivePriceSettings(await invoke<LivePriceSettings>("get_live_price_settings"));
-  }, []);
+  }, [invoke]);
 
   const refreshAppSettings = useCallback(async () => {
     const next = await invoke<AppSettings>("get_app_settings");
     setAppSettings(next);
     setAppSettingsLoaded(true);
-  }, []);
+  }, [invoke]);
 
   useEffect(() => {
     refreshDataFileLocation().catch((e) => setStatus(errorMessage(e)));
@@ -427,14 +550,6 @@ function App({
     refreshLivePriceSettings().catch((e) => setStatus(errorMessage(e)));
     refreshAppSettings().catch((e) => setStatus(errorMessage(e)));
   }, [refreshBackups, refreshProfiles, refreshDataFileLocation, refreshLivePriceSettings, refreshAppSettings]);
-
-  const refreshProtectionState = useCallback(async () => {
-    try {
-      await Promise.all([refreshProfiles(), refreshDataFileLocation(), refreshBackups()]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }, [refreshBackups, refreshDataFileLocation, refreshProfiles]);
 
   // Once live prices are enabled for the active profile, refresh right away
   // and then every 2 hours for as long as the app stays open. Keyed on
@@ -479,12 +594,12 @@ function App({
 
   async function handleSetTray(enabled: boolean) {
     try {
-      await invoke("set_tray_enabled", { enabled });
-      const settings = await invoke<BackgroundSettings>("get_background_settings");
+      await invokeProfile("set_tray_enabled", { enabled });
+      const settings = await invokeProfile("get_background_settings");
       // Turning the tray off also ends "start at sign-in" — hidden in a tray
       // that isn't there would leave nothing to bring the window back.
       if (!enabled && settings.autostart_enabled) {
-        await invoke("set_autostart_enabled", { enabled: false });
+        await invokeProfile("set_autostart_enabled", { enabled: false });
         settings.autostart_enabled = false;
       }
       setBackgroundSettings(settings);
@@ -496,8 +611,8 @@ function App({
 
   async function handleSetAutostart(enabled: boolean) {
     try {
-      await invoke("set_autostart_enabled", { enabled });
-      setBackgroundSettings(await invoke<BackgroundSettings>("get_background_settings"));
+      await invokeProfile("set_autostart_enabled", { enabled });
+      setBackgroundSettings(await invokeProfile("get_background_settings"));
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -564,7 +679,7 @@ function App({
 
   async function handleCreateProfile(name: string) {
     try {
-      const created = await invoke<string>("create_profile", { name });
+      const created = await invokeProfile("create_profile", { name });
       onDataFileChanged(`Switched to the new "${created}" profile — it starts completely empty.`);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -590,7 +705,7 @@ function App({
     // field before the person ever hits "Use this file" and gets a confusing refusal.
     let requiresPassword = false;
     try {
-      requiresPassword = await invoke<boolean>("path_looks_password_protected", { path });
+      requiresPassword = await invokeProfile("path_looks_password_protected", { path });
     } catch {
       /* best effort — worst case the dialog omits the password field and the backend's own
          "That password didn't work for this profile" surfaces if it turns out to be needed */
@@ -612,7 +727,7 @@ function App({
     if (!pendingExistingDbPath) return;
     try {
       const expectedGeneration = await getCurrentGeneration();
-      const added = await invoke<string>("add_existing_profile", {
+      const added = await invokeProfile("add_existing_profile", {
         name,
         dbPath: pendingExistingDbPath,
         password: password ?? null,
@@ -635,7 +750,7 @@ function App({
       return;
     }
     try {
-      const switched = await invoke<string>("switch_profile", { id });
+      const switched = await invokeProfile("switch_profile", { id });
       onDataFileChanged(`Switched to "${switched}".`);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -645,21 +760,19 @@ function App({
   // Locking never disturbs any other profile's data (there is nothing to touch — this just drops
   // the live connection) — StartupGate's own profile-lock-state-changed subscription swaps the
   // screen over to ProfileLockScreen on its own, so there is nothing else to do here afterward.
-  async function handleLockProfile() {
-    if (hasObservableUnsavedInput() && !window.confirm("Locking now will discard anything you haven't saved. Lock anyway?")) {
-      return;
-    }
-    try {
-      const generation = await getCurrentGeneration();
-      await lockCurrentProfile(generation);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const manualLock = useManualProfileLock({
+    generation: getCurrentGeneration,
+    originGeneration: () => captureManualLockGeneration(profiles.find(profile => profile.is_active)?.id,
+      getCurrentGeneration, async () => (await invokeProfile("list_profiles")).find(profile => profile.is_active)?.id),
+    lock: lockCurrentProfile,
+    dirty: hasObservableUnsavedInput,
+    onError: (error) => setStatus(errorMessage(error)),
+  });
+  const handleLockProfile = manualLock.start;
 
   async function handleRenameProfile(id: string, newName: string) {
     try {
-      await invoke("rename_profile", { id, newName });
+      await invokeProfile("rename_profile", { id, newName });
       await refreshProfiles();
     } catch (e) {
       setStatus(errorMessage(e));
@@ -668,7 +781,7 @@ function App({
 
   async function handleSetProfileIcon(id: string, iconKey: string | null) {
     try {
-      await invoke("set_profile_icon", { id, iconKey });
+      await invokeProfile("set_profile_icon", { id, iconKey });
       await refreshProfiles();
     } catch (e) {
       setStatus(errorMessage(e));
@@ -677,7 +790,7 @@ function App({
 
   async function handleDeleteProfile(id: string) {
     try {
-      await invoke("delete_profile", { id });
+      await invokeProfile("delete_profile", { id });
       await refreshProfiles();
     } catch (e) {
       setStatus(errorMessage(e));
@@ -728,10 +841,7 @@ function App({
     try {
       await invoke("set_rollover_enabled", { enabled });
       await refreshAppSettings();
-      // What carries into a month is worked out in the backend, and the alerts
-      // (and the month review) count it as part of the budget — drop the cached
-      // alerts so they're read again against the new setting.
-      currentMonthAlertsRef.current = null;
+      // Reload the selected month after its carry policy changes.
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -787,11 +897,28 @@ function App({
       return null; // convenience autofill only — swallow errors rather than interrupting the form
     }
   }
-  const [usedCategories, setUsedCategories] = useState<string[]>([]);
-  const [categoryIcons, setCategoryIcons] = useState<CategoryIconEntry[]>([]);
-  const [report, setReport] = useState<Report | null>(null);
+  const dashboardRead = useFinancialRead<DashboardSnapshot>();
+  const loadDashboard = dashboardRead.refresh;
+  const todayKey = toLocalIsoDate();
+  const dashboardKey = todayKey + ":" + dependentRevision;
+  const dashboardSnapshot = dashboardRead.data?.value.asOf === todayKey ? dashboardRead.data.value : null;
+  const lastDashboardKey = useRef<string | null>(null);
+  const refreshDashboard = useCallback(async () => {
+    try {
+      await loadDashboard(dashboardKey, client => client.dashboard());
+      lastDashboardKey.current = dashboardKey;
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "superseded") return;
+      throw error;
+    }
+  }, [dashboardKey, loadDashboard]);
+  const reportSummaryRead = useFinancialRead<ReportSummarySnapshot>();
+  const readReportSummary = reportSummaryRead.refresh;
+  const planningRead = useFinancialRead<ReportSummarySnapshot>();
+  const loadPlanning = planningRead.refresh;
+  const planningSnapshot = planningRead.data?.value.asOf === todayKey ? planningRead.data.value : null;
+  const report = dashboardSnapshot?.report ?? null;
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
   const [status, setStatusState] = useState<{ text: string; kind: StatusKind } | null>(
     initialStatus ? { text: initialStatus, kind: "success" } : null,
   );
@@ -877,6 +1004,34 @@ function App({
   }
 
   const [busy, setBusy] = useState(false);
+  const {
+    newTransactionOpen,
+    reviewIds,
+    confirmingBulkDelete,
+    confirmingBulkFlip,
+    undoToast,
+    similarToast,
+    bulkTagText,
+    setNewTransactionOpen,
+    setReviewIds,
+    setConfirmingBulkDelete,
+    setConfirmingBulkFlip,
+    setUndoToast,
+    setSimilarToast,
+    setBulkTagText,
+    handleCategoryChange,
+    handleApplyToSimilar,
+    handleCreateManualTransaction,
+    handleRecategorize,
+    handleBulkMemberChange,
+    handleBulkAddTag,
+    handleBulkCategoryChange,
+    handleBulkDelete,
+    handleUndoBulkDelete,
+    handleBulkFlipSigns,
+    handleAddSelectedToRecurring,
+  } = useTransactionBulkActions({ data: transactionData, list: { selectedIds, setSelectedIds }, onStatus: setStatus, onBusy: setBusy, askNewCategory, refreshRecurring: async () => { await refreshRecurring(); } });
+
   const [dialog, setDialog] = useState<PendingDialog | null>(null);
   const [pendingSetupImport, setPendingSetupImport] = useState<{
     path: string;
@@ -889,7 +1044,7 @@ function App({
   } | null>(null);
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
   const [manageFamilyMembersOpen, setManageFamilyMembersOpen] = useState(false);
-  const [newTransactionOpen, setNewTransactionOpen] = useState(false);
+
   const [pendingExistingDbPath, setPendingExistingDbPath] = useState<string | null>(null);
   const [pendingExistingIsProtected, setPendingExistingIsProtected] = useState(false);
   const [pendingExistingRequiresPassword, setPendingExistingRequiresPassword] = useState(false);
@@ -911,64 +1066,27 @@ function App({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [moreMenuOpen]);
-  const [editingAmount, setEditingAmount] = useState<{ id: number; value: string } | null>(null);
-  const [editingDate, setEditingDate] = useState<{ id: number; value: string } | null>(null);
-  const [editingDescription, setEditingDescription] = useState<{ id: number; value: string } | null>(null);
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
-  useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
-  const [applyingDebtId, setApplyingDebtId] = useState<number | null>(null);
-  const [applyDebtForm, setApplyDebtForm] = useState<{ accountId: string; amount: string }>({
-    accountId: "",
-    amount: "",
-  });
-  const [editingPrincipalId, setEditingPrincipalId] = useState<number | null>(null);
-  const [principalDraft, setPrincipalDraft] = useState("");
-  const [expandedSplitId, setExpandedSplitId] = useState<number | null>(null);
-  const [splitLines, setSplitLines] = useState<{ category: string; amount: string; note: string }[]>([]);
-  const [reviewIds, setReviewIds] = useState<Set<number> | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
-  useAutoCancelDelete(confirmingBulkDelete, () => setConfirmingBulkDelete(false));
-  const [confirmingBulkFlip, setConfirmingBulkFlip] = useState(false);
-  useAutoCancelDelete(confirmingBulkFlip, () => setConfirmingBulkFlip(false));
+
   // Its own independent state from `status` (not a `setStatus(...)` call)
   // so a routine message elsewhere can never clobber an active undo
   // window — see `StatusBanner`'s own comment on the `action` prop.
-  const [undoToast, setUndoToast] = useState<{ text: string; ids: number[] } | null>(null);
-  useEffect(() => {
-    if (!undoToast) return;
-    const timer = setTimeout(() => setUndoToast(null), 10000);
-    return () => clearTimeout(timer);
-  }, [undoToast]);
 
   // Offered right after fixing one transaction's category, when the rule
   // that fix just taught the app would also re-categorize other, similar
   // transactions already on the books. Own state (like `undoToast`) so a
   // routine status message can't clobber it mid-decision.
-  const [similarToast, setSimilarToast] = useState<{ text: string; patterns: string[]; category: string; count: number } | null>(null);
-  useEffect(() => {
-    if (!similarToast) return;
-    const timer = setTimeout(() => setSimilarToast(null), 12000);
-    return () => clearTimeout(timer);
-  }, [similarToast]);
-  // const [ledgerDensity, setLedgerDensityState] = useState<LedgerDensity>(loadLedgerDensity);
-  const [ledgerDensity] = useState<LedgerDensity>(loadLedgerDensity);
+
+  // const [transactionDensity, setTransactionDensityState] = useState<TransactionDensity>(loadTransactionDensity);
+  const [transactionDensity] = useState<TransactionDensity>(loadTransactionDensity);
   // Restore this setter with the Transactions density selector below.
-  // function setLedgerDensity(next: LedgerDensity) {
-  //   setLedgerDensityState(next);
+  // function setTransactionDensity(next: TransactionDensity) {
+  //   setTransactionDensityState(next);
   //   try {
-  //     localStorage.setItem(LEDGER_DENSITY_STORAGE_KEY, next);
+  //     localStorage.setItem(TRANSACTION_DENSITY_STORAGE_KEY, next);
   //   } catch {
   //     // a failed write only means the choice isn't remembered next launch
   //   }
   // }
-  const [pageSize, setPageSize] = useState(50);
-  // How many matching rows the ledger shows; "Show N more" adds a step (see ledgerPaging.ts).
-  const [shownCount, setShownCount] = useState(50);
-  // The current Select all batch (see ledgerSelection.ts), and the note it leaves when capped.
-  const [selectAllBatch, setSelectAllBatch] = useState<SelectAllBatch | null>(null);
-  const [selectAllMessage, setSelectAllMessage] = useState<string | null>(null);
-
   // Below this container width (not window width — the sidebar eats into
   // that), Member/Source/Debt/Account/Category move out of the table into
   // a per-row expandable Details panel instead of squeezing every column
@@ -980,25 +1098,25 @@ function App({
   // page's own vertical scrollbar is present) stays in the wide layout;
   // this app's own tested widths (1440/1280 wide, 960/800 narrow) don't
   // actually exercise the 850-1100 gap between the brief's two tiers.
-  const LEDGER_NARROW_BREAKPOINT = 850;
-  const [ledgerNarrow, setLedgerNarrow] = useState(false);
+  const TRANSACTIONS_NARROW_BREAKPOINT = 850;
+  const [transactionsNarrow, setTransactionsNarrow] = useState(false);
   // A plain ref's `.current` doesn't trigger a re-render or effect when it
   // changes, so a `useEffect(..., [])` that reads it at mount time missed
   // the container entirely whenever the app first loaded on a tab other
   // than Transactions (the usual case) — the ledger's own div didn't exist
-  // yet, the observer was never attached, and `ledgerNarrow` stayed false
+  // yet, the observer was never attached, and `transactionsNarrow` stayed false
   // forever after. A callback ref re-fires this effect exactly when the
   // div actually mounts (switching onto the tab) or unmounts (off it).
-  const [ledgerScrollEl, setLedgerScrollEl] = useState<HTMLDivElement | null>(null);
+  const [transactionsScrollEl, setTransactionsScrollEl] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!ledgerScrollEl || typeof ResizeObserver === "undefined") return;
+    if (!transactionsScrollEl || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
-      if (width !== undefined) setLedgerNarrow(width < LEDGER_NARROW_BREAKPOINT);
+      if (width !== undefined) setTransactionsNarrow(width < TRANSACTIONS_NARROW_BREAKPOINT);
     });
-    observer.observe(ledgerScrollEl);
+    observer.observe(transactionsScrollEl);
     return () => observer.disconnect();
-  }, [ledgerScrollEl]);
+  }, [transactionsScrollEl]);
   const [detailsOpenId, setDetailsOpenId] = useState<number | null>(null);
 
   // `usedCategories` now comes straight from the backend's category
@@ -1047,180 +1165,31 @@ function App({
     return map;
   }, [anomalyFlags]);
 
-  // Filtering is client-side over the already-loaded transactions — personal-scale
-  // data, no need for a backend query just to search/filter it.
-  const filteredTransactions = useMemo(
-    () =>
-      transactions.filter((t) => {
-        if (searchText.trim() && !t.description.toLowerCase().includes(searchText.trim().toLowerCase())) {
-          return false;
-        }
-        if (filterCategory === UNCATEGORIZED_FILTER) {
-          if (t.category) return false;
-        } else if (filterCategory !== "all" && t.category !== filterCategory) {
-          return false;
-        }
-        if (!matchesPaymentAccount(t, filterAccountIds)) return false;
-        if (filterMemberIds !== "all" && (t.member_id === null || !filterMemberIds.has(t.member_id))) return false;
-        if (filterFrom && t.date < filterFrom) return false;
-        if (filterTo && t.date > filterTo) return false;
-        if (filterTag !== "all" && !t.tags.includes(filterTag)) return false;
-        return true;
-      }),
-    [transactions, searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag],
-  );
-
-  // The backend returns transactions in insertion order, not date order —
-  // sorting is client-side too, same reasoning as filtering above.
-  const sortedTransactions = useMemo(
-    () =>
-      [...filteredTransactions].sort((a, b) => {
-        const cmp = compareTransactionsBy(a, b, sortColumn);
-        return sortDirection === "asc" ? cmp : -cmp;
-      }),
-    [filteredTransactions, sortColumn, sortDirection],
-  );
-
-  function toggleSort(column: LedgerSortColumn) {
-    if (sortColumn === column) {
-      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  }
-
-  // A linked transfer shows as one row, not two — see `collapseTransferPairs`.
-  // Done after filtering and sorting so it only ever merges legs that are
-  // both actually on screen, and before paging so page sizes stay honest.
-  const { rows: displayTransactions, inLegByOutId } = useMemo(() => collapseTransferPairs(sortedTransactions), [sortedTransactions]);
-  const pagedTransactions = displayTransactions.slice(0, shownCount);
-  // The count under the table is in transactions, like the selection: a merged transfer row is two.
-  const shownTransactions = transactionsInRows(
-    displayTransactions.map((t) => (inLegByOutId.has(t.id) ? 2 : 1)),
-    shownCount,
-  );
-
   // Suggested transfers (equal-and-opposite amounts in different accounts a
   // few days apart) — fetched whenever the Transactions tab is showing and
   // the data changes, so a fresh import or manual entry surfaces its own.
-  const [transferCandidates, setTransferCandidates] = useState<{ out_id: number; in_id: number }[]>([]);
-  const [transferReviewOpen, setTransferReviewOpen] = useState(false);
-  // Own state (like `undoToast`) so a routine status message can't clobber
-  // an active Undo window, and — since this whole component remounts on a
-  // profile switch/lock (see `onDataFileChanged`) — a stale Undo can never
-  // be applied to a different profile.
-  const [dismissUndoToast, setDismissUndoToast] = useState<{ text: string; pairs: { out_id: number; in_id: number }[] } | null>(null);
-  useEffect(() => {
-    if (!dismissUndoToast) return;
-    const timer = setTimeout(() => setDismissUndoToast(null), 10000);
-    return () => clearTimeout(timer);
-  }, [dismissUndoToast]);
-  async function refreshTransferCandidates() {
-    try {
-      setTransferCandidates(await invoke<{ out_id: number; in_id: number }[]>("list_transfer_candidates"));
-    } catch {
-      /* a missing suggestion is never worth an error banner */
-    }
-  }
-  async function handleDismissTransferCandidates(pairs: { out_id: number; in_id: number }[]) {
-    const newly = await invoke<{ out_id: number; in_id: number }[]>("dismiss_transfer_candidates", { pairs });
-    await refreshTransferCandidates();
-    if (newly.length > 0) {
-      setDismissUndoToast({ text: `Dismissed ${newly.length} possible transfer${newly.length === 1 ? "" : "s"}.`, pairs: newly });
-    }
-  }
-  async function handleDismissAllTransferCandidates() {
-    const all = await invoke<{ out_id: number; in_id: number }[]>("list_all_transfer_candidate_pairs");
-    await handleDismissTransferCandidates(all);
-  }
-  async function handleUndoDismissTransferCandidates() {
-    if (!dismissUndoToast) return;
-    const pairs = dismissUndoToast.pairs;
-    setDismissUndoToast(null);
-    try {
-      await invoke("restore_transfer_candidates", { pairs });
-      await refreshTransferCandidates();
-      setStatus(`Restored ${pairs.length} possible transfer${pairs.length === 1 ? "" : "s"}.`, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-  useEffect(() => {
-    if (activeTab !== "ledger") return;
-    let cancelled = false;
-    invoke<{ out_id: number; in_id: number }[]>("list_transfer_candidates")
-      .then((c) => {
-        if (!cancelled) setTransferCandidates(c);
-      })
-      .catch(() => {
-        /* a missing suggestion is never worth an error banner */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, transactions]);
-  const transferCandidatePairs = useMemo(() => {
-    const byId = new Map(transactions.map((t) => [t.id, t]));
-    return transferCandidates.flatMap((c) => {
-      const out = byId.get(c.out_id);
-      const inn = byId.get(c.in_id);
-      return out && inn ? [{ out, in: inn }] : [];
-    });
-  }, [transferCandidates, transactions]);
-  // Pairs the app linked on its own (Settings > Feature toggles) that nobody has
-  // marked "looks right" yet — the review report. Read the same way as the
-  // suggestions above.
-  const [autoLinked, setAutoLinked] = useState<{ out_id: number; in_id: number }[]>([]);
-  const [autoLinkReviewOpen, setAutoLinkReviewOpen] = useState(false);
-  const reloadAutoLinked = useCallback(async () => {
-    try {
-      setAutoLinked(await invoke<{ out_id: number; in_id: number }[]>("list_auto_linked_transfers"));
-    } catch {
-      /* the review list is a convenience; never worth an error banner */
-    }
-  }, []);
-  useEffect(() => {
-    if (activeTab !== "ledger") return;
-    void reloadAutoLinked();
-  }, [activeTab, transactions, reloadAutoLinked]);
-  const autoLinkedPairs = useMemo(() => {
-    const byId = new Map(transactions.map((t) => [t.id, t]));
-    return autoLinked.flatMap((c) => {
-      const out = byId.get(c.out_id);
-      const inn = byId.get(c.in_id);
-      return out && inn ? [{ out, in: inn }] : [];
-    });
-  }, [autoLinked, transactions]);
-  // Exactly two rows ticked that could be the two legs of one transfer.
-  const selectedPairForLink = useMemo(() => {
-    if (selectedIds.size !== 2) return null;
-    const [a, b] = Array.from(selectedIds).map((id) => transactions.find((t) => t.id === id));
-    return a && b && canLinkAsTransfer(a, b) ? [a, b] : null;
-  }, [selectedIds, transactions]);
-  const selectedAccountNames = useMemo(
-    () => [...new Set(transactions.filter((t) => selectedIds.has(t.id)).map((t) => t.account_name))].sort(),
-    [selectedIds, transactions],
-  );
+  const {
+    transferReviewOpen,
+    setTransferReviewOpen,
+    dismissUndoToast,
+    setDismissUndoToast,
+    transferCandidatePairs,
+    autoLinkReviewOpen,
+    setAutoLinkReviewOpen,
+    autoLinkedPairs,
+    handleDismissTransferCandidates,
+    handleDismissAllTransferCandidates,
+    handleUndoDismissTransferCandidates,
+    handleUnlinkTransfer,
+    handleLinkSelectedAsTransfer,
+    handleLinkTransfers,
+    handleMarkAutoLinksReviewed,
+  } = useTransactionTransfers({ data: transactionData, transactions, active: activeTab === "ledger", list: { selectedPairForLink, setSelectedIds }, onStatus: setStatus });
   // The Member column earns its space only when there's more than one person to choose between.
   const showMemberCol = familyMembers.length >= 2;
   // select, date, description, amount, actions — plus, when not narrow, account, [member], category
   // and source. Debt payments live under the description and in the row's ⋯ menu, not a column.
-  const ledgerColumnCount = computeLedgerColumnCount(ledgerNarrow, showMemberCol);
-
-  // A new filter, search, sort or step starts over: the first step of rows, and fresh Select all batches.
-  useEffect(() => {
-    if (pendingPaymentId === null) setShownCount(pageSize);
-    setSelectAllBatch(null);
-    setSelectAllMessage(null);
-    // Pending navigation owns how many rows show during the explicit filter reset.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchText, filterCategory, filterAccountIds, filterMemberIds, filterFrom, filterTo, filterTag, pageSize, sortColumn, sortDirection]);
-
-  // The Select all note only describes a selection that is still there.
-  useEffect(() => {
-    if (selectedIds.size === 0) setSelectAllMessage(null);
-  }, [selectedIds]);
+  const transactionColumnCount = computeTransactionColumnCount(transactionsNarrow, showMemberCol);
 
   useEffect(() => {
     if (pendingPaymentId === null) return;
@@ -1240,7 +1209,7 @@ function App({
     row?.focus();
     row?.scrollIntoView({ block: "center" });
     setPendingPaymentId(null);
-  }, [pendingPaymentId, activeTab, displayTransactions, inLegByOutId, pageSize, shownCount]);
+  }, [pendingPaymentId, activeTab, displayTransactions, inLegByOutId, pageSize, shownCount, setShownCount]);
 
   useEffect(() => {
     if (highlightedPaymentRow === null) return;
@@ -1398,14 +1367,6 @@ function App({
     return new Promise((resolve) => setDialog({ kind: "csvExportWarning", resolve }));
   }
 
-  // Bumped by every refetch below that follows a real mutation (never by
-  // `refreshDashboard`/`refreshReport` themselves, which only ever *read*)
-  // — the Dashboard tab-switch effect compares against this instead of
-  // unconditionally refetching on every visit, so bouncing between tabs
-  // with nothing actually changed skips 6 redundant backend calls. A ref,
-  // not state, since bumping it should never itself trigger a render.
-  const dataVersionRef = useRef(0);
-
   // A pinned account/bucket/investment-account widget's dead-reference
   // pruning effect (below) needs to tell "this account was deleted" apart
   // from "accounts just haven't loaded yet" — both start out as `[]`
@@ -1414,56 +1375,13 @@ function App({
   const accountsLoadedRef = useRef(false);
   // False until the first load of the profile's data has finished (or failed): views wait for it
   // instead of showing their empty states for data that is still on its way.
-  const [dataLoaded, setDataLoaded] = useState(false);
   const bucketsLoadedRef = useRef(false);
   const holdingsLoadedRef = useRef(false);
 
-  const refresh = useCallback(async () => {
-    const [txns, s, accts, cats, catIcons, flags, tags, members] = await Promise.all([
-      invoke<Transaction[]>("list_transactions"),
-      invoke<Stats>("get_stats"),
-      invoke<Account[]>("list_accounts"),
-      invoke<string[]>("list_categories"),
-      invoke<CategoryIconEntry[]>("list_categories_with_icons"),
-      invoke<AnomalyFlag[]>("list_anomaly_flags"),
-      invoke<string[]>("list_all_tags"),
-      invoke<FamilyMember[]>("list_family_members"),
-    ]);
-    setTransactions(txns);
-    setStats(s);
-    setAccounts(accts);
-    setUsedCategories(cats);
-    setCategoryIcons(catIcons);
-    setAnomalyFlags(flags);
-    setAllTags(tags);
-    setFamilyMembers(members);
+  useEffect(() => {
+    if (!dataLoaded) return;
     accountsLoadedRef.current = true;
-    dataVersionRef.current++;
-  }, []);
-
-  // After editing a few rows: re-read just those rows and the small lists an edit can change, and
-  // patch them in, instead of `refresh()`'s whole ledger (~2 s at 50,000 rows; 2026-10-02 QA, M1).
-  // Only for edits confined to the rows themselves; anything that adds, removes or links other rows
-  // (deletes, transfers, splits, debt payments, imports, rules) still uses `refresh()`.
-  const refreshRows = useCallback(async (ids: number[]) => {
-    const [rows, s, accts, cats, flags, tags] = await Promise.all([
-      invoke<Transaction[]>("list_transactions_by_ids", { ids }),
-      invoke<Stats>("get_stats"),
-      invoke<Account[]>("list_accounts"),
-      invoke<string[]>("list_categories"),
-      invoke<AnomalyFlag[]>("list_anomaly_flags"),
-      invoke<string[]>("list_all_tags"),
-    ]);
-    const fresh = new Map(rows.map((r) => [r.id, r]));
-    const asked = new Set(ids);
-    setTransactions((prev) => prev.flatMap((t) => (fresh.has(t.id) ? [fresh.get(t.id)!] : asked.has(t.id) ? [] : [t])));
-    setStats(s);
-    setAccounts(accts);
-    setUsedCategories(cats);
-    setAnomalyFlags(flags);
-    setAllTags(tags);
-    dataVersionRef.current++;
-  }, []);
+  }, [dataLoaded, dependentRevision]);
 
   // The first time a profile opens in a new calendar month, every account's
   // balance rolls forward into a fresh baseline and each sinking-fund bucket
@@ -1485,13 +1403,12 @@ function App({
     if (summary.warnings.length > 0) {
       setStatus(summary.warnings.join(" "));
     }
-  }, []);
+  }, [invoke]);
 
   const refreshBuckets = useCallback(async () => {
     setBuckets(await invoke<Bucket[]>("list_buckets"));
     bucketsLoadedRef.current = true;
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   // A goal that follows an account's balance gets its figure from the backend
   // as of when the goals were read, so when the accounts are re-read (a
@@ -1510,20 +1427,15 @@ function App({
       const names = applied.map((a) => a.bucket_name).join(", ");
       setStatus(`Added this month's automatic contribution for ${applied.length} bucket(s): ${names}.`, "success");
     }
-  }, []);
-
-  const refreshReport = useCallback(async () => {
-    setReport(await invoke<Report>("get_report"));
-  }, []);
+  }, [invoke]);
 
   const refreshRecurring = useCallback(async () => {
     setRecurring(await invoke<Recurring[]>("list_recurring"));
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   const refreshRecurringMatches = useCallback(async () => {
     setRecurringMatches(await invoke<RecurringMatch[]>("recurring_matches"));
-  }, []);
+  }, [invoke]);
 
   // Matches depend on the transactions as much as on the recurring list, so
   // they're re-read whenever a screen that shows them opens rather than
@@ -1532,30 +1444,30 @@ function App({
     if (activeTab === "recurring" || activeTab === "dashboard") {
       refreshRecurringMatches().catch((e) => setStatus(errorMessage(e)));
     }
-  }, [activeTab, refreshRecurringMatches]);
+  }, [activeTab, refreshRecurringMatches, dependentRevision]);
 
   const refreshRecurringTotals = useCallback(async () => {
     setRecurringTotals(await invoke<RecurringTotals>("recurring_totals"));
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   const refreshRecurringCandidates = useCallback(async () => {
     setRecurringCandidates(await invoke<RecurringCandidate[]>("list_recurring_candidates"));
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
+
+  useEffect(() => {
+    if (activeTab === "recurring" && dataLoaded) refreshRecurringCandidates().catch(e => setStatus(errorMessage(e)));
+  }, [activeTab, dataLoaded, dependentRevision, refreshRecurringCandidates]);
 
   const refreshAssets = useCallback(async () => {
     setAssets(await invoke<Asset[]>("list_assets"));
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   const refreshHoldings = useCallback(async () => {
     setHoldings(await invoke<Holding[]>("list_holdings"));
     setPortfolioHistory(await invoke<PortfolioPoint[]>("portfolio_history"));
     setAllocationTargets(await invoke<AllocationTarget[]>("list_allocation_targets"));
     holdingsLoadedRef.current = true;
-    dataVersionRef.current++;
-  }, []);
+  }, [invoke]);
 
   // A pinned account/bucket/investment-account widget outlives the record
   // it points at — deleting that account or bucket (or losing its last
@@ -1586,7 +1498,7 @@ function App({
 
   const refreshCashFlow = useCallback(async (months: number) => {
     setCashFlow(await invoke<CashFlow>("get_cash_flow", { months }));
-  }, []);
+  }, [invoke]);
 
   // Same trailing window get_cash_flow already shows, paired against the
   // identical span exactly one year earlier.
@@ -1601,7 +1513,7 @@ function App({
       fromYear -= 1;
     }
     setYoyCashFlow(await invoke<YoyCashFlow>("year_over_year_cash_flow", { fromYear, fromMonth, toYear, toMonth }));
-  }, []);
+  }, [invoke]);
 
   const [monthDetail, setMonthDetail] = useState<MonthExpenseDetail | null>(null);
 
@@ -1644,14 +1556,14 @@ function App({
     ]);
     setTopCategoriesData(current);
     setPreviousMonthCategorySpending(previous);
-  }, []);
+  }, [invoke]);
 
   const [forecastDays, setForecastDays] = useState(30);
   const [forecastData, setForecastData] = useState<BillAwareForecast | null>(null);
 
   const refreshForecast = useCallback(async (days: number) => {
     setForecastData(await invoke<BillAwareForecast>("bill_aware_forecast", { days }));
-  }, []);
+  }, [invoke]);
 
   // The Dashboard's "Safe to spend" needs a horizon long enough to reach the
   // next paycheck (monthly pay is up to ~35 days out) — its own fetch, since
@@ -1670,7 +1582,7 @@ function App({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, appSettingsLoaded, appSettings.safe_to_spend_enabled, layoutWidgets, transactions, recurring, accounts]);
+  }, [invoke, activeTab, appSettingsLoaded, appSettings.safe_to_spend_enabled, layoutWidgets, transactions, recurring, accounts]);
 
   useEffect(() => {
     if (activeTab === "cashflow") {
@@ -1687,6 +1599,7 @@ function App({
   }, [
     activeTab,
     cashFlowRange,
+    dependentRevision,
     compareLastYear,
     topCategoriesMonth,
     forecastDays,
@@ -1697,84 +1610,29 @@ function App({
     refreshForecast,
   ]);
 
-  const [netWorthHistory, setNetWorthHistory] = useState<NetWorthPoint[]>([]);
-  const [accountContributionDeltas, setAccountContributionDeltas] = useState<AccountContributionDelta[]>([]);
-  const [spendingThisMonth, setSpendingThisMonth] = useState<CategoryAmount[]>([]);
-  const [dashboardBudgetAlerts, setDashboardBudgetAlerts] = useState<BudgetAlert[]>([]);
-  const [dashboardInsights, setDashboardInsights] = useState<Insight[]>([]);
-  const [avgMonthlySpend, setAvgMonthlySpend] = useState("0");
-
-  // Declared here (rather than alongside the rest of the Budget tab's
-  // state, further down) specifically so `refreshDashboard` below can
-  // read them — a `useCallback` dependency array is evaluated immediately
-  // as part of the call expression, not deferred like the callback body
-  // itself, so referencing a `const` declared later in the component
-  // would be a genuine temporal-dead-zone error, not just a style choice.
+  const netWorthHistory=dashboardSnapshot?.netWorth??[];
+  const accountContributionDeltas=dashboardSnapshot?.contributions??[];
+  const spendingThisMonth=dashboardSnapshot?.spending??[];
+  const dashboardBudgetAlerts=dashboardSnapshot?.alerts??[];
+  const dashboardInsights=dashboardSnapshot?.insights??[];
+  const avgMonthlySpend = activeTab === "buckets" ? planningSnapshot?.averageSpend ?? "0" : dashboardSnapshot?.averageSpend ?? "0";
+  useEffect(() => {
+    if ((activeTab === "buckets" || newTransactionOpen) && dataLoaded)
+      void loadPlanning(dashboardKey, client => client.reportSummary()).catch(error => {
+        if (!(error && typeof error === "object" && "code" in error && error.code === "superseded")) setStatus(errorMessage(error));
+      });
+  }, [activeTab, newTransactionOpen, dataLoaded, dashboardKey, loadPlanning]);
   const now = new Date();
   const [budgetYear, setBudgetYear] = useState(now.getFullYear());
   const [budgetMonthNum, setBudgetMonthNum] = useState(now.getMonth() + 1);
-
-  // Shared between `refreshDashboard` (always the *current* calendar
-  // month) and `refreshBudgetMonthActuals` (whatever month the Budget tab
-  // is viewing) — when both happen to want the same month's
-  // `budget_alerts_for_month`, whichever fetches it first hands the other
-  // a cache hit instead of both independently issuing an identical
-  // backend call. Always overwritten on every fetch from either side, so
-  // it can never serve data staler than the last real fetch for that
-  // month.
-  const currentMonthAlertsRef = useRef<{ month: string; alerts: BudgetAlert[] } | null>(null);
-
-  const refreshDashboard = useCallback(async () => {
-    const today = new Date();
-    const todayYear = today.getFullYear();
-    const todayMonth = today.getMonth() + 1;
-    const monthKey = `${todayYear}-${todayMonth}`;
-    const cachedAlerts = currentMonthAlertsRef.current?.month === monthKey ? currentMonthAlertsRef.current.alerts : null;
-
-    const [nw, spend, alerts, insights, avgSpend] = await Promise.all([
-      invoke<NetWorthPoint[]>("net_worth_history", { months: 6 }),
-      invoke<CategoryAmount[]>("spending_this_month"),
-      cachedAlerts ? Promise.resolve(cachedAlerts) : invoke<BudgetAlert[]>("budget_alerts_for_month", { year: todayYear, month: todayMonth }),
-      invoke<Insight[]>("dashboard_insights"),
-      invoke<string>("average_monthly_spend"),
-    ]);
-    currentMonthAlertsRef.current = { month: monthKey, alerts };
-    setNetWorthHistory(nw);
-    setSpendingThisMonth(spend);
-    setDashboardBudgetAlerts(alerts);
-    setDashboardInsights(insights);
-    setAvgMonthlySpend(avgSpend);
-    // When the Budget tab is already viewing the current month, its
-    // alerts are identical to the ones just resolved above.
-    if (budgetYear === todayYear && budgetMonthNum === todayMonth) {
-      setBudgetAlerts(alerts);
-    }
-    // "What changed" behind each stat card's trend, over the same span the
-    // sparkline itself covers — a follow-up call (not part of the
-    // Promise.all above) since it needs the history's own endpoint dates.
-    if (nw.length >= 2) {
-      invoke<AccountContributionDelta[]>("account_contribution_deltas", {
-        from: nw[0].as_of,
-        to: nw[nw.length - 1].as_of,
-      })
-        .then(setAccountContributionDeltas)
-        .catch((e) => setStatus(errorMessage(e)));
-    } else {
-      setAccountContributionDeltas([]);
-    }
-  }, [budgetYear, budgetMonthNum]);
-
-  // -1 so the very first Dashboard visit always fetches (dataVersionRef
-  // starts at 0, which would otherwise look identical to "nothing's
-  // changed" on a version-less first render).
-  const lastDashboardFetchVersionRef = useRef(-1);
   useEffect(() => {
-    if (activeTab === "dashboard" && dataVersionRef.current !== lastDashboardFetchVersionRef.current) {
-      lastDashboardFetchVersionRef.current = dataVersionRef.current;
-      refreshDashboard().catch((e) => setStatus(errorMessage(e)));
-      refreshReport().catch((e) => setStatus(errorMessage(e)));
+    if (activeTab !== "dashboard" && activeTab !== "accounts") {
+      lastDashboardKey.current = null;
+      return;
     }
-  }, [activeTab, refreshDashboard, refreshReport]);
+    if (dataLoaded && lastDashboardKey.current !== dashboardKey)
+      void refreshDashboard().catch(error => setStatus(errorMessage(error)));
+  }, [activeTab, dataLoaded, dashboardKey, refreshDashboard]);
 
   // Launch-time bill-due check — not a background reminder (this only runs
   // when the app is actually open), and deliberately no backend command:
@@ -1831,41 +1689,23 @@ function App({
     })();
   }, [recurring, backgroundSettings, profiles, showBillNamesInReminders]);
 
-  const [budgetMonthActuals, setBudgetMonthActuals] = useState<ReportBudgetLine[]>([]);
-  const [budgetMonthFlow, setBudgetMonthFlow] = useState<CashFlow | null>(null);
-  const budgetMonthRequestRef = useRef(0);
-  const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlert[]>([]);
-  const [memberBudgetActuals, setMemberBudgetActuals] = useState<MemberBudgetActual[]>([]);
-
+  const budgetRead = useFinancialRead<BudgetSnapshot>();
+  const loadBudget = budgetRead.refresh;
+  const budgetMonthKey = `${budgetYear}-${budgetMonthNum}`;
+  const budgetSnapshot = budgetRead.data?.key === budgetMonthKey ? budgetRead.data.value : null;
+  const budgetMonthActuals = budgetSnapshot?.actuals ?? [];
+  const budgetMonthFlow = budgetSnapshot?.flow ?? null;
+  const budgetAlerts = budgetSnapshot?.alerts ?? [];
+  const memberBudgetActuals = budgetSnapshot?.members ?? [];
   const refreshBudgetMonthActuals = useCallback(async (year: number, month: number) => {
-    const request = ++budgetMonthRequestRef.current;
-    setBudgetMonthFlow(null);
-    const monthKey = `${year}-${month}`;
-    const cachedAlerts = currentMonthAlertsRef.current?.month === monthKey ? currentMonthAlertsRef.current.alerts : null;
-    const [actuals, alerts, flow] = await Promise.all([
-      invoke<ReportBudgetLine[]>("budget_actuals_for_month", { year, month }),
-      cachedAlerts ? Promise.resolve(cachedAlerts) : invoke<BudgetAlert[]>("budget_alerts_for_month", { year, month }),
-      invoke<CashFlow>("cash_flow_for_range", { fromYear: year, fromMonth: month, toYear: year, toMonth: month }),
-    ]);
-    if (request !== budgetMonthRequestRef.current) return;
-    currentMonthAlertsRef.current = { month: monthKey, alerts };
-    setBudgetMonthActuals(actuals);
-    setBudgetMonthFlow(flow);
-    setBudgetAlerts(alerts);
-    // This one doubles as both a mutation-response (several budget edit
-    // handlers call it alone, with no other refetch alongside) and a
-    // plain tab-visit read (the Budget tab's own switch effect calls it
-    // unconditionally) — unlike `refreshReport`, it can't be left off the
-    // version bump without missing real mutations, so a Budget-tab visit
-    // with nothing actually edited costs one extra Dashboard refetch on
-    // the next visit. Still strictly better than refetching on literally
-    // every Dashboard visit, which is the behavior this replaces.
-    dataVersionRef.current++;
-  }, []);
-
-  const refreshMemberBudgetActuals = useCallback(async (year: number, month: number) => {
-    setMemberBudgetActuals(await invoke<MemberBudgetActual[]>("monthly_budget_actuals_by_member", { year, month }));
-  }, []);
+    try {
+      await loadBudget(`${year}-${month}`, client => client.budget(year, month));
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "superseded") return;
+      throw error;
+    }
+  }, [loadBudget]);
+  const refreshMemberBudgetActuals = refreshBudgetMonthActuals;
 
   // Memoized so `BudgetRow`'s fetch-on-mount effect (keyed on this
   // function's identity, see BudgetView.tsx) only refires when the viewed
@@ -1883,20 +1723,17 @@ function App({
         return []; // decorative sparkline only — swallow errors rather than interrupting the row
       }
     },
-    [budgetYear, budgetMonthNum],
+    [invoke, budgetYear, budgetMonthNum],
   );
 
   useEffect(() => {
     // The housekeeping already ran before this page mounted, so the reads below
     // don't have to wait for it.
     showMaintenanceSummary().catch((e) => setStatus(errorMessage(e)));
-    refresh()
-      .catch((e) => setStatus(errorMessage(e)))
-      .finally(() => setDataLoaded(true));
+    refresh().catch((e) => setStatus(errorMessage(e)));
     refreshBuckets().catch((e) => setStatus(errorMessage(e)));
     refreshRecurring().catch((e) => setStatus(errorMessage(e)));
     refreshRecurringTotals().catch((e) => setStatus(errorMessage(e)));
-    refreshRecurringCandidates().catch((e) => setStatus(errorMessage(e)));
     refreshHoldings().catch((e) => setStatus(errorMessage(e)));
     refreshAssets().catch((e) => setStatus(errorMessage(e)));
   }, [
@@ -1905,19 +1742,9 @@ function App({
     refreshBuckets,
     refreshRecurring,
     refreshRecurringTotals,
-    refreshRecurringCandidates,
     refreshHoldings,
     refreshAssets,
   ]);
-
-  useEffect(() => {
-    // the report aggregates transaction/bucket/budget data, so refetch it fresh
-    // whenever the user actually looks at that tab, rather than tracking
-    // every mutation that could affect one of its numbers
-    if (activeTab === "reports") {
-      refreshReport().catch((e) => setStatus(errorMessage(e)));
-    }
-  }, [activeTab, refreshReport]);
 
   useEffect(() => {
     // the Budget tab browses arbitrary months, independent of Reports'
@@ -1926,7 +1753,7 @@ function App({
     if (activeTab === "budget") {
       refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(errorMessage(e)));
     }
-  }, [activeTab, budgetYear, budgetMonthNum, refreshBudgetMonthActuals]);
+  }, [activeTab, budgetYear, budgetMonthNum, refreshBudgetMonthActuals, dependentRevision]);
 
   useEffect(() => {
     // Household reuses Budget's own month cursor rather than a second
@@ -1935,7 +1762,7 @@ function App({
     if (activeTab === "household") {
       refreshMemberBudgetActuals(budgetYear, budgetMonthNum).catch((e) => setStatus(errorMessage(e)));
     }
-  }, [activeTab, budgetYear, budgetMonthNum, refreshMemberBudgetActuals]);
+  }, [activeTab, budgetYear, budgetMonthNum, refreshMemberBudgetActuals, dependentRevision]);
 
   function handlePrevBudgetMonth() {
     if (budgetMonthNum === 1) {
@@ -1967,7 +1794,7 @@ function App({
 
   async function handleSetBudget(category: string, monthlyAmount: string, budgetGroup: string) {
     try {
-      await invoke("set_budget", { category, period: budgetPeriod, monthlyAmount, budgetGroup });
+      await callTransaction("set_budget", { category, period: budgetPeriod, monthlyAmount, budgetGroup });
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -1979,7 +1806,7 @@ function App({
   const [monthReview, setMonthReview] = useState<MonthReview | null>(null);
   const refreshReviewedMonths = useCallback(async () => {
     setReviewedMonths(await invoke<string[]>("list_reviewed_months"));
-  }, []);
+  }, [invoke]);
   useEffect(() => {
     refreshReviewedMonths().catch((e) => setStatus(errorMessage(e)));
   }, [refreshReviewedMonths]);
@@ -2026,11 +1853,12 @@ function App({
   const [inboxRequest, setInboxRequest] = useState<Set<number> | null>(null);
   const [inbox, setInbox] = useState<InboxItem[] | null>(null);
   const importReview = useImportReview({
+    call: callTransaction,
     accounts,
     busy,
     setBusy,
     setStatus,
-    refresh,
+    refresh: async () => { await refresh(); },
     onImported: (ids) => setInboxRequest(new Set(ids)),
   });
   const inboxCount = useMemo(() => buildInbox({ transactions, flags: anomalyFlags, scopeIds: null }).length, [transactions, anomalyFlags]);
@@ -2050,7 +1878,7 @@ function App({
 
   async function handleInboxSetCategory(id: number, category: string) {
     try {
-      await invoke("correct_category", { id, category });
+      await callTransaction("correct_category", { id, category });
     } catch (e) {
       setStatus(errorMessage(e));
       throw e;
@@ -2059,7 +1887,7 @@ function App({
 
   async function handleInboxDelete(id: number) {
     try {
-      const deleted = await invoke<number[]>("bulk_delete_transactions", { ids: [id] });
+      const deleted = await callTransaction<number[]>("bulk_delete_transactions", { ids: [id] });
       setUndoToast({ text: `Deleted ${deleted.length} transaction(s).`, ids: deleted });
     } catch (e) {
       setStatus(errorMessage(e));
@@ -2069,7 +1897,7 @@ function App({
 
   async function handleInboxDismiss(id: number, kinds: ("large" | "duplicate")[]) {
     try {
-      for (const kind of kinds) await invoke("dismiss_anomaly_flag", { transactionId: id, kind });
+      for (const kind of kinds) await callTransaction("dismiss_anomaly_flag", { transactionId: id, kind });
     } catch (e) {
       setStatus(errorMessage(e));
       throw e;
@@ -2131,7 +1959,7 @@ function App({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [paletteOpen]);
+  }, [paletteOpen, setNewTransactionOpen]);
 
   // Recent transactions only — the palette filters on every keystroke.
   const paletteEntries = useMemo<PaletteEntry[]>(() => {
@@ -2225,7 +2053,7 @@ function App({
   async function handleApplyBudgetSuggestions(rows: { category: string; amount: string; group: string }[]) {
     try {
       for (const row of rows) {
-        await invoke("set_budget", { category: row.category, period: budgetPeriod, monthlyAmount: row.amount, budgetGroup: row.group });
+        await callTransaction("set_budget", { category: row.category, period: budgetPeriod, monthlyAmount: row.amount, budgetGroup: row.group });
       }
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
       setStatus(`Set ${rows.length} budget${rows.length === 1 ? "" : "s"} for ${budgetMonthLabel}.`);
@@ -2236,7 +2064,7 @@ function App({
 
   async function handleSetCap(category: string, capEnabled: boolean) {
     try {
-      await invoke("set_budget_cap", { category, period: budgetPeriod, capEnabled });
+      await callTransaction("set_budget_cap", { category, period: budgetPeriod, capEnabled });
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -2245,9 +2073,8 @@ function App({
 
   async function handleSetRollover(category: string, rolloverEnabled: boolean) {
     try {
-      await invoke("set_budget_rollover", { category, period: budgetPeriod, rolloverEnabled });
-      // A category's carry changes what counts as over budget — don't reuse cached alerts.
-      currentMonthAlertsRef.current = null;
+      await callTransaction("set_budget_rollover", { category, period: budgetPeriod, rolloverEnabled });
+      // Reload the selected month after its carry policy changes.
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -2256,7 +2083,7 @@ function App({
 
   async function handleDeleteBudget(category: string) {
     try {
-      await invoke("delete_budget", { category, period: budgetPeriod });
+      await callTransaction("delete_budget", { category, period: budgetPeriod });
       await refreshBudgetMonthActuals(budgetYear, budgetMonthNum);
     } catch (e) {
       setStatus(errorMessage(e));
@@ -2309,7 +2136,7 @@ function App({
       value = custom;
     }
     try {
-      await invoke("correct_category", { id: transactionId, category: value });
+      await callTransaction("correct_category", { id: transactionId, category: value });
       await refreshAfterCategoryDialogEdit();
     } catch (e) {
       setStatus(errorMessage(e));
@@ -2323,7 +2150,7 @@ function App({
       value = custom;
     }
     try {
-      await invoke("bulk_correct_category", { ids: transactionIds, category: value });
+      await callTransaction("bulk_correct_category", { ids: transactionIds, category: value });
       await refreshAfterCategoryDialogEdit();
       return true;
     } catch (e) {
@@ -2775,72 +2602,11 @@ function App({
     await importReview.begin(path, invertAmounts, accountId);
   }
 
-  async function handleCategoryChange(id: number, value: string) {
-    if (value === "__new__") {
-      const custom = await askNewCategory();
-      if (!custom) return;
-      value = custom;
-    }
-
-    const description = transactions.find((t) => t.id === id)?.description.trim();
-
-    // optimistic update so the dropdown doesn't snap back while the call is in flight
-    setTransactions((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, category: value, category_source: "user" } : t)),
-    );
-    try {
-      await invoke("correct_category", { id, category: value });
-      await refreshRows([id]);
-      if (description) void offerToApplyToSimilar([description], value);
-    } catch (e) {
-      setStatus(errorMessage(e));
-      await refresh();
-    }
-  }
-
   /** A category fix just saved a rule for each of these merchants (one for a
    * row's dropdown, possibly several for the bulk "Set category to…" bar); if
    * other transactions from them are still sitting in a different category
    * (and weren't categorized by hand), offer to fix those in one click.
    * Purely a convenience — a failure here is never worth surfacing. */
-  async function offerToApplyToSimilar(merchants: string[], category: string) {
-    try {
-      const withTwins: string[] = [];
-      let count = 0;
-      for (const pattern of merchants) {
-        const preview = await invoke<{ matching: number; would_change: number }>("preview_rule", {
-          pattern,
-          category,
-          replacing: null,
-        });
-        if (preview.would_change > 0) {
-          withTwins.push(pattern);
-          count += preview.would_change;
-        }
-      }
-      if (count > 0) {
-        setSimilarToast({ text: similarOfferText(merchants, category, count), patterns: withTwins, category, count });
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-
-  async function handleApplyToSimilar() {
-    if (!similarToast) return;
-    const { patterns, category } = similarToast;
-    setSimilarToast(null);
-    try {
-      let changed = 0;
-      for (const pattern of patterns) {
-        changed += await invoke<number>("save_rule", { pattern, category, replacing: null, applyToExisting: true });
-      }
-      await refresh();
-      setStatus(`Re-categorized ${changed} transaction${changed === 1 ? "" : "s"} as ${category}.`, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
 
   function openManageCategories() {
     setManageCategoriesOpen(true);
@@ -2848,33 +2614,6 @@ function App({
 
   function openManageFamilyMembers() {
     setManageFamilyMembersOpen(true);
-  }
-
-  async function handleCreateManualTransaction(
-    accountId: number,
-    date: string,
-    description: string,
-    amount: string,
-    category: string | null,
-    memberId: number | null,
-    notes: string | null,
-  ) {
-    try {
-      const newId = await invoke<number>("create_manual_transaction", { accountId, date, description, amount, category, memberId, notes });
-      setLastUsedAccountId(accountId);
-      await refresh();
-      setNewTransactionOpen(false);
-      // With automatic linking on, an entry that completes a transfer is linked
-      // straight away — say so, so it doesn't just quietly change shape.
-      const autoLinked = await invoke<{ out_id: number; in_id: number }[]>("list_auto_linked_transfers").catch(() => []);
-      const linkedNow = autoLinked.some((p) => p.out_id === newId || p.in_id === newId);
-      setStatus(
-        linkedNow ? `Added "${description}" and linked it as a transfer automatically — review it under “auto-linked”.` : `Added "${description}".`,
-        "success",
-      );
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
   }
 
   async function handleCreateFamilyMember(name: string) {
@@ -2922,30 +2661,10 @@ function App({
     }
   }
 
-  async function handleRecategorize() {
-    setBusy(true);
-    setStatus("Categorizing…", "info");
-    try {
-      const ids = await invoke<number[]>("recategorize_uncategorized");
-      await refresh();
-      if (ids.length > 0) {
-        setReviewIds(new Set(ids));
-        setStatus(`Categorized ${ids.length} transaction(s) — review below and fix any mistakes.`, "success");
-      } else {
-        setReviewIds(null);
-        setStatus("Nothing new to categorize.", "info");
-      }
-    } catch (e) {
-      setStatus(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleRenameCategory(oldName: string, newName: string) {
     try {
       await invoke("rename_category", { oldName, newName });
-      await Promise.all([refresh(), refreshReport(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
+      await Promise.all([refresh(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -2954,70 +2673,7 @@ function App({
   async function handleDeleteCategory(name: string) {
     try {
       await invoke("delete_category", { name });
-      await Promise.all([refresh(), refreshReport(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function commitAmountEdit(id: number, value: string) {
-    setEditingAmount(null);
-    try {
-      const splitsReconciled = await invoke<boolean>("update_transaction_amount", { id, amount: value.trim() });
-      await refreshRows([id]);
-      if (splitsReconciled) {
-        setStatus("Amount updated — its splits were rescaled to still add up to the new amount.", "info");
-      }
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function commitDateEdit(id: number, value: string) {
-    setEditingDate(null);
-    if (!value.trim()) return;
-    try {
-      await invoke("update_transaction_date", { id, date: value.trim() });
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function commitDescriptionEdit(id: number, value: string) {
-    setEditingDescription(null);
-    try {
-      await invoke("update_transaction_description", { id, description: value.trim() });
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleAccountChangeForTransaction(id: number, accountId: string) {
-    try {
-      await invoke("update_transaction_account", { id, accountId: Number(accountId) });
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleMemberChangeForTransaction(id: number, memberId: string) {
-    try {
-      await invoke("set_transaction_member", { id, memberId: memberId === "" ? null : Number(memberId) });
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleBulkMemberChange(value: string) {
-    const ids = Array.from(selectedIds);
-    try {
-      await invoke("bulk_set_transaction_member", { ids, memberId: value === "__none__" ? null : Number(value) });
-      setSelectedIds(new Set());
-      await refreshRows(ids);
+      await Promise.all([refresh(), refreshBudgetMonthActuals(budgetYear, budgetMonthNum)]);
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -3102,7 +2758,7 @@ function App({
         includedHoldings: Array.from(pendingSetupImport.includedHoldings),
       });
       setPendingSetupImport(null);
-      await Promise.all([refresh(), refreshBuckets(), refreshReport(), refreshHoldings()]);
+      await Promise.all([refresh(), refreshBuckets(), refreshHoldings()]);
       const parts = [
         `${summary.accounts_created} account(s)`,
         `${summary.categories_created} categor${summary.categories_created === 1 ? "y" : "ies"}`,
@@ -3128,16 +2784,19 @@ function App({
       filters: [{ name: "CSV", extensions: ["csv"] }],
     });
     if (!path) return;
-    const accountsCsv = toCsv(
-      ["Account", "Type", "Balance / Limit", "Current Balance"],
-      accounts.map((a) => [a.name, a.account_type, a.starting_balance, a.current_balance]),
-    );
-    const budgetCsv = toCsv(
-      ["Category", "Group", "Budgeted", "Actual"],
-      (report?.budget_actuals ?? []).map((b) => [b.category, b.budget_group, b.budgeted, b.actual]),
-    );
-    const csv = `Accounts\r\n${accountsCsv}\r\n${report?.month_label ?? ""}'s Budget\r\n${budgetCsv}`;
     try {
+      const exported = await readReportSummary("export", client => client.reportSummary());
+      const accountsCsv = toCsv(
+        ["Account", "Type", "Balance / Limit", "Current Balance"],
+        exported.accounts.map((a) => [a.name, a.account_type, a.starting_balance, a.current_balance]),
+        ["text", "text", "decimal", "decimal"],
+      );
+      const budgetCsv = toCsv(
+        ["Category", "Group", "Budgeted", "Actual"],
+        exported.report.budget_actuals.map((b) => [b.category, b.budget_group, b.budgeted, b.actual]),
+        ["text", "text", "decimal", "decimal"],
+      );
+      const csv = `Accounts\r\n${accountsCsv}\r\n${exported.report.month_label}'s Budget\r\n${budgetCsv}`;
       await invoke("write_text_file", { path, content: csv });
       setStatus(`Exported reports to ${path}.`, "success");
     } catch (e) {
@@ -3145,374 +2804,43 @@ function App({
     }
   }
 
-  async function handleExportLedgerCsv() {
-    if (profiles.find((p) => p.is_active)?.is_password_protected && !(await askCsvExportWarning())) return;
-    const path = await save({
-      defaultPath: `transactions-export-${toLocalIsoDate()}.csv`,
-      filters: [{ name: "CSV", extensions: ["csv"] }],
-    });
-    if (!path) return;
-    const csv = toCsv(
-      ["Date", "Description", "Amount", "Account", "Category", "Tags", "Notes"],
-      sortedTransactions.map((t) => [t.date, t.description, t.amount, t.account_name, t.category ?? "", t.tags.join("; "), t.notes ?? ""]),
-    );
-    try {
-      await invoke("write_text_file", { path, content: csv });
-      setStatus(`Exported ${sortedTransactions.length} transaction(s) to ${path}.`, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleDeleteTransaction(id: number) {
-    setConfirmingDeleteId(null);
-    try {
-      await invoke("delete_transaction", { id });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  function startApplyingDebtPayment(t: Transaction) {
-    setApplyingDebtId(t.id);
-    setApplyDebtForm({
-      accountId: debtAccounts[0] ? String(debtAccounts[0].id) : "",
-      amount: Math.abs(parseFloat(t.amount)).toFixed(2),
-    });
-  }
-
-  async function handleApplyDebtPayment(sourceTransactionId: number, date: string) {
-    if (!applyDebtForm.accountId || !applyDebtForm.amount.trim()) return;
-    try {
-      await invoke("apply_debt_payment", {
-        sourceTransactionId,
-        debtAccountId: Number(applyDebtForm.accountId),
-        amount: applyDebtForm.amount.trim(),
-        date,
-      });
-      setApplyingDebtId(null);
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleUnapplyDebtPayment(sourceTransactionId: number) {
-    try {
-      await invoke("unapply_debt_payment", { sourceTransactionId });
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  function startEditingPrincipal(t: Transaction) {
-    setEditingPrincipalId(t.id);
-    setPrincipalDraft(t.principal_amount ?? t.amount);
-  }
-
-  async function handleSetPrincipalAmount(id: number) {
-    if (!principalDraft.trim()) return;
-    try {
-      await invoke("update_transaction_principal_amount", { id, principalAmount: principalDraft.trim() });
-      setEditingPrincipalId(null);
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleResetPrincipalAmount(id: number) {
-    try {
-      await invoke("update_transaction_principal_amount", { id, principalAmount: null });
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function toggleSplitEditor(t: Transaction) {
-    if (expandedSplitId === t.id) {
-      setExpandedSplitId(null);
-      return;
-    }
-    try {
-      const existing = await invoke<TransactionSplit[]>("get_transaction_splits", { transactionId: t.id });
-      if (existing.length > 0) {
-        setSplitLines(
-          existing.map((s) => ({
-            category: s.category ?? "",
-            amount: Math.abs(parseFloat(s.amount)).toFixed(2),
-            note: s.note ?? "",
-          })),
-        );
-      } else {
-        setSplitLines([
-          { category: t.category ?? categoryOptions[0] ?? "", amount: Math.abs(parseFloat(t.amount)).toFixed(2), note: "" },
-        ]);
-      }
-      setExpandedSplitId(t.id);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  function addSplitLine() {
-    setSplitLines((prev) => [...prev, { category: categoryOptions[0] ?? "", amount: "", note: "" }]);
-  }
-
-  function removeSplitLine(index: number) {
-    setSplitLines((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function updateSplitLine(index: number, patch: Partial<{ category: string; amount: string; note: string }>) {
-    setSplitLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
-  }
-
-  function splitRemaining(t: Transaction): number {
-    const total = Math.abs(parseFloat(t.amount));
-    const allocated = splitLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
-    return total - allocated;
-  }
-
-  async function saveSplits(t: Transaction) {
-    const sign = parseFloat(t.amount) < 0 ? -1 : 1;
-    const splits = splitLines
-      .filter((l) => l.category && l.amount.trim())
-      .map((l): [string, string, string | null] => [
-        l.category,
-        (sign * Math.abs(parseFloat(l.amount))).toFixed(2),
-        l.note.trim() ? l.note.trim() : null,
-      ]);
-    try {
-      await invoke("set_transaction_splits", { transactionId: t.id, splits });
-      setExpandedSplitId(null);
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function clearSplits(t: Transaction) {
-    try {
-      await invoke("set_transaction_splits", { transactionId: t.id, splits: [] });
-      setExpandedSplitId(null);
-      await refresh();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleSaveNotes(transactionId: number, notes: string | null) {
-    await invoke("update_transaction_notes", { transactionId, notes });
-    await refreshRows([transactionId]);
-  }
-
-  async function handleAddTag(id: number, tag: string) {
-    const trimmed = tag.trim();
-    if (!trimmed) return;
-    try {
-      await invoke("add_tag", { transactionId: id, tag: trimmed });
-      setNewTagText((prev) => ({ ...prev, [id]: "" }));
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleRemoveTag(id: number, tag: string) {
-    try {
-      await invoke("remove_tag", { transactionId: id, tag });
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
+  const handleExportTransactionsCsv = createTransactionExporter({ rows: sortedTransactions, isProtected: profiles.some(p => p.is_active && p.is_password_protected), confirmPlaintext: askCsvExportWarning, call: callTransaction, onStatus: setStatus });
 
   // No dedicated bulk backend command — `add_tag` is already a cheap
   // single-row insert, so a client-side loop plus one shared `refresh()`
   // at the end (same shape as `handleBulkMemberChange`/
   // `handleBulkCategoryChange`) is simpler than adding a new command for
   // what's still, in total, a handful of rows.
-  async function handleBulkAddTag(tag: string) {
-    const trimmed = tag.trim();
-    if (!trimmed) return;
-    const ids = Array.from(selectedIds);
-    try {
-      await Promise.all(ids.map((id) => invoke("add_tag", { transactionId: id, tag: trimmed })));
-      setBulkTagText("");
-      setSelectedIds(new Set());
-      await refreshRows(ids);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleUnlinkTransfer(transactionId: number) {
-    try {
-      await invoke("unlink_transfer", { transactionId });
-      await refresh();
-      setStatus("Unlinked — they're two separate transactions again.", "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleLinkSelectedAsTransfer() {
-    if (!selectedPairForLink) return;
-    try {
-      await invoke("link_transfer", { a: selectedPairForLink[0].id, b: selectedPairForLink[1].id });
-      setSelectedIds(new Set());
-      await refresh();
-      setStatus("Linked as a transfer — it no longer counts as income or spending.", "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleLinkTransfers(pairs: { out_id: number; in_id: number }[]) {
-    setTransferReviewOpen(false);
-    try {
-      for (const p of pairs) {
-        await invoke("link_transfer", { a: p.out_id, b: p.in_id });
-      }
-      await refresh();
-      setStatus(`Linked ${pairs.length} transfer${pairs.length === 1 ? "" : "s"}.`, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-      await refresh();
-    }
-  }
-
-  async function handleMarkAutoLinksReviewed(outIds: number[]) {
-    try {
-      await invoke("mark_auto_links_reviewed", { outIds });
-      await reloadAutoLinked();
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  function toggleSelectedMany(ids: number[]) {
-    const adding = ids.filter((id) => !selectedIds.has(id)).length;
-    if (adding > 0 && !canSelectMore(selectedIds, adding)) {
-      setStatus(`A change can apply to at most ${SELECT_ALL_CAP} transactions at a time.`, "info");
-      return;
-    }
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (ids.every((id) => next.has(id))) {
-        ids.forEach((id) => next.delete(id));
-      } else {
-        ids.forEach((id) => next.add(id));
-      }
-      return next;
-    });
-  }
-
-  function toggleSelected(id: number) {
-    if (!selectedIds.has(id) && !canSelectMore(selectedIds, 1)) {
-      setStatus(`A change can apply to at most ${SELECT_ALL_CAP} transactions at a time.`, "info");
-      return;
-    }
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }
-
-  function toggleSelectAll() {
-    if (isBatchSelected(selectAllBatch, selectedIds)) {
-      setSelectedIds(new Set());
-      setSelectAllBatch((batch) => (batch ? unselectBatch(batch) : batch));
-      return;
-    }
-    // Every matching row, not just those shown; a merged transfer row stands for two transactions.
-    const rows = displayTransactions.map((t) => {
-      const inLeg = inLegByOutId.get(t.id);
-      return inLeg ? [t.id, inLeg.id] : [t.id];
-    });
-    const result = selectAllNext(rows, selectedIds, selectAllBatch);
-    setSelectedIds(result.selected);
-    setSelectAllBatch(result.batch);
-    setSelectAllMessage(selectAllNote(result));
-  }
-
-  async function handleBulkCategoryChange(value: string) {
-    if (value === "__new__") {
-      const custom = await askNewCategory();
-      if (!custom) return;
-      value = custom;
-    }
-    const ids = Array.from(selectedIds);
-    // Read before the reload: these are the merchants the change teaches rules for.
-    const merchants = distinctMerchants(ids.map((id) => transactions.find((t) => t.id === id)?.description));
-    try {
-      await invoke("bulk_correct_category", { ids, category: value });
-      setSelectedIds(new Set());
-      await refreshRows(ids);
-      if (merchants.length > 0) void offerToApplyToSimilar(merchants, value);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleBulkDelete() {
-    setConfirmingBulkDelete(false);
-    const ids = Array.from(selectedIds);
-    try {
-      const deletedIds = await invoke<number[]>("bulk_delete_transactions", { ids });
-      setSelectedIds(new Set());
-      await refresh();
-      setUndoToast({ text: `Deleted ${deletedIds.length} transaction(s).`, ids: deletedIds });
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
-  async function handleUndoBulkDelete() {
-    if (!undoToast) return;
-    const ids = undoToast.ids;
-    setUndoToast(null);
-    try {
-      await invoke("restore_transactions", { ids });
-      await refresh();
-      setStatus(`Restored ${ids.length} transaction(s).`, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
 
   // Rows imported the wrong way round (a card export with charges as positive, imported with "Keep as-is").
-  async function handleBulkFlipSigns() {
-    setConfirmingBulkFlip(false);
-    const ids = Array.from(selectedIds);
-    try {
-      const result = await invoke<{ flipped: number; account_ids: number[] }>("flip_transaction_signs", { ids });
-      setSelectedIds(new Set());
-      await refresh();
-      setStatus(`Flipped the sign of ${result.flipped} transaction${result.flipped === 1 ? "" : "s"}. Flip them again to undo.`, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
 
-  async function handleAddSelectedToRecurring(cadence: string) {
-    const ids = Array.from(selectedIds);
-    try {
-      const created = await invoke<number>("bulk_create_recurring_from_transactions", { ids, cadence });
-      setSelectedIds(new Set());
-      await refreshRecurring();
-      setStatus(`Added ${created} transaction(s) to Recurring — adjust the cadence per item there if needed.`, "success");
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
+  const dashboardSupplementalReady = [
+    "list_assets", "list_holdings", "portfolio_history", "list_allocation_targets",
+    "list_buckets", "list_recurring", "recurring_totals",
+  ].every(command => applicationCalls.loaded.has(command));
+
+  function retryRelatedReads() {
+    const retries: Record<string, () => Promise<unknown>> = {
+      list_assets: refreshAssets,
+      list_holdings: refreshHoldings,
+      portfolio_history: refreshHoldings,
+      list_allocation_targets: refreshHoldings,
+      list_buckets: refreshBuckets,
+      list_recurring: refreshRecurring,
+      recurring_totals: refreshRecurringTotals,
+      recurring_matches: refreshRecurringMatches,
+      list_recurring_candidates: refreshRecurringCandidates,
+      list_profiles: refreshProfiles,
+      list_backups: refreshBackups,
+      get_backup_copy_dir: refreshBackups,
+      get_data_file_location: refreshDataFileLocation,
+      get_app_settings: refreshAppSettings,
+      get_background_settings: async () => setBackgroundSettings(await invokeProfile("get_background_settings")),
+      get_live_price_settings: refreshLivePriceSettings,
+    };
+    // Several related failures can share one refresh function; retry it once.
+    const requests = new Set(Object.keys(applicationCalls.errors).map(command => retries[command]).filter(Boolean));
+    void Promise.all([...requests].map(retry => retry())).catch(() => {});
   }
 
   return (
@@ -3614,11 +2942,24 @@ function App({
             document.body,
           )}
 
+          {Object.keys(applicationCalls.errors).length > 0 && (
+            <FinancialReadState label="Related profile data" initial={false} loading={false}
+              error={Object.values(applicationCalls.errors).map(error => error.message).join(" ")}
+              onRetry={retryRelatedReads} />
+          )}
+          {dataLoaded && <TransactionReadState initial={false} loading={transactionData.loading} error={transactionData.error?.message ?? null} onRetry={() => void refresh().catch(() => {})} />}
           {!dataLoaded && activeTab !== "settings" && activeTab !== "help" ? (
-            <DataLoading />
+            transactionData.error ? <TransactionReadState initial loading={false} error={transactionData.error.message} onRetry={() => void refresh().catch(() => {})} /> : <DataLoading />
           ) : (
           <>
-          {activeTab === "dashboard" && (
+          {(activeTab === "dashboard" || activeTab === "accounts") && (
+            <FinancialReadState label={activeTab === "dashboard" ? "Dashboard totals" : "Account trends"}
+              initial={!dashboardSnapshot}
+              loading={(dashboardRead.state?.loading ?? !dashboardSnapshot) || !dashboardSupplementalReady}
+              error={dashboardRead.state?.error?.message ?? null}
+              onRetry={() => void refreshDashboard().catch(() => {})} />
+          )}
+          {activeTab === "dashboard" && dashboardSnapshot && dashboardSupplementalReady && (
             <Suspense fallback={null}>
               <DashboardView
                 onOpenHelp={openHelpFor}
@@ -3646,7 +2987,7 @@ function App({
                 layoutWidgets={layoutWidgets}
                 onSetLayoutWidgets={setLayoutWidgets}
                 onOpenAddWidget={() => setAddWidgetModalOpen(true)}
-                onOpenLedger={() => setActiveTab("ledger")}
+                onOpenTransactions={() => setActiveTab("ledger")}
                 onOpenRecurring={() => setActiveTab("recurring")}
                 onOpenBudget={() => setActiveTab("budget")}
                 onOpenCashFlow={() => setActiveTab("cashflow")}
@@ -3656,6 +2997,17 @@ function App({
                 onOpenBuckets={() => setActiveTab("buckets")}
                 onOpenUncategorized={() => {
                   setFilterCategory(UNCATEGORIZED_FILTER);
+                  setActiveTab("ledger");
+                }}
+                onOpenLedgerFiltered={({ category, accountIds, from, to }) => {
+                  setSearchText("");
+                  setFilterCategory(category);
+                  setFilterAccountIds(accountIds.length > 0 ? new Set(accountIds) : "all");
+                  setFilterMemberIds("all");
+                  setFilterFrom(from);
+                  setFilterTo(to);
+                  setFilterTag("all");
+                  setSelectedIds(new Set());
                   setActiveTab("ledger");
                 }}
                 safeToSpendForecast={safeToSpendForecast}
@@ -3688,7 +3040,7 @@ function App({
                     Review inbox ({inboxCount})
                   </button>
                 )}
-                <LedgerPageActions
+                <TransactionsPageActions
                   accounts={accounts}
                   selectedAccountId={selectedAccountId}
                   handleAccountSelectChange={handleAccountSelectChange}
@@ -3705,7 +3057,7 @@ function App({
                   openManageCategories={openManageCategories}
                   openManageFamilyMembers={openManageFamilyMembers}
                   handleRecategorize={handleRecategorize}
-                  handleExportLedgerCsv={handleExportLedgerCsv}
+                  handleExportTransactionsCsv={handleExportTransactionsCsv}
                 />
               </div>
             </div>
@@ -3735,7 +3087,7 @@ function App({
           )}
 
           {activeTab === "ledger" && stats && (
-            <LedgerNeedsCategory
+            <TransactionsNeedsCategory
               count={stats.uncategorized}
               active={filterCategory === UNCATEGORIZED_FILTER}
               onToggle={() => setFilterCategory((c) => (c === UNCATEGORIZED_FILTER ? "all" : UNCATEGORIZED_FILTER))}
@@ -3743,7 +3095,7 @@ function App({
           )}
 
           {activeTab === "ledger" && (
-            <LedgerFilterBar
+            <TransactionFilterBar
               searchText={searchText}
               setSearchText={setSearchText}
               categoryFilterOptions={categoryFilterOptions}
@@ -3766,7 +3118,7 @@ function App({
           )}
 
           {activeTab === "ledger" && (
-            <LedgerSavedFilters
+            <TransactionSavedFilters
               savedFilters={savedFilters}
               applySavedFilter={applySavedFilter}
               deleteSavedFilter={deleteSavedFilter}
@@ -3788,13 +3140,14 @@ function App({
             </p>
           )}
           {activeTab === "ledger" && selectedIds.size > 0 && (
-            <LedgerBulkActions
+            <TransactionBulkActionsBar
               selectedIds={selectedIds}
               handleBulkCategoryChange={handleBulkCategoryChange}
               categoryOptions={categoryOptions}
               handleAddSelectedToRecurring={handleAddSelectedToRecurring}
               familyMembers={familyMembers}
               handleBulkMemberChange={handleBulkMemberChange}
+              allTags={allTags}
               bulkTagText={bulkTagText}
               setBulkTagText={setBulkTagText}
               handleBulkAddTag={handleBulkAddTag}
@@ -3813,14 +3166,14 @@ function App({
 
           {activeTab === "ledger" && (
             <>
-              {ledgerNarrow && (
+              {transactionsNarrow && (
                 <div className="ledger-sort-by">
                   <label className="labeled-field">
                     <span className="labeled-field-label">Sort by</span>
                     <MenuSelect
                       ariaLabel="Sort by"
                       value={sortColumn}
-                      onChange={(v) => setSortColumn(v as LedgerSortColumn)}
+                      onChange={(v) => setSortColumn(v as TransactionSortColumn)}
                       options={[
                         { value: "date", label: "Date" },
                         { value: "description", label: "Description" },
@@ -3841,10 +3194,10 @@ function App({
                   </button>
                 </div>
               )}
-              <LedgerTable
-              setLedgerScrollEl={setLedgerScrollEl}
-              ledgerDensity={ledgerDensity}
-              ledgerNarrow={ledgerNarrow}
+              <TransactionsTable
+              setTransactionsScrollEl={setTransactionsScrollEl}
+              transactionDensity={transactionDensity}
+              transactionsNarrow={transactionsNarrow}
               showMemberCol={showMemberCol}
               appSettings={appSettings}
               selectAllBatch={selectAllBatch}
@@ -3893,6 +3246,7 @@ function App({
               commitDescriptionEdit={commitDescriptionEdit}
               anomalyFlagsByTransaction={anomalyFlagsByTransaction}
               handleRemoveTag={handleRemoveTag}
+              allTags={allTags}
               newTagText={newTagText}
               setNewTagText={setNewTagText}
               handleAddTag={handleAddTag}
@@ -3904,7 +3258,7 @@ function App({
               confirmingDeleteId={confirmingDeleteId}
               setConfirmingDeleteId={setConfirmingDeleteId}
               handleDeleteTransaction={handleDeleteTransaction}
-              ledgerColumnCount={ledgerColumnCount}
+              transactionColumnCount={transactionColumnCount}
               expandedSplitId={expandedSplitId}
               splitLines={splitLines}
               updateSplitLine={updateSplitLine}
@@ -3933,7 +3287,7 @@ function App({
                 at a time
               </label>
               <span className="ledger-page-count" aria-live="polite" data-ledger-shown>
-                {ledgerShownLabel(shownTransactions.shown, shownTransactions.total)}
+                {transactionsShownLabel(shownTransactions.shown, shownTransactions.total)}
               </span>
               {showMoreLabel(shownCount, displayTransactions.length, pageSize) && (
                 <button type="button" className="modal-secondary" onClick={() => setShownCount((count) => count + pageSize)} data-ledger-show-more>
@@ -3944,6 +3298,12 @@ function App({
           )}
 
           {activeTab === "buckets" && (
+            <FinancialReadState label="Goal planning totals" initial={!planningSnapshot}
+              loading={planningRead.state?.loading ?? !planningSnapshot}
+              error={planningRead.state?.error?.message ?? null}
+              onRetry={() => void loadPlanning(dashboardKey, client => client.reportSummary()).catch(() => {})} />
+          )}
+          {activeTab === "buckets" && planningSnapshot && applicationCalls.loaded.has("list_buckets") && (
             <Suspense fallback={null}>
               <BucketsView
                 onOpenHelp={openHelpFor}
@@ -3963,6 +3323,10 @@ function App({
             <Suspense fallback={null}>
               <BudgetView
                 onOpenHelp={openHelpFor}
+                readReady={budgetSnapshot !== null}
+                readLoading={budgetRead.state?.key === budgetMonthKey ? budgetRead.state.loading : !budgetSnapshot}
+                readError={budgetRead.state?.key === budgetMonthKey ? budgetRead.state.error?.message ?? null : null}
+                onRetryRead={() => void refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch(() => {})}
                 categories={usedCategories}
                 budgetActuals={budgetMonthActuals}
                 monthFlow={budgetMonthFlow}
@@ -3988,6 +3352,7 @@ function App({
             </Suspense>
           )}
 
+          {activeTab === "household" && <FinancialReadState label="Household budget totals" initial={!budgetSnapshot} loading={budgetRead.state?.key === budgetMonthKey ? budgetRead.state.loading : !budgetSnapshot} error={budgetRead.state?.key === budgetMonthKey ? budgetRead.state.error?.message ?? null : null} onRetry={() => void refreshBudgetMonthActuals(budgetYear, budgetMonthNum).catch(() => {})} />}
           {activeTab === "household" && (
             <Suspense fallback={null}>
               <HouseholdView
@@ -3997,6 +3362,7 @@ function App({
                 assets={assets}
                 familyMembers={familyMembers}
                 memberBudgetActuals={memberBudgetActuals}
+                budgetReadReady={!!budgetSnapshot}
                 monthLabel={budgetMonthLabel}
                 year={budgetYear}
                 month={budgetMonthNum}
@@ -4048,6 +3414,15 @@ function App({
                 holdings={holdings}
                 accounts={accounts}
                 onCreate={handleCreateHolding}
+                onImportSaved={async (count, account) => {
+                  try {
+                    await refresh();
+                    await refreshHoldings();
+                    setStatus(`Added ${count} holdings to ${account}.`, "success");
+                  } catch (e) {
+                    setStatus(`Holdings were saved. Could not refresh totals: ${errorMessage(e)}`);
+                  }
+                }}
                 onUpdatePrice={handleUpdateHoldingPrice}
                 onDelete={handleDeleteHolding}
                 livePricesEnabled={livePriceSettings?.enabled ?? false}
@@ -4118,11 +3493,15 @@ function App({
               onOpenTransactions={() => setActiveTab("ledger")}
               onOpenPayment={openPayment}
               onMessage={(text, kind) => setStatus(text, kind)}
+              onDataChanged={async () => {
+                await refresh();
+                await refreshHoldings();
+              }}
               focus={detailFocus}
             />
           )}
 
-          {activeTab === "accounts" && !accountDetail && (
+          {activeTab === "accounts" && !accountDetail && dashboardSnapshot && applicationCalls.loaded.has("list_assets") && (
             <Suspense fallback={null}>
               <AccountsView
                 onOpenHelp={openHelpFor}
@@ -4160,6 +3539,7 @@ function App({
                 transactions={transactions}
                 assets={assets}
                 familyMembers={familyMembers}
+                dataRevision={dependentRevision}
                 onExportCsv={handleExportReportsCsv}
                 onPrint={() => window.print()}
                 onOpenBudget={() => setActiveTab("budget")}
@@ -4190,7 +3570,7 @@ function App({
                 onRenameProfile={handleRenameProfile}
                 onSetProfileIcon={handleSetProfileIcon}
                 onDeleteProfile={handleDeleteProfile}
-                onProtected={() => void refreshProtectionState()}
+                onProtected={() => onDataFileChanged("Profile protection updated.", "settings")}
                 livePriceSettings={livePriceSettings}
                 onSetLivePriceApiKey={handleSetLivePriceApiKey}
                 onRefreshLivePrices={handleRefreshLivePrices}
@@ -4308,6 +3688,15 @@ function App({
             />
           )}
           {paletteOpen && <CommandPalette entries={paletteEntries} onRun={runPaletteEntry} onClose={() => setPaletteOpen(false)} />}
+          {manualLock.needsConfirmation && (
+            <ModalShell title="Lock this profile?" onCancel={manualLock.cancel}>
+              <p className="modal-message">Locking now will discard anything you haven't saved.</p>
+              <div className="modal-actions">
+                <button type="button" className="modal-secondary" autoFocus onClick={manualLock.cancel}>Keep editing</button>
+                <button type="button" onClick={() => void manualLock.confirm()}>Discard and lock</button>
+              </div>
+            </ModalShell>
+          )}
           {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
           {inbox && (
             <ImportInboxDialog
@@ -4406,7 +3795,11 @@ function App({
               categories={categoryOptions}
               familyMembers={familyMembers}
               defaultAccountId={selectedAccountId}
-              budgetActuals={report?.budget_actuals ?? []}
+              budgetActuals={planningSnapshot?.report.budget_actuals ?? []}
+              budgetReadReady={planningSnapshot !== null}
+              budgetLoading={planningRead.state?.loading ?? true}
+              budgetError={planningRead.state?.error?.message ?? null}
+              onRetryBudgets={() => void loadPlanning(dashboardKey, client => client.reportSummary()).catch(() => {})}
               onCancel={() => setNewTransactionOpen(false)}
               onSubmit={handleCreateManualTransaction}
             />
@@ -4428,13 +3821,16 @@ function App({
 function VaultSpendApp() {
   const [reloadKey, setReloadKey] = useState(0);
   const [initialStatus, setInitialStatus] = useState("");
+  const [initialTab, setInitialTab] = useState<Tab>("dashboard");
 
   return (
     <><MobilePairingPrompt /><App
       key={reloadKey}
       initialStatus={initialStatus}
-      onDataFileChanged={(message) => {
+      initialTab={initialTab}
+      onDataFileChanged={(message, tab = "dashboard") => {
         setInitialStatus(message);
+        setInitialTab(tab);
         setReloadKey((k) => k + 1);
       }}
     /></>

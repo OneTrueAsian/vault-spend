@@ -68,6 +68,227 @@
   color: var(--text-muted);
 }
 
+/* The answer area: understood-as chips, the answer, ranked rows, choices and notices. */
+.ledger-qa-result {
+  min-width: 0;
+}
+
+.ledger-qa-working {
+  margin: 12px 0 0 0;
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+
+.ledger-qa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ledger-qa-chips li {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.ledger-qa-fix {
+  margin: 0 0 8px 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.ledger-qa-card .ledger-qa-answer {
+  overflow-wrap: anywhere;
+}
+
+.ledger-qa-chips + .ledger-qa-answer,
+.ledger-qa-fix + .ledger-qa-answer {
+  margin-top: 0;
+}
+
+.ledger-qa-card .ledger-qa-answer > p {
+  margin: 0;
+}
+
+.ledger-qa-card .ledger-qa-answer > p + p {
+  margin-top: 4px;
+}
+
+.ledger-qa-headline {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ledger-qa-detail,
+.ledger-qa-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.ledger-qa-caution {
+  padding: 8px 10px;
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ledger-qa-breakdown {
+  width: 100%;
+  margin-top: 10px;
+  color: var(--text);
+}
+
+.ledger-qa-breakdown caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 0;
+}
+
+.ledger-qa-breakdown th,
+.ledger-qa-breakdown td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.ledger-qa-breakdown .amount-col {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-qa-breakdown tbody th {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: inherit;
+}
+
+.ledger-qa-rows {
+  list-style: none;
+  margin: 10px 0 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.ledger-qa-rows li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ledger-qa-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+}
+
+.ledger-qa-sub {
+  grid-column: 1 / 2;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.ledger-qa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.ledger-qa-notes {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.ledger-qa-notes summary {
+  cursor: pointer;
+  color: var(--text);
+}
+
+.ledger-qa-notes ul {
+  margin: 6px 0 0 0;
+  padding-left: 18px;
+}
+
+.ledger-qa-clarify {
+  margin-top: 12px;
+}
+
+.ledger-qa-banner {
+  margin: 12px 0 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.ledger-qa-clarify .ledger-qa-banner {
+  margin-top: 0;
+}
+
+.ledger-qa-banner-error {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--negative);
+}
+
+.ledger-qa-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ledger-qa-choices button {
+  font-family: inherit;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ledger-qa-choices button:hover {
+  border-color: var(--accent);
+}
+
+.ledger-qa-more {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.ledger-qa-more summary {
+  cursor: pointer;
+  color: var(--text);
+}
+
+.ledger-qa-link {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  color: var(--info);
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
+  /* The global button rule is white-space: nowrap; this sits inside a sentence. */
+  white-space: normal;
+}
+
 .ledger-qa-tips p.field-hint {
   margin: 0 0 10px 0;
   line-height: 1.5;
@@ -148,6 +369,18 @@
   flex-direction: column;
   gap: 8px;
   box-shadow: var(--shadow-sm);
+}
+
+/* Goals grid rows stretch cards equally. Reserve the flex remainder above
+   the contribution footer; the card's 8px gap remains its minimum spacing.
+   Keep the popover's relative anchor and upward offset unchanged. */
+.buckets-view .buckets-grid > .bucket-card > .bucket-contribute {
+  margin-top: auto;
+}
+
+/* A narrow last-column card must not let its upward panel widen the page. */
+.buckets-view .bucket-contribute-panel {
+  max-width: 100%;
 }
 
 .goal-ring-wrap {
@@ -1305,3 +1538,6 @@
   padding: 0.2em 0.6em;
   font-size: 0.8em;
 }
+
+/* The "Try again" and "Ask again" links took the info colour, which is too faint on the banner background (3.39:1 in the error banner; found by the M6 narrow-width check). They take the banner's own text colour and stay underlined. */
+.ledger-qa-banner .ledger-qa-link { color: inherit; }

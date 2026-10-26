@@ -4,6 +4,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use http_body_util::Full;
 use hyper::{body::Bytes, service::service_fn, Request, Response, StatusCode};
 use hyper_util::rt::{TokioIo, TokioTimer};
+use rustls::pki_types::pem::PemObject;
 use serde::Serialize;
 use std::{convert::Infallible, net::TcpListener, sync::Arc, thread, time::Duration};
 use tokio::{
@@ -39,7 +40,7 @@ fn response(status: StatusCode, content: Vec<u8>, kind: &str) -> Response<Full<B
  .body(Full::new(Bytes::from(content))).expect("fixed setup headers")
 }
 fn certificate_profile(public: &PublicCertificate) -> Result<Vec<u8>, String> {
-    let der = rustls_pemfile::certs(&mut public.pem.as_bytes())
+    let der = rustls::pki_types::CertificateDer::pem_slice_iter(public.pem.as_bytes())
         .next()
         .ok_or("Public certificate unavailable.")?
         .map_err(|_| "Public certificate unavailable.")?;
@@ -238,7 +239,10 @@ mod tests {
         assert!(!xml.contains("com.apple.mdm"));
         let data = xml.split("<data>").nth(1).unwrap().split("</data>").next().unwrap();
         let der = STANDARD.decode(data).unwrap();
-        let expected = rustls_pemfile::certs(&mut p.pem.as_bytes()).next().unwrap().unwrap();
+        let expected = rustls::pki_types::CertificateDer::pem_slice_iter(p.pem.as_bytes())
+            .next()
+            .unwrap()
+            .unwrap();
         assert_eq!(der, expected.as_ref());
     }
     #[test]

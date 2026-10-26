@@ -126,7 +126,7 @@ pub fn create_manual_transaction(
     Ok(id)
 }
 
-fn transaction_dto(s: budget_core::store::StoredTransaction) -> TransactionDto {
+pub(super) fn transaction_dto(s: budget_core::store::StoredTransaction) -> TransactionDto {
     TransactionDto {
         id: s.id,
         transfer_counterpart_id: s.transfer_counterpart_id,
@@ -478,6 +478,9 @@ pub fn update_transaction_notes(transaction_id: i64, notes: Option<String>, stat
 #[tauri::command]
 pub fn update_transaction_account(id: i64, account_id: i64, state: tauri::State<AppStateHandle>) -> Result<(), String> {
     let state = state.lock()?;
+    if state.store.transaction_is_settled(id).map_err(|e| e.to_string())? {
+        return Err("This transaction was already counted when you reconciled its account, so it can't be moved to another account.".into());
+    }
     state.store.update_transaction_account(id, account_id).map_err(|e| e.to_string())
 }
 

@@ -1,0 +1,902 @@
+{
+ "m3q-6fe955cea43a7f4e": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "0"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-cbedcb3d779ad528": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.01"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-a1c713745762f6d7": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.03"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-1fb231ab4c27aef3": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "1"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-8bf4a6e0e00654f2": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "25"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-fc8444636e407cec": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "50"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-3ac335e35d8b22a2": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "99.99"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-7be1990d3793a25b": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "100"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-7c39ad4e8343751b": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "0"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-048f4d85b7e86322": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.01"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-11d1db61fb3fafe1": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.03"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-e4d321d596158227": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "1"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-c94d610ebcb4c606": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "25"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-eeaf7d407452cba1": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "50"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-c127e00394ae2e63": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "99.99"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-b7331ca0d61394a8": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "100"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-6898d7f94f8dc8d2": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "0"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-b27dd1004510d12f": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.01"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-6e613c0eae11122a": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.03"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-e7792ffec5969842": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "1"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-0443da2541214430": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "25"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-fd7f1eda5a76a3c5": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "50"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-dbcabab23d976729": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "99.99"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-6061448fef089425": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "100"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-2e872ca34cc313e5": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "percent",
+   "amount": "0"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-68d74e3d21aa05d2": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "percent",
+   "amount": "0.01"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-7bd4886479624cc4": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "percent",
+   "amount": "33.33"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-3e0176680abe7455": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "percent",
+   "amount": "100"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-ebfed7e1e5d387dd": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "percent",
+   "amount": "0"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-c1a43d17775812d1": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "percent",
+   "amount": "0.01"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-c6a2082d69553cdf": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "percent",
+   "amount": "33.33"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-18aa7f52db5407e1": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "percent",
+   "amount": "100"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-bcad2eb1e0280209": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "percent",
+   "amount": "0"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-1541792bb5656036": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "percent",
+   "amount": "0.01"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-466d652956ecb5cf": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "percent",
+   "amount": "33.33"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-3050728cab909070": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "percent",
+   "amount": "100"
+  },
+  "cadence": "monthly",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-01",
+   "to": "2026-12-31"
+  },
+  "partialMonth": "exclude"
+ },
+ "m3q-73200736f243bc6f": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "0"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-0ef414866134bd14": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.01"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-090d07e44f3323b4": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.03"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-4c0acc545e094292": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "1"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-e7e268e223b33019": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "25"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-4ab1055ec0240578": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "50"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-75934bbd78cee554": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "99.99"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-39b6915f0343674d": {
+  "version": 1,
+  "category": "Dining",
+  "reduction": {
+   "kind": "money",
+   "amount": "100"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-47ef3a775c6a55a9": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "0"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-7228d50810494dd3": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.01"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-bebb2eb5e12981f6": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.03"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-02f0f2fe02f1034d": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "1"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-a5b485616061f9cb": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "25"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-f9e3d0b09d937289": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "50"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-8266fca2d8a0e4ad": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "99.99"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-65b12dc5bacdfe3c": {
+  "version": 1,
+  "category": "Dining Out",
+  "reduction": {
+   "kind": "money",
+   "amount": "100"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-1872e45afd991a45": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "0"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-24394eb0b7aa2a7c": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.01"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-b38f024a124637c5": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "0.03"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-c01ca1323ef631a9": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "1"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-4972e61a5bafdd77": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "25"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-d480ee70cf5eba0a": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "50"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-6a36c6b439a20253": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "99.99"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ },
+ "m3q-4eb4cd498017b26d": {
+  "version": 1,
+  "category": "Groceries",
+  "reduction": {
+   "kind": "money",
+   "amount": "100"
+  },
+  "cadence": "once",
+  "horizon": {
+   "kind": "prospective",
+   "from": "2026-11-15",
+   "to": "2026-11-15"
+  },
+  "partialMonth": "none"
+ }
+}

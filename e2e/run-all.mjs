@@ -1,9 +1,6 @@
 // Runs smoke.mjs + every feature*.mjs spec with bounded concurrency,
-// instead of one at a time. Safe to parallelize because each spec already
-// gets its own throwaway SQLite file (harness.mjs's freshTestDbDir/seedFixture)
-// and, since harness.mjs picks a fresh OS-assigned port per launchApp() call
-// instead of a hardcoded one, its own tauri-driver instance too — no two
-// concurrent specs share any state.
+// with exclusive desktop resources protected by classification and source-bound approval.
+// Isolated SQLite files and driver ports do not isolate OS foreground, keyboard or pointer state.
 //
 // Usage:
 //   node e2e/run-all.mjs                 # default concurrency (6)
@@ -25,8 +22,16 @@ import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { isolatedTempEnv, keepTempFiles, makeTempDir, removeDir, removeStaleDirs } from "./lib/tempDir.mjs";
+import { resolveSpecTimeout } from "./lib/specTimeout.mjs";
+import { BUILD_MODE, exePath, lastRunPath, lockDir, recordPath, repoRoot } from "./lib/accessPaths.mjs";
+import { collectInputs, readToolchain } from "./lib/buildIdentity.mjs";
+import { GuardRefusal, beginGuardedRun } from "./lib/runGuard.mjs";
+import { classifySpecs, createApprovalContext, runSchedule } from "./lib/scheduler.mjs";
+import { matchesSelector } from "./lib/specSelectors.mjs";
+import { parseRetryOptions, retryFailuresInIsolation } from "./lib/isolatedRetry.mjs";
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,12 +42,27 @@ if (!Number.isInteger(concurrency) || concurrency < 1) {
   process.exit(1);
 }
 
+// --retry-failed[=N]: run each failed spec once more, alone, after the whole run (at most N specs, default 3; needs --concurrency=1). A spec that then passes is
+// reported as flaky with its first failure in full; one that fails again stays failed. Off by default; the hosted full gate turns it on.
+let retryOptions;
+try { retryOptions = parseRetryOptions(process.argv, concurrency); } catch (error) { console.error(error.message); process.exit(1); }
+
+// --schedule=pool: explicit diagnostic bypass; at concurrency >1 it never counts as acceptance.
+// --schedule=classified: only specs listed parallel-safe in e2e/spec-classification.json share the pool; every other spec is exclusive
+// and runs completely alone, after the pool has drained. Default; names without current approval are exclusive.
+const scheduleArg = process.argv.find((a) => a.startsWith("--schedule="));
+const schedule = scheduleArg ? scheduleArg.split("=")[1] : "classified";
+if (!["pool", "classified"].includes(schedule)) {
+  console.error(`--schedule must be "pool" or "classified", got "${scheduleArg.split("=")[1]}"`);
+  process.exit(1);
+}
+
 // A spec hanging (a WebDriver session that never resolves, a blocking
 // native dialog nothing dismisses) used to be able to stall this runner
 // indefinitely — one stuck worker slot, forever. Every current spec finishes
 // in single-digit-to-teens seconds, so 60s is a generous ceiling that only
 // ever fires on a genuine hang, not a slow-but-fine run.
-const SPEC_TIMEOUT_MS = 60_000;
+const SPEC_TIMEOUT_MS = resolveSpecTimeout();
 
 const allSpecs = ["smoke.mjs", ...fs.readdirSync(e2eDir).filter((f) => /^feature\d+.*\.mjs$/.test(f)).sort(
   (a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]),
@@ -53,11 +73,6 @@ if (specArg && !selectors?.length) {
   console.error("--spec needs a comma-separated list of feature numbers, names, or smoke");
   process.exit(1);
 }
-function matchesSelector(name, selector) {
-  if (selector === "smoke") return name === "smoke.mjs";
-  if (/^\d+$/.test(selector)) return name.startsWith(`feature${Number(selector)}_`);
-  return name.toLowerCase().includes(selector.toLowerCase());
-}
 if (selectors) {
   for (const selector of selectors) {
     if (!allSpecs.some((name) => matchesSelector(name, selector))) {
@@ -67,8 +82,15 @@ if (selectors) {
   }
 }
 const specs = selectors ? allSpecs.filter((name) => selectors.some((selector) => matchesSelector(name, selector))) : allSpecs;
+let classification;
+try { classification = JSON.parse(fs.readFileSync(path.join(e2eDir, "spec-classification.json"), "utf8")); } catch { classification = undefined; } // unreadable: everything exclusive
+let effectiveClassification = schedule === "classified" ? classification : { parallelSafe: specs };
+let approvalContext = schedule === "classified" ? {} : undefined;
+let classes = classifySpecs(specs, effectiveClassification, approvalContext);
 if (process.argv.includes("--list")) {
-  console.log(specs.join("\n"));
+  console.log(scheduleArg && schedule === "classified"
+    ? specs.map((name) => `${name}  [${classes.parallel.includes(name) ? "parallel-safe" : "exclusive"}]`).join("\n")
+    : specs.join("\n"));
   process.exit(0);
 }
 
@@ -97,12 +119,6 @@ function saveDurations(map) {
   } catch {
     /* best effort — scheduling data is an optimization, not correctness */
   }
-}
-
-function orderByHistory(names, knownDurations) {
-  const withHistory = names.filter((n) => knownDurations[n] !== undefined).sort((a, b) => knownDurations[b] - knownDurations[a]);
-  const withoutHistory = names.filter((n) => knownDurations[n] === undefined);
-  return [...withHistory, ...withoutHistory];
 }
 
 // child_process.kill() on Windows only signals the immediate process, not
@@ -164,32 +180,78 @@ function runSpec(name) {
   });
 }
 
-// A small fixed-size worker pool: `concurrency` specs in flight at once,
-// each starting the next spec off the shared queue as soon as it finishes
-// — simpler than a generic promise-pool dependency for a queue this small.
-async function runAll(names, limit) {
-  const results = [];
-  let next = 0;
-  async function worker() {
-    while (next < names.length) {
-      const name = names[next++];
-      console.log(`start  ${name}`);
-      const result = await runSpec(name);
-      console.log(`${result.code === 0 ? "PASS  " : "FAIL  "} ${name} (${(result.durationMs / 1000).toFixed(1)}s)`);
-      results.push(result);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, names.length) }, worker));
-  return results;
+// Scheduling lives in lib/scheduler.mjs (bounded pool for parallel-safe specs, exclusive specs alone); this adds the progress lines.
+async function runAndReport(name) {
+  console.log(`start  ${name}`);
+  const result = await runSpec(name);
+  console.log(`${result.code === 0 ? "PASS  " : "FAIL  "} ${name} (${(result.durationMs / 1000).toFixed(1)}s)`);
+  return result;
 }
 
 const knownDurations = loadDurations();
-const orderedSpecs = orderByHistory(specs, knownDurations);
+
+// Exclusive access to the shared executable for the whole run, and proof that the executable is the one built from the current
+// inputs. A refusal changes nothing and starts nothing. --wait queues behind a build or another run instead of refusing.
+let guard;
+try {
+  guard = await beginGuardedRun({
+    operation: "desktop-run", lockDir, exePath, recordPath, collectInputs: () => collectInputs(repoRoot), toolchain: readToolchain(), mode: BUILD_MODE,
+    wait: process.argv.includes("--wait"), timeoutMs: 30 * 60 * 1000, allowStale: process.argv.includes("--allow-stale-artifact"),
+  });
+} catch (error) {
+  if (error instanceof GuardRefusal || error.name === "AccessHeldError" || error.name === "AccessTimeoutError") { console.error(error.message); process.exit(2); }
+  throw error;
+}
+process.once("SIGINT", () => { guard.abort(); process.exit(130); });
+if (guard.artifact.status === "unknown") console.log(`Note: ${guard.artifact.reason} Results are labelled artifact=unknown. Use "npm run build:app" to record it.`);
+else if (guard.artifact.status === "stale") console.log(`WARNING: running against a stale executable (--allow-stale-artifact). ${guard.artifact.reason}`);
 
 const overallStart = Date.now();
-console.log(`Running ${specs.length} specs with concurrency ${concurrency}...\n`);
-const results = await runAll(orderedSpecs, concurrency);
+if (schedule === "classified") {
+  // No registry, unreadable receipt or legacy names alone can grant parallel execution.
+  let registry = {};
+  try {
+    registry = JSON.parse(fs.readFileSync(path.join(e2eDir, "parallel-approvals.json"), "utf8"));
+    const verified = {};
+    for (const [id, reference] of Object.entries(registry.receipts ?? {})) {
+      try {
+        const bytes = fs.readFileSync(path.resolve(repoRoot, reference.path));
+        if (crypto.createHash("sha256").update(bytes).digest("hex") !== reference.sha256) continue;
+        const r = JSON.parse(bytes);
+        if (r.identity?.buildKey !== r.approvalBinding?.buildKey || r.identity?.exeSha256 !== r.approvalBinding?.exeSha256
+          || !Number.isFinite(Date.parse(r.identity?.startedAt)) || !Number.isFinite(Date.parse(r.identity?.finishedAt))
+          || Date.parse(r.identity.finishedAt) <= Date.parse(r.identity.startedAt)) continue;
+        // Explicit pool diagnostics cannot count as regression acceptance. Their source-valid, all-passing raw evidence
+        // can nevertheless support a separately reviewed approval; do not hide any other invalidation.
+        const validProof = r.valid === true || (r.sourceValid === true && r.problems?.length === 1 && r.problems[0].kind === "unapproved-parallel-pool");
+        verified[id] = { id, runId: `${r.identity.startedAt}|${r.identity.finishedAt}`, receiptSha256: reference.sha256, valid: validProof, concurrency: r.concurrency, binding: r.approvalBinding, specs: r.selected, results: r.executed };
+      } catch { /* missing/malformed evidence cannot grant approval */ }
+    }
+    registry.receipts = verified;
+  } catch { registry = {}; }
+  approvalContext = createApprovalContext({ inputs: guard.inputs(), identity: guard.identity(), registry });
+  approvalContext.concurrency = concurrency;
+  effectiveClassification = { ...classification, approvals: registry.approvals ?? {} };
+  classes = classifySpecs(specs, effectiveClassification, approvalContext);
+}
+console.log(schedule === "classified"
+  ? `Running ${specs.length} specs, classified: ${classes.parallel.length} parallel-safe at concurrency ${concurrency}, then ${classes.exclusive.length} exclusive one at a time...\n`
+  : `Running ${specs.length} specs with concurrency ${concurrency}...\n`);
+const scheduled = await runSchedule({ specs, classification: effectiveClassification, approvalContext, concurrency, run: runAndReport, durations: knownDurations });
+let results = scheduled, flaky = [], retrySkipped;
+if (retryOptions.enabled) {
+  ({ results, flaky, skipped: retrySkipped } = await retryFailuresInIsolation({
+    results: scheduled, budget: retryOptions.budget,
+    run: (name) => { console.log(`retry  ${name} (alone, after its first failure)`); return runAndReport(name); },
+  }));
+}
 const totalSeconds = ((Date.now() - overallStart) / 1000).toFixed(1);
+const verdict = await guard.finish();
+const sourceValid = verdict.valid;
+if (schedule === "pool" && concurrency > 1) {
+  verdict.valid = false;
+  verdict.problems.push({ kind: "unapproved-parallel-pool", reason: "Explicit pool execution bypasses exclusive classifications; diagnostic evidence only, never full regression acceptance." });
+}
 
 // Only trust timings from specs that actually ran to a normal exit — a
 // killed-on-timeout duration is an artifact of the timeout, not the spec,
@@ -201,18 +263,42 @@ for (const r of results) {
 saveDurations(updatedDurations);
 
 const failed = results.filter((r) => r.code !== 0);
-console.log(`\n${results.length - failed.length}/${results.length} passed in ${totalSeconds}s (concurrency ${concurrency})`);
+console.log(`\n${results.length - failed.length}/${results.length} passed in ${totalSeconds}s (concurrency ${concurrency})${flaky.length > 0 ? `; ${flaky.length} passed only on a retry, see FLAKY below` : ""}`);
 const slowest = [...results].sort((a, b) => b.durationMs - a.durationMs).slice(0, 5);
 console.log("Slowest specs: " + slowest.map((r) => `${r.name} ${(r.durationMs / 1000).toFixed(1)}s`).join(", "));
 // A launch that stalls before its page loads is retried by harness.mjs. That is worth knowing about even
 // when every spec then passes, so count the reports the specs printed.
 const launchRetries = results.reduce((n, r) => n + (r.output.match(/\[harness\] launch retry/g)?.length ?? 0), 0);
 if (launchRetries > 0) console.log(`Launch retries this run: ${launchRetries} (a driver/webview stall before any page loaded; see e2e/harness.mjs)`);
+const timeouts = results.filter((r) => r.output.includes("[run-all] TIMED OUT")).length;
+// Identity of what these results are evidence for: the build key and executable they ran against, and whether they remain valid.
+console.log(`Artifact: ${verdict.identity.artifactStatus}, executable SHA-256 ${verdict.identity.exeSha256}, build key ${verdict.identity.buildKey?.slice(0, 16) ?? "unavailable"}, test key ${verdict.identity.testKey?.slice(0, 16) ?? "unavailable"}`);
+try {
+  fs.mkdirSync(path.dirname(lastRunPath), { recursive: true });
+  fs.writeFileSync(lastRunPath, JSON.stringify({
+    identity: verdict.identity, validationManifest: verdict.validationManifest, approvalBinding: approvalContext?.binding ?? createApprovalContext({ inputs: verdict.validationManifest?.before, identity: verdict.identity }).binding, sourceValid, valid: verdict.valid, problems: verdict.problems, schedule, parallelSafe: classes.parallel.length, exclusive: classes.exclusive.length, concurrency, specTimeoutMs: SPEC_TIMEOUT_MS, elapsedSeconds: Number(totalSeconds), launchRetries, timeouts,
+    selected: specs, executed: results.map((r) => ({ name: r.name, code: r.code, durationMs: r.durationMs, output: r.output, ...(r.attempts ? { attempts: r.attempts.map((a) => ({ code: a.code, durationMs: a.durationMs, output: a.output })), flaky: r.code === 0 } : {}) })),
+  }, null, 2) + "\n");
+} catch { /* the record is evidence for the report, not part of the verdict */ }
+if (retrySkipped) console.log(`\nNOT RETRIED: ${retrySkipped}`);
+if (flaky.length > 0) {
+  // These passed on their retry, so the run passes, but each one failed once on this build: an intermittent failure to investigate, not to ignore.
+  console.log(`\nFLAKY (failed once, then passed when run alone): ${flaky.map((f) => f.name).join(", ")}`);
+  for (const f of flaky) {
+    console.log(`\n=== first failure of ${f.name} (exit ${f.firstFailure.code}, ${(f.firstFailure.durationMs / 1000).toFixed(1)}s); passed alone in ${(f.retry.durationMs / 1000).toFixed(1)}s ===`);
+    console.log(f.firstFailure.output);
+  }
+}
 if (failed.length > 0) {
   console.log("\nFAILURES:");
   for (const f of failed) {
     console.log(`\n=== ${f.name} (exit ${f.code}) ===`);
     console.log(f.output);
   }
-  process.exit(1);
 }
+if (!verdict.valid) {
+  console.log("\nINVALID EVIDENCE: artifact provenance is untrusted or validation inputs/executable changed during the run:");
+  for (const p of verdict.problems) console.log(`  - ${p.kind}${p.changed ? ` changed: ${[...p.changed, ...p.added].join(", ")}` : ""}${p.removed?.length ? ` removed: ${p.removed.join(", ")}` : ""}${p.after !== undefined ? ` (SHA-256 ${p.before} -> ${p.after ?? "missing"})` : ""}`);
+}
+if (failed.length > 0) process.exit(1);
+if (!verdict.valid) process.exit(3);

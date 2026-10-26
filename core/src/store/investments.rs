@@ -122,6 +122,51 @@ impl From<rusqlite::Error> for PlanError {
 }
 
 impl Store {
+    /// Add reviewed current positions and their value snapshots as one unit.
+    pub fn import_holdings(&self, account_id: i64, rows: &[crate::holding_import::HoldingInput], today: NaiveDate) -> Result<Vec<i64>, String> {
+        use std::collections::HashSet;
+        if rows.is_empty() || rows.len() > crate::holding_import::MAX_ROWS {
+            return Err("Select between 1 and 5,000 valid holdings.".into());
+        }
+        let tx = self.conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        let account = self
+            .list_accounts(today)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|a| a.id == account_id && a.account.account_type == AccountType::Investment)
+            .ok_or("Choose an existing investment account.")?;
+        let existing = self.list_holdings(today).map_err(|e| e.to_string())?;
+        let mut symbols: HashSet<String> = existing
+            .iter()
+            .filter(|h| h.account_id == account.id)
+            .map(|h| h.symbol.trim().to_uppercase())
+            .collect();
+        // Also protect subsequent portfolio sums from Decimal overflow.
+        let mut total = existing
+            .iter()
+            .try_fold(Decimal::ZERO, |sum, h| crate::holding_import::add_values(sum, h.value))?;
+        for row in rows {
+            row.validate()?;
+            if !symbols.insert(row.symbol.trim().to_uppercase()) {
+                return Err(format!(
+                    "{} already exists in this account or selection. Review the rows again.",
+                    row.symbol
+                ));
+            }
+            total = crate::holding_import::add_values(total, row.value()?)?;
+        }
+        let mut ids = Vec::with_capacity(rows.len());
+        for row in rows {
+            let (shares, price, cost) = row.amounts()?;
+            ids.push(
+                self.create_holding(account.id, &row.symbol, &row.name, shares, price, cost, row.asset_class.as_deref())
+                    .map_err(|e| e.to_string())?,
+            );
+        }
+        self.record_portfolio_snapshot(today).map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(ids)
+    }
     /// Adds an investment holding. `price` is whatever the caller passes in
     /// at creation time — manually typed, or auto-filled from a live quote
     /// when the optional Alpha Vantage integration is enabled (see
@@ -331,6 +376,17 @@ impl Store {
     /// was contributed). A linked transfer has one leg in each account, so it
     /// counts once, on the account it is read for.
     pub fn account_contributions(&self, account_id: i64, today: NaiveDate) -> rusqlite::Result<AccountContributions> {
+        self.account_contributions_in_window(account_id, today, None)
+    }
+
+    /// The same contribution authority with an optional aggregation window. First-deposit evidence still covers all
+    /// non-deleted deposits through today; totals/rows/counts cover only the chosen window. The ordinary caller is unchanged.
+    pub(super) fn account_contributions_in_window(
+        &self,
+        account_id: i64,
+        today: NaiveDate,
+        window: Option<(NaiveDate, NaiveDate)>,
+    ) -> rusqlite::Result<AccountContributions> {
         let mut stmt = self.conn.prepare(
             "SELECT date, amount FROM transactions
              WHERE account_id = ?1 AND date <= ?2 AND deleted_at IS NULL
@@ -350,11 +406,16 @@ impl Store {
             if amount.is_zero() {
                 continue;
             }
+            if amount > Decimal::ZERO {
+                first_deposit.get_or_insert(date);
+            }
+            if window.is_some_and(|(from, through)| date < from || date > through) {
+                continue;
+            }
             let entry = by_month.entry((date.year(), date.month())).or_default();
             if amount > Decimal::ZERO {
                 entry.0 += amount;
                 deposit_count += 1;
-                first_deposit.get_or_insert(date);
             } else {
                 entry.1 += -amount;
             }
@@ -567,6 +628,14 @@ impl Store {
     /// Removes a holding. An unknown id is a harmless no-op.
     pub fn delete_holding(&self, id: i64) -> rusqlite::Result<()> {
         self.conn.execute("DELETE FROM holdings WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    /// Sets a holding's share count (reconciling against a statement). An unknown id is a harmless no-op,
+    /// matching `delete_holding`; the statement finish checks the holding belongs to the account first.
+    pub fn update_holding_shares(&self, id: i64, shares: Decimal) -> rusqlite::Result<()> {
+        self.conn
+            .execute("UPDATE holdings SET shares = ?1 WHERE id = ?2", params![shares.to_string(), id])?;
         Ok(())
     }
 

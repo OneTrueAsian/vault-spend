@@ -77,6 +77,36 @@ impl Store {
     /// (the earlier one on a tie) and counts the rest: "... on 2026-08-02
     /// (and 1 more)".
     pub fn anomaly_flags(&self) -> rusqlite::Result<Vec<AnomalyFlag>> {
+        // Capture key and computation in the same SQLite read snapshot, including external writers.
+        if self.conn.is_autocommit() {
+            return self.read_snapshot(|store| store.cached_anomaly_flags());
+        }
+        self.cached_anomaly_flags()
+    }
+
+    fn cached_anomaly_flags(&self) -> rusqlite::Result<Vec<AnomalyFlag>> {
+        let revision = self.read_revision()?;
+        if let Some(cache) = self.anomaly_cache.borrow().as_ref().filter(|cache| cache.revision == revision) {
+            return Ok(cache.flags.clone());
+        }
+        let flags = self.compute_anomaly_flags()?;
+        let bytes: usize = flags
+            .iter()
+            .map(|flag| std::mem::size_of::<AnomalyFlag>() + flag.kind.len() + flag.detail.len())
+            .sum();
+        // One bounded in-memory result per open Store. Dropped on lock/reopen; nothing persisted.
+        *self.anomaly_cache.borrow_mut() = if bytes <= 16 * 1024 * 1024 {
+            Some(super::AnomalyCache {
+                revision,
+                flags: flags.clone(),
+            })
+        } else {
+            None
+        };
+        Ok(flags)
+    }
+
+    fn compute_anomaly_flags(&self) -> rusqlite::Result<Vec<AnomalyFlag>> {
         struct Row {
             id: i64,
             date: NaiveDate,

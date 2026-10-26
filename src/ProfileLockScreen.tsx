@@ -1,6 +1,6 @@
 import "./ProfileAccess.css";
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeProfile } from "./profileIpc";
 import { PasswordForm } from "./PasswordForm";
 import { RecoverProfileDialog } from "./RecoverProfileDialog";
 import { getCurrentGeneration } from "./profileUiState";
@@ -34,7 +34,7 @@ export function ProfileLockScreen({
 
   async function removeFromList() {
     setConfirmingRemove(false);
-    await invoke("delete_profile", { id: profileId });
+    await invokeProfile("delete_profile", { id: profileId });
     onResolved(await showProfileSelector());
   }
 

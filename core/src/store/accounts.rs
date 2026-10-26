@@ -2,7 +2,7 @@
 
 use super::{Store, StoredAccount, month_bounds};
 use crate::models::{Account, AccountType};
-use chrono::{Datelike, NaiveDate, NaiveDateTime};
+use chrono::{Datelike, NaiveDate};
 use rusqlite::params;
 use rust_decimal::Decimal;
 use std::str::FromStr;
@@ -19,17 +19,6 @@ pub struct SetupImportOutcome {
     pub buckets_created: usize,
     pub holdings_created: usize,
     pub skipped: Vec<String>,
-}
-
-/// Where an account's reconciliation stands against a statement — see
-/// `Store::reconciliation_status`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ReconciliationStatus {
-    /// The account's opening balance plus every transaction marked cleared.
-    pub cleared_balance: Decimal,
-    /// Statement balance minus `cleared_balance`; zero means it reconciles.
-    pub difference: Decimal,
-    pub cleared_count: usize,
 }
 
 /// One transaction as the account detail page and the reconcile list show it.
@@ -105,7 +94,7 @@ impl Store {
     /// was recorded more recently, which is also the semantically correct
     /// answer either way: a later row was always computed (or typed) with
     /// a fuller view of history than an earlier one dated the same day.
-    fn latest_checkpoint(&self, account_id: i64, as_of: NaiveDate) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
+    pub(super) fn latest_checkpoint(&self, account_id: i64, as_of: NaiveDate) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
         match self.conn.query_row(
             "SELECT reset_date, balance FROM balance_resets
              WHERE account_id = ?1 AND reset_date <= ?2
@@ -193,58 +182,12 @@ impl Store {
         Ok(())
     }
 
-    /// The cleared balance (opening balance plus every cleared, non-deleted
-    /// transaction) against a statement's ending balance. Deliberately built
-    /// from the account's opening balance and the ticked transactions alone,
-    /// not from `current_balance` — that one moves with every uncleared
-    /// transaction and any balance correction, and a reconciliation is only
-    /// asking whether the *statement's* transactions add up.
-    pub fn reconciliation_status(&self, account_id: i64, statement_balance: Decimal) -> rusqlite::Result<ReconciliationStatus> {
-        let starting: String = self
-            .conn
-            .query_row("SELECT starting_balance FROM accounts WHERE id = ?1", params![account_id], |row| {
-                row.get(0)
-            })?;
-        let mut stmt = self
-            .conn
-            .prepare("SELECT amount FROM transactions WHERE account_id = ?1 AND cleared = 1 AND deleted_at IS NULL")?;
-        let amounts = stmt
-            .query_map(params![account_id], |row| row.get::<_, String>(0))?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        let cleared_sum: Decimal = amounts
-            .iter()
-            .map(|a| Decimal::from_str(a).expect("amount stored by this crate must be valid"))
-            .sum();
-        let cleared_balance = Decimal::from_str(&starting).expect("starting_balance stored by this crate must be valid") + cleared_sum;
-        Ok(ReconciliationStatus {
-            cleared_balance,
-            difference: statement_balance - cleared_balance,
-            cleared_count: amounts.len(),
-        })
-    }
-
-    /// Records a finished reconciliation — but only when the difference is
-    /// exactly zero. Returns whether it was recorded; a non-zero difference
-    /// records nothing.
-    pub fn finish_reconciliation(
-        &self,
-        account_id: i64,
-        statement_date: NaiveDate,
-        statement_balance: Decimal,
-        now: NaiveDateTime,
-    ) -> rusqlite::Result<bool> {
-        if self.reconciliation_status(account_id, statement_balance)?.difference != Decimal::ZERO {
-            return Ok(false);
-        }
-        self.conn.execute(
-            "INSERT INTO reconciliations (account_id, statement_date, statement_balance, finished_at) VALUES (?1, ?2, ?3, ?4)",
-            params![account_id, statement_date.to_string(), statement_balance.to_string(), now.to_string()],
-        )?;
-        Ok(true)
-    }
-
     /// The statement date and balance of the account's most recent finished
-    /// reconciliation, if it has had one.
+    /// reconciliation of any kind, if it has had one — for showing when the
+    /// account was last reconciled. For an investment statement's record the
+    /// balance is only the statement's total value, kept for reference; the
+    /// starting point for the next reconciliation comes from
+    /// `last_balance_reconciliation`, which leaves those records out.
     pub fn last_reconciliation(&self, account_id: i64) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
         match self.conn.query_row(
             "SELECT statement_date, statement_balance FROM reconciliations
@@ -339,18 +282,16 @@ impl Store {
         self.account_transactions_where(account_id, "", limit as i64, None)
     }
 
-    /// The transactions to tick through for a statement ending on
-    /// `statement_date`: everything dated on or before it that hasn't been
-    /// cleared yet, plus what was cleared since the last finished
-    /// reconciliation (so an earlier tick can still be undone). Anything
-    /// cleared before that reconciliation is settled and stays out of the way.
+    /// The transactions to tick through for a statement ending on `statement_date`: everything dated on
+    /// or before it that hasn't been ticked, plus anything ticked that no finished reconciliation has
+    /// settled yet (so a tick can still be undone).
     pub fn reconcile_candidates(&self, account_id: i64, statement_date: NaiveDate) -> rusqlite::Result<Vec<AccountTransaction>> {
-        let settled_through = self.last_reconciliation(account_id)?.map(|(date, _)| date);
-        let extra = match settled_through {
-            Some(date) => format!("AND t.date <= ?3 AND (t.cleared = 0 OR t.date > '{date}')"),
-            None => "AND t.date <= ?3".to_string(),
-        };
-        self.account_transactions_where(account_id, &extra, i64::MAX, Some(statement_date))
+        self.account_transactions_where(
+            account_id,
+            "AND t.reconciliation_id IS NULL AND (t.cleared = 1 OR t.date <= ?3)",
+            i64::MAX,
+            Some(statement_date),
+        )
     }
 
     /// An account's balance at the end of each of the last `months` months,

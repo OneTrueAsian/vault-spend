@@ -40,13 +40,6 @@ function makeScorer(query: string): (text: string) => number {
   };
 }
 
-/** How well `query` matches `text`, 0 for no match: exact > prefix > start of a
- * word > anywhere inside > the letters in order but scattered ("cf" finds
- * "Cash Flow"). Case doesn't matter. */
-export function scoreMatch(query: string, text: string): number {
-  return makeScorer(query)(text);
-}
-
 /** On a tie the more navigational entry wins — someone typing "bud" wants the
  * Budget screen before a transaction that happens to say "Budget". */
 const KIND_BIAS: Record<PaletteKind, number> = { tab: 3, action: 2, account: 1, goal: 1, transaction: 0 };

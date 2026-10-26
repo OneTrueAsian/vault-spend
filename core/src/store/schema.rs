@@ -274,6 +274,13 @@ impl Store {
             CREATE TABLE IF NOT EXISTS profile_ui_state (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS statement_layouts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                layout TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             );",
         )?;
         self.migrate_add_account_id_if_missing()?;
@@ -318,6 +325,7 @@ impl Store {
         self.migrate_flip_loan_transaction_signs_if_needed()?;
         self.migrate_add_principal_amount_if_missing()?;
         self.migrate_add_notes_to_transactions_if_missing()?;
+        self.migrate_add_reconciliation_links_if_missing()?;
         // These reference columns only guaranteed to exist once every
         // migration above has run — a database from before those columns
         // existed has a table the initial `CREATE TABLE IF NOT EXISTS` up
@@ -341,6 +349,7 @@ impl Store {
             "CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions(account_id, date) WHERE deleted_at IS NULL;
              CREATE INDEX IF NOT EXISTS idx_transactions_category_date ON transactions(category, date) WHERE deleted_at IS NULL;
              CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date) WHERE deleted_at IS NULL;
+             CREATE INDEX IF NOT EXISTS idx_transactions_account_reconciliation ON transactions(account_id, reconciliation_id) WHERE deleted_at IS NULL;
              CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period);
              -- `debt_payments.source_transaction_id` already has an implicit
              -- index via its own UNIQUE constraint (see its CREATE TABLE
@@ -1335,6 +1344,61 @@ impl Store {
         }
 
         self.conn.execute("ALTER TABLE transactions ADD COLUMN principal_amount TEXT", [])?;
+        Ok(())
+    }
+
+    /// Whether `table` already has `column` — the check every additive migration makes.
+    pub(crate) fn table_has_column(&self, table: &str, column: &str) -> rusqlite::Result<bool> {
+        let mut stmt = self.conn.prepare(&format!("PRAGMA table_info({table})"))?;
+        let names = stmt.query_map([], |row| row.get::<_, String>(1))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(names.iter().any(|name| name == column))
+    }
+
+    /// `reconciliation_id` records which finished reconciliation settled a ticked transaction, so the
+    /// next reconciliation picks up from the last one's ending balance (see `store/reconcile.rs`). The
+    /// richer `reconciliations` columns describe how each one was done. All nullable: rows written before
+    /// this keep working.
+    fn migrate_add_reconciliation_links_if_missing(&self) -> rusqlite::Result<()> {
+        if !self.table_has_column("transactions", "reconciliation_id")? {
+            // The ADD COLUMN and the backfill share one transaction. If the backfill fails, the column is
+            // rolled back too, so the next start still sees it missing and retries both, rather than
+            // leaving a column that the backfill never filled and that is never revisited.
+            let sql_tx = self.conn.unchecked_transaction()?;
+            self.conn.execute("ALTER TABLE transactions ADD COLUMN reconciliation_id INTEGER", [])?;
+            self.link_existing_reconciliations()?;
+            sql_tx.commit()?;
+        }
+        for (column, ddl) in [
+            ("period_start", "ALTER TABLE reconciliations ADD COLUMN period_start TEXT"),
+            ("starting_balance", "ALTER TABLE reconciliations ADD COLUMN starting_balance TEXT"),
+            ("source", "ALTER TABLE reconciliations ADD COLUMN source TEXT"),
+            ("holdings_checked", "ALTER TABLE reconciliations ADD COLUMN holdings_checked INTEGER"),
+        ] {
+            if !self.table_has_column("reconciliations", column)? {
+                self.conn.execute(ddl, [])?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Before `reconciliation_id` existed, a finished reconciliation settled every ticked transaction
+    /// dated on or before its statement date. Links each such row to the earliest reconciliation that
+    /// covers it; rows already linked are left alone, so running it twice changes nothing.
+    pub(crate) fn link_existing_reconciliations(&self) -> rusqlite::Result<()> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, account_id, statement_date FROM reconciliations ORDER BY statement_date, id")?;
+        let recs = stmt
+            .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(stmt);
+        for (id, account_id, date) in recs {
+            self.conn.execute(
+                "UPDATE transactions SET reconciliation_id = ?1
+                 WHERE account_id = ?2 AND cleared = 1 AND reconciliation_id IS NULL AND date <= ?3",
+                params![id, account_id, date],
+            )?;
+        }
         Ok(())
     }
 

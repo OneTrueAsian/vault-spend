@@ -15,6 +15,10 @@ on:
       source_sha:
         description: 'Expected existing tag commit (required for recovery)'
         type: string
+      diagnostic_only:
+        description: 'Run all build and test gates without publishing installers or signatures'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -25,22 +29,35 @@ concurrency:
 
 jobs:
   release:
-    runs-on: windows-latest
-    timeout-minutes: 90
+    # Pin the desktop environment; image migrations must pass the smoke preflight first.
+    runs-on: windows-2022
+    outputs:
+      source-sha: ${{ steps.provenance.outputs.source_sha }}
+      installer-digests: ${{ steps.provenance.outputs.digests }}
+    # A measured serial gate took 50 minutes and a fresh optimized build took 41;
+    # leave room for the final release build and installer packaging as well.
+    timeout-minutes: 150
     defaults:
       run:
         shell: pwsh
     steps:
+      - name: Use LF line endings for checkout
+        # Windows checkouts default to CRLF, and the Tauri CLI rewrites src-tauri/Cargo.toml to LF during the desktop test
+        # build. The build-identity check then sees a changed input and refuses the executable.
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag }}
+          # Diagnostics can validate an unpublished harness fix without changing a release tag.
+          ref: ${{ inputs.diagnostic_only && inputs.source_sha || inputs.tag }}
       - name: Validate release tag and version
         env:
           RELEASE_TAG: ${{ inputs.tag }}
           RECOVERY: ${{ inputs.recovery }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          DIAGNOSTIC_ONLY: ${{ inputs.diagnostic_only }}
         run: |
           if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid stable release tag' }
+          if ($env:DIAGNOSTIC_ONLY -eq 'true' -and $env:RECOVERY -ne 'true') { throw 'Diagnostics require recovery mode with a pinned source SHA' }
           if ($env:RECOVERY -eq 'true') {
             if ($env:GITHUB_REF -notlike 'refs/heads/*') { throw 'Recovery must use a workflow branch' }
             if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'Recovery requires the expected tag commit' }
@@ -71,8 +88,30 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-release
+          cache-on-failure: true
       - name: Install dependencies
         run: npm ci
+      - name: Install RustSec scanner
+        run: cargo install cargo-audit --locked
+      - name: Dependency security policy tests
+        run: node --test tools/dependency-security-policy.test.mjs tools/browser-download-contract.test.mjs
+      - name: Verify signed updater release contracts
+        if: ${{ !inputs.recovery }}
+        run: node --test tools/update-signing.test.mjs tools/update-signing-workflow.test.mjs
+      - name: Audit dependencies for x86_64-pc-windows-msvc
+        env:
+          VAULTSPEND_AUDIT_OUTPUT: dependency-audit/x86_64-pc-windows-msvc
+        run: node tools/audit-dependencies.mjs x86_64-pc-windows-msvc
+      - name: Retain dependency audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-release-windows
+          path: dependency-audit/
+          if-no-files-found: error
       - name: Frontend tests
         run: npm test
       - name: Lint
@@ -88,6 +127,38 @@ jobs:
           python-version: '3.12'
       - name: Install E2E browsers
         run: npx playwright install chromium firefox webkit
+      - name: Refresh hosted WebView2 runtime
+        timeout-minutes: 10
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebView2RuntimeInstallerX64.exe'
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/?linkid=2124701' -OutFile $installer
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') { throw 'WebView2 installer is not validly signed by Microsoft' }
+          $process = Start-Process -FilePath $installer -ArgumentList '/silent', '/install' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "WebView2 installation failed: $($process.ExitCode)" }
+          $root = "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application"
+          $runtime = Get-ChildItem $root -Directory | Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          if (-not $runtime) { throw 'WebView2 runtime missing after installation' }
+          if ([version]$runtime.Name -le [version]'131.0.2903.86') { throw 'Hosted WebView2 refresh retained the stale runtime from the failed diagnostic' }
+          Write-Host "Hosted WebView2 runtime: $($runtime.Name)"
+      - name: Pin hosted Edge version
+        run: |
+          # The WebView2 refresh above wakes Edge's updater, which moved Edge from 152 to 155 during a
+          # gate (run 38339761633) after the native driver for 152 had been installed. Stop it from
+          # changing the browser for the rest of this job; the job's VM is discarded afterwards.
+          $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate'
+          New-Item -Path $policy -Force | Out-Null
+          Set-ItemProperty -Path $policy -Name 'UpdateDefault' -Value 0 -Type DWord
+          Set-ItemProperty -Path $policy -Name '{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}' -Value 0 -Type DWord
+          foreach ($name in 'edgeupdate', 'edgeupdatem') {
+            $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+            if ($service) {
+              Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
+              Set-Service -Name $name -StartupType Disabled
+            }
+          }
+          Get-ScheduledTask -TaskName 'MicrosoftEdgeUpdateTaskMachine*' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null
+          Write-Host 'Edge automatic updates disabled for this job'
       - name: Install desktop test drivers
         run: |
           cargo install tauri-driver --locked
@@ -99,11 +170,71 @@ jobs:
           Invoke-WebRequest "https://msedgedriver.microsoft.com/$($runtime.Name)/edgedriver_win64.zip" -OutFile $zip
           $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
           Expand-Archive $zip -DestinationPath (Join-Path $cargoHome 'bin') -Force
+      - name: Install native Edge test driver
+        run: |
+          # WebView2 and Edge have independent versions on hosted images. Keep Tauri's
+          # runtime-matched driver in cargo/bin and use a separate driver for native Edge.
+          $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $edge) { throw 'Microsoft Edge browser not found' }
+          $version = (Get-Item -LiteralPath $edge).VersionInfo.ProductVersion
+          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw 'Invalid Microsoft Edge browser version' }
+          $directory = Join-Path $env:RUNNER_TEMP 'native-edge-driver'
+          $zip = Join-Path $env:RUNNER_TEMP 'native-edge-driver.zip'
+          Invoke-WebRequest "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $directory -Force
+          $driver = Join-Path $directory 'msedgedriver.exe'
+          $reported = & $driver --version
+          if ($LASTEXITCODE -ne 0 -or $reported -notmatch [regex]::Escape($version)) { throw 'Native Edge driver version mismatch' }
+          Write-Host "Native Edge $version; $reported"
+          "MSEDGEDRIVER=$driver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build current desktop test app
-        run: npx tauri build --debug --no-bundle
+        env:
+          # Keep debug-only crash/race fixtures, while avoiding unoptimized crypto timing
+          # that differs from the production build on the hosted CPU.
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+        run: npm run build:app
+      - name: Prepare medium-integrity desktop tests
+        run: |
+          # Current WebView2 suppresses remote debugging on elevated hosts. Match Tauri's
+          # own CI approach, while granting access only to this runner's user SID.
+          $zip = Join-Path $env:RUNNER_TEMP 'gsudo.portable.zip'
+          Invoke-WebRequest 'https://github.com/gerardog/gsudo/releases/download/v2.6.1/gsudo.portable.zip' -OutFile $zip
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '21130bf178d7b9891207f00bff56f05b6b363ce9cec7b2d084e45fb12ee51f44') { throw 'gsudo portable checksum mismatch' }
+          $directory = Join-Path $env:RUNNER_TEMP 'gsudo-portable'
+          Expand-Archive $zip -DestinationPath $directory -Force
+          $gsudo = Join-Path $directory 'x64\gsudo.exe'
+          if (-not (Test-Path -LiteralPath $gsudo)) { throw 'gsudo x64 executable missing' }
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          foreach ($directory in @($env:GITHUB_WORKSPACE, $env:RUNNER_TEMP)) {
+            & icacls.exe $directory /grant "*${sid}:(OI)(CI)F" /q
+            if ($LASTEXITCODE -ne 0) { throw 'Runner user access grant failed' }
+          }
+          "VAULTSPEND_CI_GSUDO=$gsudo" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Desktop WebDriver smoke preflight
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+        run: |
+          & $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate smoke
+          exit $LASTEXITCODE
+      - name: Verify native Edge driver still matches Edge
+        run: |
+          $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $edge) { throw 'Microsoft Edge browser not found' }
+          & tools/assert-edge-driver-match.ps1 -Edge $edge -Driver $env:MSEDGEDRIVER
       - name: Full desktop E2E release gate
-        run: npm run e2e
+        # Focus/blur and protected-profile tests share the hosted OS foreground window.
+        env:
+          # Match the artifact's recorded build environment; this does not rebuild it.
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+          # Protection specs measured 15-60 s here against about 10 s locally; the default 60 s hang
+          # ceiling is for developer machines. A genuine hang is still killed, just later.
+          VAULTSPEND_E2E_SPEC_TIMEOUT_MS: '180000'
+        run: |
+          & $env:VAULTSPEND_CI_GSUDO --integrity Medium --direct --chdir $env:GITHUB_WORKSPACE pwsh -NoProfile -NonInteractive -File tools/run-hosted-desktop-tests.ps1 -Gate full
+          exit $LASTEXITCODE
       - name: Build and publish Windows installers
+        if: ${{ !inputs.diagnostic_only }}
+        id: package
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -113,3 +244,44 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: --bundles nsis,msi
+      - name: Record final Windows build provenance
+        if: ${{ !inputs.recovery && !inputs.diagnostic_only }}
+        id: provenance
+        env:
+          ARTIFACT_PATHS: ${{ steps.package.outputs.artifactPaths }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node tools/update-build-provenance.mjs windows-x86_64 $env:RELEASE_TAG.Substring(1)
+
+  sign-updates:
+    if: ${{ !inputs.recovery && !inputs.diagnostic_only }}
+    needs: release
+    runs-on: ubuntu-latest
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.source-sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download final Windows release artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+          mkdir "$RUNNER_TEMP/update-input"
+          gh release download "$RELEASE_TAG" --repo OneTrueAsian/vault-spend --dir "$RUNNER_TEMP/update-input" --pattern "Vault.Spend_${RELEASE_TAG#v}_x64-setup.exe" --pattern "Vault.Spend_${RELEASE_TAG#v}_x64_en-US.msi"
+      - name: Sign exact final Windows bytes
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          VAULTSPEND_UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+          VAULTSPEND_UPDATE_SIGNING_PASSWORD: ${{ secrets.UPDATE_SIGNING_PASSWORD }}
+          VAULTSPEND_UPDATE_SIGNING_KEY_ID: ${{ vars.UPDATE_SIGNING_KEY_ID }}
+          VAULTSPEND_UPDATE_EXPECTED_DIGESTS: ${{ needs.release.outputs.installer-digests }}
+        run: node tools/update-signing.mjs sign windows-x86_64 "${RELEASE_TAG#v}" "$RUNNER_TEMP/update-signed" "$RUNNER_TEMP/update-input/Vault.Spend_${RELEASE_TAG#v}_x64-setup.exe" "$RUNNER_TEMP/update-input/Vault.Spend_${RELEASE_TAG#v}_x64_en-US.msi"
+      - name: Publish immutable Windows manifests and signatures
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: gh release upload "$RELEASE_TAG" --repo OneTrueAsian/vault-spend "$RUNNER_TEMP/update-signed/"*.json

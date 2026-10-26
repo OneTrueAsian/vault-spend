@@ -68,7 +68,7 @@ fn an_invalid_save_lists_every_problem_and_changes_nothing() {
 }
 
 #[test]
-fn the_report_reflects_the_ledger_the_moment_it_is_read() {
+fn the_report_reflects_the_transactions_the_moment_it_is_read() {
     let (store, mut setup) = store_with_people();
     setup.balance_confirmations = vec![BalanceConfirmation {
         metric: MetricId::Savings,

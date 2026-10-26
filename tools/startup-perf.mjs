@@ -107,6 +107,37 @@ try {
   });
   console.log("re-read after an edit:", JSON.stringify(afterEdit));
 
+  // Additive measurement of the new path. The earlier legacy batches stay comparable with baseline.
+  const coherent = await browser.executeAsync(done => {
+    (async () => {
+      const invoke = window.__TAURI_INTERNALS__.invoke;
+      const context = await invoke("get_transaction_context");
+      const args = { expectedGeneration: context.generation, expectedSessionRevision: context.sessionRevision, ids: null };
+      const pings = []; let capturing = true; let lastPing = Promise.resolve();
+      const ping = () => {
+        if (!capturing) return;
+        const sent = performance.now();
+        lastPing = invoke("plugin:app|version").then(() => { pings.push(performance.now() - sent); if (capturing) setTimeout(ping, 25); });
+      };
+      ping();
+      const started = performance.now();
+      const full = await invoke("get_transaction_snapshot", args);
+      const fullMs = performance.now() - started;
+      capturing = false; await lastPing;
+      const encodedAt = performance.now(); const json = JSON.stringify(full); const stringifyMs = performance.now() - encodedAt;
+      const parseAt = performance.now(); JSON.parse(json); const parseMs = performance.now() - parseAt;
+      const rowAt = performance.now(); await invoke("get_transaction_snapshot", { ...args, ids: [full.transactions[0].id] });
+      const oneRowMs = performance.now() - rowAt;
+      await invoke("update_transaction_notes", { transactionId: full.transactions[0].id, notes: "Disposable performance fixture note", expectedSessionRevision: context.sessionRevision });
+      const editedFullAt = performance.now(); await invoke("get_transaction_snapshot", args); const editedFullMs = performance.now() - editedFullAt;
+      await invoke("update_transaction_notes", { transactionId: full.transactions[0].id, notes: null, expectedSessionRevision: context.sessionRevision });
+      const editedRowAt = performance.now(); await invoke("get_transaction_snapshot", { ...args, ids: [full.transactions[0].id] }); const editedRowMs = performance.now() - editedRowAt;
+      document.documentElement.setAttribute("data-vault-transaction-perf", ""); window.__vaultTransactionPerf = [];
+      done({ fullMs: Math.round(fullMs), oneRowMs: Math.round(oneRowMs), editedFullMs: Math.round(editedFullMs), editedRowMs: Math.round(editedRowMs), pings: pings.length, slowestPingMs: Math.round(Math.max(0, ...pings)), rows: full.transactions.length, flags: full.flags.length, bytes: new TextEncoder().encode(json).length, stringifyMs, parseMs, amount: full.transactions[0].amount, balance: full.accounts[0].current_balance });
+    })().catch(error => done({ error: String(error) }));
+  });
+  console.log("coherent snapshot:", JSON.stringify(coherent));
+
   for (const tab of ["Transactions", "Dashboard"]) {
     const started = await browser.execute((label) => {
       [...document.querySelectorAll("nav button")].find((b) => b.textContent.trim() === label).click();
@@ -119,6 +150,7 @@ try {
     }
     console.log(`${tab} tab:`, Math.round((await browser.execute(() => performance.now())) - started), "ms");
   }
+  console.log("transaction stage samples:", JSON.stringify(await browser.execute(() => window.__vaultTransactionPerf ?? [])));
 } finally {
   await app.close();
 }

@@ -197,6 +197,14 @@
   margin-bottom: 0;
 }
 
+.modal-changelog-heading {
+  margin: 14px 0 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.modal-changelog-heading:first-child {
+  margin-top: 0;
+}
 .release-notes-list {
   display: flex;
   flex-direction: column;

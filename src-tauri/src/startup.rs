@@ -399,6 +399,19 @@ pub fn activate(app: &tauri::AppHandle, opened: OpenedProfile) {
     crate::background::sync_tray_with_settings(app);
 }
 
+/// Ends every review held in memory (holding import previews and the statement review, with the
+/// statement's text) when the profile locks, unlocks or changes: none of them may outlive it.
+fn end_open_reviews(holdings: Option<&crate::holding_import::Sessions>, statements: Option<&crate::statement_review::Sessions>) {
+    if let Some(sessions) = holdings {
+        if let Ok(mut cache) = sessions.0.lock() {
+            cache.clear();
+        }
+    }
+    if let Some(sessions) = statements {
+        sessions.clear();
+    }
+}
+
 /// Tells the frontend the coarse startup state changed, for a transition that does not happen
 /// during the normal launch fetch (manual lock, unlock, an in-app select, enabling protection).
 /// `StartupGate` subscribes to this before its own initial fetch (Task 7's header explains why that
@@ -406,6 +419,10 @@ pub fn activate(app: &tauri::AppHandle, opened: OpenedProfile) {
 /// above does — so a caller never needs to thread `device`/`status` through just for this.
 pub fn broadcast_state(app: &tauri::AppHandle) {
     use tauri::{Emitter, Manager};
+    end_open_reviews(
+        app.try_state::<crate::holding_import::Sessions>().as_deref(),
+        app.try_state::<crate::statement_review::Sessions>().as_deref(),
+    );
     let paths = app.state::<config::AppPaths>();
     let runtime = app.state::<AppStateHandle>();
     let status = app.state::<LaunchStatus>();
@@ -721,6 +738,96 @@ mod tests {
     }
 
     #[test]
+    fn profile_ipc_serialization_matches_the_renderer_contract_fixture() {
+        // Shared with profileContracts.test.ts: a Rust enum/field change cannot quietly drift
+        // from the renderer's runtime checks. All paths/secrets here are inert fixture values.
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../core/tests/fixtures/profile_ipc.json")).unwrap();
+        let mut states = vec![
+            StartupState::Open,
+            StartupState::EmptyRegistry,
+            StartupState::Locked {
+                profile_id: "alpha".into(),
+                profile_name: "Avery".into(),
+            },
+            StartupState::Selector {
+                profiles: vec![
+                    SelectorEntry {
+                        id: "alpha".into(),
+                        name: "Avery".into(),
+                        icon_key: None,
+                        is_password_protected: true,
+                    },
+                    SelectorEntry {
+                        id: "beta".into(),
+                        name: "Blair".into(),
+                        icon_key: Some("cat".into()),
+                        is_password_protected: false,
+                    },
+                ],
+                last_used_id: Some("alpha".into()),
+            },
+        ];
+        for (kind, message, has_path, restore, other) in [
+            (LaunchErrorKind::RegistryUnreadable, "Cannot read profiles.", false, true, false),
+            (LaunchErrorKind::LocationUnreadable, "Cannot read location.", false, false, false),
+            (LaunchErrorKind::DataFileMissing, "Data file is missing.", true, false, true),
+            (LaunchErrorKind::DataFileUnreadable, "Cannot open data file.", true, false, false),
+            (
+                LaunchErrorKind::ProtectionJournalUnreadable,
+                "Cannot read protection journal.",
+                false,
+                false,
+                false,
+            ),
+        ] {
+            states.push(StartupState::Error {
+                error: LaunchError {
+                    kind,
+                    message: message.into(),
+                    details: "Fixture details".into(),
+                    db_path: has_path.then(|| "E:\\fixture\\vaultspend.db".into()),
+                    can_restore_registry: restore,
+                    other_profiles: if other {
+                        vec![LaunchProfile {
+                            id: "beta".into(),
+                            name: "Blair".into(),
+                        }]
+                    } else {
+                        vec![]
+                    },
+                },
+            });
+        }
+        assert_eq!(serde_json::to_value(states).unwrap(), fixture["startup"]);
+        let challenge = crate::protection_session::SetupChallenge {
+            token: "inert-contract-token".into(),
+            recovery_display: "0000-0000-0000-0000-0000-0000-0000".into(),
+            challenge_group_indices: [0, 6],
+        };
+        assert_eq!(serde_json::to_value(&challenge).unwrap(), fixture["challenge"]);
+        assert!(budget_core::protection::recovery::RecoveryCode::parse(&challenge.recovery_display).is_ok());
+        use crate::protection_leftovers::{LeftoverEntry, LeftoverKind};
+        let leftovers = vec![
+            LeftoverEntry {
+                path: "E:\\fixture\\original.db".into(),
+                kind: LeftoverKind::OriginalDatabase,
+                size_bytes: 4096,
+            },
+            LeftoverEntry {
+                path: "E:\\fixture\\backup.db".into(),
+                kind: LeftoverKind::PlaintextBackup,
+                size_bytes: 0,
+            },
+            LeftoverEntry {
+                path: "E:\\fixture\\mirror.db".into(),
+                kind: LeftoverKind::MirroredPlaintextBackup,
+                size_bytes: 8192,
+            },
+        ];
+        assert_eq!(serde_json::to_value(leftovers).unwrap(), fixture["leftovers"]);
+    }
+
+    #[test]
     fn the_startup_state_is_open_only_while_a_profile_is_open() {
         let dir = temp_dir("state");
         let runtime = AppRuntime::no_profile_open();
@@ -922,5 +1029,31 @@ mod tests {
 
         assert!(!dir.join("profiles.json").exists());
         assert_eq!(std::fs::read(dir.join("profiles.json.damaged")).unwrap(), b"garbage");
+    }
+
+    #[test]
+    fn open_reviews_end_when_the_profile_locks_or_changes() {
+        let holdings = crate::holding_import::Sessions::default();
+        let source = budget_core::holding_import::parse_source("S,Q,P,C\nA,1,10,5\n", "csv").unwrap();
+        holdings.0.lock().unwrap().insert(
+            "preview".into(),
+            crate::holding_import::Session {
+                generation: 1,
+                created: std::time::Instant::now(),
+                source,
+                account_id: None,
+                rows: vec![],
+            },
+        );
+        let statements = crate::statement_review::Sessions::default();
+        statements
+            .replace(crate::statement_review::tests::session("review", 1, std::time::Instant::now()))
+            .unwrap();
+
+        end_open_reviews(Some(&holdings), Some(&statements));
+
+        assert!(holdings.0.lock().unwrap().is_empty());
+        assert!(statements.0.lock().unwrap().is_none(), "the statement review and its text are dropped");
+        end_open_reviews(None, None); // Nothing managed yet: nothing to do.
     }
 }

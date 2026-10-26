@@ -2,17 +2,18 @@
  * and the profile's saved Transactions filters. */
 
 import { getCurrentGeneration, getProfileUiState, setProfileUiState } from "./profileUiState";
-import { NAV_ITEMS, type SavedLedgerFilter, type Tab } from "./appTypes";
+import { NAV_ITEMS, type SavedTransactionFilter, type Tab } from "./appTypes";
 
+// "meadow-" is the app's earliest name, kept so saved settings carry over (see themeBootstrap.ts).
 export const NAV_ORDER_STORAGE_KEY = "meadow-nav-order";
 // Per-viewer, like the theme: how tall Transactions rows are. Compact is the
 // default — the comfortable layout stacked the tag box and Split button under
 // their cells and made every row ~75px tall.
-export const LEDGER_DENSITY_STORAGE_KEY = "vaultspend-ledger-density";
-export type LedgerDensity = "comfortable" | "compact";
-export function loadLedgerDensity(): LedgerDensity {
+export const TRANSACTION_DENSITY_STORAGE_KEY = "vaultspend-ledger-density";
+export type TransactionDensity = "comfortable" | "compact";
+export function loadTransactionDensity(): TransactionDensity {
   try {
-    return localStorage.getItem(LEDGER_DENSITY_STORAGE_KEY) === "comfortable" ? "comfortable" : "compact";
+    return localStorage.getItem(TRANSACTION_DENSITY_STORAGE_KEY) === "comfortable" ? "comfortable" : "compact";
   } catch {
     return "compact"; // private window, blocked site data, etc. — just use the default
   }
@@ -43,12 +44,12 @@ export function setLastUsedAccountId(id: number) {
   }
 }
 
-export async function loadSavedFilters(): Promise<SavedLedgerFilter[]> {
+export async function loadSavedFilters(): Promise<SavedTransactionFilter[]> {
   try {
     const stored = await getProfileUiState("saved_filters");
     if (stored) {
       const parsed: unknown = JSON.parse(stored);
-      if (Array.isArray(parsed)) return parsed as SavedLedgerFilter[];
+      if (Array.isArray(parsed)) return parsed as SavedTransactionFilter[];
     }
   } catch {
     // corrupt/unavailable value — fall back to no saved filters
@@ -56,7 +57,7 @@ export async function loadSavedFilters(): Promise<SavedLedgerFilter[]> {
   return [];
 }
 
-export async function saveSavedFilters(filters: SavedLedgerFilter[]) {
+export async function saveSavedFilters(filters: SavedTransactionFilter[]) {
   try {
     const generation = await getCurrentGeneration();
     await setProfileUiState("saved_filters", JSON.stringify(filters), generation);

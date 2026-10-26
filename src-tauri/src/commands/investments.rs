@@ -366,15 +366,30 @@ pub fn set_live_price_settings(provider: String, api_key: Option<String>, state:
 #[tauri::command]
 pub async fn fetch_live_quote(
     symbol: String,
+    expected_generation: Option<u64>,
+    expected_session_revision: Option<u64>,
     state: tauri::State<'_, AppStateHandle>,
     paths: tauri::State<'_, crate::config::AppPaths>,
 ) -> Result<Option<String>, String> {
     let today = chrono::Local::now().date_naive();
     let generation = paths.current_generation();
+    let session_revision = state.current_revision();
     let (api_key, provider, used_today) = {
-        let state = state.lock()?;
-        let settings = state.store.get_live_price_settings().map_err(|e| e.to_string())?;
-        let used_today = state.store.live_price_requests_used_today(today).map_err(|e| e.to_string())?;
+        let session = state.lock()?;
+        validate_price_origin(
+            expected_generation,
+            expected_session_revision,
+            paths.current_generation(),
+            state.current_revision(),
+        )?;
+        validate_price_origin(
+            Some(generation),
+            Some(session_revision),
+            paths.current_generation(),
+            state.current_revision(),
+        )?;
+        let settings = session.store.get_live_price_settings().map_err(|e| e.to_string())?;
+        let used_today = session.store.live_price_requests_used_today(today).map_err(|e| e.to_string())?;
         (settings.api_key, settings.provider, used_today)
     };
     let Some(api_key) = api_key else {
@@ -407,14 +422,20 @@ pub async fn fetch_live_quote(
         return Ok(None);
     }
     {
-        let state = state.lock()?;
+        let session = state.lock()?;
+        validate_price_origin(
+            Some(generation),
+            Some(session_revision),
+            paths.current_generation(),
+            state.current_revision(),
+        )?;
         if paths.current_generation() != generation {
             return Ok(None);
         }
         // Recorded unconditionally for every provider — for one with no
         // daily_limit() (Finnhub) this is an informational-only "requests
         // used today" count with no limit attached, not a budget check.
-        state.store.record_live_price_request(today).map_err(|e| e.to_string())?;
+        session.store.record_live_price_request(today).map_err(|e| e.to_string())?;
     }
     Ok(result?.map(|p| p.to_string()))
 }
@@ -463,16 +484,31 @@ pub struct LivePriceRefreshSummary {
 /// more at the end for the price/timestamp writes.
 #[tauri::command]
 pub async fn refresh_live_prices(
+    expected_generation: Option<u64>,
+    expected_session_revision: Option<u64>,
     state: tauri::State<'_, AppStateHandle>,
     paths: tauri::State<'_, crate::config::AppPaths>,
 ) -> Result<LivePriceRefreshSummary, String> {
     let today = chrono::Local::now().date_naive();
     let generation = paths.current_generation();
+    let session_revision = state.current_revision();
     let (api_key, provider, symbols, used_today) = {
-        let state = state.lock()?;
-        let settings = state.store.get_live_price_settings().map_err(|e| e.to_string())?;
-        let symbols = state.store.list_distinct_holding_symbols().map_err(|e| e.to_string())?;
-        let used_today = state.store.live_price_requests_used_today(today).map_err(|e| e.to_string())?;
+        let session = state.lock()?;
+        validate_price_origin(
+            expected_generation,
+            expected_session_revision,
+            paths.current_generation(),
+            state.current_revision(),
+        )?;
+        validate_price_origin(
+            Some(generation),
+            Some(session_revision),
+            paths.current_generation(),
+            state.current_revision(),
+        )?;
+        let settings = session.store.get_live_price_settings().map_err(|e| e.to_string())?;
+        let symbols = session.store.list_distinct_holding_symbols().map_err(|e| e.to_string())?;
+        let used_today = session.store.live_price_requests_used_today(today).map_err(|e| e.to_string())?;
         (settings.api_key, settings.provider, symbols, used_today)
     };
     let provider =
@@ -557,7 +593,13 @@ pub async fn refresh_live_prices(
 
     let mut updated = Vec::new();
     {
-        let state = state.lock()?;
+        let session = state.lock()?;
+        validate_price_origin(
+            Some(generation),
+            Some(session_revision),
+            paths.current_generation(),
+            state.current_revision(),
+        )?;
         if paths.current_generation() != generation {
             return Ok(LivePriceRefreshSummary {
                 updated: Vec::new(),
@@ -568,22 +610,22 @@ pub async fn refresh_live_prices(
             // Recorded unconditionally for every provider — informational
             // only for Finnhub (and, above its daily cap, StockData.org's
             // request count), which have no limit to check it against.
-            state.store.record_live_price_request(today).map_err(|e| e.to_string())?;
+            session.store.record_live_price_request(today).map_err(|e| e.to_string())?;
         }
         for (symbol, price) in quotes {
-            state
+            session
                 .store
                 .update_holding_prices_for_symbol(&symbol, price, today)
                 .map_err(|e| e.to_string())?;
             updated.push(symbol);
         }
         // The prices just moved, so today's portfolio value did too.
-        let _ = state.store.record_portfolio_snapshot(today);
+        let _ = session.store.record_portfolio_snapshot(today);
         // Only bump "last refreshed" if a request actually went out — a
         // refresh that was entirely skipped for being over budget didn't
         // actually refresh anything.
         if attempted_any {
-            state
+            session
                 .store
                 .set_live_prices_last_refreshed(chrono::Local::now().naive_local())
                 .map_err(|e| e.to_string())?;
@@ -591,4 +633,23 @@ pub async fn refresh_live_prices(
     }
 
     Ok(LivePriceRefreshSummary { updated, failed })
+}
+
+fn validate_price_origin(generation: Option<u64>, revision: Option<u64>, current_generation: u64, current_revision: u64) -> Result<(), String> {
+    if generation.is_some_and(|v| v != current_generation) || revision.is_some_and(|v| v != current_revision) {
+        return Err("STALE_PROFILE: This live-price request belongs to a closed profile session.".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::validate_price_origin;
+    #[test]
+    fn live_prices_reject_same_profile_reopen_and_switch_before_using_credentials() {
+        assert!(validate_price_origin(Some(3), Some(7), 3, 7).is_ok());
+        assert!(validate_price_origin(None, None, 3, 7).is_ok());
+        assert!(validate_price_origin(Some(3), Some(7), 3, 8).unwrap_err().starts_with("STALE_PROFILE"));
+        assert!(validate_price_origin(Some(3), Some(7), 4, 7).is_err());
+    }
 }

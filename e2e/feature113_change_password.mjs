@@ -17,7 +17,8 @@ import { NEW_PASSWORD, OLD_PASSWORD, createProtectedFixture, invoke, prepareChan
   try {
     const recovery = await prepareChange(app.browser, OLD_PASSWORD, NEW_PASSWORD);
     await (await app.browser.$("button=Finish")).click();
-    await app.browser.$(".change-password-dialog").waitForExist({ reverse: true, timeout: 15000 });
+    // Finishing re-derives keys and re-encrypts the profile and its backups: several times slower on a hosted runner.
+    await app.browser.$(".change-password-dialog").waitForExist({ reverse: true, timeout: 45000 });
 
     const newGeneration = (await invoke(app.browser, "get_current_generation")).ok;
     const oldCheck = await invoke(app.browser, "verify_current_password", { password: OLD_PASSWORD, expectedGeneration: newGeneration });

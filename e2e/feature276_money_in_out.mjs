@@ -5,6 +5,7 @@
 //
 // Run with: npm run e2e -- --spec=276
 import fs from "node:fs";
+import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import { launchApp, chooseMenuOption, chooseStyle, waitUntilOrDiagnose } from "./harness.mjs";
@@ -69,9 +70,7 @@ try {
   // Defaults and labels: Money out | Money in, Money out chosen; Charge | Payment on the card.
   await openDialog("Checking");
   const checking = await directionLabels();
-  if (JSON.stringify(checking) !== JSON.stringify([{ label: "Money out", checked: true }, { label: "Money in", checked: false }])) {
-    throw new Error(`Checking should offer Money out (chosen) | Money in, got ${JSON.stringify(checking)}`);
-  }
+  assert.deepEqual(checking, [{ label: "Money out", checked: true }, { label: "Money in", checked: false }], "Checking should offer Money out (chosen) | Money in");
   await chooseMenuOption((await (await browser.$(".modal-panel")).$$(".menu-select-toggle"))[0], { label: "Visa" });
   await waitUntilOrDiagnose(browser, async () => (await directionLabels()).map((o) => o.label).join(" | ") === "Charge | Payment", {
     timeoutMsg: "a credit card account's switch should read Charge | Payment",

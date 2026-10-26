@@ -1,0 +1,3858 @@
+{
+ "version": "m6-scenario-m3-references-1",
+ "writtenBy": "session bec4530a-cba4-40c4-b585-ecb9aed91bfa, 2026-10-21",
+ "references": {
+  "m3r-6fe955cea43a7f4e-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "581.78"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-6fe955cea43a7f4e",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6fe955cea43a7f4e-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "1163.56"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-6fe955cea43a7f4e",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6fe955cea43a7f4e-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "1745.34"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-6fe955cea43a7f4e",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-cbedcb3d779ad528-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "0.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.01"
+     }
+    ],
+    "monthlyLimit": "581.77"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-cbedcb3d779ad528",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-cbedcb3d779ad528-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "0.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.01"
+     }
+    ],
+    "monthlyLimit": "1163.55"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-cbedcb3d779ad528",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-cbedcb3d779ad528-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "0.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.01"
+     }
+    ],
+    "monthlyLimit": "1745.33"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-cbedcb3d779ad528",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-a1c713745762f6d7-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "0.06",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "581.75"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-a1c713745762f6d7",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-a1c713745762f6d7-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "0.06",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "1163.53"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-a1c713745762f6d7",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-a1c713745762f6d7-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "0.06",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "1745.31"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-a1c713745762f6d7",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-1fb231ab4c27aef3-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "2.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1.00"
+     }
+    ],
+    "monthlyLimit": "580.78"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-1fb231ab4c27aef3",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-1fb231ab4c27aef3-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "2.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1.00"
+     }
+    ],
+    "monthlyLimit": "1162.56"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-1fb231ab4c27aef3",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-1fb231ab4c27aef3-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "2.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1.00"
+     }
+    ],
+    "monthlyLimit": "1744.34"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-1fb231ab4c27aef3",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-8bf4a6e0e00654f2-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "50.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "25.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "25.00"
+     }
+    ],
+    "monthlyLimit": "556.78"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-8bf4a6e0e00654f2",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-8bf4a6e0e00654f2-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "50.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "25.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "25.00"
+     }
+    ],
+    "monthlyLimit": "1138.56"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-8bf4a6e0e00654f2",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-8bf4a6e0e00654f2-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "50.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "25.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "25.00"
+     }
+    ],
+    "monthlyLimit": "1720.34"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-8bf4a6e0e00654f2",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-fc8444636e407cec-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "100.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "50.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "50.00"
+     }
+    ],
+    "monthlyLimit": "531.78"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-fc8444636e407cec",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-fc8444636e407cec-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "100.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "50.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "50.00"
+     }
+    ],
+    "monthlyLimit": "1113.56"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-fc8444636e407cec",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-fc8444636e407cec-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "100.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "50.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "50.00"
+     }
+    ],
+    "monthlyLimit": "1695.34"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-fc8444636e407cec",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-3ac335e35d8b22a2-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "199.98",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "99.99"
+     },
+     {
+      "month": "December 2026",
+      "saved": "99.99"
+     }
+    ],
+    "monthlyLimit": "481.79"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-3ac335e35d8b22a2",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-3ac335e35d8b22a2-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "199.98",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "99.99"
+     },
+     {
+      "month": "December 2026",
+      "saved": "99.99"
+     }
+    ],
+    "monthlyLimit": "1063.57"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-3ac335e35d8b22a2",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-3ac335e35d8b22a2-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "199.98",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "99.99"
+     },
+     {
+      "month": "December 2026",
+      "saved": "99.99"
+     }
+    ],
+    "monthlyLimit": "1645.35"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-3ac335e35d8b22a2",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7be1990d3793a25b-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "200.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "100.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "100.00"
+     }
+    ],
+    "monthlyLimit": "481.78"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-7be1990d3793a25b",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7be1990d3793a25b-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "200.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "100.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "100.00"
+     }
+    ],
+    "monthlyLimit": "1063.56"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-7be1990d3793a25b",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7be1990d3793a25b-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "200.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "100.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "100.00"
+     }
+    ],
+    "monthlyLimit": "1645.34"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-7be1990d3793a25b",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7c39ad4e8343751b-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "326.09"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-7c39ad4e8343751b",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7c39ad4e8343751b-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "652.18"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-7c39ad4e8343751b",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7c39ad4e8343751b-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "978.27"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-7c39ad4e8343751b",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-048f4d85b7e86322-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "0.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.01"
+     }
+    ],
+    "monthlyLimit": "326.08"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-048f4d85b7e86322",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-048f4d85b7e86322-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "0.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.01"
+     }
+    ],
+    "monthlyLimit": "652.17"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-048f4d85b7e86322",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-048f4d85b7e86322-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "0.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.01"
+     }
+    ],
+    "monthlyLimit": "978.26"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-048f4d85b7e86322",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-11d1db61fb3fafe1-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "0.06",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "326.06"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-11d1db61fb3fafe1",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-11d1db61fb3fafe1-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "0.06",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "652.15"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-11d1db61fb3fafe1",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-11d1db61fb3fafe1-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "0.06",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "978.24"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-11d1db61fb3fafe1",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-e4d321d596158227-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "2.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1.00"
+     }
+    ],
+    "monthlyLimit": "325.09"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-e4d321d596158227",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-e4d321d596158227-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "2.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1.00"
+     }
+    ],
+    "monthlyLimit": "651.18"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-e4d321d596158227",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-e4d321d596158227-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "2.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1.00"
+     }
+    ],
+    "monthlyLimit": "977.27"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-e4d321d596158227",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c94d610ebcb4c606-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "50.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "25.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "25.00"
+     }
+    ],
+    "monthlyLimit": "301.09"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-c94d610ebcb4c606",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c94d610ebcb4c606-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "50.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "25.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "25.00"
+     }
+    ],
+    "monthlyLimit": "627.18"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-c94d610ebcb4c606",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c94d610ebcb4c606-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "50.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "25.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "25.00"
+     }
+    ],
+    "monthlyLimit": "953.27"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-c94d610ebcb4c606",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-eeaf7d407452cba1-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "100.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "50.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "50.00"
+     }
+    ],
+    "monthlyLimit": "276.09"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-eeaf7d407452cba1",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-eeaf7d407452cba1-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "100.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "50.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "50.00"
+     }
+    ],
+    "monthlyLimit": "602.18"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-eeaf7d407452cba1",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-eeaf7d407452cba1-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "100.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "50.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "50.00"
+     }
+    ],
+    "monthlyLimit": "928.27"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-eeaf7d407452cba1",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c127e00394ae2e63-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "199.98",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "99.99"
+     },
+     {
+      "month": "December 2026",
+      "saved": "99.99"
+     }
+    ],
+    "monthlyLimit": "226.10"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-c127e00394ae2e63",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c127e00394ae2e63-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "199.98",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "99.99"
+     },
+     {
+      "month": "December 2026",
+      "saved": "99.99"
+     }
+    ],
+    "monthlyLimit": "552.19"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-c127e00394ae2e63",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c127e00394ae2e63-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "199.98",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "99.99"
+     },
+     {
+      "month": "December 2026",
+      "saved": "99.99"
+     }
+    ],
+    "monthlyLimit": "878.28"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-c127e00394ae2e63",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-b7331ca0d61394a8-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "200.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "100.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "100.00"
+     }
+    ],
+    "monthlyLimit": "226.09"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-b7331ca0d61394a8",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-b7331ca0d61394a8-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "200.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "100.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "100.00"
+     }
+    ],
+    "monthlyLimit": "552.18"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-b7331ca0d61394a8",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-b7331ca0d61394a8-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "200.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "100.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "100.00"
+     }
+    ],
+    "monthlyLimit": "878.27"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-b7331ca0d61394a8",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6898d7f94f8dc8d2-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "1276.64"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-6898d7f94f8dc8d2",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6898d7f94f8dc8d2-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "2553.28"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-6898d7f94f8dc8d2",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6898d7f94f8dc8d2-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "3829.92"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-6898d7f94f8dc8d2",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-b27dd1004510d12f-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "0.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.01"
+     }
+    ],
+    "monthlyLimit": "1276.63"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-b27dd1004510d12f",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-b27dd1004510d12f-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "0.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.01"
+     }
+    ],
+    "monthlyLimit": "2553.27"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-b27dd1004510d12f",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-b27dd1004510d12f-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "0.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.01"
+     }
+    ],
+    "monthlyLimit": "3829.91"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-b27dd1004510d12f",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6e613c0eae11122a-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "0.06",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "1276.61"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-6e613c0eae11122a",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6e613c0eae11122a-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "0.06",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "2553.25"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-6e613c0eae11122a",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6e613c0eae11122a-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "0.06",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "3829.89"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-6e613c0eae11122a",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-e7792ffec5969842-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "2.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1.00"
+     }
+    ],
+    "monthlyLimit": "1275.64"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-e7792ffec5969842",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-e7792ffec5969842-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "2.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1.00"
+     }
+    ],
+    "monthlyLimit": "2552.28"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-e7792ffec5969842",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-e7792ffec5969842-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "2.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1.00"
+     }
+    ],
+    "monthlyLimit": "3828.92"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-e7792ffec5969842",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-0443da2541214430-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "50.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "25.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "25.00"
+     }
+    ],
+    "monthlyLimit": "1251.64"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-0443da2541214430",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-0443da2541214430-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "50.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "25.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "25.00"
+     }
+    ],
+    "monthlyLimit": "2528.28"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-0443da2541214430",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-0443da2541214430-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "50.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "25.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "25.00"
+     }
+    ],
+    "monthlyLimit": "3804.92"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-0443da2541214430",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-fd7f1eda5a76a3c5-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "100.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "50.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "50.00"
+     }
+    ],
+    "monthlyLimit": "1226.64"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-fd7f1eda5a76a3c5",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-fd7f1eda5a76a3c5-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "100.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "50.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "50.00"
+     }
+    ],
+    "monthlyLimit": "2503.28"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-fd7f1eda5a76a3c5",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-fd7f1eda5a76a3c5-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "100.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "50.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "50.00"
+     }
+    ],
+    "monthlyLimit": "3779.92"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-fd7f1eda5a76a3c5",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-dbcabab23d976729-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "199.98",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "99.99"
+     },
+     {
+      "month": "December 2026",
+      "saved": "99.99"
+     }
+    ],
+    "monthlyLimit": "1176.65"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-dbcabab23d976729",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-dbcabab23d976729-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "199.98",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "99.99"
+     },
+     {
+      "month": "December 2026",
+      "saved": "99.99"
+     }
+    ],
+    "monthlyLimit": "2453.29"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-dbcabab23d976729",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-dbcabab23d976729-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "199.98",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "99.99"
+     },
+     {
+      "month": "December 2026",
+      "saved": "99.99"
+     }
+    ],
+    "monthlyLimit": "3729.93"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-dbcabab23d976729",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6061448fef089425-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "200.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "100.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "100.00"
+     }
+    ],
+    "monthlyLimit": "1176.64"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-6061448fef089425",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6061448fef089425-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "200.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "100.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "100.00"
+     }
+    ],
+    "monthlyLimit": "2453.28"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-6061448fef089425",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6061448fef089425-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "200.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "100.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "100.00"
+     }
+    ],
+    "monthlyLimit": "3729.92"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-6061448fef089425",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-2e872ca34cc313e5-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "581.78"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-2e872ca34cc313e5",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-2e872ca34cc313e5-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "1163.56"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-2e872ca34cc313e5",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-2e872ca34cc313e5-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "1745.34"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-2e872ca34cc313e5",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-68d74e3d21aa05d2-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "0.12",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.06"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.06"
+     }
+    ],
+    "monthlyLimit": "581.72"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-68d74e3d21aa05d2",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-68d74e3d21aa05d2-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "0.23",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.12"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.12"
+     }
+    ],
+    "monthlyLimit": "1163.44"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-68d74e3d21aa05d2",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-68d74e3d21aa05d2-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "0.35",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.17"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.17"
+     }
+    ],
+    "monthlyLimit": "1745.17"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-68d74e3d21aa05d2",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7bd4886479624cc4-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "387.81",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "193.91"
+     },
+     {
+      "month": "December 2026",
+      "saved": "193.91"
+     }
+    ],
+    "monthlyLimit": "387.87"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-7bd4886479624cc4",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7bd4886479624cc4-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "775.63",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "387.81"
+     },
+     {
+      "month": "December 2026",
+      "saved": "387.81"
+     }
+    ],
+    "monthlyLimit": "775.75"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-7bd4886479624cc4",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7bd4886479624cc4-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "1163.44",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "581.72"
+     },
+     {
+      "month": "December 2026",
+      "saved": "581.72"
+     }
+    ],
+    "monthlyLimit": "1163.62"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-7bd4886479624cc4",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-3e0176680abe7455-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "1163.56",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "581.78"
+     },
+     {
+      "month": "December 2026",
+      "saved": "581.78"
+     }
+    ],
+    "monthlyLimit": "0.00"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-3e0176680abe7455",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-3e0176680abe7455-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "2327.12",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1163.56"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1163.56"
+     }
+    ],
+    "monthlyLimit": "0.00"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-3e0176680abe7455",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-3e0176680abe7455-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "3490.68",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1745.34"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1745.34"
+     }
+    ],
+    "monthlyLimit": "0.00"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-3e0176680abe7455",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-ebfed7e1e5d387dd-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "326.09"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-ebfed7e1e5d387dd",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-ebfed7e1e5d387dd-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "652.18"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-ebfed7e1e5d387dd",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-ebfed7e1e5d387dd-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "978.27"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-ebfed7e1e5d387dd",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c1a43d17775812d1-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "0.07",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.03"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.03"
+     }
+    ],
+    "monthlyLimit": "326.06"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-c1a43d17775812d1",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c1a43d17775812d1-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "0.13",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.07"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.07"
+     }
+    ],
+    "monthlyLimit": "652.11"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-c1a43d17775812d1",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c1a43d17775812d1-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "0.20",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.10"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.10"
+     }
+    ],
+    "monthlyLimit": "978.17"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-c1a43d17775812d1",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c6a2082d69553cdf-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "217.37",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "108.69"
+     },
+     {
+      "month": "December 2026",
+      "saved": "108.69"
+     }
+    ],
+    "monthlyLimit": "217.40"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-c6a2082d69553cdf",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c6a2082d69553cdf-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "434.74",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "217.37"
+     },
+     {
+      "month": "December 2026",
+      "saved": "217.37"
+     }
+    ],
+    "monthlyLimit": "434.81"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-c6a2082d69553cdf",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c6a2082d69553cdf-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "652.11",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "326.06"
+     },
+     {
+      "month": "December 2026",
+      "saved": "326.06"
+     }
+    ],
+    "monthlyLimit": "652.21"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-c6a2082d69553cdf",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-18aa7f52db5407e1-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "652.18",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "326.09"
+     },
+     {
+      "month": "December 2026",
+      "saved": "326.09"
+     }
+    ],
+    "monthlyLimit": "0.00"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-18aa7f52db5407e1",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-18aa7f52db5407e1-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "1304.36",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "652.18"
+     },
+     {
+      "month": "December 2026",
+      "saved": "652.18"
+     }
+    ],
+    "monthlyLimit": "0.00"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-18aa7f52db5407e1",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-18aa7f52db5407e1-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "1956.54",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "978.27"
+     },
+     {
+      "month": "December 2026",
+      "saved": "978.27"
+     }
+    ],
+    "monthlyLimit": "0.00"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-18aa7f52db5407e1",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-bcad2eb1e0280209-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "1276.64"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-bcad2eb1e0280209",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-bcad2eb1e0280209-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "2553.28"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-bcad2eb1e0280209",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-bcad2eb1e0280209-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "0.00",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.00"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.00"
+     }
+    ],
+    "monthlyLimit": "3829.92"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-bcad2eb1e0280209",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-1541792bb5656036-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "0.26",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.13"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.13"
+     }
+    ],
+    "monthlyLimit": "1276.51"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-1541792bb5656036",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-1541792bb5656036-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "0.51",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.26"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.26"
+     }
+    ],
+    "monthlyLimit": "2553.02"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-1541792bb5656036",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-1541792bb5656036-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "0.77",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "0.38"
+     },
+     {
+      "month": "December 2026",
+      "saved": "0.38"
+     }
+    ],
+    "monthlyLimit": "3829.54"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-1541792bb5656036",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-466d652956ecb5cf-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "851.01",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "425.50"
+     },
+     {
+      "month": "December 2026",
+      "saved": "425.50"
+     }
+    ],
+    "monthlyLimit": "851.14"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-466d652956ecb5cf",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-466d652956ecb5cf-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "1702.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "851.01"
+     },
+     {
+      "month": "December 2026",
+      "saved": "851.01"
+     }
+    ],
+    "monthlyLimit": "1702.27"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-466d652956ecb5cf",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-466d652956ecb5cf-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "2553.02",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1276.51"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1276.51"
+     }
+    ],
+    "monthlyLimit": "2553.41"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-466d652956ecb5cf",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-3050728cab909070-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "2553.28",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "1276.64"
+     },
+     {
+      "month": "December 2026",
+      "saved": "1276.64"
+     }
+    ],
+    "monthlyLimit": "0.00"
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-3050728cab909070",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-3050728cab909070-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "5106.56",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "2553.28"
+     },
+     {
+      "month": "December 2026",
+      "saved": "2553.28"
+     }
+    ],
+    "monthlyLimit": "0.00"
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-3050728cab909070",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-3050728cab909070-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "7659.84",
+    "months": [
+     {
+      "month": "November 2026",
+      "saved": "3829.92"
+     },
+     {
+      "month": "December 2026",
+      "saved": "3829.92"
+     }
+    ],
+    "monthlyLimit": "0.00"
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-3050728cab909070",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-73200736f243bc6f-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "0.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-73200736f243bc6f",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-73200736f243bc6f-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "0.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-73200736f243bc6f",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-73200736f243bc6f-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "0.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-73200736f243bc6f",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-0ef414866134bd14-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "0.01",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-0ef414866134bd14",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-0ef414866134bd14-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "0.01",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-0ef414866134bd14",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-0ef414866134bd14-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "0.01",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-0ef414866134bd14",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-090d07e44f3323b4-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "0.03",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-090d07e44f3323b4",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-090d07e44f3323b4-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "0.03",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-090d07e44f3323b4",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-090d07e44f3323b4-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "0.03",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-090d07e44f3323b4",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4c0acc545e094292-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "1.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-4c0acc545e094292",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4c0acc545e094292-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "1.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-4c0acc545e094292",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4c0acc545e094292-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "1.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-4c0acc545e094292",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-e7e268e223b33019-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "25.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-e7e268e223b33019",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-e7e268e223b33019-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "25.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-e7e268e223b33019",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-e7e268e223b33019-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "25.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-e7e268e223b33019",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4ab1055ec0240578-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "50.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-4ab1055ec0240578",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4ab1055ec0240578-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "50.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-4ab1055ec0240578",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4ab1055ec0240578-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "50.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-4ab1055ec0240578",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-75934bbd78cee554-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "99.99",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-75934bbd78cee554",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-75934bbd78cee554-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "99.99",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-75934bbd78cee554",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-75934bbd78cee554-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "99.99",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-75934bbd78cee554",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-39b6915f0343674d-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "581.78",
+    "totalSaving": "100.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-39b6915f0343674d",
+   "nativeItem": "sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-39b6915f0343674d-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1163.56",
+    "totalSaving": "100.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-39b6915f0343674d",
+   "nativeItem": "sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-39b6915f0343674d-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1745.34",
+    "totalSaving": "100.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-39b6915f0343674d",
+   "nativeItem": "sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-2dec4e6edba71f90036e4ff7",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-47ef3a775c6a55a9-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "0.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-47ef3a775c6a55a9",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-47ef3a775c6a55a9-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "0.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-47ef3a775c6a55a9",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-47ef3a775c6a55a9-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "0.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-47ef3a775c6a55a9",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7228d50810494dd3-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "0.01",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-7228d50810494dd3",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7228d50810494dd3-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "0.01",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-7228d50810494dd3",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-7228d50810494dd3-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "0.01",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-7228d50810494dd3",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-bebb2eb5e12981f6-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "0.03",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-bebb2eb5e12981f6",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-bebb2eb5e12981f6-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "0.03",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-bebb2eb5e12981f6",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-bebb2eb5e12981f6-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "0.03",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-bebb2eb5e12981f6",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-02f0f2fe02f1034d-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "1.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-02f0f2fe02f1034d",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-02f0f2fe02f1034d-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "1.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-02f0f2fe02f1034d",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-02f0f2fe02f1034d-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "1.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-02f0f2fe02f1034d",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-a5b485616061f9cb-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "25.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-a5b485616061f9cb",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-a5b485616061f9cb-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "25.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-a5b485616061f9cb",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-a5b485616061f9cb-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "25.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-a5b485616061f9cb",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-f9e3d0b09d937289-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "50.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-f9e3d0b09d937289",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-f9e3d0b09d937289-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "50.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-f9e3d0b09d937289",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-f9e3d0b09d937289-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "50.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-f9e3d0b09d937289",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-8266fca2d8a0e4ad-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "99.99",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-8266fca2d8a0e4ad",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-8266fca2d8a0e4ad-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "99.99",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-8266fca2d8a0e4ad",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-8266fca2d8a0e4ad-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "99.99",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-8266fca2d8a0e4ad",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-65b12dc5bacdfe3c-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "326.09",
+    "totalSaving": "100.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-65b12dc5bacdfe3c",
+   "nativeItem": "sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-65b12dc5bacdfe3c-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "652.18",
+    "totalSaving": "100.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-65b12dc5bacdfe3c",
+   "nativeItem": "sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-65b12dc5bacdfe3c-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "978.27",
+    "totalSaving": "100.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-65b12dc5bacdfe3c",
+   "nativeItem": "sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-9f65f2716988bff7bd47757e",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-1872e45afd991a45-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "0.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-1872e45afd991a45",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-1872e45afd991a45-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "0.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-1872e45afd991a45",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-1872e45afd991a45-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "0.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-1872e45afd991a45",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-24394eb0b7aa2a7c-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "0.01",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-24394eb0b7aa2a7c",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-24394eb0b7aa2a7c-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "0.01",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-24394eb0b7aa2a7c",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-24394eb0b7aa2a7c-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "0.01",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-24394eb0b7aa2a7c",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-b38f024a124637c5-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "0.03",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-b38f024a124637c5",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-b38f024a124637c5-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "0.03",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-b38f024a124637c5",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-b38f024a124637c5-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "0.03",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-b38f024a124637c5",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c01ca1323ef631a9-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "1.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-c01ca1323ef631a9",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c01ca1323ef631a9-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "1.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-c01ca1323ef631a9",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-c01ca1323ef631a9-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "1.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-c01ca1323ef631a9",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4972e61a5bafdd77-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "25.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-4972e61a5bafdd77",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4972e61a5bafdd77-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "25.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-4972e61a5bafdd77",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4972e61a5bafdd77-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "25.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-4972e61a5bafdd77",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-d480ee70cf5eba0a-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "50.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-d480ee70cf5eba0a",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-d480ee70cf5eba0a-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "50.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-d480ee70cf5eba0a",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-d480ee70cf5eba0a-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "50.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-d480ee70cf5eba0a",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6a36c6b439a20253-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "99.99",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-6a36c6b439a20253",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6a36c6b439a20253-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "99.99",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-6a36c6b439a20253",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-6a36c6b439a20253-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "99.99",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-6a36c6b439a20253",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4eb4cd498017b26d-101": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "1276.64",
+    "totalSaving": "100.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 101,
+   "contextId": "origin-101-seed-101",
+   "requestId": "m3q-4eb4cd498017b26d",
+   "nativeItem": "sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-101-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4eb4cd498017b26d-202": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "2553.28",
+    "totalSaving": "100.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 202,
+   "contextId": "origin-101-seed-202",
+   "requestId": "m3q-4eb4cd498017b26d",
+   "nativeItem": "sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-202-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  },
+  "m3r-4eb4cd498017b26d-303": {
+   "value": {
+    "outcome": "preview",
+    "monthsUsed": 2,
+    "usualMonth": "3829.92",
+    "totalSaving": "100.00",
+    "months": [],
+    "monthlyLimit": null
+   },
+   "seed": 303,
+   "contextId": "origin-101-seed-303",
+   "requestId": "m3q-4eb4cd498017b26d",
+   "nativeItem": "sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "nativeReceipt": "native-proof-scenario-prerequisites.json#sha256:86d3dd4f266ef22256419741341e63ef1a3c86dd093841cebc8d655e190d078f#sr-origin-101-seed-303-s-34ff95c0e4edbe646bdd57ec",
+   "calculation": "independent integer-cent calculator (src/testSupport/askVaultM6/m3Scenario.ts): JavaScript projection, not native"
+  }
+ }
+}

@@ -3,20 +3,26 @@
 //! key the AppData/Application Support folder by that identifier, so
 //! renaming it alone (as every rename so far has: Meadow -> Pennywise ->
 //! Penny Worth -> Vault Spend) makes the app look in a folder that's never
-//! had anything in it. A comment in `lib.rs` predating this module
-//! describes the previous "fix": the developer copied their own local file
-//! by hand after each rename — which only ever covered one machine, never
-//! a real user's install. This is the real fix: on first launch under a
-//! new identifier, look for the most recent previous identifier's folder
-//! and adopt its config/profile registry automatically, before ever
-//! creating a fresh empty database of its own.
+//! had anything in it. Before this module the developer copied their own
+//! local file by hand after each rename — which only ever covered one
+//! machine, never a real user's install. This is the real fix: on first
+//! launch under a new identifier, look for the most recent previous
+//! identifier's folder and adopt its config/profile registry
+//! automatically, before ever creating a fresh empty database of its own.
+//!
+//! The old product names that appear below (Meadow, Pennywise, Penny
+//! Worth) are therefore deliberate: they are the names of the folders and
+//! database files that earlier versions of this app created, and they must
+//! stay spelled exactly as those versions wrote them. The app itself is
+//! Vault Spend.
 //!
 //! Deliberately conservative: this only ever *reads* the legacy folder and
 //! *writes* into the new one — no file is ever moved, renamed, or deleted,
 //! so a mistake here can't make things worse than doing nothing would.
 use std::path::{Path, PathBuf};
 
-/// Every previous identifier this app has shipped under, most recent
+/// Every previous identifier this app has shipped under (the app's earlier
+/// names, before it became Vault Spend), most recent
 /// first, paired with the default database filename that version used
 /// when its owner never relocated their data. Add a new entry here (at
 /// the front) the next time the product is renamed — this is the one

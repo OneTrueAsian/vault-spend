@@ -1,0 +1,22 @@
+{
+  "startup": [
+    { "status": "open" },
+    { "status": "empty_registry" },
+    { "status": "locked", "profile_id": "alpha", "profile_name": "Avery" },
+    { "status": "selector", "profiles": [
+      { "id": "alpha", "name": "Avery", "icon_key": null, "is_password_protected": true },
+      { "id": "beta", "name": "Blair", "icon_key": "cat", "is_password_protected": false }
+    ], "last_used_id": "alpha" },
+    { "status": "error", "error": { "kind": "registry_unreadable", "message": "Cannot read profiles.", "details": "Fixture details", "db_path": null, "can_restore_registry": true, "other_profiles": [] } },
+    { "status": "error", "error": { "kind": "location_unreadable", "message": "Cannot read location.", "details": "Fixture details", "db_path": null, "can_restore_registry": false, "other_profiles": [] } },
+    { "status": "error", "error": { "kind": "data_file_missing", "message": "Data file is missing.", "details": "Fixture details", "db_path": "E:\\fixture\\vaultspend.db", "can_restore_registry": false, "other_profiles": [{ "id": "beta", "name": "Blair" }] } },
+    { "status": "error", "error": { "kind": "data_file_unreadable", "message": "Cannot open data file.", "details": "Fixture details", "db_path": "E:\\fixture\\vaultspend.db", "can_restore_registry": false, "other_profiles": [] } },
+    { "status": "error", "error": { "kind": "protection_journal_unreadable", "message": "Cannot read protection journal.", "details": "Fixture details", "db_path": null, "can_restore_registry": false, "other_profiles": [] } }
+  ],
+  "challenge": { "token": "inert-contract-token", "recovery_display": "0000-0000-0000-0000-0000-0000-0000", "challenge_group_indices": [0, 6] },
+  "leftovers": [
+    { "path": "E:\\fixture\\original.db", "kind": "original_database", "size_bytes": 4096 },
+    { "path": "E:\\fixture\\backup.db", "kind": "plaintext_backup", "size_bytes": 0 },
+    { "path": "E:\\fixture\\mirror.db", "kind": "mirrored_plaintext_backup", "size_bytes": 8192 }
+  ]
+}

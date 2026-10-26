@@ -7,6 +7,7 @@ import { ProfileSelector } from "./ProfileSelector";
 import { getStartupState, startupFailure, type StartupState } from "./startup";
 import { applyStoredTheme } from "./themeBootstrap";
 import { AutoLockSession } from "./AutoLockSession";
+import { ProfileIpcError, validateStartupState } from "./profileContracts";
 
 // Asks the backend where startup stands before the app mounts: nothing until it answers, the app when
 // a profile is open, the launch error screen when none is. Also subscribes to the backend's
@@ -32,6 +33,12 @@ export function StartupGate({ children }: { children: ReactNode }) {
   // backend once more and take its answer if it is anything else — unless a newer broadcast has arrived
   // since, which is then the freshest word there is.
   const resolve = useCallback((next: StartupState) => {
+    try {
+      next = validateStartupState(next);
+    } catch (error) {
+      setState({ status: "error", error: startupFailure(error) });
+      return;
+    }
     setState(next);
     if (next.status !== "open") return;
     const seen = broadcasts.current;
@@ -39,8 +46,15 @@ export function StartupGate({ children }: { children: ReactNode }) {
       .then((fresh) => {
         if (mounted.current && broadcasts.current === seen && fresh.status !== "open") setState(fresh);
       })
-      .catch(() => {
-        /* the open result stands; a real change will come as a broadcast */
+      .catch((error) => {
+        if (
+          mounted.current &&
+          broadcasts.current === seen &&
+          error instanceof ProfileIpcError &&
+          error.code === "invalid_response"
+        )
+          setState({ status: "error", error: startupFailure(error) });
+        /* A transport failure keeps the open result; a real change will come as a broadcast. */
       });
   }, []);
 
@@ -48,10 +62,16 @@ export function StartupGate({ children }: { children: ReactNode }) {
     mounted.current = true;
     let cancelled = false;
     let sawEvent = false;
-    const unlistenPromise = listen<StartupState>("profile-lock-state-changed", (event) => {
+    const unlistenPromise = listen<unknown>("profile-lock-state-changed", (event) => {
       sawEvent = true;
       broadcasts.current++;
-      if (!cancelled) setState(event.payload);
+      if (!cancelled) {
+        try {
+          setState(validateStartupState(event.payload));
+        } catch (error) {
+          setState({ status: "error", error: startupFailure(error) });
+        }
+      }
     });
     unlistenPromise.then(() =>
       getStartupState()
@@ -71,8 +91,10 @@ export function StartupGate({ children }: { children: ReactNode }) {
 
   if (state === null) return null;
   if (state.status === "error") return <LaunchErrorScreen error={state.error} onResolved={resolve} />;
-  if (state.status === "selector") return <ProfileSelector profiles={state.profiles} lastUsedId={state.last_used_id} onResolved={resolve} />;
-  if (state.status === "locked") return <ProfileLockScreen profileId={state.profile_id} profileName={state.profile_name} onResolved={resolve} />;
+  if (state.status === "selector")
+    return <ProfileSelector profiles={state.profiles} lastUsedId={state.last_used_id} onResolved={resolve} />;
+  if (state.status === "locked")
+    return <ProfileLockScreen profileId={state.profile_id} profileName={state.profile_name} onResolved={resolve} />;
   if (state.status === "empty_registry") return <EmptyRegistryScreen onResolved={resolve} />;
   return (
     <>

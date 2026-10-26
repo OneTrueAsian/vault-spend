@@ -1,0 +1,6 @@
+.editable-combobox { display: inline-flex; min-width: 0; max-width: 100%; vertical-align: middle; }
+.editable-combobox > input { min-width: 0; width: 100%; box-sizing: border-box; }
+.modal-field > .editable-combobox { display: flex; width: 100%; }
+.editable-combobox-panel { font: inherit; }
+.editable-combobox-option { padding: 8px 10px; border-radius: 6px; overflow-wrap: anywhere; cursor: pointer; }
+.editable-combobox-option:hover, .editable-combobox-option[aria-selected="true"] { background: var(--surface-2); color: var(--text); }
