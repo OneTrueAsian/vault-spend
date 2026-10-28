@@ -113,14 +113,14 @@ describe("TransferRow", () => {
     expect(button("Unlink")).toBeUndefined();
     expect(container.textContent).not.toContain("Add note");
     openMenu();
-    expect(menuLabels()).toEqual(["Unlink transfer…", "Add note to Checking…", "Add note to Savings…"]);
+    expect(menuLabels()).toEqual(["Unlink transfer…", "Add note to Checking", "Add note to Savings"]);
   });
 
   it("choosing the outgoing leg's note action edits the outgoing transaction, not the incoming one", () => {
     const out = txn({ id: 1, account_name: "Checking", notes: null });
     const incoming = txn({ id: 2, account_name: "Savings", notes: null });
     show(out, incoming);
-    choose("Add note to Checking…");
+    choose("Add note to Checking");
     expect(onEditNote).toHaveBeenCalledWith(out);
   });
 
@@ -128,7 +128,7 @@ describe("TransferRow", () => {
     const out = txn({ id: 1, account_name: "Checking", notes: null });
     const incoming = txn({ id: 2, account_name: "Savings", notes: null });
     show(out, incoming);
-    choose("Add note to Savings…");
+    choose("Add note to Savings");
     expect(onEditNote).toHaveBeenCalledWith(incoming);
   });
 
@@ -140,7 +140,7 @@ describe("TransferRow", () => {
     act(() => button("Reimbursed by Sam")!.click());
     expect(onEditNote).toHaveBeenCalledWith(out);
     openMenu();
-    expect(menuLabels()).toEqual(["Unlink transfer…", "Edit note for Checking…", "Add note to Savings…"]);
+    expect(menuLabels()).toEqual(["Unlink transfer…", "Edit note for Checking", "Add note to Savings"]);
   });
 
   it("does not copy a note from one leg onto the other", () => {

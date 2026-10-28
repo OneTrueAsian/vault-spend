@@ -1,3 +1,4 @@
+import { pickableAccounts } from "./hiddenAccounts";
 import "./BudgetAndGoals.css";
 import { FormEvent, useState } from "react";
 import type { Account, Bucket, FamilyMember } from "./types";
@@ -150,7 +151,7 @@ function NewBucketForm({
     return (
       <button type="button" className="add-tile" onClick={() => onOpenChange(true)}>
         <span className="add-tile-plus" aria-hidden="true">+</span>
-        New goal…
+        New goal
       </button>
     );
   }
@@ -166,7 +167,7 @@ function NewBucketForm({
         onChange={setAccountId}
         options={[
           { value: "", label: "No linked account" },
-          ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+          ...pickableAccounts(accounts, accountId).map((a) => ({ value: String(a.id), label: a.name })),
         ]}
         fill
       />
@@ -239,9 +240,12 @@ function EditBucketForm({
     color: string | null,
     iconKey: string | null,
     tracksAccount: boolean,
+    /** The new name, or null when it was left as it was. */
+    name: string | null,
   ) => void;
   onCancel: () => void;
 }) {
+  const [name, setName] = useState(bucket.name);
   const [target, setTarget] = useState(bucket.target_amount ?? "");
   const [tracksAccount, setTracksAccount] = useState(bucket.tracks_account);
   const [targetDate, setTargetDate] = useState(bucket.target_date ?? "");
@@ -254,6 +258,7 @@ function EditBucketForm({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!name.trim()) return;
     onSave(
       target.trim() ? target.trim() : null,
       targetDate.trim() ? targetDate.trim() : null,
@@ -262,13 +267,14 @@ function EditBucketForm({
       color,
       iconKey,
       tracksAccount && accountId !== "",
+      name.trim() === bucket.name ? null : name.trim(),
     );
   }
 
   return (
     <form className="bucket-new-form" onSubmit={handleSubmit}>
+      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} aria-label="Goal name" placeholder="Goal name" />
       <input
-        autoFocus
         value={target}
         onChange={(e) => setTarget(e.target.value)}
         placeholder="Target amount (optional)"
@@ -280,7 +286,7 @@ function EditBucketForm({
         onChange={setAccountId}
         options={[
           { value: "", label: "No linked account" },
-          ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+          ...pickableAccounts(accounts, accountId).map((a) => ({ value: String(a.id), label: a.name })),
         ]}
         fill
       />
@@ -299,7 +305,9 @@ function EditBucketForm({
       <IconPicker name={bucket.name} value={iconKey} onChange={setIconKey} />
       <ColorPicker value={color} onChange={setColor} />
       <div className="bucket-new-form-actions">
-        <button type="submit">Save</button>
+        <button type="submit" disabled={!name.trim()}>
+          Save
+        </button>
         <button type="button" className="modal-secondary" onClick={onCancel}>
           Cancel
         </button>
@@ -444,7 +452,8 @@ export function BucketsView({
     color: string | null,
     iconKey: string | null,
     tracksAccount: boolean,
-  ) => void;
+    name: string | null,
+  ) => void | Promise<boolean | void>;
   onAddContribution: (bucketId: number, date: string, amount: string, note: string | null) => void;
   onDeleteBucket: (id: number) => void;
   /** Opens Help at this page's section (the ? beside the title). */
@@ -609,9 +618,10 @@ export function BucketsView({
                   bucket={b}
                   accounts={accounts}
                   onCancel={() => setEditingId(null)}
-                  onSave={(targetAmount, targetDate, accountId, sinkingAmount, color, iconKey, tracksAccount) => {
-                    onUpdateBucketDetails(b.id, targetAmount, targetDate, accountId, sinkingAmount, color, iconKey, tracksAccount);
-                    setEditingId(null);
+                  onSave={async (targetAmount, targetDate, accountId, sinkingAmount, color, iconKey, tracksAccount, name) => {
+                    // A refused save (say, a name another goal already has) leaves the form open with what was typed.
+                    const saved = await onUpdateBucketDetails(b.id, targetAmount, targetDate, accountId, sinkingAmount, color, iconKey, tracksAccount, name);
+                    if (saved !== false) setEditingId(null);
                   }}
                 />
               ) : b.tracks_account && b.account_id !== null ? null : (

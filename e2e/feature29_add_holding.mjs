@@ -1,4 +1,4 @@
-// E2E smoke test for the Investments tab's "Add holding…" form — a real
+// E2E smoke test for the Investments tab's "Add holding" form — a real
 // coverage gap until now (no existing test actually creates a holding
 // through the UI). Doubles as verification that switching the form to
 // labeled fields (each input now has a visible <label>, not just a

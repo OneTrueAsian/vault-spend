@@ -227,6 +227,8 @@ pub struct DashboardSnapshot {
     alerts: Vec<BudgetAlertDto>,
     insights: Vec<InsightDto>,
     average_spend: String,
+    /// At least 14 days of transactions exist, so the runway average is real (see `Store::has_enough_history`).
+    enough_history: bool,
     contributions: Vec<AccountContributionDeltaDto>,
 }
 #[derive(Serialize)]
@@ -300,6 +302,7 @@ fn dashboard_snapshot(store: &Store, context: FinancialContext, today: chrono::N
                 })
                 .collect();
             let average_spend = store.average_monthly_spend(today)?.to_string();
+            let enough_history = store.has_enough_history(today)?;
             let from = chrono::NaiveDate::parse_from_str(&net_worth[0].as_of, "%Y-%m-%d").map_err(|e| query_error(e.to_string()))?;
             let contributions = store
                 .account_contribution_deltas(from, today)?
@@ -324,6 +327,7 @@ fn dashboard_snapshot(store: &Store, context: FinancialContext, today: chrono::N
                 alerts,
                 insights,
                 average_spend,
+                enough_history,
                 contributions,
             })
         })

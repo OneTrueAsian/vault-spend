@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHeatmapWeeks, heatmapBucket, heatmapScaleMax } from "./heatmap";
+import { buildHeatmapWeeks, heatmapBucket, heatmapNeighbor, heatmapScaleMax } from "./heatmap";
 
 describe("heatmapScaleMax", () => {
   it("is 0 when nothing was spent, ignoring zero and negative amounts", () => {
@@ -102,5 +102,32 @@ describe("heatmapBucket", () => {
 
   it("treats a zero or negative max as no data (bucket 0)", () => {
     expect(heatmapBucket(10, 0)).toBe(0);
+  });
+});
+
+// Keyboard movement: the grid is drawn with a week per column and Sunday at the top, so Up/Down walk a week's days and Left/Right jump a week.
+describe("heatmapNeighbor", () => {
+  // 2026-09-01 (Tue) .. 2026-09-20 (Sun): weeks start Aug 30, Sep 6, Sep 13, Sep 20; Aug 30/31 are padding.
+  const weeks = buildHeatmapWeeks([], "2026-09-01", "2026-09-20");
+  it("moves a day up and down within a week, and a week left and right", () => {
+    expect(heatmapNeighbor(weeks, "2026-09-09", "ArrowDown")).toBe("2026-09-10");
+    expect(heatmapNeighbor(weeks, "2026-09-09", "ArrowUp")).toBe("2026-09-08");
+    expect(heatmapNeighbor(weeks, "2026-09-09", "ArrowRight")).toBe("2026-09-16");
+    expect(heatmapNeighbor(weeks, "2026-09-09", "ArrowLeft")).toBe("2026-09-02");
+  });
+  it("stays put at a week's edge, a padding day and the ends of the range", () => {
+    expect(heatmapNeighbor(weeks, "2026-09-12", "ArrowDown")).toBeNull(); // Saturday
+    expect(heatmapNeighbor(weeks, "2026-09-06", "ArrowUp")).toBeNull(); // Sunday
+    expect(heatmapNeighbor(weeks, "2026-09-01", "ArrowUp")).toBeNull(); // Aug 31 is padding
+    expect(heatmapNeighbor(weeks, "2026-09-01", "ArrowLeft")).toBeNull(); // no week before
+    expect(heatmapNeighbor(weeks, "2026-09-20", "ArrowRight")).toBeNull(); // no week after
+    expect(heatmapNeighbor(weeks, "2026-09-02", "ArrowLeft")).toBeNull(); // Aug 26 is before the range
+  });
+  it("jumps to the first and last day of the range with Home and End", () => {
+    expect(heatmapNeighbor(weeks, "2026-09-09", "Home")).toBe("2026-09-01");
+    expect(heatmapNeighbor(weeks, "2026-09-09", "End")).toBe("2026-09-20");
+  });
+  it("ignores other keys", () => {
+    expect(heatmapNeighbor(weeks, "2026-09-09", "a")).toBeNull();
   });
 });

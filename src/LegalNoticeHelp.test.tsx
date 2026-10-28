@@ -39,7 +39,9 @@ describe("LegalNoticeHelp", () => {
 
     await mount();
 
-    expect(container.textContent).toContain(`Version ${bundledLegalNotice.version}`);
+    expect(bundledLegalNotice.version).toBe("2026-10-05");
+    expect(container.textContent).toContain("Version Oct 5, 2026.");
+    expect(container.textContent).not.toContain("2026-10-05");
     expect(container.textContent).toContain("Limitation of Liability");
     expect(container.textContent).toContain("fonts.googleapis.com");
   });
@@ -62,7 +64,8 @@ describe("LegalNoticeHelp", () => {
     await mount();
 
     expect(container.querySelector("[data-legal-notice-status]")?.textContent).not.toMatch(/^Acknowledged/);
-    expect(container.querySelector("[data-legal-notice-status]")?.textContent).toContain("2020-01-01");
+    expect(container.querySelector("[data-legal-notice-status]")?.textContent).toContain("version Jan 1, 2020");
+    expect(container.querySelector("[data-legal-notice-status]")?.textContent).not.toContain("2020-01-01");
   });
 
   it("still shows the notice when the acknowledgement cannot be read", async () => {

@@ -51,7 +51,7 @@ try {
   await (await b.$("button*=Import holdings")).waitForExist({ timeout: 10000 });
   await open();
   assert.equal(await b.$("[data-holding-import] select, [data-holding-import] input[type=file]").isExisting(), false);
-  await (await button("Browse files…")).click();
+  await (await button("Browse files")).click();
   const folderInput = await b.$("[data-holding-file-browser] input");
   await folderInput.waitForExist({ timeout: 5000 }); await folderInput.setValue(folder);
   await (await button("Open folder")).click();

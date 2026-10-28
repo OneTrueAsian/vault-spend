@@ -6048,6 +6048,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-rustls",
+ "webview2-com",
  "windows",
  "x509-parser",
  "zeroize",

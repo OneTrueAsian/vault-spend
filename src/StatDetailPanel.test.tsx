@@ -55,3 +55,15 @@ describe("StatDetailPanel row colours", () => {
     expect(amountFor("Checking").classList.contains("report-over-budget")).toBe(true);
   });
 });
+
+describe("StatDetailPanel long names", () => {
+  it("lets an unbroken long account name wrap inside the card and keeps the amount whole", () => {
+    const name = "QA" + "Unbroken".repeat(10);
+    act(() => root.render(<StatDetailPanel isOpen title="Net worth" rows={[{ name, amount: 250 }]} onClose={vi.fn()} />));
+    const nameEl = [...container.querySelectorAll<HTMLElement>(".stat-detail-panel span")].find((s) => s.textContent === name)!;
+    const amountEl = nameEl.nextElementSibling as HTMLElement;
+    expect(nameEl.style.overflowWrap).toBe("anywhere");
+    expect(nameEl.style.minWidth).toBe("0px");
+    expect(amountEl.style.flexShrink).toBe("0");
+  });
+});

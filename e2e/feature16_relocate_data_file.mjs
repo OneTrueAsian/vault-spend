@@ -1,8 +1,8 @@
 // E2E smoke test for the Settings tab's data-file section: confirms the
 // current data file location renders correctly, end to end through the
-// real `get_data_file_location` command, and that "Export a copy…" and
-// "Use existing file…" are wired up alongside "Move data file…" — the
-// same "Use existing file…" action Settings → Profiles offers too
+// real `get_data_file_location` command, and that "Export a copy" and
+// "Use existing file" are wired up alongside "Move data file" — the
+// same "Use existing file" action Settings → Profiles offers too
 // (App.tsx's `onUseExistingDataFile` is one handler, shared by both
 // buttons), duplicated here so importing is discoverable right next to
 // exporting instead of only living in a different card.
@@ -49,24 +49,24 @@ try {
     throw new Error(`expected the displayed path to be under the test dbDir (${dbDir}), got:\n${cardText}`);
   }
   if (!cardText.includes("Move data file")) {
-    throw new Error(`expected a "Move data file…" action, got:\n${cardText}`);
+    throw new Error(`expected a "Move data file" action, got:\n${cardText}`);
   }
   if (!cardText.includes("Export a copy")) {
-    throw new Error(`expected an "Export a copy…" action, got:\n${cardText}`);
+    throw new Error(`expected an "Export a copy" action, got:\n${cardText}`);
   }
   if (!cardText.toLowerCase().includes("doesn't change what vault spend is using now")) {
     throw new Error(`expected explainer copy distinguishing export from relocate, got:\n${cardText}`);
   }
-  console.log('"Export a copy…" renders alongside "Move data file…" with its own explainer');
+  console.log('"Export a copy" renders alongside "Move data file" with its own explainer');
 
   const useExistingButtons = await settingsCard.$$("button*=Use existing file");
   if (useExistingButtons.length === 0) {
-    throw new Error(`expected a "Use existing file…" action in the Data card, got:\n${cardText}`);
+    throw new Error(`expected a "Use existing file" action in the Data card, got:\n${cardText}`);
   }
   if (!cardText.toLowerCase().includes("checked for real account/transaction data")) {
     throw new Error(`expected explainer copy mentioning the file is validated before being adopted, got:\n${cardText}`);
   }
-  console.log('"Use existing file…" (import) is discoverable right next to "Export a copy…"');
+  console.log('"Use existing file" (import) is discoverable right next to "Export a copy"');
 
   console.log("FEATURE 16 E2E TEST PASSED");
 } finally {

@@ -1,3 +1,6 @@
+import { emptySetupMessage, setupImportMessage } from "./setupImportMessage";
+import { rolloverMessage, contributionMessage } from "./maintenanceMessages";
+import { observeRead, publishRead } from "./observeRead";
 import { useFinancialRead } from "./useFinancialRead";
 import type { DashboardSnapshot, ReportSummarySnapshot } from "./financialContracts";
 import { FinancialReadState } from "./FinancialReadState";
@@ -54,6 +57,7 @@ import { open, save } from "./nativeDialog";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import vaultSpendIcon from "./assets/vault-spend-icon-1024.png";
 import { createTransactionExporter } from "./transactionExport";
+import { createReportPdfSaver } from "./reportPdfSave";
 import { toCsv } from "./csv";
 import { buildSetupTemplate } from "./setupTemplate";
 import { CHANGELOG } from "./changelog";
@@ -70,6 +74,7 @@ import {
   ModalShell,
   AddWidgetDialog,
   CategoryTransactionsDialog,
+  ChooseImportAccountDialog,
   ConfirmInvertDialog,
   CsvExportWarningDialog,
   ManageCategoriesDialog,
@@ -116,7 +121,7 @@ import { SELECT_ALL_CAP } from "./transactionSelection";
 import { ImportInboxDialog } from "./ImportInboxDialog";
 import { CommandPalette, ShortcutsDialog } from "./CommandPalette";
 import type { PaletteEntry } from "./paletteSearch";
-import { buildInbox, type InboxItem } from "./importInbox";
+import { buildInbox, inboxButtonLabel, type InboxItem } from "./importInbox";
 import { monthReviewDue } from "./monthReview";
 import { loadPrivacyPrefs, savePrivacyPrefs, startPrivacyMask, type PrivacyPrefs } from "./privacy";
 // Each tab view is its own chunk, loaded only the first time its tab is
@@ -210,6 +215,7 @@ import type {
 import { MenuSelect } from "./MenuSelect";
 import { errorMessage } from "./errorMessage";
 import { sumMoney } from "./money";
+import { holdingCount } from "./holdingImport";
 import { StatusBanner } from "./StatusBanner";
 import { transactionColumnCount as computeTransactionColumnCount } from "./transactionHelpers";
 import {
@@ -217,7 +223,6 @@ import {
   getLastUsedAccountId,
   loadTransactionDensity,
   loadNavOrder,
-  setLastUsedAccountId,
   type TransactionDensity,
 } from "./appStorage";
 import {
@@ -454,7 +459,7 @@ function App({
     };
   }, []);
 
-  // The ledger row whose tag field is open (its ⋯ menu's "Add tag…").
+  // The ledger row whose tag field is open (its ⋯ menu's "Add tag").
 
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [recurring, setRecurring] = useState<Recurring[]>([]);
@@ -688,7 +693,7 @@ function App({
     }
   }
 
-  /** "Use existing file…" step 1: pick the file. Step 2 (naming it) happens
+  /** "Use existing file" step 1: pick the file. Step 2 (naming it) happens
    * in `UseExistingDataFileDialog` once `pendingExistingDbPath` is set —
    * split the same way `handleRelocateDataFile` splits picking a folder
    * from the backend call, except a name has to come from the user first. */
@@ -920,7 +925,6 @@ function App({
   const loadPlanning = planningRead.refresh;
   const planningSnapshot = planningRead.data?.value.asOf === todayKey ? planningRead.data.value : null;
   const report = dashboardSnapshot?.report ?? null;
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [status, setStatusState] = useState<{ text: string; kind: StatusKind } | null>(
     initialStatus ? { text: initialStatus, kind: "success" } : null,
   );
@@ -1362,6 +1366,9 @@ function App({
   function askNewCategory(): Promise<string | null> {
     return new Promise((resolve) => setDialog({ kind: "newCategory", resolve }));
   }
+  function askImportAccount(): Promise<number | "new" | null> {
+    return new Promise((resolve) => setDialog({ kind: "importAccount", resolve }));
+  }
   function askConfirmInvert(accountName?: string, suggestion?: ImportSignSuggestion): Promise<boolean> {
     return new Promise((resolve) => setDialog({ kind: "confirmInvert", resolve, accountName, suggestion }));
   }
@@ -1398,12 +1405,12 @@ function App({
   const showMaintenanceSummary = useCallback(async () => {
     const summary = await invoke<MaintenanceSummary>("take_maintenance_summary");
     if (summary.rolled.length > 0) {
-      const names = summary.rolled.map((r) => r.account_name).join(", ");
-      setStatus(`Rolled forward this month's starting balance for ${summary.rolled.length} account(s): ${names}.`, "success");
+      const names = summary.rolled.map((r) => r.account_name);
+      setStatus(rolloverMessage(names), "success");
     }
     if (summary.contributions.length > 0) {
-      const names = summary.contributions.map((a) => a.bucket_name).join(", ");
-      setStatus(`Added this month's automatic contribution for ${summary.contributions.length} bucket(s): ${names}.`, "success");
+      const names = summary.contributions.map((a) => a.bucket_name);
+      setStatus(contributionMessage(names), "success");
     }
     if (summary.warnings.length > 0) {
       setStatus(summary.warnings.join(" "));
@@ -1429,17 +1436,17 @@ function App({
   const checkSinkingFundContributions = useCallback(async () => {
     const applied = await invoke<SinkingFundContribution[]>("check_sinking_fund_contributions");
     if (applied.length > 0) {
-      const names = applied.map((a) => a.bucket_name).join(", ");
-      setStatus(`Added this month's automatic contribution for ${applied.length} bucket(s): ${names}.`, "success");
+      const names = applied.map((a) => a.bucket_name);
+      setStatus(contributionMessage(names), "success");
     }
   }, [invoke]);
 
   const refreshRecurring = useCallback(async () => {
-    setRecurring(await invoke<Recurring[]>("list_recurring"));
+    await publishRead(() => invoke<Recurring[]>("list_recurring"), setRecurring);
   }, [invoke]);
 
   const refreshRecurringMatches = useCallback(async () => {
-    setRecurringMatches(await invoke<RecurringMatch[]>("recurring_matches"));
+    await publishRead(() => invoke<RecurringMatch[]>("recurring_matches"), setRecurringMatches);
   }, [invoke]);
 
   // Matches depend on the transactions as much as on the recurring list, so
@@ -1447,16 +1454,16 @@ function App({
   // tracked through every import and edit.
   useEffect(() => {
     if (activeTab === "recurring" || activeTab === "dashboard") {
-      refreshRecurringMatches().catch((e) => setStatus(errorMessage(e)));
+      void observeRead(refreshRecurringMatches, (e) => setStatus(errorMessage(e)));
     }
   }, [activeTab, refreshRecurringMatches, dependentRevision]);
 
   const refreshRecurringTotals = useCallback(async () => {
-    setRecurringTotals(await invoke<RecurringTotals>("recurring_totals"));
+    await publishRead(() => invoke<RecurringTotals>("recurring_totals"), setRecurringTotals);
   }, [invoke]);
 
   const refreshRecurringCandidates = useCallback(async () => {
-    setRecurringCandidates(await invoke<RecurringCandidate[]>("list_recurring_candidates"));
+    await publishRead(() => invoke<RecurringCandidate[]>("list_recurring_candidates"), setRecurringCandidates);
   }, [invoke]);
 
   useEffect(() => {
@@ -1893,7 +1900,7 @@ function App({
   async function handleInboxDelete(id: number) {
     try {
       const deleted = await callTransaction<number[]>("bulk_delete_transactions", { ids: [id] });
-      setUndoToast({ text: `Deleted ${deleted.length} transaction(s).`, ids: deleted });
+      setUndoToast({ text: `Deleted ${deleted.length} transaction${deleted.length === 1 ? "" : "s"}.`, ids: deleted });
     } catch (e) {
       setStatus(errorMessage(e));
       throw e;
@@ -1919,7 +1926,7 @@ function App({
   const accountDetail = accountDetailId === null ? null : (accounts.find((a) => a.id === accountDetailId) ?? null);
   // Set when a Details page was opened from another tab (the Investments summary), so Back returns there.
   const [detailReturnTab, setDetailReturnTab] = useState<Tab | null>(null);
-  // Set when an account row's "Reconcile with a statement…" opened the page: it opens at that card.
+  // Set when an account row's "Reconcile with a statement" opened the page: it opens at that card.
   const [detailFocus, setDetailFocus] = useState<"reconcile" | null>(null);
   useEffect(() => {
     // The account page belongs to the Accounts tab; leaving it closes the page.
@@ -1973,10 +1980,10 @@ function App({
       entries.push({ id: `tab:${item.id}`, kind: "tab", label: item.label });
     }
     entries.push(
-      { id: "action:add", kind: "action", label: "Add transaction…", keywords: "new create expense income" },
-      { id: "action:import", kind: "action", label: "Import transactions…", keywords: "csv ofx qfx qif file bank statement" },
+      { id: "action:add", kind: "action", label: "Add transaction", keywords: "new create expense income" },
+      { id: "action:import", kind: "action", label: "Import transactions", keywords: "csv ofx qfx qif file bank statement" },
       { id: "action:privacy", kind: "action", label: privacyPrefs.hidden ? "Show amounts" : "Hide amounts", keywords: "privacy mask hide blur" },
-      { id: "action:review", kind: "action", label: "Review last month…", keywords: "month end close out check-in" },
+      { id: "action:review", kind: "action", label: "Review last month", keywords: "month end close out check-in" },
       { id: "action:backup", kind: "action", label: "Back up now", keywords: "backup save copy data" },
       { id: "action:shortcuts", kind: "action", label: "Keyboard shortcuts", keywords: "keys help hotkeys" },
     );
@@ -1987,7 +1994,7 @@ function App({
       entries.push({ id: "action:lock", kind: "action", label: "Lock profile", keywords: "password protected security signout" });
     }
     if (inboxCount > 0) {
-      entries.push({ id: "action:inbox", kind: "action", label: `Review inbox (${inboxCount})`, keywords: "triage uncategorized duplicates large" });
+      entries.push({ id: "action:inbox", kind: "action", label: inboxButtonLabel(inboxCount), keywords: "inbox triage uncategorized duplicates large" });
     }
     for (const a of accounts) entries.push({ id: `account:${a.id}`, kind: "account", label: a.name, hint: accountTypeLabel(a.account_type) });
     for (const b of buckets) entries.push({ id: `goal:${b.id}`, kind: "goal", label: b.name, hint: "Goal" });
@@ -2200,11 +2207,26 @@ function App({
     }
   }
 
+  /** Hides or shows an account. Nothing about its money changes; it only moves between the Accounts list and the Hidden accounts section. */
+  async function handleSetAccountHidden(accountId: number, hidden: boolean) {
+    try {
+      await invoke("set_account_hidden", { id: accountId, hidden });
+      await refresh();
+      const name = accounts.find((a) => a.id === accountId)?.name ?? "The account";
+      setStatus(
+        hidden ? `${name} is hidden. It is still counted in your totals. Find it under Hidden accounts.` : `${name} is showing again.`,
+        "success",
+      );
+    } catch (e) {
+      setStatus(errorMessage(e));
+    }
+  }
+
   async function handleDeleteAccount(accountId: number) {
     try {
       const removed = await invoke<number>("delete_account", { id: accountId });
       await refresh();
-      setStatus(`Deleted account and ${removed} transaction(s).`, "success");
+      setStatus(`Deleted account and ${removed} transaction${removed === 1 ? "" : "s"}.`, "success");
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -2303,8 +2325,11 @@ function App({
     color: string | null,
     iconKey: string | null,
     tracksAccount: boolean,
-  ) {
+    newName: string | null,
+  ): Promise<boolean> {
     try {
+      // The rename goes first: a name that is blank or already in use is refused, and then nothing else is saved.
+      if (newName !== null) await invoke("rename_bucket", { id, newName });
       await invoke("update_bucket_details", { id, targetAmount, targetDate, accountId, sinkingAmount, color, iconKey });
       await invoke("set_bucket_tracks_account", { id, tracksAccount: tracksAccount && accountId !== null });
       await refreshBuckets();
@@ -2315,8 +2340,10 @@ function App({
         await checkSinkingFundContributions();
         await refreshBuckets();
       }
+      return true;
     } catch (e) {
       setStatus(errorMessage(e));
+      return false;
     }
   }
 
@@ -2540,16 +2567,6 @@ function App({
     }
   }
 
-  useEffect(() => {
-    // Keep the selection valid as accounts come and go. Prefer whichever
-    // account was last actually used (see LAST_USED_ACCOUNT_STORAGE_KEY);
-    // failing that, an everyday account (see pickDefaultAccountId) — not
-    // just whichever sorts first alphabetically, which was often a loan.
-    if (selectedAccountId === null || !accounts.some((a) => a.id === selectedAccountId)) {
-      setSelectedAccountId(pickDefaultAccountId(accounts, getLastUsedAccountId()));
-    }
-  }, [accounts, selectedAccountId]);
-
   async function handleNewAccount(): Promise<number | null> {
     const result = await askNewAccount();
     if (!result) return null;
@@ -2567,7 +2584,6 @@ function App({
         await invoke("set_account_member", { id, memberId: result.memberId });
       }
       await refresh();
-      setSelectedAccountId(id);
       return id;
     } catch (e) {
       setStatus(errorMessage(e));
@@ -2575,22 +2591,13 @@ function App({
     }
   }
 
-  function handleAccountSelectChange(value: string) {
-    if (value === "__new__") {
-      handleNewAccount();
-      return;
-    }
-    const id = Number(value);
-    setSelectedAccountId(id);
-    setLastUsedAccountId(id);
-  }
-
   async function handleImport() {
-    let accountId = selectedAccountId;
-    if (accountId === null) {
-      accountId = await handleNewAccount();
-      if (accountId === null) return; // user cancelled account creation
-    }
+    // The account is always asked for: it never defaults to whatever the page is showing, so a file
+    // can't be imported into the wrong account by not looking. With no accounts yet, the only choice is a new one.
+    const choice = accounts.length === 0 ? "new" : await askImportAccount();
+    if (choice === null) return; // cancelled: nothing read, nothing saved
+    const accountId = choice === "new" ? await handleNewAccount() : choice;
+    if (accountId === null) return; // user cancelled account creation
 
     const path = await open({
       multiple: false,
@@ -2637,7 +2644,7 @@ function App({
   }
 
   /** A category fix just saved a rule for each of these merchants (one for a
-   * row's dropdown, possibly several for the bulk "Set category to…" bar); if
+   * row's dropdown, possibly several for the bulk "Set category to" bar); if
    * other transactions from them are still sitting in a different category
    * (and weren't categorized by hand), offer to fix those in one click.
    * Purely a convenience — a failure here is never worth surfacing. */
@@ -2721,7 +2728,7 @@ function App({
     if (!path) return;
     try {
       await invoke("write_text_file", { path, content: buildSetupTemplate() });
-      setStatus(`Setup template saved to ${path} — fill it in, then use "Import setup data…".`, "success");
+      setStatus(`Setup template saved to ${path} — fill it in, then use "Import setup data".`, "success");
     } catch (e) {
       setStatus(errorMessage(e));
     }
@@ -2740,9 +2747,7 @@ function App({
         preview.holdings.length;
       if (total === 0) {
         setStatus(
-          preview.row_errors > 0
-            ? `Nothing importable found — ${preview.row_errors} row(s) had errors.`
-            : "Nothing importable found in that file — is it a filled-in setup template?",
+          emptySetupMessage(preview.row_errors),
           preview.row_errors > 0 ? "error" : "info",
         );
         return;
@@ -2793,16 +2798,7 @@ function App({
       });
       setPendingSetupImport(null);
       await Promise.all([refresh(), refreshBuckets(), refreshHoldings()]);
-      const parts = [
-        `${summary.accounts_created} account(s)`,
-        `${summary.categories_created} categor${summary.categories_created === 1 ? "y" : "ies"}`,
-        `${summary.budgets_set} budget line(s)`,
-        `${summary.buckets_created} goal(s)`,
-        `${summary.holdings_created} holding(s)`,
-      ];
-      let message = `Setup import done: ${parts.join(", ")}.`;
-      if (summary.skipped.length > 0) message += ` Skipped: ${summary.skipped.join("; ")}.`;
-      if (summary.row_errors > 0) message += ` ${summary.row_errors} row(s) had errors and were ignored.`;
+      const message = setupImportMessage(summary);
       setStatus(message, summary.row_errors > 0 ? "error" : "success");
     } catch (e) {
       setStatus(errorMessage(e));
@@ -2837,6 +2833,9 @@ function App({
       setStatus(errorMessage(e));
     }
   }
+
+  // Only Windows can write the PDF itself (WebView2); elsewhere Reports keeps its one system print window.
+  const handleSaveReportPdf = /Windows/i.test(navigator.userAgent) ? createReportPdfSaver({ call: (command, args) => invoke(command, args), onStatus: setStatus }) : undefined;
 
   const handleExportTransactionsCsv = createTransactionExporter({ rows: sortedTransactions, isProtected: profiles.some(p => p.is_active && p.is_password_protected), confirmPlaintext: askCsvExportWarning, call: callTransaction, onStatus: setStatus });
 
@@ -3010,6 +3009,7 @@ function App({
                 budgetAlerts={dashboardBudgetAlerts}
                 insights={dashboardInsights}
                 avgMonthlySpend={avgMonthlySpend}
+                enoughHistory={dashboardSnapshot?.enoughHistory ?? true}
                 assetsTotal={sumMoney(assets.map((a) => a.value))}
                 assets={assets}
                 holdings={holdings}
@@ -3071,13 +3071,10 @@ function App({
               <div className="page-actions">
                 {inboxCount > 0 && (
                   <button type="button" className="modal-secondary" onClick={openInbox} data-inbox-open>
-                    Review inbox ({inboxCount})
+                    {inboxButtonLabel(inboxCount)}
                   </button>
                 )}
                 <TransactionsPageActions
-                  accounts={accounts}
-                  selectedAccountId={selectedAccountId}
-                  handleAccountSelectChange={handleAccountSelectChange}
                   busy={busy}
                   importReview={importReview}
                   dataLoaded={dataLoaded}
@@ -3452,7 +3449,7 @@ function App({
                   try {
                     await refresh();
                     await refreshHoldings();
-                    setStatus(`Added ${count} holdings to ${account}.`, "success");
+                    setStatus(`Added ${holdingCount(count)} to ${account}.`, "success");
                   } catch (e) {
                     setStatus(`Holdings were saved. Could not refresh totals: ${errorMessage(e)}`);
                   }
@@ -3551,6 +3548,7 @@ function App({
                 familyMembers={familyMembers}
                 onSetAccountMember={handleSetAccountMember}
                 onSetAccountIcon={handleSetAccountIcon}
+                onSetAccountHidden={handleSetAccountHidden}
                 onAddAccount={handleNewAccount}
                 onOpenAccountDetail={(id, focus) => {
                   setDetailFocus(focus ?? null);
@@ -3576,6 +3574,7 @@ function App({
                 dataRevision={dependentRevision}
                 onExportCsv={handleExportReportsCsv}
                 onPrint={() => window.print()}
+                onSavePdf={handleSaveReportPdf}
                 onOpenBudget={() => setActiveTab("budget")}
                 layoutWidgets={layoutWidgets}
                 onPinWidget={(id) => addWidgetToDashboard(id, true)}
@@ -3669,6 +3668,23 @@ function App({
                   setStatus(errorMessage(e));
                 }
                 dialog.resolve(name);
+                setDialog(null);
+              }}
+            />
+          )}
+          {dialog?.kind === "importAccount" && (
+            <ChooseImportAccountDialog
+              accounts={accounts}
+              onCancel={() => {
+                dialog.resolve(null);
+                setDialog(null);
+              }}
+              onChoose={(id) => {
+                dialog.resolve(id);
+                setDialog(null);
+              }}
+              onNewAccount={() => {
+                dialog.resolve("new");
                 setDialog(null);
               }}
             />
@@ -3843,7 +3859,7 @@ function App({
               accounts={accounts}
               categories={categoryOptions}
               familyMembers={familyMembers}
-              defaultAccountId={selectedAccountId}
+              defaultAccountId={pickDefaultAccountId(accounts, getLastUsedAccountId())}
               budgetActuals={planningSnapshot?.report.budget_actuals ?? []}
               budgetReadReady={planningSnapshot !== null}
               budgetLoading={planningRead.state?.loading ?? true}

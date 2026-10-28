@@ -7,7 +7,7 @@ import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { RulesManager } from "./RulesManager";
 import { StatementLayoutsSection } from "./StatementLayoutsSection";
 import { CHANGELOG, changelogSections } from "./changelog";
-import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, type ProfileIconKey } from "./icons";
+import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, useDismissOnEscape, type ProfileIconKey } from "./icons";
 import { ProfileProtectionSection } from "./ProfileProtectionSection";
 import { ProtectionLeftovers } from "./ProtectionLeftovers";
 import { ProtectionSetupDialog } from "./ProtectionSetupDialog";
@@ -90,23 +90,23 @@ function DataFileBlock({
         {dataFileLocation ?? "Loading…"}
       </p>
       <button type="button" className="modal-secondary" onClick={onRelocateDataFile}>
-        Move data file…
+        Move data file
       </button>
       <button type="button" className="modal-secondary" onClick={onExportDatabase}>
-        Export a copy…
+        Export a copy
       </button>
       <p className="modal-message-secondary">
         Saves a full copy of your data to a file you choose — for a backup on another drive, or to bring to another
         computer. Doesn't change what Vault Spend is using now.
       </p>
       <button type="button" className="modal-secondary" onClick={onUseExistingDataFile}>
-        Use existing file…
+        Use existing file
       </button>
       <p className="modal-message-secondary">
         Point Vault Spend at a data file you already have — moving to a new computer, upgrading from an older version
         that used a different file name, or switching back to a file you exported earlier. Checked for real
         account/transaction data before being adopted; opens as a new profile alongside your current one (same as
-        Settings → Profiles' own "Use existing file…").
+        Settings → Profiles' own "Use existing file").
       </p>
     </div>
   );
@@ -199,7 +199,7 @@ function BackupCopySection({
           </p>
           <div className="backup-copy-actions">
             <button type="button" className="modal-secondary" onClick={onBrowse}>
-              Change folder…
+              Change folder
             </button>
             <button type="button" className="modal-secondary" onClick={() => onSetCopyDir(null)}>
               Stop copying
@@ -221,7 +221,7 @@ function BackupCopySection({
               placeholder="Folder path, e.g. D:\OneDrive\VaultSpend"
             />
             <button type="button" className="modal-secondary" onClick={onBrowse}>
-              Browse…
+              Browse
             </button>
             <button type="submit" disabled={!draft.trim()}>
               Start copying
@@ -276,14 +276,22 @@ export function BackupsBlock({
           </tr>
         </thead>
         <tbody>
-          {backups.map((b) => (
+          {backups.map((b) => confirmingRestoreFilename === b.filename ? (
             <tr key={b.filename}>
-              <td className="date-cell">{formatDisplayDateTime(b.created_at)}</td>
-              <td className="amount-col">{(b.size_bytes / 1024).toFixed(0)} KB</td>
-              <td className="actions-col">
-                {confirmingRestoreFilename === b.filename ? (
-                  <span className="row-delete-confirm">
-                    <button type="button" className="modal-secondary" onClick={() => setConfirmingRestoreFilename(null)}>
+              {/* The confirmation takes the whole row: in the narrow actions cell it wrapped to a few characters a line on small windows. */}
+              <td colSpan={3}>
+                <div className="backup-restore-confirm">
+                  <span className="backup-restore-warning" role="alert">Replace your current data with {b.filename}? Your current data will be backed up first.</span>
+                  <span className="backup-restore-actions">
+                    <button
+                      type="button"
+                      className="modal-secondary"
+                      autoFocus
+                      onClick={() => {
+                        setConfirmingRestoreFilename(null);
+                        requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-restore-for="${b.filename}"]`)?.focus());
+                      }}
+                    >
                       Cancel
                     </button>
                     <button
@@ -297,11 +305,20 @@ export function BackupsBlock({
                       Restore
                     </button>
                   </span>
-                ) : (
-                  <button type="button" className="modal-secondary" onClick={() => setConfirmingRestoreFilename(b.filename)}>
-                    Restore
-                  </button>
-                )}
+                </div>
+              </td>
+            </tr>
+          ) : (
+            <tr key={b.filename}>
+              <td className="date-cell">
+                {formatDisplayDateTime(b.created_at)}
+                <div className="backup-file-label">{b.filename}</div>
+              </td>
+              <td className="amount-col">{(b.size_bytes / 1024).toFixed(0)} KB</td>
+              <td className="actions-col">
+                <button type="button" className="modal-secondary" data-restore-for={b.filename} onClick={() => setConfirmingRestoreFilename(b.filename)}>
+                  Restore
+                </button>
               </td>
             </tr>
           ))}
@@ -726,10 +743,10 @@ function SetupDataBlock({
       </p>
       <div className="page-actions">
         <button type="button" className="modal-secondary" onClick={onDownloadSetupTemplate}>
-          Download setup template…
+          Download setup template
         </button>
         <button type="button" className="modal-secondary" onClick={onImportSetupData}>
-          Import setup data…
+          Import setup data
         </button>
       </div>
     </div>
@@ -827,6 +844,7 @@ function FeatureTogglesSection({
  * on-screen rect sidesteps that clipping entirely without touching
  * `.ledger`'s shared styling (used by every other table in the app). */
 function ProfileIconPopover({ anchorRect, onClose, children }: { anchorRect: DOMRect; onClose: () => void; children: React.ReactNode }) {
+  useDismissOnEscape(onClose);
   return createPortal(
     <>
       <div className="icon-picker-portal-backdrop" onClick={onClose} />
@@ -1020,10 +1038,10 @@ export function ProfilesSection({
           placeholder='New profile, e.g. "Alex"'
         />
         <button type="submit" disabled={!newProfileName.trim()}>
-          New profile…
+          New profile
         </button>
         <button type="button" className="modal-secondary" onClick={onUseExistingDataFile}>
-          Use existing file…
+          Use existing file
         </button>
         <label className="checkbox-label">
           <input
@@ -1037,7 +1055,7 @@ export function ProfilesSection({
       </form>
       <p className="modal-message-secondary">
         Moving to a new computer, or upgrading from an older version that used a different data file name? "Use
-        existing file…" points Vault Spend at a data file you've already got, instead of starting empty. It's
+        existing file" points Vault Spend at a data file you've already got, instead of starting empty. It's
         checked for real account/transaction data before being adopted — a file that isn't actually a Vault Spend
         database is rejected with a clear reason.
       </p>
@@ -1104,7 +1122,7 @@ function ReleaseNotesSection({ currentVersion }: { currentVersion: string | null
  * see icons/nounIcons.ts) used for several account, category, and bucket
  * icons — each one is licensed CC BY 3.0, which requires crediting the
  * work and its creator. */
-function IconCreditsSection() {
+export function IconCreditsSection() {
   return (
     <div className="card">
       <div className="card-head">
@@ -1123,7 +1141,7 @@ function IconCreditsSection() {
       </button>
       <details className="icon-credits-disclosure" style={{ marginTop: 12 }}>
         <summary>Show all {ICON_CREDITS.length} credits</summary>
-        <ul className="category-manage-list" style={{ marginTop: 12 }}>
+        <ul className="category-manage-list" style={{ marginTop: 12 }} tabIndex={0} aria-label="Icon credits">
           {ICON_CREDITS.map((c) => (
             <li key={c.name} className="category-manage-row">
               <span className="category-manage-name">

@@ -1,3 +1,4 @@
+import { pickableAccounts } from "./hiddenAccounts";
 import "./HoldingImportDialog.css";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -8,10 +9,10 @@ import { ModalShell } from "./Modal";
 import { MenuSelect } from "./MenuSelect";
 import { errorMessage } from "./errorMessage";
 import { getCurrentGeneration } from "./profileUiState";
-import { HOLDING_FIELDS, HOLDING_SAMPLE, addHoldingValues, formatHoldingAmount as formatAmount, mappingFromDraft, suggestHoldingMapping, type HoldingPreview, type HoldingSource, type ImportDirectory } from "./holdingImport";
+import { HOLDING_FIELDS, HOLDING_SAMPLE, addHoldingValues, formatHoldingAmount as formatAmount, holdingCount, mappingFromDraft, suggestHoldingMapping, type HoldingPreview, type HoldingSource, type ImportDirectory } from "./holdingImport";
 
 export function HoldingImportDialog({ accounts, onClose, onSaved }: { accounts: Account[]; onClose: () => void; onSaved: (count: number, account: string) => Promise<void> }) {
-  const investmentAccounts = accounts.filter(a => a.account_type === "investment");
+  const investmentAccounts = pickableAccounts(accounts.filter(a => a.account_type === "investment"));
   const [account, setAccount] = useState(investmentAccounts.length === 1 ? String(investmentAccounts[0].id) : "");
   const [step, setStep] = useState<"source" | "mapping" | "review" | "done">("source");
   const [inputMode, setInputMode] = useState("file");
@@ -130,7 +131,7 @@ export function HoldingImportDialog({ accounts, onClose, onSaved }: { accounts: 
       {step === "review" && <button type="button" className="modal-secondary" disabled={busy} onClick={() => { setStep("mapping"); setError(""); }}>Back</button>}
       {step === "source" && <button type="button" disabled={busy || !account || (inputMode === "file" ? !path.trim() : !content.trim())} onClick={() => void load()}>{busy ? "Reading rows…" : "Match columns"}</button>}
       {step === "mapping" && <button type="button" disabled={busy || !mappingValid || !account} onClick={() => void review()}>{busy ? "Checking rows…" : "Review holdings"}</button>}
-      {step === "review" && <button type="button" disabled={busy || selected.size === 0} onClick={() => void save()} data-add-imported-holdings>{busy ? "Adding holdings…" : `Add ${selected.size} holdings`}</button>}
+      {step === "review" && <button type="button" disabled={busy || selected.size === 0} onClick={() => void save()} data-add-imported-holdings>{busy ? "Adding holdings…" : `Add ${holdingCount(selected.size)}`}</button>}
     </div>}>
     <div className="holding-import" data-holding-import>
       {error && <p role="alert" className="field-error holding-import-error">{error}</p>}
@@ -144,7 +145,7 @@ export function HoldingImportDialog({ accounts, onClose, onSaved }: { accounts: 
         {inputMode === "file" ? <div ref={dropArea} className={`holding-import-drop${dropOver ? " is-over" : ""}`}>
           <p className="field-hint">Drop one CSV file here, browse in the app, or enter its full path.</p>
           <label className="modal-field"><span>CSV file path</span><input value={path} disabled={busy} onChange={e => setPath(e.target.value)} placeholder="Full path to your CSV file" /></label>
-          <button type="button" className="modal-secondary" disabled={busy} onClick={() => void openFolder()}>Browse files…</button>
+          <button type="button" className="modal-secondary" disabled={busy} onClick={() => void openFolder()}>Browse files</button>
         </div> : <label className="modal-field"><span>Rows, including column headings</span><textarea value={content} disabled={busy} onChange={e => { setContent(e.target.value); if (e.target.value.split(/\r?\n/)[0]?.includes("\t")) setFormat("tsv"); }} placeholder={HOLDING_SAMPLE} rows={8} spellCheck={false} /></label>}
         {browsing && <div className="holding-import-browser" data-holding-file-browser>
           <div className="holding-import-folder-actions"><button type="button" className="modal-secondary" disabled={busy || !directory?.parent} onClick={() => void openFolder(directory?.parent ?? undefined)}>Up one folder</button><button type="button" className="modal-secondary" disabled={busy} onClick={() => void openFolder()}>Home folder</button><button type="button" className="modal-secondary" disabled={busy} onClick={() => setBrowsing(false)}>Close file browser</button></div>
@@ -173,7 +174,7 @@ export function HoldingImportDialog({ accounts, onClose, onSaved }: { accounts: 
         })}</tbody></table></div>
         {pages > 1 && <div className="holding-import-pages"><button type="button" className="modal-secondary" disabled={busy || page === 0} onClick={() => setPage(p => p - 1)}>Previous rows</button><span>Page {page + 1} of {pages}</span><button type="button" className="modal-secondary" disabled={busy || page === pages - 1} onClick={() => setPage(p => p + 1)}>Next rows</button></div>}
       </>}
-      {step === "done" && <p className="modal-message" role="status">Added {savedCount} holdings to {preview?.account_name}. Your holdings are saved.</p>}
+      {step === "done" && <p className="modal-message" role="status">Added {holdingCount(savedCount)} to {preview?.account_name}. Your holdings are saved.</p>}
     </div>
   </ModalShell>;
 }

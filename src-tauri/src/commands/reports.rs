@@ -567,6 +567,7 @@ pub struct BillAwareForecastDto {
     pub points: Vec<ForecastPointDto>,
     pub events: Vec<ForecastEventDto>,
     pub daily_baseline: String,
+    pub enough_history: bool,
 }
 
 /// The Cash Flow tab's Forecast and the Dashboard's "Safe to spend": cash
@@ -600,6 +601,7 @@ pub fn bill_aware_forecast(days: i64, state: tauri::State<AppStateHandle>) -> Re
             })
             .collect(),
         daily_baseline: forecast.daily_baseline.to_string(),
+        enough_history: forecast.enough_history,
     })
 }
 

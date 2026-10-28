@@ -45,19 +45,19 @@ export function ProfileProtectionSection({
       <AutoLockSettings enabled={active.is_password_protected} />
       {!active.is_password_protected && (
         <button type="button" className="modal-secondary" onClick={() => void openSetup()}>
-          Turn on password protection…
+          Turn on password protection
         </button>
       )}
       {active.is_password_protected && (
         <div className="button-row">
           <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setChangeGeneration)}>
-            Change password…
+            Change password
           </button>
           <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRegenerateGeneration)}>
-            Regenerate recovery key…
+            Regenerate recovery key
           </button>
           <button type="button" className="modal-secondary" onClick={() => void getCurrentGeneration().then(setRemoveGeneration)}>
-            Remove protection…
+            Remove protection
           </button>
         </div>
       )}

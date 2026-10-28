@@ -1047,3 +1047,30 @@ fn a_zero_day_window_reminds_only_about_bills_due_today() {
 
     assert_eq!(reminder_names(&store, "2026-09-18", 0), vec!["Rent"]);
 }
+
+// QA-FUNC-002: short months clamp only that occurrence, never the original schedule.
+#[test]
+fn qa_recurring_calendar_keeps_original_month_and_leap_day_anchors() {
+ for (anchor,cadence,today,expected) in [
+  ("2026-01-31","monthly","2026-10-27","2026-10-31"),
+  ("2026-08-31","monthly","2026-10-27","2026-10-31"),
+  ("2026-01-30","monthly","2026-03-01","2026-03-30"),
+  ("2026-01-29","monthly","2026-03-01","2026-03-29"),
+  ("2024-02-29","annual","2028-02-01","2028-02-29"),
+  ("2024-02-29","annual","2027-02-01","2027-02-28"),
+  ("2026-12-31","monthly","2026-10-27","2026-12-31"),
+  ("2026-01-31","monthly","2026-02-28","2026-02-28"),
+ ] {
+  let store=Store::open_in_memory().unwrap();store.create_recurring("QA anchor",None,"-10.00".parse().unwrap(),cadence,anchor.parse().unwrap(),None).unwrap();
+  assert_eq!(store.list_recurring(today.parse().unwrap()).unwrap()[0].next_date,expected.parse::<NaiveDate>().unwrap(),"{anchor} {cadence} on {today}");
+ }
+}
+#[test]
+fn qa_recurring_calendar_paid_history_uses_the_same_original_anchor() {
+ let store=Store::open_in_memory().unwrap();store.create_recurring("QA month end",None,"-10.00".parse().unwrap(),"monthly","2026-01-31".parse().unwrap(),None).unwrap();
+ let row=store.recurring_matches("2026-10-31".parse().unwrap()).unwrap().remove(0);
+ assert_eq!(row.last_due,Some("2026-10-31".parse().unwrap()));
+ let forecast=store.bill_aware_forecast("2026-10-27".parse().unwrap(),40).unwrap();
+ let dates:Vec<_>=forecast.events.iter().map(|e|e.date.to_string()).collect();
+ assert_eq!(dates,vec!["2026-10-31","2026-11-30"]);
+}

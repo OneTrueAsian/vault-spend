@@ -23,14 +23,14 @@ export function transactionRowActions(
   ctx: TransactionRowActionContext,
 ): { id: TransactionRowActionId; label: string }[] {
   const actions: { id: TransactionRowActionId; label: string }[] = [];
-  if (ctx.splitEnabled) actions.push({ id: "split", label: t.split_count > 0 ? "Edit splits…" : "Split…" });
+  if (ctx.splitEnabled) actions.push({ id: "split", label: t.split_count > 0 ? "Edit splits" : "Split" });
   if (ctx.isLoanAccount) {
-    if (ctx.debtEnabled && !ctx.hasPrincipalOverride) actions.push({ id: "principal", label: "Split principal…" });
+    if (ctx.debtEnabled && !ctx.hasPrincipalOverride) actions.push({ id: "principal", label: "Split principal" });
   } else if (ctx.debtEnabled && ctx.canApplyToDebt && parseFloat(t.amount) < 0 && !ctx.hasAppliedDebt) {
-    actions.push({ id: "applyDebt", label: "Apply to a debt…" });
+    actions.push({ id: "applyDebt", label: "Apply to a debt" });
   }
-  actions.push({ id: "note", label: t.notes ? "Edit note…" : "Add note…" });
-  actions.push({ id: "tag", label: "Add tag…" });
-  actions.push({ id: "delete", label: "Delete…" });
+  actions.push({ id: "note", label: t.notes ? "Edit note" : "Add note" });
+  actions.push({ id: "tag", label: "Add tag" });
+  actions.push({ id: "delete", label: "Delete" });
   return actions;
 }

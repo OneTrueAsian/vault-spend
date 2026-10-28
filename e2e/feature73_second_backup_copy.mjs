@@ -1,6 +1,6 @@
 // E2E test for Phase 2 item 17 (second backup destination):
 //   - Settings -> Backups -> "Second copy": a folder can be chosen (typed
-//     here; "Browse…" opens a native picker no WebDriver can drive);
+//     here; "Browse" opens a native picker no WebDriver can drive);
 //   - "Back up now" then writes the backup to BOTH places;
 //   - the primary backups folder is refused as the second one, and so is a
 //     folder that doesn't exist (a typo mustn't quietly create a new folder

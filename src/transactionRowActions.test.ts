@@ -6,10 +6,10 @@ const base = { splitEnabled: true, debtEnabled: true, isLoanAccount: false, canA
 
 describe("transactionRowActions", () => {
   it("offers split, apply to a debt, note, tag and delete for an ordinary purchase", () => {
-    expect(transactionRowActions(t(), base).map((a) => a.label)).toEqual(["Split…", "Apply to a debt…", "Add note…", "Add tag…", "Delete…"]);
+    expect(transactionRowActions(t(), base).map((a) => a.label)).toEqual(["Split", "Apply to a debt", "Add note", "Add tag", "Delete"]);
   });
   it("says Edit splits / Edit note when they exist", () => {
-    expect(transactionRowActions(t({ split_count: 2, notes: "x" }), base).map((a) => a.label)).toEqual(["Edit splits…", "Apply to a debt…", "Edit note…", "Add tag…", "Delete…"]);
+    expect(transactionRowActions(t({ split_count: 2, notes: "x" }), base).map((a) => a.label)).toEqual(["Edit splits", "Apply to a debt", "Edit note", "Add tag", "Delete"]);
   });
   it("offers principal on a loan account instead of apply to a debt", () => {
     expect(transactionRowActions(t(), { ...base, isLoanAccount: true }).map((a) => a.id)).toEqual(["split", "principal", "note", "tag", "delete"]);

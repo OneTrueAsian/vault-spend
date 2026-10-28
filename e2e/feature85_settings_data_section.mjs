@@ -53,18 +53,18 @@ try {
   const text = await card.getText();
   for (const expected of [
     "Data file location",
-    "Move data file…",
-    "Export a copy…",
-    "Use existing file…",
+    "Move data file",
+    "Export a copy",
+    "Use existing file",
     "Saves a full copy of your data",
     "Vault Spend backs up automatically once a day",
     "Back up now",
     "Second copy",
-    "Browse…",
+    "Browse",
     "Start copying",
     "Setting up from scratch?",
-    "Download setup template…",
-    "Import setup data…",
+    "Download setup template",
+    "Import setup data",
   ]) {
     if (!text.includes(expected)) throw new Error(`the Data card should still contain "${expected}", got:\n${text}`);
   }

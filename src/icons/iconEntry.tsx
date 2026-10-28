@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import { NOUN_ICONS, type NounIconId } from "./nounIcons";
 import { FLAT_ICONS, type FlatIconId } from "./flatIcons";
@@ -92,4 +93,21 @@ export function IconPicker<K extends string>({
       })}
     </div>
   );
+}
+
+/** Closes a floating icon picker when Escape is pressed anywhere, and puts focus back on the control that opened it
+ * (the one focused when the picker appeared), so a keyboard user is never left without a way to dismiss it. */
+export function useDismissOnEscape(onClose: () => void) {
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      close.current();
+      opener?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 }

@@ -1,5 +1,5 @@
-// E2E smoke test for "Use existing file…" in Settings → Profiles — the
-// counterpart to feature16_relocate_data_file.mjs's "Move data file…":
+// E2E smoke test for "Use existing file" in Settings → Profiles — the
+// counterpart to feature16_relocate_data_file.mjs's "Move data file":
 // picking the file itself opens a native OS file picker, which WebDriver
 // can't drive (same limitation feature16 documents). That side — the
 // backend registering the picked path and hot-swapping to it — is covered
@@ -25,7 +25,7 @@ try {
 
   const useExistingBtn = await profilesCard.$("button*=Use existing file");
   await useExistingBtn.waitForExist({ timeout: 10000 });
-  console.log('"Use existing file…" button renders in the Profiles card');
+  console.log('"Use existing file" button renders in the Profiles card');
 
   const cardText = await profilesCard.getText();
   if (!cardText.toLowerCase().includes("moving to a new computer")) {

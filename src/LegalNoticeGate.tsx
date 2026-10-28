@@ -1,6 +1,6 @@
 import "./LegalNotice.css";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { bundledLegalNotice } from "./legalNotice";
+import { bundledLegalNotice, formatLegalNoticeVersion } from "./legalNotice";
 import { acknowledgeLegalNotice, getLegalNoticeAcknowledgement } from "./legalNoticeApi";
 import { LegalNoticeText } from "./LegalNoticeText";
 import { errorMessage } from "./errorMessage";
@@ -66,7 +66,7 @@ export function LegalNoticeGate({ children }: { children: ReactNode }) {
         <h1 ref={headingRef} tabIndex={-1}>
           Legal notice
         </h1>
-        <p className="legal-notice-version">Version {bundledLegalNotice.version}</p>
+        <p className="legal-notice-version">Version {formatLegalNoticeVersion(bundledLegalNotice.version)}</p>
         {previous !== null && (
           <p className="legal-notice-changed" data-legal-notice-changed>
             <strong>What changed:</strong> {bundledLegalNotice.whatChanged}

@@ -131,6 +131,9 @@ pub struct StoredAccount {
     pub excluded_from_debt_payoff: bool,
     pub member_id: Option<i64>,
     pub member_name: Option<String>,
+    /// Hidden from the Accounts list and the pickers that choose where something new goes. Hiding
+    /// changes no balance, total, report or forecast and removes no history; it is a display choice.
+    pub hidden: bool,
     /// The most recent `balance_resets` checkpoint at or before "today"
     /// (see `latest_checkpoint`), if any — a transaction dated on or
     /// before this can't move `current_balance`, since a checkpoint's own
@@ -514,31 +517,24 @@ fn next_occurrence(anchor: NaiveDate, cadence: &str, today: NaiveDate) -> NaiveD
     if anchor >= today {
         return anchor;
     }
+    let mut period = 0;
     let mut next = anchor;
-    match cadence {
-        "weekly" => {
-            while next < today {
-                next += chrono::Duration::days(7);
-            }
-        }
-        "biweekly" => {
-            while next < today {
-                next += chrono::Duration::days(14);
-            }
-        }
-        "annual" => {
-            while next < today {
-                next = add_one_year(next);
-            }
-        }
-        _ => {
-            // "monthly", and the fallback for anything unrecognized
-            while next < today {
-                next = add_one_month(next);
-            }
-        }
+    while next < today {
+        period += 1;
+        next = recurring_occurrence_at(anchor, cadence, period);
     }
     next
+}
+
+/// Compute each occurrence from the original anchor. February clamps this occurrence only;
+/// later months and leap years recover the original day instead of drifting forever.
+fn recurring_occurrence_at(anchor: NaiveDate, cadence: &str, period: u32) -> NaiveDate {
+    match cadence {
+        "weekly" => anchor + chrono::Duration::days(i64::from(period) * 7),
+        "biweekly" => anchor + chrono::Duration::days(i64::from(period) * 14),
+        "annual" => anchor.checked_add_months(chrono::Months::new(period.checked_mul(12).expect("annual period in calendar range"))).expect("annual occurrence in calendar range"),
+        _ => anchor.checked_add_months(chrono::Months::new(period)).expect("monthly occurrence in calendar range"),
+    }
 }
 
 /// The first day of `year`/`month` and the first day of the month after
@@ -571,13 +567,6 @@ fn add_one_month(d: NaiveDate) -> NaiveDate {
         .expect("some valid day exists within 4 days of any day-of-month")
 }
 
-/// Adds one year, clamping Feb 29 -> Feb 28 in a non-leap target year.
-fn add_one_year(d: NaiveDate) -> NaiveDate {
-    let y = d.year() + 1;
-    NaiveDate::from_ymd_opt(y, d.month(), d.day())
-        .or_else(|| NaiveDate::from_ymd_opt(y, d.month(), d.day() - 1))
-        .expect("Feb 29 -> Feb 28 fallback must exist")
-}
 
 #[cfg(test)]
 mod read_model_tests;

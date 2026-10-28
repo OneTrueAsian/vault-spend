@@ -77,7 +77,7 @@ cur.execute(
 }
 
 /**
- * Drives the real Settings > "Turn on password protection…" wizard to completion for the CURRENTLY
+ * Drives the real Settings > "Turn on password protection" wizard to completion for the CURRENTLY
  * ACTIVE, unprotected profile (Settings must already be the visible tab): fills the password step,
  * reads the shown recovery code and the two challenged group numbers straight off the page (never
  * hard-coded — the backend picks them at random), answers the challenge, and clicks Finish. Returns
@@ -86,7 +86,7 @@ cur.execute(
  * `action` (feature103, which needs the operation merely STARTED, not finished) need.
  */
 export async function enableProtectionThroughUI(browser, password) {
-  const turnOnBtn = await browser.$("button=Turn on password protection…");
+  const turnOnBtn = await browser.$("button=Turn on password protection");
   await turnOnBtn.waitForExist({ timeout: 10000 });
   await dismissStatusMessages(browser); // the profile's opening message can cover the button
   await turnOnBtn.click();

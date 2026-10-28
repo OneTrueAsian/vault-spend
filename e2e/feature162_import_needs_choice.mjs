@@ -23,6 +23,7 @@ import os from "node:os";
 import path from "node:path";
 import { chooseMenuOption, launchApp, menuOptionLabels, menuSelectValue, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { startImportInto } from "./lib/importAccount.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
 
@@ -82,7 +83,7 @@ const reviewCheckbox = (description) => browser.$(`//table[contains(@class,'dup-
 
 async function startImport() {
   trace("start import");
-  await (await browser.$("button=Import transactions…")).click();
+  await startImportInto(browser, "Checking");
   const keep = await browser.$("button=Keep as-is");
   await keep.waitForDisplayed({ timeout: 10000, timeoutMsg: "the import should ask about signs first" });
   trace("sign question shown");

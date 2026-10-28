@@ -33,6 +33,8 @@ export function ProfileSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
+        // The name and caret are hidden in the narrow sidebar rail, so the icon alone would leave the button unnamed.
+        aria-label={current ? `${current.name}, choose profile` : "Choose profile"}
       >
         <ProfileIcon iconKey={current?.icon_key} className="profile-switcher-icon" />
         <span className="profile-switcher-name">{current?.name ?? "Profile"}</span>
@@ -65,7 +67,7 @@ export function ProfileSwitcher({
               onManageProfiles();
             }}
           >
-            Manage profiles…
+            Manage profiles
           </button>
           {onLock && (
             <button

@@ -4,7 +4,7 @@
 //      of the person, named for the rows and the account, with Import pinned in view. A click
 //      outside keeps it open (and the person's choices); Escape cancels it; importing closes it and
 //      says "Imported 2 transactions".
-//   2. Settings → Import setup data…: the review opens over Settings. It used to render only on the
+//   2. Settings → Import setup data: the review opens over Settings. It used to render only on the
 //      Reports tab, so from Settings the button seemed to do nothing.
 //
 // The native file picker is answered by stubFilePicker (harness.mjs), which wraps window.fetch, as feature162 does.
@@ -17,6 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { launchApp, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { startImportInto } from "./lib/importAccount.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
 
@@ -76,7 +77,7 @@ try {
     const main = document.querySelector(".main");
     main.scrollTop = main.scrollHeight;
   });
-  await (await browser.$("button=Import transactions…")).click();
+  await startImportInto(browser, "Checking");
   const keep = await browser.$("button=Keep as-is");
   await keep.waitForDisplayed({ timeout: 10000, timeoutMsg: "the import should ask about signs first" });
   await keep.click();
@@ -109,7 +110,7 @@ try {
 
   // Importing for real closes the review and says how many, in plain words.
   await browser.execute((file) => window.__pickedFiles.unshift(file), bank);
-  await (await browser.$("button=Import transactions…")).click();
+  await startImportInto(browser, "Checking");
   await (await browser.$("button=Keep as-is")).waitForDisplayed({ timeout: 10000 });
   await (await browser.$("button=Keep as-is")).click();
   await (await browser.$("button[data-import-confirm]")).waitForDisplayed({ timeout: 10000 });

@@ -30,7 +30,7 @@ try {
   await (await b.$("button*=Import holdings")).click();
   await b.execute(fs.readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8"));
   await axe(); await geometry();
-  await click("Browse files…"); await b.$("[data-holding-file-browser]").waitForExist({ timeout: 5000 });
+  await click("Browse files"); await b.$("[data-holding-file-browser]").waitForExist({ timeout: 5000 });
   await axe(); await b.saveScreenshot(path.join(output, "file-browser.png"));
   await click("Close file browser"); await click("Paste rows");
   await b.$("[data-holding-import] textarea").setValue("Symbol,Name,Shares,Price,Cost Basis,Asset Class\nVTI,Total market fund,10.5,250.00,2400.00,Stocks\nBND,Bond fund,20,75.00,1400.00,Bonds\nBAD,Missing cost,2,100,,Stocks\n");

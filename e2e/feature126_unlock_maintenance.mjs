@@ -141,7 +141,7 @@ try {
   assert.ok(!(await probe()).calls.includes("refresh_live_prices"), "no live-price refresh may be sent while locked");
 
   await unlockThroughTheApp();
-  await browser.waitUntil(async () => (await probe()).notes.some((n) => n.includes("automatic contribution for 1 bucket(s): Roof")), {
+  await browser.waitUntil(async () => (await probe()).notes.some((n) => n.includes("automatic contribution for 1 bucket: Roof")), {
     timeout: 10000,
     timeoutMsg: `expected the one-time contribution note after unlocking, saw ${JSON.stringify(await probe())}`,
   });

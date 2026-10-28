@@ -79,7 +79,7 @@ export function TransactionSavedFilters({
         </form>
       ) : (
         <button type="button" className="modal-secondary btn-sm" onClick={() => setSavingFilter(true)}>
-          + Save current filter…
+          + Save current filter
         </button>
       )}
       {transferCandidatePairs.length > 0 && (

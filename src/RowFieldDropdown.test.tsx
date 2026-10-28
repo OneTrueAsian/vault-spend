@@ -7,7 +7,7 @@
 // a long account/category name (the actual reproduced defect) needs a real
 // custom trigger, not a wider native select. Shares usePopover's proven
 // menu/keyboard pattern with CategoryFilterDropdown and
-// AccountDestinationDropdown; this one wraps its trigger's text across
+// MenuSelect; this one wraps its trigger's text across
 // lines instead of truncating, since it lives inline in a table cell
 // rather than a fixed-width toolbar slot.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

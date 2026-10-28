@@ -117,16 +117,16 @@ fn cash_flow_forecast_projects_the_trailing_average_daily_net_forward() {
     let store = Store::open_in_memory().unwrap();
     let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
     store.set_account_starting_balance(checking, "0.00".parse().unwrap()).unwrap();
-    // Earliest activity is 10 days before "today" (clamps the window to
-    // 10 days, not the full 90) — balance there is $1000. Two more
-    // transactions bring it to $1800 by today: a net gain of $800 over
-    // 10 days = $80/day.
+    // Earliest activity is 14 days before "today" (the shortest history that
+    // is extrapolated; clamps the window to 14 days, not the full 90) —
+    // balance there is $1000. Two more transactions bring it to $1700 by
+    // today: a net gain of $700 over 14 days = $50/day.
     store
         .save_transactions(
             checking,
             &[
-                tx("2026-08-10", "Opening balance", "1000.00"),
-                tx("2026-08-15", "Paycheck", "500.00"),
+                tx("2026-08-06", "Opening balance", "1000.00"),
+                tx("2026-08-15", "Paycheck", "400.00"),
                 tx("2026-08-20", "Side income", "300.00"),
             ],
         )
@@ -134,32 +134,32 @@ fn cash_flow_forecast_projects_the_trailing_average_daily_net_forward() {
 
     let points = store.cash_flow_forecast("2026-08-20".parse().unwrap(), 10).unwrap();
 
-    assert_eq!(points[0].balance, "1800.00".parse().unwrap());
-    assert_eq!(points[1].balance, "1880.00".parse().unwrap());
-    assert_eq!(points[10].balance, "2600.00".parse().unwrap());
+    assert_eq!(points[0].balance, "1700.00".parse().unwrap());
+    assert_eq!(points[1].balance, "1750.00".parse().unwrap());
+    assert_eq!(points[10].balance, "2200.00".parse().unwrap());
 }
 
 #[test]
 fn cash_flow_forecast_clamps_the_window_to_available_history_not_a_blind_90_days() {
-    // If the $80/day-net test above instead divided by a blind 90 days
-    // (rather than the 10 days of history that actually exist), the
-    // slope would come out roughly 9x too shallow — this pins the
-    // clamping behavior specifically.
+    // If the $50/day-net test above instead divided by a blind 90 days
+    // (rather than the 14 days of history that actually exist), the
+    // slope would come out roughly 6x too shallow — this pins the
+    // clamping behavior specifically, here with 20 days of history.
     let store = Store::open_in_memory().unwrap();
     let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
     store.set_account_starting_balance(checking, "0.00".parse().unwrap()).unwrap();
     store
         .save_transactions(
             checking,
-            &[tx("2026-08-19", "Opening balance", "100.00"), tx("2026-08-20", "Deposit", "50.00")],
+            &[tx("2026-07-31", "Opening balance", "100.00"), tx("2026-08-20", "Deposit", "50.00")],
         )
         .unwrap();
 
     let points = store.cash_flow_forecast("2026-08-20".parse().unwrap(), 1).unwrap();
 
-    // 1 day of history, $50 net over that day -> $50/day slope.
+    // 20 days of history, $50 net over that window -> $2.50/day slope.
     assert_eq!(points[0].balance, "150.00".parse().unwrap());
-    assert_eq!(points[1].balance, "200.00".parse().unwrap());
+    assert_eq!(points[1].balance, "152.50".parse().unwrap());
 }
 
 #[test]
@@ -220,13 +220,13 @@ fn average_monthly_spend_divides_trailing_window_spend_by_months_in_that_window(
 fn average_monthly_spend_clamps_the_window_to_available_history_not_a_blind_90_days() {
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);
-    // Only 10 days of history — the window must clamp to that, not
+    // Only 20 days of history — the window must clamp to that, not
     // divide by a full 90/30 = 3 months' worth.
-    store.save_transactions(account, &[tx("2026-08-10", "Rent", "-300.00")]).unwrap();
+    store.save_transactions(account, &[tx("2026-07-31", "Rent", "-600.00")]).unwrap();
 
     let avg = store.average_monthly_spend("2026-08-20".parse().unwrap()).unwrap();
 
-    // 300 spent over a 10-day window == 1/3 month -> 900/month average.
+    // 600 spent over a 20-day window == 2/3 month -> 900/month average.
     assert_eq!(avg, "900.00".parse().unwrap());
 }
 
@@ -329,4 +329,125 @@ fn the_forecast_still_counts_a_bill_due_today_that_has_not_posted() {
     let forecast = store.bill_aware_forecast(day("2026-09-03"), 10).unwrap();
 
     assert!(forecast.events.iter().any(|e| e.label == "Netflix" && e.date == day("2026-09-03")));
+}
+
+// QA-FUNC-003 (owner-approved 27 Oct 2026): everyday spending is only extrapolated from at least 14 days
+// of history. With less, the everyday baseline is 0 and the page says so.
+const TODAY: &str = "2026-08-20";
+
+#[test]
+fn the_reported_one_day_case_no_longer_projects_a_huge_overdraft() {
+    // Cash 1,000; one 45.00 purchase today; a 35.00 bill due 15 Nov; 90 days ahead.
+    let store = Store::open_in_memory().unwrap();
+    let account = checking_with_balance(&store, "1000.00");
+    store.save_transactions(account, &[tx(TODAY, "Only Purchase", "-45.00")]).unwrap();
+    store
+        .create_recurring("Phone Bill", None, "-35.00".parse().unwrap(), "monthly", day("2026-11-15"), Some(account))
+        .unwrap();
+
+    let forecast = store.bill_aware_forecast(day(TODAY), 90).unwrap();
+
+    assert!(forecast.uses_recurring);
+    assert!(!forecast.enough_history);
+    assert_eq!(forecast.daily_baseline, Decimal::ZERO);
+    assert_eq!(forecast.start_balance, "955.00".parse().unwrap());
+    let lowest = forecast.points.iter().map(|p| p.balance).min().unwrap();
+    assert_eq!(lowest, "920.00".parse().unwrap(), "955.00 less the 35.00 bill, nothing else");
+}
+
+#[test]
+fn thirteen_days_of_history_leave_the_everyday_baseline_out_and_fourteen_include_it() {
+    for (earliest, expected_baseline, enough) in [("2026-08-07", "0", false), ("2026-08-06", "-20", true)] {
+        let store = Store::open_in_memory().unwrap();
+        let account = checking_with_balance(&store, "5000.00");
+        store.save_transactions(account, &[tx(earliest, "Grocery Run", "-280.00")]).unwrap();
+        store
+            .create_recurring("Netflix", None, "-15.00".parse().unwrap(), "monthly", day("2026-12-01"), Some(account))
+            .unwrap();
+
+        let forecast = store.bill_aware_forecast(day(TODAY), 10).unwrap();
+
+        assert_eq!(forecast.enough_history, enough, "history from {earliest}");
+        assert_eq!(forecast.daily_baseline, expected_baseline.parse::<Decimal>().unwrap(), "history from {earliest}");
+    }
+}
+
+#[test]
+fn history_is_counted_from_the_earliest_transaction_on_any_account() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = checking_with_balance(&store, "5000.00");
+    let other = store.get_or_create_account("Old Savings", AccountType::Savings).unwrap();
+    store.save_transactions(other, &[tx("2026-07-01", "Interest", "1.00")]).unwrap();
+    store.save_transactions(checking, &[tx("2026-08-18", "Cafe", "-10.00")]).unwrap();
+    store
+        .create_recurring("Netflix", None, "-15.00".parse().unwrap(), "monthly", day("2026-12-01"), Some(checking))
+        .unwrap();
+
+    let forecast = store.bill_aware_forecast(day(TODAY), 10).unwrap();
+
+    assert!(forecast.enough_history, "50 days since the first transaction anywhere");
+}
+
+#[test]
+fn no_transactions_at_all_is_not_enough_history() {
+    let store = Store::open_in_memory().unwrap();
+    checking_with_balance(&store, "1000.00");
+
+    let forecast = store.bill_aware_forecast(day(TODAY), 10).unwrap();
+
+    assert!(!forecast.enough_history);
+    assert_eq!(forecast.daily_baseline, Decimal::ZERO);
+}
+
+#[test]
+fn a_transaction_dated_in_the_future_does_not_count_as_history() {
+    let store = Store::open_in_memory().unwrap();
+    let account = checking_with_balance(&store, "1000.00");
+    store.save_transactions(account, &[tx("2026-09-30", "Dated ahead", "-500.00")]).unwrap();
+
+    let forecast = store.bill_aware_forecast(day(TODAY), 10).unwrap();
+
+    assert!(!forecast.enough_history);
+}
+
+#[test]
+fn the_trend_forecast_stays_flat_below_fourteen_days_and_slopes_from_fourteen() {
+    for (earliest, slope) in [("2026-08-07", "0"), ("2026-08-06", "-20")] {
+        let store = Store::open_in_memory().unwrap();
+        let account = checking_with_balance(&store, "5000.00");
+        // Balance moves only after the window's first day, so an opening row sets the start.
+        store
+            .save_transactions(account, &[tx(earliest, "Opening", "100.00"), tx("2026-08-19", "Grocery Run", "-280.00")])
+            .unwrap();
+
+        let points = store.cash_flow_forecast(day(TODAY), 2).unwrap();
+
+        let step = points[1].balance - points[0].balance;
+        assert_eq!(step, slope.parse::<Decimal>().unwrap(), "history from {earliest}");
+    }
+}
+
+#[test]
+fn the_runway_spending_average_needs_fourteen_days_too() {
+    for (earliest, expected) in [("2026-08-07", "0"), ("2026-08-06", "600")] {
+        let store = Store::open_in_memory().unwrap();
+        let account = test_account(&store);
+        store.save_transactions(account, &[tx(earliest, "Rent", "-280.00")]).unwrap();
+
+        let avg = store.average_monthly_spend(day(TODAY)).unwrap();
+
+        assert_eq!(avg, expected.parse::<Decimal>().unwrap(), "history from {earliest}");
+    }
+}
+
+#[test]
+fn the_ninety_day_cap_and_thirty_day_history_behave_as_before() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    store
+        .save_transactions(account, &[tx("2026-01-01", "Old", "-9000.00"), tx("2026-07-21", "Rent", "-900.00")])
+        .unwrap();
+
+    // The 90-day window starts 2026-05-22, so the January row is outside it: 900 over 90 days = 300 a month.
+    assert_eq!(store.average_monthly_spend(day(TODAY)).unwrap(), "300.00".parse::<Decimal>().unwrap());
 }

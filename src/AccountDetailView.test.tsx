@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// Account details opened from an account row's "Reconcile with a statement…" (UAT s7.1) start at the
+// Account details opened from an account row's "Reconcile with a statement" (UAT s7.1) start at the
 // reconcile card, ready to type the statement's ending balance.
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -18,7 +18,7 @@ vi.mock("./nativeDialog", () => ({ open: vi.fn(() => Promise.resolve("C:/stateme
 vi.mock("./profileUiState", () => ({ getCurrentGeneration: () => Promise.resolve(7) }));
 vi.mock("./AccumulationSection", () => ({ AccountAccumulationSection: () => null }));
 
-const account: Account = { id: 7, name: "Everyday Checking", account_type: "checking", starting_balance: "100", current_balance: "123.45", institution: null, mask: null, interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null };
+const account: Account = { id: 7, name: "Everyday Checking", account_type: "checking", starting_balance: "100", current_balance: "123.45", institution: null, mask: null, interest_rate: null, excluded_from_debt_payoff: false, member_id: null, member_name: null, checkpoint_date: null, icon_key: null, import_flip_signs: null, hidden: false };
 
 let host: HTMLDivElement;
 let root: Root;
@@ -244,11 +244,12 @@ describe("AccountDetailView statement upload", () => {
     await act(async () => setInput("[data-statement-period-start]", "2026-08-01"));
     vi.mocked(invoke).mockImplementation(async (command: string) =>
       command === "read_statement"
-        ? { token: "tok", sections: [{ index: 0, name: "Savings", row_count: 0, holding_count: 0 }, { index: 1, name: "Checking", row_count: 5, holding_count: 0 }], review: null }
+        ? { token: "tok", sections: [{ index: 0, name: "Savings", row_count: 0, holding_count: 0 }, { index: 1, name: "Checking", row_count: 5, holding_count: 0 }, { index: 2, name: "Brokerage", row_count: 1, holding_count: 1 }], review: null }
         : [],
     );
     await act(async () => host.querySelector<HTMLButtonElement>("[data-upload-statement]")!.click());
     expect(document.body.querySelector("[data-statement-section='1']")?.textContent).toContain("Checking (5 transactions)");
+    expect(document.body.querySelector("[data-statement-section='2']")?.textContent).toContain("Brokerage (1 transaction, 1 holding)");
   });
 
   it("shows why reading failed under the buttons and stays on the page", async () => {

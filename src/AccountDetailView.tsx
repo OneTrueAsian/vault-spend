@@ -12,6 +12,7 @@ import { StatementTeachDialog } from "./StatementTeachDialog";
 import { useStatementReconcile } from "./useStatementReconcile";
 import { DateField } from "./DateField";
 import { errorMessage } from "./errorMessage";
+import { holdingCount } from "./holdingImport";
 // Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
 const AccountAccumulationSection = lazy(() => import("./AccumulationSection").then((m) => ({ default: m.AccountAccumulationSection })));
 
@@ -52,7 +53,7 @@ export function AccountDetailView({
   /** Called after a statement was finished: it can add transactions and change holdings, so the rest of the
    * app reloads its shared data. */
   onDataChanged?: () => Promise<void>;
-  /** "reconcile": opened from an account row's "Reconcile with a statement…", so the page starts at
+  /** "reconcile": opened from an account row's "Reconcile with a statement", so the page starts at
    * the reconcile card with its first field ready to type in. */
   focus?: "reconcile" | null;
 }) {
@@ -252,7 +253,7 @@ export function AccountDetailView({
           <span className="reports-section-title">Balance over the last year</span>
         </div>
         {balances.length >= 2 ? (
-          <LineChart points={history.map((p) => ({ label: shortMonthDay(p.date), value: parseFloat(p.balance) }))} height={160} maxLabels={6} />
+          <LineChart points={history.map((p) => ({ label: shortMonthDay(p.date), value: parseFloat(p.balance) }))} height={160} maxLabels={6} caption="Account balance over time" />
         ) : (
           <p className="modal-message-secondary">Not enough history to draw a chart yet.</p>
         )}
@@ -434,7 +435,7 @@ export function AccountDetailView({
               onClick={() => void statement.chooseSection(section.index)}
               data-statement-section={section.index}
             >
-              {section.name} ({section.row_count} transactions{section.holding_count ? `, ${section.holding_count} holdings` : ""})
+              {section.name} ({section.row_count} transaction{section.row_count === 1 ? "" : "s"}{section.holding_count ? `, ${holdingCount(section.holding_count)}` : ""})
             </button>
           ))}
         </ModalShell>

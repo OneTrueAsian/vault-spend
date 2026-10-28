@@ -81,8 +81,8 @@ export function StatDetailPanel({
               key={row.name}
               style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: "13px" }}
             >
-              <span>{row.name}</span>
-              <span className={(row.flag ?? row.amount < 0) ? "amount-col report-over-budget" : "amount-col"}>
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{row.name}</span>
+              <span className={(row.flag ?? row.amount < 0) ? "amount-col report-over-budget" : "amount-col"} style={{ flexShrink: 0, marginLeft: "12px" }}>
                 {formatAmount(row.amount)}
               </span>
             </div>

@@ -92,7 +92,7 @@ function GoalProjectionCalculator({
         </div>
       </div>
 
-      <LineChart points={points.map((p) => ({ label: `Yr ${p.year}`, value: p.balance }))} height={180} maxLabels={11} />
+      <LineChart points={points.map((p) => ({ label: `Yr ${p.year}`, value: p.balance }))} height={180} maxLabels={11} caption="Projected balance by year" />
 
       {saving ? (
         <form
@@ -126,7 +126,7 @@ function GoalProjectionCalculator({
         </form>
       ) : (
         <button type="button" className="modal-secondary" onClick={() => setSaving(true)} data-projection-save-as-goal>
-          Save as goal…
+          Save as goal
         </button>
       )}
     </div>
@@ -360,7 +360,7 @@ function NewHoldingForm({
   }
 
   if (!open) {
-    return <button onClick={() => setOpen(true)}>Add holding…</button>;
+    return <button onClick={() => setOpen(true)}>Add holding</button>;
   }
 
   return (
@@ -648,7 +648,7 @@ export function InvestmentsView({
           <span className="reports-section-title">Portfolio value over time</span>
         </div>
         {portfolioHistory.length >= 2 ? (
-          <LineChart points={portfolioHistory.map((p) => ({ label: shortMonthDay(p.date), value: parseFloat(p.value) }))} height={160} maxLabels={6} />
+          <LineChart points={portfolioHistory.map((p) => ({ label: shortMonthDay(p.date), value: parseFloat(p.value) }))} height={160} maxLabels={6} caption="Portfolio value over time" />
         ) : (
           <p className="modal-message-secondary">
             Vault Spend records your portfolio's value each day you open it or refresh prices, so this chart fills in as time passes
@@ -768,7 +768,7 @@ export function InvestmentsView({
       ))}
       {holdings.length === 0 && <p className="empty-state">No holdings yet.</p>}
 
-      <button type="button" className="modal-secondary" onClick={() => setImportOpen(true)}>Import holdings…</button>
+      <button type="button" className="modal-secondary" onClick={() => setImportOpen(true)}>Import holdings</button>
       {importOpen && <HoldingImportDialog accounts={accounts} onClose={() => setImportOpen(false)} onSaved={onImportSaved} />}
       <NewHoldingForm
         accounts={accounts}

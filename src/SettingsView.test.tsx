@@ -11,7 +11,7 @@ vi.mock("./ProtectionSetupDialog", () => ({
   ),
 }));
 
-import { AppearanceSection, BackupsBlock, ProfilesSection } from "./SettingsView";
+import { AppearanceSection, BackupsBlock, IconCreditsSection, ProfilesSection } from "./SettingsView";
 import { DEFAULT_APPEARANCE_PREFS, type AppearancePrefs } from "./themeBootstrap";
 import type { Theme } from "./appTypes";
 
@@ -82,6 +82,18 @@ describe("Settings ProfilesSection", () => {
     const rows = [...container.querySelectorAll("tbody tr")];
     expect(rows[0].querySelector('[aria-label="Password protected"]')).toBeNull();
     expect(rows[1].querySelector('[aria-label="Password protected"]')).not.toBeNull();
+  });
+
+  // The icon picker floats over the page; a keyboard user must be able to dismiss it without choosing an icon, and land back on the swatch that opened it.
+  it("closes the profile icon picker with Escape, keeping the icon and returning focus to its swatch", () => {
+    show([{ id: "a", name: "Alex", is_active: true, icon_key: null, is_password_protected: false }]);
+    const swatch = container.querySelector<HTMLButtonElement>("tbody tr .icon-picker-swatch")!;
+    swatch.focus();
+    act(() => swatch.click());
+    expect(document.body.querySelector(".icon-picker")).not.toBeNull();
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    expect(document.body.querySelector(".icon-picker")).toBeNull();
+    expect(document.activeElement).toBe(swatch);
   });
 });
 
@@ -367,3 +379,55 @@ describe("Settings AppearanceSection", () => {
   });
 });
 
+
+describe("QA restore confirmation identifies the selected copy",()=>{
+ let host:HTMLDivElement,root:Root;
+ beforeEach(()=>{host=document.createElement("div");document.body.append(host);root=createRoot(host);});
+ afterEach(()=>{act(()=>root.unmount());host.remove();});
+ const backups=[{filename:"vaultspend-20261001-101501.db",created_at:"2026-10-01 10:15:01",size_bytes:1024},{filename:"vaultspend-20261001-101559.db",created_at:"2026-10-01 10:15:59",size_bytes:2048}];
+ function show(protectedProfile=false){const restore=vi.fn();act(()=>root.render(<BackupsBlock backups={backups} onCreateBackupNow={vi.fn()} onRestoreBackup={restore} isProtected={protectedProfile} copyDir={null} onSetCopyDir={vi.fn()} onBrowseCopyDir={vi.fn()}/>));return restore;}
+ it("distinguishes same-minute backups and explains replacement before confirmation",()=>{
+  const restore=show();expect(host.textContent).toContain(backups[0].filename);expect(host.textContent).toContain(backups[1].filename);
+  const rows=host.querySelectorAll("tbody tr");act(()=>rows[1].querySelector<HTMLButtonElement>("button")!.click());
+  expect(rows[1].textContent).toContain("Replace your current data");expect(rows[1].textContent).toContain("backed up first");expect(rows[1].textContent).toContain(backups[1].filename);expect(restore).not.toHaveBeenCalled();
+  act(()=>[...rows[1].querySelectorAll("button")].find(b=>b.textContent==="Cancel")!.click());expect(restore).not.toHaveBeenCalled();
+ });
+ // Continuation 12 (T04): the confirm sat in the narrow actions cell, so at 720 px it wrapped to 1-5 characters a line and made a very tall row. It now takes the whole row.
+ it("gives the restore confirmation the whole row, not the narrow actions cell",()=>{
+  show();const row=host.querySelectorAll("tbody tr")[1];act(()=>row.querySelector<HTMLButtonElement>("button")!.click());
+  const cells=[...row.querySelectorAll("td")];
+  expect(cells.length).toBe(1);expect(cells[0].getAttribute("colspan")).toBe("3");
+  expect(cells[0].querySelector(".backup-restore-warning")!.textContent).toContain("Replace your current data");
+  expect([...cells[0].querySelectorAll("button")].map(b=>b.textContent)).toEqual(["Cancel","Restore"]);
+  expect(document.activeElement).toBe(cells[0].querySelector("button"));
+  act(()=>[...cells[0].querySelectorAll("button")].find(b=>b.textContent==="Cancel")!.click());
+  expect(host.querySelectorAll("tbody tr")[1].querySelectorAll("td").length).toBe(3);
+
+ });
+ it("confirmation restores the chosen plain copy only",()=>{
+  const restore=show();const row=host.querySelectorAll("tbody tr")[1];act(()=>row.querySelector<HTMLButtonElement>("button")!.click());act(()=>[...row.querySelectorAll("button")].find(b=>b.textContent==="Restore")!.click());expect(restore).toHaveBeenCalledExactlyOnceWith(backups[1].filename);
+ });
+ it("cancelling the protected backup password prompt never restores the selected copy",()=>{
+  const restore=show(true),row=host.querySelectorAll("tbody tr")[1];
+  act(()=>row.querySelector<HTMLButtonElement>("button")!.click());
+  act(()=>[...row.querySelectorAll("button")].find(b=>b.textContent==="Restore")!.click());
+  expect(document.body.querySelector('input[type="password"]')).not.toBeNull();
+  expect(restore).not.toHaveBeenCalled();
+  act(()=>document.body.querySelector<HTMLButtonElement>('[data-password-form-cancel]')!.click());
+  expect(document.body.querySelector('input[type="password"]')).toBeNull();
+  expect(restore).not.toHaveBeenCalled();
+ });
+});
+
+// Continuation 12 matrix (C03): the opened icon-credits list scrolls (max-height 60vh) but holds nothing focusable, so a keyboard user could not scroll it.
+describe("Settings icon credits list", () => {
+  it("is a keyboard-focusable, named scroll region", () => {
+    const container = document.createElement("div"); document.body.append(container);
+    const root = createRoot(container);
+    act(() => root.render(<IconCreditsSection />));
+    const list = container.querySelector<HTMLElement>(".icon-credits-disclosure ul")!;
+    expect(list.getAttribute("tabindex")).toBe("0");
+    expect(list.getAttribute("aria-label")).toBeTruthy();
+    act(() => root.unmount()); container.remove();
+  });
+});

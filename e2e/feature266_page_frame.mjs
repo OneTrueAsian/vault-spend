@@ -4,7 +4,7 @@
 //
 // - No `.topbar` element exists.
 // - `.sidebar-foot` shows Hide amounts and the Light / Dark / System group, and they work.
-// - On Transactions, the title row's actions hold "Import transactions…" and "Add transaction…".
+// - On Transactions, the title row's actions hold "Import transactions" and "Add transaction".
 // - On a scrolled Dashboard nothing tall is pinned over the top of the page (the old cover-up).
 // - In all three styles, at the default window size, 1280x800 and 1440x1000, Hide amounts and
 //   Light / Dark / System are fully inside the window without scrolling the sidebar (the foot stays
@@ -108,14 +108,14 @@ try {
     () =>
       browser.execute(() => {
         const labels = [...document.querySelectorAll(".page-top .page-actions button")].map((b) => b.textContent.trim());
-        return labels.includes("Import transactions…") && labels.includes("Add transaction…");
+        return labels.includes("Import transactions") && labels.includes("Add transaction");
       }),
     {
-      timeoutMsg: "Transactions' title row should hold Import transactions… and Add transaction…",
+      timeoutMsg: "Transactions' title row should hold Import transactions and Add transaction",
       extra: () => browser.execute(() => [...document.querySelectorAll(".page-top button")].map((b) => b.textContent.trim())),
     },
   );
-  console.log("Transactions: Import transactions… and Add transaction… beside the title — OK");
+  console.log("Transactions: Import transactions and Add transaction beside the title — OK");
 
   // Page width: the title row's actions wrap rather than push the page sideways.
   for (const [width, height] of [

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { seedFixture } from "./seed.mjs";
 import { invoke } from "./change-password.mjs";
+import { withAskReady } from "./askReady.mjs";
 
 export const YEAR = new Date().getFullYear() + 30;
 export const QUESTION = (name = "M5 IRA") => `How much would an extra $50 a month into ${name} until January ${YEAR} add?`;
@@ -64,6 +65,7 @@ export function askHelpers(b) {
     await (await b.$(".ledger-qa-card input")).waitForExist({ timeout: 10000 });
   };
   async function ask(question) {
+    await withAskReady(b, async () => {});
     const input = await b.$(".ledger-qa-card input");
     await input.click();
     await b.execute(el => { el.select(); }, input);
@@ -76,7 +78,10 @@ export function askHelpers(b) {
       assert.ok(attempt < 3, `the question could not be typed intact: "${await input.getValue()}"`);
       await b.execute(el => { el.select(); }, input); await input.setValue(question);
     }
-    await (await (await b.$(".ledger-qa-card")).$("button=Ask")).click();
+    await withAskReady(b, async () => {
+      assert.equal(await (await b.$(".ledger-qa-card input")).getValue(), question, "the current ready card must retain the intended question");
+      await (await (await b.$(".ledger-qa-card")).$("button=Ask")).click();
+    });
   }
   async function waitText(fragment, label, timeout = 10000) {
     try {

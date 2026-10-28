@@ -7,7 +7,7 @@
 //      (that setting is "Warn at 90%" in the row's ⋯ menu since 1.3.0).
 //   3. Transactions dates wrapped at their hyphens ("2026-" / "09-18").
 //   4. The Transactions header's account control was labeled "Account" and
-//      read like a filter; it's really where imports/new transactions start.
+//      read like a filter; it is gone (Import and Add transaction ask for their account).
 //   5. Household's empty state sent you to another tab instead of offering
 //      the action right there.
 //
@@ -69,17 +69,15 @@ try {
     throw new Error(`the cryptic "Cap" label should be gone, got:\n${rowText}\n${JSON.stringify(menuLabels)}`);
   }
 
-  // 3 + 4. Transactions: a single-line date, and an honest account label.
+  // 3 + 4. Transactions: a single-line date, and no standing account menu.
   await nav("Transactions");
   const date = await browser.$(".date-cell");
   await date.waitForExist({ timeout: 10000 });
   const lineCount = await browser.execute((el) => el.getClientRects().length, date);
   if (lineCount !== 1) throw new Error(`the date wrapped onto ${lineCount} lines`);
-  // The Add to control sits beside the page title (1.3.0 dropped the top bar).
-  const labelEl = await browser.$(".page-top .page-actions .import-controls-label");
-  await labelEl.waitForExist({ timeout: 10000 });
-  const label = await labelEl.getText();
-  if (label.trim() !== "Add to") throw new Error(`expected the account control's label to be "Add to", got "${label}"`);
+  // Import and Add transaction each ask for their account, so the title row has no standing account menu.
+  await (await browser.$(".page-top .page-actions .import-controls")).waitForExist({ timeout: 10000 });
+  if (await browser.$(".page-top .page-actions #ledger-account-select").isExisting()) throw new Error("the Transactions page should not have a standing account menu");
 
   // 5. Household: the empty state offers the action itself.
   await nav("Household");

@@ -21,6 +21,8 @@ export type DashboardSnapshot = Envelope & {
   alerts: BudgetAlert[];
   insights: Insight[];
   averageSpend: string;
+  /** At least 14 days of transactions exist, so the runway average is real. */
+  enoughHistory: boolean;
   contributions: AccountContributionDelta[];
 };
 export type ReportSummarySnapshot = Envelope & { asOf: string; report: Report; accounts: Account[]; averageSpend: string };
@@ -181,6 +183,7 @@ const dashboard = object({
     }),
   ),
   averageSpend: decimal,
+  enoughHistory: boolean,
   contributions: array(
     object({ account_id: id, name: string, group: string, from_amount: decimal, to_amount: decimal, delta: decimal }),
   ),

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { bundledLegalNotice } from "./legalNotice";
+import { bundledLegalNotice, formatLegalNoticeVersion } from "./legalNotice";
 import { getLegalNoticeAcknowledgement, type LegalNoticeAcknowledgement } from "./legalNoticeApi";
 import { LegalNoticeText } from "./LegalNoticeText";
 import { formatDisplayDate, toLocalIsoDate } from "./format";
 
 function describe(ack: LegalNoticeAcknowledgement): string | null {
   if (ack.version === null) return null;
-  if (ack.version !== bundledLegalNotice.version) return `Last acknowledged here: version ${ack.version}. You'll be shown this version the next time Vault Spend starts.`;
+  if (ack.version !== bundledLegalNotice.version) return `Last acknowledged here: version ${formatLegalNoticeVersion(ack.version)}. You'll be shown this version the next time Vault Spend starts.`;
   const when = ack.acknowledged_at ? new Date(ack.acknowledged_at) : null;
   return when && !Number.isNaN(when.getTime()) ? `Acknowledged on ${formatDisplayDate(toLocalIsoDate(when))}.` : "Acknowledged on this computer.";
 }
@@ -32,7 +32,7 @@ export function LegalNoticeHelp() {
   return (
     <>
       <p>
-        Version {bundledLegalNotice.version}.
+        Version {formatLegalNoticeVersion(bundledLegalNotice.version)}.
         {status && (
           <>
             {" "}

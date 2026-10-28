@@ -50,7 +50,7 @@ const checking: Account = {
   member_name: null,
   checkpoint_date: null,
   icon_key: null,
-  import_flip_signs: null,
+  import_flip_signs: null, hidden: false,
 };
 
 type Props = ComponentProps<typeof TransactionsTable>;
@@ -217,10 +217,10 @@ describe("TransactionsTable", () => {
     expect(container.querySelector("[aria-label='Category for \"Coffee Shop\"']")!.classList.contains("row-field-needs")).toBe(false);
   });
 
-  it("shows the inline Delete confirm in place of the ⋯ when Delete… is chosen", () => {
+  it("shows the inline Delete confirm in place of the ⋯ when Delete is chosen", () => {
     show(baseProps(twoRows, [{ id: 1, name: "Alex" }]));
     act(() => rows()[0].querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
-    act(() => menuItem("Delete…")!.click());
+    act(() => menuItem("Delete")!.click());
     const confirm = rows()[0].querySelector(".row-delete-confirm");
     expect(confirm).not.toBeNull();
     expect([...confirm!.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Cancel", "Delete"]);
@@ -228,12 +228,27 @@ describe("TransactionsTable", () => {
     expect(rows()[1].querySelector("[data-row-menu]")).not.toBeNull();
   });
 
+  // Continuation 12 (row-menu adjudication): the confirm floats over the right end of its own row (Transactions.css .ledger .row-delete-confirm-detailed),
+  // so the row's own Account/Category/Details controls sat behind it, still focusable with Shift+Tab. They are inert while the confirm is open.
+  it("makes the controls the confirm covers inert while it is open, and live again after Cancel", () => {
+    show(baseProps(twoRows, [{ id: 1, name: "Alex" }]));
+    act(() => rows()[0].querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
+    act(() => menuItem("Delete")!.click());
+    const covered = () => [...rows()[0].querySelectorAll<HTMLElement>("td:not(.actions-col), td.actions-col > button")];
+    expect(covered().length).toBeGreaterThan(0);
+    expect(covered().every((el) => el.hasAttribute("inert"))).toBe(true);
+    expect(rows()[1].querySelector("[inert]")).toBeNull();
+    const cancel = [...rows()[0].querySelectorAll<HTMLButtonElement>(".row-delete-confirm button")].find((b) => b.textContent === "Cancel")!;
+    act(() => cancel.click());
+    expect(rows()[0].querySelector("[inert]")).toBeNull();
+  });
+
   const trigger = (i: number) => rows()[i].querySelector<HTMLButtonElement>("[data-row-menu]");
 
   it("puts focus on Cancel when the confirm opens, and back on the row's ⋯ after Cancel", () => {
     show(baseProps(twoRows, [{ id: 1, name: "Alex" }]));
     act(() => trigger(0)!.click());
-    act(() => menuItem("Delete…")!.click());
+    act(() => menuItem("Delete")!.click());
     const cancel = [...rows()[0].querySelectorAll<HTMLButtonElement>(".row-delete-confirm button")].find((b) => b.textContent === "Cancel")!;
     expect(document.activeElement).toBe(cancel);
     act(() => cancel.click());
@@ -247,7 +262,7 @@ describe("TransactionsTable", () => {
     show(props);
     for (const key of ["Enter", "Escape"]) {
       act(() => trigger(0)!.click());
-      act(() => menuItem("Add tag…")!.click());
+      act(() => menuItem("Add tag")!.click());
       const input = rows()[0].querySelector<HTMLInputElement>(".tag-input")!;
       expect(document.activeElement).toBe(input);
       act(() => {
@@ -265,11 +280,11 @@ describe("TransactionsTable", () => {
     const belongs = () => document.body.querySelector<HTMLButtonElement>(".row-menu-panel [role='menuitemcheckbox']");
     act(() => trigger(0)!.click());
     expect([...document.body.querySelectorAll(".row-menu-panel [role^='menuitem']")].map((b) => b.textContent)).toEqual([
-      "Split…",
-      "Add note…",
-      "Add tag…",
+      "Split",
+      "Add note",
+      "Add tag",
       "Belongs to Alex",
-      "Delete…",
+      "Delete",
     ]);
     expect(belongs()!.getAttribute("aria-checked")).toBe("false");
     act(() => belongs()!.click());
@@ -306,22 +321,22 @@ describe("TransactionsTable", () => {
     show(props);
     const open = () => act(() => rows()[0].querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
     open();
-    act(() => menuItem("Split…")!.click());
+    act(() => menuItem("Split")!.click());
     expect(props.toggleSplitEditor).toHaveBeenCalledWith(twoRows[0]);
     open();
-    act(() => menuItem("Add note…")!.click());
+    act(() => menuItem("Add note")!.click());
     expect(props.setNotesDialogFor).toHaveBeenCalledWith(twoRows[0]);
     open();
-    act(() => menuItem("Apply to a debt…")!.click());
+    act(() => menuItem("Apply to a debt")!.click());
     expect(props.startApplyingDebtPayment).toHaveBeenCalledWith(twoRows[0]);
   });
 
-  it("opens a tag field on Add tag…, adds the tag on Enter and closes it", () => {
+  it("opens a tag field on Add tag, adds the tag on Enter and closes it", () => {
     const props = baseProps(twoRows, [{ id: 1, name: "Alex" }]);
     props.newTagText = { 1: "trip" };
     show(props);
     act(() => rows()[0].querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
-    act(() => menuItem("Add tag…")!.click());
+    act(() => menuItem("Add tag")!.click());
     const input = rows()[0].querySelector<HTMLInputElement>(".tag-input")!;
     expect(input).not.toBeNull();
     expect(document.activeElement).toBe(input);
@@ -337,7 +352,7 @@ describe("TransactionsTable", () => {
     const props = baseProps(twoRows, [{ id: 1, name: "Alex" }]);
     show(props);
     act(() => rows()[0].querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
-    act(() => menuItem("Add tag…")!.click());
+    act(() => menuItem("Add tag")!.click());
     act(() => {
       rows()[0].querySelector(".tag-input")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
@@ -368,5 +383,39 @@ describe("TransactionsTable", () => {
     expect(getComputedStyle(td).textAlign).toBe("right");
     expect(getComputedStyle(th).textAlign).toBe("right");
     expect(getComputedStyle(td).fontVariantNumeric).toBe("tabular-nums");
+  });
+describe("owner-expanded hidden destination pickers", () => {
+    const old = { ...checking, id: 2, name: "Hidden old account", hidden: true };
+    const otherOld = { ...checking, id: 3, name: "Other hidden account", hidden: true };
+    const visibleDebt = { ...checking, id: 9, name: "Visible Loan", account_type: "loan" as const };
+    const hiddenDebt = { ...checking, id: 10, name: "Hidden Loan", account_type: "loan" as const, hidden: true };
+    const otherDebt = { ...hiddenDebt, id: 11, name: "Other hidden loan" };
+    const menuOptions = () => [...document.body.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].map(x => x.textContent?.replace("✓", "").trim());
+    const openAccount = () => act(() => container.querySelector<HTMLButtonElement>('[aria-label=\'Account for "Coffee Shop"\']')!.click());
+
+    it.each([false, true])("omits hidden alternatives but retains a row's own account (narrow=%s)", narrow => {
+      const p = baseProps([txn({ account_id: old.id, account_name: old.name })], []);
+      p.accounts = [checking, old, otherOld]; p.transactionsNarrow = narrow; p.detailsOpenId = narrow ? 1 : null;
+      p.transactionColumnCount = transactionColumnCount(narrow, false);
+      show(p); openAccount();
+      expect(menuOptions()).toEqual(["Checking", "Hidden old account"]);
+      act(() => [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')].find(b => b.textContent?.trim() === "Checking")!.click());
+      expect(p.handleAccountChangeForTransaction).toHaveBeenCalledWith(1, "1");
+      p.pagedTransactions = [txn()]; show(p); openAccount();
+      expect(menuOptions()).toEqual(["Checking"]);
+    });
+
+    it.each(["9", "10"])("retains only the explicitly selected hidden debt (%s)", selected => {
+      const p = baseProps([txn()], []); p.debtAccounts = [hiddenDebt, visibleDebt, otherDebt];
+      p.applyingDebtId = 1; p.applyDebtForm = { accountId: selected, amount: "4.50" }; show(p);
+      act(() => container.querySelector<HTMLButtonElement>('[aria-label^="Debt account to apply"]')!.click());
+      expect(menuOptions()).toEqual(selected === "10" ? ["Hidden Loan", "Visible Loan"] : ["Visible Loan"]);
+    });
+
+    it("does not offer a new debt-payment action when every debt is hidden", () => {
+      const p = baseProps([txn()], []); p.debtAccounts = [hiddenDebt, otherDebt]; show(p);
+      act(() => rows()[0].querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
+      expect(menuItem("Apply to a debt")).toBeUndefined();
+    });
   });
 });

@@ -132,7 +132,7 @@ export function RulesManager({
       <div className="card-head">
         <span className="reports-section-title">Categorization rules</span>
         <button type="button" className="modal-secondary" onClick={() => setEditing("new")}>
-          Add rule…
+          Add rule
         </button>
       </div>
       <p className="modal-message-secondary">

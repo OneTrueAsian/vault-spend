@@ -4,7 +4,7 @@
 // preview_setup_import/commit_setup_import, src/App.tsx's
 // pendingSetupImport review screen).
 //
-// "Download setup template…" and "Import setup data…" both go through a
+// "Download setup template" and "Import setup data" both go through a
 // native OS file dialog (save/open respectively), which — same as
 // `relocate_data_file`'s folder picker (see feature16_relocate_data_file.mjs's
 // own doc comment) — WebDriver cannot drive. There was no E2E coverage of

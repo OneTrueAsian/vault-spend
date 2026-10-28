@@ -1015,6 +1015,13 @@
   max-width: 100%;
 }
 
+/* These frames are Tab stops (see ScrollRegion) so the keyboard can scroll them; show where focus is. */
+.table-scroll:focus-visible,
+.report-table-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .report-table th,
 .report-table td {
   white-space: nowrap;
@@ -1744,6 +1751,24 @@ table.ledger.report-table {
     margin: 0 !important;
     padding: 0 !important;
   }
+  /* The window is a fixed-height shell with its own scroll box; on paper both must give way so the whole page
+     prints across as many sheets as it needs rather than stopping at the first one. */
+  html,
+  body {
+    height: auto;
+  }
+  .app-shell {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+  .main {
+    overflow: visible;
+  }
+  .report-table th:first-child,
+  .report-table td:first-child {
+    width: 22%;
+  }
 }
 
 .compare-last-year-toggle {
@@ -2130,7 +2155,7 @@ table.ledger.recurring-table .actions-col {
   border-radius: 10px;
   border: 1px solid var(--info-soft);
   background: var(--info-soft);
-  color: var(--info);
+  color: var(--text);
   font-size: 13px;
   font-weight: 600;
 }

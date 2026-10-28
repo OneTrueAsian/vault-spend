@@ -133,3 +133,21 @@ it("saves and reapplies filter snapshots and resets transient state on profile r
   await act(async () => { root.render(<Harness key="next-profile" />); });
   expect(ledger.searchText).toBe(""); expect(ledger.selectedIds.size).toBe(0); expect(ledger.shownCount).toBe(50);
 });
+
+// QA-FUNC-006: choosing members isolates those members; only "all" (no filter) includes unassigned rows.
+it("keeps unassigned rows out when members are chosen, even if every member is chosen, and in only for All", async () => {
+  transactions = [row(1, { member_id: 3, amount: "-10.00" }), row(2, { member_id: 4, amount: "-20.00" }), row(3, { member_id: null, amount: "-40.00" })];
+  await render();
+  const total = () => ledger.filteredTransactions.reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
+  expect(ledger.filteredTransactions.map(t => t.id)).toEqual([1, 2, 3]);
+  act(() => { ledger.setFilterMemberIds(new Set([3])); });
+  expect(ledger.filteredTransactions.map(t => t.id)).toEqual([1]);
+  expect(total()).toBe(10);
+  act(() => { ledger.setFilterMemberIds(new Set([3, 4])); });
+  expect(ledger.filteredTransactions.map(t => t.id)).toEqual([1, 2]);
+  expect(total()).toBe(30);
+  act(() => { ledger.setFilterMemberIds(new Set()); });
+  expect(ledger.filteredTransactions).toEqual([]);
+  act(() => { ledger.setFilterMemberIds("all"); });
+  expect(total()).toBe(70);
+});

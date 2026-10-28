@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInbox, LOW_CONFIDENCE, suggestCategory } from "./importInbox";
+import { buildInbox, inboxButtonLabel, LOW_CONFIDENCE, suggestCategory } from "./importInbox";
 import type { AnomalyFlag, Transaction } from "./types";
 
 function txn(over: Partial<Transaction> & Pick<Transaction, "id">): Transaction {
@@ -168,5 +168,13 @@ describe("buildInbox", () => {
 
   it("is empty when nothing needs a look", () => {
     expect(buildInbox({ transactions: [txn({ id: 1 })], flags: [], scopeIds: null })).toEqual([]);
+  });
+});
+
+describe("inboxButtonLabel", () => {
+  // The button opens a dialog titled "Review transactions"; "inbox" is app jargon a new user has not been taught.
+  it("names the button after the dialog it opens, with the count", () => {
+    expect(inboxButtonLabel(3)).toBe("Review transactions (3)");
+    expect(inboxButtonLabel(1)).toBe("Review transactions (1)");
   });
 });

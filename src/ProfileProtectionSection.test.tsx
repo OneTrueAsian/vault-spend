@@ -95,7 +95,7 @@ describe("ProfileProtectionSection", () => {
     show(UNPROTECTED);
 
     expect(container.textContent).toContain("Off");
-    expect(button("Turn on password protection…")).not.toBeUndefined();
+    expect(button("Turn on password protection")).not.toBeUndefined();
   });
 
   it.each([
@@ -116,10 +116,10 @@ describe("ProfileProtectionSection", () => {
     show(PROTECTED);
 
     expect(container.textContent).toContain("On");
-    expect([...container.querySelectorAll("button")].find((b) => b.textContent === "Turn on password protection…")).toBeUndefined();
-    expect(button("Change password…")).not.toBeUndefined();
-    expect(button("Regenerate recovery key…")).not.toBeUndefined();
-    expect(button("Remove protection…")).not.toBeUndefined();
+    expect([...container.querySelectorAll("button")].find((b) => b.textContent === "Turn on password protection")).toBeUndefined();
+    expect(button("Change password")).not.toBeUndefined();
+    expect(button("Regenerate recovery key")).not.toBeUndefined();
+    expect(button("Remove protection")).not.toBeUndefined();
   });
 
   it("loads all automatic-lock choices and the documented defaults for a protected profile", async () => {
@@ -160,7 +160,7 @@ describe("ProfileProtectionSection", () => {
   it("opens the regenerate-recovery dialog with the current generation", async () => {
     show(PROTECTED);
 
-    await act(async () => button("Regenerate recovery key…").click());
+    await act(async () => button("Regenerate recovery key").click());
 
     expect(document.body.textContent).toContain("Regenerate recovery key");
     expect(document.body.querySelector("#regenerate-recovery-current")).not.toBeNull();
@@ -170,7 +170,7 @@ describe("ProfileProtectionSection", () => {
   it("opens the change-password dialog with the current generation", async () => {
     show(PROTECTED);
 
-    await act(async () => button("Change password…").click());
+    await act(async () => button("Change password").click());
 
     expect(document.body.textContent).toContain("Change password");
     expect(document.body.querySelector("#change-password-current")).not.toBeNull();
@@ -181,7 +181,7 @@ describe("ProfileProtectionSection", () => {
     show(UNPROTECTED);
 
     await act(async () => {
-      button("Turn on password protection…").click();
+      button("Turn on password protection").click();
     });
 
     expect(document.body.textContent).toContain("Protect this profile with a password");
@@ -196,7 +196,7 @@ describe("ProfileProtectionSection", () => {
     protection.commitProtectionSetup.mockResolvedValue({ status: "open" });
     show(UNPROTECTED);
     await act(async () => {
-      button("Turn on password protection…").click();
+      button("Turn on password protection").click();
     });
     typeInto(document.body.querySelector<HTMLInputElement>("#protection-setup-password")!, "eight ok chars");
     typeInto(document.body.querySelector<HTMLInputElement>("#protection-setup-confirm")!, "eight ok chars");

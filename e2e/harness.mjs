@@ -326,6 +326,10 @@ export async function stubFilePicker(browser, files) {
         if (url.endsWith("plugin:dialog|open")) {
           return Promise.resolve(new Response(JSON.stringify(answer()), { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }));
         }
+        if (url.endsWith("plugin:dialog|save")) {
+          const next = window.__savePaths && window.__savePaths.length ? window.__savePaths.shift() : null;
+          return Promise.resolve(new Response(JSON.stringify(next), { status: 200, headers: { "Content-Type": "application/json", "Tauri-Response": "ok" } }));
+        }
         const args = arguments;
         const attempt = (left) => originalFetch.apply(window, args).catch((e) => (left > 0 ? pause(150).then(() => attempt(left - 1)) : Promise.reject(e)));
         return attempt(5);
@@ -341,6 +345,14 @@ export async function stubFilePicker(browser, files) {
   if (!result.throughFetch) {
     throw new Error("stubFilePicker: this window already sends Tauri commands over postMessage (an IPC fetch failed before the stub was installed), so the file picker can't be answered and would open for real");
   }
+}
+
+/** Answers the native Save dialog (`plugin:dialog|save`) with `paths`, one per save, in order (null once they run out, which is
+ * "cancelled"). Installs the same fetch wrapper as `stubFilePicker` first when it is not in place yet. The app then writes to the
+ * chosen path itself, so a spec reads the real exported file back. */
+export async function stubSaveDialog(browser, paths) {
+  if (!(await browser.execute(() => !!window.__filePickerStubbed))) await stubFilePicker(browser, []);
+  await browser.execute((list) => { window.__savePaths = list; }, paths);
 }
 
 /** Opens a row's ⋯ menu (RowMenu) and clicks the item with this exact label, through withFocusRetry

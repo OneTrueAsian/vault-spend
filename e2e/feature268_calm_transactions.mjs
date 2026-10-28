@@ -7,7 +7,7 @@
 // - The ⋯ menu on the last visible row opens upward and stays inside the window, in Default,
 //   Futuristic and Retro, Light and Dark (screenshots are saved for a look by eye).
 // - If a row is filtered out while its menu is open, the menu closes with it and runs nothing.
-// - "Add tag…" opens a tag field; typing "trip" and Enter adds a "trip" tag.
+// - "Add tag" opens a tag field; typing "trip" and Enter adds a "trip" tag.
 // - One transaction left without a category brings up the "needs a category" line, and Review
 //   shows just the ones that need one.
 //
@@ -229,18 +229,18 @@ try {
   assert.ok(await browser.$(`tr[data-payment-row="${id}"]`).isExisting(), `the row "${description}" must still be there`);
   console.log(`stale row: "${description}" filtered out with its menu open; the menu closed and nothing ran`);
 
-  // ---- 5. Add tag… ----------------------------------------------------------------------------
+  // ---- 5. Add tag ----------------------------------------------------------------------------
   const firstId = await browser.execute(() => {
     window.scrollTo(0, 0);
     document.querySelector(".ledger-table-scroll").scrollIntoView({ block: "start" });
-    // Not a linked transfer's row: its menu has no "Add tag…", and on some days the household data puts
+    // Not a linked transfer's row: its menu has no "Add tag", and on some days the household data puts
     // a transfer first (the household's transfers fall on fixed days of the month).
     return document.querySelector("table.ledger tbody tr[data-payment-row]:not(.ledger-row-transfer) [data-row-menu]").closest("tr").dataset.paymentRow;
   });
   const tripPill = `//tr[@data-payment-row='${firstId}']//span[contains(@class,'tag-pill')][starts-with(normalize-space(.),'trip')]`;
   await withFocusRetry(browser, async () => {
     if (await browser.$(tripPill).isExisting()) return; // an earlier attempt already added it
-    await chooseRowAction(browser, rowMenuSelector(firstId), "Add tag…");
+    await chooseRowAction(browser, rowMenuSelector(firstId), "Add tag");
     const input = await browser.$(`tr[data-payment-row="${firstId}"] .tag-input`);
     await input.waitForExist({ timeout: 5000 });
     await input.setValue("trip");
@@ -248,7 +248,7 @@ try {
     await (await browser.$(tripPill)).waitForExist({ timeout: 10000 });
   });
   assert.equal(await browser.$(`tr[data-payment-row="${firstId}"] .tag-input`).isExisting(), false, "the tag field should close after Enter");
-  console.log("Add tag…: typing trip and Enter added a trip tag");
+  console.log("Add tag: typing trip and Enter added a trip tag");
 
   // ---- 6. One transaction without a category brings up the needs-a-category line -----------
   const lineCount = async () => {

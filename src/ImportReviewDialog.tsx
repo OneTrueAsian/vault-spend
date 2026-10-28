@@ -4,11 +4,20 @@ import { ImportNeedsChoice } from "./ImportNeedsChoice";
 import { MenuSelect } from "./MenuSelect";
 import { ModalShell } from "./Modal";
 import { formatAmount, formatDisplayDate } from "./format";
-import { rowNeedsChoice, unresolvedRows } from "./importResolution";
+import { pickableAccounts } from "./hiddenAccounts";
+import { rowNeedsChoice, unresolvedRows, type ImportRow } from "./importResolution";
 import type { ImportReview } from "./useImportReview";
 import type { Account } from "./types";
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** The accessible name of a row's include checkbox: which transaction it is. Two rows with the same
+ * description, date and amount get "row N of M" added so no two boxes share a name. */
+function rowCheckboxLabel(row: ImportRow, rows: ImportRow[]): string {
+  const base = `Include ${row.description}, ${formatDisplayDate(row.date)}, ${formatAmount(row.amount)}`;
+  const twins = rows.filter((r) => r.description === row.description && r.date === row.date && r.amount === row.amount);
+  return twins.length > 1 ? `${base} (row ${rows.indexOf(row) + 1} of ${rows.length})` : base;
+}
 
 /** The import review (see `useImportReview`), as a pop-up over the page so it is in front of the
  * person wherever they had scrolled: the bank's categories they don't have, the rows that need a
@@ -94,10 +103,18 @@ export function ImportReviewDialog({
             </button>
           </p>
         )}
-        <p className="dup-review-summary">
-          Untick anything you don't want. You can change the account on any row.
-          {row_errors > 0 && ` ${count(row_errors, "row", "rows")} couldn't be read.`}
-        </p>
+        {rows.length === 0 ? (
+          <p className="dup-review-summary" role="status">
+            {row_errors > 0
+              ? `No transactions could be read from this file. ${count(row_errors, "row", "rows")} couldn't be read.`
+              : "No transactions were found in this file. Check that it is a bank download (CSV, OFX, QFX or QIF), or try downloading it again."}
+          </p>
+        ) : (
+          <p className="dup-review-summary">
+            Untick anything you don't want. You can change the account on any row.
+            {row_errors > 0 && ` ${count(row_errors, "row", "rows")} couldn't be read.`}
+          </p>
+        )}
         <ImportCategoryReconcile
           unmatched={unmatched_categories}
           categories={categoryOptions}
@@ -116,55 +133,63 @@ export function ImportReviewDialog({
           onChoose={(index, category) => setImportRowChoices((prev) => new Map(prev).set(index, category))}
           onLeaveRest={leaveRestOfRowsUncategorized}
         />
-        <div className="dup-review-table-scroll">
-          <table className="dup-review-table">
-            <thead>
-              <tr>
-                <th className="dup-review-check">
-                  <input
-                    type="checkbox"
-                    checked={rows.length > 0 && rows.every((r) => includedIndices.has(r.index))}
-                    onChange={toggleSelectAllImportRows}
-                    disabled={busy}
-                    aria-label="Select all"
-                  />
-                </th>
-                <th>Date</th>
-                <th>Description</th>
-                <th className="amount-col">Amount</th>
-                <th>Account</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.index} className={row.is_duplicate ? "import-row-duplicate" : undefined}>
-                  <td className="dup-review-check">
-                    <input type="checkbox" checked={includedIndices.has(row.index)} onChange={() => toggleIncluded(row.index)} disabled={busy} />
-                  </td>
-                  <td className="date-cell">{formatDisplayDate(row.date)}</td>
-                  <td>{row.description}</td>
-                  <td className="amount-col">{formatAmount(row.amount)}</td>
-                  <td>
-                    <MenuSelect
-                      ariaLabel={`Account for "${row.description}"`}
-                      value={String(accountOverrides.get(row.index) ?? pendingImport.defaultAccountId)}
-                      onChange={(v) => setImportRowAccount(row.index, Number(v))}
+        {rows.length > 0 && (
+          <div className="dup-review-table-scroll">
+            <table className="dup-review-table">
+              <thead>
+                <tr>
+                  <th className="dup-review-check">
+                    <input
+                      type="checkbox"
+                      checked={rows.length > 0 && rows.every((r) => includedIndices.has(r.index))}
+                      onChange={toggleSelectAllImportRows}
                       disabled={busy}
-                      options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
+                      aria-label="Select all"
                     />
-                    {row.account_name && !accounts.some((a) => a.name.toLowerCase() === row.account_name!.toLowerCase()) && (
-                      <div className="account-col" title="No account by that name exists yet — it'll be created on import">
-                        CSV: {row.account_name} (new)
-                      </div>
-                    )}
-                  </td>
-                  <td className="source-col">{row.is_duplicate ? "Already added" : "New"}</td>
+                  </th>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th className="amount-col">Amount</th>
+                  <th>Account</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.index} className={row.is_duplicate ? "import-row-duplicate" : undefined}>
+                    <td className="dup-review-check">
+                      <input
+                        type="checkbox"
+                        checked={includedIndices.has(row.index)}
+                        onChange={() => toggleIncluded(row.index)}
+                        disabled={busy}
+                        aria-label={rowCheckboxLabel(row, rows)}
+                      />
+                    </td>
+                    <td className="date-cell">{formatDisplayDate(row.date)}</td>
+                    <td>{row.description}</td>
+                    <td className="amount-col">{formatAmount(row.amount)}</td>
+                    <td>
+                      <MenuSelect
+                        ariaLabel={`Account for "${row.description}"`}
+                        value={String(accountOverrides.get(row.index) ?? pendingImport.defaultAccountId)}
+                        onChange={(v) => setImportRowAccount(row.index, Number(v))}
+                        disabled={busy}
+                        options={pickableAccounts(accounts, accountOverrides.get(row.index) ?? pendingImport.defaultAccountId).map((a) => ({ value: String(a.id), label: a.name }))}
+                      />
+                      {row.account_name && !accounts.some((a) => a.name.toLowerCase() === row.account_name!.toLowerCase()) && (
+                        <div className="account-col" title="No account by that name exists yet — it'll be created on import">
+                          CSV: {row.account_name} (new)
+                        </div>
+                      )}
+                    </td>
+                    <td className="source-col">{row.is_duplicate ? "Already added" : "New"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </ModalShell>
   );

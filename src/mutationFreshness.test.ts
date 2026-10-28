@@ -40,6 +40,8 @@ const presentationOnly = new Set([
   "set_auto_lock_settings", "set_backup_copy_dir", "create_backup_now",
   // The banks whose statements the app has learned to read: only Settings and the next statement upload read them.
   "rename_statement_layout", "delete_statement_layout",
+  // Reports > Save as PDF writes a file outside the profile; no screen reads it back.
+  "save_report_pdf",
 ]);
 /** Profile, protection and file-location changes replace or remount the whole profile, so every view
  *  starts from a new session instead of being told to refresh. */

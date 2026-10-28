@@ -89,8 +89,8 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I change which cards the Dashboard shows?",
         steps: [
-          <>Open the <strong>Layout</strong> menu (it reads "Layout: Default") and choose <strong>Customize…</strong> from it.</>,
-          <>Pin or unpin cards, drag them to reorder, or use <strong>+ Add widget…</strong> to pin one specific account, goal or investment account.</>,
+          <>Open the <strong>Layout</strong> menu (it reads "Layout: Default") and choose <strong>Customize</strong> from it.</>,
+          <>Pin or unpin cards, drag them to reorder, or use <strong>+ Add widget</strong> to pin one specific account, goal or investment account.</>,
           <>Choose <strong>Done customizing</strong> from the same menu when you're finished.</>,
         ],
       },
@@ -98,7 +98,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I save my own layout?",
         steps: [
           <>After customizing, the Layout menu shows "Custom (unsaved)".</>,
-          <>Click <strong>+ Save as…</strong> and give it a name.</>,
+          <>Click <strong>+ Save as</strong> and give it a name.</>,
           <>Pick it from the Layout menu any time, next to the built-in Default, Bills Focus and Investor Focus, or select it and click <strong>Delete</strong> to remove it.</>,
         ],
       },
@@ -149,7 +149,8 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I add or change an account?",
         steps: [
           <>Click <strong>+ Add account</strong> beside the page title. Checking, savings, credit card, loan, investment and other are all supported.</>,
-          <>To change one, open the <strong>⋯</strong> menu on its row and choose <strong>Edit…</strong>: its type, institution, last-4 digits and which family member it belongs to. <strong>Delete…</strong> in the same menu removes it, after asking.</>,
+          <>To change one, open the <strong>⋯</strong> menu on its row and choose <strong>Edit</strong>: its type, institution, last-4 digits and which family member it belongs to. <strong>Delete</strong> in the same menu removes it, after asking.</>,
+          <>Not using an account any more? Choose <strong>Hide</strong> in the same menu. It moves to <strong>Hidden accounts</strong> at the bottom of the page and out of the lists where you pick an account. Its history stays, and its balance still counts in your totals. Choose <strong>Unhide</strong> to bring it back.</>,
         ],
       },
       {
@@ -163,13 +164,13 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I open an account's own page?",
         steps: [
           <>Click anywhere on the account's row, or choose <strong>Details</strong> in its <strong>⋯</strong> menu.</>,
-          <>Its page shows a balance-history chart and its transactions.</>,
+          <>Its page shows a <strong>Balance over the last year</strong> chart and its transactions.</>,
         ],
       },
       {
         question: "How do I reconcile an account against a statement?",
         steps: [
-          <>Open the <strong>⋯</strong> menu on an account's row and choose <strong>Reconcile with a statement…</strong>.</>,
+          <>Open the <strong>⋯</strong> menu on an account's row and choose <strong>Reconcile with a statement</strong>.</>,
           <>Enter the statement's ending balance and tick each transaction that appears on it.</>,
           <>Finish once the difference reaches $0.00 (see FAQ).</>,
         ],
@@ -192,7 +193,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add a home or a vehicle?",
         steps: [
-          <>Scroll to <strong>Property and valuables</strong>, the last group on this tab, and click <strong>Add property or valuable…</strong>.</>,
+          <>Scroll to <strong>Property and valuables</strong>, the last group on this tab, and click <strong>Add property or valuable</strong>.</>,
           <>Add it with its value. It counts in your net worth. Click its value to update it; its <strong>⋯</strong> menu says who it belongs to or deletes it.</>,
         ],
       },
@@ -212,7 +213,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add a transaction by hand?",
         steps: [
-          <>Click <strong>Add transaction…</strong> beside the page title. The <strong>Add to</strong> menu next to it picks the account it starts on.</>,
+          <>Click <strong>Add transaction</strong> beside the page title. It starts on the account you added to last, and you can change it there.</>,
           <>Fill in the date, the description and the amount, without a minus sign.</>,
           <>Choose <strong>Money out</strong> or <strong>Money in</strong>. On a credit card or loan the choice reads <strong>Charge</strong> or <strong>Payment</strong>.</>,
           <>Leave Category on Auto-categorize, or pick one, and click <strong>Add transaction</strong>.</>,
@@ -230,7 +231,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I split, tag, note or delete a transaction?",
         steps: [
           <>Open the <strong>⋯</strong> menu at the end of its row.</>,
-          <>Choose <strong>Split…</strong> (or Edit splits…), <strong>Add tag…</strong>, <strong>Add note…</strong> (or Edit note…), <strong>Apply to a debt…</strong> or <strong>Delete…</strong> from the list.</>,
+          <>Choose <strong>Split</strong> (or Edit splits), <strong>Add tag</strong>, <strong>Add note</strong> (or Edit note), <strong>Apply to a debt</strong> or <strong>Delete</strong> from the list.</>,
           <>A split divides it into as many category and amount lines as you need, each with an optional note.</>,
         ],
       },
@@ -252,14 +253,14 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I review new or unusual transactions?",
         steps: [
-          <>After an import, or any time from <strong>Review inbox</strong>, a dialog lists transactions worth a second look: uncategorized, a low-confidence guess, a possible duplicate, or an unusually large charge.</>,
+          <>After an import, or any time from <strong>Review transactions</strong>, a dialog lists transactions worth a second look: uncategorized, a low-confidence guess, a possible duplicate, or an unusually large charge.</>,
           <>Accept, change or skip the suggested category for each.</>,
         ],
       },
       {
         question: "How do I record who a transaction belongs to?",
         steps: [
-          <>Open the <strong>⋯</strong> More actions menu beside the page title and choose <strong>Manage family members…</strong> to add people.</>,
+          <>Open the <strong>⋯</strong> More actions menu beside the page title and choose <strong>Manage family members</strong> to add people.</>,
           <>Pick the person on any account, transaction, goal, asset or recurring item. The member column appears once there are two people.</>,
         ],
       },
@@ -267,7 +268,7 @@ export const TAB_HELP: TabHelp[] = [
     more: [
       <>Filter by account, category, tag or family member. The table shows rows a few at a time; use <strong>Show 50 more</strong> under it.</>,
       <>Prefer not to review transfers one by one? Turn on <strong>Link matching transfers automatically</strong> in Settings; the pairs it links are listed under "N auto-linked — review". A linked transfer's ⋯ menu has <strong>Unlink transfer…</strong> and one note action per leg, since each side is still its own transaction.</>,
-      <>On a loan account, <strong>Split principal…</strong> takes the place of Apply to a debt…, and a payment applied to a debt shows under its description, with Undo.</>,
+      <>On a loan account, <strong>Split principal</strong> takes the place of Apply to a debt, and a payment applied to a debt shows under its description, with Undo.</>,
       <>Rows are <strong>compact</strong> by default; switch to Comfortable with the toggle above the table.</>,
       <>The line under the title counts your transactions and how many were sorted automatically or by you.</>,
     ],
@@ -287,7 +288,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add a recurring bill or income?",
         steps: [
-          <>Click <strong>Add recurring…</strong> under the list.</>,
+          <>Click <strong>Add recurring</strong> under the list.</>,
           <>Name it the way it appears on your statement, then give its amount, how often it comes (Weekly, Every 2 weeks, Monthly or Yearly) and its next date.</>,
         ],
       },
@@ -338,7 +339,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I change a category's settings?",
         steps: [
           <>Open the <strong>⋯</strong> menu at the end of its row.</>,
-          <>Tick <strong>Roll over unspent</strong> (see FAQ) or <strong>Warn at 90%</strong>, choose <strong>Move to</strong> another group, <strong>Move up</strong> or <strong>Move down</strong>, or <strong>Delete…</strong> to remove it.</>,
+          <>Tick <strong>Roll over unspent</strong> (see FAQ) or <strong>Warn at 90%</strong>, choose <strong>Move to</strong> another group, <strong>Move up</strong> or <strong>Move down</strong>, or <strong>Delete</strong> to remove it.</>,
           <>The row then says "Rolls over" or "Warns at 90%" so you can see it at a glance. You can also drag a row by its ⠿ handle.</>,
         ],
       },
@@ -384,7 +385,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I create a goal?",
         steps: [
-          <>On an empty Goals page click <strong>Create a goal</strong>, or one of the examples (Emergency fund, Holiday, New car) to start with that name. Once you have goals, use the <strong>+ New goal…</strong> tile.</>,
+          <>On an empty Goals page click <strong>Create a goal</strong>, or one of the examples (Emergency fund, Holiday, New car) to start with that name. Once you have goals, use the <strong>+ New goal</strong> tile.</>,
           <>Add an optional target amount and date, link an account or a family member, and pick an <strong>icon</strong> and <strong>color</strong>.</>,
           <>Click <strong>Create</strong>.</>,
         ],
@@ -461,17 +462,17 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I add a holding?",
         steps: [
-          <>Click <strong>Add holding…</strong> and enter its shares, price and cost basis.</>,
+          <>Click <strong>Add holding</strong> and enter its shares, price and cost basis.</>,
           <>Prices are yours to keep up to date, unless you turn on live prices in Settings: then a new holding fills in its price by symbol and existing ones stay current by themselves (see FAQ).</>,
         ],
       },
       {
         question: "How do I add several current holdings at once?",
         steps: [
-          <>On Investments, click <strong>Import holdings…</strong> and choose an investment account. Browse for a CSV in the app, drop a CSV onto the file area, or paste spreadsheet rows including their headings.</>,
+          <>On Investments, click <strong>Import holdings</strong> and choose an investment account. Browse for a CSV in the app, drop a CSV onto the file area, or paste spreadsheet rows including their headings.</>,
           <>Match the symbol, shares, current price per share, and what you paid in total. Name and asset class are optional. Use a decimal point for numbers; unknown costs must be filled in rather than treated as zero. Excel workbooks must first be saved as CSV or copied as rows.</>,
           <>Review the rows and untick anything you do not want. Existing symbols in this account are excluded; choose at most one row for each repeated symbol. Prices come from your file, though enabled live prices may update them later.</>,
-          <>Check the resulting account value, then click <strong>Add holdings</strong>. Once an account has holdings, their combined value supplies its balance, so include every current position if you want it to match your statement. The import adds current holdings, not past trades or tax lots.</>,
+          <>Check the resulting account value, then click the button at the bottom that starts with <strong>Add</strong> and shows the count, such as <strong>Add 3 holdings</strong> (<strong>Add 1 holding</strong> for one). Once an account has holdings, their combined value supplies its balance, so include every current position if you want it to match your statement. The import adds current holdings, not past trades or tax lots.</>,
           <>Import up to 5,000 rows and 5 MB at a time. Nothing is saved until you confirm. Closing the dialog or changing or locking the profile discards the preview; idle previews expire after 15 minutes.</>,
         ],
       },
@@ -493,7 +494,7 @@ export const TAB_HELP: TabHelp[] = [
         question: "How do I project a future balance?",
         steps: [
           <>In the <strong>goal projection</strong> calculator, enter a starting amount, a monthly contribution and an assumed yearly return.</>,
-          <>Click <strong>Save as goal…</strong> to turn the projection into a real goal.</>,
+          <>Click <strong>Save as goal</strong> to turn the projection into a real goal.</>,
         ],
       },
       {
@@ -506,7 +507,7 @@ export const TAB_HELP: TabHelp[] = [
     ],
     more: [
       <>Each holding shows its computed value and gain or loss.</>,
-      <>Vault Spend records your portfolio's value each day you open it or refresh prices, so a <strong>history chart</strong> builds up over time.</>,
+      <>Vault Spend records your portfolio's value each day you open it or refresh prices, so the <strong>Portfolio value over time</strong> chart builds up.</>,
     ],
     tags: [
       "investments", "holdings", "shares", "cost basis", "gain loss", "what changed", "goal projection", "live prices",
@@ -522,7 +523,7 @@ export const TAB_HELP: TabHelp[] = [
       {
         question: "How do I start splitting things by person?",
         steps: [
-          <>On Transactions, open the <strong>⋯</strong> More actions menu and choose <strong>Manage family members…</strong> to add people.</>,
+          <>On Transactions, open the <strong>⋯</strong> More actions menu and choose <strong>Manage family members</strong> to add people.</>,
           <>Assign accounts, transactions and more to them. Anything not assigned to anyone shows under "Unassigned".</>,
         ],
       },
@@ -554,7 +555,7 @@ export const TAB_HELP: TabHelp[] = [
         steps: [
           <>Follow the Sankey diagram from your income to your biggest spending categories, with a "Left over" or "Shortfall" flow depending on which side won.</>,
           <>Use the table of spending by category and month below it.</>,
-          <>In the daily-spending heatmap, darker days are bigger spending days. Point at a day, or move to it with Tab, for its total. One big bill like rent doesn't wash the rest out.</>,
+          <>In the daily-spending heatmap, darker days are bigger spending days. Point at a day for its total, or press Tab once to enter the grid and use the arrow keys to move between days. Home and End move to the first and last day. The focused day's total appears below the grid. One big bill like rent doesn't wash the rest out.</>,
         ],
       },
       {
@@ -613,7 +614,7 @@ export const TAB_HELP: TabHelp[] = [
         steps: [
           <>In the <strong>Data</strong> section, see your backup history, click <strong>Back up now</strong>, or restore any backup.</>,
           <>Choose a <strong>second copy</strong> folder to keep every backup in another place too.</>,
-          <>Use <strong>Move data file…</strong> to keep your data file in another folder, and the <strong>setup data</strong> template to fill in a lot at once (see FAQ).</>,
+          <>Use <strong>Move data file</strong> to keep your data file in another folder, and the <strong>setup data</strong> template to fill in a lot at once (see FAQ).</>,
         ],
       },
       {
@@ -656,7 +657,7 @@ const IMPORTING_ENTRY: HelpEntry = {
     <>
       <p>
         From the <strong>Transactions</strong> tab, click <strong>"Import
-        transactions…"</strong>:
+        transactions"</strong>:
       </p>
       <ol>
         <li>
@@ -679,7 +680,7 @@ const IMPORTING_ENTRY: HelpEntry = {
           it again on its next import, and for a credit card whose file is
           mostly positive amounts, "Flip the signs" is suggested. Imported
           them the wrong way already? Select those rows on the Transactions
-          tab and choose "Flip signs…" (choosing it again undoes it).
+          tab and choose "Flip signs" (choosing it again undoes it).
         </li>
         <li>
           A review of every row opens in a window over the page before
@@ -706,7 +707,7 @@ const IMPORTING_ENTRY: HelpEntry = {
           worth a look — uncategorized, a low-confidence guess, a possible
           duplicate, or an unusually large charge — with a suggested category
           to accept, change, or skip. Close it any time; it's one click away
-          under <strong>Review inbox</strong> on the Transactions tab.
+          under <strong>Review transactions</strong> on the Transactions tab.
         </li>
       </ol>
       <h3>Importing a file with unfamiliar headers</h3>
@@ -751,9 +752,9 @@ const BULK_SETUP_ENTRY: HelpEntry = {
       </p>
       <ul>
         <li>
-          <strong>"Download setup template…"</strong> saves one CSV file
+          <strong>"Download setup template"</strong> saves one CSV file
           with a section for each of Accounts / Categories / Budgets /
-          Goals / Holdings, with one example row in each section to show
+          Buckets (your goals) / Holdings, with one example row in each section to show
           the expected columns. Opens and saves fine in Excel.
         </li>
         <li>
@@ -761,7 +762,7 @@ const BULK_SETUP_ENTRY: HelpEntry = {
           section titles and column headers as they are), and save.
         </li>
         <li>
-          <strong>"Import setup data…"</strong> reads the file back in and
+          <strong>"Import setup data"</strong> reads the file back in and
           shows you a review screen — anything that already exists is
           flagged, and you choose what to actually apply before anything is
           written.
@@ -782,7 +783,7 @@ const EXPORT_ENTRIES: HelpEntry[] = [
     tags: ["export", "csv", "reports"],
     node: (
       <li>
-        <strong>"Export CSV…"</strong> on Transactions exports all matching rows,
+        <strong>"Export CSV"</strong> on Transactions exports all matching rows,
         including rows beyond Show more. Reports exports account balances and the current budget.
         CSV files are plain text. To reduce spreadsheet formula interpretation, risky text gets
         a leading apostrophe; that character may be visible and remains when reimported.
@@ -794,9 +795,12 @@ const EXPORT_ENTRIES: HelpEntry[] = [
     tags: ["export", "pdf", "print"],
     node: (
       <li>
-        <strong>"Print / Save as PDF…"</strong> opens your system print
-        dialog against the current Reports view — choose "Save as PDF" as
-        the destination if you want a file instead of a physical printout.
+        <strong>"Save as PDF"</strong> asks where to save a PDF of the
+        current Reports view, and Windows asks before it replaces a file that
+        already exists. <strong>"Print"</strong> opens your system print
+        window for a paper copy. On a computer without "Save as PDF", the
+        single <strong>"Print / Save as PDF"</strong> button opens the print
+        window — choose "Save as PDF" there to get a file.
       </li>
     ),
   },
@@ -868,7 +872,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         <p>
           Password protection encrypts a profile&apos;s data on disk and asks for its password whenever you open it.
           Each profile is protected on its own, so you can protect some and leave others as they are. Turn it on under{" "}
-          <strong>Settings → Password protection</strong> (<strong>Turn on password protection…</strong>), or tick the
+          <strong>Settings → Password protection</strong> (<strong>Turn on password protection</strong>), or tick the
           protection box when you add a new profile. Setup shows a one-time recovery key and only finishes once you
           have typed two of its groups back, so you know it was saved. Profile names and icons stay visible so you can
           choose which profile to unlock.
@@ -1070,8 +1074,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <p>
         Yes. Each profile&apos;s data is stored in files on your own computer, created fresh the first time you
         launch the app. No financial data is uploaded to an online service, so a fresh install on someone else&apos;s computer
-        starts completely empty. There is no online service account. If you enable mobile snapshots, approved phones receive read-only copies directly over your private local network. The phone viewer uses local files and makes no cloud or CDN requests. Separately, desktop internet requests do not carry your transactions, balances or account names: it loads its typefaces from
-        Google Fonts when it opens, it checks GitHub for a newer version when it opens, and it fetches live
+        starts completely empty. There is no online service account. If you enable mobile snapshots, approved phones receive read-only copies directly over your private local network. The phone viewer uses local files and makes no cloud or CDN requests. Text uses local fonts. Separately, desktop internet requests do not carry your transactions, balances or account names: it checks GitHub for a newer version when it opens, and it fetches live
         investment prices only if you set up a price provider. The legal notice lists them in full. You can also
         password-protect any profile (see above).
       </p>
@@ -1130,7 +1133,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         lightweight classifier also kicks in for transactions the rules
         don't cover. Anything neither can confidently place is left
         Uncategorized rather than guessing — setting it yourself teaches the
-        app for next time. Rules compare merchant names, ignoring store numbers, punctuation and card-processor prefixes such as "SQ *", so a rule learned from one Speedway also covers the others. If a merchant has been filed under more than one category, its rule still suggests your most recent choice but marks it Unsure, so it lands in the review inbox instead of being applied silently. Every rule, built-in and learned, is listed in{" "}
+        app for next time. Rules compare merchant names, ignoring store numbers, punctuation and card-processor prefixes such as "SQ *", so a rule learned from one Speedway also covers the others. If a merchant has been filed under more than one category, its rule still suggests your most recent choice but marks it Unsure, so it lands in the Review transactions list instead of being applied silently. Every rule, built-in and learned, is listed in{" "}
         <strong>Settings → Categorization rules</strong>, where you can add,
         edit, or delete them; before a new rule is saved you'll see how many
         existing transactions it would change and can apply it to them right
@@ -1322,7 +1325,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
         easier to save for a little at a time than all at once. The next time you open the app
         after a new calendar month starts, Vault Spend logs that amount as a
         contribution automatically (you'll see a one-time notice naming
-        which goal(s) it applied to) — at most once per goal per month, and
+        which goals received it) — at most once per goal per month, and
         independently of any manual contribution you also log that month,
         so the two never skip or double up on each other.
       </p>
@@ -1428,9 +1431,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["split", "transaction", "categories"],
     answer: (
       <p>
-        Yes — on the Transactions tab, choose <strong>Split…</strong> in a transaction's ⋯ menu
+        Yes — on the Transactions tab, choose <strong>Split</strong> in a transaction's ⋯ menu
         to divide it into as many category/amount lines as you need, each with an optional
-        note. <strong>Edit splits…</strong> in the same menu changes them later.
+        note. <strong>Edit splits</strong> in the same menu changes them later.
       </p>
     ),
   },
@@ -1485,10 +1488,9 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <p>
         Yes — whatever you've entered under Property and valuables (Accounts
         tab) is included in the current net worth figure everywhere it's
-        shown. One caveat on the Dashboard's net worth <em>trend</em>{" "}
-        chart specifically: since a manual asset only carries a value as of
-        today, past points on that chart apply today's value throughout
-        rather than tracking what it was actually worth back then.
+        shown. Property and valuables track a current value. The Dashboard's
+        net worth trend does not include property and valuables. Editing a
+        current value does not change past points on that chart.
       </p>
     ),
   },
@@ -1497,11 +1499,11 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["dashboard", "layout", "save layout", "custom layout", "named layout", "preset", "customize", "delete layout"],
     answer: (
       <p>
-        Yes — choose <strong>Customize…</strong> from the Layout menu
+        Yes — choose <strong>Customize</strong> from the Layout menu
         and change the layout (pin/unpin widgets, drag to reorder, or
-        "+ Add widget…" to pin a specific account/goal/investment
+        "+ Add widget" to pin a specific account/goal/investment
         account) until the Layout menu shows "Custom (unsaved)," then
-        click <strong>"+ Save as…"</strong> and give it a name. It's saved
+        click <strong>"+ Save as"</strong> and give it a name. It's saved
         right alongside the built-in Default/Bills Focus/Investor Focus
         presets — pick it from the same menu any time to switch back,
         or select it and click <strong>"Delete"</strong> to remove it.
@@ -1556,7 +1558,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     tags: ["move", "relocate", "data file", "folder", "location"],
     answer: (
       <p>
-        Yes — "Move data file…" on the Settings tab copies your live
+        Yes — "Move data file" on the Settings tab copies your live
         database to a new folder you pick and starts using it right away.
         The old file is left behind untouched, in case you want it back.
       </p>
@@ -1575,7 +1577,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
             filter down to just one person wherever a member filter appears.
             Everyone still shares the same file and sees the same data;
             it's attribution, not separation. Manage them with "Manage family
-            members…" in the ⋯ More actions menu on the Transactions tab.
+            members" in the ⋯ More actions menu on the Transactions tab.
           </li>
           <li>
             <strong>Profiles</strong> — completely separate, independent

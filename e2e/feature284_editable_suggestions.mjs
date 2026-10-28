@@ -18,7 +18,7 @@ const b = app.browser;
 try {
   await (await b.$("button*=Transactions")).click();
   await withFocusRetry(b, async () => {
-    await chooseRowAction(b, 'tr[data-payment-row="2"] [data-row-menu]', "Add tag…");
+    await chooseRowAction(b, 'tr[data-payment-row="2"] [data-row-menu]', "Add tag");
     const input = await b.$('.tag-input[role="combobox"]');
     await input.waitForExist({ timeout: 5000 });
     await input.setValue("Wor");
@@ -34,7 +34,7 @@ try {
   await b.$('.bulk-tag-input button').click();
   await b.waitUntil(async () => (await b.$('tr[data-payment-row="2"]').getText()).includes("bulk free text"), { timeout: 10000 });
   await b.$("button*=Settings").click();
-  await (await b.$('#categorization-rules')).$('button=Add rule…').click();
+  await (await b.$('#categorization-rules')).$('button=Add rule').click();
   await b.$('input[placeholder*="Ferrywood"]').setValue("Suggestion purchase");
   const selector = 'input[role="combobox"][aria-label="Give it this category"]';
   for (const palette of ["transparent", "futuristic", "retro"]) for (const theme of ["light", "dark"]) {

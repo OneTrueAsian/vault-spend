@@ -167,6 +167,9 @@
 :root[data-palette="transparent"] {
   --bg: #eaebef;
   --surface: rgba(255, 255, 255, 0.40);
+  /* Dialogs sit over the dimmed page, where 40% white composites to about #afb2b2 and the muted
+     label colour only reached 3.2:1. A near-opaque panel keeps every dialog text colour above 4.5:1. */
+  --modal-surface: rgba(255, 255, 255, 0.94);
   --surface-2: rgba(255, 255, 255, 0.25);
   --surface-hover: rgba(120, 120, 128, 0.14);
   --sidebar-bg: rgba(255, 255, 255, 0.25);
@@ -195,6 +198,7 @@
   --positive: #136d2f; /* 5.3:1 on its own soft tint (goal badges), not 3.5:1 */
   --positive-soft: rgba(52, 199, 89, 0.16);
   --negative: #d70015;
+  --on-negative: #ffffff;
   --negative-soft: rgba(255, 59, 48, 0.14);
   --warning: #9a4500; /* 5.4:1 on its own soft tint, not 4.3:1 */
   --warning-soft: rgba(255, 149, 0, 0.16);
@@ -232,6 +236,7 @@
   :root[data-palette="transparent"]:not([data-theme="light"]) {
     --bg: #0a0a0c;
     --surface: rgba(28, 28, 30, 0.68);
+    --modal-surface: rgba(28, 28, 30, 0.68);
     --surface-2: rgba(28, 28, 30, 0.5);
     --surface-hover: rgba(120, 120, 128, 0.24);
     --sidebar-bg: rgba(30, 30, 34, 0.5);
@@ -257,6 +262,7 @@
     --positive: #30d158;
     --positive-soft: rgba(48, 209, 88, 0.18);
     --negative: #ff453a;
+    --on-negative: #2a0f06;
     --negative-soft: rgba(255, 69, 58, 0.18);
     --warning: #ff9f0a;
     --warning-soft: rgba(255, 159, 10, 0.18);
@@ -283,6 +289,7 @@
 :root[data-palette="transparent"][data-theme="dark"] {
   --bg: #0a0a0c;
   --surface: rgba(28, 28, 30, 0.68);
+  --modal-surface: rgba(28, 28, 30, 0.68);
   --surface-2: rgba(28, 28, 30, 0.5);
   --surface-hover: rgba(120, 120, 128, 0.24);
   --sidebar-bg: rgba(30, 30, 34, 0.5);
@@ -308,6 +315,7 @@
   --positive: #30d158;
   --positive-soft: rgba(48, 209, 88, 0.18);
   --negative: #ff453a;
+  --on-negative: #2a0f06;
   --negative-soft: rgba(255, 69, 58, 0.18);
   --warning: #ff9f0a;
   --warning-soft: rgba(255, 159, 10, 0.18);
@@ -432,6 +440,10 @@
   -webkit-backdrop-filter: blur(16px) saturate(1.5);
 }
 
+[data-palette="transparent"] .modal-panel {
+  background: var(--modal-surface);
+}
+
 [data-palette="transparent"] .modal-overlay {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -505,6 +517,7 @@
   --positive: #005000;
   --positive-soft: #b8d4b8;
   --negative: #a00000;
+  --on-negative: #ffffff;
   --negative-soft: #e0b8b8;
   --warning: #6a4200;
   --warning-soft: #d8d0a8;
@@ -564,6 +577,7 @@
     --positive: #5fd38d;
     --positive-soft: #1f3d2b;
     --negative: #ff8f8f;
+    --on-negative: #2a0f06;
     --negative-soft: #4a2424;
     --warning: #e8b84a;
     --warning-soft: #4a3a14;
@@ -610,6 +624,7 @@
   --positive: #5fd38d;
   --positive-soft: #1f3d2b;
   --negative: #ff8f8f;
+  --on-negative: #2a0f06;
   --negative-soft: #4a2424;
   --warning: #e8b84a;
   --warning-soft: #4a3a14;
@@ -687,4 +702,28 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
+}
+
+/* Backup identities and restore warnings must remain readable at narrow widths. */
+.backup-restore-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+
+.backup-restore-confirm .backup-restore-warning {
+  flex: 1 1 260px;
+}
+
+.backup-restore-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.backup-file-label, .backup-restore-warning {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }

@@ -1,6 +1,6 @@
 // Wrapper for profile/file and CSV native dialogs. A dialog is an owned window: taking it up
 // defocuses the main window the same way a real alt-tab does, which would otherwise lock a protected
-// profile that's opted into "lock on focus loss" mid-Export/mid-Relocate/mid-"Use existing file…"
+// profile that's opted into "lock on focus loss" mid-Export/mid-Relocate/mid-"Use existing file"
 // (see `auto_lock::window_lock_reason`'s doc comment on the Rust side). Profile/file and CSV flows
 // import `open`/`save` here; LaunchErrorScreen and MobileSettings currently call the plugin directly
 // (see docs/NATIVE-CONTROLS.md). The `finally` guarantees the backend is told the dialog

@@ -28,7 +28,7 @@ describe("filterPalette", () => {
     tab("dashboard", "Dashboard"),
     tab("budget", "Budget"),
     tab("cashflow", "Cash Flow"),
-    action("add", "Add transaction…", "new create"),
+    action("add", "Add transaction", "new create"),
     action("privacy", "Hide amounts", "privacy mask"),
     txn(1, "Budget Rent-A-Car"),
     txn(2, "Kroger"),
@@ -50,7 +50,7 @@ describe("filterPalette", () => {
 
   it("matches an entry's keywords as well as its label", () => {
     expect(filterPalette(entries, "privacy").map((e) => e.label)).toEqual(["Hide amounts"]);
-    expect(filterPalette(entries, "create").map((e) => e.label)).toEqual(["Add transaction…"]);
+    expect(filterPalette(entries, "create").map((e) => e.label)).toEqual(["Add transaction"]);
   });
 
   it("finds a tab from scattered letters", () => {

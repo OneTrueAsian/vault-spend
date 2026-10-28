@@ -27,7 +27,7 @@ const backupsDir = path.join(dbDir, "backups", "protected");
     const { browser } = app;
     await (await browser.$("button*=Settings")).click();
     await enableProtectionThroughUI(browser, PASSWORD);
-    await browser.$("button=Change password…").waitForExist({ timeout: 15000 });
+    await browser.$("button=Change password").waitForExist({ timeout: 15000 });
     const before = (await listedBackups(browser)).length;
     await (await browser.$("button=Back up now")).click();
     await browser.waitUntil(async () => (await listedBackups(browser)).length > before, { timeout: 15000, timeoutMsg: "Back up now should add a protected backup" });

@@ -192,6 +192,64 @@ describe("ImportReviewDialog", () => {
     expect(dialog()!.querySelector(".dup-review")).toBeNull();
   });
 
+  describe("a file with nothing to import (QA-UX-004)", () => {
+    const summary = () => dialog()!.querySelector(".dup-review-summary")!.textContent!;
+
+    it("says no transactions were found and what to check, instead of an empty table", () => {
+      show(review([]));
+      expect(summary()).toContain("No transactions were found in this file.");
+      expect(summary()).toContain("CSV, OFX, QFX or QIF");
+      expect(summary()).not.toContain("Untick anything");
+      expect(dialog()!.querySelector("table")).toBeNull();
+      expect(importButton().disabled).toBe(true);
+    });
+
+    it("says how many rows could not be read when the file had some, rather than blaming the file type", () => {
+      const r = review([]);
+      r.pendingImport!.preview.row_errors = 2;
+      show(r);
+      expect(summary()).toContain("No transactions could be read from this file.");
+      expect(summary()).toContain("2 rows couldn't be read");
+      expect(summary()).not.toContain("Untick anything");
+    });
+
+    it("keeps the normal instructions and table when there are rows", () => {
+      show(review([row(0)]));
+      expect(summary()).toContain("Untick anything you don't want.");
+      expect(dialog()!.querySelector("table")).not.toBeNull();
+    });
+  });
+
+  describe("row checkbox names (QA-A11Y-004)", () => {
+    const rowBoxes = () => Array.from(document.querySelectorAll<HTMLInputElement>("tbody input[type='checkbox']"));
+
+    it("names each row's checkbox after its own transaction, so a screen reader can tell them apart", () => {
+      show(review([row(0, { description: "CORNER SHOP", date: "2026-09-03", amount: "-4.50" }), row(1, { description: "CAFE", date: "2026-09-04", amount: "-3.25" })]));
+      const names = rowBoxes().map((b) => b.getAttribute("aria-label"));
+      expect(names).toHaveLength(2);
+      expect(names[0]).toContain("CORNER SHOP");
+      expect(names[0]).toContain("4.50");
+      expect(names[1]).toContain("CAFE");
+      expect(new Set(names).size).toBe(2);
+    });
+
+    it("keeps names distinct when two rows share a description, date and amount", () => {
+      show(review([row(0, { description: "COFFEE", amount: "-3.00" }), row(1, { description: "COFFEE", amount: "-3.00" })]));
+      const names = rowBoxes().map((b) => b.getAttribute("aria-label"));
+      expect(names.every((n) => n && n.length > 0)).toBe(true);
+      expect(new Set(names).size).toBe(2);
+    });
+
+    it("leaves a row's name tied to its row when other rows are unticked, and toggling goes to that row", () => {
+      const r = review([row(0, { description: "ONE" }), row(1, { description: "TWO" })], { includedIndices: new Set([1]) });
+      show(r);
+      const two = rowBoxes().find((b) => b.getAttribute("aria-label")!.includes("TWO"))!;
+      expect(two.checked).toBe(true);
+      act(() => two.click());
+      expect(r.toggleIncluded).toHaveBeenCalledWith(1);
+    });
+  });
+
   it("does not cancel while the import is being saved", () => {
     const r = review([row(0)]);
     show(r, true);

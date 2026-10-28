@@ -308,6 +308,7 @@ impl Store {
         self.migrate_add_bucket_icon_key_if_missing()?;
         self.migrate_add_account_icon_key_if_missing()?;
         self.migrate_add_account_import_flip_signs_if_missing()?;
+        self.migrate_add_account_hidden_if_missing()?;
         self.migrate_add_account_import_columns_if_missing()?;
         self.migrate_add_category_icon_key_if_missing()?;
         self.migrate_add_member_id_to_accounts_if_missing()?;

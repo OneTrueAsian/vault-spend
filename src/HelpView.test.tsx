@@ -25,6 +25,69 @@ describe("HelpView", () => {
     container.remove();
   });
 
+  it("describes current property values without promising historical valuations", () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "property and valuables");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("track a current value");
+    expect(text).toContain("does not include property and valuables");
+    expect(text).not.toContain("past points on that chart apply today's value");
+  });
+
+  it("explains the heatmap's single Tab stop and day-navigation keys", () => {
+    const reports = container.querySelector("#help-reports")!.textContent ?? "";
+    expect(reports).toContain("Tab once");
+    expect(reports).toContain("arrow keys");
+    expect(reports).toContain("Home and End");
+    expect(reports).not.toContain("move to it with Tab");
+  });
+
+  it("names the Add button of the holdings import the way it reads on screen (it carries the count)", () => {
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Add 3 holdings");
+    expect(text).not.toContain("click Add holdings");
+  });
+
+  it("names the portfolio value chart the way its card is titled on Investments", () => {
+    const investments = (container.querySelector("#help-investments")!.textContent ?? "").replace(/\s+/g, " ");
+    expect(investments).toContain("Portfolio value over time");
+    expect(investments).not.toContain("history chart");
+  });
+
+  it("names the account page chart the way its card is titled", () => {
+    const accounts = (container.querySelector("#help-accounts")!.textContent ?? "").replace(/\s+/g, " ");
+    expect(accounts).toContain("Balance over the last year");
+    expect(accounts).not.toContain("balance-history chart");
+  });
+
+  it("uses the actual setup-template section name for goals", () => {
+    const topics = Array.from(container.querySelectorAll("details.help-topic"));
+    const setup = topics.find(el => el.querySelector("summary")?.textContent === "Bulk setup-data import/export")!;
+    expect((setup.textContent ?? "").replace(/\s+/g, " ")).toContain("Buckets (your goals)");
+  });
+
+  it("describes the current local fonts without claiming a Google Fonts request at startup", () => {
+    const answer = Array.from(container.querySelectorAll("details.help-faq-entry")).find(el =>
+      el.querySelector("summary")?.textContent === "Is my data private?")!;
+    expect((answer.textContent ?? "").replace(/\s+/g, " ")).toContain("Text uses local fonts.");
+    expect(answer.textContent).not.toContain("loads its typefaces from Google Fonts");
+    expect(answer.textContent).toContain("checks GitHub");
+  });
+
+  it("explains automatic goal contributions without placeholder plurals", () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Auto-contribute monthly");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("which goals received it");
+    expect(text).not.toContain("goal(s)");
+  });
+
   it("finds savings-target preview guidance, explicit constraints, history choices and no-write limitations", () => {
     const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
     act(() => {
@@ -354,3 +417,17 @@ describe("HelpView sections per tab (s12)", () => {
   });
 });
 
+
+describe("HelpView names the review button as it reads", () => {
+  it("calls the Transactions button Review transactions, not an inbox", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    act(() => root.render(<HelpView />));
+    const text = host.textContent ?? "";
+    expect(text).toContain("Review transactions");
+    expect(text).not.toContain("Review inbox");
+    act(() => root.unmount());
+    host.remove();
+  });
+});

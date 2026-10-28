@@ -416,3 +416,88 @@ fn set_bucket_tracks_account_can_be_turned_back_off() {
     // An unknown id is a harmless no-op.
     store.set_bucket_tracks_account(9999, true).unwrap();
 }
+
+// QA-FUNC-004: a goal's name can be corrected in place.
+#[test]
+fn rename_bucket_changes_only_the_name_and_keeps_target_account_and_contributions() {
+    let store = Store::open_in_memory().unwrap();
+    let savings = store.get_or_create_account("Nest Egg", AccountType::Savings).unwrap();
+    let target_date: NaiveDate = "2027-04-15".parse().unwrap();
+    let id = store
+        .create_bucket("Japan Trip", Some("6000.00".parse().unwrap()), Some(target_date), Some(savings), None, Some("#8A5FB0"), None)
+        .unwrap();
+    store
+        .add_bucket_contribution(id, "2026-09-01".parse().unwrap(), "250.00".parse().unwrap(), Some("first"))
+        .unwrap();
+
+    store.rename_bucket(id, "Tokyo Trip").unwrap();
+
+    let buckets = store.list_buckets().unwrap();
+    assert_eq!(buckets.len(), 1);
+    let bucket = &buckets[0];
+    assert_eq!(bucket.id, id);
+    assert_eq!(bucket.name, "Tokyo Trip");
+    assert_eq!(bucket.target_amount, Some("6000.00".parse().unwrap()));
+    assert_eq!(bucket.target_date, Some(target_date));
+    assert_eq!(bucket.account_id, Some(savings));
+    assert_eq!(bucket.saved_amount, "250.00".parse().unwrap());
+    assert_eq!(bucket.color, Some("#8A5FB0".to_string()));
+}
+
+#[test]
+fn rename_bucket_trims_surrounding_whitespace() {
+    let store = Store::open_in_memory().unwrap();
+    let id = store.create_bucket("Holiday", None, None, None, None, None, None).unwrap();
+
+    store.rename_bucket(id, "  Summer Holiday \t").unwrap();
+
+    assert_eq!(store.list_buckets().unwrap()[0].name, "Summer Holiday");
+}
+
+#[test]
+fn rename_bucket_rejects_a_blank_name_and_keeps_the_old_one() {
+    let store = Store::open_in_memory().unwrap();
+    let id = store.create_bucket("Holiday", None, None, None, None, None, None).unwrap();
+
+    for blank in ["", "   ", "\t\n"] {
+        let err = store.rename_bucket(id, blank).unwrap_err();
+        assert!(err.to_string().contains("name"), "message should ask for a name: {err}");
+    }
+
+    assert_eq!(store.list_buckets().unwrap()[0].name, "Holiday");
+}
+
+#[test]
+fn rename_bucket_rejects_another_goals_name_ignoring_case_and_changes_neither() {
+    let store = Store::open_in_memory().unwrap();
+    store.create_bucket("Emergency Fund", None, None, None, None, None, None).unwrap();
+    let holiday = store.create_bucket("Holiday", None, None, None, None, None, None).unwrap();
+
+    let err = store.rename_bucket(holiday, "emergency fund").unwrap_err();
+
+    assert!(err.to_string().contains("already"), "message should say the name is taken: {err}");
+    let names: Vec<String> = store.list_buckets().unwrap().into_iter().map(|b| b.name).collect();
+    assert_eq!(names, vec!["Emergency Fund".to_string(), "Holiday".to_string()]);
+}
+
+#[test]
+fn rename_bucket_allows_changing_only_the_letter_case_of_its_own_name() {
+    let store = Store::open_in_memory().unwrap();
+    let id = store.create_bucket("holiday", None, None, None, None, None, None).unwrap();
+
+    store.rename_bucket(id, "Holiday").unwrap();
+    store.rename_bucket(id, "Holiday").unwrap();
+
+    assert_eq!(store.list_buckets().unwrap()[0].name, "Holiday");
+}
+
+#[test]
+fn rename_bucket_on_an_unknown_id_is_a_harmless_no_op() {
+    let store = Store::open_in_memory().unwrap();
+    let id = store.create_bucket("Holiday", None, None, None, None, None, None).unwrap();
+
+    store.rename_bucket(999, "Anything").unwrap();
+
+    assert_eq!(store.list_buckets().unwrap()[0].id, id);
+    assert_eq!(store.list_buckets().unwrap()[0].name, "Holiday");
+}

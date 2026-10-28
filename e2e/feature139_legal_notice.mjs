@@ -27,7 +27,7 @@ async function expectNotice(browser) {
     const { browser } = app;
     await expectNotice(browser);
     const text = await browser.$(NOTICE).getText();
-    if (!/Version \d{4}-\d{2}-\d{2}/.test(text)) throw new Error(`the notice should state its version:\n${text}`);
+    if (!/Version [A-Z][a-z]{2} \d{1,2}, \d{4}/.test(text)) throw new Error(`the notice should state its version:\n${text}`);
     if (await browser.$("[data-legal-notice-changed]").isExisting()) throw new Error("a first launch has nothing to show as changed");
     await (await browser.$("[data-legal-notice-ok]")).click();
     await browser.$(".brand-word").waitForExist({ timeout: 15000, timeoutMsg: "the app should open after the notice is acknowledged" });

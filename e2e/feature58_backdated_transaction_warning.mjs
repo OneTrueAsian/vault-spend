@@ -111,7 +111,7 @@ try {
   const descriptionInput = await app.browser.$('input[placeholder=\'e.g. "Coffee shop"\']');
   await descriptionInput.setValue("Old grocery run");
   await enterTransactionAmount(app.browser, await app.browser.$(".modal-panel"), "-50.00");
-  const submit = await app.browser.$("button=Add transaction");
+  const submit = await app.browser.$(".modal-panel").$("button=Add transaction");
   await submit.click();
 
   // Wait for the ledger refresh to actually land (the new row showing up

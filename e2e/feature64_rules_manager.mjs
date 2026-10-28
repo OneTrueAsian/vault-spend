@@ -66,7 +66,7 @@ try {
   if (!listText.includes("grocer")) throw new Error(`expected the starter "grocer" rule, got:\n${listText}`);
 
   // 2. Add a rule; preview counts 4 matches / 3 changes and the user's own choice is protected.
-  await (await card.$("button=Add rule…")).click();
+  await (await card.$("button=Add rule")).click();
   const dialog = await browser.$("[role='dialog']");
   await dialog.waitForExist({ timeout: 10000 });
   await (await dialog.$("input[placeholder*='Ferrywood']")).setValue("ferrywood coffee");

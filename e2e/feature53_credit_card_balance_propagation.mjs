@@ -67,8 +67,8 @@ async function addTransaction(app, { accountName, description, amount }) {
 
 async function deleteTransaction(app, description) {
   const row = await app.browser.$(`//tr[td[contains(.,'${description}')]]`);
-  // "Delete…" in the row's ⋯ menu shows the inline Cancel/Delete confirm in its place.
-  await chooseRowAction(app.browser, async () => row.$("[data-row-menu]"), "Delete…");
+  // "Delete" in the row's ⋯ menu shows the inline Cancel/Delete confirm in its place.
+  await chooseRowAction(app.browser, async () => row.$("[data-row-menu]"), "Delete");
   const confirmBtn = await row.$(".btn-danger");
   await confirmBtn.waitForExist({ timeout: 5000 });
   await confirmBtn.click();
@@ -104,10 +104,10 @@ try {
   // -owed restated with no limit behind it. It should read as an explicit
   // call to action instead.
   const newCardAvailable = await availableText(app, "New Card");
-  if (newCardAvailable !== "Set credit limit…") {
+  if (newCardAvailable !== "Set credit limit") {
     throw new Error(`expected an unset-limit card to prompt for a limit instead of a confusing negative, got "${newCardAvailable}"`);
   }
-  console.log('A credit card with no limit set shows "Set credit limit…" instead of a negative Available figure');
+  console.log('A credit card with no limit set shows "Set credit limit" instead of a negative Available figure');
 
   // --- Action A: add a $300 charge on Visa ---
   const ledgerNav = await app.browser.$("button*=Transactions");

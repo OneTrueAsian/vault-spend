@@ -6,7 +6,7 @@ describe("summarizeLivePriceRefresh", () => {
     const result = summarizeLivePriceRefresh({ updated: ["AAPL", "MSFT"], failed: [] });
 
     expect(result.kind).toBe("success");
-    expect(result.text).toBe("Live prices: updated 2 symbol(s)");
+    expect(result.text).toBe("Live prices: updated 2 symbols");
   });
 
   it("downgrades to info, not error, when only some symbols failed", () => {
@@ -16,7 +16,7 @@ describe("summarizeLivePriceRefresh", () => {
     });
 
     expect(result.kind).toBe("info");
-    expect(result.text).toBe("Live prices: updated 20 symbol(s) — PLIDX: Finnhub's plan doesn't include this symbol");
+    expect(result.text).toBe("Live prices: updated 20 symbols — PLIDX: Finnhub's plan doesn't include this symbol");
   });
 
   it("is error only when nothing at all updated", () => {
@@ -41,7 +41,7 @@ describe("summarizeLivePriceRefresh", () => {
       ],
     });
 
-    expect(result.text).toBe("Live prices: updated 0 symbol(s) — AAPL, MSFT, GOOG: Finnhub rejected the API key: invalid token");
+    expect(result.text).toBe("Live prices: updated 0 symbols — AAPL, MSFT, GOOG: Finnhub rejected the API key: invalid token");
   });
 
   it("truncates a long list of identically-failing symbols instead of naming every one", () => {
@@ -51,7 +51,7 @@ describe("summarizeLivePriceRefresh", () => {
       failed: symbols.map((symbol) => ({ symbol, error: "network error" })),
     });
 
-    expect(result.text).toBe("Live prices: updated 0 symbol(s) — A, B, C +2 more: network error");
+    expect(result.text).toBe("Live prices: updated 0 symbols — A, B, C +2 more: network error");
   });
 
   it("keeps distinct error messages as separate groups", () => {
@@ -64,7 +64,7 @@ describe("summarizeLivePriceRefresh", () => {
     });
 
     expect(result.text).toBe(
-      "Live prices: updated 1 symbol(s) — PLIDX: Finnhub's plan doesn't include this symbol; ZZZZ: no data returned for this symbol",
+      "Live prices: updated 1 symbol — PLIDX: Finnhub's plan doesn't include this symbol; ZZZZ: no data returned for this symbol",
     );
   });
 });

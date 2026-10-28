@@ -32,6 +32,8 @@ mod protection_leftovers;
 mod protection_lifecycle;
 mod protection_session;
 mod protection_transition;
+#[cfg(test)]
+mod quote_http_fixture;
 mod request_session;
 #[cfg(debug_assertions)]
 mod retirement_stage_trace;
@@ -222,6 +224,7 @@ pub fn run() {
             launch_commands::start_with_new_data_file,
             launch_commands::start_with_new_profile_list,
             commands::write_text_file,
+            commands::save_report_pdf,
             commands::fetch_latest_release,
             updater::service::prepare_signed_update,
             updater::service::download_signed_update,
@@ -328,6 +331,7 @@ pub fn run() {
             commands::set_account_details,
             commands::set_account_member,
             commands::set_account_icon,
+            commands::set_account_hidden,
             commands::create_family_member,
             commands::list_family_members,
             commands::rename_family_member,
@@ -359,6 +363,7 @@ pub fn run() {
             commands::create_bucket,
             commands::list_buckets,
             commands::update_bucket_details,
+            commands::rename_bucket,
             commands::set_bucket_member,
             commands::set_bucket_tracks_account,
             commands::add_bucket_contribution,

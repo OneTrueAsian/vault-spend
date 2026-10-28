@@ -64,7 +64,16 @@ pub struct BillAwareForecast {
     /// recurring items and transfers — usually negative (groceries, gas,
     /// dining out), applied to every projected day.
     pub daily_baseline: Decimal,
+    /// `false` when there is less than `MIN_HISTORY_DAYS` of transaction history, so the everyday
+    /// baseline was left at 0 rather than extrapolated from a few days (see `has_enough_history`).
+    pub enough_history: bool,
 }
+
+/// The fewest days of transaction history, counted from the earliest transaction to today, from
+/// which an everyday daily or monthly average is extrapolated (owner-approved 27 Oct 2026, QA-FUNC-003).
+/// With less, one lumpy day or week would be repeated across the whole forecast, so the everyday
+/// baseline is left at 0 and the screens say there is not enough history yet.
+pub const MIN_HISTORY_DAYS: i64 = 14;
 
 /// Adds `n` calendar months by repeated `add_one_month` — `n` is always
 /// small in practice (`debt_payoff_projection` caps its simulation at 600
@@ -79,6 +88,32 @@ fn add_months(d: NaiveDate, n: u32) -> NaiveDate {
 }
 
 impl Store {
+    /// The date of the earliest live transaction in any account, if there is one.
+    fn earliest_transaction_date(&self) -> rusqlite::Result<Option<NaiveDate>> {
+        Ok(self
+            .conn
+            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| {
+                row.get::<_, Option<String>>(0)
+            })?
+            .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid")))
+    }
+
+    /// The earliest transaction date, but only when there is enough history to extrapolate from (see
+    /// `has_enough_history`). A database error is returned, never read as "not enough history".
+    fn earliest_with_enough_history(&self, today: NaiveDate) -> rusqlite::Result<Option<NaiveDate>> {
+        Ok(self
+            .earliest_transaction_date()?
+            .filter(|earliest| (today - *earliest).num_days() >= MIN_HISTORY_DAYS))
+    }
+
+    /// Whether there are at least `MIN_HISTORY_DAYS` between the earliest transaction and `today`.
+    /// No transactions, or only ones dated after `today`, is not enough.
+    pub fn has_enough_history(&self, today: NaiveDate) -> rusqlite::Result<bool> {
+        Ok(self
+            .earliest_transaction_date()?
+            .is_some_and(|earliest| (today - earliest).num_days() >= MIN_HISTORY_DAYS))
+    }
+
     /// Simulates paying down every debt account (credit or loan, matching
     /// `AccountType::group`) month by month, applying `minimum_payments`
     /// (an account not present defaults to a $0 minimum) plus
@@ -262,14 +297,7 @@ impl Store {
             .collect();
         let starting_balance: Decimal = cash_accounts.iter().map(|a| a.current_balance).sum();
 
-        let earliest_transaction_date: Option<NaiveDate> = self
-            .conn
-            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| {
-                row.get::<_, Option<String>>(0)
-            })?
-            .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid"));
-
-        let daily_net = match earliest_transaction_date {
+        let daily_net = match self.earliest_with_enough_history(today)? {
             None => Decimal::ZERO,
             Some(earliest) => {
                 let window_start = earliest.max(today - chrono::Duration::days(TRAILING_WINDOW_DAYS));
@@ -325,6 +353,7 @@ impl Store {
             .map(|a| a.current_balance)
             .sum();
 
+        let enough_history = self.has_enough_history(today)?;
         let recurring: Vec<StoredRecurring> = self.list_recurring(today)?.into_iter().filter(|r| r.status != "canceled").collect();
         if recurring.is_empty() {
             return Ok(BillAwareForecast {
@@ -333,6 +362,7 @@ impl Store {
                 points: self.cash_flow_forecast(today, days)?,
                 events: Vec::new(),
                 daily_baseline: Decimal::ZERO,
+                enough_history,
             });
         }
 
@@ -385,6 +415,7 @@ impl Store {
             points,
             events,
             daily_baseline,
+            enough_history,
         })
     }
 
@@ -394,13 +425,7 @@ impl Store {
     /// however much history exists, same as `average_monthly_spend`, and is
     /// zero with none.
     fn everyday_daily_net(&self, today: NaiveDate, window_days: i64, recurring: &[StoredRecurring]) -> rusqlite::Result<Decimal> {
-        let earliest_transaction_date: Option<NaiveDate> = self
-            .conn
-            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| {
-                row.get::<_, Option<String>>(0)
-            })?
-            .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid"));
-        let Some(earliest) = earliest_transaction_date else {
+        let Some(earliest) = self.earliest_with_enough_history(today)? else {
             return Ok(Decimal::ZERO);
         };
         let window_start = earliest.max(today - chrono::Duration::days(window_days));
@@ -455,14 +480,7 @@ impl Store {
     pub fn average_monthly_spend(&self, today: NaiveDate) -> rusqlite::Result<Decimal> {
         const TRAILING_WINDOW_DAYS: i64 = 90;
 
-        let earliest_transaction_date: Option<NaiveDate> = self
-            .conn
-            .query_row("SELECT MIN(date) FROM transactions WHERE deleted_at IS NULL", [], |row| {
-                row.get::<_, Option<String>>(0)
-            })?
-            .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").expect("date stored by this crate must be valid"));
-
-        let Some(earliest) = earliest_transaction_date else {
+        let Some(earliest) = self.earliest_with_enough_history(today)? else {
             return Ok(Decimal::ZERO);
         };
         let window_start = earliest.max(today - chrono::Duration::days(TRAILING_WINDOW_DAYS));

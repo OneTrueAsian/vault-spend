@@ -66,6 +66,21 @@ pub fn load_csv(path: impl AsRef<Path>, invert_amounts: bool) -> std::io::Result
     load_csv_with(path, invert_amounts, None)
 }
 
+/// A file the csv reader rejects, in words a person can act on (the library's own text names bytes and records).
+fn plain_read_error(e: csv::Error) -> std::io::Error {
+    match e.kind() {
+        csv::ErrorKind::Utf8 { .. } => std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "This file isn't saved as plain UTF-8 text, so it can't be read. In your spreadsheet app choose Save As, pick CSV UTF-8, and import it again.",
+        ),
+        csv::ErrorKind::UnequalLengths { .. } => std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Some rows in this file have a different number of columns from the others, so it can't be read. Open it in a spreadsheet app, make every row the same width, save it as CSV UTF-8 and import it again.",
+        ),
+        _ => e.into(),
+    }
+}
+
 /// Like `load_csv`, but when `map` is given the columns are read by position
 /// instead of being found by name.
 pub fn load_csv_with(path: impl AsRef<Path>, invert_amounts: bool, map: Option<&ColumnMap>) -> std::io::Result<LoadResult> {
@@ -240,7 +255,7 @@ fn inspect_reader<R: Read>(reader: R) -> std::io::Result<CsvInspection> {
     // The header and five sample rows are all that is shown; a bad row further down is the real loader's to report.
     let mut rows = Vec::new();
     for record in csv_reader.records().take(6) {
-        rows.push(record?);
+        rows.push(record.map_err(plain_read_error)?);
     }
 
     let nothing_guessed = ColumnGuess {
@@ -315,7 +330,7 @@ fn load_from_reader_with<R: Read>(reader: R, invert_amounts: bool, map: Option<&
     let mut csv_reader = csv::ReaderBuilder::new().has_headers(false).from_reader(reader);
     let mut rows = Vec::new();
     for record in csv_reader.records() {
-        rows.push(record?);
+        rows.push(record.map_err(plain_read_error)?);
     }
 
     let Some(first_row) = rows.first() else {
@@ -1165,5 +1180,28 @@ c,d,e,f
     fn partial_guess_takes_the_first_of_two_matching_headers() {
         let guess = single_names("Date", "Memo", "Amt").partial_guess(&headers(&["Date", "Memo", "Amt", "Date", "Amt"]));
         assert_eq!((guess.date, guess.amount), (Some(0), Some(2)));
+    }
+
+    #[test]
+    fn a_file_that_is_not_utf8_gets_a_plain_message_to_save_it_again() {
+        // A spreadsheet's plain "CSV" save on Windows writes one byte for an accented letter.
+        let bytes = b"date,description,amount\n2026-08-20,Caf\xe9,-4.00\n".to_vec();
+        for message in [load_from_reader(Cursor::new(bytes.clone()), false).unwrap_err().to_string(), inspect_reader(bytes.as_slice()).unwrap_err().to_string()] {
+            assert!(message.contains("CSV UTF-8"), "tells the person how to save the file again: {message}");
+            for technical in ["byte", "record", "field", "invalid utf-8", "CSV parse error"] {
+                assert!(!message.contains(technical), "no technical wording ({technical}): {message}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_ragged_file_gets_a_plain_message_about_row_width() {
+        let bytes = b"date,description,amount\n2026-08-20,Cafe\n".to_vec();
+        for message in [load_from_reader(Cursor::new(bytes.clone()), false).unwrap_err().to_string(), inspect_reader(bytes.as_slice()).unwrap_err().to_string()] {
+            assert!(message.contains("different number of columns"), "{message}");
+            for technical in ["record", "field", "CSV parse error", "previous"] {
+                assert!(!message.contains(technical), "no technical wording ({technical}): {message}");
+            }
+        }
     }
 }

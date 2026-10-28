@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addHoldingValues, formatHoldingAmount, mappingFromDraft, suggestHoldingMapping } from "./holdingImport";
+import { addHoldingValues, formatHoldingAmount, holdingCount, mappingFromDraft, suggestHoldingMapping } from "./holdingImport";
 
 describe("holdings import mapping and totals", () => {
   it("suggests broker aliases and leaves ambiguous or total-value columns unchosen", () => {
@@ -24,5 +24,11 @@ describe("holdings import mapping and totals", () => {
     expect(formatHoldingAmount("12.51250")).toBe("$12.5125");
     expect(formatHoldingAmount("9007199254740993.00")).toBe("$9,007,199,254,740,993.00");
     expect(formatHoldingAmount("0.0000000000000000000000000001")).toBe("$0.0000000000000000000000000001");
+  });
+});
+
+describe("holdingCount", () => {
+  it("uses the singular for exactly one holding", () => {
+    expect([0, 1, 2].map(holdingCount)).toEqual(["0 holdings", "1 holding", "2 holdings"]);
   });
 });

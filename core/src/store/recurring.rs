@@ -1,6 +1,6 @@
 //! Recurring items: bills and subscriptions, matching them to charges, price changes and detecting new ones.
 
-use super::{LIVE_TRANSFER_LEG_IDS_SQL, Store, StoredRecurring, add_one_month, add_one_year, next_occurrence, normalize_description};
+use super::{LIVE_TRANSFER_LEG_IDS_SQL, Store, StoredRecurring, recurring_occurrence_at, next_occurrence, normalize_description};
 use chrono::NaiveDate;
 use rusqlite::params;
 use rust_decimal::Decimal;
@@ -94,15 +94,12 @@ fn cadence_days(cadence: &str) -> i64 {
 /// still in the future.
 fn recent_occurrences(anchor: NaiveDate, cadence: &str, today: NaiveDate, max: usize) -> Vec<NaiveDate> {
     let mut dates = Vec::new();
+    let mut period = 0;
     let mut next = anchor;
     while next <= today {
         dates.push(next);
-        next = match cadence {
-            "weekly" => next + chrono::Duration::days(7),
-            "biweekly" => next + chrono::Duration::days(14),
-            "annual" => add_one_year(next),
-            _ => add_one_month(next),
-        };
+        period += 1;
+        next = recurring_occurrence_at(anchor, cadence, period);
     }
     let skip = dates.len().saturating_sub(max);
     dates.split_off(skip)

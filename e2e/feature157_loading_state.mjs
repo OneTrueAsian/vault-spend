@@ -3,7 +3,7 @@
 // and "No accounts yet" for several seconds on a 50,000-row profile; 20,000 rows here).
 //
 // - From launch until the ledger shows its rows, the page never shows those empty-state messages.
-// - The loading placeholder shows instead, and Import transactions… can't be used (it is missing
+// - The loading placeholder shows instead, and Import transactions can't be used (it is missing
 //   or disabled) until the data is there. Since 1.3.0 it sits beside the page title, which the
 //   placeholder replaces, while Hide amounts and Light / Dark / System stay usable in the sidebar.
 //
@@ -60,7 +60,7 @@ try {
   assert.equal(seen.placeholder, true, "the loading placeholder showed while the data loaded");
   // Only meaningful because the placeholder was seen (asserted just above): Import was looked for
   // on every frame it showed.
-  assert.ok(seen.placeholder && seen.importUsableWhileLoading === false, "Import transactions… can't be used until the accounts are there");
+  assert.ok(seen.placeholder && seen.importUsableWhileLoading === false, "Import transactions can't be used until the accounts are there");
   assert.equal(seen.sidebarControlsWhileLoading, true, "Hide amounts and Light / Dark / System are in the sidebar while the data loads");
   assert.equal(await (await browser.$("button*=Import transactions")).isEnabled(), true, "and enabled once they are");
   console.log("FEATURE 157 E2E TEST PASSED");

@@ -69,7 +69,7 @@ function NewAssetForm({
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)}>Add property or valuable…</button>
+      <button onClick={() => setOpen(true)}>Add property or valuable</button>
     );
   }
 
@@ -213,14 +213,14 @@ export function PropertyAssetsSection({
               <RowMenu
                 label={`Actions for ${a.name}`}
                 items={[
-                  { label: "Update value…", onSelect: () => setEditing({ id: a.id, value: a.value }) },
+                  { label: "Update value", onSelect: () => setEditing({ id: a.id, value: a.value }) },
                   ...familyMembers.map((m) => ({
                     kind: "check" as const,
                     label: `Belongs to ${m.name}`,
                     checked: a.member_id === m.id,
                     onToggle: (next: boolean) => onSetMember(a.id, next ? m.id : null),
                   })),
-                  { label: "Delete…", onSelect: () => setConfirmingDeleteId(a.id), danger: true },
+                  { label: "Delete", onSelect: () => setConfirmingDeleteId(a.id), danger: true },
                 ]}
               />
             </div>

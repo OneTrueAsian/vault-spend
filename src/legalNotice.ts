@@ -4,6 +4,7 @@
 // fails a test, not a person's first launch.
 
 import legalNoticeSource from "../docs/LEGAL-NOTICE.md?raw";
+import { formatFullDate } from "./format";
 
 export type NoticeBlock =
   | { kind: "heading"; level: 2 | 3; text: string }
@@ -81,6 +82,9 @@ export function parseLegalNotice(raw: string): ParsedLegalNotice {
 
 /** The notice bundled with this build, parsed once. A malformed file fails the legalNotice tests. */
 export const bundledLegalNotice: ParsedLegalNotice = parseLegalNotice(legalNoticeSource);
+
+/** A notice version as people read it: "Oct 5, 2026" for the stored "2026-10-05". The stored id is what gets compared and saved. */
+export const formatLegalNoticeVersion = (version: string): string => formatFullDate(version);
 
 export function parseInline(text: string): InlinePiece[] {
   const pieces: InlinePiece[] = [];

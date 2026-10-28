@@ -102,6 +102,24 @@ impl Store {
         Ok(())
     }
 
+    /// Renames a bucket in place — its contributions, target, linked account, member, color and
+    /// icon all stay attached, since they hang off the id. The name is trimmed; a blank name or one
+    /// another bucket already uses (compared ignoring case, as `create_bucket`'s UNIQUE column does)
+    /// is refused with a message meant for the person, leaving the old name. Changing only the case
+    /// of a bucket's own name is fine. An unknown id is a harmless no-op.
+    pub fn rename_bucket(&self, id: i64, new_name: &str) -> rusqlite::Result<()> {
+        let name = new_name.trim();
+        if name.is_empty() {
+            return Err(rusqlite::Error::InvalidParameterName("Give the goal a name.".into()));
+        }
+        match self.conn.execute("UPDATE buckets SET name = ?1 WHERE id = ?2", params![name, id]) {
+            Err(rusqlite::Error::SqliteFailure(e, _)) if e.code == rusqlite::ErrorCode::ConstraintViolation => Err(
+                rusqlite::Error::InvalidParameterName(format!("You already have a goal called \"{name}\". Pick a different name.")),
+            ),
+            other => other.map(|_| ()),
+        }
+    }
+
     /// Sets (or clears, with `None`) which family member a bucket is
     /// attributed to. An unknown id is a harmless no-op.
     pub fn set_bucket_member(&self, id: i64, member_id: Option<i64>) -> rusqlite::Result<()> {

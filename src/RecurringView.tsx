@@ -1,3 +1,4 @@
+import { pickableAccounts } from "./hiddenAccounts";
 import { FormEvent, useState } from "react";
 import type { Account, FamilyMember, Recurring, RecurringCandidate, RecurringMatch, RecurringTotals } from "./types";
 import { formatAmount, formatDisplayDate, toLocalIsoDate } from "./format";
@@ -195,7 +196,7 @@ function NewRecurringForm({
   }
 
   if (!open) {
-    return <button onClick={() => setOpen(true)}>Add recurring…</button>;
+    return <button onClick={() => setOpen(true)}>Add recurring</button>;
   }
 
   return (
@@ -225,7 +226,7 @@ function NewRecurringForm({
         onChange={setAccountId}
         options={[
           { value: "", label: "No linked account" },
-          ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+          ...pickableAccounts(accounts, accountId).map((a) => ({ value: String(a.id), label: a.name })),
         ]}
         fill
       />
@@ -318,7 +319,7 @@ function EditRecurringRow({
           onChange={setAccountId}
           options={[
             { value: "", label: "No linked account" },
-            ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+            ...pickableAccounts(accounts, accountId).map((a) => ({ value: String(a.id), label: a.name })),
           ]}
           triggerClassName="row-edit-input"
         />

@@ -37,3 +37,19 @@ it("notes propagate refresh failures so the dialog can remain open for recovery"
   refreshRows.mockRejectedValue(new Error("Read failed"));
   await expect(actions.handleSaveNotes(1,"Fixture note")).rejects.toThrow("Read failed");
 });
+
+
+it("starts a new debt application on a visible debt, never the first hidden one", () => {
+  const accounts = [
+    { id: 2, name: "Hidden debt", account_type: "loan", hidden: true },
+    { id: 3, name: "Visible debt", account_type: "loan", hidden: false },
+  ] as import("./types").Account[];
+  function WithAccounts() { actions=useTransactionRowActions({data:{call,refresh,refreshRows},accounts,categories:[],onStatus:status}); return null; }
+  act(() => root.render(<WithAccounts/>));
+  act(() => actions.startApplyingDebtPayment(row));
+  expect(actions.applyDebtForm).toEqual({accountId:"3",amount:"12.34"});
+  accounts[1] = {...accounts[1],hidden:true};
+  act(() => root.render(<WithAccounts/>));
+  act(() => actions.startApplyingDebtPayment(row));
+  expect(actions.applyDebtForm.accountId).toBe("");
+});

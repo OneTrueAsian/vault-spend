@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // Goals page (s9): an empty Goals page explains what a goal is and offers "Create a goal" plus three
-// starting points, as in the UI mockup, instead of one grey line above a lone "+ New goal…" tile.
+// starting points, as in the UI mockup, instead of one grey line above a lone "+ New goal" tile.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -76,7 +76,7 @@ function nameInput(): HTMLInputElement | null {
 }
 
 function hasNewGoalTile(): boolean {
-  return [...container.querySelectorAll("button")].some((b) => /New goal…/.test(b.textContent ?? ""));
+  return [...container.querySelectorAll("button")].some((b) => /New goal/.test(b.textContent ?? ""));
 }
 
 describe("BucketsView empty page", () => {
@@ -156,9 +156,87 @@ describe("BucketsView empty page", () => {
 
   it("the New goal tile still opens an empty form once goals exist", () => {
     render({ buckets: [bucket()] });
-    const tile = [...container.querySelectorAll("button")].find((b) => /New goal…/.test(b.textContent ?? ""));
+    const tile = [...container.querySelectorAll("button")].find((b) => /New goal/.test(b.textContent ?? ""));
     click(tile);
     expect(nameInput()!.value).toBe("");
     expect(container.querySelector(".buckets-grid .bucket-new-form")).not.toBeNull();
+  });
+});
+
+// QA-FUNC-004: a goal's name can be corrected from its Edit form.
+describe("BucketsView renaming a goal", () => {
+  const editForm = () => container.querySelector<HTMLFormElement>(".bucket-new-form")!;
+  const goalName = () => container.querySelector<HTMLInputElement>('.bucket-new-form input[aria-label="Goal name"]');
+  const setText = (input: HTMLInputElement, value: string) => {
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+  const save = () => button("Save") as HTMLButtonElement;
+  const saveCall = (props: ComponentProps<typeof BucketsView>) => vi.mocked(props.onUpdateBucketDetails).mock.calls[0];
+
+  it("shows the current name in the Edit form", () => {
+    render({ buckets: [bucket({ name: "Roof" })] });
+    click(button("Edit"));
+    expect(goalName()!.value).toBe("Roof");
+  });
+
+  it("sends the new name, trimmed, along with the other details", () => {
+    const props = render({ buckets: [bucket({ id: 7, name: "Roof", target_amount: "2000.00" })] });
+    click(button("Edit"));
+    setText(goalName()!, "  New roof ");
+    act(() => editForm().requestSubmit());
+    const call = saveCall(props);
+    expect(call[0]).toBe(7);
+    expect(call[1]).toBe("2000.00");
+    expect(call[8]).toBe("New roof");
+  });
+
+  it("sends no name when it was left as it was, so nothing is renamed", () => {
+    const props = render({ buckets: [bucket({ name: "Roof" })] });
+    click(button("Edit"));
+    act(() => editForm().requestSubmit());
+    expect(saveCall(props)[8]).toBeNull();
+  });
+
+  it("will not save a blank or whitespace-only name", () => {
+    const props = render({ buckets: [bucket({ name: "Roof" })] });
+    click(button("Edit"));
+    setText(goalName()!, "   ");
+    expect(save().disabled).toBe(true);
+    act(() => editForm().requestSubmit());
+    expect(props.onUpdateBucketDetails).not.toHaveBeenCalled();
+    expect(container.querySelector(".bucket-new-form")).not.toBeNull();
+  });
+
+  it("Cancel discards the typed name and changes nothing", () => {
+    const props = render({ buckets: [bucket({ name: "Roof" })] });
+    click(button("Edit"));
+    setText(goalName()!, "Something else");
+    click(button("Cancel"));
+    expect(props.onUpdateBucketDetails).not.toHaveBeenCalled();
+    expect(container.querySelector(".bucket-new-form")).toBeNull();
+    expect(container.textContent).toContain("Roof");
+    click(button("Edit"));
+    expect(goalName()!.value).toBe("Roof");
+  });
+
+  it("closes the form once the save went through", async () => {
+    const props = render({ buckets: [bucket()], onUpdateBucketDetails: vi.fn().mockResolvedValue(true) });
+    click(button("Edit"));
+    await act(async () => editForm().requestSubmit());
+    expect(props.onUpdateBucketDetails).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".bucket-new-form")).toBeNull();
+  });
+
+  it("keeps the form open with what was typed when the save is refused (a name already in use)", async () => {
+    render({ buckets: [bucket({ name: "Roof" })], onUpdateBucketDetails: vi.fn().mockResolvedValue(false) });
+    click(button("Edit"));
+    setText(goalName()!, "Holiday");
+    await act(async () => editForm().requestSubmit());
+    expect(container.querySelector(".bucket-new-form")).not.toBeNull();
+    expect(goalName()!.value).toBe("Holiday");
   });
 });

@@ -1,3 +1,4 @@
+import { pickableAccounts } from "./hiddenAccounts";
 import { EditableCombobox } from "./EditableCombobox";
 import { FinancialReadState } from "./FinancialReadState";
 import "./Modal.css";
@@ -93,6 +94,15 @@ export function ModalShell({
   // restore-focus call here, so a setup re-run can cancel it, is what
   // makes the sequence below a no-op instead of stealing focus.
   const pendingRestoreRef = useRef<number | null>(null);
+
+  // When the focused control disappears or is disabled on a step change (a wizard's Continue becoming the next step's button), the browser drops focus
+  // to <body>, behind the overlay, until the next Tab. After any render, bring focus back to the panel if that happened and this is the uppermost dialog.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    if (dialogs[dialogs.length - 1] === panelRef.current) panelRef.current?.focus();
+  });
 
   useEffect(() => {
     // Captured once when the dialog opened (the ref is never reassigned); read here so the deferred
@@ -441,11 +451,11 @@ export function NewCategoryDialog({
   );
 }
 
-/** The Transactions tab's "Add transaction…" — the one way to get a single
+/** The Transactions tab's "Add transaction" — the one way to get a single
  * transaction in without a file import (see `App.tsx`'s
  * `handleCreateManualTransaction`). Leaving Category on "Auto-categorize"
  * runs it through the same categorization pass an import row gets; picking
- * one explicitly skips that. There's no inline "+ New category…" here
+ * one explicitly skips that. There's no inline "+ New category" here
  * (unlike the Transactions tab's own row-level category dropdown) — every other
  * `askX()` dialog in this app is top-level, never nested inside another
  * modal, and leaving Category blank plus correcting it afterward via that
@@ -486,8 +496,14 @@ export function NewTransactionDialog({
     notes: string | null,
   ) => void;
 }) {
+  // A hidden account is never the starting choice; the last-used account only is if it is showing.
+  const startingAccounts = pickableAccounts(accounts);
   const [accountId, setAccountId] = useState(
-    defaultAccountId !== null ? String(defaultAccountId) : accounts[0] ? String(accounts[0].id) : "",
+    defaultAccountId !== null && startingAccounts.some((a) => a.id === defaultAccountId)
+      ? String(defaultAccountId)
+      : startingAccounts[0]
+        ? String(startingAccounts[0].id)
+        : "",
   );
   const [date, setDate] = useState(() => toLocalIsoDate());
   const [description, setDescription] = useState("");
@@ -545,7 +561,7 @@ export function NewTransactionDialog({
             onChange={setAccountId}
             options={[
               ...(accounts.length === 0 ? [{ value: "", label: "No accounts yet" }] : []),
-              ...accounts.map((a) => ({ value: String(a.id), label: a.name })),
+              ...pickableAccounts(accounts, accountId).map((a) => ({ value: String(a.id), label: a.name })),
             ]}
             fill
           />
@@ -1032,7 +1048,7 @@ export function CategoryTransactionsDialog({
    * split row, edited via the Transactions tab's "Edit splits" flow instead. */
   onCorrectCategory: (transactionId: number, category: string) => void;
   /** Resolves once the change has actually been applied (or `false` if
-   * the user backed out of an in-flight "+ New category…" prompt, or the
+   * the user backed out of an in-flight "+ New category" prompt, or the
    * call failed) — the selection only clears on a real success, same as
    * the Transactions tab's own bulk bar. */
   onBulkCorrectCategory: (transactionIds: number[], category: string) => Promise<boolean>;
@@ -1080,13 +1096,13 @@ export function CategoryTransactionsDialog({
             <div className="bulk-actions-bar">
               <span className="bulk-actions-count">{selectedIds.size} selected</span>
               <MenuSelect
-                ariaLabel="Set category to…"
-                placeholder="Set category to…"
+                ariaLabel="Set category to"
+                placeholder="Set category to"
                 value={""}
                 onChange={handleBulkChange}
                 options={[
                   ...categoryOptions.map((c) => ({ value: c, label: c })),
-                  { value: "__new__", label: "+ New category…" },
+                  { value: "__new__", label: "+ New category" },
                 ]}
               />
               <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
@@ -1152,7 +1168,7 @@ export function CategoryTransactionsDialog({
                           options={[
                             ...(!categoryOptions.includes(category) ? [{ value: category, label: category }] : []),
                             ...categoryOptions.map((c) => ({ value: c, label: c })),
-                            { value: "__new__", label: "+ New category…" },
+                            { value: "__new__", label: "+ New category" },
                           ]}
                         />
                       )}
@@ -1173,11 +1189,11 @@ export function CategoryTransactionsDialog({
   );
 }
 
-/** The last step of "Use existing file…" in Settings → Profiles: the native
+/** The last step of "Use existing file" in Settings → Profiles: the native
  * file picker (driven by `App.tsx`, same as every other file-open in this
  * app) has already returned `path`; this just asks what to call the new
  * profile before registering it. Mirrors `NewAccountDialog`'s shape more
- * than `ProfilesSection`'s own inline "New profile…" form, since a picked
+ * than `ProfilesSection`'s own inline "New profile" form, since a picked
  * file (unlike a brand-new empty profile) needs its path shown so the user
  * can confirm it's the right one before it becomes live. */
 export function UseExistingDataFileDialog({
@@ -1288,6 +1304,51 @@ export function ChooseExistingDataSourceDialog({
       </div>
       <div className="modal-actions">
         <button type="button" className="modal-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+const NEW_ACCOUNT_CHOICE = "__new__";
+
+/** The first step of "Import transactions": the account is always chosen here, never carried over from
+ * whatever the page happens to be showing, so a file can't land in the wrong account by default. */
+export function ChooseImportAccountDialog({
+  accounts,
+  onCancel,
+  onChoose,
+  onNewAccount,
+}: {
+  accounts: Account[];
+  onCancel: () => void;
+  onChoose: (accountId: number) => void;
+  onNewAccount: () => void;
+}) {
+  const [chosen, setChosen] = useState("");
+  return (
+    <ModalShell title="Which account are these transactions from?" onCancel={onCancel}>
+      <p className="modal-message">
+        Pick the account this file belongs to. Everything in it will be added to that account.
+      </p>
+      <MenuSelect
+        ariaLabel="Account to import into"
+        value={chosen}
+        placeholder="Choose an account…"
+        options={[
+          ...pickableAccounts(accounts, chosen).map((a) => ({ value: String(a.id), label: a.name })),
+          { value: NEW_ACCOUNT_CHOICE, label: "+ New account" },
+        ]}
+        onChange={(next) => (next === NEW_ACCOUNT_CHOICE ? onNewAccount() : setChosen(next))}
+        triggerAttrs={{ "data-import-account": true }}
+        fill
+      />
+      <div className="modal-actions">
+        <button type="button" className="modal-secondary" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="button" disabled={chosen === ""} onClick={() => chosen !== "" && onChoose(Number(chosen))}>
+          Continue
+        </button>
       </div>
     </ModalShell>
   );
@@ -1670,7 +1731,7 @@ export function AccountEditDialog({
   onSave: (changes: { accountType?: string; memberId?: number | null; institution?: string | null; mask?: string | null }) => void;
   onDelete: () => void;
   onCancel: () => void;
-  /** Opened from a row's Delete…: already asking whether to delete. */
+  /** Opened from a row's Delete: already asking whether to delete. */
   startWithDeleteConfirm?: boolean;
 }) {
   const [accountType, setAccountType] = useState(account.account_type);
@@ -1743,7 +1804,7 @@ export function AccountEditDialog({
             </span>
           ) : (
             <button type="button" className="modal-secondary" onClick={() => setConfirmingDelete(true)}>
-              Delete account…
+              Delete account
             </button>
           )}
           <span className="modal-actions-end">

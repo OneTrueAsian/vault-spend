@@ -14,7 +14,7 @@ export async function invoke(browser, command, args = {}) {
 }
 
 export async function prepareChange(browser, currentPassword, newPassword) {
-  await (await browser.$("button=Change password…")).click();
+  await (await browser.$("button=Change password")).click();
   await (await browser.$("#change-password-current")).setValue(currentPassword);
   await (await browser.$("button=Continue")).click();
   await (await browser.$("#change-password-new")).setValue(newPassword);
@@ -43,7 +43,7 @@ export async function createProtectedFixture() {
   await enableProtectionThroughUI(app.browser, OLD_PASSWORD);
   // Turning protection on derives keys and re-encrypts the profile and its backups; a hosted runner needs
   // several times a developer machine's time. The elapsed time is logged for the next measurement.
-  await app.browser.$("button=Change password…").waitForExist({ timeout: 45000 });
+  await app.browser.$("button=Change password").waitForExist({ timeout: 45000 });
   console.log(`[timing] protection turned on in ${Date.now() - started}ms`);
   return { testDbDir, app };
 }

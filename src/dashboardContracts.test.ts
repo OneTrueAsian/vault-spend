@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { validateDashboardSnapshot, validateReportSummarySnapshot } from "./financialContracts";
-const fixture=()=>({contractVersion:1,context:{contractVersion:1,generation:3,sessionRevision:7},revision:{local:1,external:1},asOf:"2026-10-08",report:{total_saved:"9007199254740992.01",income_total:"0",month_label:"October 2026",budget_actuals:[]},netWorth:["2026-05-31","2026-06-30","2026-07-31","2026-08-31","2026-09-30","2026-10-08"].map(as_of=>({as_of,month_label:"fixture",value:"12.34",cash:"12.34",debt:"0",investments:"0"})),spending:[],alerts:[],insights:[],averageSpend:"0",contributions:[]});
+const fixture=()=>({contractVersion:1,context:{contractVersion:1,generation:3,sessionRevision:7},revision:{local:1,external:1},asOf:"2026-10-08",report:{total_saved:"9007199254740992.01",income_total:"0",month_label:"October 2026",budget_actuals:[]},netWorth:["2026-05-31","2026-06-30","2026-07-31","2026-08-31","2026-09-30","2026-10-08"].map(as_of=>({as_of,month_label:"fixture",value:"12.34",cash:"12.34",debt:"0",investments:"0"})),spending:[],alerts:[],insights:[],averageSpend:"0",enoughHistory:true,contributions:[]});
 it("preserves exact Dashboard money and accepts explicit empty financial arrays",()=>{
   expect(validateDashboardSnapshot(fixture()).report.total_saved).toBe("9007199254740992.01");
   const {netWorth,spending,alerts,insights,averageSpend,contributions,...summary}=fixture();
@@ -15,4 +15,9 @@ it("rejects missing nested totals, unsafe revisions, unknown insight tags and in
 });
 it("refuses malformed account balances instead of exporting an incomplete report summary",()=>{
   expect(()=>validateReportSummarySnapshot({...fixture(),accounts:[{id:1,name:"fixture",current_balance:12.34}]})).toThrow();
+});
+it("requires the history flag the Dashboard runway message depends on",()=>{
+  const value=fixture() as Record<string,unknown>;delete value.enoughHistory;
+  expect(()=>validateDashboardSnapshot(value)).toThrow();
+  expect(validateDashboardSnapshot({...fixture(),enoughHistory:false}).enoughHistory).toBe(false);
 });

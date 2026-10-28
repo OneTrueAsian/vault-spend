@@ -347,7 +347,7 @@ impl Store {
         let holdings_value = self.holdings_value_by_account()?;
         let mut stmt = self.conn.prepare(
             "SELECT a.id, a.name, a.account_type, a.starting_balance, a.institution, a.mask, a.interest_rate,
-                    a.excluded_from_debt_payoff, a.member_id, fm.name, a.icon_key, a.import_flip_signs
+                    a.excluded_from_debt_payoff, a.member_id, fm.name, a.icon_key, a.import_flip_signs, a.hidden
              FROM accounts a
              LEFT JOIN family_members fm ON fm.id = a.member_id
              ORDER BY a.name",
@@ -366,6 +366,7 @@ impl Store {
                 row.get::<_, Option<String>>(9)?,
                 row.get::<_, Option<String>>(10)?,
                 row.get::<_, Option<bool>>(11)?,
+                row.get::<_, bool>(12)?,
             ))
         })?;
 
@@ -384,6 +385,7 @@ impl Store {
                 member_name,
                 icon_key,
                 import_flip_signs,
+                hidden,
             ) = row?;
             let starting_balance = Decimal::from_str(&starting_balance_str).expect("starting_balance stored by this crate must be valid");
             let checkpoint_date = self.latest_checkpoint(id, today)?.map(|(date, _)| date);
@@ -422,6 +424,7 @@ impl Store {
                 checkpoint_date,
                 icon_key,
                 import_flip_signs,
+                hidden,
             });
         }
         Ok(accounts)
@@ -778,6 +781,26 @@ impl Store {
             "UPDATE accounts SET interest_rate = ?1 WHERE id = ?2",
             params![rate.map(|r| r.to_string()), id],
         )?;
+        Ok(())
+    }
+
+    /// Hides or shows an account (see `StoredAccount::hidden`). An unknown id is a harmless no-op.
+    pub fn set_account_hidden(&self, id: i64, hidden: bool) -> rusqlite::Result<()> {
+        self.conn
+            .execute("UPDATE accounts SET hidden = ?1 WHERE id = ?2", params![hidden, id])?;
+        Ok(())
+    }
+
+    /// Adds `accounts.hidden` (every existing account stays visible) to a database from before it existed.
+    pub(super) fn migrate_add_account_hidden_if_missing(&self) -> rusqlite::Result<()> {
+        let has_column: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('accounts') WHERE name = 'hidden')",
+            [],
+            |row| row.get(0),
+        )?;
+        if !has_column {
+            self.conn.execute("ALTER TABLE accounts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0", [])?;
+        }
         Ok(())
     }
 

@@ -1,7 +1,7 @@
 // E2E test: three fields that used to render as unstyled browser inputs now
 // carry the app's standard entry-field styling, in light and dark:
 //   - Dashboard -> Safe to spend -> "Keep a buffer of $"
-//   - Investments -> Goal projection -> Save as goal… -> the goal name
+//   - Investments -> Goal projection -> Save as goal -> the goal name
 //   - Settings -> Data -> Backups -> the second backup folder
 // The yardstick is the Transactions search box (`.ledger-filters input`): same
 // font, size, padding, border, radius, background and text colour — read from

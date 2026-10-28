@@ -170,6 +170,13 @@ describe("ranked categories", () => {
     expect(a.headline).toBe("Your biggest spending category in August 2026");
     expect(a.detail).toContain("1 of 5 categories");
   });
+  it("a year-to-date ranking in January lists the one category that has spending, still headed as a top 3", () => {
+    const january: ResolvedPeriod = { from: "2027-01-01", to: "2027-01-15", label: "2027 so far", soFar: true };
+    const a = renderAnswer(interp({ kind: "rank-categories", category: null, limit: 3, periods: [january] }), snap({ kind: "rank-categories", periods: [period({ from: "2027-01-01", to: "2027-01-15", categoryCount: 1, categories: [{ category: "Groceries", amount: "25", purchaseCount: 1 }] })] }));
+    expect(a.headline).toBe("Your top 3 spending categories in 2027 so far");
+    expect(a.rows).toEqual([{ label: "Groceries", amount: "$25.00", detail: "1 purchase" }]);
+    expect(a.detail).toContain("1 of 1 category");
+  });
   it("handles an empty period", () => {
     const a = renderAnswer(interp({ kind: "rank-categories", category: null, limit: 3 }), snap({ kind: "rank-categories", periods: [period({ total: "0", purchaseCount: 0, categoryCount: 0 })] }));
     expect(a.headline).toBe("No spending found in August 2026.");

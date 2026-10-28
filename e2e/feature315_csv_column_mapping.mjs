@@ -19,6 +19,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { chooseMenuOption, launchApp, menuSelectValue, stubFilePicker, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
+import { startImportInto } from "./lib/importAccount.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
 
@@ -62,7 +63,7 @@ async function shot(name) {
   if (process.env.VAULTSPEND_E2E_SHOTS) await browser.saveScreenshot(`${process.env.VAULTSPEND_E2E_SHOTS}/feature315-${name}.png`);
 }
 async function startImport() {
-  await (await browser.$("button=Import transactions…")).click();
+  await startImportInto(browser, "Checking");
 }
 async function nav(label) {
   for (const b of await browser.$$("nav button")) if ((await b.getText()).trim() === label) return b.click();

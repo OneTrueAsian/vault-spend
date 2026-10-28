@@ -9,8 +9,8 @@
 // - The To do card comes before Safe to spend and before Runway (this data has all three).
 // - The Runway card says "Goal: 6 months" under its ring, and the ring names itself for screen
 //   readers.
-// - The Layout menu reads "Layout: …", and Customize… in it turns on customizing. While customizing,
-//   a visible Done button beside "+ Add widget…" turns it off again (so does "Done customizing").
+// - The Layout menu reads "Layout: …", and Customize in it turns on customizing. While customizing,
+//   a visible Done button beside "+ Add widget" turns it off again (so does "Done customizing").
 // - At 800px wide nothing scrolls sideways.
 // - Screenshots in Default, Futuristic and Retro, Light and Dark, for a look by eye.
 //
@@ -131,18 +131,18 @@ try {
 
   await browser.saveScreenshot(path.join(shotsDir, "dashboard-1280.png"));
 
-  // Customize… is in the Layout menu now (feature39/56/132 cover what it does).
+  // Customize is in the Layout menu now (feature39/56/132 cover what it does).
   const trigger = await browser.$(".layout-select-toggle");
-  await chooseMenuOption(trigger, { label: "Customize…" });
-  await settled(() => browser.execute(() => document.querySelectorAll(".dashboard-widget-controls").length), (n) => n > 4, "Customize… should show the widget controls");
+  await chooseMenuOption(trigger, { label: "Customize" });
+  await settled(() => browser.execute(() => document.querySelectorAll(".dashboard-widget-controls").length), (n) => n > 4, "Customize should show the widget controls");
   await chooseMenuOption(trigger, { label: "Done customizing" });
   await settled(() => browser.execute(() => document.querySelectorAll(".dashboard-widget-controls").length), (n) => n === 0, "Done customizing should hide them again");
-  // While customizing, a visible Done button sits beside "+ Add widget…"; it isn't there otherwise.
+  // While customizing, a visible Done button sits beside "+ Add widget"; it isn't there otherwise.
   const toolbarButtons = () => browser.execute(() => [...document.querySelectorAll(".dashboard-toolbar > button")].map((b) => b.textContent.trim()));
   await settled(toolbarButtons, (labels) => !labels.includes("Done") && !labels.includes("Customize"), "no Done or Customize button outside Customize mode");
-  await chooseMenuOption(trigger, { label: "Customize…" });
+  await chooseMenuOption(trigger, { label: "Customize" });
   const inCustomize = await settled(toolbarButtons, (labels) => labels.includes("Done"), "Customize mode should show a Done button");
-  assert.deepEqual(inCustomize.slice(-2), ["+ Add widget…", "Done"], `Done should sit right after + Add widget…: ${JSON.stringify(inCustomize)}`);
+  assert.deepEqual(inCustomize.slice(-2), ["+ Add widget", "Done"], `Done should sit right after + Add widget: ${JSON.stringify(inCustomize)}`);
   await (await browser.$(".dashboard-toolbar > button[data-customize-done]")).click();
   await settled(() => browser.execute(() => document.querySelectorAll(".dashboard-widget-controls").length), (n) => n === 0, "the Done button should end customizing");
   await settled(toolbarButtons, (labels) => !labels.includes("Done"), "the Done button goes away once customizing ends");

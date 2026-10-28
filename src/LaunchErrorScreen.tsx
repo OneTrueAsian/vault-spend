@@ -116,7 +116,7 @@ export function LaunchErrorScreen({
           )}
           {CAN_LOCATE.includes(error.kind) && (
             <button type="button" disabled={busy} data-launch-action="locate" onClick={locate}>
-              Find the data file…
+              Find the data file
             </button>
           )}
           <button
@@ -137,7 +137,7 @@ export function LaunchErrorScreen({
               data-launch-action="start-new-file"
               onClick={() => setConfirming("file")}
             >
-              Start with a new data file…
+              Start with a new data file
             </button>
           )}
           {error.kind === "registry_unreadable" && (
@@ -147,7 +147,7 @@ export function LaunchErrorScreen({
               data-launch-action="start-new-list"
               onClick={() => setConfirming("list")}
             >
-              Start with a new profile list…
+              Start with a new profile list
             </button>
           )}
         </div>

@@ -150,3 +150,25 @@ describe("labels", () => {
     expect(period("last quarter")).toMatchObject({ period: { label: "April to June 2026" } });
   });
 });
+
+describe("year boundaries and leap days with the date supplied (no real clock)", () => {
+  const at = (text: string, today: string) => matchPeriod(tokenize(text), 0, today);
+  it("this year on 1 January is that single day, still under way", () => {
+    expect(at("this year", "2027-01-01")).toMatchObject({ period: { from: "2027-01-01", to: "2027-01-01", soFar: true } });
+  });
+  it("this year in mid-January runs from 1 January through today", () => {
+    expect(at("this year", "2027-01-15")).toMatchObject({ period: { from: "2027-01-01", to: "2027-01-15", soFar: true } });
+  });
+  it("last year in January is the whole previous year", () => {
+    expect(at("last year", "2027-01-15")).toMatchObject({ period: { from: "2026-01-01", to: "2026-12-31", soFar: false } });
+  });
+  it("last month on 1 March of a leap year ends on 29 February", () => {
+    expect(at("last month", "2028-03-01")).toMatchObject({ period: { from: "2028-02-01", to: "2028-02-29", soFar: false } });
+  });
+  it("this month on its last day (29 February) is the complete month, not so far (dates.ts span: soFar only while the end is after today)", () => {
+    expect(at("this month", "2028-02-29")).toMatchObject({ period: { from: "2028-02-01", to: "2028-02-29", soFar: false } });
+  });
+  it("last month on 31 December is November, not a December date", () => {
+    expect(at("last month", "2026-12-31")).toMatchObject({ period: { from: "2026-11-01", to: "2026-11-30", soFar: false } });
+  });
+});

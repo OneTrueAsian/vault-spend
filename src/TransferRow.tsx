@@ -32,7 +32,7 @@ function LegNotePreview({ leg, role, onEditNote }: { leg: Transaction; role: "ou
 }
 
 const legNoteItem = (leg: Transaction, onEditNote: (t: Transaction) => void): RowMenuItem => ({
-  label: leg.notes ? `Edit note for ${leg.account_name}…` : `Add note to ${leg.account_name}…`,
+  label: leg.notes ? `Edit note for ${leg.account_name}` : `Add note to ${leg.account_name}`,
   onSelect: () => onEditNote(leg),
 });
 

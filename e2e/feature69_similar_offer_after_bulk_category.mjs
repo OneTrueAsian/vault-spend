@@ -1,5 +1,5 @@
 // E2E regression test for a UAT finding: changing a category with the
-// Transactions tab's bulk "Set category to…" control saves a rule (same as
+// Transactions tab's bulk "Set category to" control saves a rule (same as
 // the row dropdown) but never offered to apply it to the other, identical
 // transactions the way the row dropdown does ("N similar transactions could
 // use it too" + an Apply button). Also covers several merchants at once.
@@ -53,7 +53,7 @@ try {
 
   // ---- one merchant, via the bulk bar
   await tick("Corner Cart");
-  const bulkSelect = await browser.$(".bulk-actions-bar button[aria-label='Set category to…']");
+  const bulkSelect = await browser.$(".bulk-actions-bar button[aria-label='Set category to']");
   await bulkSelect.waitForExist({ timeout: 10000 });
   await chooseMenuOption(bulkSelect, { label: "Entertainment" });
   const toast = await browser.$(".toast-stack");
@@ -69,7 +69,7 @@ try {
   // still uncategorized: 2 + 2 = 4 similar transactions.
   await tick("Lunch Truck");
   await tick("Corner Cart");
-  await chooseMenuOption(await browser.$(".bulk-actions-bar button[aria-label='Set category to…']"), { label: "Dining Out" });
+  await chooseMenuOption(await browser.$(".bulk-actions-bar button[aria-label='Set category to']"), { label: "Dining Out" });
   await browser.waitUntil(async () => /Saved rules for 2 merchants → Dining Out\. 4 similar transactions could use them too\./.test(await toast.getText()), {
     timeout: 10000,
     timeoutMsg: "expected one combined offer for the two merchants covering 4 similar transactions",

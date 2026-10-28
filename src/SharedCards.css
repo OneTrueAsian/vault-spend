@@ -190,6 +190,20 @@
   border-bottom: none;
 }
 
+.breakdown-list li > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.breakdown-list li > span:last-child {
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.member-name-cell {
+  overflow-wrap: anywhere;
+}
+
 .reports-section-head {
   display: flex;
   align-items: center;

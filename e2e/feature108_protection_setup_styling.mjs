@@ -8,7 +8,7 @@ const app = await launchApp();
 try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
-  await (await browser.$("button=Turn on password protection…")).click();
+  await (await browser.$("button=Turn on password protection")).click();
   await browser.$("#protection-setup-password").waitForExist({ timeout: 5000 });
 
   async function checkFields() {

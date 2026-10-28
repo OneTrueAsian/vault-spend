@@ -13,6 +13,9 @@ import type { AnomalyFlag, Transaction } from "./types";
  * is saved, so a guess between 0.5 and this is saved and still shown here. */
 export const LOW_CONFIDENCE = 0.7;
 
+/** The Transactions button (and command-palette entry) that opens the "Review transactions" dialog. */
+export const inboxButtonLabel = (count: number) => `Review transactions (${count})`;
+
 export type InboxReasonKind = "uncategorized" | "low_confidence" | "duplicate" | "large";
 
 export type InboxReason = { kind: InboxReasonKind; detail: string };

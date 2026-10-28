@@ -82,7 +82,7 @@ async function finishNormally(dbDir, backupsDir, mirrorDir, isProtected) {
       const { browser } = app;
       await (await browser.$("button*=Settings")).click();
       await enableProtectionThroughUI(browser, PASSWORD);
-      await browser.$("button=Change password…").waitForExist({ timeout: 15000 });
+      await browser.$("button=Change password").waitForExist({ timeout: 15000 });
       const set = await invoke(browser, "set_backup_copy_dir", { dir: mirrorDir });
       assert.equal(set.error, undefined, `choosing the second folder should work: ${set.error}`);
     } finally {

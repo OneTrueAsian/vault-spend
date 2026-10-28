@@ -26,13 +26,13 @@ describe("RowMenu", () => {
     Array.from(document.body.querySelectorAll<HTMLButtonElement>(".row-menu-panel [role^='menuitem']")).find((b) => b.textContent?.trim() === label)!;
 
   it("names the trigger and opens a menu with only the truthy items", () => {
-    render([{ label: "Split…", onSelect: () => {} }, false, null, { kind: "divider" }, { label: "Delete…", onSelect: () => {}, danger: true }]);
+    render([{ label: "Split", onSelect: () => {} }, false, null, { kind: "divider" }, { label: "Delete", onSelect: () => {}, danger: true }]);
     expect(trigger().getAttribute("aria-label")).toBe('Actions for "Coffee"');
     expect(trigger().getAttribute("aria-haspopup")).toBe("menu");
     act(() => trigger().click());
     expect(panel()?.getAttribute("role")).toBe("menu");
-    expect(Array.from(panel()!.querySelectorAll("[role='menuitem']")).map((b) => b.textContent)).toEqual(["Split…", "Delete…"]);
-    expect(item("Delete…").className).toContain("row-menu-item-danger");
+    expect(Array.from(panel()!.querySelectorAll("[role='menuitem']")).map((b) => b.textContent)).toEqual(["Split", "Delete"]);
+    expect(item("Delete").className).toContain("row-menu-item-danger");
   });
 
   it("drops dividers with nothing on one side, and runs of dividers down to one", () => {
@@ -46,9 +46,9 @@ describe("RowMenu", () => {
 
   it("runs an action once, closes, and gives focus back to the trigger", () => {
     const onSelect = vi.fn();
-    render([{ label: "Split…", onSelect }]);
+    render([{ label: "Split", onSelect }]);
     act(() => trigger().click());
-    act(() => item("Split…").click());
+    act(() => item("Split").click());
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(panel()).toBeNull();
     expect(document.activeElement).toBe(trigger());
@@ -67,7 +67,7 @@ describe("RowMenu", () => {
 
   it("starts a check item's label where the other items' labels start, with the tick after it", () => {
     render([
-      { label: "Add tag…", onSelect: () => {} },
+      { label: "Add tag", onSelect: () => {} },
       { kind: "check", label: "Belongs to Alex", checked: false, onToggle: () => {} },
     ]);
     act(() => trigger().click());
@@ -79,15 +79,15 @@ describe("RowMenu", () => {
 
   it("does nothing for a disabled item", () => {
     const onSelect = vi.fn();
-    render([{ label: "Apply to a debt…", onSelect, disabled: true }]);
+    render([{ label: "Apply to a debt", onSelect, disabled: true }]);
     act(() => trigger().click());
-    act(() => item("Apply to a debt…").click());
+    act(() => item("Apply to a debt").click());
     expect(onSelect).not.toHaveBeenCalled();
-    expect(item("Apply to a debt…").getAttribute("aria-disabled")).toBe("true");
+    expect(item("Apply to a debt").getAttribute("aria-disabled")).toBe("true");
   });
 
   it("closes on Escape (focus back to trigger) and on a click outside", () => {
-    render([{ label: "Split…", onSelect: () => {} }]);
+    render([{ label: "Split", onSelect: () => {} }]);
     act(() => trigger().click());
     act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
     expect(panel()).toBeNull();
@@ -120,7 +120,7 @@ describe("RowMenu", () => {
 
   it("closes without running anything when its row unmounts while open (Review Focus 5)", () => {
     const onSelect = vi.fn();
-    render([{ label: "Delete…", onSelect }]);
+    render([{ label: "Delete", onSelect }]);
     act(() => trigger().click());
     act(() => root.render(<></>));
     expect(panel()).toBeNull();

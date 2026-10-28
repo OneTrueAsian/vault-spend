@@ -1668,3 +1668,154 @@ fn balance_history_repeats_the_balance_through_a_quiet_month() {
         vec![dec("1120.00"), dec("1120.00"), dec("1120.00")]
     );
 }
+
+// QA-GAP-001 (owner-approved 27 Oct 2026): accounts can be hidden and unhidden. Hiding tidies lists; it never
+// removes an account's money, history or links from any total, report or forecast.
+fn hidden_of(store: &Store, id: i64) -> bool {
+    store.list_accounts(far_future()).unwrap().into_iter().find(|a| a.id == id).unwrap().hidden
+}
+
+#[test]
+fn a_new_account_is_not_hidden_and_can_be_hidden_then_unhidden() {
+    let store = Store::open_in_memory().unwrap();
+    let id = store.get_or_create_account("Old Savings", AccountType::Savings).unwrap();
+    assert!(!hidden_of(&store, id));
+
+    store.set_account_hidden(id, true).unwrap();
+    assert!(hidden_of(&store, id));
+    store.set_account_hidden(id, true).unwrap(); // hiding twice is fine
+    assert!(hidden_of(&store, id));
+
+    store.set_account_hidden(id, false).unwrap();
+    assert!(!hidden_of(&store, id));
+}
+
+#[test]
+fn hiding_an_unknown_account_is_a_harmless_no_op() {
+    let store = Store::open_in_memory().unwrap();
+    let id = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+
+    store.set_account_hidden(999, true).unwrap();
+
+    assert!(!hidden_of(&store, id));
+}
+
+#[test]
+fn a_hidden_account_keeps_its_balance_transactions_and_stays_in_every_total() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+    let old = store.get_or_create_account("Old Savings", AccountType::Savings).unwrap();
+    store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
+    store.set_account_starting_balance(old, "12.00".parse().unwrap()).unwrap();
+    store.save_transactions(old, &[tx("2026-08-01", "Interest", "0.50")]).unwrap();
+    let today = day("2026-08-20");
+    let before = store.net_worth_breakdown_as_of(today).unwrap();
+    let balances_before: Vec<_> = store.list_accounts(today).unwrap().into_iter().map(|a| (a.id, a.current_balance)).collect();
+    let history_before = store.all_transactions().unwrap().len();
+
+    store.set_account_hidden(old, true).unwrap();
+
+    let after = store.net_worth_breakdown_as_of(today).unwrap();
+    assert_eq!(after.net_worth, before.net_worth, "hiding must not change net worth");
+    assert_eq!(after.cash, before.cash, "the hidden account's cash still counts");
+    assert_eq!(after.net_worth, "1012.50".parse::<Decimal>().unwrap());
+    let balances_after: Vec<_> = store.list_accounts(today).unwrap().into_iter().map(|a| (a.id, a.current_balance)).collect();
+    assert_eq!(balances_after, balances_before, "every account is still listed with the same balance");
+    assert_eq!(store.all_transactions().unwrap().len(), history_before, "history is untouched");
+}
+
+#[test]
+fn the_cash_forecast_still_counts_a_hidden_accounts_balance() {
+    let store = Store::open_in_memory().unwrap();
+    let checking = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+    let old = store.get_or_create_account("Old Savings", AccountType::Savings).unwrap();
+    store.set_account_starting_balance(checking, "1000.00".parse().unwrap()).unwrap();
+    store.set_account_starting_balance(old, "250.00".parse().unwrap()).unwrap();
+    store.set_account_hidden(old, true).unwrap();
+
+    let points = store.cash_flow_forecast(day("2026-08-20"), 1).unwrap();
+
+    assert_eq!(points[0].balance, "1250.00".parse().unwrap());
+}
+
+#[test]
+fn importing_by_the_name_of_a_hidden_account_finds_it_instead_of_creating_another() {
+    let store = Store::open_in_memory().unwrap();
+    let old = store.get_or_create_account("Old Savings", AccountType::Savings).unwrap();
+    store.set_account_hidden(old, true).unwrap();
+
+    let again = store.get_or_create_account("old savings", AccountType::Savings).unwrap();
+
+    assert_eq!(again, old);
+    assert_eq!(store.list_accounts(far_future()).unwrap().len(), 1);
+    assert!(hidden_of(&store, old), "importing does not unhide it");
+}
+
+#[test]
+fn a_hidden_account_keeps_its_links_to_goals_and_recurring_items() {
+    let store = Store::open_in_memory().unwrap();
+    let old = store.get_or_create_account("Old Savings", AccountType::Savings).unwrap();
+    store.create_bucket("Holiday", None, None, Some(old), None, None, None).unwrap();
+    store
+        .create_recurring("Transfer in", None, "10.00".parse().unwrap(), "monthly", day("2026-12-01"), Some(old))
+        .unwrap();
+
+    store.set_account_hidden(old, true).unwrap();
+
+    assert_eq!(store.list_buckets().unwrap()[0].account_id, Some(old));
+    assert_eq!(store.list_recurring(day("2026-08-20")).unwrap()[0].account_id, Some(old));
+}
+
+#[test]
+fn a_hidden_account_can_still_be_deleted() {
+    let store = Store::open_in_memory().unwrap();
+    let old = store.get_or_create_account("Old Savings", AccountType::Savings).unwrap();
+    store.set_account_hidden(old, true).unwrap();
+
+    store.delete_account(old).unwrap();
+
+    assert!(store.list_accounts(far_future()).unwrap().is_empty());
+}
+
+#[test]
+fn an_older_database_gains_the_hidden_column_with_every_account_visible() {
+    let store = Store::open_in_memory().unwrap();
+    let id = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+    store.conn.execute("ALTER TABLE accounts DROP COLUMN hidden", []).unwrap();
+
+    store.migrate_add_account_hidden_if_missing().unwrap();
+    store.migrate_add_account_hidden_if_missing().unwrap(); // and again: idempotent
+
+    assert!(!hidden_of(&store, id));
+}
+
+#[test]
+fn a_hidden_account_stays_hidden_in_a_backup_copy_and_after_reopening_it() {
+    let dir = std::env::temp_dir().join(format!("vaultspend-hidden-backup-test-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let source_path = dir.join("source.db");
+    let backup_path = dir.join("backup.db");
+    for p in [&source_path, &backup_path] {
+        if p.exists() {
+            std::fs::remove_file(p).unwrap();
+        }
+    }
+    let (old, visible) = {
+        let store = Store::open(&source_path).unwrap();
+        let old = store.get_or_create_account("Old Savings", AccountType::Savings).unwrap();
+        let visible = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+        store.set_account_hidden(old, true).unwrap();
+        store.backup_to(&backup_path).unwrap();
+        (old, visible)
+    };
+
+    // The backup is what a restore opens; reopening the live file is what the next launch does.
+    for path in [&backup_path, &source_path] {
+        let reopened = Store::open(path).unwrap();
+        assert!(hidden_of(&reopened, old), "{path:?}");
+        assert!(!hidden_of(&reopened, visible), "{path:?}");
+    }
+
+    std::fs::remove_file(&source_path).unwrap();
+    std::fs::remove_file(&backup_path).unwrap();
+}

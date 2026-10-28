@@ -58,26 +58,26 @@ export function TransactionBulkActionsBar({
     <div className="bulk-actions-bar">
       <span className="bulk-actions-count">{selectedIds.size} selected</span>
       <MenuSelect
-        ariaLabel="Set category to…"
-        placeholder="Set category to…"
+        ariaLabel="Set category to"
+        placeholder="Set category to"
         value={""}
         onChange={(v) => handleBulkCategoryChange(v)}
         options={[
           ...categoryOptions.map((c) => ({ value: c, label: c })),
-          { value: "__new__", label: "+ New category…" },
+          { value: "__new__", label: "+ New category" },
         ]}
       />
       <MenuSelect
-        ariaLabel="Add to Recurring…"
-        placeholder="Add to Recurring…"
+        ariaLabel="Add to Recurring"
+        placeholder="Add to Recurring"
         value={""}
         onChange={(v) => handleAddSelectedToRecurring(v)}
         options={CADENCE_OPTIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))}
       />
       {familyMembers.length > 0 && (
         <MenuSelect
-          ariaLabel="Set member to…"
-          placeholder="Set member to…"
+          ariaLabel="Set member to"
+          placeholder="Set member to"
           value={""}
           onChange={(v) => handleBulkMemberChange(v)}
           options={[
@@ -90,7 +90,7 @@ export function TransactionBulkActionsBar({
         <EditableCombobox
           options={allTags}
           aria-label="Add tag to selected transactions"
-          placeholder="+ Add tag…"
+          placeholder="+ Add tag"
           value={bulkTagText}
           onChange={setBulkTagText}
           onKeyDown={(e) => {
@@ -135,7 +135,7 @@ export function TransactionBulkActionsBar({
           onClick={() => setConfirmingBulkFlip(true)}
           title="For rows imported the wrong way round: money out becomes money in and the other way round"
         >
-          Flip signs…
+          Flip signs
         </button>
       )}
       {selectedPairForLink && (

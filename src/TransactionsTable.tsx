@@ -1,3 +1,4 @@
+import { pickableAccounts } from "./hiddenAccounts";
 import { EditableCombobox } from "./EditableCombobox";
 import "./Transactions.css";
 import type * as React from "react";
@@ -85,7 +86,7 @@ interface TransactionsTableProps {
   newTagText: Record<number, string>;
   setNewTagText: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   handleAddTag: (id: number, tag: string) => Promise<void>;
-  /** The row whose tag field is open (from its menu's "Add tag…"), or null. */
+  /** The row whose tag field is open (from its menu's "Add tag"), or null. */
   taggingId: number | null;
   setTaggingId: React.Dispatch<React.SetStateAction<number | null>>;
   editingAmount: { id: number; value: string; } | null;
@@ -205,6 +206,17 @@ export function TransactionsTable({
       lastTaggingId.current = taggingId;
     }
   });
+
+  // The delete confirm floats over the right end of its own row, so the row's other controls sit behind it. Inert while it is open, so
+  // Tab and Shift+Tab never land on something the person cannot see (and live again the moment it closes).
+  useLayoutEffect(() => {
+    if (confirmingDeleteId === null) return;
+    const row = document.querySelector(`.ledger-table-scroll tr[data-payment-row="${confirmingDeleteId}"]`);
+    if (!row) return;
+    const covered = Array.from(row.querySelectorAll("td:not(.actions-col), td.actions-col > button"));
+    covered.forEach((el) => el.setAttribute("inert", ""));
+    return () => covered.forEach((el) => el.removeAttribute("inert"));
+  }, [confirmingDeleteId]);
   // With exactly one family member the Member column stays hidden; the row's ⋯ menu then says (and
   // changes) whether the row belongs to that person, so the information isn't lost.
   const onlyMember = !showMemberCol && familyMembers.length === 1 ? familyMembers[0] : null;
@@ -293,7 +305,7 @@ export function TransactionsTable({
                 variant="plain"
                 ariaLabel={`Account for "${t.description}"`}
                 value={String(t.account_id)}
-                options={accounts.map((a) => ({ value: String(a.id), label: a.name }))}
+                options={pickableAccounts(accounts, t.account_id).map((a) => ({ value: String(a.id), label: a.name }))}
                 onChange={(value) => handleAccountChangeForTransaction(t.id, value)}
               />
             );
@@ -334,7 +346,7 @@ export function TransactionsTable({
                       { value: "", label: "Uncategorized", disabled: true },
                       ...(t.category && !categoryOptions.includes(t.category) ? [{ value: t.category, label: t.category }] : []),
                       ...categoryOptions.map((c) => ({ value: c, label: c })),
-                      { value: "__new__", label: "+ New category…" },
+                      { value: "__new__", label: "+ New category" },
                     ]}
                     onChange={(value) => handleCategoryChange(t.id, value)}
                   />
@@ -350,7 +362,7 @@ export function TransactionsTable({
             const rowAccount = accounts.find((a) => a.id === t.account_id);
             const isLoanAccount = rowAccount?.account_type === "loan";
             // The state of a debt payment stays visible under the description; the actions that
-            // start one (Split principal…, Apply to a debt…) are in the row's ⋯ menu.
+            // start one (Split principal, Apply to a debt) are in the row's ⋯ menu.
             const debtState = !appSettings.apply_to_debt_enabled ? null : isLoanAccount ? (
               editingPrincipalId === t.id ? (
                 <span className="debt-apply-form">
@@ -389,7 +401,7 @@ export function TransactionsTable({
                   ariaLabel={`Debt account to apply "${t.description}" toward`}
                   value={applyDebtForm.accountId}
                   onChange={(v) => setApplyDebtForm({ ...applyDebtForm, accountId: v })}
-                  options={debtAccounts.map((a) => ({ value: String(a.id), label: a.name }))}
+                  options={pickableAccounts(debtAccounts, applyDebtForm.accountId).map((a) => ({ value: String(a.id), label: a.name }))}
                 />
                 <input
                   className="debt-apply-amount"
@@ -419,7 +431,7 @@ export function TransactionsTable({
               debtEnabled: appSettings.apply_to_debt_enabled,
               isLoanAccount,
               // Only a loan or card can take a payment, and a card's own payments need no principal split.
-              canApplyToDebt: debtAccounts.length > 0 && rowAccount?.account_type !== "credit",
+              canApplyToDebt: pickableAccounts(debtAccounts).length > 0 && rowAccount?.account_type !== "credit",
               hasPrincipalOverride: t.principal_amount !== null,
               hasAppliedDebt: t.applied_to_debt !== null,
             }).map((action) => ({ label: action.label, onSelect: runAction[action.id], danger: action.id === "delete" }));

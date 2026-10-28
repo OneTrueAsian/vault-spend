@@ -7,9 +7,10 @@ import { StatDetailPanel } from "./StatDetailPanel";
 import { formatAmount } from "./format";
 import { accountTypeLabel, GROUP_LABELS, GROUP_ORDER, groupOf, isOverdrawn, netWorthContribution } from "./accountGroups";
 import { AccountEditDialog } from "./Modal";
-import { AccountTypeIcon, ACCOUNT_ICON_OPTIONS, isAccountIconKey, IconPicker, type AccountIconKey } from "./icons";
+import { AccountTypeIcon, ACCOUNT_ICON_OPTIONS, isAccountIconKey, IconPicker, useDismissOnEscape, type AccountIconKey } from "./icons";
 import { HelpLink } from "./HelpLink";
 import type { Tab } from "./appTypes";
+import { hiddenAccountCount } from "./hiddenAccounts";
 
 /** Lets a user override the type-guessed icon (`icons/accountIcons.tsx`)
  * with an explicit choice — floats below the type badge that opens it
@@ -19,11 +20,14 @@ function AccountIconPicker({
   accountType,
   value,
   onChange,
+  onClose,
 }: {
   accountType: string;
   value: AccountIconKey | null;
   onChange: (key: AccountIconKey) => void;
+  onClose: () => void;
 }) {
+  useDismissOnEscape(onClose);
   return (
     <div className="icon-picker-popover">
       <IconPicker
@@ -74,6 +78,7 @@ function AccountCard({
   onEdit,
   onOpenDetail,
   onDelete,
+  onSetHidden,
 }: {
   account: Account;
   editing: EditingBalance | null;
@@ -90,6 +95,8 @@ function AccountCard({
   onOpenDetail: (accountId: number, focus?: "reconcile") => void;
   /** Opens the account's Edit dialog already asking whether to delete it. */
   onDelete: (accountId: number) => void;
+  /** Hides the account (tidies it into the Hidden accounts section) or shows it again; changes no balance. */
+  onSetHidden: (accountId: number, hidden: boolean) => void;
 }) {
   const group = groupOf(a.account_type);
   const isCredit = group === "credit";
@@ -157,6 +164,7 @@ function AccountCard({
               onSetAccountIcon(a.id, key);
               setEditingIcon(null);
             }}
+            onClose={() => setEditingIcon(null)}
           />
         )}
       </span>
@@ -223,15 +231,16 @@ function AccountCard({
               title="Click to set the credit limit"
               onClick={() => setEditing({ id: a.id, value: a.starting_balance, mode: "limit" })}
             >
-              {parseFloat(a.starting_balance) > 0 ? `${formatAmount(a.current_balance)} available` : "Set credit limit…"}
+              {parseFloat(a.starting_balance) > 0 ? `${formatAmount(a.current_balance)} available` : "Set credit limit"}
             </button>
           ))}
       </div>
       <RowMenu label={`Actions for ${a.name}`} items={[
         { label: "Details", onSelect: () => onOpenDetail(a.id) },
-        { label: "Edit…", onSelect: () => onEdit(a.id) },
-        canReconcile(a.account_type) && { label: "Reconcile with a statement…", onSelect: () => onOpenDetail(a.id, "reconcile") },
-        { label: "Delete…", onSelect: () => onDelete(a.id), danger: true },
+        { label: "Edit", onSelect: () => onEdit(a.id) },
+        canReconcile(a.account_type) && { label: "Reconcile with a statement", onSelect: () => onOpenDetail(a.id, "reconcile") },
+        { label: a.hidden ? "Unhide" : "Hide", onSelect: () => onSetHidden(a.id, !a.hidden) },
+        { label: "Delete", onSelect: () => onDelete(a.id), danger: true },
       ]} />
     </div>
   );
@@ -250,6 +259,7 @@ export function AccountsView({
   familyMembers,
   onSetAccountMember,
   onSetAccountIcon,
+  onSetAccountHidden,
   onAddAccount,
   onOpenAccountDetail,
   assets,
@@ -292,16 +302,18 @@ export function AccountsView({
   familyMembers: FamilyMember[];
   onSetAccountMember: (accountId: number, memberId: number | null) => void;
   onSetAccountIcon: (accountId: number, iconKey: string | null) => void;
+  onSetAccountHidden: (accountId: number, hidden: boolean) => void;
   onAddAccount: () => void;
   /** Opens Help at this page's section (the ? beside the title). */
   onOpenHelp?: (tab: Tab) => void;
 }) {
   const [editing, setEditing] = useState<EditingBalance | null>(null);
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
-  // Delete… in a row's menu opens the same Edit dialog, already asking whether to delete.
+  // Delete in a row's menu opens the same Edit dialog, already asking whether to delete.
   const [deletingFromMenu, setDeletingFromMenu] = useState(false);
   const [editingIcon, setEditingIcon] = useState<number | null>(null);
   const [expandedStat, setExpandedStat] = useState<AccountStatKey | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
 
   function toggleStat(key: AccountStatKey) {
     setExpandedStat((prev) => (prev === key ? null : key));
@@ -367,8 +379,11 @@ export function AccountsView({
       setEditingAccountId(id);
     },
     onOpenDetail: onOpenAccountDetail,
+    onSetHidden: onSetAccountHidden,
   };
-  const accountCount = `${accounts.length} account${accounts.length === 1 ? "" : "s"}`;
+  const hiddenCount = hiddenAccountCount(accounts);
+  const hiddenAccounts = accounts.filter((a) => a.hidden).sort((a, b) => a.name.localeCompare(b.name));
+  const accountCount = `${accounts.length} account${accounts.length === 1 ? "" : "s"}${hiddenCount > 0 ? ` (${hiddenCount} hidden)` : ""}`;
   const pageSub =
     accounts.length === 0 && assets.length === 0
       ? "Every account, grouped by cash, credit, loans, and investments."
@@ -428,6 +443,12 @@ export function AccountsView({
         </button>
       </div>
 
+      {hiddenCount > 0 && (
+        <p className="field-hint hidden-accounts-note">
+          Includes {hiddenCount} hidden account{hiddenCount === 1 ? "" : "s"}, listed at the bottom of this page.
+        </p>
+      )}
+
       <StatDetailPanel
         isOpen={expandedStat !== null}
         title={expandedStat ? ACCOUNT_STAT_LABELS[expandedStat] : null}
@@ -442,11 +463,13 @@ export function AccountsView({
       {/* One card per group, as in the UI mockup: its name and total on top, then one row per account,
           the biggest balance first. A card or loan group's total is the amount owed. */}
       {GROUP_ORDER.map((group) => {
-        const groupAccounts = accounts
-          .filter((a) => groupOf(a.account_type) === group)
+        const inGroup = accounts.filter((a) => groupOf(a.account_type) === group);
+        // Hidden accounts leave the rows (they are in the Hidden accounts section) but not the total.
+        const groupAccounts = inGroup
+          .filter((a) => !a.hidden)
           .sort((a, b) => Math.abs(netWorthContribution(b)) - Math.abs(netWorthContribution(a)) || a.name.localeCompare(b.name));
         if (groupAccounts.length === 0) return null;
-        const subtotal = groupAccounts.reduce((s, a) => s + netWorthContribution(a), 0);
+        const subtotal = inGroup.reduce((s, a) => s + netWorthContribution(a), 0);
         const owedGroup = group === "credit" || group === "loan";
         return (
           <section key={group} className="account-group">
@@ -463,6 +486,28 @@ export function AccountsView({
         );
       })}
       {accounts.length === 0 && <p className="empty-state">No accounts yet.</p>}
+
+      {hiddenCount > 0 && (
+        <section className="account-group account-group-hidden">
+          <div className="account-group-head">
+            <button
+              type="button"
+              className="modal-secondary hidden-accounts-toggle"
+              aria-expanded={showHidden}
+              onClick={() => setShowHidden((open) => !open)}
+            >
+              Hidden accounts ({hiddenCount})
+            </button>
+          </div>
+          {showHidden && (
+            <div className="account-cards">
+              {hiddenAccounts.map((a) => (
+                <AccountCard key={a.id} account={a} {...rowProps} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <PropertyAssetsSection
         assets={assets}

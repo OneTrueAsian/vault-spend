@@ -23,13 +23,13 @@ try {
   const ledgerNav = await app.browser.$("button*=Transactions");
   await ledgerNav.click();
 
-  // "Add tag…" in the row's ⋯ menu opens the tag field (focused); Enter adds the tag.
+  // "Add tag" in the row's ⋯ menu opens the tag field (focused); Enter adds the tag.
   const rowMenu = await app.browser.$("tr[data-payment-row] [data-row-menu]");
   await rowMenu.waitForExist({ timeout: 10000 });
   const pill = await app.browser.$(".tag-pill");
   await withFocusRetry(app.browser, async () => {
     if (await pill.isExisting()) return; // an earlier attempt already added it
-    await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Add tag…");
+    await chooseRowAction(app.browser, "tr[data-payment-row] [data-row-menu]", "Add tag");
     const tagInput = await app.browser.$(".tag-input");
     await tagInput.waitForExist({ timeout: 5000 });
     await tagInput.setValue("vacation");
