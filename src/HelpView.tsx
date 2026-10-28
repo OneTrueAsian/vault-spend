@@ -1074,10 +1074,32 @@ const FAQ_ENTRIES: FaqEntry[] = [
       <p>
         Yes. Each profile&apos;s data is stored in files on your own computer, created fresh the first time you
         launch the app. No financial data is uploaded to an online service, so a fresh install on someone else&apos;s computer
-        starts completely empty. There is no online service account. If you enable mobile snapshots, approved phones receive read-only copies directly over your private local network. The phone viewer uses local files and makes no cloud or CDN requests. Text uses local fonts. Separately, desktop internet requests do not carry your transactions, balances or account names: it checks GitHub for a newer version when it opens, and it fetches live
+        starts completely empty. Statements are read on your computer: an uploaded statement is never sent anywhere. There is no online service account. If you enable mobile snapshots, approved phones receive read-only copies directly over your private local network. The phone viewer uses local files and makes no cloud or CDN requests. Text uses local fonts. Separately, desktop internet requests do not carry your transactions, balances or account names: it checks GitHub for a newer version when it opens, and it fetches live
         investment prices only if you set up a price provider. The legal notice lists them in full. You can also
         password-protect any profile (see above).
       </p>
+    ),
+  },
+  {
+    question: "How do I update Vault Spend?",
+    tags: ["update", "upgrade", "new version", "newer version", "download", "installer", "banner", "signed", "release", "cancel update"],
+    answer: (
+      <>
+        <p>
+          When you open Vault Spend it checks GitHub for a newer version. If there is one, a banner appears across the top of the
+          window. Click <strong>Check signed update</strong>: Vault Spend then checks that the installer really comes from Vault Spend
+          before you can use it. If that check passes, click <strong>Download update</strong>. You will see the progress, and{" "}
+          <strong>Cancel update</strong> stops it at any point.
+        </p>
+        <p>
+          When the download has finished and been checked, click <strong>Open verified installer</strong>. It asks you to confirm, then
+          opens the installer, so close Vault Spend when the installer asks you to. On a Mac, finish the installation from the disk image.
+        </p>
+        <p>
+          If Vault Spend cannot check the update, you can still click <strong>View release</strong> to open the official download page
+          and install it yourself. <strong>Dismiss</strong> hides the banner for that version.
+        </p>
+      </>
     ),
   },
   {
@@ -1393,7 +1415,14 @@ const FAQ_ENTRIES: FaqEntry[] = [
         marked on the account's page, and a difference that won't close
         usually means a missing, mistyped, or wrongly dated transaction.
         You can also upload the statement itself: choose Upload a statement
-        instead of ticking, and Vault Spend checks each line for you.
+        instead of ticking, and Vault Spend checks each line for you. This
+        works for bank, card, loan and investment accounts, including share
+        counts. The first time you upload a statement from a bank Vault Spend
+        has not seen before, it may ask you to click a few examples; it then
+        remembers that bank for this profile. You can see those banks under
+        Settings, in Statements the app knows how to read, and use the Rename
+        and Remove buttons there. If you remove one, Vault Spend asks for help
+        again with that bank's next statement.
       </p>
     ),
   },
@@ -1649,7 +1678,12 @@ const FAQ_ENTRIES: FaqEntry[] = [
         understanding free-form English, so it works best one question at a
         time, using the category, account or store names you see elsewhere in
         the app. I can correct small typing mistakes and show how I read them.
-        If a name is unclear, I’ll ask you to choose. Click "Tips &amp; examples" on the box
+        If a name is unclear, I’ll ask you to choose. Before it shows an answer
+        it double-checks it, and you may briefly see &quot;Checking that this
+        is still up to date…&quot;. If your transactions or details change in
+        the meantime, the old answer is removed and you see &quot;Your details
+        changed&quot; with an Ask again button, so an old number is never
+        shown as current. Click "Tips &amp; examples" on the box
         itself for phrasing guidance and the full list of what it
         understands.
       </p>

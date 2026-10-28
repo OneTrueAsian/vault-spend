@@ -63,6 +63,33 @@ describe("HelpView", () => {
     expect(accounts).not.toContain("balance-history chart");
   });
 
+  const helpText = () => (container.textContent ?? "").replace(/\s+/g, " ");
+
+  it("explains how to update Vault Spend using the buttons the update banner shows", () => {
+    const text = helpText();
+    expect(text).toContain("How do I update Vault Spend?");
+    for (const button of ["Check signed update", "Download update", "Open verified installer", "Cancel update", "View release"]) expect(text).toContain(button);
+    expect(text).toContain("checks that the installer really comes from Vault Spend");
+  });
+
+  it("says reconciling works for investment accounts and where the saved statement layouts are managed", () => {
+    const text = helpText();
+    expect(text).toContain("investment accounts, including share counts");
+    expect(text).toContain("Statements the app knows how to read");
+    expect(text).toContain("Rename");
+  });
+
+  it("says statements are read on your computer", () => {
+    expect(helpText()).toContain("Statements are read on your computer");
+  });
+
+  it("says what Ask the Vault does while it double-checks an answer and when your details change", () => {
+    const text = helpText();
+    expect(text).toContain("Checking that this is still up to date");
+    expect(text).toContain("Your details changed");
+    expect(text).toContain("Ask again");
+  });
+
   it("uses the actual setup-template section name for goals", () => {
     const topics = Array.from(container.querySelectorAll("details.help-topic"));
     const setup = topics.find(el => el.querySelector("summary")?.textContent === "Bulk setup-data import/export")!;
