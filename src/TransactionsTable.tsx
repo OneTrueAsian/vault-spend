@@ -224,11 +224,11 @@ export function TransactionsTable({
     <div className="ledger-table-scroll" ref={setTransactionsScrollEl}>
       <table className={transactionDensity === "compact" ? "ledger ledger-compact" : "ledger"}>
         <colgroup>
-          <col style={{ width: transactionsNarrow ? "6%" : "3%" }} />
+          <col style={{ width: transactionsNarrow ? "6%" : "4%" }} />
           {/* the date needs ~80px in every style's font: 7% left it ~38px and it ran into the description */}
           <col style={{ width: transactionsNarrow ? "16%" : "11%" }} />
           {/* The description takes whatever the optional Member column leaves. */}
-          <col style={{ width: transactionsNarrow ? "43%" : showMemberCol ? "22%" : "29%" }} />
+          <col style={{ width: transactionsNarrow ? "43%" : showMemberCol ? "21%" : "28%" }} />
           <col style={{ width: transactionsNarrow ? "16%" : "10%" }} />
           {!transactionsNarrow && <col style={{ width: showMemberCol ? "16%" : "17%" }} />}
           {!transactionsNarrow && showMemberCol && <col style={{ width: "8%" }} />}
