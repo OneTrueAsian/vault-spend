@@ -15,7 +15,7 @@
 //
 // Run with: node e2e/feature38_theme_style.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
@@ -83,8 +83,9 @@ try {
   await app.browser.execute(() => document.documentElement.setAttribute("data-motion", "reduced"));
   const settingsNav = await app.browser.$("button*=Settings");
   await settingsNav.click();
+  await openSettingsGroup(app.browser, "display");
 
-  const appearanceHeading = await app.browser.$("//span[contains(@class,'reports-section-title')][text()='Appearance']");
+  const appearanceHeading = await app.browser.$("//*[contains(@class,'reports-section-title')][text()='Appearance']");
   await appearanceHeading.waitForExist({ timeout: 10000 });
 
   // Exactly three theme options (Default, Futuristic, Retro) — catches the
@@ -179,6 +180,7 @@ try {
   console.log("Transparent: no top bar pinned over scrolled content — OK");
 
   await settingsNav.click();
+  await openSettingsGroup(app.browser, "display");
   await appearanceHeading.waitForExist({ timeout: 10000 });
 
   // A user who had the retired Slate style saved gets Default after a reload.

@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { dismissFirstLaunchDialogs, launchApp } from "./harness.mjs";
+import { dismissFirstLaunchDialogs, launchApp, openSettingsGroup } from "./harness.mjs";
 import { enableProtectionThroughUI, seedPopulatedProfile, waitForProtectionSetupCompletion } from "./lib/protection.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 
@@ -23,6 +23,7 @@ let app = await launchApp({ dbDir: testDbDir });
 try {
   const { browser } = app;
   await (await browser.$("button*=Settings")).click();
+  await openSettingsGroup(browser, "profiles");
   await enableProtectionThroughUI(browser, PASSWORD);
   await waitForProtectionSetupCompletion(browser);
   await browser.waitUntil(async () => (await browser.$(".page").getText()).includes("Password protection: On"), {
@@ -59,6 +60,7 @@ try {
   await browser.$(".brand-word").waitForExist({ timeout: 10000 });
   await dismissFirstLaunchDialogs(browser);
   await (await browser.$("button*=Settings")).click();
+  await openSettingsGroup(browser, "profiles");
 
   const region = await browser.$(REGION);
   await region.waitForExist({ timeout: 10000, timeoutMsg: "Keep for now must not persist — the banner should reappear on the next launch" });
@@ -89,6 +91,7 @@ try {
   await browser.$(".brand-word").waitForExist({ timeout: 10000 });
   await dismissFirstLaunchDialogs(browser);
   await (await browser.$("button*=Settings")).click();
+  await openSettingsGroup(browser, "profiles");
   await (await browser.$("[data-data-file]")).waitForExist({ timeout: 10000 }); // Settings has fully rendered
   await browser.waitUntil(async () => !(await browser.$(REGION).isExisting()), {
     timeout: 10000,

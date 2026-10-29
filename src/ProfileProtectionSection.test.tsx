@@ -26,6 +26,7 @@ const autoLock = vi.hoisted(() => ({
 vi.mock("./autoLock", () => autoLock);
 
 import { ProfileProtectionSection } from "./ProfileProtectionSection";
+import { QuickSettingsContext } from "./SettingStar";
 import { menuOptions, menuValue, pickMenuOption } from "./menuSelectTestUtils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -90,6 +91,22 @@ describe("ProfileProtectionSection", () => {
   function button(name: string) {
     return [...document.body.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === name)!;
   }
+
+  it("keeps the protection actions directly under the status they act on, ahead of the automatic locking settings", () => {
+    for (const [profiles, firstAction] of [[UNPROTECTED, "Turn on password protection"], [PROTECTED, "Change password"]] as const) {
+      show(profiles);
+      const card = container.querySelector<HTMLElement>('[data-setting-card="password-protection"]')!;
+      const status = [...card.querySelectorAll("p")].find((p) => p.textContent?.startsWith("Password protection:"))!;
+      const actions = button(firstAction).closest(".settings-actions")!;
+      const locking = [...card.querySelectorAll("h2")].find((h) => h.textContent === "Automatic locking")!;
+      const after = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(after(status, actions)).toBe(true);
+      expect(after(actions, locking)).toBe(true);
+      // nothing but the status (and its explanation) sits between the status and its actions
+      expect([...card.children].indexOf(actions) - [...card.children].indexOf(status)).toBeLessThanOrEqual(2);
+      act(() => root.render(<div />));
+    }
+  });
 
   it('shows "Off" and a button to turn it on for an unprotected active profile', () => {
     show(UNPROTECTED);
@@ -216,5 +233,38 @@ describe("ProfileProtectionSection", () => {
     expect(protection.commitProtectionSetup).toHaveBeenCalledWith("tok", ["AAAA", "BBBB"], "a", null);
     expect(onProtected).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).not.toContain("Protect this profile with a password");
+  });
+});
+
+describe("ProfileProtectionSection anchors", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    profileUiState.getCurrentGeneration.mockReset().mockResolvedValue(1);
+    autoLock.getAutoLockSettings.mockReset().mockResolvedValue({ inactivity_minutes: 15, lock_when_hidden: true, lock_on_focus_loss: false, lock_on_system_event: true, system_event_supported: true });
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("titles the card with an h2, anchors it as password-protection and offers a star", async () => {
+    await act(async () => root.render(<QuickSettingsContext.Provider value={{ has: () => false, toggle: () => undefined }}><ProfileProtectionSection profiles={PROTECTED} onProtected={() => undefined} /></QuickSettingsContext.Provider>));
+    const title = container.querySelector("h2.reports-section-title")!;
+    expect((title.textContent ?? "").trim().startsWith("Password protection")).toBe(true);
+    const star = container.querySelector<HTMLButtonElement>('[aria-label="Add Password protection to Quick settings"]');
+    expect(star).not.toBeNull();
+    expect(container.querySelector('[data-setting="password-protection"], [data-setting-card="password-protection"]')!.contains(star)).toBe(true);
+  });
+
+  it("anchors Automatic locking inside it with its own star", async () => {
+    await act(async () => root.render(<QuickSettingsContext.Provider value={{ has: () => false, toggle: () => undefined }}><ProfileProtectionSection profiles={PROTECTED} onProtected={() => undefined} /></QuickSettingsContext.Provider>));
+    const block = container.querySelector<HTMLElement>('[data-setting="automatic-locking"]')!;
+    expect(block.hasAttribute("data-auto-lock-settings")).toBe(true);
+    expect((block.textContent ?? "").trim().startsWith("Automatic locking")).toBe(true);
+    expect(block.querySelector('[aria-label="Add Automatic locking to Quick settings"]')).not.toBeNull();
   });
 });

@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
 
@@ -53,6 +53,7 @@ try {
       break;
     }
   }
+  await openSettingsGroup(browser, "features");
   const card = await browser.$("[data-background-reminders]");
   await card.waitForExist({ timeout: 10000 });
   await card.scrollIntoView();

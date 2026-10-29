@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature72_privacy_mode.mjs
 
-import { launchApp, withFocusRetry } from "./harness.mjs";
+import { launchApp, withFocusRetry, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -65,6 +65,7 @@ try {
 
   // --- auto-hide on blur --------------------------------------------------
   await nav("Settings");
+  await openSettingsGroup(browser, "display");
   const auto = await browser.$("[data-privacy-autohide]");
   await auto.waitForExist({ timeout: 10000 });
   await auto.click();

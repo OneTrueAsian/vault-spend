@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { launchApp, waitUntilOrDiagnose, dismissStatusMessages } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, dismissStatusMessages, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { displayDate } from "./lib/dates.mjs";
 
@@ -54,6 +54,7 @@ try {
   await shot(b, "recurring-edit");
 
   await nav(b, "Settings");
+  await openSettingsGroup(b, "data");
   await b.$("button=Back up now").click();
   await waitUntilOrDiagnose(b, async () => (await b.$(".status").getText()).includes("Backup created"), { timeout: 10000, timeoutMsg: "manual backup has completed" });
   const backup = await b.$("[data-backups] tbody tr");

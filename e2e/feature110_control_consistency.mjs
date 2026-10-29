@@ -1,6 +1,6 @@
 // The real WebView must paint text, select and date controls with the same theme.
 import assert from "node:assert/strict";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { seedDemoDatabase } from "./lib/demo-seed.mjs";
 
@@ -75,6 +75,7 @@ try {
       await check(".bucket-contribute-panel input", theme, palette);
       await b.keys("Escape");
       await nav("Settings");
+      await openSettingsGroup(b, "profiles");
       await check("[data-rules-category-filter]", theme, palette);
     }
   }

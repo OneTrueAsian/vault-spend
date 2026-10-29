@@ -491,7 +491,7 @@ describe("window size", () => {
 });
 
 describe("chooseStyle", () => {
-  /** Settings > Appearance, whose style tiles render only after `rowsAfter` reads (a lazy page). */
+  /** Settings > Display > Appearance, whose style tiles render only after `rowsAfter` reads (a lazy page). */
   function fakeAppearance({ rowsAfter = 1, labels = ["Default", "Futuristic", "Retro"] } = {}) {
     const state = { reads: 0, palette: "transparent", settingsClicks: 0, radioClicks: 0 };
     const rows = labels.map((label) => ({
@@ -503,13 +503,19 @@ describe("chooseStyle", () => {
     }));
     const browser = {
       async $(selector) {
-        expect(selector).toBe(".nav-item[data-tab=settings]");
-        return { click: async () => state.settingsClicks++ };
+        throw new Error(`unexpected element lookup ${selector}`);
       },
       async execute(fn, ...args) {
         globalThis.document = {
           documentElement: { dataset: { palette: state.palette } },
+          // openSettingsGroup: the sidebar's Settings tab, then the "Display" group button, then its panel
+          querySelector: (selector) => {
+            if (selector === '.nav-item[data-tab="settings"]') return { click: () => state.settingsClicks++ };
+            if (selector === '[data-settings-panel="display"]') return { hidden: false };
+            return null;
+          },
           querySelectorAll: (selector) => {
+            if (selector === '[aria-label="Settings groups"] button') return [{ textContent: "Display", getAttribute: () => "true", click() {} }];
             expect(selector).toBe('[role="radiogroup"][aria-label="Style"] .style-preview-tile');
             return state.reads++ >= rowsAfter ? rows : [];
           },
@@ -524,7 +530,7 @@ describe("chooseStyle", () => {
     return { browser, state };
   }
 
-  it("opens Settings, waits for the style's row, then chooses it", async () => {
+  it("opens Settings on the Display group, waits for the style's row, then chooses it", async () => {
     const { browser, state } = fakeAppearance({ rowsAfter: 1 });
     await chooseStyle(browser, "Retro", "retro");
     expect(state.settingsClicks).toBe(1);

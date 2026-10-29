@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { seedFixtureInto } from "./seed.mjs";
 import { dateInMonth } from "./dates.mjs";
-import { dismissStatusMessages } from "../harness.mjs";
+import { dismissStatusMessages, openSettingsGroup } from "../harness.mjs";
 import { makeTempDir } from "./tempDir.mjs";
 
 const INIT_DB_EXE = path.resolve("target/debug/init_db.exe");
@@ -86,6 +86,7 @@ cur.execute(
  * `action` (feature103, which needs the operation merely STARTED, not finished) need.
  */
 export async function enableProtectionThroughUI(browser, password) {
+  await openSettingsGroup(browser, "profiles");
   const turnOnBtn = await browser.$("button=Turn on password protection");
   await turnOnBtn.waitForExist({ timeout: 10000 });
   await dismissStatusMessages(browser); // the profile's opening message can cover the button

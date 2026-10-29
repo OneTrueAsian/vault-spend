@@ -14,7 +14,7 @@
 //
 // Run with: node e2e/feature90_toast_legible.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -100,6 +100,7 @@ async function goToSettings() {
   for (const b of await browser.$$("nav button")) {
     if ((await b.getText()).trim() === "Settings") {
       await b.click();
+      await openSettingsGroup(browser, "data");
       return;
     }
   }

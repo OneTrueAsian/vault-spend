@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -69,6 +69,7 @@ let b = app.browser;
 const names = () => b.executeAsync(done => window.__TAURI_INTERNALS__.invoke("list_transactions").then(t => done(t.map(x => x.description).sort()), () => done(null)));
 try {
   for (const x of await b.$$("nav button")) if ((await x.getText()).trim() === "Settings") { await x.click(); break; }
+  await openSettingsGroup(b, "data");
   await (await b.$("button*=Back up now")).click();
   await waitUntilOrDiagnose(b, async () => (await b.execute(() => document.body.innerText)).includes("Backup created."), { timeout: 20000, timeoutMsg: "the manual backup is confirmed" });
   assert.deepEqual(await names(), ["Original"]);
@@ -79,6 +80,7 @@ app = await launchApp({ dbDir: dir }); b = app.browser;
 try {
   assert.deepEqual(await names(), ["Later", "Original"], "the later transaction is in the live data before the restore");
   for (const x of await b.$$("nav button")) if ((await x.getText()).trim() === "Settings") { await x.click(); break; }
+  await openSettingsGroup(b, "data");
   // Restore the manual backup (the oldest listed: the launch made one earlier in the same second may exist, so take the row for the backup made before 'Later').
   const restoreButtons = await b.$$("//button[normalize-space()='Restore']");
   assert.ok(restoreButtons.length >= 1, "the backups are listed with Restore");

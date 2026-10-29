@@ -2,7 +2,7 @@
 // The wizard must refuse a short or mismatched password, show the key once, ask for two named groups of it, refuse wrong groups in plain words without turning protection on,
 // and only turn protection on when both groups are right. Cancelling at step 2 or 3 leaves the profile unprotected. The key that was shown is the one that works (feature116 uses it to recover).
 import assert from "node:assert/strict";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { seedPopulatedProfile } from "./lib/protection.mjs";
 
@@ -27,6 +27,7 @@ const type = async (id, value) => { await b.$(id).setValue(value); };
 try {
   await b.setWindowSize(1280, 1100);
   await (await b.$("button*=Settings")).click();
+  await openSettingsGroup(b, "profiles");
 
   // --- step 1: the password -------------------------------------------------------------------------------------------------------------------------------------
   await startWizard();

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteProtectionLeftovers, listProtectionLeftovers, type LeftoverEntry, type LeftoverKind } from "./protection";
 import { getCurrentGeneration } from "./profileUiState";
+import { SettingStar, cardAttr } from "./SettingStar";
 import { errorMessage } from "./errorMessage";
 import type { Profile } from "./types";
 
@@ -87,8 +88,11 @@ function ProfileLeftovers({ profileId }: { profileId: string }) {
   }
 
   return (
-    <div className="card" role="region" aria-label="Leftover plaintext files" aria-busy={busy}>
-      <div className="card-head"><span className="reports-section-title">Plaintext files left behind</span></div>
+    <div className="card" role="region" aria-label="Leftover plaintext files" aria-busy={busy} {...cardAttr("protection-leftovers")}>
+      <div className="card-head">
+        <h2 className="reports-section-title">Plaintext files left behind</h2>
+        <SettingStar id="protection-leftovers" />
+      </div>
       {busy && <p className="modal-message-secondary" role="status">Checking plaintext cleanup status…</p>}
       {entries.length > 0 && <>
         <p className="modal-message-secondary">

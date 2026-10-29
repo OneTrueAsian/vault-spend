@@ -3,7 +3,7 @@
 //   (Link matching transfers is feature91, Safe to spend is feature143, Rollover's saved choice is feature86.) Turning one off and on again keeps the setting.
 // UAT-204 sidebar below 1000px: icons only with the name in the accessible label and a hover/focus title, and "Show names" opens the full sidebar over the page and "Hide names" puts it back.
 import assert from "node:assert/strict";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth, monthFromNow } from "./lib/dates.mjs";
 import { budgetRowMenuItems, budgetRowXpath } from "./lib/budgetRows.mjs";
@@ -22,6 +22,7 @@ const nav = async label => { await (await b.$(`.nav-item[aria-label="${label}"]`
 const toggle = key => b.$(`[data-feature-toggle='${key}'] input`);
 const setToggle = async (key, on) => {
   await nav("Settings");
+  await openSettingsGroup(b, "features");
   const box = await toggle(key); await box.waitForExist({ timeout: 10000 });
   if ((await box.isSelected()) !== on) await box.click();
   await waitUntilOrDiagnose(b, async () => (await (await toggle(key)).isSelected()) === on, { timeout: 5000, timeoutMsg: `${key} reads ${on ? "on" : "off"}` });

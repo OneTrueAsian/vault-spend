@@ -6,7 +6,7 @@
 // Run with: node e2e/run-all.mjs --spec=141
 
 import assert from "node:assert/strict";
-import { launchApp, pickFromMenu, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, pickFromMenu, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -44,6 +44,7 @@ try {
   });
 
   await (await browser.$("button*=Settings")).click();
+  await openSettingsGroup(browser, "features");
   const rulesRow = await browser.$("//tr[td[normalize-space()='SPEEDWAY 44289']]");
   await rulesRow.waitForExist({ timeout: 10000, timeoutMsg: "the learned rule should be listed" });
   assert.match(await rulesRow.getText(), /\b2\b/, `the rule should count both stores, row reads: ${await rulesRow.getText()}`);

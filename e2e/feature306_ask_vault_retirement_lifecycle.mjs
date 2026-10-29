@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { invoke } from "./lib/change-password.mjs";
 import { askHelpers, QUESTION, QUESTION_NO_ACCOUNT, seedRetirementProfile } from "./lib/askRetirement.mjs";
 
@@ -100,11 +100,13 @@ try {
   // ---- REAL PROFILE SWITCH with the result mounted. -----------------------------------------------------------------------------------------------------
   await h.toResult();
   await b.execute(() => document.querySelector('.nav-item[data-tab="settings"]').click()); // a DOM click: the open dialog's overlay covers the sidebar
+  await openSettingsGroup(b, "profiles");
   await b.$(".profile-create-form input").waitForExist({ timeout: 10000 });
   await b.$(".profile-create-form input").setValue("M5 Other");
   await b.$('.profile-create-form button[type="submit"]').click();
   await b.waitUntil(async () => (await b.$(".profile-switcher-name").getText()) === "M5 Other", { timeout: 10000 });
   await b.$('.nav-item[data-tab="settings"]').click();
+  await openSettingsGroup(b, "profiles");
   await b.$("//tr[td[contains(.,'Default')]]//button[text()='Switch']").waitForExist({ timeout: 10000 });
   await b.$("//tr[td[contains(.,'Default')]]//button[text()='Switch']").click();
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });

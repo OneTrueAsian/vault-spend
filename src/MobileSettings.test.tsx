@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, vi, test, expect } from "vitest";
 import { MobileSettings } from "./MobileSettings";
+import { QuickSettingsContext } from "./SettingStar";
 const { invoke, save }=vi.hoisted(()=>({invoke:vi.fn(),save:vi.fn()}));
 vi.mock("@tauri-apps/api/core",()=>({invoke}));
 vi.mock("@tauri-apps/plugin-dialog",()=>({save}));
@@ -21,4 +22,31 @@ test("revoke requires a confirmation and exports only the public certificate",as
  await act(async()=>root.render(<MobileSettings/>));await act(async()=>button("Revoke phone").click());expect(invoke).not.toHaveBeenCalledWith("mobile_revoke_device",expect.anything());
  await act(async()=>button("Confirm").click());expect(invoke).toHaveBeenCalledWith("mobile_revoke_device",{id:"phone"});
  save.mockResolvedValue("public.crt");await act(async()=>button("Export public certificate").click());expect(invoke).toHaveBeenCalledWith("mobile_export_certificate",{path:"public.crt"});
+});
+test("the card is anchored as mobile-snapshots, keeps its h2 title and offers a star", async () => {
+ await act(async () => root.render(<QuickSettingsContext.Provider value={{ has: () => false, toggle: () => undefined }}><MobileSettings /></QuickSettingsContext.Provider>));
+ const card = document.querySelector<HTMLElement>('[data-setting-card="mobile-snapshots"]')!;
+ expect(card.hasAttribute("data-mobile-settings")).toBe(true);
+ expect(card.querySelector("h2.reports-section-title")?.textContent?.trim()).toBe("Mobile snapshots");
+ expect(card.querySelector('[aria-label="Add Mobile snapshots to Quick settings"]')).not.toBeNull();
+});
+
+test("Set up a phone sits right under the access status, and Pair a phone lives inside the phone setup section", async () => {
+ await act(async () => root.render(<MobileSettings />));
+ const card = document.querySelector<HTMLElement>("[data-mobile-settings]")!;
+ const status = card.querySelector("[role=status]")!;
+ const setUp = button("Set up a phone");
+ expect(status.closest(".mobile-desktop-status")?.nextElementSibling?.contains(setUp)).toBe(true);
+ const setupSection = [...card.querySelectorAll("details")].find((d) => d.querySelector("summary")?.textContent === "Phone setup and certificate trust")!;
+ expect(setupSection.contains(button("Pair a phone"))).toBe(true);
+ expect(card.querySelectorAll("details")[0].contains(button("Pair a phone"))).toBe(false);
+});
+
+test("starting a pairing opens the setup section so the code is visible", async () => {
+ await act(async () => root.render(<MobileSettings />));
+ const setupSection = [...document.querySelectorAll("details")].find((d) => d.querySelector("summary")?.textContent === "Phone setup and certificate trust")!;
+ expect(setupSection.open).toBe(false);
+ await act(async () => button("Pair a phone").click());
+ expect(setupSection.open).toBe(true);
+ expect(setupSection.querySelector("svg")).not.toBeNull();
 });

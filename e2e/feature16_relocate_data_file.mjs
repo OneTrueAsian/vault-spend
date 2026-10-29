@@ -21,7 +21,7 @@
 //
 // Run with: node e2e/feature16_relocate_data_file.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -32,9 +32,10 @@ const app = await launchApp({ dbDir });
 try {
   const settingsNav = await app.browser.$("button*=Settings");
   await settingsNav.click();
+  await openSettingsGroup(app.browser, "data");
 
   const settingsCard = await app.browser.$(
-    "//div[contains(@class,'card')][.//span[text()='Data']]", // Settings' single "Data" section (data file, backups, setup data)
+    "//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Data file']]", // the Data file card
   );
   await settingsCard.waitForExist({ timeout: 10000 });
 
@@ -63,7 +64,9 @@ try {
   if (useExistingButtons.length === 0) {
     throw new Error(`expected a "Use existing file" action in the Data card, got:\n${cardText}`);
   }
-  if (!cardText.toLowerCase().includes("checked for real account/transaction data")) {
+  for (const more of await settingsCard.$$("button=More about this")) await more.click(); // the long explanations sit behind a labelled link
+  const expandedText = await settingsCard.getText();
+  if (!expandedText.toLowerCase().includes("checked for real account and transaction data")) {
     throw new Error(`expected explainer copy mentioning the file is validated before being adopted, got:\n${cardText}`);
   }
   console.log('"Use existing file" (import) is discoverable right next to "Export a copy"');

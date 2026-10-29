@@ -307,6 +307,9 @@
     "feature361_qa_help_sections_and_page_links.mjs": "uses the shared pointer to open each page and its Help link; no parallel approval recorded, so it runs exclusively",
     "feature362_qa_budget_report_month_boundary.mjs": "reviewed: drives Budget month arrows and Reports range buttons; exclusive until source-bound parallel approval exists; detected: lib\\budgetRows.mjs: depends on which window has OS focus; lib\\budgetRows.mjs: drives menus that close when the window loses focus; lib\\budgetRows.mjs: uses the shared keyboard",
     "feature363_qa_update_offer_consent.mjs": "reviewed: real profile/theme/window and consent gestures require exclusive desktop access; controlled updater responses, no actual download or installer; detected: depends on which window has OS focus; drives menus that close when the window loses focus",
-    "feature364_report_pdf_save.mjs": "not reviewed for parallel execution; exclusive until approved"
+    "feature364_report_pdf_save.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature365_settings_groups_search_quick_settings.mjs": "depends on which window has OS focus",
+    "feature366_settings_layout_scrolling.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature367_settings_frame_boundary.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus"
   }
 }

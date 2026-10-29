@@ -8,7 +8,7 @@
 //
 // Run with: node e2e/feature144_comparisons_navigation.mjs
 import assert from "node:assert/strict";
-import { launchApp, reclaimWindowFocus } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { nav, openReportsTab, setInput } from "./lib/comparisons.mjs";
 
@@ -29,7 +29,8 @@ try {
 
   // Settings no longer carries a Comparisons section: the form lives on the Comparisons tab.
   await nav(browser, "Settings");
-  await browser.$("//span[contains(@class,'reports-section-title')][text()='Appearance']").waitForExist({ timeout: 15000 });
+  await openSettingsGroup(browser, "display");
+  await browser.$("//*[contains(@class,'reports-section-title')][text()='Appearance']").waitForExist({ timeout: 15000 });
   assert.equal((await browser.$$("[data-cmp-settings]")).length, 0, "Settings must not hold the comparison form any more");
 
   await nav(browser, "Reports");

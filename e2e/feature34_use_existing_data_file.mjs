@@ -8,7 +8,7 @@
 //
 // Run with: node e2e/feature34_use_existing_data_file.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -19,8 +19,9 @@ const app = await launchApp({ dbDir });
 try {
   const settingsNav = await app.browser.$("button*=Settings");
   await settingsNav.click();
+  await openSettingsGroup(app.browser, "profiles");
 
-  const profilesCard = await app.browser.$("//div[contains(@class,'card')][.//span[text()='Profiles']]");
+  const profilesCard = await app.browser.$("//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Profiles']]");
   await profilesCard.waitForExist({ timeout: 10000 });
 
   const useExistingBtn = await profilesCard.$("button*=Use existing file");

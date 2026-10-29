@@ -8,7 +8,7 @@
 //
 // Run with: node e2e/feature142_retro_theme.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
@@ -47,7 +47,8 @@ async function styles(app, selector, props) {
 const app = await launchApp();
 try {
   await (await app.browser.$("button*=Settings")).click();
-  const appearanceHeading = await app.browser.$("//span[contains(@class,'reports-section-title')][text()='Appearance']");
+  await openSettingsGroup(app.browser, "display");
+  const appearanceHeading = await app.browser.$("//*[contains(@class,'reports-section-title')][text()='Appearance']");
   await appearanceHeading.waitForExist({ timeout: 10000 });
 
   const labels = await app.browser.execute(() =>
@@ -74,6 +75,7 @@ try {
 
   // Back on Settings after the reload, for the screenshots and the nav checks below.
   await (await app.browser.$("button*=Settings")).click();
+  await openSettingsGroup(app.browser, "display");
   await appearanceHeading.waitForExist({ timeout: 10000 });
 
   for (const mode of ["light", "dark"]) {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { launchApp, withFocusRetry } from "./harness.mjs";
+import { launchApp, withFocusRetry, openSettingsGroup } from "./harness.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 import { invoke } from "./lib/change-password.mjs";
 
@@ -11,6 +11,7 @@ try {
   await b.waitUntil(async () => (await b.$('.page').getText()).includes('Password protection: On'), { timeout: 10000 });
   // Create an actual unsaved rule dialog. Invoke the actual lock button event behind it to exercise
   // the confirmation path without bypassing React or mocking the dirty-state detector.
+  await openSettingsGroup(b, "features");
   await (await b.$('#categorization-rules')).$('button=Add rule').click();
   await b.$('input[placeholder*="Ferrywood"]').setValue('unsaved draft');
   for (const palette of ["transparent", "futuristic", "retro"]) for (const theme of ["light", "dark"]) {
@@ -38,6 +39,7 @@ try {
   await b.$('button=Unlock').click();
   await b.$('.brand-word').waitForExist({ timeout: 10000 });
   await b.$('button*=Settings').click();
+  await openSettingsGroup(b, "features");
   await (await b.$('#categorization-rules')).$('button=Add rule').click();
   await b.$('input[placeholder*="Ferrywood"]').setValue('another unsaved draft');
   await b.execute(() => document.querySelector('.profile-switcher-toggle').click());

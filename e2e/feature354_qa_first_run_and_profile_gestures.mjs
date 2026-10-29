@@ -3,7 +3,7 @@
 //   Rename: Enter saves, Escape throws the edit away, clicking away saves, an empty name changes nothing; a profile that is not the current one can be renamed too.
 //   Icon: the swatch opens a picker, choosing one changes the icon in the Profiles row and in the sidebar chooser and is stored.
 import assert from "node:assert/strict";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture("");
@@ -45,12 +45,14 @@ try {
 
   // --- a second profile from Settings ---------------------------------------------------------------------------------------------------------------------------------
   for (const x of await b.$$("nav button")) if ((await x.getText()).trim() === "Settings") { await x.click(); break; }
+  await openSettingsGroup(b, "profiles");
   await b.$(".profile-create-form input").waitForExist({ timeout: 10000 });
   await waitUntilOrDiagnose(b, async () => { try { await (await b.$(".profile-create-form input")).setValue("Second Profile"); return (await (await b.$(".profile-create-form input")).getValue()) === "Second Profile"; } catch { return false; } }, { timeout: 10000, timeoutMsg: "the new-profile name can be typed" });
   await b.$('.profile-create-form button[type="submit"]').click();
   await waitUntilOrDiagnose(b, async () => (await sidebarName()) === "Second Profile", { timeout: 15000, timeoutMsg: "creating a profile switches to it" });
   assert.equal((await invoke("list_accounts")).length, 0, "a new profile starts empty");
   for (const x of await b.$$("nav button")) if ((await x.getText()).trim() === "Settings") { await x.click(); break; }
+  await openSettingsGroup(b, "profiles");
 
   // --- UAT-008 rename ---------------------------------------------------------------------------------------------------------------------------------------------------------
   // The profile list re-renders right after a click on Rename (the name field is re-created), so the field is looked up again on every try.
@@ -82,6 +84,7 @@ try {
   await (await (await row(firstName)).$("button=Switch")).click();
   await waitUntilOrDiagnose(b, async () => (await sidebarName()) === firstName, { timeout: 15000, timeoutMsg: "switching to the first profile" });
   for (const x of await b.$$("nav button")) if ((await x.getText()).trim() === "Settings") { await x.click(); break; }
+  await openSettingsGroup(b, "profiles");
   await rename("Renamed By Clicking Away", "Other Profile Renamed", "Enter");
   await waitUntilOrDiagnose(b, async () => (await profiles()).some(p => p.name === "Other Profile Renamed" && !p.is_active), { timeout: 10000, timeoutMsg: "a profile that is not current can be renamed" });
   assert.equal(await sidebarName(), firstName, "the current profile is untouched");

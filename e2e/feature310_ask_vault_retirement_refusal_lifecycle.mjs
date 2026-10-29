@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { launchApp, reclaimWindowFocus } from "./harness.mjs";
+import { launchApp, reclaimWindowFocus, openSettingsGroup } from "./harness.mjs";
 import { askHelpers, QUESTION_REFUSED_STORED, REFUSAL_MESSAGE, seedRefusalProfile } from "./lib/askRetirement.mjs";
 
 // M5 numeric-refusal lifecycle and privacy in the compiled app (task item 2). The refused ("needs attention") card and the choices that "Change the details" reopens must retire like any other
@@ -69,11 +69,13 @@ try {
 
   // ---- REAL PROFILE SWITCH with the refused card mounted. -----------------------------------------------------------------------------------------------------------------
   await b.execute(() => document.querySelector('.nav-item[data-tab="settings"]').click());
+  await openSettingsGroup(b, "profiles");
   await b.$(".profile-create-form input").waitForExist({ timeout: 10000 });
   await b.$(".profile-create-form input").setValue("M5 Other");
   await b.$('.profile-create-form button[type="submit"]').click();
   await b.waitUntil(async () => (await b.$(".profile-switcher-name").getText()) === "M5 Other", { timeout: 10000 });
   await b.$('.nav-item[data-tab="settings"]').click();
+  await openSettingsGroup(b, "profiles");
   await b.$("//tr[td[contains(.,'Default')]]//button[text()='Switch']").waitForExist({ timeout: 10000 });
   await b.$("//tr[td[contains(.,'Default')]]//button[text()='Switch']").click();
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });

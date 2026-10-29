@@ -10,7 +10,7 @@
 //
 // Run with: node e2e/feature27_live_price_quota.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 async function seedWithUsage(usedToday) {
@@ -29,7 +29,8 @@ async function checkLivePricesCard(dbDir, check) {
   try {
     const settingsNav = await app.browser.$("button*=Settings");
     await settingsNav.click();
-    const livePricesCard = await app.browser.$("//div[contains(@class,'card')][.//span[text()='Live stock prices']]");
+    await openSettingsGroup(app.browser, "features");
+    const livePricesCard = await app.browser.$("//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Live stock prices']]");
     await livePricesCard.waitForExist({ timeout: 10000 });
     await check(app, livePricesCard);
   } finally {

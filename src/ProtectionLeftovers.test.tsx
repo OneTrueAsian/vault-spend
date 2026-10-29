@@ -13,6 +13,7 @@ const generation = vi.hoisted(() => ({ getCurrentGeneration: vi.fn() }));
 vi.mock("./profileUiState", () => generation);
 
 import { ProtectionLeftovers } from "./ProtectionLeftovers";
+import { QuickSettingsContext } from "./SettingStar";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -225,5 +226,30 @@ describe("ProtectionLeftovers", () => {
     expect(container.textContent).not.toContain(local.path);
     expect(container.textContent).toContain("active profile changed during the cleanup check");
     expect(button("Delete plaintext copies now").disabled).toBe(true);
+  });
+});
+
+describe("ProtectionLeftovers anchors", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    protection.listProtectionLeftovers.mockReset().mockResolvedValue([{ path: "C:\\data\\old.db", kind: "backup", size_bytes: 10 }]);
+    generation.getCurrentGeneration.mockReset().mockResolvedValue(19);
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("titles the card with an h2, anchors it as protection-leftovers and offers a star", async () => {
+    await act(async () => root.render(<QuickSettingsContext.Provider value={{ has: () => false, toggle: () => undefined }}><ProtectionLeftovers profiles={PROTECTED_PROFILE} /></QuickSettingsContext.Provider>));
+    await flush();
+    const card = container.querySelector<HTMLElement>('[data-setting-card="protection-leftovers"]')!;
+    expect(card.getAttribute("role")).toBe("region");
+    expect(card.querySelector("h2.reports-section-title")?.textContent).toBe("Plaintext files left behind");
+    expect(card.querySelector('[aria-label="Add Plaintext files left behind to Quick settings"]')).not.toBeNull();
   });
 });

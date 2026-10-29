@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
@@ -33,6 +33,7 @@ const { browser } = app;
 try {
   await browser.setWindowSize(1440, 1400);
   await (await browser.$("button*=Settings")).click();
+  await openSettingsGroup(browser, "data");
   const section = await browser.$("[data-backup-copy]");
   await section.waitForExist({ timeout: 10000 });
   await section.scrollIntoView();

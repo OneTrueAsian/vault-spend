@@ -12,6 +12,7 @@ const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
 import { RulesManager } from "./RulesManager";
+import { QuickSettingsContext } from "./SettingStar";
 import { menuOptions, pickMenuOption } from "./menuSelectTestUtils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -130,5 +131,34 @@ describe("RulesManager list", () => {
       const labels = [...row.querySelectorAll("button")].map((b) => b.textContent);
       expect(labels).toEqual(["Edit", "Delete"]);
     }
+  });
+});
+
+describe("RulesManager anchors", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  beforeEach(async () => {
+    invokeMock.mockReset();
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === "list_rules") return RULES;
+      throw new Error(`unexpected request ${command}`);
+    });
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(<QuickSettingsContext.Provider value={{ has: () => false, toggle: () => undefined }}><RulesManager categories={["Groceries", "Income"]} onRulesApplied={() => {}} onMessage={() => {}} /></QuickSettingsContext.Provider>);
+    });
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("titles the card with an h2, anchors it as categorization-rules and offers a star", () => {
+    const card = container.querySelector<HTMLElement>('[data-setting-card="categorization-rules"]')!;
+    expect(card.id).toBe("categorization-rules");
+    expect(card.querySelector("h2.reports-section-title")?.textContent).toBe("Categorization rules");
+    expect(card.querySelector('[aria-label="Add Categorization rules to Quick settings"]')).not.toBeNull();
   });
 });

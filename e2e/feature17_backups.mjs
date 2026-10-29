@@ -17,7 +17,7 @@
 
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -48,9 +48,10 @@ let app = await launchApp({ dbDir });
 try {
   const settingsNav = await app.browser.$("button*=Settings");
   await settingsNav.click();
+  await openSettingsGroup(app.browser, "data");
 
   const backupsCard = await app.browser.$(
-    "//div[contains(@class,'card')][.//span[text()='Data']]", // the Backups block now lives in Settings' "Data" section
+    "//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Backup history']]", // the backup list is the Backup history card
   );
   await backupsCard.waitForExist({ timeout: 10000 });
 
@@ -107,6 +108,7 @@ try {
 
   const settingsNav = await app.browser.$("button*=Settings");
   await settingsNav.click();
+  await openSettingsGroup(app.browser, "data");
 
   const restoreBtn = await app.browser.$("button*=Restore");
   await restoreBtn.waitForExist({ timeout: 10000 });

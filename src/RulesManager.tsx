@@ -5,6 +5,8 @@ import { SortableTh } from "./SortableTh";
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { MenuSelect } from "./MenuSelect";
 import { errorMessage } from "./errorMessage";
+import { SettingStar, cardAttr } from "./SettingStar";
+import { MoreInfo } from "./MoreInfo";
 
 type Rule = { pattern: string; category: string; match_count: number };
 type SortColumn = "pattern" | "category" | "matches";
@@ -128,17 +130,21 @@ export function RulesManager({
         : `Showing ${shown.length} of ${total} ${total === 1 ? "rule" : "rules"}`;
 
   return (
-    <div className="card" id="categorization-rules">
+    <div className="card" id="categorization-rules" {...cardAttr("categorization-rules")}>
       <div className="card-head">
-        <span className="reports-section-title">Categorization rules</span>
+        <h2 className="reports-section-title">Categorization rules</h2>
+        <SettingStar id="categorization-rules" />
         <button type="button" className="modal-secondary" onClick={() => setEditing("new")}>
           Add rule
         </button>
       </div>
       <p className="modal-message-secondary">
-        When a new transaction's description contains a rule's text, it's given that category automatically. Fixing a
-        transaction's category creates a rule for that merchant too. Deleting a rule never changes transactions it
-        already categorized, and a rule never overrides a category you set yourself.
+        A new transaction whose description contains a rule's text gets that category automatically. Deleting a rule
+        never changes transactions it already categorized.{" "}
+        <MoreInfo>
+          Fixing a transaction's category creates a rule for that merchant too. A rule never overrides a category you
+          set yourself.
+        </MoreInfo>
       </p>
       <div className="rules-controls">
         <input

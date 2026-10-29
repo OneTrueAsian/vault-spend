@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { launchApp, chooseStyle, waitForDataLoaded } from "./harness.mjs";
+import { launchApp, chooseStyle, waitForDataLoaded, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { ensureAxe, waitForVisualStability } from "./lib/axeSession.mjs";
 import { installUpdaterFixture } from "./lib/updateUiFixture.mjs";
@@ -18,6 +18,7 @@ try {
   // The real profile-create gesture remounts the real App and UpdateBanner while
   // preserving this document's fixture bridge. No financial command is stubbed.
   await b.$('.nav-item[data-tab="settings"]').click();
+  await openSettingsGroup(b, "profiles");
   await b.$('.profile-create-form input').setValue("QA Update UI");
   await b.$('.profile-create-form button[type="submit"]').click();
   await waitForDataLoaded(b);

@@ -7,7 +7,7 @@
 //
 // Run with: node e2e/feature82_background_reminders.mjs
 
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 
 const app = await launchApp();
 const { browser } = app;
@@ -26,6 +26,7 @@ async function backendSettings() {
 try {
   await browser.setWindowSize(1440, 1400);
   await nav("Settings");
+  await openSettingsGroup(browser, "features");
   const card = await browser.$("[data-background-reminders]");
   await card.waitForExist({ timeout: 10000, timeoutMsg: "Settings should have a Background reminders section" });
   await card.scrollIntoView();

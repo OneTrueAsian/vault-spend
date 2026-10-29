@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { launchApp, stubFilePicker, stubSaveDialog, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, stubFilePicker, stubSaveDialog, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
 
@@ -31,6 +31,7 @@ try {
   await (await b.$("button*=Settings")).click();
   await enableProtectionThroughUI(b, PASSWORD);
   await b.$("button=Change password").waitForExist({ timeout: 20000 });
+  await openSettingsGroup(b, "data");
 
   // --- export ------------------------------------------------------------------------------------------------------------------------------------------------
   await stubSaveDialog(b, [packagePath]);
@@ -49,6 +50,7 @@ try {
   // --- import: the choice, a wrong password, then the right one -------------------------------------------------------------------------------------------------------
   await stubFilePicker(b, [packagePath, packagePath]);
   const importIt = async (password) => {
+    await openSettingsGroup(b, "profiles");
     await (await b.$("button*=Use existing file")).click();
     await (await b.$("button.choice-card*=Protected package")).click();
     await waitUntilOrDiagnose(b, async () => (await dialogText()).includes("Import a protected profile"), { timeout: 10000, timeoutMsg: "the import dialog opens", extra: dialogText });

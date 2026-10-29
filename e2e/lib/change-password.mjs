@@ -3,6 +3,7 @@
 import { launchApp } from "../harness.mjs";
 import { freshTestDbDir } from "./seed.mjs";
 import { enableProtectionThroughUI, seedPopulatedProfile } from "./protection.mjs";
+import { openSettingsGroup } from "../harness.mjs";
 
 export const OLD_PASSWORD = "correct horse battery staple";
 export const NEW_PASSWORD = "brand new password!!";
@@ -14,6 +15,7 @@ export async function invoke(browser, command, args = {}) {
 }
 
 export async function prepareChange(browser, currentPassword, newPassword) {
+  await openSettingsGroup(browser, "profiles");
   await (await browser.$("button=Change password")).click();
   await (await browser.$("#change-password-current")).setValue(currentPassword);
   await (await browser.$("button=Continue")).click();

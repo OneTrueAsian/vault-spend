@@ -13,7 +13,7 @@
 //
 // Run with: node e2e/feature24_profiles.mjs
 
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 
@@ -41,8 +41,9 @@ try {
 
   const settingsNav = await app.browser.$("button*=Settings");
   await settingsNav.click();
+  await openSettingsGroup(app.browser, "profiles");
 
-  const profilesCard = await app.browser.$("//div[contains(@class,'card')][.//span[text()='Profiles']]");
+  const profilesCard = await app.browser.$("//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Profiles']]");
   await profilesCard.waitForExist({ timeout: 10000 });
   const beforeText = await profilesCard.getText();
   console.log("profiles card before creating one:", beforeText);
@@ -78,7 +79,8 @@ try {
   // "Switch" button offered for Default.
   const settingsNavAfterCreate = await app.browser.$("button*=Settings");
   await settingsNavAfterCreate.click();
-  const profilesCardAfterCreate = await app.browser.$("//div[contains(@class,'card')][.//span[text()='Profiles']]");
+  await openSettingsGroup(app.browser, "profiles");
+  const profilesCardAfterCreate = await app.browser.$("//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Profiles']]");
   await profilesCardAfterCreate.waitForExist({ timeout: 10000 });
   const afterCreateText = await profilesCardAfterCreate.getText();
   console.log("profiles card after creating Alex:", afterCreateText);
@@ -109,7 +111,8 @@ try {
   // Back on Settings, Default is now active — Alex is the inactive one.
   const settingsNavAgain = await app.browser.$("button*=Settings");
   await settingsNavAgain.click();
-  const profilesCardAgain = await app.browser.$("//div[contains(@class,'card')][.//span[text()='Profiles']]");
+  await openSettingsGroup(app.browser, "profiles");
+  const profilesCardAgain = await app.browser.$("//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Profiles']]");
   await profilesCardAgain.waitForExist({ timeout: 10000 });
 
   // The active profile (Default) must not offer a Delete button at all —

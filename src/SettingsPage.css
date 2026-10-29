@@ -1,0 +1,644 @@
+/* Settings page: the star beside each setting, the rows that hold it, and the card titles as real headings. */
+.reports-view .card-head h2.reports-section-title {
+  font-weight: inherit;
+}
+
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+.setting-row > .feature-toggle-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 36rem;
+  border-bottom: none;
+}
+
+/* The text fills its row, so the star after it sits just past the longest line, in the same column on every row. */
+.settings-content .setting-row .feature-toggle-text {
+  max-width: none;
+}
+
+/* In Settings a card's star sits beside its title, and a button in the title row goes to the far side. */
+.settings-content .card-head {
+  justify-content: flex-start;
+}
+
+.settings-content .card-head > .modal-secondary,
+.settings-content .card-head > .setting-inline {
+  margin-left: auto;
+}
+
+.setting-row > .setting-star {
+  margin-top: 6px;
+}
+
+.setting-title,
+.setting-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.setting-star {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.setting-star:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.setting-star[aria-pressed="true"] {
+  color: var(--accent-strong);
+}
+
+/* ---- page frame ----
+   Settings fills the window: the title row and the list of groups stay put, and the content beside the list is the
+   one thing that scrolls. (The app shell scrolls every other page as a whole.) */
+.main:has(.page-settings) {
+  overflow: hidden;
+  /* `hidden` still lets focus and scrollIntoView move the page; `clip` does not. */
+  overflow: clip;
+}
+
+.page.page-settings {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 24px 28px 0;
+  min-height: 0;
+}
+
+.page-settings > .settings-view {
+  flex: 1;
+  min-height: 0;
+}
+
+/* One frame, left-aligned: the category list, a gap and a content column of at most --settings-measure. The title row,
+   the search box and every card share the frame's edges; window space beyond the frame is left empty on the right. */
+.settings-page {
+  --settings-nav: 200px;
+  --settings-gap: 24px;
+  --settings-measure: 1060px;
+  --settings-inset: 12px;
+  container-type: inline-size;
+  flex: 1;
+  width: 100%;
+  max-width: calc(var(--settings-nav) + var(--settings-gap) + var(--settings-measure));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-top {
+  flex: none;
+  margin-bottom: 0;
+}
+
+.settings-top .view-sub {
+  margin-bottom: 0;
+}
+
+/* The search box ends where the cards end: past the scroller's inset and its scrollbar (measured by the page). */
+.settings-search {
+  flex: 1 1 240px;
+  max-width: 340px;
+  margin-right: calc(var(--settings-inset) + var(--settings-scrollbar, 0px));
+}
+
+.settings-search input,
+.settings-picker-head input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--settings-nav) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--settings-gap);
+}
+
+.settings-nav {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-self: stretch;
+}
+
+/* The category selector only replaces the list in a very narrow window. */
+.settings-select {
+  display: none;
+  /* ends where the cards and the search box end */
+  margin-right: calc(var(--settings-inset) + var(--settings-scrollbar, 0px));
+}
+
+.settings-nav button {
+  text-align: left;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.settings-nav .settings-nav-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.settings-nav button:hover {
+  background: var(--surface-hover);
+}
+
+.settings-nav button[aria-current="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+}
+
+.settings-nav-sep {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--border);
+}
+
+.settings-content {
+  /* The containing block for absolutely positioned descendants (the visually hidden text). Without it they belong to
+     .main, escape this scroller's clipping and stretch the outer page. */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  /* Reserve the scrollbar's space even when a short group has none, so the cards' right edge (and the search box's)
+     does not move when you change group. */
+  scrollbar-gutter: stable;
+  scroll-padding-block: 16px;
+  padding: 0 var(--settings-inset) 48px 0;
+}
+
+/* Wider cards must not stretch the descriptions into long lines. */
+.settings-content .modal-message-secondary,
+.settings-content .feature-toggle-text,
+.settings-group-sub {
+  max-width: 72ch;
+}
+
+/* Every card, pair of cards and table fills the one column. One gap between cards, not a gap plus a margin. */
+.settings-content .card,
+.settings-content .settings-pair {
+  margin-bottom: 0;
+}
+
+/* The last thing in a card does not add its own space under the card padding. */
+.settings-content .card > :last-child {
+  margin-bottom: 0;
+}
+
+.settings-content > [data-settings-panel]:not([hidden]),
+.settings-results {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-group-head {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.settings-group-sub {
+  margin: -8px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.settings-error {
+  margin: 0;
+  color: var(--negative);
+}
+
+.settings-result-list,
+.settings-quick-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-result-list > button,
+.settings-picker-list > button,
+.settings-quick-entry > button[data-quick-go] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.settings-result-list > button:hover,
+.settings-picker-list > button:hover,
+.settings-quick-entry > button[data-quick-go]:hover {
+  background: var(--surface-hover);
+}
+
+.settings-path {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.settings-result-label {
+  font-weight: 600;
+}
+
+/* The typed letters in a result, in the theme's own selection colours rather than a stock yellow. */
+.settings-results mark {
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* The password checkbox in the new-profile form always takes its own line, in every style. */
+.settings-content .profile-create-form .checkbox-label {
+  flex: 1 0 100%;
+}
+
+/* A sub-heading with its star inside a card: no extra space above the line it introduces. */
+.settings-content .setting-title .data-subhead {
+  margin: 0;
+}
+
+.settings-content [data-auto-lock-settings] .setting-title {
+  margin-bottom: 6px;
+}
+
+.settings-quick-entry {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-quick-entry:last-child {
+  border-bottom: none;
+}
+
+.settings-quick-entry > button[data-quick-go] {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.settings-quick-cue {
+  margin-right: 6px;
+  color: var(--accent-soft-text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.settings-quick-remove {
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.settings-quick-remove:hover {
+  color: var(--negative);
+}
+
+.settings-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.settings-empty p {
+  margin: 0 0 12px;
+}
+
+/* The Data group's cards: a path that wraps beside its Copy path button, and one action per row with its consequence beside it. */
+.path-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+  margin: 6px 0 14px;
+}
+
+.path-row .path-box {
+  flex: 1 1 280px;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.path-copy {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.path-copy .settings-feedback {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  white-space: nowrap;
+}
+
+.settings-feedback {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.settings-feedback-error {
+  color: var(--negative);
+}
+
+.settings-feedback:empty {
+  display: none;
+}
+
+/* An action with its result beside it, never covering other settings. */
+.settings-action-result {
+  align-items: center;
+}
+
+/* Shorter cards sit side by side when the content area is wide; one column below that, in reading and keyboard order. */
+.settings-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+@container (min-width: 1160px) {
+  .settings-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A row of actions that belongs to the text above it: left aligned, wrapping, one gap. (A decision that concludes a form,
+   such as the plaintext cleanup, keeps its right-aligned footer.) */
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  margin: 12px 0 0;
+}
+
+/* A block that follows an action row of its own card (the automatic locking settings under the password actions). */
+.settings-actions + [data-auto-lock-settings] {
+  margin-top: 20px;
+}
+
+.settings-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin: 0 0 12px;
+}
+
+.settings-action > button {
+  flex: 0 0 150px;
+}
+
+.settings-action > p {
+  flex: 1 1 260px;
+  margin: 0;
+}
+
+.settings-more {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--accent, currentColor);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.settings-more-text {
+  display: block;
+  margin-top: 4px;
+}
+
+.settings-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.settings-picker-head {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-picker-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.settings-picker-list > button {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-picker-add {
+  color: var(--accent-soft-text);
+  font-weight: 700;
+}
+
+.settings-flash {
+  animation: settings-flash 2.2s ease-out;
+}
+
+@keyframes settings-flash {
+  0%,
+  55% {
+    background: var(--accent-soft);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+html[data-motion="reduced"] .settings-flash {
+  animation: none;
+  background: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-flash {
+    animation: none;
+    background: var(--accent-soft);
+  }
+}
+
+/* In a narrow Settings area the group list becomes a row of tabs above the content. */
+@container (max-width: 760px) {
+  .settings-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    align-self: start;
+  }
+
+  .settings-nav .settings-nav-item {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .settings-nav-sep {
+    width: 1px;
+    height: auto;
+    margin: 4px 6px;
+  }
+}
+
+/* When the tabs stop fitting (measured by the page), or in a very narrow Settings area, the tabs give way to a category
+   selector. */
+.settings-page[data-nav="select"] .settings-nav {
+  display: none;
+}
+
+.settings-page[data-nav="select"] .settings-select {
+  display: block;
+}
+
+.settings-page[data-nav="select"] .settings-top .settings-search {
+  flex-basis: 100%;
+  max-width: none;
+}
+
+@container (max-width: 560px) {
+  .settings-nav {
+    display: none;
+  }
+
+  .settings-select {
+    display: block;
+  }
+
+  .settings-top .settings-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+}
+
+/* A short window (or very large text) has no room for a fixed header: the whole page scrolls again, list first. */
+@media (max-height: 480px) {
+  .main:has(.page-settings) {
+    overflow-y: auto;
+  }
+
+  .page.page-settings {
+    height: auto;
+    overflow: visible;
+  }
+
+  .page-settings > .settings-view,
+  .settings-page,
+  .settings-body {
+    flex: none;
+    min-height: auto;
+  }
+
+  .settings-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 14px;
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-self: start;
+  }
+
+  .settings-nav .settings-nav-item {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .settings-nav-sep {
+    width: 1px;
+    height: auto;
+    margin: 4px 6px;
+  }
+
+  .settings-content {
+    overflow: visible;
+    padding-bottom: 24px;
+  }
+}

@@ -427,11 +427,44 @@ export async function waitUntilOrDiagnose(browser, condition, { timeout = 10000,
   }
 }
 
-/** Picks a visual style on Settings > Appearance the way a person does: opens Settings, waits for that
+const SETTINGS_GROUP_NAMES = { quick: "Quick settings", display: "Display", profiles: "Profiles & security", data: "Data", features: "Features", about: "About" };
+
+/** Opens Settings and shows one group the way a person does: clicks Settings, then the group in the list, and waits
+ * until that group's panel is showing. `groupId` is quick, display, profiles, data, features or about. */
+export async function openSettingsGroup(browser, groupId) {
+  const name = SETTINGS_GROUP_NAMES[groupId];
+  if (!name) throw new Error(`openSettingsGroup: unknown group "${groupId}"`);
+  await waitUntilOrDiagnose(
+    browser,
+    async () =>
+      browser.execute(() => {
+        const nav = document.querySelector('.nav-item[data-tab="settings"]');
+        if (nav) nav.click();
+        return !!nav;
+      }),
+    { timeoutMsg: "the Settings tab should be in the sidebar" },
+  );
+  await waitUntilOrDiagnose(
+    browser,
+    async () =>
+      browser.execute((groupName) => {
+        const button = [...document.querySelectorAll('[aria-label="Settings groups"] button')].find((b) => b.textContent.replace("★", "").trim() === groupName);
+        if (!button) return false;
+        if (button.getAttribute("aria-current") !== "true") button.click();
+        return true;
+      }, name),
+    { timeoutMsg: `Settings should list the "${name}" group` },
+  );
+  await waitUntilOrDiagnose(browser, async () => browser.execute((id) => document.querySelector(`[data-settings-panel="${id}"]`)?.hidden === false, groupId), {
+    timeoutMsg: `the "${name}" group should be showing`,
+  });
+}
+
+/** Picks a visual style on Settings > Display > Appearance the way a person does: opens Settings, waits for that
  * style's row (the click needs the row itself, not just its group), clicks its radio and waits until
  * the style (`palette`, the value of `<html data-palette>`) is applied. */
 export async function chooseStyle(browser, label, palette) {
-  await (await browser.$(".nav-item[data-tab=settings]")).click();
+  await openSettingsGroup(browser, "display");
   const styleRows = (text) =>
     [...document.querySelectorAll('[role="radiogroup"][aria-label="Style"] .style-preview-tile')].filter(
       (r) => r.querySelector(".style-preview-name")?.textContent === text,

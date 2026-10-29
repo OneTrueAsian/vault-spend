@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { launchApp, stubFilePicker, stubSaveDialog, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, stubFilePicker, stubSaveDialog, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
@@ -46,6 +46,7 @@ const dialogText = () => b.execute(() => document.querySelector("[role='dialog']
 try {
   await b.setWindowSize(1440, 1200);
   for (const x of await b.$$("nav button")) if ((await x.getText()).trim() === "Settings") { await x.click(); break; }
+  await openSettingsGroup(b, "data");
   await (await b.$("button*=Back up now")).waitForExist({ timeout: 10000 });
 
   // --- the template -----------------------------------------------------------------------------------------------------------------------------------------

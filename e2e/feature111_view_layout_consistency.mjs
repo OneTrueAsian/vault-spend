@@ -30,10 +30,10 @@ try {
     }
     console.log(`All views fit at ${width}px`);
   }
-  await nav("Settings");
+  await nav("Help");
   await b.execute(() => { document.querySelector(".main").scrollTop = 450; });
   assert.ok(await b.execute(() => document.querySelector(".main").scrollTop > 0));
-  await nav("Help");
+  await nav("Settings");
   assert.equal(await b.execute(() => document.querySelector(".main").scrollTop), 0, "opening another view should start at its heading");
 } finally { await app.close(); }
 console.log("FEATURE 111 E2E TEST PASSED");

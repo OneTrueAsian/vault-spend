@@ -10,7 +10,7 @@
 //
 // Run with: node e2e/feature64_rules_manager.mjs
 
-import { launchApp, pickFromMenu } from "./harness.mjs";
+import { launchApp, pickFromMenu, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -59,6 +59,7 @@ try {
 
   // 1. The starter rules are real rows now.
   await nav("Settings");
+  await openSettingsGroup(browser, "features");
   const card = await browser.$("#categorization-rules");
   await card.waitForExist({ timeout: 10000 });
   await browser.waitUntil(async () => (await card.getText()).includes("payroll"), { timeout: 10000, timeoutMsg: "starter rules should be listed" });
@@ -109,6 +110,7 @@ try {
 
   // 4. Delete a rule.
   await nav("Settings");
+  await openSettingsGroup(browser, "features");
   const card2 = await browser.$("#categorization-rules");
   await card2.waitForExist({ timeout: 10000 });
   await (await card2.$("input[type='search']")).setValue("payroll");

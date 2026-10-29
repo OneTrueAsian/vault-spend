@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { openSettingsGroup } from "./harness.mjs";
 import { NEW_PASSWORD, OLD_PASSWORD, createProtectedFixture, invoke, prepareChange } from "./lib/change-password.mjs";
 
 // A backup carries the password/key from the point when it was created. Simulate an old copy that
@@ -15,6 +16,7 @@ import { NEW_PASSWORD, OLD_PASSWORD, createProtectedFixture, invoke, prepareChan
 {
   const { app } = await createProtectedFixture();
   try {
+    await openSettingsGroup(app.browser, "data");
     await (await app.browser.$("button=Back up now")).click();
     const listed = (await invoke(app.browser, "list_backups")).ok;
     assert.ok(listed?.[0]?.filename, "expected a protected backup fixture");
@@ -34,6 +36,7 @@ import { NEW_PASSWORD, OLD_PASSWORD, createProtectedFixture, invoke, prepareChan
     fs.copyFileSync(archivedPath, backupPath);
     fs.copyFileSync(archivedKeyPath, `${backupPath}.key`);
 
+    await openSettingsGroup(app.browser, "data");
     const backupsCard = await app.browser.$("[data-backups]");
     const restore = await backupsCard.$("button=Restore");
     await restore.click();

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { launchApp, chooseRowAction, withFocusRetry } from "./harness.mjs";
+import { launchApp, chooseRowAction, withFocusRetry, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { setField } from "./lib/accumulation.mjs";
 
@@ -34,6 +34,7 @@ try {
   await b.$('.bulk-tag-input button').click();
   await b.waitUntil(async () => (await b.$('tr[data-payment-row="2"]').getText()).includes("bulk free text"), { timeout: 10000 });
   await b.$("button*=Settings").click();
+  await openSettingsGroup(b, "features");
   await (await b.$('#categorization-rules')).$('button=Add rule').click();
   await b.$('input[placeholder*="Ferrywood"]').setValue("Suggestion purchase");
   const selector = 'input[role="combobox"][aria-label="Give it this category"]';

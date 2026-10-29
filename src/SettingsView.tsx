@@ -1,5 +1,6 @@
 import "./Rules.css";
-import { FormEvent, useEffect, useState } from "react";
+import "./SettingsPage.css";
+import { createContext, FormEvent, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AppSettings, Backup, BackgroundSettings, LivePriceProviderId, LivePriceSettings, Profile, ThemeStyle } from "./types";
@@ -27,6 +28,10 @@ import futuristicDarkPreview from "./assets/style-previews/futuristic-dark.webp"
 import retroLightPreview from "./assets/style-previews/retro-light.webp";
 import retroDarkPreview from "./assets/style-previews/retro-dark.webp";
 import { HelpLink } from "./HelpLink";
+import { MoreInfo } from "./MoreInfo";
+import { SettingStar, cardAttr, settingAttr } from "./SettingStar";
+import { SettingsPage } from "./SettingsPage";
+import type { SettingsGroupId } from "./settingsIndex";
 import type { Tab } from "./appTypes";
 
 const LIVE_PRICE_PROVIDERS: Record<
@@ -70,8 +75,77 @@ const LIVE_PRICE_PROVIDERS: Record<
   },
 };
 
-/** Where the data lives — the first block of Settings' "Data" section. */
-function DataFileBlock({
+/** The result of an action, shown in the card whose button was clicked. The app still shows its message at the bottom
+ * of the window; this copy sits beside the control and is announced to assistive technology. */
+type CardFeedback = { owner: string; text: string; kind: string };
+const CardFeedbackContext = createContext<{ shown: CardFeedback | null; begin: (owner: string) => void } | null>(null);
+
+export function CardFeedbackProvider({ status, children }: { status: { text: string; kind: string } | null; children: ReactNode }) {
+  const [shown, setShown] = useState<CardFeedback | null>(null);
+  const waiting = useRef<string | null>(null);
+  const seen = useRef(status);
+  useEffect(() => {
+    if (status === seen.current) return;
+    seen.current = status;
+    if (!status || !waiting.current) return;
+    setShown({ owner: waiting.current, ...status });
+    waiting.current = null;
+  }, [status]);
+  const begin = (owner: string) => {
+    waiting.current = owner;
+    setShown(null);
+  };
+  return <CardFeedbackContext.Provider value={{ shown, begin }}>{children}</CardFeedbackContext.Provider>;
+}
+
+/** `begin()` marks the card as waiting for its action's result; `<Feedback />` shows it. */
+function useCardFeedback(owner: string) {
+  const context = useContext(CardFeedbackContext);
+  const mine = context?.shown?.owner === owner ? context.shown : null;
+  return { begin: () => context?.begin(owner), text: mine?.text ?? "", kind: mine?.kind ?? "" };
+}
+
+function Feedback({ text, kind }: { text: string; kind: string }) {
+  return (
+    <span role="status" className={`settings-feedback${kind === "error" ? " settings-feedback-error" : ""}`}>
+      {text}
+    </span>
+  );
+}
+
+/** The path of the data file, wrapping when long, with a Copy path button and its result beside it. */
+function CopyablePath({ path }: { path: string | null }) {
+  const [result, setResult] = useState("");
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  async function copy() {
+    if (!path) return;
+    try {
+      await navigator.clipboard.writeText(path);
+      setResult("Path copied");
+    } catch {
+      setResult("Couldn't copy. Select the path and copy it yourself.");
+    }
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setResult(""), 4000);
+  }
+  return (
+    <div className="path-row">
+      <p className="path-box" style={{ userSelect: "text" }}>
+        {path ?? "Loading…"}
+      </p>
+      <div className="path-copy">
+        <button type="button" className="modal-secondary" disabled={!path} onClick={() => void copy()}>
+          Copy path
+        </button>
+        <span role="status" className="settings-feedback">{result}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Where the data lives — the first card of Settings' Data group. */
+export function DataFileBlock({
   dataFileLocation,
   onRelocateDataFile,
   onExportDatabase,
@@ -82,38 +156,51 @@ function DataFileBlock({
   onExportDatabase: () => void;
   onUseExistingDataFile: () => void;
 }) {
+  const feedback = useCardFeedback("data-file");
   return (
-    <div className="data-block" data-data-file>
-      <h2 className="data-subhead">Data file</h2>
-      <p className="modal-message-secondary">Data file location</p>
-      <p className="path-box" style={{ userSelect: "text" }}>
-        {dataFileLocation ?? "Loading…"}
-      </p>
-      <button type="button" className="modal-secondary" onClick={onRelocateDataFile}>
-        Move data file
-      </button>
-      <button type="button" className="modal-secondary" onClick={onExportDatabase}>
-        Export a copy
-      </button>
-      <p className="modal-message-secondary">
-        Saves a full copy of your data to a file you choose — for a backup on another drive, or to bring to another
-        computer. Doesn't change what Vault Spend is using now.
-      </p>
-      <button type="button" className="modal-secondary" onClick={onUseExistingDataFile}>
-        Use existing file
-      </button>
-      <p className="modal-message-secondary">
-        Point Vault Spend at a data file you already have — moving to a new computer, upgrading from an older version
-        that used a different file name, or switching back to a file you exported earlier. Checked for real
-        account/transaction data before being adopted; opens as a new profile alongside your current one (same as
-        Settings → Profiles' own "Use existing file").
-      </p>
+    <div className="card" data-data-file {...cardAttr("data-file")}>
+      <div className="card-head">
+        <h2 className="reports-section-title">Data file</h2>
+        <SettingStar id="data-file" />
+      </div>
+      <p className="modal-message-secondary">Everything you enter is saved in this file.</p>
+      <CopyablePath path={dataFileLocation} />
+      <div className="settings-action">
+        <button type="button" className="modal-secondary" onClick={() => { feedback.begin(); onRelocateDataFile(); }}>
+          Move data file
+        </button>
+        <p className="modal-message-secondary">
+          Switches to a copy of your data in a folder you choose. Your old file is left where it is, untouched.
+        </p>
+      </div>
+      <div className="settings-action">
+        <button type="button" className="modal-secondary" onClick={() => { feedback.begin(); onExportDatabase(); }}>
+          Export a copy
+        </button>
+        <p className="modal-message-secondary">
+          Saves a full copy of your data to a file you choose. Doesn't change what Vault Spend is using now.{" "}
+          <MoreInfo>Good for a backup on another drive, or to bring your data to another computer.</MoreInfo>
+        </p>
+      </div>
+      <div className="settings-action">
+        <button type="button" className="modal-secondary" onClick={() => { feedback.begin(); onUseExistingDataFile(); }}>
+          Use existing file
+        </button>
+        <p className="modal-message-secondary">
+          Opens a data file you already have. Opens as a new profile next to your current one.{" "}
+          <MoreInfo>
+            Use it when moving to a new computer, upgrading from an older version that used a different file name, or
+            switching back to a file you exported earlier. The file is checked for real account and transaction data
+            before it is used. It does the same as Settings → Profiles &amp; security → Profiles → Use existing file.
+          </MoreInfo>
+        </p>
+      </div>
+      <Feedback text={feedback.text} kind={feedback.kind} />
     </div>
   );
 }
 
-/** Settings' single "Data" section: the data file, its backups and the bulk setup
- * tools together, rather than three separate cards. */
+/** Settings' Data group: one card per task, rather than one large card with sub-headings. */
 function DataSection({
   dataFileLocation,
   onRelocateDataFile,
@@ -144,10 +231,7 @@ function DataSection({
   isProtected: boolean;
 }) {
   return (
-    <div className="card" data-data-section>
-      <div className="card-head">
-        <span className="reports-section-title">Data</span>
-      </div>
+    <>
       <DataFileBlock
         dataFileLocation={dataFileLocation}
         onRelocateDataFile={onRelocateDataFile}
@@ -164,7 +248,7 @@ function DataSection({
         onBrowseCopyDir={onBrowseCopyDir}
       />
       <SetupDataBlock onDownloadSetupTemplate={onDownloadSetupTemplate} onImportSetupData={onImportSetupData} />
-    </div>
+    </>
   );
 }
 
@@ -181,27 +265,36 @@ function BackupCopySection({
   onBrowse: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  const feedback = useCardFeedback("backup-copy");
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!draft.trim()) return;
+    feedback.begin();
     onSetCopyDir(draft.trim());
-    setDraft("");
   }
 
+  // The typed folder stays until the app has accepted it (a refused folder keeps what was typed, so it can be fixed).
+  useEffect(() => {
+    setDraft("");
+  }, [copyDir]);
+
   return (
-    <div className="backup-copy" data-backup-copy>
-      <p className="backup-copy-title">Second copy</p>
+    <div className="card" data-backup-copy {...cardAttr("backup-copy")}>
+      <div className="card-head">
+        <h2 className="reports-section-title">Second copy</h2>
+        <SettingStar id="backup-copy" />
+      </div>
       {copyDir ? (
         <>
           <p className="modal-message-secondary">
             Every backup is also copied to <strong data-backup-copy-dir>{copyDir}</strong>.
           </p>
           <div className="backup-copy-actions">
-            <button type="button" className="modal-secondary" onClick={onBrowse}>
+            <button type="button" className="modal-secondary" onClick={() => { feedback.begin(); onBrowse(); }}>
               Change folder
             </button>
-            <button type="button" className="modal-secondary" onClick={() => onSetCopyDir(null)}>
+            <button type="button" className="modal-secondary" onClick={() => { feedback.begin(); onSetCopyDir(null); }}>
               Stop copying
             </button>
           </div>
@@ -209,8 +302,8 @@ function BackupCopySection({
       ) : (
         <>
           <p className="modal-message-secondary">
-            Also keep a copy of each backup in another folder — one that syncs to the cloud (OneDrive, Dropbox) or a USB
-            drive — so one failed disk can't take your data and its backups together.
+            Also keep a copy of each backup in another folder, like a cloud folder (OneDrive, Dropbox) or a USB drive.
+            Then one failed disk can't take your data and its backups together.
           </p>
           <form className="backup-copy-form" onSubmit={handleSubmit}>
             <input
@@ -220,7 +313,7 @@ function BackupCopySection({
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Folder path, e.g. D:\OneDrive\VaultSpend"
             />
-            <button type="button" className="modal-secondary" onClick={onBrowse}>
+            <button type="button" className="modal-secondary" onClick={() => { feedback.begin(); onBrowse(); }}>
               Browse
             </button>
             <button type="submit" disabled={!draft.trim()}>
@@ -229,11 +322,12 @@ function BackupCopySection({
           </form>
         </>
       )}
+      <Feedback text={feedback.text} kind={feedback.kind} />
     </div>
   );
 }
 
-/** The backup list and second-copy folder — the second block of the "Data" section. */
+/** The backup cards of the Data group: automatic backups, the second-copy folder and the backup history. */
 export function BackupsBlock({
   backups,
   onCreateBackupNow,
@@ -251,22 +345,38 @@ export function BackupsBlock({
   onBrowseCopyDir: () => void;
   isProtected: boolean;
 }) {
+  const feedback = useCardFeedback("backups");
   const [confirmingRestoreFilename, setConfirmingRestoreFilename] = useState<string | null>(null);
   const [passwordRestoreFilename, setPasswordRestoreFilename] = useState<string | null>(null);
 
   return (
-    <div className="data-block" data-backups>
-      <div className="data-subhead-row">
-        <h2 className="data-subhead">Backups</h2>
-        <button type="button" className="modal-secondary" onClick={onCreateBackupNow}>
-          Back up now
-        </button>
+    <>
+      <div className="settings-pair">
+      <div className="card" {...cardAttr("backups")}>
+        <div className="card-head">
+          <h2 className="reports-section-title">Automatic backups</h2>
+          <SettingStar id="backups" />
+        </div>
+        <p className="modal-message-secondary">
+          Vault Spend backs up once a day when you open it, keeping the most recent 15.
+        </p>
+        <div className="settings-action settings-action-result">
+          <button type="button" onClick={() => { feedback.begin(); onCreateBackupNow(); }}>
+            Back up now
+          </button>
+          <Feedback text={feedback.text} kind={feedback.kind} />
+        </div>
       </div>
-      <p className="modal-message-secondary">
-        Vault Spend backs up automatically once a day when you open it, keeping the most recent 15. Restoring backs
-        up your current data first, then reloads it — no restart needed.
-      </p>
       <BackupCopySection copyDir={copyDir} onSetCopyDir={onSetCopyDir} onBrowse={onBrowseCopyDir} />
+      </div>
+      <div className="card" data-backups {...cardAttr("backup-history")}>
+        <div className="card-head">
+          <h2 className="reports-section-title">Backup history</h2>
+          <SettingStar id="backup-history" />
+        </div>
+        <p className="modal-message-secondary">
+          Restoring backs up your current data first, then reloads it. No restart needed.
+        </p>
       <table className="ledger">
         <thead>
           <tr>
@@ -347,7 +457,8 @@ export function BackupsBlock({
           />
         </ModalShell>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -388,16 +499,17 @@ function LivePricesSection({
   const approachingLimit = limit != null && !atLimit && used >= limit - 5;
 
   return (
-    <div className="card">
+    <div className="card" {...cardAttr("live-prices")}>
       <div className="card-head">
-        <span className="reports-section-title">Live stock prices</span>
+        <h2 className="reports-section-title">Live stock prices</h2>
+        <SettingStar id="live-prices" />
       </div>
       {settings?.enabled ? (
         <>
           <p className="modal-message-secondary">
-            Prices refresh automatically when the app opens, and every 2 hours while it stays open —{" "}
-            {LIVE_PRICE_PROVIDERS[settings.provider].refreshNote}, {LIVE_PRICE_PROVIDERS[settings.provider].usageNote}.
-            New holdings can also auto-fill their starting price by symbol.
+            Prices refresh when the app opens and every 2 hours while it stays open —{" "}
+            {LIVE_PRICE_PROVIDERS[settings.provider].refreshNote}, {LIVE_PRICE_PROVIDERS[settings.provider].usageNote}.{" "}
+            <MoreInfo>New holdings can also fill in their starting price by symbol.</MoreInfo>
           </p>
           <p className="modal-message-secondary">
             Last refreshed: {settings.last_refreshed_at ?? "not yet — click Refresh now below"}
@@ -441,9 +553,8 @@ function LivePricesSection({
             fill
           />
           <p className="modal-message-secondary">
-            Off by default — holding prices stay fully manual, edited directly on the Investments tab. Add a free{" "}
-            {LIVE_PRICE_PROVIDERS[pickerProvider].label} API key to auto-fill prices for new holdings and keep
-            existing ones current.
+            Off by default — you edit holding prices yourself on the Investments tab. Add a free{" "}
+            {LIVE_PRICE_PROVIDERS[pickerProvider].label} API key to fill in and update prices for you.
           </p>
           <p className="modal-message-secondary">{LIVE_PRICE_PROVIDERS[pickerProvider].blurb}</p>
           <button
@@ -520,15 +631,20 @@ export function AppearanceSection({
   return (
     <div className="card">
       <div className="card-head">
-        <span className="reports-section-title">Appearance</span>
+        <h2 className="reports-section-title">Appearance</h2>
       </div>
       <p className="modal-message-secondary">
-        Choose Vault Spend's visual theme. This only changes colors, fonts, and shapes — nothing about how the app
-        works.
+        Choose how Vault Spend looks. This only changes colors, fonts and shapes, not how the app works.
       </p>
-      <div className="appearance-theme">
+      <div className="appearance-theme" {...settingAttr("theme")}>
         <span className="feature-toggle-label" id="appearance-light-dark">Light or dark</span>
         <ThemeSwitch theme={theme} onSetTheme={onSetTheme} className="view-toggle" labelledBy="appearance-light-dark" />
+        <SettingStar id="theme" />
+      </div>
+      <div className="setting-style" {...settingAttr("style")}>
+      <div className="setting-title">
+        <span className="feature-toggle-label">Style</span>
+        <SettingStar id="style" />
       </div>
       <div className="style-preview-grid" role="radiogroup" aria-label="Style">
         {THEME_STYLE_OPTIONS.map((opt) => (
@@ -553,6 +669,7 @@ export function AppearanceSection({
             <span className="style-preview-description" id={`style-description-${opt.id}`}>{opt.description}</span>
           </label>
         ))}
+      </div>
       </div>
       {themeStyle === "futuristic" && (
         <div className="futuristic-options" data-futuristic-options>
@@ -603,7 +720,8 @@ export function AppearanceSection({
           </div>
         </div>
       )}
-      <label className="feature-toggle-row reduce-motion-row">
+      <div className="setting-row" {...settingAttr("reduce-motion")}>
+<label className="feature-toggle-row reduce-motion-row">
         <input
           type="checkbox"
           data-reduce-motion
@@ -618,6 +736,8 @@ export function AppearanceSection({
           </span>
         </span>
       </label>
+<SettingStar id="reduce-motion" />
+</div>
     </div>
   );
 }
@@ -626,14 +746,15 @@ function PrivacySection({ autoHide, onSetAutoHide }: { autoHide: boolean; onSetA
   return (
     <div className="card">
       <div className="card-head">
-        <span className="reports-section-title">Privacy</span>
+        <h2 className="reports-section-title">Privacy</h2>
       </div>
       <p className="modal-message-secondary">
-        The Hide amounts button at the bottom of the sidebar covers every dollar figure on screen with ••••, so you can open Vault Spend
-        with someone next to you. It hides the numbers, not the charts' shapes.
+        The Hide amounts button at the bottom of the sidebar covers every dollar figure on screen with ••••.{" "}
+        <MoreInfo>Use it when someone is sitting next to you. It hides the numbers, not the shapes of charts.</MoreInfo>
       </p>
       <div className="feature-toggle-list">
-        <label className="feature-toggle-row">
+        <div className="setting-row" {...settingAttr("hide-when-away")}>
+<label className="feature-toggle-row">
           <input type="checkbox" checked={autoHide} onChange={(e) => onSetAutoHide(e.target.checked)} data-privacy-autohide />
           <span className="feature-toggle-text">
             <span className="feature-toggle-label">Also hide amounts when this window isn't in front</span>
@@ -642,6 +763,8 @@ function PrivacySection({ autoHide, onSetAutoHide }: { autoHide: boolean; onSetA
             </span>
           </span>
         </label>
+<SettingStar id="hide-when-away" />
+</div>
       </div>
     </div>
   );
@@ -668,17 +791,24 @@ function BackgroundRemindersSection({
   return (
     <div className="card" data-background-reminders>
       <div className="card-head">
-        <span className="reports-section-title">Background reminders</span>
-        <button type="button" className="modal-secondary" onClick={onSendTest} data-test-reminder>
-          Send a test reminder
-        </button>
+        <h2 className="reports-section-title">Background reminders</h2>
+        <span className="setting-inline" {...settingAttr("test-reminder")}>
+          <button type="button" className="modal-secondary" onClick={onSendTest} data-test-reminder>
+            Send a test reminder
+          </button>
+          <SettingStar id="test-reminder" />
+        </span>
       </div>
       <p className="modal-message-secondary">
-        Off by default. Reminders normally only appear while Vault Spend is open; turn this on and it stays in the system tray
-        after you close the window, reminding you about bills due in the next 3 days.
+        Off by default. Turn this on to keep getting reminders after you close the window.{" "}
+        <MoreInfo>
+          Reminders normally only appear while Vault Spend is open. When this is on, it stays in the system tray and
+          reminds you about bills due in the next 3 days.
+        </MoreInfo>
       </p>
       <div className="feature-toggle-list">
-        <label className="feature-toggle-row">
+        <div className="setting-row" {...settingAttr("keep-running-in-tray")}>
+<label className="feature-toggle-row">
           <input type="checkbox" checked={settings.tray_enabled} onChange={(e) => onSetTray(e.target.checked)} data-tray-toggle />
           <span className="feature-toggle-text">
             <span className="feature-toggle-label">Keep Vault Spend running in the tray</span>
@@ -687,8 +817,11 @@ function BackgroundRemindersSection({
             </span>
           </span>
         </label>
+<SettingStar id="keep-running-in-tray" />
+</div>
         {settings.autostart_supported && (
-          <label className="feature-toggle-row">
+          <div className="setting-row" {...settingAttr("start-when-i-sign-in")}>
+<label className="feature-toggle-row">
             <input
               type="checkbox"
               checked={settings.autostart_enabled}
@@ -703,8 +836,11 @@ function BackgroundRemindersSection({
               </span>
             </span>
           </label>
+<SettingStar id="start-when-i-sign-in" />
+</div>
         )}
-        <label className="feature-toggle-row">
+        <div className="setting-row" {...settingAttr("show-bill-names")}>
+<label className="feature-toggle-row">
           <input
             type="checkbox"
             checked={showBillNamesInReminders}
@@ -719,6 +855,8 @@ function BackgroundRemindersSection({
             </span>
           </span>
         </label>
+<SettingStar id="show-bill-names" />
+</div>
       </div>
     </div>
   );
@@ -734,24 +872,38 @@ function SetupDataBlock({
   onDownloadSetupTemplate: () => void;
   onImportSetupData: () => void;
 }) {
+  const feedback = useCardFeedback("setup-data");
   return (
-    <div className="data-block" data-setup-data>
-      <h2 className="data-subhead">Setup data</h2>
+    <div className="card" data-setup-data {...cardAttr("setup-data")}>
+      <div className="card-head">
+        <h2 className="reports-section-title">Setup data</h2>
+        <SettingStar id="setup-data" />
+      </div>
       <p className="modal-message-secondary">
         Setting up from scratch? Download the template, fill in your accounts, categories, budgets, goals and holdings,
         then import it in one go.
       </p>
-      <div className="page-actions">
-        <button type="button" className="modal-secondary" onClick={onDownloadSetupTemplate}>
+      <div className="settings-actions">
+        <button type="button" className="modal-secondary" onClick={() => { feedback.begin(); onDownloadSetupTemplate(); }}>
           Download setup template
         </button>
-        <button type="button" className="modal-secondary" onClick={onImportSetupData}>
+        <button type="button" onClick={() => { feedback.begin(); onImportSetupData(); }}>
           Import setup data
         </button>
       </div>
+      <Feedback text={feedback.text} kind={feedback.kind} />
     </div>
   );
 }
+
+const TOGGLE_SETTING_IDS: Record<keyof AppSettings, string> = {
+  apply_to_debt_enabled: "apply-to-debt",
+  split_purchases_enabled: "split-purchases",
+  envelope_caps_enabled: "envelope-caps",
+  rollover_enabled: "rollover-unspent",
+  auto_link_transfers: "link-transfers",
+  safe_to_spend_enabled: "safe-to-spend",
+};
 
 function FeatureTogglesSection({
   appSettings,
@@ -814,7 +966,7 @@ function FeatureTogglesSection({
   return (
     <div className="card">
       <div className="card-head">
-        <span className="reports-section-title">Feature toggles</span>
+        <h2 className="reports-section-title">Feature toggles</h2>
       </div>
       <p className="modal-message-secondary">
         Turn a feature off to hide it everywhere it appears. Nothing it already stored is lost — turning it back on
@@ -822,13 +974,16 @@ function FeatureTogglesSection({
       </p>
       <div className="feature-toggle-list">
         {toggles.map((t) => (
-          <label key={t.key} className="feature-toggle-row" data-feature-toggle={t.key}>
+          <div key={t.key} className="setting-row" {...settingAttr(TOGGLE_SETTING_IDS[t.key])}>
+          <label className="feature-toggle-row" data-feature-toggle={t.key}>
             <input type="checkbox" checked={appSettings[t.key]} onChange={(e) => t.onChange(e.target.checked)} />
             <span className="feature-toggle-text">
               <span className="feature-toggle-label">{t.label}</span>
               <span className="modal-message-secondary">{t.description}</span>
             </span>
           </label>
+          <SettingStar id={TOGGLE_SETTING_IDS[t.key]} />
+          </div>
         ))}
       </div>
     </div>
@@ -916,13 +1071,14 @@ export function ProfilesSection({
   }
 
   return (
-    <div className="card">
+    <div className="card" {...cardAttr("profiles")}>
       <div className="card-head">
-        <span className="reports-section-title">Profiles</span>
+        <h2 className="reports-section-title">Profiles</h2>
+        <SettingStar id="profiles" />
       </div>
       <p className="modal-message-secondary">
-        Each profile is a completely separate, independent data file — switching loads a different set of accounts,
-        transactions, and everything else. Nothing is shared between profiles.
+        Each profile is its own separate data file. Nothing is shared between profiles.{" "}
+        <MoreInfo>Switching loads a different set of accounts, transactions and everything else.</MoreInfo>
       </p>
       <table className="ledger">
         <thead>
@@ -1054,10 +1210,12 @@ export function ProfilesSection({
         </label>
       </form>
       <p className="modal-message-secondary">
-        Moving to a new computer, or upgrading from an older version that used a different data file name? "Use
-        existing file" points Vault Spend at a data file you've already got, instead of starting empty. It's
-        checked for real account/transaction data before being adopted — a file that isn't actually a Vault Spend
-        database is rejected with a clear reason.
+        Moving to a new computer, or upgrading from an older version? "Use existing file" opens a data file you
+        already have, as a new profile, instead of starting empty.{" "}
+        <MoreInfo>
+          It's checked for real account and transaction data before it is used. A file that isn't a Vault Spend
+          database is turned down with a clear reason.
+        </MoreInfo>
       </p>
       {pendingProtectedProfile && (
         <ProtectionSetupDialog
@@ -1090,9 +1248,10 @@ function ReleaseNotesSection({ currentVersion }: { currentVersion: string | null
   if (versions.length === 0) return null;
 
   return (
-    <div className="card">
+    <div className="card" {...cardAttr("release-notes")}>
       <div className="card-head">
-        <span className="reports-section-title">Release notes</span>
+        <h2 className="reports-section-title">Release notes</h2>
+        <SettingStar id="release-notes" />
       </div>
       <div className="release-notes-list">
         {versions.map((v, i) => (
@@ -1124,9 +1283,10 @@ function ReleaseNotesSection({ currentVersion }: { currentVersion: string | null
  * work and its creator. */
 export function IconCreditsSection() {
   return (
-    <div className="card">
+    <div className="card" {...cardAttr("icon-credits")}>
       <div className="card-head">
-        <span className="reports-section-title">Icon credits</span>
+        <h2 className="reports-section-title">Icon credits</h2>
+        <SettingStar id="icon-credits" />
       </div>
       <p className="modal-message-secondary">
         Several account, category, and goal icons are from The Noun Project, used under CC BY 3.0 — credited to
@@ -1162,9 +1322,10 @@ export function IconCreditsSection() {
  * on someone else's brand. */
 function AboutSection() {
   return (
-    <div className="card">
+    <div className="card" {...cardAttr("about")}>
       <div className="card-head">
-        <span className="reports-section-title">About</span>
+        <h2 className="reports-section-title">About Vault Spend</h2>
+        <SettingStar id="about" />
       </div>
       <p className="modal-message-secondary">Own your Data, Own your Money!</p>
       <p className="modal-message-secondary">
@@ -1225,7 +1386,11 @@ export function SettingsView({
   onRulesApplied,
   onMessage,
   onOpenHelp,
+  jumpRequest,
+  status = null,
 }: {
+  /** The app's latest message, so a result can also be shown beside the control that caused it. */
+  status?: { text: string; kind: string } | null;
   onDownloadSetupTemplate: () => void;
   onImportSetupData: () => void;
   backgroundSettings: BackgroundSettings | null;
@@ -1278,83 +1443,112 @@ export function SettingsView({
   resolvedTheme: "light" | "dark";
   /** Opens Help at this page's section (the ? beside the title). */
   onOpenHelp?: (tab: Tab) => void;
+  /** Opens a group (a new `nonce` asks again), e.g. "manage profiles" from the profile switcher. */
+  jumpRequest?: { group: SettingsGroupId; nonce: number };
 }) {
   return (
-    <div className="reports-view">
-      <div className="page-top">
-        <div>
-          <div className="view-title-row">
-            <h1 className="view-title">Settings</h1>
-            {onOpenHelp && <HelpLink tab="settings" onOpen={onOpenHelp} />}
-          </div>
-          <p className="view-sub">Appearance, profile, and local data.</p>
-        </div>
-      </div>
-      <AppearanceSection
-        themeStyle={themeStyle}
-        onSetThemeStyle={onSetThemeStyle}
-        appearance={appearance}
-        onSetAppearance={onSetAppearance}
-        theme={theme}
-        onSetTheme={onSetTheme}
-        resolvedTheme={resolvedTheme}
+    <div className="reports-view settings-view">
+      <CardFeedbackProvider status={status}>
+      <SettingsPage
+        title={
+          <>
+            <div className="view-title-row">
+              <h1 className="view-title">Settings</h1>
+              {onOpenHelp && <HelpLink tab="settings" onOpen={onOpenHelp} />}
+            </div>
+            <p className="view-sub">How the app looks, who uses it, and where your data lives.</p>
+          </>
+        }
+        jumpRequest={jumpRequest}
+        panels={{
+          display: (
+            <>
+              <AppearanceSection
+                themeStyle={themeStyle}
+                onSetThemeStyle={onSetThemeStyle}
+                appearance={appearance}
+                onSetAppearance={onSetAppearance}
+                theme={theme}
+                onSetTheme={onSetTheme}
+                resolvedTheme={resolvedTheme}
+              />
+              <PrivacySection autoHide={privacyAutoHide} onSetAutoHide={onSetPrivacyAutoHide} />
+            </>
+          ),
+          profiles: (
+            <>
+              <ProfilesSection
+                profiles={profiles}
+                onCreateProfile={onCreateProfile}
+                onUseExistingDataFile={onUseExistingDataFile}
+                onSwitchProfile={onSwitchProfile}
+                onRenameProfile={onRenameProfile}
+                onSetProfileIcon={onSetProfileIcon}
+                onDeleteProfile={onDeleteProfile}
+                onProtected={onProtected}
+              />
+              <ProfileProtectionSection profiles={profiles} onProtected={onProtected} />
+              <ProtectionLeftovers profiles={profiles} />
+            </>
+          ),
+          data: (
+            <>
+              <DataSection
+                dataFileLocation={dataFileLocation}
+                onRelocateDataFile={onRelocateDataFile}
+                onExportDatabase={onExportDatabase}
+                onUseExistingDataFile={onUseExistingDataFile}
+                backups={backups}
+                onCreateBackupNow={onCreateBackupNow}
+                onRestoreBackup={onRestoreBackup}
+                copyDir={backupCopyDir}
+                onSetCopyDir={onSetBackupCopyDir}
+                onBrowseCopyDir={onBrowseBackupCopyDir}
+                onDownloadSetupTemplate={onDownloadSetupTemplate}
+                onImportSetupData={onImportSetupData}
+                isProtected={profiles.find((profile) => profile.is_active)?.is_password_protected ?? false}
+              />
+              <MobileSettings />
+            </>
+          ),
+          features: (
+            <>
+              <FeatureTogglesSection
+                appSettings={appSettings}
+                onSetApplyToDebtEnabled={onSetApplyToDebtEnabled}
+                onSetSplitPurchasesEnabled={onSetSplitPurchasesEnabled}
+                onSetEnvelopeCapsEnabled={onSetEnvelopeCapsEnabled}
+                onSetRolloverEnabled={onSetRolloverEnabled}
+                onSetAutoLinkTransfers={onSetAutoLinkTransfers}
+                onSetSafeToSpendEnabled={onSetSafeToSpendEnabled}
+              />
+              <BackgroundRemindersSection
+                settings={backgroundSettings}
+                onSetTray={onSetTray}
+                onSetAutostart={onSetAutostart}
+                onSendTest={onSendTestReminder}
+                showBillNamesInReminders={showBillNamesInReminders}
+                onSetShowBillNamesInReminders={onSetShowBillNamesInReminders}
+              />
+              <RulesManager categories={categories} onRulesApplied={onRulesApplied} onMessage={onMessage} />
+              <StatementLayoutsSection onMessage={onMessage} />
+              <LivePricesSection
+                settings={livePriceSettings}
+                onSetApiKey={onSetLivePriceApiKey}
+                onRefreshNow={onRefreshLivePrices}
+              />
+            </>
+          ),
+          about: (
+            <>
+              <ReleaseNotesSection currentVersion={appVersion} />
+              <IconCreditsSection />
+              <AboutSection />
+            </>
+          ),
+        }}
       />
-      <PrivacySection autoHide={privacyAutoHide} onSetAutoHide={onSetPrivacyAutoHide} />
-      <ProfilesSection
-        profiles={profiles}
-        onCreateProfile={onCreateProfile}
-        onUseExistingDataFile={onUseExistingDataFile}
-        onSwitchProfile={onSwitchProfile}
-        onRenameProfile={onRenameProfile}
-        onSetProfileIcon={onSetProfileIcon}
-        onDeleteProfile={onDeleteProfile}
-        onProtected={onProtected}
-      />
-      <ProfileProtectionSection profiles={profiles} onProtected={onProtected} />
-      <ProtectionLeftovers profiles={profiles} />
-      <MobileSettings />
-      <DataSection
-        dataFileLocation={dataFileLocation}
-        onRelocateDataFile={onRelocateDataFile}
-        onExportDatabase={onExportDatabase}
-        onUseExistingDataFile={onUseExistingDataFile}
-        backups={backups}
-        onCreateBackupNow={onCreateBackupNow}
-        onRestoreBackup={onRestoreBackup}
-        copyDir={backupCopyDir}
-        onSetCopyDir={onSetBackupCopyDir}
-        onBrowseCopyDir={onBrowseBackupCopyDir}
-        onDownloadSetupTemplate={onDownloadSetupTemplate}
-        onImportSetupData={onImportSetupData}
-        isProtected={profiles.find((profile) => profile.is_active)?.is_password_protected ?? false}
-      />
-      <BackgroundRemindersSection
-        settings={backgroundSettings}
-        onSetTray={onSetTray}
-        onSetAutostart={onSetAutostart}
-        onSendTest={onSendTestReminder}
-        showBillNamesInReminders={showBillNamesInReminders}
-        onSetShowBillNamesInReminders={onSetShowBillNamesInReminders}
-      />
-      <LivePricesSection
-        settings={livePriceSettings}
-        onSetApiKey={onSetLivePriceApiKey}
-        onRefreshNow={onRefreshLivePrices}
-      />
-      <FeatureTogglesSection
-        appSettings={appSettings}
-        onSetApplyToDebtEnabled={onSetApplyToDebtEnabled}
-        onSetSplitPurchasesEnabled={onSetSplitPurchasesEnabled}
-        onSetEnvelopeCapsEnabled={onSetEnvelopeCapsEnabled}
-        onSetRolloverEnabled={onSetRolloverEnabled}
-        onSetAutoLinkTransfers={onSetAutoLinkTransfers}
-        onSetSafeToSpendEnabled={onSetSafeToSpendEnabled}
-      />
-      <RulesManager categories={categories} onRulesApplied={onRulesApplied} onMessage={onMessage} />
-      <StatementLayoutsSection onMessage={onMessage} />
-      <ReleaseNotesSection currentVersion={appVersion} />
-      <IconCreditsSection />
-      <AboutSection />
+      </CardFeedbackProvider>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 // Fixture: Groceries 300 / 320 / 280 in the three full months before this one (usual month 300.00), records covering all three months (a zero-amount row at each end).
 // A second profile has records that start part-way through the oldest months, so the history is short.
 import assert from "node:assert/strict";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { askHelpers } from "./lib/askRetirement.mjs";
 import { invoke } from "./lib/change-password.mjs";
@@ -220,6 +220,7 @@ try {
   await h.ask("What if I cut Groceries by $50 a month?");
   await h.waitText("Which dates should I use?", "dates"); await radio("The whole of"); await h.clickButton("Review the details"); await h.waitText("Check these details", "review");
   await b.execute(() => document.querySelector('.nav-item[data-tab="settings"]').click()); // a DOM click: the open dialog's overlay covers the sidebar
+  await openSettingsGroup(b, "profiles");
   await b.$(".profile-create-form input").waitForExist({ timeout: 10000 });
   await b.$(".profile-create-form input").setValue("Other Profile");
   await b.$('.profile-create-form button[type="submit"]').click();
@@ -237,6 +238,7 @@ b = app.browser; h = askHelpers(b);
 try {
   await b.setWindowSize(1280, 1100);
   await (await b.$("button*=Settings")).click();
+  await openSettingsGroup(b, "profiles");
   await enableProtectionThroughUI(b, PASSWORD);
   await b.waitUntil(async () => (await b.$(".page").getText()).includes("Password protection: On"), { timeout: 15000 });
   await h.openDashboard();

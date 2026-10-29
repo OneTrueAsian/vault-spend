@@ -90,6 +90,15 @@ describe("HelpView", () => {
     expect(text).toContain("Ask again");
   });
 
+  it("names the Settings group in every Settings path (the card may follow), so each one leads somewhere real", () => {
+    const text = helpText();
+    const groups = ["Display", "Profiles & security", "Data", "Features", "About"];
+    const paths = [...text.matchAll(/Settings → [^.;)]{0,60}/g)].map((m) => m[0]);
+    expect(paths.length).toBeGreaterThan(8);
+    const bad = paths.filter((path) => !groups.some((g) => path.startsWith(`Settings → ${g}`)));
+    expect(bad).toEqual([]);
+  });
+
   it("uses the actual setup-template section name for goals", () => {
     const topics = Array.from(container.querySelectorAll("details.help-topic"));
     const setup = topics.find(el => el.querySelector("summary")?.textContent === "Bulk setup-data import/export")!;
@@ -174,8 +183,8 @@ describe("HelpView", () => {
     const text = container.textContent ?? "";
 
     expect(text).not.toContain("Profile protection");
-    expect(text).toContain("Settings → Password protection");
-    expect(text).toContain("Settings → Password protection → Automatic locking");
+    expect(text).toContain("Settings → Profiles & security → Password protection");
+    expect(text).toContain("Settings → Profiles & security → Password protection → Automatic locking");
   });
 
   it("lists every network request the app makes in the privacy answer, including Google Fonts", () => {
@@ -423,7 +432,7 @@ describe("HelpView sections per tab (s12)", () => {
     const text = container.textContent ?? "";
     for (const words of [
       ["Hide amounts", "bottom of the sidebar"],
-      ["Light, Dark or System", "Settings → Appearance"],
+      ["Light, Dark or System", "Settings → Display → Appearance"],
       ["⋯", "Split"],
       ["Money out", "Money in"],
       ["Layout", "Customize"],

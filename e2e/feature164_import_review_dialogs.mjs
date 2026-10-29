@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launchApp, waitUntilOrDiagnose, stubFilePicker } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, stubFilePicker, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { startImportInto } from "./lib/importAccount.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
@@ -130,6 +130,7 @@ try {
 
   // ---- 2. Setup data, from Settings --------------------------------------------------------------
   await nav("Settings");
+  await openSettingsGroup(browser, "data");
   await (await browser.$("button*=Import setup data")).click();
   await waitUntilOrDiagnose(browser, async () => (await dialogTitle()) === "Import setup data", {
     timeoutMsg: "the setup-data review should open over Settings",

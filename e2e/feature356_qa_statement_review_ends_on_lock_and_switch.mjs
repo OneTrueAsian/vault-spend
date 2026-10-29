@@ -3,7 +3,7 @@
 // and nothing recorded; reading the statement again then finishes normally. Then a review is left open while the person creates and moves to another profile and back: nothing carries over.
 // The 10-minute lifetime and the token rules themselves are native unit tests (statement_review.rs, 4/4 pass).
 import assert from "node:assert/strict";
-import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
+import { launchApp, waitUntilOrDiagnose, openSettingsGroup } from "./harness.mjs";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 import { seedFixtureInto } from "./lib/seed.mjs";
@@ -29,6 +29,7 @@ const reconciliations = async () => (await invoke(b, "list_transactions")).ok.fi
 try {
   await b.setWindowSize(1440, 1400);
   await (await b.$("button*=Settings")).click();
+  await openSettingsGroup(b, "profiles");
   await enableProtectionThroughUI(b, PASSWORD);
   await b.$("button=Change password").waitForExist({ timeout: 30000 });
 
@@ -66,6 +67,7 @@ try {
   await uploadStatement(b, second);
   await waitForReview(b);
   await b.execute(() => document.querySelector('.nav-item[data-tab="settings"]').click()); // a DOM click: the open dialog's overlay covers the sidebar
+  await openSettingsGroup(b, "profiles");
   await b.$(".profile-create-form input").waitForExist({ timeout: 10000 });
   await waitUntilOrDiagnose(b, async () => { try { await (await b.$(".profile-create-form input")).setValue("Other Profile"); return true; } catch { return false; } }, { timeout: 10000, timeoutMsg: "the new-profile name can be typed" });
   await b.$('.profile-create-form button[type="submit"]').click();

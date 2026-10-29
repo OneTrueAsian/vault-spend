@@ -10,7 +10,7 @@
 //
 // Run with: node e2e/feature98_rules_list_scroll.mjs
 
-import { launchApp, chooseMenuOption } from "./harness.mjs";
+import { launchApp, chooseMenuOption, openSettingsGroup } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 
 const dbDir = await seedFixture(`
@@ -35,6 +35,7 @@ const rowPatterns = () =>
 try {
   await browser.setWindowSize(1440, 1000);
   await nav("Settings");
+  await openSettingsGroup(browser, "features");
   const card = await browser.$("#categorization-rules");
   await card.waitForExist({ timeout: 10000 });
   await browser.waitUntil(async () => (await rowPatterns()).length === 80, { timeout: 10000, timeoutMsg: "all 80 rules should be listed" });

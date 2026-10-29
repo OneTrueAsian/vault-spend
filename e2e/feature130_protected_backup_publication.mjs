@@ -13,7 +13,7 @@ import path from "node:path";
 import { freshTestDbDir } from "./lib/seed.mjs";
 import { enableProtectionThroughUI, seedPopulatedProfile } from "./lib/protection.mjs";
 import { finals, invoke, keyFiles, killDuringBackupNow, launchWithFailpoint, listedBackups, openApp, PASSWORD, seedRecentBackup, stagingFiles, unlockOnlyProfile } from "./lib/backup_publication.mjs";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 
 const dbDir = freshTestDbDir();
 await seedPopulatedProfile(dbDir);
@@ -26,9 +26,11 @@ const backupsDir = path.join(dbDir, "backups", "protected");
   try {
     const { browser } = app;
     await (await browser.$("button*=Settings")).click();
+    await openSettingsGroup(browser, "data");
     await enableProtectionThroughUI(browser, PASSWORD);
     await browser.$("button=Change password").waitForExist({ timeout: 15000 });
     const before = (await listedBackups(browser)).length;
+    await openSettingsGroup(browser, "data");
     await (await browser.$("button=Back up now")).click();
     await browser.waitUntil(async () => (await listedBackups(browser)).length > before, { timeout: 15000, timeoutMsg: "Back up now should add a protected backup" });
   } finally {

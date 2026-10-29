@@ -236,6 +236,7 @@ import {
   type Tab,
   type Theme,
 } from "./appTypes";
+import type { SettingsGroupId } from "./settingsIndex";
 
 const EMPTY_TRANSACTIONS: Transaction[] = [];
 const EMPTY_FLAGS: AnomalyFlag[] = [];
@@ -260,6 +261,8 @@ function App({
   onDataFileChanged: (message: string, tab?: Tab) => void;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  /** Asks Settings to open a group; "manage profiles" in the sidebar uses it. A new nonce asks again. */
+  const [settingsJump, setSettingsJump] = useState<{ group: SettingsGroupId; nonce: number } | undefined>(undefined);
   // The page whose ? button opened Help: Help opens that page's section. Cleared once Help is left,
   // so opening Help from the sidebar later starts with every section closed.
   const [helpFocus, setHelpFocus] = useState<Tab | null>(null);
@@ -2907,6 +2910,7 @@ function App({
             profiles={profiles}
             onSwitchProfile={handleSwitchProfile}
             onManageProfiles={() => {
+              setSettingsJump({ group: "profiles", nonce: Date.now() });
               setActiveTab("settings");
               setSidebarExpanded(false);
             }}
@@ -2939,7 +2943,7 @@ function App({
       </aside>
 
       <div className="main" ref={mainScrollRef}>
-        <div className={activeTab === "ledger" ? "page page-ledger" : "page"} role="main">
+        <div className={activeTab === "ledger" ? "page page-ledger" : activeTab === "settings" ? "page page-settings" : "page"} role="main">
 
           <UpdateBanner />
           {/* Body level, like the dialogs: `position: fixed` inside `.page` is laid out
@@ -3585,6 +3589,7 @@ function App({
           {activeTab === "settings" && (
             <Suspense fallback={null}>
               <SettingsView
+                jumpRequest={settingsJump}
                 onOpenHelp={openHelpFor}
                 appVersion={appVersion}
                 dataFileLocation={dataFileLocation}
@@ -3623,6 +3628,7 @@ function App({
                 resolvedTheme={resolvedTheme}
                 privacyAutoHide={privacyPrefs.autoHide}
                 onSetPrivacyAutoHide={(autoHide) => setPrivacyPrefs((p) => ({ ...p, autoHide }))}
+                status={status}
                 onDownloadSetupTemplate={handleDownloadSetupTemplate}
                 onImportSetupData={handleImportSetupData}
                 backgroundSettings={backgroundSettings}

@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { launchApp } from "./harness.mjs";
+import { launchApp, openSettingsGroup } from "./harness.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
 
@@ -104,7 +104,8 @@ try {
 
   // Turning live prices on starts the app's refresh timer and refreshes once (no holdings, so no
   // network request goes anywhere).
-  const card = await browser.$("//div[contains(@class,'card')][.//span[text()='Live stock prices']]");
+  await openSettingsGroup(browser, "features");
+  const card = await browser.$("//div[contains(@class,'card')][.//*[contains(@class,'reports-section-title')][text()='Live stock prices']]");
   await card.waitForExist({ timeout: 10000 });
   await (await card.$("input[type='password']")).setValue("demo-test-key");
   await (await card.$("button*=Save")).click();
