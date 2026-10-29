@@ -310,6 +310,7 @@
     "feature364_report_pdf_save.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature365_settings_groups_search_quick_settings.mjs": "depends on which window has OS focus",
     "feature366_settings_layout_scrolling.mjs": "not reviewed for parallel execution; exclusive until approved",
-    "feature367_settings_frame_boundary.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus"
+    "feature367_settings_frame_boundary.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus",
+    "feature368_account_transactions_display_limit.mjs": "not reviewed for parallel execution; exclusive until approved"
   }
 }

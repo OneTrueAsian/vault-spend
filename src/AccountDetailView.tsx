@@ -1,5 +1,6 @@
 import { accountTypeLabel } from "./accountGroups";
 import "./AccountsCards.css";
+import "./Transactions.css";
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";
@@ -13,6 +14,8 @@ import { useStatementReconcile } from "./useStatementReconcile";
 import { DateField } from "./DateField";
 import { errorMessage } from "./errorMessage";
 import { holdingCount } from "./holdingImport";
+import { MenuSelect } from "./MenuSelect";
+import { LEDGER_STEPS, transactionsShownLabel, showMoreLabel } from "./transactionPaging";
 // Loaded on demand like the app's other views, so the chart and projection code stay out of the main chunk.
 const AccountAccumulationSection = lazy(() => import("./AccumulationSection").then((m) => ({ default: m.AccountAccumulationSection })));
 
@@ -59,6 +62,10 @@ export function AccountDetailView({
 }) {
   const [history, setHistory] = useState<BalancePoint[]>([]);
   const [transactions, setTransactions] = useState<AccountTransaction[]>([]);
+  // Like the Transactions tab: a step of rows at a time (25, 50 or 100), starting at 50. A different
+  // account remounts this page (keyed in App), so it starts over at the first step.
+  const [pageSize, setPageSize] = useState(50);
+  const [shownCount, setShownCount] = useState(50);
   const [lastRec, setLastRec] = useState<LastReconciliation | null>(null);
 
   const [periodStart, setPeriodStart] = useState("");
@@ -493,8 +500,8 @@ export function AccountDetailView({
             </tr>
           </thead>
           <tbody>
-            {transactions.map((t) => (
-              <tr key={t.id}>
+            {transactions.slice(0, shownCount).map((t) => (
+              <tr key={t.id} data-account-transaction-row>
                 <td className="date-cell">{formatDisplayDate(t.date)}</td>
                 <td>
                   {t.description}
@@ -522,6 +529,31 @@ export function AccountDetailView({
             )}
           </tbody>
         </table>
+        {transactions.length > 0 && (
+          <div className="ledger-pagination">
+            <label className="ledger-page-size">
+              Show
+              <MenuSelect
+                ariaLabel="Rows at a time"
+                value={String(pageSize)}
+                onChange={(v) => {
+                  setPageSize(Number(v));
+                  setShownCount(Number(v));
+                }}
+                options={LEDGER_STEPS.map((step) => ({ value: String(step), label: String(step) }))}
+              />
+              at a time
+            </label>
+            <span className="ledger-page-count" aria-live="polite" data-account-ledger-shown>
+              {transactionsShownLabel(Math.min(shownCount, transactions.length), transactions.length)}
+            </span>
+            {showMoreLabel(shownCount, transactions.length, pageSize) && (
+              <button type="button" className="modal-secondary" onClick={() => setShownCount((count) => count + pageSize)} data-account-show-more>
+                {showMoreLabel(shownCount, transactions.length, pageSize)}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
