@@ -3,7 +3,7 @@
 use super::{Store, StoredAccount, month_bounds};
 use crate::models::{Account, AccountType};
 use chrono::{Datelike, NaiveDate};
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 use rust_decimal::Decimal;
 use std::str::FromStr;
 
@@ -97,14 +97,14 @@ impl Store {
     pub(super) fn latest_checkpoint(&self, account_id: i64, as_of: NaiveDate) -> rusqlite::Result<Option<(NaiveDate, Decimal)>> {
         match self.conn.query_row(
             "SELECT reset_date, balance FROM balance_resets
-             WHERE account_id = ?1 AND reset_date <= ?2
-             ORDER BY reset_date DESC, id DESC LIMIT 1",
+             WHERE account_id = ?1 AND reset_date <= ?2 AND COALESCE(effective_from, reset_date) <= ?2
+             ORDER BY COALESCE(effective_from, reset_date) DESC, reset_date DESC, id DESC LIMIT 1",
             params![account_id, as_of.to_string()],
             |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
         ) {
             Ok((date, balance)) => Ok(Some((
-                NaiveDate::parse_from_str(&date, "%Y-%m-%d").expect("reset_date stored by this crate must be valid"),
-                Decimal::from_str(&balance).expect("balance stored by this crate must be valid"),
+                super::checkpoints::parse_date(&date)?,
+                super::checkpoints::parse_decimal(&balance)?,
             ))),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
@@ -155,10 +155,9 @@ impl Store {
             }
         };
 
-        let total: Decimal = transaction_amounts
-            .iter()
-            .map(|a| Decimal::from_str(a).expect("amount stored by this crate must be valid"))
-            .sum();
+        let total = transaction_amounts.iter().try_fold(Decimal::ZERO, |sum, amount| {
+            super::checkpoints::add_amount(sum, super::checkpoints::parse_decimal(amount)?)
+        })?;
         // A loan's current_balance is amount owed directly (see
         // StoredAccount's doc comment) — a payment should reduce that, so
         // for a loan specifically, a positive transaction subtracts and a
@@ -167,9 +166,9 @@ impl Store {
         // not owed — a payment there is already positive-adds-to-available
         // under the ordinary `+` below).
         if account_type == "loan" {
-            Ok(base_value - total)
+            super::checkpoints::sub_amount(base_value, total)
         } else {
-            Ok(base_value + total)
+            super::checkpoints::add_amount(base_value, total)
         }
     }
 
@@ -611,10 +610,8 @@ impl Store {
             let balance = self.account_balance_as_of(id, &account_type, starting_balance, reset_date)?;
 
             let before = self.displayed_balance_for_log(id);
-            self.conn.execute(
-                "INSERT INTO balance_resets (account_id, period, reset_date, balance) VALUES (?1, ?2, ?3, ?4)",
-                params![id, period, reset_date.to_string(), balance.to_string()],
-            )?;
+            let recorded = self.record_automatic_checkpoint(id, &account_type, starting_balance, &period, reset_date)?;
+            debug_assert_eq!(recorded, balance);
             let snapshot = Self::describe_balance_snapshot(before, self.displayed_balance_for_log(id));
             self.log_activity(&format!(
                 "{name}: monthly rollover — new baseline {balance} as of {reset_date} — {snapshot}"
@@ -698,9 +695,15 @@ impl Store {
     /// Uses its own `period` key (`"manual:<as_of>"`) so it can never
     /// collide with — or silently overwrite — that month's automatic
     /// rollover row; calling this again for the same `as_of` date replaces
-    /// the earlier correction instead of stacking a second one. An unknown
+    /// the earlier correction instead of stacking a second one, unless a newer
+    /// checkpoint has superseded that row (then a fresh manual anchor must win).
+    /// An unknown
     /// id is a harmless no-op, same convention as `set_account_starting_balance`.
     pub fn set_account_balance_override(&self, id: i64, balance: Decimal, as_of: NaiveDate) -> rusqlite::Result<()> {
+        self.atomically(|| self.set_account_balance_override_in_transaction(id, balance, as_of))
+    }
+
+    fn set_account_balance_override_in_transaction(&self, id: i64, balance: Decimal, as_of: NaiveDate) -> rusqlite::Result<()> {
         let account_type: String = match self
             .conn
             .query_row("SELECT account_type FROM accounts WHERE id = ?1", params![id], |row| row.get(0))
@@ -731,14 +734,54 @@ impl Store {
             balance - already_posted_today
         };
 
-        let period = format!("manual:{as_of}");
+        let base_period = format!("manual:{as_of}");
+        let existing: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT id FROM balance_resets WHERE account_id = ?1 AND period = ?2",
+                params![id, base_period],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let superseded = existing
+            .zip(self.latest_checkpoint_row(id, as_of)?)
+            .is_some_and(|(old, current)| old != current.reset_id);
+        // Updating an older same-day row cannot outrank a newer move-confirmation row on id.
+        // Append a new explicit anchor when another checkpoint has superseded that row.
+        let period = if superseded {
+            let next: i64 = self
+                .conn
+                .query_row("SELECT COALESCE(MAX(id), 0) + 1 FROM balance_resets", [], |r| r.get(0))?;
+            format!("{base_period}:{next}")
+        } else {
+            base_period
+        };
         let reset_date = as_of.pred_opt().expect("NaiveDate::pred_opt only fails at the calendar's minimum date");
         let before = self.displayed_balance_for_log(id);
-        self.conn.execute(
-            "INSERT INTO balance_resets (account_id, period, reset_date, balance) VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(account_id, period) DO UPDATE SET reset_date = excluded.reset_date, balance = excluded.balance",
-            params![id, period, reset_date.to_string(), checkpoint_balance.to_string()],
+        // A number the person types stays the newest word on the account: if a saved balance with a later
+        // effective day (a confirmed move balance) is already in place, this one takes that day too, and its newer
+        // row then wins the tie.
+        let outranking: Option<String> = self.conn.query_row(
+            "SELECT MAX(COALESCE(effective_from, reset_date)) FROM balance_resets WHERE account_id = ?1 AND period <> ?2 AND reset_date <= ?3",
+            params![id, period, reset_date.to_string()],
+            |row| row.get(0),
         )?;
+        let effective = outranking
+            .and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok())
+            .filter(|d| *d > reset_date)
+            .unwrap_or(reset_date);
+        self.atomically(|| {
+            self.record_anchor(super::checkpoints::AnchorSpec {
+                account_id: id,
+                period: &period,
+                cutoff: reset_date,
+                effective,
+                balance: checkpoint_balance,
+                kind: super::checkpoints::CheckpointKind::ManualAnchor,
+                operation_id: None,
+            })
+            .map(|_| ())
+        })?;
         // The snapshot reflects *today's* resulting number, which can
         // differ from `balance` itself when `as_of` is backdated (any
         // transaction already posted between `as_of` and today keeps
@@ -786,8 +829,7 @@ impl Store {
 
     /// Hides or shows an account (see `StoredAccount::hidden`). An unknown id is a harmless no-op.
     pub fn set_account_hidden(&self, id: i64, hidden: bool) -> rusqlite::Result<()> {
-        self.conn
-            .execute("UPDATE accounts SET hidden = ?1 WHERE id = ?2", params![hidden, id])?;
+        self.conn.execute("UPDATE accounts SET hidden = ?1 WHERE id = ?2", params![hidden, id])?;
         Ok(())
     }
 
@@ -799,7 +841,8 @@ impl Store {
             |row| row.get(0),
         )?;
         if !has_column {
-            self.conn.execute("ALTER TABLE accounts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0", [])?;
+            self.conn
+                .execute("ALTER TABLE accounts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0", [])?;
         }
         Ok(())
     }
@@ -854,6 +897,10 @@ impl Store {
     /// removed, for the confirm dialog's copy. An unknown id is a
     /// harmless no-op.
     pub fn delete_account(&self, id: i64) -> rusqlite::Result<usize> {
+        self.atomically(|| self.delete_account_in_transaction(id))
+    }
+
+    fn delete_account_in_transaction(&self, id: i64) -> rusqlite::Result<usize> {
         let mut stmt = self.conn.prepare("SELECT id FROM transactions WHERE account_id = ?1")?;
         let tx_ids: Vec<i64> = stmt.query_map(params![id], |row| row.get(0))?.collect::<rusqlite::Result<_>>()?;
         drop(stmt);
@@ -867,7 +914,18 @@ impl Store {
         self.conn.execute("DELETE FROM investment_plans WHERE account_id = ?1", params![id])?;
         self.conn
             .execute("DELETE FROM account_value_snapshots WHERE account_id = ?1", params![id])?;
-        self.conn.execute("DELETE FROM balance_resets WHERE account_id = ?1", params![id])?;
+        self.delete_checkpoint_metadata(id)?;
+        self.conn.execute(
+            "DELETE FROM account_move_operations WHERE destination_account_id = ?1 OR EXISTS (
+                 SELECT 1 FROM json_each(account_move_operations.before_json, '$.accounts')
+                 WHERE json_extract(value, '$.accountId') = ?1)",
+            params![id],
+        )?;
+        self.trusted_checkpoint_writes(|| {
+            self.conn
+                .execute("DELETE FROM balance_resets WHERE account_id = ?1", params![id])
+                .map(|_| ())
+        })?;
         self.conn.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
         Ok(tx_ids.len())
     }

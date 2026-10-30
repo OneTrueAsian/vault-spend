@@ -15,6 +15,11 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
  * here as part of cutting each release, condensed from that release's
  * GitHub notes — a version with no entry here just shows nothing. */
 export const CHANGELOG: Record<string, ChangelogEntry> = {
+  "1.3.2": {
+    "New features": [
+      "Move transactions to another account. If an import went into the wrong account, tick the transactions, choose Move to account, check what will change, and confirm. Dates, amounts, categories, tags, notes and splits stay with them. It moves everything or nothing, and tells you why when a transaction can't move: it was already reconciled, is part of a linked transfer or debt payment, or would duplicate one that is already in the new account. Older transactions can move too: when the saved balances recorded what they counted they are corrected for you, and when they didn't (balances from earlier versions or ones you typed) you confirm each account's balance after the move and it applies from today. Older saved balances keep their values, so past months can show a gap where the move was made. Each move leaves a record in your profile, and a reply that never arrived is checked against it instead of moving twice.",
+    ],
+  },
   "1.3.1": {
     "New features": [
       "Ask the Vault answers more spending questions: several categories or stores at once, family members, your biggest purchases, averages, and one period against another. If a name could mean more than one thing, it asks you to choose instead of guessing.",

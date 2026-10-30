@@ -43,7 +43,7 @@ export function ProfileProtectionSection({
       <p className="modal-message-secondary">
         Password protection: {active.is_password_protected ? "On" : "Off"}
       </p>
-      {active.is_password_protected && <p className="modal-message-secondary">Your active data is encrypted. Previous originals, exports and external copies may still be readable. Check known plaintext copies below; cleanup cannot detect every external copy or guarantee secure erasure.</p>}
+      {active.is_password_protected && <p className="modal-message-secondary">Your active data is encrypted, but the original file and older backups made before protection are still unencrypted until you delete them below. Exports and external copies may also be readable. Cleanup cannot detect every external copy or guarantee secure erasure.</p>}
       {!active.is_password_protected && (
         <div className="settings-actions">
           <button type="button" className="modal-secondary" onClick={() => void openSetup()}>

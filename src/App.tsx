@@ -38,6 +38,9 @@ import { useTransactionData } from "./useTransactionData";
 import { useTransactionTransfers } from "./useTransactionTransfers";
 import { useTransactionBulkActions } from "./useTransactionBulkActions";
 import { useTransactionRowActions } from "./useTransactionRowActions";
+import { useTransactionMove } from "./useTransactionMove";
+import { MoveTransactionsDialog } from "./MoveTransactionsDialog";
+import { TransactionMoveHistory } from "./TransactionMoveHistory";
 import { TransactionsTable } from "./TransactionsTable";
 import { TransactionsNeedsCategory } from "./TransactionsNeedsCategory";
 import { SidebarControls } from "./SidebarControls";
@@ -354,7 +357,6 @@ function App({
     commitAmountEdit,
     commitDateEdit,
     commitDescriptionEdit,
-    handleAccountChangeForTransaction,
     handleMemberChangeForTransaction,
     handleDeleteTransaction,
     startApplyingDebtPayment,
@@ -408,6 +410,8 @@ function App({
     setShownCount,
     selectAllBatch,
     selectAllMessage,
+    moveSelectionOffer,
+    selectAllMatchingForMove,
     selectedIds,
     setSelectedIds,
     filteredTransactions,
@@ -1040,6 +1044,12 @@ function App({
     handleBulkFlipSigns,
     handleAddSelectedToRecurring,
   } = useTransactionBulkActions({ data: transactionData, list: { selectedIds, setSelectedIds }, onStatus: setStatus, onBusy: setBusy, askNewCategory, refreshRecurring: async () => { await refreshRecurring(); } });
+
+  const transactionMove = useTransactionMove({ data: transactionData, accounts, selectedIds, setSelectedIds, onStatus: setStatus });
+  // Rows leave the list when it is limited to accounts that do not include the destination.
+  const moveHiddenByFilter = transactionMove.dialog && filterAccountIds !== "all" && filterAccountIds.size > 0 && !filterAccountIds.has(transactionMove.dialog.destinationId)
+    ? accounts.filter((a) => filterAccountIds.has(a.id)).map((a) => a.name).join(", ")
+    : null;
 
   const [dialog, setDialog] = useState<PendingDialog | null>(null);
   const [pendingSetupImport, setPendingSetupImport] = useState<{
@@ -3174,11 +3184,21 @@ function App({
               {selectAllMessage}
             </p>
           )}
+          {activeTab === "ledger" && selectedIds.size > 0 && moveSelectionOffer !== null && (
+            <p className="select-all-note">
+              <button type="button" className="modal-secondary" data-select-all-to-move onClick={selectAllMatchingForMove}>
+                Select all {moveSelectionOffer.toLocaleString("en-US")} to move
+              </button>
+            </p>
+          )}
+          {activeTab === "ledger" && <TransactionMoveHistory call={transactionData.call} sessionKey={`${transactionData.snapshot?.context.generation}:${transactionData.snapshot?.context.sessionRevision}`} />}
           {activeTab === "ledger" && selectedIds.size > 0 && (
             <TransactionBulkActionsBar
               selectedIds={selectedIds}
               handleBulkCategoryChange={handleBulkCategoryChange}
               categoryOptions={categoryOptions}
+              moveDestinations={transactionMove.destinations}
+              onMoveToAccount={(accountId) => transactionMove.open(Array.from(selectedIds), Number(accountId), { clearSelection: true })}
               handleAddSelectedToRecurring={handleAddSelectedToRecurring}
               familyMembers={familyMembers}
               handleBulkMemberChange={handleBulkMemberChange}
@@ -3250,7 +3270,7 @@ function App({
               detailsOpenId={detailsOpenId}
               setDetailsOpenId={setDetailsOpenId}
               accounts={accounts}
-              handleAccountChangeForTransaction={handleAccountChangeForTransaction}
+              handleAccountChangeForTransaction={async (id, accountId) => transactionMove.open([id], Number(accountId), { clearSelection: false })}
               familyMembers={familyMembers}
               handleMemberChangeForTransaction={handleMemberChangeForTransaction}
               categoryOptions={categoryOptions}
@@ -3858,6 +3878,19 @@ function App({
                 setPendingProtectedSwitch(null);
                 onDataFileChanged(`Switched to "${name}".`);
               }}
+            />
+          )}
+          {transactionMove.dialog && (
+            <MoveTransactionsDialog
+              dialog={transactionMove.dialog}
+              hiddenByFilter={moveHiddenByFilter}
+              onCancel={transactionMove.cancel}
+              onConfirm={() => void transactionMove.confirm()}
+              onReviewAgain={transactionMove.reviewAgain}
+              onReloadAndClose={() => void transactionMove.reloadAndClose()}
+              onSetBalance={transactionMove.setBalance}
+              onReviewBalances={transactionMove.reviewBalances}
+              onChangeBalances={transactionMove.changeBalances}
             />
           )}
           {newTransactionOpen && (

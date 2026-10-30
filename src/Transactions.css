@@ -249,6 +249,12 @@
   color: var(--text-muted);
 }
 
+/* A selection too large for anything but a move says why the other changes are gone. */
+.bulk-actions-note {
+  font-size: 13px;
+  color: var(--accent-soft-text);
+}
+
 .bulk-actions-bar select {
   font-family: inherit;
   font-size: 13px;

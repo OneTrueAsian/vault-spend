@@ -8,11 +8,15 @@ import { CADENCE_OPTIONS } from "./cadence";
 
 import type { FamilyMember, Transaction } from "./types";
 import { MenuSelect } from "./MenuSelect";
+import { SELECT_ALL_CAP } from "./transactionSelection";
 
 interface TransactionBulkActionsBarProps {
   selectedIds: Set<number>;
   handleBulkCategoryChange: (value: string) => Promise<void>;
   categoryOptions: string[];
+  /** The accounts the selection can be moved to (see `moveDestinationOptions`). */
+  moveDestinations: { value: string; label: string }[];
+  onMoveToAccount: (accountId: string) => void;
   handleAddSelectedToRecurring: (cadence: string) => Promise<void>;
   familyMembers: FamilyMember[];
   handleBulkMemberChange: (value: string) => Promise<void>;
@@ -36,6 +40,8 @@ export function TransactionBulkActionsBar({
   selectedIds,
   handleBulkCategoryChange,
   categoryOptions,
+  moveDestinations,
+  onMoveToAccount,
   handleAddSelectedToRecurring,
   familyMembers,
   handleBulkMemberChange,
@@ -54,6 +60,33 @@ export function TransactionBulkActionsBar({
   handleLinkSelectedAsTransfer,
   setSelectedIds,
 }: TransactionBulkActionsBarProps) {
+  // More than a bulk change can carry: the selection can only be moved (see `MOVE_SELECTION_CAP`).
+  const moveOnly = selectedIds.size > SELECT_ALL_CAP;
+  const moveSelect = (
+    <MenuSelect
+      ariaLabel="Move to account"
+      placeholder={moveDestinations.length === 0 ? "No other account to move to" : "Move to account"}
+      value={""}
+      onChange={onMoveToAccount}
+      options={moveDestinations}
+      disabled={moveDestinations.length === 0}
+      title={moveDestinations.length === 0 ? "There is no other account to move these transactions to." : "Review, then move the selected transactions to another account"}
+    />
+  );
+  if (moveOnly) {
+    return (
+      <div className="bulk-actions-bar">
+        <span className="bulk-actions-count">{selectedIds.size.toLocaleString("en-US")} selected</span>
+        {moveSelect}
+        <span className="bulk-actions-note" data-move-only-note>
+          Only moving works with more than {SELECT_ALL_CAP} selected. Select {SELECT_ALL_CAP} or fewer to change anything else.
+        </span>
+        <button type="button" className="modal-secondary" onClick={() => setSelectedIds(new Set())}>
+          Clear selection
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="bulk-actions-bar">
       <span className="bulk-actions-count">{selectedIds.size} selected</span>
@@ -67,6 +100,7 @@ export function TransactionBulkActionsBar({
           { value: "__new__", label: "+ New category" },
         ]}
       />
+      {moveSelect}
       <MenuSelect
         ariaLabel="Add to Recurring"
         placeholder="Add to Recurring"

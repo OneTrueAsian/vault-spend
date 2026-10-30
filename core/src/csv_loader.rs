@@ -1186,7 +1186,10 @@ c,d,e,f
     fn a_file_that_is_not_utf8_gets_a_plain_message_to_save_it_again() {
         // A spreadsheet's plain "CSV" save on Windows writes one byte for an accented letter.
         let bytes = b"date,description,amount\n2026-08-20,Caf\xe9,-4.00\n".to_vec();
-        for message in [load_from_reader(Cursor::new(bytes.clone()), false).unwrap_err().to_string(), inspect_reader(bytes.as_slice()).unwrap_err().to_string()] {
+        for message in [
+            load_from_reader(Cursor::new(bytes.clone()), false).unwrap_err().to_string(),
+            inspect_reader(bytes.as_slice()).unwrap_err().to_string(),
+        ] {
             assert!(message.contains("CSV UTF-8"), "tells the person how to save the file again: {message}");
             for technical in ["byte", "record", "field", "invalid utf-8", "CSV parse error"] {
                 assert!(!message.contains(technical), "no technical wording ({technical}): {message}");
@@ -1197,7 +1200,10 @@ c,d,e,f
     #[test]
     fn a_ragged_file_gets_a_plain_message_about_row_width() {
         let bytes = b"date,description,amount\n2026-08-20,Cafe\n".to_vec();
-        for message in [load_from_reader(Cursor::new(bytes.clone()), false).unwrap_err().to_string(), inspect_reader(bytes.as_slice()).unwrap_err().to_string()] {
+        for message in [
+            load_from_reader(Cursor::new(bytes.clone()), false).unwrap_err().to_string(),
+            inspect_reader(bytes.as_slice()).unwrap_err().to_string(),
+        ] {
             assert!(message.contains("different number of columns"), "{message}");
             for technical in ["record", "field", "CSV parse error", "previous"] {
                 assert!(!message.contains(technical), "no technical wording ({technical}): {message}");

@@ -566,56 +566,6 @@ impl Store {
         Ok(n > 0)
     }
 
-    /// Moves a transaction to a different account after the fact (it was
-    /// imported into the wrong one). The fingerprint is recomputed since it
-    /// includes `account_id`, and the tick for reconciling is cleared so it
-    /// doesn't change the new account's difference. An unknown id is a harmless no-op.
-    pub fn update_transaction_account(&self, id: i64, account_id: i64) -> rusqlite::Result<()> {
-        let existing = self.conn.query_row(
-            "SELECT account_id, date, description, amount FROM transactions WHERE id = ?1",
-            params![id],
-            |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                ))
-            },
-        );
-        let (old_account_id, date_str, description, amount_str) = match existing {
-            Ok(v) => v,
-            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(()),
-            Err(e) => return Err(e),
-        };
-        let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("date stored by this crate must be valid");
-        let amount = Decimal::from_str(&amount_str).expect("amount stored by this crate must be valid");
-        let fp = fingerprint(
-            account_id,
-            &Transaction {
-                date,
-                description: description.clone(),
-                amount,
-                category: None,
-            },
-        );
-
-        let before_old = self.displayed_balance_for_log(old_account_id);
-        let before_new = self.displayed_balance_for_log(account_id);
-        self.conn.execute(
-            "UPDATE transactions SET account_id = ?1, fingerprint = ?2, cleared = 0 WHERE id = ?3",
-            params![account_id, fp, id],
-        )?;
-        let old_snapshot = Self::describe_balance_snapshot(before_old, self.displayed_balance_for_log(old_account_id));
-        let new_snapshot = Self::describe_balance_snapshot(before_new, self.displayed_balance_for_log(account_id));
-        self.log_activity(&format!(
-            "transaction #{id} \"{description}\" moved: {} ({old_snapshot}) -> {} ({new_snapshot})",
-            self.account_name_for_log(old_account_id),
-            self.account_name_for_log(account_id)
-        ));
-        Ok(())
-    }
-
     /// Corrects a transaction's date after the fact (misread a statement,
     /// or it posted a day later than it was actually charged). The
     /// fingerprint is recomputed since it includes the date. An unknown id

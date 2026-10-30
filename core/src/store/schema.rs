@@ -362,7 +362,8 @@ impl Store {
              CREATE INDEX IF NOT EXISTS idx_transaction_tags_transaction_id ON transaction_tags(transaction_id);",
         )?;
         self.seed_default_categories_if_missing()?;
-        self.backfill_categories_from_usage()
+        self.backfill_categories_from_usage()?;
+        self.migrate_historical_accounting()
     }
 
     /// `live_price_settings` originally shipped with just `api_key`/

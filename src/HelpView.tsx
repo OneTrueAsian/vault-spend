@@ -243,6 +243,16 @@ export const TAB_HELP: TabHelp[] = [
         ],
       },
       {
+        question: "How do I move transactions to another account?",
+        steps: [
+          <>Tick the rows that were filed under the wrong account, then choose <strong>Move to account</strong> in the bar above the table and pick where they belong. You can also change the account on a single row from its Account column.</>,
+          <>A window shows what will move and what each account's balance becomes. Nothing changes until you choose <strong>Move</strong>. Amounts, dates, categories, tags, notes, splits and who each transaction is for stay exactly as they were.</>,
+          <>Older transactions can move too. When the saved balances for those months recorded what they counted, Vault Spend corrects them for you and the window says how many. When an older saved balance can't tell which transactions it counted (balances saved by earlier versions, or ones you typed yourself), the window asks you for the correct balance of each account after the move. Enter it, or choose <strong>Keep this balance</strong> if the one shown is already right, then choose <strong>Review the move</strong>. Your transactions move, and the balances you confirm apply from today. This doesn't rebuild old months: older saved balances keep their values, so a past month's chart can still show a gap where the move was made.</>,
+          <>It is all or nothing. Vault Spend says why nothing will move if any selected transaction was already counted when you reconcile an account, is part of a linked transfer or an applied debt payment, has a loan principal amount that doesn't fit the new account, would look like a duplicate of a transaction already in the new account, or sits in an account that has a saved balance dated in the future. Fix that first, for example by unlinking the transfer, then try again. If the saved balances look damaged, the window says so and nothing moves; confirming a balance can't fix that.</>,
+          <>A move can't be undone with one click. To put transactions back, move them again, as long as they still qualify. A transaction you had ticked for reconciling is unticked, so tick it again. To look back at moves you have already made, choose <strong>Account move history</strong> above the table. It shows the latest moves with each account's balance before and after.</>,
+        ],
+      },
+      {
         question: "How do I link a transfer between my own accounts?",
         steps: [
           <>Use the "N possible transfers — review" suggestion, or tick two rows and choose <strong>Link as transfer</strong>.</>,
@@ -1316,7 +1326,10 @@ const FAQ_ENTRIES: FaqEntry[] = [
         yet. A change can apply to at most 250 transactions at a time, so with more than that it
         selects the first 250 and says so: make your change, then tick the box again for the next
         250. The table shows rows a few at a time; use <strong>Show 50 more</strong> under it (or
-        pick 25, 50 or 100 at a time) to see further down.
+        pick 25, 50 or 100 at a time) to see further down. To move a lot of transactions to another
+        account in one go, press <strong>Select all … to move</strong> next to that note: it selects
+        every match (up to 10,000), and with more than 250 selected the only thing you can do is
+        <strong> Move to account</strong>.
       </p>
     ),
   },

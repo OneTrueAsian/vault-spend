@@ -5,6 +5,10 @@
 
 export const SELECT_ALL_CAP = 250;
 
+/** Moving to another account has its own, larger limit (the most one move can carry). Anything with
+ * more than `SELECT_ALL_CAP` selected can only be moved. */
+export const MOVE_SELECTION_CAP = 10_000;
+
 /** The current batch, and every transaction an earlier, applied batch already covered. */
 export type SelectAllBatch = { ids: Set<number>; done: Set<number> };
 
@@ -85,4 +89,13 @@ export function selectAllNote(result: SelectAllResult): string | null {
     `Selected ${result.selected.size.toLocaleString("en-US")} of the ${result.matching.toLocaleString("en-US")} matching transactions. ` +
     `A change can apply to at most ${SELECT_ALL_CAP} at a time: apply your change, then press Select all again for the next ${next.toLocaleString("en-US")}.`
   );
+}
+
+/** The note after selecting every match for a move. */
+export function moveSelectionNote(result: SelectAllResult): string {
+  const n = (value: number) => value.toLocaleString("en-US");
+  const only = "With more than 250 selected you can only move them to another account.";
+  return result.remainingAfter === 0
+    ? `Selected all ${n(result.matching)} matching transactions. ${only}`
+    : `Selected the first ${n(result.selected.size)} of the ${n(result.matching)} matching transactions, the most that can be moved at once. ${only}`;
 }

@@ -72,7 +72,10 @@ fn name_is_taken(db_path: &Path) -> bool {
 /// leading slice is parsed, so a disambiguated filename still yields a
 /// usable (if identical-to-the-second) display timestamp.
 fn parse_backup_timestamp(filename: &str) -> Option<NaiveDateTime> {
-    let stem = filename.strip_prefix(BACKUP_PREFIX)?.strip_suffix(BACKUP_SUFFIX)?;
+    let stem = filename
+        .strip_prefix(BACKUP_PREFIX)
+        .or_else(|| filename.strip_prefix("pre-historical-moves-"))?
+        .strip_suffix(BACKUP_SUFFIX)?;
     let timestamp_part = stem.get(0..15)?;
     NaiveDateTime::parse_from_str(timestamp_part, "%Y%m%d-%H%M%S").ok()
 }
@@ -103,7 +106,11 @@ fn should_create_backup(existing: &[String], now: NaiveDateTime, interval_hours:
 /// `protection_leftovers`) can apply the identical "only files named like ours" rule rather than a
 /// looser one of their own.
 pub(crate) fn is_our_backup_filename(name: &str) -> bool {
-    name.starts_with(BACKUP_PREFIX) && name.ends_with(BACKUP_SUFFIX)
+    (name.starts_with(BACKUP_PREFIX) || is_pre_migration_backup(name)) && name.ends_with(BACKUP_SUFFIX)
+}
+
+fn is_pre_migration_backup(name: &str) -> bool {
+    name.starts_with("pre-historical-moves-") && name.ends_with(".db")
 }
 
 fn list_backup_filenames(backups_dir: &Path) -> std::io::Result<Vec<String>> {
@@ -114,7 +121,7 @@ fn list_backup_filenames(backups_dir: &Path) -> std::io::Result<Vec<String>> {
     for entry in std::fs::read_dir(backups_dir)? {
         let name = entry?.file_name();
         if let Some(name) = name.to_str() {
-            if is_our_backup_filename(name) {
+            if is_our_backup_filename(name) && !is_pre_migration_backup(name) {
                 result.push(name.to_string());
             }
         }
@@ -464,6 +471,16 @@ pub fn create_backup_if_due(
 /// was copied/moved and its mtime changed) and size.
 pub fn list_backups(backups_dir: &Path, is_encrypted: bool) -> Result<Vec<BackupInfo>, String> {
     let mut filenames = list_backup_filenames(backups_dir).map_err(|e| e.to_string())?;
+    // Keep upgrade safety copies visible/restorable but outside ordinary retention pruning.
+    if backups_dir.exists() {
+        for entry in std::fs::read_dir(backups_dir).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if entry.path().is_file() && is_pre_migration_backup(&name) {
+                filenames.push(name);
+            }
+        }
+    }
     if is_encrypted {
         filenames.retain(|f| budget_core::protection::keyfile::key_file_path_for(&backups_dir.join(f)).exists());
     }
@@ -476,7 +493,13 @@ pub fn list_backups(backups_dir: &Path, is_encrypted: bool) -> Result<Vec<Backup
             let size_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
             let created_at = parse_backup_timestamp(&filename)
                 .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
-                .unwrap_or_else(|| filename.clone());
+                .unwrap_or_else(|| {
+                    if is_pre_migration_backup(&filename) {
+                        "Safety copy before update".into()
+                    } else {
+                        filename.clone()
+                    }
+                });
             BackupInfo {
                 filename,
                 created_at,
@@ -530,6 +553,9 @@ pub fn restore_backup_with_key(
     live_db_path: &Path,
     source_key: budget_core::store::DatabaseKey<'_>,
 ) -> Result<PathBuf, String> {
+    if Path::new(filename).file_name().and_then(|n| n.to_str()) != Some(filename) || !is_our_backup_filename(filename) {
+        return Err("Choose a listed backup filename.".into());
+    }
     let backup_path = backups_dir.join(filename);
     if !backup_path.exists() {
         return Err(format!("backup \"{filename}\" not found"));
@@ -542,7 +568,15 @@ pub fn restore_backup_with_key(
     }
 
     let today = chrono::Local::now().date_naive();
-    let source = Store::open_with_key(&backup_path, source_key).map_err(|e| e.to_string())?;
+    // Opening a Store runs migrations. Preserve an upgrade safety copy in its original format
+    // by migrating only an owned working copy, never the recovery source itself.
+    let working = if is_pre_migration_backup(filename) {
+        Some(MigrationRestoreSource::create(&backup_path)?)
+    } else {
+        None
+    };
+    let source_path = working.as_ref().map(|w| w.path.as_path()).unwrap_or(&backup_path);
+    let source = Store::open_with_key(source_path, source_key).map_err(|e| e.to_string())?;
     source.list_accounts(today).map_err(|e| e.to_string())?;
 
     let restored_dir = live_db_path.parent().unwrap_or(Path::new("."));
@@ -616,6 +650,55 @@ pub fn backups_dir_for(live_db_path: &Path, is_encrypted: bool) -> PathBuf {
         base.join("protected")
     } else {
         base
+    }
+}
+
+struct MigrationRestoreSource {
+    directory: PathBuf,
+    path: PathBuf,
+}
+
+impl MigrationRestoreSource {
+    fn create(source: &Path) -> Result<Self, String> {
+        // Published safety snapshots are closed databases. Refuse an externally opened/modified
+        // source with journal data rather than copying a main file without its pending writes.
+        for suffix in ["-wal", "-journal"] {
+            let sidecar = PathBuf::from(format!("{}{suffix}", source.display()));
+            if std::fs::metadata(sidecar).is_ok_and(|m| m.len() > 0) {
+                return Err("The upgrade safety copy is in use. Close it before restoring.".into());
+            }
+        }
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let directory = source
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join(format!(".historical-restore-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&directory).map_err(|e| e.to_string())?;
+        let working = Self {
+            path: directory.join("source.db"),
+            directory,
+        };
+        // Written before any financial bytes, so a killed restore remains discoverable by the
+        // explicit plaintext-leftover cleanup after a later protection conversion.
+        std::fs::write(working.directory.join(".vaultspend-restore-owner"), b"historical-restore-v1").map_err(|e| e.to_string())?;
+        std::fs::copy(source, &working.path).map_err(|e| e.to_string())?;
+        if !files_identical(source, &working.path).map_err(|e| e.to_string())? {
+            return Err("The restore working copy did not match the safety copy.".into());
+        }
+        let source_key = budget_core::protection::keyfile::key_file_path_for(source);
+        if source_key.exists() {
+            std::fs::copy(source_key, budget_core::protection::keyfile::key_file_path_for(&working.path)).map_err(|e| e.to_string())?;
+        }
+        Ok(working)
+    }
+}
+
+impl Drop for MigrationRestoreSource {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.directory);
     }
 }
 
@@ -1506,5 +1589,100 @@ mod tests {
             let bytes = std::fs::read(p).unwrap();
             std::fs::write(p, &bytes[..bytes.len() / 2]).unwrap();
         });
+    }
+
+    #[test]
+    fn upgrade_safety_copies_are_listed_recoverable_and_preserved_by_restore_and_retention() {
+        for encrypted in [false, true] {
+            let dir = temp_dir(if encrypted {
+                "historical-upgrade-protected"
+            } else {
+                "historical-upgrade-plain"
+            });
+            let plain_path = dir.join("plain.db");
+            {
+                let store = Store::open(&plain_path).unwrap();
+                store.get_or_create_account("Original account", AccountType::Checking).unwrap();
+            }
+            rusqlite::Connection::open(&plain_path)
+                .unwrap()
+                .execute("DELETE FROM schema_features WHERE name = 'historical_account_moves'", [])
+                .unwrap();
+            let protection = keyfile::create_protection("historical restore password", &KdfParams::FAST_FOR_TESTS, "2026-10-29T00:00:00Z").unwrap();
+            let path = if encrypted {
+                let encrypted_path = dir.join("protected.db");
+                // Export without first opening/migrating the legacy input through Store.
+                let conn = rusqlite::Connection::open(&plain_path).unwrap();
+                let key_hex: String = protection.dek.as_bytes().iter().map(|b| format!("{b:02x}")).collect();
+                conn.execute_batch(&format!(
+                    "ATTACH DATABASE '{}' AS encrypted KEY \"x'{key_hex}'\"; SELECT sqlcipher_export('encrypted'); DETACH DATABASE encrypted;",
+                    encrypted_path.to_string_lossy().replace('\\', "/").replace('\'', "''")
+                ))
+                .unwrap();
+                protection.key_file.write_to(&keyfile::key_file_path_for(&encrypted_path)).unwrap();
+                encrypted_path
+            } else {
+                plain_path.clone()
+            };
+            let store = Store::open_with_key(
+                &path,
+                if encrypted {
+                    DatabaseKey::Raw(protection.dek.as_bytes())
+                } else {
+                    DatabaseKey::Plaintext
+                },
+            )
+            .unwrap();
+            let directory = backups_dir_for(&path, encrypted);
+            let listed = list_backups(&directory, encrypted).unwrap();
+            let safety = listed
+                .iter()
+                .find(|b| is_pre_migration_backup(&b.filename))
+                .expect("upgrade copy appears in the restore list");
+            let source = directory.join(&safety.filename);
+            let original_bytes = std::fs::read(&source).unwrap();
+            let key_bytes = encrypted.then(|| std::fs::read(keyfile::key_file_path_for(&source)).unwrap());
+            let key = if encrypted {
+                let recovered = keyfile::KeyFile::read(&keyfile::key_file_path_for(&source))
+                    .unwrap()
+                    .unlock_with_password("historical restore password")
+                    .unwrap();
+                Some(recovered)
+            } else {
+                None
+            };
+            let restored = restore_backup_with_key(
+                &store,
+                &directory,
+                None,
+                &safety.filename,
+                &path,
+                key.as_ref().map(|k| DatabaseKey::Raw(k.as_bytes())).unwrap_or(DatabaseKey::Plaintext),
+            )
+            .unwrap();
+            let restored_store = Store::open_with_key(
+                &restored,
+                key.as_ref().map(|k| DatabaseKey::Raw(k.as_bytes())).unwrap_or(DatabaseKey::Plaintext),
+            )
+            .unwrap();
+            assert!(restored_store
+                .list_accounts(chrono::Local::now().date_naive())
+                .unwrap()
+                .iter()
+                .any(|a| a.account.name == "Original account"));
+            assert_eq!(
+                std::fs::read(&source).unwrap(),
+                original_bytes,
+                "restoring does not migrate the original recovery copy"
+            );
+            if let Some(bytes) = key_bytes {
+                assert_eq!(std::fs::read(keyfile::key_file_path_for(&source)).unwrap(), bytes);
+            }
+            prune_to_disk(&directory, 0).unwrap();
+            assert!(source.exists(), "ordinary retention never deletes the pre-upgrade recovery copy");
+            assert!(std::fs::read_dir(&directory)
+                .unwrap()
+                .all(|e| !e.unwrap().file_name().to_string_lossy().starts_with(".historical-restore-")));
+        }
     }
 }

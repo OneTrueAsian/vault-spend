@@ -10,7 +10,7 @@ export function transactionError(error: unknown): TransactionError {
   if (error instanceof TransactionError) return error;
   if (error && typeof error === "object" && "code" in error && "message" in error && typeof error.code === "string" && typeof error.message === "string") return new TransactionError(error.code, error.message);
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "The transaction request failed.";
-  const prefixes: Record<string, string> = { PROFILE_LOCKED: "profile_locked", NO_PROFILE_OPEN: "no_profile_open", STALE_PROFILE: "stale_profile",
+  const prefixes: Record<string, string> = { PROFILE_LOCKED: "profile_locked", NO_PROFILE_OPEN: "no_profile_open", STALE_PROFILE: "stale_profile", MOVE_NOT_APPLIED: "not_applied",
   };
   const match = /^([A-Z_]+):\s*(.*)$/s.exec(message);
   return new TransactionError(match && prefixes[match[1]] ? prefixes[match[1]] : "legacy_failure", match && prefixes[match[1]] ? match[2] : message,

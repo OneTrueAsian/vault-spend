@@ -79,6 +79,227 @@ pub fn flip_transaction_signs(ids: Vec<i64>, state: tauri::State<AppStateHandle>
     })
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveRevisionDto {
+    local: u64,
+    external: u64,
+}
+
+/// A balance the person entered, or chose to keep, for one account of a move that needs balances confirmed.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveBalanceInputDto {
+    account_id: i64,
+    #[serde(default)]
+    keep: bool,
+    value: Option<String>,
+}
+
+fn balance_inputs(balances: Option<Vec<MoveBalanceInputDto>>) -> Vec<budget_core::store::BalanceInput> {
+    balances
+        .unwrap_or_default()
+        .into_iter()
+        .map(|b| budget_core::store::BalanceInput {
+            account_id: b.account_id,
+            keep: b.keep,
+            value: b.value,
+        })
+        .collect()
+}
+
+/// What `preview_transaction_account_move` returns: the whole plan for a move, from one consistent read.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MovePreviewDto {
+    contract_version: u8,
+    revision: MoveRevisionDto,
+    preview: budget_core::store::MovePreview,
+}
+
+/// What `move_transactions_to_account` returns. `status` is "moved", "nothing_to_move", "stale_preview" or
+/// "blocked"; only "moved" changed anything.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveResultDto {
+    contract_version: u8,
+    status: &'static str,
+    moved_ids: Vec<i64>,
+    moved_count: usize,
+    already_there_ids: Vec<i64>,
+    already_there_count: usize,
+    affected_account_ids: Vec<i64>,
+    blockers: Vec<budget_core::store::MoveBlocker>,
+    /// "automatic" or "confirmation" (see `MovePreview::mode`); "automatic" when nothing was moved.
+    mode: &'static str,
+    operation_id: Option<String>,
+    /// True when this is the first answer re-read for a request that had already been applied.
+    replayed: bool,
+    corrected_checkpoints: usize,
+    confirmed_account_ids: Vec<i64>,
+    revision: MoveRevisionDto,
+}
+
+/// Reads what moving the selected transactions to another account would do, without changing anything.
+/// The Transactions tab's "Move to account" review dialog shows it and asks for confirmation.
+#[tauri::command]
+pub fn preview_transaction_account_move(
+    ids: Vec<i64>,
+    destination_account_id: i64,
+    balances: Option<Vec<MoveBalanceInputDto>>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<MovePreviewDto, String> {
+    preview_account_move(
+        &state,
+        &ids,
+        destination_account_id,
+        chrono::Local::now().date_naive(),
+        &balance_inputs(balances),
+    )
+}
+
+/// The preview command's work, against the runtime so a request from a closed, locked or replaced profile
+/// session is refused before any financial row is read.
+pub(crate) fn preview_account_move(
+    runtime: &AppStateHandle,
+    ids: &[i64],
+    destination_account_id: i64,
+    today: chrono::NaiveDate,
+    balances: &[budget_core::store::BalanceInput],
+) -> Result<MovePreviewDto, String> {
+    let state = runtime.lock()?;
+    let preview = state
+        .store
+        .preview_account_move_with(ids, destination_account_id, today, balances)
+        .map_err(|e| e.to_string())?;
+    let (local, external) = state.store.read_revision().map_err(|e| e.to_string())?;
+    Ok(MovePreviewDto {
+        contract_version: 2,
+        revision: MoveRevisionDto { local, external },
+        preview,
+    })
+}
+
+/// Moves the reviewed transactions to the destination in one atomic step. It re-checks everything inside the
+/// write and refuses ("stale_preview" or "blocked", nothing changed) if the plan the person reviewed is no longer
+/// the plan. Never retried by the app: a failed or uncertain call is reloaded and reviewed again.
+#[tauri::command]
+pub fn move_transactions_to_account(
+    ids: Vec<i64>,
+    destination_account_id: i64,
+    expected_preview_token: String,
+    operation_id: String,
+    balances: Option<Vec<MoveBalanceInputDto>>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<MoveResultDto, String> {
+    commit_account_move(
+        &state,
+        &ids,
+        destination_account_id,
+        &expected_preview_token,
+        chrono::Local::now().date_naive(),
+        &operation_id,
+        &balance_inputs(balances),
+    )
+}
+
+pub(crate) fn commit_account_move(
+    runtime: &AppStateHandle,
+    ids: &[i64],
+    destination_account_id: i64,
+    expected_preview_token: &str,
+    today: chrono::NaiveDate,
+    operation_id: &str,
+    balances: &[budget_core::store::BalanceInput],
+) -> Result<MoveResultDto, String> {
+    use budget_core::store::MoveOutcome;
+    let state = runtime.lock()?;
+    let outcome = state
+        .store
+        .commit_account_move(&budget_core::store::MoveRequest {
+            ids,
+            destination: destination_account_id,
+            expected_token: expected_preview_token,
+            today,
+            operation_id,
+            balances,
+        })
+        // Everything the store refuses has been rolled back; the prefix lets the page tell that apart from a reply it never got.
+        .map_err(|e| format!("MOVE_NOT_APPLIED: {e}"))?;
+    // The move is already committed: a failed revision read must not turn it into an error.
+    let (local, external) = state.store.read_revision().unwrap_or((0, 0));
+    let revision = MoveRevisionDto { local, external };
+    let empty = |status: &'static str, blockers| MoveResultDto {
+        contract_version: 2,
+        status,
+        moved_ids: Vec::new(),
+        moved_count: 0,
+        already_there_ids: Vec::new(),
+        already_there_count: 0,
+        affected_account_ids: Vec::new(),
+        blockers,
+        mode: "automatic",
+        operation_id: None,
+        replayed: false,
+        corrected_checkpoints: 0,
+        confirmed_account_ids: Vec::new(),
+        revision: MoveRevisionDto { local, external },
+    };
+    Ok(match outcome {
+        MoveOutcome::Moved(summary) => MoveResultDto {
+            contract_version: 2,
+            status: "moved",
+            moved_count: summary.moved_ids.len(),
+            moved_ids: summary.moved_ids,
+            already_there_count: summary.already_there_ids.len(),
+            already_there_ids: summary.already_there_ids,
+            affected_account_ids: summary.affected_account_ids,
+            blockers: Vec::new(),
+            mode: summary.mode,
+            operation_id: summary.operation_id,
+            replayed: summary.replayed,
+            corrected_checkpoints: summary.corrected_checkpoints,
+            confirmed_account_ids: summary.confirmed_account_ids,
+            revision,
+        },
+        MoveOutcome::NothingToMove(summary) => MoveResultDto {
+            already_there_count: summary.already_there_ids.len(),
+            already_there_ids: summary.already_there_ids,
+            ..empty("nothing_to_move", Vec::new())
+        },
+        MoveOutcome::StalePreview => empty("stale_preview", Vec::new()),
+        MoveOutcome::Blocked(blockers) => empty("blocked", blockers),
+        MoveOutcome::OperationConflict => empty("operation_conflict", Vec::new()),
+    })
+}
+
+/// What `get_transaction_account_move` returns: the audit record of one earlier move, or nothing.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveRecordDto {
+    contract_version: u8,
+    record: Option<budget_core::store::AccountMoveRecord>,
+}
+
+/// Looks up what became of a move request by its operation id. The page uses this after a reply it never got, to
+/// learn whether the move was applied, without sending a second move.
+#[tauri::command]
+pub fn get_transaction_account_move(operation_id: String, state: tauri::State<AppStateHandle>) -> Result<MoveRecordDto, String> {
+    let state = state.lock()?;
+    let record = state.store.get_account_move(&operation_id).map_err(|e| e.to_string())?;
+    Ok(MoveRecordDto { contract_version: 2, record })
+}
+
+/// The moves made in this profile, newest first: what moved, how the balances were settled and what they became.
+#[tauri::command]
+pub fn list_transaction_account_moves(
+    limit: Option<usize>,
+    state: tauri::State<AppStateHandle>,
+) -> Result<Vec<budget_core::store::AccountMoveRecord>, String> {
+    let state = state.lock()?;
+    state.store.list_account_moves(limit.unwrap_or(50).min(200)).map_err(|e| e.to_string())
+}
+
 /// Adds one transaction directly, without a file import — the Transactions
 /// tab's "Add transaction…" form. Uses `Store::create_transaction` (which reuses
 /// `save_transactions`' own insert path), so fingerprinting and the
@@ -582,4 +803,135 @@ pub fn get_stats(state: tauri::State<AppStateHandle>) -> Result<Stats, String> {
         user_confirmed: counts.user_confirmed,
         uncategorized: counts.uncategorized,
     })
+}
+
+#[cfg(test)]
+mod account_move_tests {
+    use super::*;
+    use crate::runtime::AppRuntime;
+    use budget_core::rules::RuleSet;
+
+    fn state_with(rows: &[(&str, &str)]) -> (AppState, Vec<i64>, i64, i64) {
+        let store = Store::open_in_memory().unwrap();
+        let from = store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+        let to = store.get_or_create_account("Savings", AccountType::Savings).unwrap();
+        let ids = rows
+            .iter()
+            .map(|(date, description)| {
+                let tx = budget_core::models::Transaction {
+                    date: date.parse().unwrap(),
+                    description: description.to_string(),
+                    amount: "-5.00".parse().unwrap(),
+                    category: None,
+                };
+                store.save_transactions_with_ids(from, &[tx]).unwrap()[0]
+            })
+            .collect();
+        (
+            AppState {
+                store,
+                rules: RuleSet::new(vec![]),
+                import_review: None,
+            },
+            ids,
+            from,
+            to,
+        )
+    }
+
+    fn today() -> chrono::NaiveDate {
+        "2026-10-29".parse().unwrap()
+    }
+
+    #[test]
+    fn preview_then_commit_moves_the_rows_and_reports_exact_counts() {
+        let runtime = AppRuntime::no_profile_open();
+        let (state, ids, _, to) = state_with(&[("2026-10-05", "Cafe"), ("2026-10-06", "Bus")]);
+        runtime.install(state);
+        let preview = preview_account_move(&runtime, &ids, to, today(), &[]).unwrap();
+        let json = serde_json::to_value(&preview).unwrap();
+        assert_eq!(json["contractVersion"], 2);
+        assert_eq!(json["preview"]["effectiveCount"], 2);
+        assert_eq!(json["preview"]["canCommit"], true);
+        assert_eq!(json["preview"]["total"], "-10.00");
+        let token = preview.preview.token.clone();
+        let done = serde_json::to_value(commit_account_move(&runtime, &ids, to, &token, today(), "op-test-a", &[]).unwrap()).unwrap();
+        assert_eq!(
+            (done["status"].as_str(), done["movedCount"].as_u64(), done["alreadyThereCount"].as_u64()),
+            (Some("moved"), Some(2), Some(0))
+        );
+        // The same request again (a lost reply, retried) is answered from the record, not applied twice.
+        let replay = serde_json::to_value(commit_account_move(&runtime, &ids, to, &token, today(), "op-test-a", &[]).unwrap()).unwrap();
+        assert_eq!(
+            (replay["status"].as_str(), replay["replayed"].as_bool(), replay["movedCount"].as_u64()),
+            (Some("moved"), Some(true), Some(2))
+        );
+        // A new request with the used-up token never moves again.
+        let again = serde_json::to_value(commit_account_move(&runtime, &ids, to, &token, today(), "op-test-e", &[]).unwrap()).unwrap();
+        assert_ne!(again["status"], "moved", "a reused token never moves again");
+        assert_eq!(again["movedCount"], 0);
+        // The same operation id with a different request is a conflict.
+        let conflict = serde_json::to_value(commit_account_move(&runtime, &ids[..1], to, &token, today(), "op-test-a", &[]).unwrap()).unwrap();
+        assert_eq!(conflict["status"], "operation_conflict");
+    }
+
+    #[test]
+    fn requests_from_a_replaced_or_locked_profile_session_are_refused_before_any_row_is_read() {
+        let runtime = AppRuntime::no_profile_open();
+        let (first, ids_first, _, to_first) = state_with(&[("2026-10-05", "Cafe")]);
+        runtime.install(first);
+        let old_revision = runtime.current_revision();
+        let token = preview_account_move(&runtime, &ids_first, to_first, today(), &[]).unwrap().preview.token;
+        // A different profile takes over; its numeric ids are the same as the first profile's.
+        let (second, ids_second, from_second, to_second) = state_with(&[("2026-10-05", "Cafe")]);
+        runtime.install(second);
+        assert_eq!(ids_first, ids_second, "the same numbers name different rows in each profile");
+        let stale = crate::request_session::enter(Some(old_revision));
+        let preview_error = preview_account_move(&runtime, &ids_first, to_first, today(), &[]).err().unwrap();
+        assert!(preview_error.starts_with("STALE_PROFILE:"), "{preview_error}");
+        let commit_error = commit_account_move(&runtime, &ids_first, to_first, &token, today(), "op-test-b", &[])
+            .err()
+            .unwrap();
+        assert!(commit_error.starts_with("STALE_PROFILE:"), "{commit_error}");
+        drop(stale);
+        // The new profile's row did not move.
+        let owner: i64 = {
+            let guard = runtime.lock().unwrap();
+            guard
+                .store
+                .all_transactions()
+                .unwrap()
+                .iter()
+                .find(|t| t.id == ids_second[0])
+                .unwrap()
+                .account_id
+        };
+        assert_eq!(owner, from_second);
+        assert_ne!(owner, to_second);
+        runtime.lock_profile("synthetic");
+        let locked = preview_account_move(&runtime, &ids_second, to_second, today(), &[]).err().unwrap();
+        assert!(locked.starts_with("PROFILE_LOCKED:"), "{locked}");
+        let locked = commit_account_move(&runtime, &ids_second, to_second, "token", today(), "op-test-c", &[])
+            .err()
+            .unwrap();
+        assert!(locked.starts_with("PROFILE_LOCKED:"), "{locked}");
+    }
+
+    #[test]
+    fn a_blocked_or_all_there_request_is_reported_without_changing_anything() {
+        let runtime = AppRuntime::no_profile_open();
+        let (state, ids, from, to) = state_with(&[("2026-10-05", "Cafe")]);
+        runtime.install(state);
+        let preview = preview_account_move(&runtime, &ids, from, today(), &[]).unwrap();
+        assert!(!preview.preview.can_commit);
+        let done =
+            serde_json::to_value(commit_account_move(&runtime, &ids, from, &preview.preview.token, today(), "op-test-d", &[]).unwrap()).unwrap();
+        assert_eq!(done["status"], "nothing_to_move");
+        assert_eq!(done["alreadyThereCount"], 1);
+        {
+            let guard = runtime.lock().unwrap();
+            guard.store.set_account_hidden(to, true).unwrap();
+        }
+        assert!(preview_account_move(&runtime, &ids, to, today(), &[]).err().unwrap().contains("hidden"));
+    }
 }

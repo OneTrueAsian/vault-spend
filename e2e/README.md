@@ -124,6 +124,8 @@ expect. Every date field is `DateField`: a real `<input type="date">` that keeps
 over it while it isn't being edited. Read that text with `lib/dateFields.mjs`. Exported files keep
 `YYYY-MM-DD`.
 
+Moving transactions to another account: use the selection bar's **Move to account** action or a row's Account menu. Specs `feature374`–`feature382` cover recent moves, historical correction from recorded checkpoints, explicit current-balance confirmation for unknown history, genuine blockers, bulk selection, idempotent retry, profile protection, six-theme contrast/keyboard/layout checks, restart persistence, credit balances and focus restoration. Ordinary bulk actions keep their 250-row limit; **Select all … to move** selects up to 10,000 for moving only. `lib/moveTransactions.mjs` prepares isolated fixtures; `lib/moveVisualMatrix.mjs` uses the shared composited-background sampler in `lib/calendarContrast.mjs`. Older transactions are not blanket-blocked: recorded history is corrected automatically, and opaque history requests explicit balances. Screenshot evidence is written to temporary output folders or the explicit evidence directory.
+
 ## Building and running without stepping on each other
 
 Two things share one executable (`target\debug\vaultspend.exe`) and the `target\` folder: the Tauri build and any desktop run. Cargo

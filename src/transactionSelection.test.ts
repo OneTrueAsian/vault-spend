@@ -1,7 +1,7 @@
 // Select all on the Transactions tab picks every matching row, at most 250 transactions at a
 // time, and the next press picks the next 250 once a change has been applied (owner, 2026-10-04).
 import { describe, expect, it } from "vitest";
-import { SELECT_ALL_CAP, canSelectMore, isBatchSelected, selectAllNext, selectAllNote, unselectBatch } from "./transactionSelection";
+import { MOVE_SELECTION_CAP, SELECT_ALL_CAP, canSelectMore, moveSelectionNote, isBatchSelected, selectAllNext, selectAllNote, unselectBatch } from "./transactionSelection";
 
 /** `n` single-transaction rows with ids 1..n, in ledger order. */
 const rows = (n: number, from = 1) => Array.from({ length: n }, (_, i) => [from + i]);
@@ -124,5 +124,24 @@ describe("selectAllNote", () => {
     expect(selectAllNote(second)).toBe(
       "Selected 250 of the 350 matching transactions. A change can apply to at most 250 at a time: apply your change, then press Select all again for the next 100.",
     );
+  });
+});
+
+describe("selecting everything that matches, to move it", () => {
+  it("selects up to 10,000 matching transactions at once, whole transfer rows only", () => {
+    expect(MOVE_SELECTION_CAP).toBe(10000);
+    const r = selectAllNext(rows(600), new Set(), null, MOVE_SELECTION_CAP);
+    expect(r.selected.size).toBe(600);
+    expect(r.remainingAfter).toBe(0);
+    const big = selectAllNext(rows(10001), new Set(), null, MOVE_SELECTION_CAP);
+    expect(big.selected.size).toBe(10000);
+    expect(big.remainingAfter).toBe(1);
+  });
+
+  it("says that only moving works with that many selected, and when the limit cut it short", () => {
+    const all = selectAllNext(rows(600), new Set(), null, MOVE_SELECTION_CAP);
+    expect(moveSelectionNote(all)).toBe("Selected all 600 matching transactions. With more than 250 selected you can only move them to another account.");
+    const cut = selectAllNext(rows(10001), new Set(), null, MOVE_SELECTION_CAP);
+    expect(moveSelectionNote(cut)).toBe("Selected the first 10,000 of the 10,001 matching transactions, the most that can be moved at once. With more than 250 selected you can only move them to another account.");
   });
 });

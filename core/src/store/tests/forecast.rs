@@ -368,7 +368,11 @@ fn thirteen_days_of_history_leave_the_everyday_baseline_out_and_fourteen_include
         let forecast = store.bill_aware_forecast(day(TODAY), 10).unwrap();
 
         assert_eq!(forecast.enough_history, enough, "history from {earliest}");
-        assert_eq!(forecast.daily_baseline, expected_baseline.parse::<Decimal>().unwrap(), "history from {earliest}");
+        assert_eq!(
+            forecast.daily_baseline,
+            expected_baseline.parse::<Decimal>().unwrap(),
+            "history from {earliest}"
+        );
     }
 }
 

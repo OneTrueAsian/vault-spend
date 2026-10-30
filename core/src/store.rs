@@ -8,11 +8,25 @@ use std::str::FromStr;
 
 mod encryption;
 pub use self::encryption::{DatabaseKey, StoreOpenError, file_looks_encrypted};
+mod checkpoints;
 mod comparison_setup;
 mod comparison_snapshot;
+mod historical_move;
 mod import_columns;
 mod sign_flip;
+#[cfg(test)]
+pub(crate) mod checkpoints_test_support {
+    /// Makes the next migration fail after the given stage (None clears it). This thread only.
+    pub fn fail_migration_at(stage: Option<usize>) {
+        super::checkpoints::MIGRATION_FAULT.with(|f| f.set(stage));
+    }
+}
+mod transaction_account_move;
 pub use self::sign_flip::{FlipSignsError, FlipSignsSummary};
+pub use self::transaction_account_move::{
+    AccountEffect, AccountMoveRecord, BalanceInput, BlockedItem, CheckpointEffects, ConfirmationAccount, MAX_BULK_MOVE_IDS, MoveBlocker, MoveError,
+    MoveFailpoint, MoveOutcome, MovePreview, MoveRequest, MoveRow, MoveSummary, MoveWarning, SourceSummary, normalize_move_ids,
+};
 mod profile_ui_state;
 pub use self::comparison_setup::{ComparisonSetupError, StoredComparisonSetup};
 pub use self::profile_ui_state::UiStateKey;
@@ -355,8 +369,11 @@ impl Store {
         } else {
             None
         };
+        let conn = Connection::open(path)?;
+        // A verified copy first: once the schema changes, the old format cannot be recovered from the file.
+        checkpoints::ensure_pre_migration_backup(&conn, path, None)?;
         let store = Store {
-            conn: Connection::open(path)?,
+            conn,
             activity_log_path,
             db_key: None,
             anomaly_cache: Box::new(std::cell::RefCell::new(None)),
@@ -532,8 +549,12 @@ fn recurring_occurrence_at(anchor: NaiveDate, cadence: &str, period: u32) -> Nai
     match cadence {
         "weekly" => anchor + chrono::Duration::days(i64::from(period) * 7),
         "biweekly" => anchor + chrono::Duration::days(i64::from(period) * 14),
-        "annual" => anchor.checked_add_months(chrono::Months::new(period.checked_mul(12).expect("annual period in calendar range"))).expect("annual occurrence in calendar range"),
-        _ => anchor.checked_add_months(chrono::Months::new(period)).expect("monthly occurrence in calendar range"),
+        "annual" => anchor
+            .checked_add_months(chrono::Months::new(period.checked_mul(12).expect("annual period in calendar range")))
+            .expect("annual occurrence in calendar range"),
+        _ => anchor
+            .checked_add_months(chrono::Months::new(period))
+            .expect("monthly occurrence in calendar range"),
     }
 }
 
@@ -566,7 +587,6 @@ fn add_one_month(d: NaiveDate) -> NaiveDate {
         .find_map(|back| NaiveDate::from_ymd_opt(y, m, day - back))
         .expect("some valid day exists within 4 days of any day-of-month")
 }
-
 
 #[cfg(test)]
 mod read_model_tests;

@@ -371,7 +371,11 @@ VERSION:102
         assert_eq!(
             summary(&result),
             vec![
-                ("2026-08-05".to_string(), "Green Leaf Grocers — POS Purchase".to_string(), "-42.50".to_string()),
+                (
+                    "2026-08-05".to_string(),
+                    "Green Leaf Grocers — POS Purchase".to_string(),
+                    "-42.50".to_string()
+                ),
                 ("2026-08-10".to_string(), "Payroll Deposit".to_string(), "3000.00".to_string()),
             ]
         );
@@ -384,7 +388,10 @@ VERSION:102
         let result = parse_ofx(ofx, false);
 
         assert!(result.errors.is_empty(), "unexpected errors: {:?}", result.errors);
-        assert_eq!(summary(&result), vec![("2026-08-05".to_string(), "Cafe".to_string(), "-1.25".to_string())]);
+        assert_eq!(
+            summary(&result),
+            vec![("2026-08-05".to_string(), "Cafe".to_string(), "-1.25".to_string())]
+        );
     }
 
     #[test]
@@ -418,7 +425,10 @@ VERSION:102
         assert_eq!(result.errors.len(), 1);
         assert_eq!(result.errors[0].message, "missing TRNAMT");
         assert_eq!(result.errors[0].row_number, 1);
-        assert_eq!(summary(&result), vec![("2026-08-06".to_string(), "Fine".to_string(), "-3.00".to_string())]);
+        assert_eq!(
+            summary(&result),
+            vec![("2026-08-06".to_string(), "Fine".to_string(), "-3.00".to_string())]
+        );
     }
 
     #[test]
@@ -449,13 +459,23 @@ VERSION:102
 
         let result = parse_ofx(compact, false);
 
-        assert_eq!(summary(&result), vec![("2026-08-06".to_string(), "Kept".to_string(), "-9.00".to_string())]);
+        assert_eq!(
+            summary(&result),
+            vec![("2026-08-06".to_string(), "Kept".to_string(), "-9.00".to_string())]
+        );
         assert_eq!(result.errors.len(), 1);
     }
 
     #[test]
     fn text_with_no_transactions_gives_nothing_and_does_not_panic() {
-        for text in ["", "just some words", "<<<>>>", "<OFX><BANKMSGSRSV1></BANKMSGSRSV1></OFX>", "<STMTTRN", "</STMTTRN>"] {
+        for text in [
+            "",
+            "just some words",
+            "<<<>>>",
+            "<OFX><BANKMSGSRSV1></BANKMSGSRSV1></OFX>",
+            "<STMTTRN",
+            "</STMTTRN>",
+        ] {
             let result = parse_ofx(text, false);
             assert!(result.transactions.is_empty(), "{text}");
         }
@@ -467,7 +487,10 @@ VERSION:102
 
         let result = parse_ofx(compact, false);
 
-        assert_eq!(summary(&result), vec![("2026-08-05".to_string(), "Shop".to_string(), "-3.00".to_string())]);
+        assert_eq!(
+            summary(&result),
+            vec![("2026-08-05".to_string(), "Shop".to_string(), "-3.00".to_string())]
+        );
         assert!(result.errors.is_empty());
     }
 }

@@ -12,7 +12,7 @@ const sources = readdirSync(sourceDir)
 
 const callPattern = /\b(?:invoke|invokeProfile|callTransaction|call|rawTransactionCall)(?:<[^>(]*>)?\(\s*["']([a-z_0-9]+)["']/g;
 const writeVerb =
-  /^(create|update|delete|set|add|commit|dismiss|rename|apply|unapply|link|unlink|import|restore|flip|save|merge|split|categorize|mark|reset|undo|remove|toggle|bulk|accept|reject|finish|refresh|relocate)_/;
+  /^(create|update|delete|set|add|commit|dismiss|rename|apply|unapply|link|unlink|import|restore|flip|save|merge|split|categorize|mark|reset|undo|remove|toggle|bulk|accept|reject|finish|refresh|relocate|move)_/;
 const calledWrites = new Set(
   sources.flatMap((text) => [...text.matchAll(callPattern)].map((match) => match[1])).filter((name) => writeVerb.test(name)),
 );
@@ -23,7 +23,7 @@ const refreshesSharedSnapshot = new Set([
   "add_tag", "remove_tag", "apply_debt_payment", "unapply_debt_payment", "bulk_correct_category",
   "bulk_create_recurring_from_transactions", "bulk_delete_transactions", "bulk_set_transaction_member",
   "commit_import", "commit_holding_import", "create_account", "delete_account", "create_manual_transaction",
-  "delete_transaction", "flip_transaction_signs", "link_transfer", "unlink_transfer", "restore_transactions",
+  "delete_transaction", "flip_transaction_signs", "move_transactions_to_account", "link_transfer", "unlink_transfer", "restore_transactions",
   "set_transaction_member", "set_transaction_splits", "update_transaction_account", "update_transaction_amount",
   "update_transaction_date", "update_transaction_description", "update_transaction_notes",
   "update_transaction_principal_amount", "set_account_balance_override", "set_account_details",

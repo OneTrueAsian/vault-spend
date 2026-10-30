@@ -151,3 +151,30 @@ it("keeps unassigned rows out when members are chosen, even if every member is c
   act(() => { ledger.setFilterMemberIds("all"); });
   expect(total()).toBe(70);
 });
+
+it("offers to select every match for a move when Select all stopped at 250, and only then", async () => {
+  transactions = Array.from({ length: 600 }, (_, i) => row(i + 1)); await render();
+  expect(ledger.moveSelectionOffer).toBeNull();
+  act(() => { ledger.toggleSelectAll(); });
+  expect(ledger.selectedIds.size).toBe(250); expect(ledger.moveSelectionOffer).toBe(600);
+  act(() => { ledger.selectAllMatchingForMove(); });
+  expect(ledger.selectedIds.size).toBe(600); expect(ledger.moveSelectionOffer).toBeNull();
+  expect(ledger.selectAllMessage).toBe("Selected all 600 matching transactions. With more than 250 selected you can only move them to another account.");
+  act(() => { ledger.toggleSelected(1); });
+  expect(ledger.selectedIds.size).toBe(599);
+  act(() => { ledger.setSelectedIds(new Set()); });
+  expect(ledger.selectAllMessage).toBeNull();
+});
+
+it("does not offer a move selection when one Select all already took every match", async () => {
+  transactions = Array.from({ length: 40 }, (_, i) => row(i + 1)); await render();
+  act(() => { ledger.toggleSelectAll(); });
+  expect(ledger.moveSelectionOffer).toBeNull();
+});
+
+it("the move selection stops at 10,000 and says so", async () => {
+  transactions = Array.from({ length: 10001 }, (_, i) => row(i + 1)); await render();
+  act(() => { ledger.toggleSelectAll(); }); act(() => { ledger.selectAllMatchingForMove(); });
+  expect(ledger.selectedIds.size).toBe(10000);
+  expect(ledger.selectAllMessage).toContain("first 10,000 of the 10,001");
+});

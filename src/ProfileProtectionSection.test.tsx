@@ -194,6 +194,18 @@ describe("ProfileProtectionSection", () => {
     expect(profileUiState.getCurrentGeneration).toHaveBeenCalledTimes(1);
   });
 
+  it("says the original file and older backups stay unencrypted until they are deleted, before and after turning protection on", async () => {
+    show(PROTECTED);
+    expect(container.textContent).toContain("the original file and older backups made before protection are still unencrypted until you delete them below");
+    act(() => root.unmount());
+    root = createRoot(container);
+    show(UNPROTECTED);
+    await act(async () => {
+      button("Turn on password protection").click();
+    });
+    expect(document.body.textContent).toContain("The original unencrypted file and older backups stay on this computer, readable by anyone who can open it, until you delete them from Settings");
+  });
+
   it("clicking the button opens the setup dialog for the active profile", async () => {
     show(UNPROTECTED);
 

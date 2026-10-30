@@ -285,6 +285,11 @@ pub fn restore_backup(
     device: tauri::State<crate::device_settings::DeviceSettingsStore>,
     sessions: tauri::State<crate::protection_session::Sessions>,
 ) -> Result<(), String> {
+    if std::path::Path::new(&filename).file_name().and_then(|n| n.to_str()) != Some(filename.as_str())
+        || !crate::backups::is_our_backup_filename(&filename)
+    {
+        return Err("Choose a listed backup filename.".into());
+    }
     if paths.current_generation() != expected_generation {
         return Err("The active profile changed before the backup could be restored.".to_string());
     }

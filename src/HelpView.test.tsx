@@ -25,6 +25,16 @@ describe("HelpView", () => {
     container.remove();
   });
 
+  it("tells people where to see completed account moves", () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "move transactions to another account");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Account move history");
+  });
+
   it("describes current property values without promising historical valuations", () => {
     const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
     act(() => {
@@ -222,6 +232,13 @@ describe("HelpView", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("at most 250 transactions at a time");
     expect(text).toContain("Show 50 more");
+  });
+
+  it("explains that a big selection can be moved to another account, and only moved", () => {
+    const text = container.textContent ?? "";
+    expect(text).toContain("Select all … to move");
+    expect(text).toContain("up to 10,000");
+    expect(text).toContain("the only thing you can do is Move to account");
   });
 
   it("explains that rules ignore store numbers", () => {

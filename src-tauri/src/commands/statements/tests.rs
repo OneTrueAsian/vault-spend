@@ -243,6 +243,26 @@ fn a_stale_token_or_another_profile_generation_is_refused() {
 }
 
 #[test]
+fn moving_a_transaction_out_of_the_account_while_reviewing_refuses_the_finish() {
+    let (mut state, dir) = profile("moved-away");
+    let sessions = Sessions::default();
+    let card = state.store.get_or_create_account("Card", AccountType::Credit).unwrap();
+    let other = state.store.get_or_create_account("Checking", AccountType::Checking).unwrap();
+    let ids = state
+        .store
+        .save_transactions_with_ids(card, &[tx("2026-08-09", "Existing", "-1.00")])
+        .unwrap();
+    let (path, start, end) = write_fixture(&dir, "card-a");
+    let review = read(&mut state, &sessions, &path, card, &start, &end).unwrap().review.unwrap();
+    state.store.update_transaction_account(ids[0], other).unwrap();
+    let err = finish_statement_reconciliation_for(&mut state, &sessions, 1, &review.token, FinishDecisionsDto::default())
+        .err()
+        .unwrap();
+    assert_eq!(err, STALE, "a review opened before the move no longer matches the account");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn a_change_to_the_account_while_reviewing_refuses_the_finish() {
     let (mut state, dir) = profile("changed");
     let sessions = Sessions::default();

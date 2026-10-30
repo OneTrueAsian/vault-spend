@@ -1672,7 +1672,13 @@ fn balance_history_repeats_the_balance_through_a_quiet_month() {
 // QA-GAP-001 (owner-approved 27 Oct 2026): accounts can be hidden and unhidden. Hiding tidies lists; it never
 // removes an account's money, history or links from any total, report or forecast.
 fn hidden_of(store: &Store, id: i64) -> bool {
-    store.list_accounts(far_future()).unwrap().into_iter().find(|a| a.id == id).unwrap().hidden
+    store
+        .list_accounts(far_future())
+        .unwrap()
+        .into_iter()
+        .find(|a| a.id == id)
+        .unwrap()
+        .hidden
 }
 
 #[test]
@@ -1710,7 +1716,12 @@ fn a_hidden_account_keeps_its_balance_transactions_and_stays_in_every_total() {
     store.save_transactions(old, &[tx("2026-08-01", "Interest", "0.50")]).unwrap();
     let today = day("2026-08-20");
     let before = store.net_worth_breakdown_as_of(today).unwrap();
-    let balances_before: Vec<_> = store.list_accounts(today).unwrap().into_iter().map(|a| (a.id, a.current_balance)).collect();
+    let balances_before: Vec<_> = store
+        .list_accounts(today)
+        .unwrap()
+        .into_iter()
+        .map(|a| (a.id, a.current_balance))
+        .collect();
     let history_before = store.all_transactions().unwrap().len();
 
     store.set_account_hidden(old, true).unwrap();
@@ -1719,7 +1730,12 @@ fn a_hidden_account_keeps_its_balance_transactions_and_stays_in_every_total() {
     assert_eq!(after.net_worth, before.net_worth, "hiding must not change net worth");
     assert_eq!(after.cash, before.cash, "the hidden account's cash still counts");
     assert_eq!(after.net_worth, "1012.50".parse::<Decimal>().unwrap());
-    let balances_after: Vec<_> = store.list_accounts(today).unwrap().into_iter().map(|a| (a.id, a.current_balance)).collect();
+    let balances_after: Vec<_> = store
+        .list_accounts(today)
+        .unwrap()
+        .into_iter()
+        .map(|a| (a.id, a.current_balance))
+        .collect();
     assert_eq!(balances_after, balances_before, "every account is still listed with the same balance");
     assert_eq!(store.all_transactions().unwrap().len(), history_before, "history is untouched");
 }

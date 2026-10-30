@@ -76,15 +76,6 @@ export function useTransactionRowActions({ data, accounts, categories: categoryO
     }
   }
 
-  async function handleAccountChangeForTransaction(id: number, accountId: string) {
-    try {
-      await data.call("update_transaction_account", { id, accountId: Number(accountId) });
-      await refreshRows([id]);
-    } catch (e) {
-      setStatus(errorMessage(e));
-    }
-  }
-
   async function handleMemberChangeForTransaction(id: number, memberId: string) {
     try {
       await data.call("set_transaction_member", { id, memberId: memberId === "" ? null : Number(memberId) });
@@ -290,7 +281,6 @@ useAutoCancelDelete(confirmingDeleteId, () => setConfirmingDeleteId(null));
     commitAmountEdit,
     commitDateEdit,
     commitDescriptionEdit,
-    handleAccountChangeForTransaction,
     handleMemberChangeForTransaction,
     handleDeleteTransaction,
     startApplyingDebtPayment,

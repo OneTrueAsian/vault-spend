@@ -5,7 +5,7 @@ import { matchesPaymentAccount } from "./paymentDiscovery";
 import { compareTransactionsBy } from "./transactionHelpers";
 import { canLinkAsTransfer, collapseTransferPairs } from "./transfers";
 import { transactionsInRows } from "./transactionPaging";
-import { canSelectMore, isBatchSelected, selectAllNext, selectAllNote, unselectBatch, type SelectAllBatch } from "./transactionSelection";
+import { MOVE_SELECTION_CAP, canSelectMore, isBatchSelected, moveSelectionNote, selectAllNext, selectAllNote, unselectBatch, type SelectAllBatch } from "./transactionSelection";
 import { UNCATEGORIZED_FILTER, type TransactionSortColumn } from "./appTypes";
 import type { Transaction } from "./types";
 
@@ -50,6 +50,7 @@ export function useTransactionList({ transactions, pendingPaymentId, onSelection
   // The current Select all batch (see transactionSelection.ts), and the note it leaves when capped.
   const [selectAllBatch, setSelectAllBatch] = useState<SelectAllBatch | null>(null);
   const [selectAllMessage, setSelectAllMessage] = useState<string | null>(null);
+  const [moveOfferMatching, setMoveOfferMatching] = useState<number | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   // Preserve the existing client-side query contract; backend paging remains conditional on F profiling.
@@ -129,6 +130,9 @@ export function useTransactionList({ transactions, pendingPaymentId, onSelection
     if (selectedIds.size === 0) setSelectAllMessage(null);
   }, [selectedIds]);
 
+  // The offer only stands while the batch Select all picked is still what is selected.
+  const moveSelectionOffer = moveOfferMatching !== null && isBatchSelected(selectAllBatch, selectedIds) ? moveOfferMatching : null;
+
   function toggleSelectedMany(ids: number[]) {
     const adding = ids.filter((id) => !selectedIds.has(id)).length;
     if (adding > 0 && !canSelectMore(selectedIds, adding)) {
@@ -177,6 +181,20 @@ export function useTransactionList({ transactions, pendingPaymentId, onSelection
     setSelectedIds(result.selected);
     setSelectAllBatch(result.batch);
     setSelectAllMessage(selectAllNote(result));
+    setMoveOfferMatching(result.remainingAfter > 0 ? result.matching : null);
+  }
+
+  /** Every matching transaction (up to what one move can carry), for moving to another account. */
+  function selectAllMatchingForMove() {
+    const rows = displayTransactions.map((t) => {
+      const inLeg = inLegByOutId.get(t.id);
+      return inLeg ? [t.id, inLeg.id] : [t.id];
+    });
+    const result = selectAllNext(rows, new Set(), null, MOVE_SELECTION_CAP);
+    setSelectedIds(result.selected);
+    setSelectAllBatch(null);
+    setSelectAllMessage(moveSelectionNote(result));
+    setMoveOfferMatching(null);
   }
 
 
@@ -213,6 +231,8 @@ export function useTransactionList({ transactions, pendingPaymentId, onSelection
     setShownCount,
     selectAllBatch,
     selectAllMessage,
+    moveSelectionOffer,
+    selectAllMatchingForMove,
     selectedIds,
     setSelectedIds,
     filteredTransactions,

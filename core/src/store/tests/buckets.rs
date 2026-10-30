@@ -424,7 +424,15 @@ fn rename_bucket_changes_only_the_name_and_keeps_target_account_and_contribution
     let savings = store.get_or_create_account("Nest Egg", AccountType::Savings).unwrap();
     let target_date: NaiveDate = "2027-04-15".parse().unwrap();
     let id = store
-        .create_bucket("Japan Trip", Some("6000.00".parse().unwrap()), Some(target_date), Some(savings), None, Some("#8A5FB0"), None)
+        .create_bucket(
+            "Japan Trip",
+            Some("6000.00".parse().unwrap()),
+            Some(target_date),
+            Some(savings),
+            None,
+            Some("#8A5FB0"),
+            None,
+        )
         .unwrap();
     store
         .add_bucket_contribution(id, "2026-09-01".parse().unwrap(), "250.00".parse().unwrap(), Some("first"))

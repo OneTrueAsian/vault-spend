@@ -312,6 +312,17 @@
     "feature366_settings_layout_scrolling.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature367_settings_frame_boundary.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus",
     "feature368_account_transactions_display_limit.mjs": "not reviewed for parallel execution; exclusive until approved",
-    "feature369_checkbox_size.mjs": "uses the shared keyboard"
+    "feature369_checkbox_size.mjs": "uses the shared keyboard",
+    "feature374_move_transactions_basic.mjs": "uses the shared keyboard",
+    "feature375_move_transactions_blockers.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature376_move_transactions_bulk.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature377_move_transactions_visual_futuristic.mjs": "lib\\moveVisualMatrix.mjs: depends on which window has OS focus; lib\\moveVisualMatrix.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
+    "feature377_move_transactions_visual_retro.mjs": "lib\\moveVisualMatrix.mjs: depends on which window has OS focus; lib\\moveVisualMatrix.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
+    "feature377_move_transactions_visual_transparent.mjs": "lib\\moveVisualMatrix.mjs: depends on which window has OS focus; lib\\moveVisualMatrix.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
+    "feature378_move_transactions_protected_session.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature379_move_transactions_confirmed_balances.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature380_move_transactions_recorded_balances.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature381_move_transactions_card_balances.mjs": "not reviewed for parallel execution; exclusive until approved",
+    "feature382_move_transactions_select_all_to_move.mjs": "depends on which window has OS focus"
   }
 }

@@ -11,11 +11,18 @@ export const RELEVANT_WRITE_COMMANDS: ReadonlySet<string> = new Set([
   "create_account", "delete_account", "update_account_type", "set_account_details", "set_account_starting_balance", "set_account_balance_override", "set_account_interest_rate",
   // Transactions and transfers on any account. A principal amount counts instead of the full amount in an investment account's value when it holds no holdings (core ask_vault_retirement.rs).
   "create_manual_transaction", "delete_transaction", "bulk_delete_transactions", "restore_transactions", "flip_transaction_signs",
-  "update_transaction_account", "update_transaction_amount", "update_transaction_principal_amount", "update_transaction_date", "update_transaction_description",
+  "update_transaction_account", "move_transactions_to_account", "update_transaction_amount", "update_transaction_principal_amount", "update_transaction_date", "update_transaction_description",
   "unapply_debt_payment", "apply_debt_payment", "commit_import", "commit_setup_import", "link_transfer", "unlink_transfer", "restore_transfer_candidates", "set_auto_link_transfers",
   // Whole-profile replacement.
   "restore_backup", "restore_registry_backup",
 ]);
+
+/** Whether a successful call actually changed data. Only a move that moved rows counts: a move that found everything
+ * already in place, or was refused as stale or blocked, wrote nothing and must not retire an open result. */
+export function writeApplied(command: string, result: unknown): boolean {
+  if (command !== "move_transactions_to_account") return true;
+  return typeof result === "object" && result !== null && (result as { status?: unknown }).status === "moved";
+}
 
 type Listener = (command: string) => void;
 const listeners = new Set<Listener>();

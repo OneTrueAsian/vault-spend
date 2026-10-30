@@ -1,6 +1,6 @@
 //! Recurring items: bills and subscriptions, matching them to charges, price changes and detecting new ones.
 
-use super::{LIVE_TRANSFER_LEG_IDS_SQL, Store, StoredRecurring, recurring_occurrence_at, next_occurrence, normalize_description};
+use super::{LIVE_TRANSFER_LEG_IDS_SQL, Store, StoredRecurring, next_occurrence, normalize_description, recurring_occurrence_at};
 use chrono::NaiveDate;
 use rusqlite::params;
 use rust_decimal::Decimal;

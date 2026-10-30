@@ -17,6 +17,9 @@ mod categories;
 mod cross_view;
 mod family;
 mod forecast;
+mod historical_account_moves;
+mod historical_account_moves_matrix;
+mod historical_account_moves_model;
 mod holding_import;
 mod imports;
 mod insights;
@@ -29,6 +32,7 @@ mod rules;
 mod schema;
 mod settings;
 mod statement_layouts;
+mod transaction_account_move;
 mod transactions;
 mod transfers;
 

@@ -28,9 +28,9 @@ pub fn list_leftovers(source_db_path: &Path, mirror_dir: Option<&Path>) -> Resul
         out.push(entry);
     }
     let plaintext_backups_dir = crate::backups::backups_dir_for(source_db_path, false);
-    collect_plaintext_dbs(&plaintext_backups_dir, LeftoverKind::PlaintextBackup, false, &mut out)?;
+    collect_plaintext_dbs(&plaintext_backups_dir, LeftoverKind::PlaintextBackup, false, true, &mut out)?;
     if let Some(mirror_dir) = mirror_dir {
-        collect_plaintext_dbs(mirror_dir, LeftoverKind::MirroredPlaintextBackup, true, &mut out)?;
+        collect_plaintext_dbs(mirror_dir, LeftoverKind::MirroredPlaintextBackup, true, true, &mut out)?;
     }
     Ok(out)
 }
@@ -39,7 +39,7 @@ fn discovery_error(path: &Path, error: std::io::Error) -> String {
     format!("Couldn't check plaintext copies at {}: {error}", path.display())
 }
 
-fn collect_plaintext_dbs(dir: &Path, kind: LeftoverKind, required: bool, out: &mut Vec<LeftoverEntry>) -> Result<(), String> {
+fn collect_plaintext_dbs(dir: &Path, kind: LeftoverKind, required: bool, include_restore: bool, out: &mut Vec<LeftoverEntry>) -> Result<(), String> {
     let read_dir = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(error) if !required && error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -48,6 +48,21 @@ fn collect_plaintext_dbs(dir: &Path, kind: LeftoverKind, required: bool, out: &m
     for item in read_dir {
         let item = item.map_err(|error| discovery_error(dir, error))?;
         let path = item.path();
+        // Only descend into a real, explicitly marked app-owned restore directory, one level.
+        // Never traverse arbitrary subfolders or links in a user-selected backup location.
+        if include_restore
+            && item.file_name().to_str().is_some_and(|name| name.starts_with(".historical-restore-"))
+            && item.file_type().map_err(|error| discovery_error(&path, error))?.is_dir()
+            && std::fs::read(path.join(".vaultspend-restore-owner")).is_ok_and(|bytes| bytes == b"historical-restore-v1")
+        {
+            if let Some(entry) = plaintext_entry(&path.join("source.db"), kind)? {
+                out.push(entry);
+            }
+            let nested = path.join("backups");
+            if std::fs::symlink_metadata(&nested).is_ok_and(|m| m.file_type().is_dir()) {
+                collect_plaintext_dbs(&nested, kind, false, false, out)?;
+            }
+        }
         // Named like one of our own backups, not just "any .db file here" — a mirror/second-backup
         // folder is a shared, user-chosen location, and nothing stops another profile (or another
         // program entirely) from also using it. `mirror_backup` already applies this same "only
@@ -125,6 +140,37 @@ pub fn delete_leftovers(paths: &[String], source_db_path: &Path, mirror_dir: Opt
 mod tests {
     use super::*;
     use crate::backups;
+
+    #[test]
+    fn interrupted_upgrade_restore_copies_are_visible_and_explicitly_removable() {
+        let dir = temp_dir("interrupted-upgrade-restore");
+        let source = dir.join("vaultspend.db");
+        let staging = dir.join("backups/.historical-restore-123-456");
+        std::fs::create_dir_all(staging.join("backups")).unwrap();
+        std::fs::write(staging.join(".vaultspend-restore-owner"), b"historical-restore-v1").unwrap();
+        let working = staging.join("source.db");
+        let nested = staging.join("backups/pre-historical-moves-20261029-120000.db");
+        let unrelated = staging.join("private.db");
+        for path in [&working, &nested, &unrelated] {
+            std::fs::write(path, b"SQLite format 3\0plain").unwrap();
+        }
+        let unowned = dir.join("backups/.historical-restore-unowned");
+        std::fs::create_dir_all(&unowned).unwrap();
+        std::fs::write(unowned.join("source.db"), b"SQLite format 3\0plain").unwrap();
+        let listed = list_leftovers(&source, None).unwrap();
+        let paths: Vec<_> = listed.iter().map(|entry| entry.path.clone()).collect();
+        assert_eq!(paths.len(), 2);
+        for expected in [&working, &nested] {
+            assert!(paths
+                .iter()
+                .any(|path| std::fs::canonicalize(path).unwrap() == std::fs::canonicalize(expected).unwrap()));
+        }
+        assert!(delete_leftovers(&paths, &source, None, &dir.join("live-protected.db"))
+            .unwrap()
+            .is_empty());
+        assert!(!working.exists() && !nested.exists());
+        assert!(unrelated.exists() && unowned.join("source.db").exists());
+    }
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("vaultspend-leftovers-test-{name}-{}", std::process::id()));

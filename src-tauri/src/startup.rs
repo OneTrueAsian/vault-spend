@@ -65,6 +65,9 @@ fn other_profiles(registered: &[profiles::RegisteredProfile], except: Option<&Pa
         .collect()
 }
 
+/// The start of the reason the core gives when the safety copy taken before an upgrade cannot be made.
+const SAFETY_COPY_FAILURE: &str = "could not make the safety copy it needs before upgrading";
+
 /// Opens the data file `config.json` and the profile list point at, or says why it cannot. A fresh
 /// install (no `config.json`, no `vaultspend.db`) creates and opens a new default database, exactly
 /// as before. Nothing here ever opens a different file than the one that was asked for.
@@ -110,10 +113,17 @@ pub fn open_from_disk(config_path: &Path, default_dir: &Path) -> Result<OpenedPr
         Ok(state) => Ok(OpenedProfile { state, db_path }),
         Err(reason) => Err(LaunchError {
             kind: LaunchErrorKind::DataFileUnreadable,
-            message: format!(
-                "Vault Spend couldn't open your data file at {}. The file may be damaged, or it may not be a Vault Spend data file. It has not been changed.",
-                db_path.display()
-            ),
+            message: if reason.contains(SAFETY_COPY_FAILURE) {
+                format!(
+                    "Vault Spend couldn't upgrade your data file at {} because it could not make a safety copy first. Your data has not been changed. Check that the folder holding your data file can be written to, then try again.",
+                    db_path.display()
+                )
+            } else {
+                format!(
+                    "Vault Spend couldn't open your data file at {}. The file may be damaged, or it may not be a Vault Spend data file. It has not been changed.",
+                    db_path.display()
+                )
+            },
             details: reason,
             db_path: Some(db_path.display().to_string()),
             can_restore_registry: false,
@@ -518,6 +528,40 @@ mod tests {
         assert_eq!(error.kind, LaunchErrorKind::DataFileUnreadable);
         assert!(!error.details.is_empty());
         assert_eq!(std::fs::read(dir.join("vaultspend.db")).unwrap(), b"this is not a database");
+    }
+
+    #[test]
+    fn a_failed_upgrade_safety_copy_is_explained_instead_of_calling_the_file_damaged() {
+        let dir = temp_dir("safety-copy-denied");
+        let db = dir.join("vaultspend.db");
+        make_database(&db);
+        {
+            // The shape a database had before historical account moves existed.
+            let conn = rusqlite::Connection::open(&db).unwrap();
+            conn.execute_batch(
+                "DROP TRIGGER IF EXISTS trg_tx_revision_insert; DROP TRIGGER IF EXISTS trg_tx_revision_update; DROP TRIGGER IF EXISTS trg_tx_revision_delete;
+                 DROP TRIGGER IF EXISTS trg_resets_untracked_insert; DROP TRIGGER IF EXISTS trg_resets_untracked_update; DROP TRIGGER IF EXISTS trg_resets_untracked_delete;
+                 DROP INDEX IF EXISTS idx_balance_resets_account_effective; DROP INDEX IF EXISTS idx_balance_versions_reset; DROP INDEX IF EXISTS idx_balance_versions_parent;
+                 DROP INDEX IF EXISTS idx_balance_versions_account; DROP INDEX IF EXISTS idx_version_contributions_transaction;
+                 DROP TABLE IF EXISTS balance_version_contributions; DROP TABLE IF EXISTS balance_reset_versions; DROP TABLE IF EXISTS account_move_operations;
+                 DROP TABLE IF EXISTS financial_revision_counter; DROP TABLE IF EXISTS checkpoint_write_guard; DROP TABLE IF EXISTS transaction_tombstones;
+                 DROP TABLE IF EXISTS schema_features;
+                 ALTER TABLE balance_resets DROP COLUMN effective_from; ALTER TABLE balance_resets DROP COLUMN current_version_id;
+                 ALTER TABLE transactions DROP COLUMN financial_revision;",
+            )
+            .unwrap();
+        }
+        // A file where the backups folder has to go, so the safety copy cannot be made.
+        std::fs::write(dir.join("backups"), b"in the way").unwrap();
+        let before = std::fs::read(&db).unwrap();
+
+        let error = expect_error(open_from_disk(&dir.join("config.json"), &dir));
+
+        assert_eq!(error.kind, LaunchErrorKind::DataFileUnreadable);
+        assert!(error.message.contains("safety copy"), "{}", error.message);
+        assert!(!error.message.contains("damaged"), "{}", error.message);
+        assert!(error.message.contains("has not been changed"), "{}", error.message);
+        assert_eq!(std::fs::read(&db).unwrap(), before, "the data file is untouched");
     }
 
     #[test]
