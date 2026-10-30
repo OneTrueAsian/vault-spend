@@ -1,7 +1,7 @@
 import { accountTypeLabel } from "./accountGroups";
 import "./AccountsCards.css";
 import "./Transactions.css";
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, AccountTransaction } from "./types";
 import { LineChart } from "./charts";
@@ -12,6 +12,7 @@ import { StatementReviewDialog } from "./StatementReviewDialog";
 import { StatementTeachDialog } from "./StatementTeachDialog";
 import { useStatementReconcile } from "./useStatementReconcile";
 import { DateField } from "./DateField";
+import { useFieldValidity } from "./calendar/useFieldValidity";
 import { errorMessage } from "./errorMessage";
 import { holdingCount } from "./holdingImport";
 import { MenuSelect } from "./MenuSelect";
@@ -79,6 +80,10 @@ export function AccountDetailView({
   const [preview, setPreview] = useState<ReconcileStatus | null>(null);
   const statementDateRef = useRef(statementDate);
   statementDateRef.current = statementDate;
+  // Half-typed text in either date box leaves the last good date in place; nothing that reads these dates may run on it.
+  const dates = useFieldValidity();
+  const startDateId = useId();
+  const endDateId = useId();
 
   const reconcileCardRef = useRef<HTMLDivElement>(null);
   const statement = useStatementReconcile(account.id, (done) => {
@@ -158,7 +163,8 @@ export function AccountDetailView({
   const balanceValid =
     statementBalance.trim() !== "" &&
     isValidDecimalString(statementBalance) &&
-    (!needsStart || (statementStart.trim() !== "" && isValidDecimalString(statementStart)));
+    (!needsStart || (statementStart.trim() !== "" && isValidDecimalString(statementStart))) &&
+    dates.valid;
 
   async function startReconciling() {
     if (!balanceValid) return;
@@ -293,14 +299,14 @@ export function AccountDetailView({
                 void startReconciling();
               }}
             >
-              <label className="labeled-field">
-                <span className="labeled-field-label">Statement start date</span>
-                <DateField value={periodStart} onChange={setPeriodStart} ariaLabel="Statement start date" data-statement-period-start />
-              </label>
-              <label className="labeled-field">
-                <span className="labeled-field-label">Statement end date</span>
-                <DateField value={statementDate} onChange={setStatementDate} ariaLabel="Statement end date" data-statement-date />
-              </label>
+              <div className="labeled-field">
+                <label className="labeled-field-label" htmlFor={startDateId}>Statement start date</label>
+                <DateField id={startDateId} value={periodStart} onChange={setPeriodStart} ariaLabel="Statement start date" onValidityChange={dates.track("start")} data-statement-period-start />
+              </div>
+              <div className="labeled-field">
+                <label className="labeled-field-label" htmlFor={endDateId}>Statement end date</label>
+                <DateField id={endDateId} value={statementDate} onChange={setStatementDate} ariaLabel="Statement end date" required onValidityChange={dates.track("end")} data-statement-date />
+              </div>
               {!needsStart ? (
                 preview?.starting_point != null && (
                   <p className="modal-message-secondary" data-reconcile-picks-up>
@@ -338,7 +344,7 @@ export function AccountDetailView({
               </p>
               <button
                 type="button"
-                disabled={!periodStart || statement.busy}
+                disabled={!periodStart || !dates.valid || statement.busy}
                 onClick={() => void statement.start(periodStart, statementDate)}
                 data-upload-statement
               >
@@ -347,7 +353,7 @@ export function AccountDetailView({
               <button
                 type="button"
                 className="modal-secondary"
-                disabled={!periodStart || statement.busy}
+                disabled={!periodStart || !dates.valid || statement.busy}
                 onClick={() => void statement.start(periodStart, statementDate, "download")}
                 data-upload-download
               >

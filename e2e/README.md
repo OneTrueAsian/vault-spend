@@ -119,9 +119,25 @@ style's row, chooses it and waits until it applies.
 
 Dates on screen are written out ("Oct 4", or "Oct 4, 2025" for another year), the way
 `formatDisplayDate` in `src/format.ts` shows them; `displayDate` in `lib/dates.mjs` gives the text to
-expect. Every date field is `DateField`: a real `<input type="date">` that keeps the stored
-`YYYY-MM-DD` value (so `setValue`, typing and `getValue` work as before), with the date written out
-over it while it isn't being edited. Read that text with `lib/dateFields.mjs`. Exported files keep
+expect. Every date field is `DateField` and every month field `MonthField`: a text box in the
+region's own order ("10/04/2026", "04/10/2026", "2026/10/04") with a calendar the app draws beside it;
+there is no native date or month control, so nothing in a spec may select `input[type="date"]` or
+`input[type="month"]`. The box's own text is regional, so never read the stored value from `input.value`:
+the wrapper carries it as `data-value` (`YYYY-MM-DD` or `YYYY-MM`). `lib/dateFields.mjs` reads a field
+(`readDateField`, `readDateValue`, `waitForDateFieldText`, `waitForDateValue`); `lib/dateFieldInput.mjs`
+fills one through its visible controls (`typeDate`, `openCalendar`, `pickCalendarDay`) and is separate
+because typing uses the shared keyboard. A field accepts a pasted canonical `YYYY-MM-DD` in every region,
+so a spec types ISO text; set the box's text with the native setter plus an `input` event, or use
+`typeDate` (WebDriver `setValue` appends to a React-controlled box instead of replacing it). The field
+reports a date only once the text is a complete, valid date in range. Calendar behaviour is covered by
+`feature370`/`feature372` (workflows) and `feature371_calendar_visual_*` (one spec per style: six theme
+combinations at 1280x800 and 720x520, with Axe and screenshots in `VS_SCREENS_DIR`). Axe's `target-size` rule is
+the one rule not run on the calendar as a whole: it runs alone, and only its "obscured by something outside the
+calendar" finding (the dialog beneath the top-layer popup) is accepted and counted; the matrix replaces it with
+browser hit-testing of every fully visible control, a negative control, real coordinate clicks and a scrolled-popup
+pass (`lib/calendarHits.mjs`). `feature373_calendar_contrast_*` measures text contrast numerically from the real
+composited background in each hover and focus state and Futuristic accent (`lib/calendarContrast.mjs`); it is a
+sample, not a proof for every backdrop. Exported files keep
 `YYYY-MM-DD`.
 
 Moving transactions to another account: use the selection bar's **Move to account** action or a row's Account menu. Specs `feature374`–`feature382` cover recent moves, historical correction from recorded checkpoints, explicit current-balance confirmation for unknown history, genuine blockers, bulk selection, idempotent retry, profile protection, six-theme contrast/keyboard/layout checks, restart persistence, credit balances and focus restoration. Ordinary bulk actions keep their 250-row limit; **Select all … to move** selects up to 10,000 for moving only. `lib/moveTransactions.mjs` prepares isolated fixtures; `lib/moveVisualMatrix.mjs` uses the shared composited-background sampler in `lib/calendarContrast.mjs`. Older transactions are not blanket-blocked: recorded history is corrected automatically, and opaque history requests explicit balances. Screenshot evidence is written to temporary output folders or the explicit evidence directory.

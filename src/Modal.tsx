@@ -28,6 +28,25 @@ import {
 import { errorMessage } from "./errorMessage";
 import { amountProblem, directionLabels, signedAmount, type Direction } from "./transactionDirection";
 
+/** The dialogs that are modal. A date or month calendar is a non-modal dialog inside its field; it must not
+ * count as "the uppermost dialog", or the dialog around it would stop trapping Tab and handling Escape. */
+const MODAL_DIALOG = '[role="dialog"][aria-modal="true"]';
+
+/** What Tab can actually reach in a dialog: enabled controls that are in the tab order and not hidden. */
+function tabbableWithin(panel: HTMLElement): HTMLElement[] {
+  return [
+    ...panel.querySelectorAll<HTMLElement>(
+      'button, input, select, textarea, a[href], [tabindex]',
+    ),
+  ].filter((el) => {
+    if (el.tabIndex < 0 || (el as HTMLButtonElement).disabled) return false;
+    if (el instanceof HTMLInputElement && el.type === "hidden") return false;
+    if (el.closest("[hidden], [inert]")) return false;
+    const style = getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden";
+  });
+}
+
 /** Shared shell: a dimmed overlay behind a centered panel. Clicking the
  * overlay (not the panel) cancels, matching how a native dialog behaves —
  * Escape does too, and focus moves onto the panel on open, since every
@@ -100,7 +119,7 @@ export function ModalShell({
   useEffect(() => {
     const active = document.activeElement;
     if (active && active !== document.body) return;
-    const dialogs = document.querySelectorAll('[role="dialog"]');
+    const dialogs = document.querySelectorAll(MODAL_DIALOG);
     if (dialogs[dialogs.length - 1] === panelRef.current) panelRef.current?.focus();
   });
 
@@ -122,9 +141,11 @@ export function ModalShell({
     function onKeyDown(e: KeyboardEvent) {
       // A manual-lock confirmation can cover another dialog containing unsaved work. Only the
       // uppermost dialog handles Escape and traps Tab; cancelling it must preserve the draft below.
-      const dialogs = document.querySelectorAll('[role="dialog"]');
+      const dialogs = document.querySelectorAll(MODAL_DIALOG);
       if (dialogs[dialogs.length - 1] !== panelRef.current) return;
       if (e.key === "Escape") {
+        // A date or month calendar open inside the dialog consumes its own Escape (it prevents the default).
+        if (e.defaultPrevented) return;
         onCancelRef.current();
         return;
       }
@@ -133,9 +154,7 @@ export function ModalShell({
       // focusable elements instead of leaking into the page behind the
       // overlay — queried fresh on every press since a dialog's own
       // contents can change while it's open (a field appearing/disabling).
-      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-      );
+      const focusable = tabbableWithin(panelRef.current);
       if (focusable.length === 0) {
         e.preventDefault();
         return;
@@ -506,6 +525,8 @@ export function NewTransactionDialog({
         : "",
   );
   const [date, setDate] = useState(() => toLocalIsoDate());
+  const [dateUsable, setDateUsable] = useState(true);
+  const dateId = useId();
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   // The switch, not a typed minus sign, decides whether the amount is money out or in.
@@ -525,7 +546,7 @@ export function NewTransactionDialog({
         : problem === "not_a_number"
           ? "That doesn't look like a number."
           : null;
-  const valid = accountId !== "" && description.trim() !== "" && signed !== null && date !== "";
+  const valid = accountId !== "" && description.trim() !== "" && signed !== null && date !== "" && dateUsable;
 
   const budgetImpact = budgetReadReady ? budgetActuals.find((b) => b.category === category) : undefined;
   const selectedAccount = accounts.find((a) => String(a.id) === accountId);
@@ -566,9 +587,9 @@ export function NewTransactionDialog({
             fill
           />
         </label>
-        <label className="modal-field">
-          <span>Date</span>
-          <DateField value={date} onChange={setDate} ariaLabel="Date" />
+        <div className="modal-field">
+          <label htmlFor={dateId}>Date</label>
+          <DateField id={dateId} value={date} onChange={setDate} ariaLabel="Date" required onValidityChange={setDateUsable} />
           {backdated && selectedAccount && (
             <span className="field-hint field-warning">
               {selectedAccount.name}'s balance was last locked in as of {formatDisplayDate(selectedAccount.checkpoint_date ?? "")} — this
@@ -576,7 +597,7 @@ export function NewTransactionDialog({
               history).
             </span>
           )}
-        </label>
+        </div>
         <label className="modal-field">
           <span>Description</span>
           <input

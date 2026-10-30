@@ -127,6 +127,9 @@ function ChoicesCard({ screen, live, onChoices, onClose }: { screen: Stage<"choi
   const [form, setForm] = useState<ChoicesForm>({ accountId: null, amount: "", amountTouched: false, cadence: null, startToday: false, month: "", monthSource: null });
   const [sent, once] = useOnce();
   const set = (patch: Partial<ChoicesForm>) => setForm((current) => ({ ...current, ...patch }));
+  // Half-typed text in the month box leaves the last good month in the form, so Continue waits for it.
+  const [monthTextUsable, setMonthTextUsable] = useState(true);
+  const monthId = useId();
   const asks = (item: (typeof draft.missing)[number]) => draft.missing.includes(item);
   const asksAccount = asks("account"), asksAmount = asks("extra-amount"), asksCadence = asks("cadence"), asksStart = asks("start-date");
   // The month is asked only once the account is known, so the plan's saved month can be offered.
@@ -158,7 +161,7 @@ function ChoicesCard({ screen, live, onChoices, onClose }: { screen: Stage<"choi
   const prompts = retirementChoicePrompts(draft);
   return (
     <Shell stage="choices" title={RETIREMENT_ANNOUNCEMENTS.choices.heading!} onCancel={onClose} wide dismissOnOverlayClick={false}
-      footer={<Actions><CloseButton onClose={onClose} /><button type="button" disabled={event === null || sent} onClick={() => event && once(() => onChoices(event!))}>{RETIREMENT_PRIMARY_ACTION.choices}</button></Actions>}>
+      footer={<Actions><CloseButton onClose={onClose} /><button type="button" disabled={event === null || sent || !monthTextUsable} onClick={() => event && monthTextUsable && once(() => onChoices(event!))}>{RETIREMENT_PRIMARY_ACTION.choices}</button></Actions>}>
       <Banner>{retirementChoicesIntro(draft)}</Banner>
       {prompts.map(({ choice, prompt }) => {
         if (choice === "retirement-month" && !asksMonth) return null;
@@ -183,10 +186,10 @@ function ChoicesCard({ screen, live, onChoices, onClose }: { screen: Stage<"choi
               <>
                 {savedMonthLimit !== null && <p className="modal-message modal-message-secondary">{retirementSavedMonthLimitMessage(savedMonthLimit)}</p>}
                 {monthCandidate !== null && <button type="button" className="modal-secondary" onClick={() => set({ month: monthCandidate, monthSource: "plan-candidate" })}>{retirementUsePlanMonth(monthCandidate)}</button>}
-                <label className="modal-field">
-                  <span>{RETIREMENT_FIELDS.retirementMonth}</span>
-                  <MonthField value={form.month} min={live.today.slice(0, 7)} max="2100-12" onChange={(value) => set({ month: value, monthSource: value ? "typed" : null })} />
-                </label>
+                <div className="modal-field">
+                  <label htmlFor={monthId}>{RETIREMENT_FIELDS.retirementMonth}</label>
+                  <MonthField id={monthId} aria-label={RETIREMENT_FIELDS.retirementMonth} value={form.month} min={live.today.slice(0, 7)} max="2100-12" onChange={(value) => set({ month: value, monthSource: value ? "typed" : null })} onValidityChange={setMonthTextUsable} />
+                </div>
               </>
             )}
           </fieldset>
@@ -217,11 +220,14 @@ function ReviewCard({ screen, openReturnChoice, onConfirm, onClose }: { screen: 
   const [sent, once] = useOnce();
   const set = (patch: Partial<ReviewState>) => setForm((current) => ({ ...current, ...patch }));
   const typed = (patch: Partial<ReviewState>) => set({ ...patch, touched: true, problem: null });
+  const [monthUsable, setMonthUsable] = useState(true);
+  const monthId = useId();
 
   // Another month the person typed replaces the plan's month; what is wrong with it is said in words.
   let review = screen.review, waiting = false, monthProblem: string | null = null;
   if (form.pickMonth) {
-    if (form.month === "") waiting = true;
+    // Half-typed month text leaves the last good month in the form: wait for it rather than confirm that one.
+    if (form.month === "" || !monthUsable) waiting = true;
     else {
       const replaced = withRetirementMonth(screen.review, form.month);
       if (replaced.ok) review = replaced.review; else { waiting = true; monthProblem = replaced.reason; }
@@ -255,10 +261,10 @@ function ReviewCard({ screen, openReturnChoice, onConfirm, onClose }: { screen: 
       {form.todays && hasValue && <TextField label={RETIREMENT_FIELDS.inflation} value={form.inflation ?? content.candidates.inflationPct ?? ""} onChange={(value) => typed({ inflation: value })} />}
       {entering && <TextField autoFocus label={RETIREMENT_FIELDS.explicitReturn} value={form.returnPct} onChange={(value) => typed({ returnPct: value })} />}
       {form.pickMonth && (
-        <label className="modal-field">
-          <span>{RETIREMENT_FIELDS.retirementMonth}</span>
-          <MonthField autoFocus value={form.month} min={review.context.source.asOf.slice(0, 7)} max="2100-12" onChange={(value) => typed({ month: value })} />
-        </label>
+        <div className="modal-field">
+          <label htmlFor={monthId}>{RETIREMENT_FIELDS.retirementMonth}</label>
+          <MonthField id={monthId} aria-label={RETIREMENT_FIELDS.retirementMonth} autoFocus value={form.month} min={review.context.source.asOf.slice(0, 7)} max="2100-12" onChange={(value) => typed({ month: value })} onValidityChange={setMonthUsable} />
+        </div>
       )}
       <Problem text={monthProblem ?? (form.touched && !built.ok ? built.reason : form.problem)} />
       <div className="retirement-actions-inline">

@@ -1,21 +1,66 @@
-import { useState, type InputHTMLAttributes } from "react";
-import "./DateField.css";
+import type { InputHTMLAttributes } from "react";
+import { CalendarField, type CalendarFieldProps } from "./calendar/CalendarField";
 
-type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange"> & {
+type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange" | "min" | "max"> & {
   value: string;
   onChange: (value: string) => void;
+  min?: string;
+  max?: string;
+  /** A fixed region (for tests); otherwise the browser's own. */
+  locale?: string;
+  /** Told when the text in the box becomes a usable month or stops being one. */
+  onValidityChange?: (valid: boolean) => void;
 };
-export function MonthField({ value, onChange, onFocus, onBlur, autoFocus, className, disabled, ...attrs }: Props) {
-  const [editing, setEditing] = useState(Boolean(autoFocus));
-  const valid = /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
-  const text = valid ? new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" })
-    .format(new Date(`${value}-01T12:00:00Z`)) : value || "Pick a month";
-  return <span className={`date-field${editing ? " date-field-editing" : ""}${!value ? " date-field-empty" : ""}${disabled ? " date-field-disabled" : ""}`}>
-    <input {...attrs} type="month" value={value} disabled={disabled} autoFocus={autoFocus}
-      className={["date-field-input", className].filter(Boolean).join(" ")}
-      onChange={event => onChange(event.target.value)}
-      onFocus={event => { setEditing(true); onFocus?.(event); }}
-      onBlur={event => { setEditing(false); onBlur?.(event); }} />
-    <span className="date-field-text" aria-hidden="true">{text}</span>
-  </span>;
+
+/** The one month field: a text box in the region's order ("mm/yyyy") and a month grid the app draws. The
+ * stored value is always "YYYY-MM". `onBlur` is told when focus leaves the whole field, not when it moves
+ * between the box, its calendar button and the calendar. */
+export function MonthField({
+  value,
+  onChange,
+  onFocus,
+  onBlur,
+  onKeyDown,
+  autoFocus,
+  className,
+  disabled,
+  readOnly,
+  required,
+  min,
+  max,
+  id,
+  title,
+  locale,
+  onValidityChange,
+  "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedBy,
+  ...attrs
+}: Props) {
+  // Whatever is left are data hooks and other attributes the caller put on the box.
+  const { placeholder: _placeholder, ...rest } = attrs;
+  return (
+    <CalendarField
+      kind="month"
+      value={value}
+      onChange={onChange}
+      ariaLabel={ariaLabel ?? "Month"}
+      placeholder={typeof _placeholder === "string" && _placeholder ? _placeholder : "Pick a month"}
+      min={min}
+      max={max}
+      autoFocus={autoFocus}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onKeyDown={onKeyDown}
+      className={className}
+      id={id}
+      title={title}
+      disabled={disabled}
+      readOnly={readOnly}
+      required={required}
+      ariaDescribedBy={ariaDescribedBy}
+      locale={locale}
+      onValidityChange={onValidityChange}
+      inputAttrs={rest as NonNullable<CalendarFieldProps["inputAttrs"]>}
+    />
+  );
 }

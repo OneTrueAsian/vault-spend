@@ -118,3 +118,39 @@ describe("RecurringView cadence labels", () => {
     expect(text(container.querySelector(".suggested-row"))).toContain("Every 2 weeks · seen 4 times");
   });
 });
+
+describe("RecurringView edit row date", () => {
+  const editRow = () => {
+    act(() => [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Edit")!.click());
+    return container.querySelector<HTMLElement>("tr:has(.row-edit-input)")!;
+  };
+  const typeInto = (input: HTMLInputElement, text: string) =>
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  const save = (row: HTMLElement) => [...row.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Save")!;
+
+  it("will not save while the next due date is half typed, instead of saving the old date", () => {
+    const props = render({ recurring: [item({ anchor_date: "2026-10-01" })] });
+    const row = editRow();
+    const box = row.querySelector<HTMLInputElement>("input.date-field-input")!;
+    expect(box.value).toBe("10/01/2026");
+    typeInto(box, "10/1");
+    expect(save(row).disabled).toBe(true);
+    act(() => save(row).click());
+    expect(props.onUpdate).not.toHaveBeenCalled();
+  });
+
+  it("saves the new date once it is complete", () => {
+    const props = render({ recurring: [item({ anchor_date: "2026-10-01" })] });
+    const row = editRow();
+    const box = row.querySelector<HTMLInputElement>("input.date-field-input")!;
+    typeInto(box, "10/1");
+    typeInto(box, "10/15/2026");
+    expect(save(row).disabled).toBe(false);
+    act(() => save(row).click());
+    expect(props.onUpdate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(props.onUpdate).mock.calls[0][5]).toBe("2026-10-15");
+  });
+});

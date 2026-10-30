@@ -4,6 +4,7 @@ import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ModalShell } from "./Modal";
 import { MenuSelect } from "./MenuSelect";
 import { DateField } from "./DateField";
+import { useFieldValidity } from "./calendar/useFieldValidity";
 import { validateCutPreviewIntent } from "./askVault/cutPreviewContract";
 import { baselineRows, countedMonths, datesText, longDate, partMonths, wholeMonthsOnly, typedDollars } from "./askVault/spendingScenarioView";
 import { scenarioBaselineProblem, scenarioMoneyToCents, scenarioMonthlyBaseline } from "./askVault/spendingScenarioMath";
@@ -64,6 +65,8 @@ export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategor
   const identity = JSON.stringify(screen), [seen, setSeen] = useState(identity);
   if (seen !== identity) { setSeen(identity); setForm(initial(screen)); }
   const set = (patch: Partial<Form>) => setForm(f => ({ ...f, ...patch }));
+  // Half-typed text in a date box leaves the last good date in the form; the choices must wait for it.
+  const dates = useFieldValidity();
   useLayoutEffect(() => {
     const dialog = anchor.current?.closest<HTMLElement>('[role="dialog"]');
     const dialogs = document.querySelectorAll('[role="dialog"]');
@@ -98,7 +101,7 @@ export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategor
     const check = validateCutPreviewIntent(intent, { asOf: today, categories: [...categories] });
     const selected = new Set(form.rows.map(row => row.category));
     const unknown = form.rows.some(row => !categories.includes(row.category) || form.exclusions.includes(row.category));
-    const ready = check.ok && !unknown;
+    const ready = check.ok && !unknown && dates.valid;
     const yearHint = draft.scheduleHints?.find(h => h.kind === "year-choice");
     const canFullYear = !yearHint || yearHint.kind !== "year-choice" || yearHint.choices.includes("full-year-hypothetical");
     return shell("Where would you like to cut back?", <>
@@ -135,7 +138,7 @@ export function CutPreviewDialog({ screen, onChoices, onConfirm, onRemoveCategor
         {option("dates", "From now until December 31, " + year, form.rangeChoice === "remaining-year", () => set({ rangeChoice: "remaining-year", part: null }))}
         {canFullYear && option("dates", "The whole of " + year + " as a what-if", form.rangeChoice === "full-year", () => set({ rangeChoice: "full-year", part: null }), "It includes months that have already passed.")}
         {option("dates", "Dates I choose", form.rangeChoice === "custom", () => set({ rangeChoice: "custom", part: null }))}
-        {form.rangeChoice === "custom" && <div className="scenario-dates"><div className="modal-field"><span>Start</span><DateField ariaLabel="Schedule start" value={form.from} min={today} onChange={from => set({ from, part: null })} /></div><div className="modal-field"><span>End</span><DateField ariaLabel="Schedule end" value={form.to} min={today} onChange={to => set({ to, part: null })} /></div></div>}
+        {form.rangeChoice === "custom" && <div className="scenario-dates"><div className="modal-field"><span>Start</span><DateField ariaLabel="Schedule start" value={form.from} min={today} onChange={from => set({ from, part: null })} onValidityChange={dates.track("from")} /></div><div className="modal-field"><span>End</span><DateField ariaLabel="Schedule end" value={form.to} min={today} onChange={to => set({ to, part: null })} onValidityChange={dates.track("to")} /></div></div>}
       </fieldset>}
       {horizon && !validHorizon && <p className="scenario-problem" role="alert">{horizonValid && !horizonValid.ok ? horizonValid.reason : "Choose valid dates."}</p>}
       {parts.length > 0 && <fieldset className="scenario-question"><legend>How should I count part months?</legend>

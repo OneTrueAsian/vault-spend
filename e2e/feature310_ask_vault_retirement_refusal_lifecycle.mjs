@@ -99,7 +99,7 @@ try {
   await b.execute(() => { window.__m5Requests.length = 0; });
   await toBlocked(); await h.clickButton("Change the details"); await h.waitText("Nothing has been calculated yet", "recovery choices");
   await chooseOption("Brokerage"); await setAmount("100"); await chooseOption("Every month"); await h.clickButton("Continue"); await h.waitText("Retirement month", "month card");
-  await b.execute(() => { const d = new Date(), v = `${d.getFullYear() + 1}-${String(d.getMonth() + 1).padStart(2, "0")}`; const input = document.querySelector('[role="dialog"] input[type=month]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, v); input.dispatchEvent(new Event("input", { bubbles: true })); });
+  await b.execute(() => { const d = new Date(), v = `${d.getFullYear() + 1}-${String(d.getMonth() + 1).padStart(2, "0")}`; const input = document.querySelector('[role="dialog"] [data-date-field="month"] input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, v); input.dispatchEvent(new Event("input", { bubbles: true })); });
   await h.clickButton("Continue"); await h.waitText("Use my saved plan", "review"); await clickPrimary(); await h.waitText("Illustrative balance at", "result");
   const audit = await b.execute(async marker => {
     const stored = [];

@@ -36,7 +36,7 @@ try {
   await h.bridgeWrite("set_investment_plan", { ...(await h.planArgs("M5 IRA", "7")), withdrawMonth: `${savedYear}-06` });
   await h.ask("How much would an extra $50 a month into M5 IRA add?");
   await h.waitText(`Use June ${savedYear}, from your plan`, "the saved month is offered as a candidate");
-  const candidate = await b.execute(() => ({ primaryDisabled: [...document.querySelectorAll('[role="dialog"] .modal-actions button')].pop()?.disabled === true, monthFilled: [...document.querySelectorAll('[role="dialog"] input[type="month"]')].some(i => i.value !== "") }));
+  const candidate = await b.execute(() => ({ primaryDisabled: [...document.querySelectorAll('[role="dialog"] .modal-actions button')].pop()?.disabled === true, monthFilled: [...document.querySelectorAll('[role="dialog"] [data-date-field="month"]')].some(f => f.getAttribute("data-value") !== "") }));
   assert.equal(candidate.monthFilled, false, "the saved month is not selected for the person");
   assert.equal(candidate.primaryDisabled, true, "nothing can continue until a month is chosen");
   await shoot("saved-month-candidate");
@@ -49,12 +49,12 @@ try {
   await h.ask("How much would an extra $50 a month into M5 IRA add?");
   await h.waitText("Your plan has a saved retirement month of January 2101", "the limit is explained");
   const limited = await b.execute(() => {
-    const d = document.querySelector('[role="dialog"]'), month = d.querySelector('input[type="month"]');
-    return { text: d.textContent, candidateButton: [...d.querySelectorAll("button")].some(x => /from your plan/.test(x.textContent)), max: month?.getAttribute("max") ?? null, filled: month?.value ?? null, primaryDisabled: [...d.querySelectorAll(".modal-actions button")].pop()?.disabled === true };
+    const d = document.querySelector('[role="dialog"]'), month = d.querySelector('[data-date-field="month"]');
+    return { text: d.textContent, candidateButton: [...d.querySelectorAll("button")].some(x => /from your plan/.test(x.textContent)), field: month !== null, filled: month?.getAttribute("data-value") ?? null, primaryDisabled: [...d.querySelectorAll(".modal-actions button")].pop()?.disabled === true };
   });
   assert.ok(limited.text.includes("December 2100"), "the supported limit is named");
   assert.equal(limited.candidateButton, false, "the saved month is not offered");
-  assert.equal(limited.max, "2100-12", "the month field stops at the limit"); assert.equal(limited.filled, "", "nothing is chosen for the person");
+  assert.equal(limited.field, true, "the month field is asked for"); assert.equal(limited.filled, "", "nothing is chosen for the person");
   assert.equal(limited.primaryDisabled, true, "nothing continues until a supported month is chosen");
   await shoot("saved-month-beyond-limit-choices");
   await h.closeDialog();
@@ -112,6 +112,7 @@ try {
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });
   await h.toResult(); // a result open in the original profile
   await b.execute(() => document.querySelector(".profile-switcher-toggle").click());
+  await b.$(".profile-switcher-option").waitForExist({ timeout: 5000, timeoutMsg: "the profile list should open before an option is chosen" });
   await b.execute(() => [...document.querySelectorAll(".profile-switcher-option")].find(o => o.textContent.includes("M5 Other")).click());
   await b.waitUntil(async () => (await b.$(".profile-switcher-name").getText()) === "M5 Other", { timeout: 10000 });
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });
@@ -122,6 +123,7 @@ try {
   await b.waitUntil(async () => (await h.dialogOpen()) && /investment account/i.test(await h.text()), { timeout: 10000, timeoutMsg: "the other profile answers from its own (empty) accounts" });
   await h.closeDialog();
   await b.execute(() => document.querySelector(".profile-switcher-toggle").click());
+  await b.$(".profile-switcher-option").waitForExist({ timeout: 5000, timeoutMsg: "the profile list should open before an option is chosen" });
   await b.execute(() => [...document.querySelectorAll(".profile-switcher-option")].find(o => o.textContent.includes("Default")).click());
   await b.waitUntil(async () => (await b.$(".profile-switcher-name").getText()) === "Default", { timeout: 10000 });
   await b.$(".ledger-qa-card input").waitForExist({ timeout: 10000 });

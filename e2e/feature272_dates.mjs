@@ -26,7 +26,8 @@ import { launchApp, waitForDataLoaded, waitUntilOrDiagnose, withFocusRetry } fro
 import { seedFixture } from "./lib/seed.mjs";
 import { DISPLAY_DATE, displayDate, fieldDate, isoDaysFromNow } from "./lib/dates.mjs";
 import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
-import { readDateField, waitForDateFieldText } from "./lib/dateFields.mjs";
+import { readDateField, waitForDateFieldText, waitForDateValue } from "./lib/dateFields.mjs";
+import { typeDate } from "./lib/dateFieldInput.mjs";
 import { makeTempDir } from "./lib/tempDir.mjs";
 
 const TODAY = isoDaysFromNow(0);
@@ -89,7 +90,7 @@ async function openTransactions() {
 
 async function openAddTransaction() {
   await (await browser.$("button*=Add transaction")).click();
-  await waitUntilOrDiagnose(browser, () => browser.execute(() => Boolean(document.querySelector('.modal-panel input[type="date"][aria-label="Date"]'))), {
+  await waitUntilOrDiagnose(browser, () => browser.execute(() => Boolean(document.querySelector('.modal-panel input[aria-label="Date"]'))), {
     timeoutMsg: "Add transaction should open with a Date field",
   });
 }
@@ -97,7 +98,7 @@ async function openAddTransaction() {
 /** Geometry and look of the Add transaction date field next to the description field in the same dialog. */
 const measureDialogFields = () =>
   browser.execute(() => {
-    const date = document.querySelector('.modal-panel input[type="date"][aria-label="Date"]');
+    const date = document.querySelector('.modal-panel input[aria-label="Date"]');
     const text = date.closest(".date-field").querySelector(".date-field-text");
     const desc = document.querySelector('.modal-panel input[placeholder=\'e.g. "Coffee shop"\']');
     const look = (el) => {
@@ -140,8 +141,8 @@ const measureDialogFields = () =>
   });
 
 /** Where a resting date field's written-out text sits against its input: where the input's own text
- * would start, and where its calendar button begins (the button is drawn inside the input's right
- * padding edge and is about 14px wide at these sizes, so text must end before that). */
+ * would start, and where its calendar button begins (the button is drawn inside the box's end edge, so
+ * the text must end before it). */
 const restingGeometry = (inputSelector) =>
   browser.execute((sel) => {
     const input = document.querySelector(sel);
@@ -155,7 +156,7 @@ const restingGeometry = (inputSelector) =>
     const range = document.createRange();
     range.selectNodeContents(text);
     const glyphs = range.getBoundingClientRect();
-    const contentRight = box.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+    const trigger = wrapper.querySelector(".date-field-trigger");
     return {
       text: text.textContent,
       editing: wrapper.classList.contains("date-field-editing"),
@@ -163,7 +164,7 @@ const restingGeometry = (inputSelector) =>
       textLeft: glyphs.left,
       // The text box ends where its right padding starts; anything longer is cut off with "…" there.
       textRight: t.right - parseFloat(ts.paddingRight),
-      buttonLeft: contentRight - 14,
+      buttonLeft: trigger.getBoundingClientRect().left,
       truncated: text.scrollWidth > text.clientWidth,
       width: box.width,
     };
@@ -194,20 +195,15 @@ try {
 
   // ---- 2. Add transaction: the date field reads "Oct 4, 2026"; typing a date still saves it -----
   await openAddTransaction();
-  const dateInput = '.modal-panel input[type="date"][aria-label="Date"]';
+  const dateInput = '.modal-panel input[aria-label="Date"]';
   await waitForDateFieldText(browser, dateInput, fieldDate(TODAY), "Add transaction's Date field");
   const resting = await measureDialogFields();
   await browser.saveScreenshot(path.join(shotsDir, "272-add-transaction-resting.png"));
   assert.equal(resting.date.color, "rgba(0, 0, 0, 0)", "while it isn't being edited, the input's own mm/dd/yyyy text is hidden under the written-out date");
 
-  // The real date input underneath takes typed digits, as a keyboard does.
-  const [y, m, d] = TYPED.split("-");
-  await (await browser.$(dateInput)).setValue(`${m}${d}${y}`);
-  let typedValue = null;
-  await waitUntilOrDiagnose(browser, async () => (typedValue = await (await browser.$(dateInput)).getValue()) === TYPED, {
-    timeoutMsg: `typing ${m}/${d}/${y} into the Date field should set it to ${TYPED}`,
-    extra: () => ({ typedValue, field: null }),
-  });
+  // The box takes typed text, as a keyboard does; a canonical ISO date is accepted in every region.
+  await typeDate(browser, dateInput, TYPED);
+  await waitForDateValue(browser, dateInput, TYPED, `typing ${TYPED} into the Date field`);
   await (await browser.$('.modal-panel input[placeholder=\'e.g. "Coffee shop"\']')).setValue("Date Field Check");
   await enterTransactionAmount(browser, await browser.$(".modal-panel"), "-9.99");
   // Out of the date field, it reads the new date written out.
@@ -216,7 +212,7 @@ try {
   // A date far outside 1900-2100 (a slipped year, like 9643) is explained and can't be saved.
   const setDialogDate = (iso) =>
     browser.execute((iso) => {
-      const input = document.querySelector('.modal-panel input[type="date"][aria-label="Date"]');
+      const input = document.querySelector('.modal-panel input[aria-label="Date"]');
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, iso);
       input.dispatchEvent(new Event("input", { bubbles: true }));
     }, iso);

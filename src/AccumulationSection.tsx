@@ -1,6 +1,6 @@
 import { MonthField } from "./MonthField";
 import "./AccumulationSection.css";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Account, InvestmentAccumulation, PortfolioPoint } from "./types";
 import { SeriesChart, type SeriesChartSeries } from "./charts";
@@ -122,6 +122,9 @@ export function AccountAccumulationSection({
   const [inflation, setInflation] = useState("3");
   const [form, setForm] = useState<PlanFormFields | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  // Half-typed text in the withdraw month box leaves the last good month in the form; saving waits for it.
+  const [monthUsable, setMonthUsable] = useState(true);
+  const monthId = useId();
   const [todaysDollars, setTodaysDollars] = useTodaysDollars();
 
   const load = useCallback(async () => {
@@ -185,6 +188,10 @@ export function AccountAccumulationSection({
 
   async function save() {
     if (!acc || !form) return;
+    if (!monthUsable) {
+      setFormError("Finish or correct the withdraw month before saving.");
+      return;
+    }
     const problem = validatePlanForm(form, today, acc.plan.withdraw_month);
     if (problem) {
       setFormError(problem);
@@ -334,10 +341,10 @@ export function AccountAccumulationSection({
             <span className="labeled-field-label">Assumed annual return %</span>
             <input value={form.returnPct} onChange={(e) => set({ returnPct: e.target.value })} placeholder="7" inputMode="decimal" data-acc-return />
           </label>
-          <label className="labeled-field">
-            <span className="labeled-field-label">Withdraw month</span>
-            <MonthField aria-label="Withdraw month" value={form.withdrawMonth} min={today.slice(0, 7)} onChange={(value) => set({ withdrawMonth: value })} data-acc-withdraw-month />
-          </label>
+          <div className="labeled-field">
+            <label className="labeled-field-label" htmlFor={monthId}>Withdraw month</label>
+            <MonthField id={monthId} aria-label="Withdraw month" value={form.withdrawMonth} min={today.slice(0, 7)} onChange={(value) => set({ withdrawMonth: value })} onValidityChange={setMonthUsable} data-acc-withdraw-month />
+          </div>
           <label className="labeled-field">
             <span className="labeled-field-label">Spread over (years, optional)</span>
             <input value={form.withdrawYears} onChange={(e) => set({ withdrawYears: e.target.value })} placeholder="all at once" inputMode="numeric" data-acc-withdraw-years />

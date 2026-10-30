@@ -10,7 +10,7 @@
 import { launchApp, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { displayDate, fieldDate, isoDaysFromNow } from "./lib/dates.mjs";
-import { waitForDateFieldText } from "./lib/dateFields.mjs";
+import { readDateValue, waitForDateFieldText } from "./lib/dateFields.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -64,7 +64,7 @@ try {
   });
   // The statement date field starts on today, written out over the real date input (which keeps the stored date).
   await waitForDateFieldText(browser, "[data-statement-date]", fieldDate(todayIso), "the statement date field");
-  if ((await (await browser.$("[data-statement-date]")).getValue()) !== todayIso) throw new Error(`the statement date input should hold ${todayIso}`);
+  if ((await readDateValue(browser, "[data-statement-date]")) !== todayIso) throw new Error(`the statement date field should hold ${todayIso}`);
 
   // --- start ---------------------------------------------------------------------
   const balance = await browser.$("[data-statement-balance]");

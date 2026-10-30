@@ -17,6 +17,7 @@
 import { launchApp, chooseMenuOption } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { enterTransactionAmount } from "./lib/transactionAmount.mjs";
+import { typeDate } from "./lib/dateFieldInput.mjs";
 
 const dbDir = await seedFixture(`
 import datetime
@@ -98,8 +99,9 @@ async function addTransaction({ account, description, amount, backDays }) {
   await chooseMenuOption((await panel.$$(".menu-select-toggle"))[0], { label: account });
   const d = new Date();
   d.setDate(d.getDate() - backDays);
-  const mmddyyyy = `${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}${d.getFullYear()}`;
-  await (await panel.$("input[type='date']")).setValue(mmddyyyy);
+  // Typed as a canonical ISO date, which the date box accepts in every region.
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  await typeDate(browser, ".modal-panel input[aria-label='Date']", iso);
   await (await panel.$("input[placeholder='e.g. \"Coffee shop\"']")).setValue(description);
   await enterTransactionAmount(browser, panel, amount);
   await (await panel.$("button=Add transaction")).click();

@@ -129,7 +129,8 @@ describe("the choices screen", () => {
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Schedule start"), "2026-10-01");
     type(dateInput("Schedule end"), "2026-12-31");
-    expect(document.querySelector("[role='alert']")!.textContent).toContain("can't start before today");
+    // A date before today is refused by its own box, in words, and never reaches the dialog.
+    expect(document.querySelector(".date-field-problem")!.textContent).toBe("Choose a date on or after Oct 15, 2026.");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Schedule start"), "2027-02-01");
     type(dateInput("Schedule end"), "2027-01-31");
@@ -151,7 +152,7 @@ describe("the choices screen", () => {
     expect(text()).not.toContain("Which dates should I use?");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Date of the one-time cut"), "2026-10-14");
-    expect(document.querySelector("[role='alert']")!.textContent).toContain("can't be before today");
+    expect(document.querySelector(".date-field-problem")!.textContent).toBe("Choose a date on or after Oct 15, 2026.");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Date of the one-time cut"), "2026-10-20");
     expect(document.querySelector("[role='alert']")).toBeNull();
@@ -177,10 +178,10 @@ describe("the choices screen", () => {
     expect(text()).toContain("Which date?");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Date of the one-time cut"), "2027-01-05");
-    expect(document.querySelector("[role='alert']")!.textContent).toContain("inside your dates");
+    expect(document.querySelector(".date-field-problem")!.textContent).toBe("Choose a date from Nov 1, 2026 to Dec 31, 2026.");
     expect(button("Review the details").disabled).toBe(true);
     type(dateInput("Date of the one-time cut"), "2026-10-20");
-    expect(document.querySelector("[role='alert']")!.textContent).toContain("inside your dates");
+    expect(document.querySelector(".date-field-problem")!.textContent).toBe("Choose a date from Nov 1, 2026 to Dec 31, 2026.");
     type(dateInput("Date of the one-time cut"), "2026-11-20");
     expect(document.querySelector("[role='alert']")).toBeNull();
     review();

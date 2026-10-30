@@ -412,3 +412,36 @@ describe("AccountDetailView transaction display limit", () => {
     expect(rows()[0].querySelector(".dup-review-check")?.textContent).toBe("✓");
   });
 });
+
+describe("AccountDetailView statement dates", () => {
+  const typeDate = (selector: string, text: string) =>
+    act(async () => {
+      const el = host.querySelector<HTMLInputElement>(selector)!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, text);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+  it("does not upload or start with the old date while a date box holds half-typed text", async () => {
+    answer({ last_reconciliation: null });
+    await showAccount(account);
+    await typeDate("[data-statement-period-start]", "2026-07-22");
+    const upload = () => host.querySelector<HTMLButtonElement>("[data-upload-statement]")!;
+    const download = () => host.querySelector<HTMLButtonElement>("[data-upload-download]")!;
+    expect(upload().disabled).toBe(false);
+    await typeDate("[data-statement-date]", "08/2");
+    expect(upload().disabled).toBe(true);
+    expect(download().disabled).toBe(true);
+    expect(host.querySelector<HTMLButtonElement>("[data-reconcile-start]")!.disabled).toBe(true);
+    await typeDate("[data-statement-date]", "2026-08-21");
+    expect(upload().disabled).toBe(false);
+  });
+
+  it("names both date boxes with real labels", async () => {
+    answer({ last_reconciliation: null });
+    await showAccount(account);
+    for (const [name, selector] of [["Statement start date", "[data-statement-period-start]"], ["Statement end date", "[data-statement-date]"]]) {
+      const label = [...host.querySelectorAll("label")].find((l) => l.textContent === name)!;
+      expect(label.htmlFor).toBe(host.querySelector<HTMLInputElement>(selector)!.id);
+    }
+  });
+});

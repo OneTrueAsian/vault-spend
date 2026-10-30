@@ -1,0 +1,387 @@
+/* The date and month calendars (src/calendar). Default is the frosted menu surface in system fonts;
+   Futuristic uses its own fonts and a restrained accent edge; Retro is square with raised and sunken edges.
+   All of it comes from the theme tokens (--menu-bg, --text, --border-strong, --accent ...), not from six
+   hard-coded palettes. */
+
+.calendar-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.calendar-popover {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--menu-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: start;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+}
+
+.calendar-popover:focus {
+  outline: none;
+}
+
+.calendar-popover button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  border-radius: 8px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.calendar-popover button:disabled {
+  cursor: not-allowed;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.calendar-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+}
+
+.calendar-nav {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 32px;
+  block-size: 32px;
+  min-height: 32px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.calendar-nav:hover:not(:disabled),
+.calendar-jump:hover:not(:disabled),
+.calendar-action:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.calendar-nav:disabled,
+.calendar-jump:disabled,
+.calendar-action:disabled {
+  opacity: 0.4;
+}
+
+.calendar-jump {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.calendar-caret {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.calendar-year {
+  box-sizing: border-box;
+  inline-size: 84px;
+  min-height: 32px;
+  padding: 0 8px;
+  text-align: center;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
+.calendar-year[aria-invalid="true"] {
+  border-color: var(--negative);
+}
+
+.calendar-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.calendar-grid th {
+  padding: 2px 0 6px;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: normal;
+  background: transparent;
+  border: 0;
+}
+
+.calendar-grid td {
+  padding: 1px;
+  text-align: center;
+  border: 0;
+  background: transparent;
+}
+
+.calendar-day,
+.calendar-month {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 100%;
+  min-block-size: 36px;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.calendar-day {
+  max-inline-size: 38px;
+  min-block-size: 34px;
+}
+
+.calendar-day.is-outside {
+  color: var(--text-muted);
+}
+
+.calendar-day:hover:not(:disabled),
+.calendar-month:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.calendar-day.is-unavailable,
+.calendar-month:disabled {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+/* Today: a ring that stays visible on its own and on a selected day. */
+.calendar-popover .is-today {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  font-weight: 600;
+}
+
+.calendar-popover .is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.calendar-popover .is-selected:hover:not(:disabled) {
+  background: var(--accent-strong, var(--accent));
+}
+
+.calendar-popover .is-selected.is-today {
+  box-shadow: inset 0 0 0 2px var(--on-accent);
+}
+
+.calendar-popover button:focus-visible,
+.calendar-popover input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.calendar-month-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.calendar-month-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.calendar-month-row > [role="gridcell"] {
+  display: grid;
+}
+
+.calendar-month {
+  min-block-size: 44px;
+  font-size: 14px;
+}
+
+.calendar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.calendar-action {
+  min-height: 32px;
+  padding: 0 10px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.calendar-popover .calendar-action {
+  color: var(--accent);
+}
+
+.calendar-help {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* Futuristic: its own type and a restrained accent edge that follows Settings > Neon intensity (zero is flat). */
+:root[data-palette="futuristic"] .calendar-popover {
+  font-family: var(--font-body);
+  border-color: color-mix(in srgb, var(--neon) calc(55% * var(--glow, 0.7) + 15%), var(--border-strong));
+  box-shadow: var(--shadow-md), 0 0 calc(18px * var(--glow, 0.7)) rgba(var(--neon-rgb), calc(0.28 * var(--glow, 0.7)));
+}
+
+:root[data-palette="futuristic"] .calendar-popover button,
+:root[data-palette="futuristic"] .calendar-year {
+  font-family: var(--font-body);
+}
+
+:root[data-palette="futuristic"] .calendar-heading,
+:root[data-palette="futuristic"] .calendar-jump,
+:root[data-palette="futuristic"] .calendar-year {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+
+/* Retro: square corners, raised buttons, sunken wells. */
+:root[data-palette="retro"] .calendar-popover {
+  border-radius: 0;
+  border: 0;
+  background: var(--retro-face);
+  box-shadow: var(--retro-raised), var(--shadow-md);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-palette="retro"] .calendar-popover button,
+:root[data-palette="retro"] .calendar-year {
+  border-radius: 0;
+}
+
+:root[data-palette="retro"] .calendar-nav,
+:root[data-palette="retro"] .calendar-action {
+  background: var(--retro-face);
+  box-shadow: var(--retro-raised);
+  border: 0;
+}
+
+:root[data-palette="retro"] .calendar-nav:active:not(:disabled),
+:root[data-palette="retro"] .calendar-action:active:not(:disabled) {
+  box-shadow: var(--retro-sunken);
+}
+
+:root[data-palette="retro"] .calendar-year {
+  border: 0;
+  background: var(--retro-window);
+  box-shadow: var(--retro-sunken);
+}
+
+:root[data-palette="retro"] .calendar-grid,
+:root[data-palette="retro"] .calendar-month-grid {
+  background: var(--retro-window);
+  box-shadow: var(--retro-sunken);
+  padding: 2px;
+}
+
+:root[data-palette="retro"] .calendar-popover .is-selected {
+  background: var(--retro-sel);
+  color: var(--retro-sel-text);
+}
+
+:root[data-palette="retro"] .calendar-popover .is-today:not(.is-selected) {
+  box-shadow: inset 0 0 0 1px var(--retro-sel);
+}
+
+:root[data-palette="retro"] .calendar-footer {
+  border-top-color: var(--retro-shadow);
+}
+
+@media (forced-colors: active) {
+  .calendar-popover {
+    border: 1px solid CanvasText;
+    box-shadow: none;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .calendar-popover .is-selected {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+    border-color: HighlightText;
+  }
+  .calendar-popover .is-today {
+    box-shadow: none;
+    outline: 2px solid CanvasText;
+    outline-offset: -3px;
+  }
+  .calendar-day.is-unavailable,
+  .calendar-month:disabled {
+    color: GrayText;
+    opacity: 1;
+  }
+  .calendar-popover button:focus-visible,
+  .calendar-popover input:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-popover,
+  .calendar-popover * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -24,7 +24,7 @@ const row = async label => {
 };
 const near = (shown, exact, tolerance, what) => assert.ok(Math.abs(shown - exact) <= tolerance, `${what}: shown ${shown}, independent ${Math.round(exact)}`);
 const setMonth = value => b.execute(v => {
-  const el = document.querySelector('[role="dialog"] input[type=month]');
+  const el = document.querySelector('[role="dialog"] [data-date-field="month"] input');
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, v);
   el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true }));
 }, value);
@@ -48,9 +48,10 @@ try {
   assert.ok((await h.text()).includes("Which month do you plan to stop adding?"), "Continue without a month stays on the question");
   const earlier = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   await setMonth(`${earlier.getFullYear()}-${String(earlier.getMonth() + 1).padStart(2, "0")}`);
-  await h.waitText("Choose a retirement month from this month on, within the next 100 years.", "a past month is refused");
+  // A month outside the box's limits is refused by the box itself, in words, and never reaches the dialog.
+  await h.waitText("Choose a month from", "a past month is refused");
   await setMonth(`${now.getFullYear() + 101}-01`);
-  await h.waitText("Choose a retirement month from this month on, within the next 100 years.", "beyond 100 years is refused");
+  await h.waitText("Choose a month from", "beyond 100 years is refused");
   await setMonth(`${YEAR}-03`);
   await h.clickButton("Continue"); await h.waitText("Use your saved plan?", "review with the typed month");
   t = await h.text();

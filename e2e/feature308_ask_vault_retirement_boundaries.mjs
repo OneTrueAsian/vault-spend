@@ -23,13 +23,13 @@ try {
   await h.waitText("2100", "out-of-range saved month is explained, not a failed account read");
   const state = await b.execute(() => {
     const d = document.querySelector('[role="dialog"]');
-    return { text: d.textContent, month: d.querySelector('input[type="month"]')?.value, buttons: [...d.querySelectorAll("button")].map(x => x.textContent), disabled: [...d.querySelectorAll(".modal-actions button")].at(-1)?.disabled };
+    return { text: d.textContent, month: d.querySelector('[data-date-field="month"]')?.getAttribute("data-value"), buttons: [...d.querySelectorAll("button")].map(x => x.textContent), disabled: [...d.querySelectorAll(".modal-actions button")].at(-1)?.disabled };
   });
   assert.ok(state.text.includes("2101"), "the saved evidence is retained visibly");
   assert.equal(state.month, "", "the unsupported month is never prefilled");
   assert.equal(state.disabled, true, "nothing can continue until a valid month is chosen");
   assert.ok(!state.buttons.some(text => /Use.*2101/.test(text)), "the saved month is not offered as a candidate");
-  const month = await b.$('[role="dialog"] input[type="month"]');
+  const month = await b.$('[role="dialog"] [data-date-field="month"] input');
   await b.execute((el, value) => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set; setter.call(el, value); el.dispatchEvent(new Event("input", { bubbles: true })); }, month, `${year}-06`);
   await b.waitUntil(() => b.$('[role="dialog"] .modal-actions button:last-child').isEnabled(), { timeout: 5000, timeoutMsg: "a supported replacement month enables Continue" });
   await h.clickButton("Continue"); await h.waitText("Use my saved plan", "other account evidence stays usable");

@@ -469,12 +469,10 @@ export function TransactionsTable({
                         className="row-edit-input"
                         ariaLabel="Date"
                         value={editingDate.value}
+                        required
                         onChange={(value) => setEditingDate({ id: t.id, value })}
-                        onBlur={() => commitDateEdit(t.id, editingDate.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") commitDateEdit(t.id, editingDate.value);
-                          if (e.key === "Escape") setEditingDate(null);
-                        }}
+                        onCommit={(value) => void commitDateEdit(t.id, value)}
+                        onCancel={() => setEditingDate(null)}
                       />
                     ) : (
                       <span

@@ -57,7 +57,8 @@ try {
   await radio("Dates I choose");
   await setDateInput(b, 'input[aria-label="Schedule start"]', dateInMonth(-1, 5));
   await setDateInput(b, 'input[aria-label="Schedule end"]', dateInMonth(2, 5));
-  await h.waitText("The schedule can't start before today.", "past start");
+  // A date before today is refused by its own box, in words, and never reaches the dialog.
+  await h.waitText("Choose a date on or after", "past start");
   await setDateInput(b, 'input[aria-label="Schedule start"]', dateInMonth(1, 5));
   await setDateInput(b, 'input[aria-label="Schedule end"]', dateInMonth(1, 3));
   await h.waitText("The end can't be before the start.", "end before start");

@@ -219,7 +219,7 @@ function NewRecurringForm({
         options={CADENCE_OPTIONS.map((c) => ({ value: c, label: cadenceLabel(c) }))}
         fill
       />
-      <DateField value={anchorDate} onChange={setAnchorDate} ariaLabel="Next due date" placeholder="Next due date" title="Next due date" />
+      <DateField value={anchorDate} onChange={setAnchorDate} ariaLabel="Next due date" placeholder="Next due date" title="Next due date" required />
       <MenuSelect
         ariaLabel="Linked account"
         value={accountId}
@@ -277,10 +277,11 @@ function EditRecurringRow({
   const [amount, setAmount] = useState(item.amount);
   const [cadence, setCadence] = useState(item.cadence);
   const [anchorDate, setAnchorDate] = useState(item.anchor_date);
+  const [dateUsable, setDateUsable] = useState(true);
   const [accountId, setAccountId] = useState(item.account_id !== null ? String(item.account_id) : "");
   const [memberId, setMemberId] = useState(item.member_id !== null ? String(item.member_id) : "");
 
-  const valid = merchant.trim() !== "" && amount.trim() !== "" && anchorDate !== "";
+  const valid = merchant.trim() !== "" && amount.trim() !== "" && anchorDate !== "" && dateUsable;
 
   function handleSave() {
     if (!valid) return;
@@ -340,6 +341,8 @@ function EditRecurringRow({
           onChange={setAnchorDate}
           ariaLabel="Next due date"
           title="Next due date"
+          required
+          onValidityChange={setDateUsable}
         />
       </td>
       <td className="amount-col">

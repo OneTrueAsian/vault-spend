@@ -57,11 +57,10 @@ cur.execute(
 `);
 
 async function setDateField(browser, iso) {
-  const input = await browser.$('input[type="date"]');
+  const input = await browser.$('input[aria-label="Date"]');
   await input.waitForExist({ timeout: 10000 });
-  // Native date inputs need their value set directly and a React-visible
-  // "input" event fired — plain setValue/keys unreliably round-trips
-  // through the OS date picker under WebDriver.
+  // The box is a text field: set its text to a canonical ISO date (every region accepts it, like a paste)
+  // and fire the "input" event React listens to.
   await browser.execute((el, value) => {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
     setter.call(el, value);

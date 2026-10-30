@@ -10,6 +10,7 @@ import path from "node:path";
 import { TransactionsTable } from "./TransactionsTable";
 import { transactionColumnCount } from "./transactionHelpers";
 import type { Account, FamilyMember, Transaction } from "./types";
+import { blurTo, click, focus, key, typeInto, useHost } from "./calendar/calendarTestUtils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -417,5 +418,116 @@ describe("owner-expanded hidden destination pickers", () => {
       act(() => rows()[0].querySelector<HTMLButtonElement>("[data-row-menu]")!.click());
       expect(menuItem("Apply to a debt")).toBeUndefined();
     });
+  });
+});
+
+describe("TransactionsTable date editor", () => {
+  const host = useHost();
+  const row = [txn({ id: 1, date: "2026-08-10" })];
+  /** Holds the editing state and the save the way useTransactionRowActions does: saving closes the editor first. */
+  function DateHarness({ commit, hold }: { commit: (id: number, value: string) => void; hold?: boolean }) {
+    const [editingDate, setEditingDate] = useState<{ id: number; value: string } | null>({ id: 1, value: "2026-08-10" });
+    const props = baseProps(row, []);
+    return (
+      <TransactionsTable
+        {...props}
+        editingDate={editingDate}
+        setEditingDate={hold ? (vi.fn() as typeof setEditingDate) : setEditingDate}
+        commitDateEdit={async (id, value) => {
+          setEditingDate(null);
+          commit(id, value);
+        }}
+        confirmingDeleteId={null}
+        setConfirmingDeleteId={vi.fn()}
+        taggingId={null}
+        setTaggingId={vi.fn()}
+      />
+    );
+  }
+  const box = () => host.container.querySelector<HTMLInputElement>("input.row-edit-input")!;
+  const trigger = () => host.container.querySelector<HTMLButtonElement>(".date-field-trigger")!;
+  const calendar = () => document.querySelector('.calendar-popover[role="dialog"]');
+
+  it("saves the newest typed date exactly once on Enter, and not again as the editor goes away", () => {
+    const commit = vi.fn();
+    host.render(<DateHarness commit={commit} />);
+    focus(box());
+    typeInto(box(), "08/12/2026");
+    key(box(), "Enter");
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(commit).toHaveBeenCalledWith(1, "2026-08-12");
+    expect(box()).toBeNull();
+  });
+
+  it("saves what was typed even before the row's own state has caught up", () => {
+    const commit = vi.fn();
+    host.render(<DateHarness commit={commit} hold />);
+    focus(box());
+    typeInto(box(), "08/13/2026");
+    key(box(), "Enter");
+    expect(commit).toHaveBeenCalledWith(1, "2026-08-13");
+  });
+
+  it("saves once when focus leaves a valid date", () => {
+    const commit = vi.fn();
+    host.render(<DateHarness commit={commit} />);
+    focus(box());
+    typeInto(box(), "08/14/2026");
+    blurTo(box(), null);
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(commit).toHaveBeenCalledWith(1, "2026-08-14");
+  });
+
+  it("does not save because the calendar opened or a day was browsed, only when a day is confirmed", () => {
+    const commit = vi.fn();
+    host.render(<DateHarness commit={commit} />);
+    focus(box());
+    click(trigger());
+    expect(calendar()).not.toBeNull();
+    key(document.activeElement!, "PageDown");
+    expect(commit).not.toHaveBeenCalled();
+    click(document.querySelector("[data-date='2026-09-12']")!);
+    expect(commit).not.toHaveBeenCalled();
+    expect(calendar()).toBeNull();
+    expect(box().value).toBe("09/12/2026");
+    key(box(), "Enter");
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(commit).toHaveBeenCalledWith(1, "2026-09-12");
+  });
+
+  it("moving from the box to its calendar button does not save", () => {
+    const commit = vi.fn();
+    host.render(<DateHarness commit={commit} />);
+    focus(box());
+    blurTo(box(), trigger());
+    expect(commit).not.toHaveBeenCalled();
+    expect(box()).not.toBeNull();
+  });
+
+  it("Escape closes only an open calendar; a second Escape cancels the edit without saving", () => {
+    const commit = vi.fn();
+    host.render(<DateHarness commit={commit} />);
+    focus(box());
+    typeInto(box(), "08/20/2026");
+    click(trigger());
+    key(document.activeElement!, "Escape");
+    expect(calendar()).toBeNull();
+    expect(box()).not.toBeNull();
+    // Focus went back to the calendar button, so that is where the second Escape arrives.
+    expect(document.activeElement).toBe(trigger());
+    key(document.activeElement!, "Escape");
+    expect(box()).toBeNull();
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it("does not save a date that is not a date", () => {
+    const commit = vi.fn();
+    host.render(<DateHarness commit={commit} />);
+    focus(box());
+    typeInto(box(), "08/4");
+    key(box(), "Enter");
+    blurTo(box(), null);
+    expect(commit).not.toHaveBeenCalled();
+    expect(host.container.querySelector(".date-field-problem")).not.toBeNull();
   });
 });

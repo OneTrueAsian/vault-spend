@@ -4,6 +4,7 @@ import { ModalShell } from "./Modal";
 import "./SpendingScenarioDialog.css";
 import { date as isDate } from "./contractChecks";
 import { DateField } from "./DateField";
+import { useFieldValidity } from "./calendar/useFieldValidity";
 import { dateOutOfRange, DATE_RANGE_PROBLEM } from "./dateRange";
 import { scenarioBaselineProblem } from "./askVault/spendingScenarioMath";
 import type { ScenarioBaseline, SpendingScenarioCalculation, SpendingScenarioDraft, SpendingScenarioIntent } from "./askVault/spendingScenarioContract";
@@ -182,6 +183,8 @@ export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeT
     setForm(initialForm(screen));
   }
   const set = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
+  // Half-typed text in a date box leaves the last good date in the form; the choices must wait for it.
+  const dates = useFieldValidity();
 
   const close = (
     <button type="button" className="modal-secondary" onClick={onClose}>
@@ -231,7 +234,7 @@ export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeT
     const parts = monthly && range && range.kind !== "full-year-hypothetical" ? partMonths(range) : [];
     const asksPart = monthly && parts.length > 0 && (draft.missing.includes("partial-month") || asksHorizon);
     const whole = range && asksPart ? wholeMonthsOnly(range) : null;
-    const ready = unsupported.length === 0 && !blocked && (!asksCadence || form.cadence !== null) && cadence !== null && range !== null && (!asksPart || form.part !== null);
+    const ready = dates.valid && unsupported.length === 0 && !blocked && (!asksCadence || form.cadence !== null) && cadence !== null && range !== null && (!asksPart || form.part !== null);
 
     const finish = () => {
       if (!range) return;
@@ -300,7 +303,7 @@ export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeT
             <legend>Which date?</legend>
             <div className="modal-field scenario-date">
               <span>Date</span>
-              <DateField value={form.onceDate} min={earliest} max={ownRange?.to} ariaLabel="Date of the one-time cut" onChange={(iso) => set({ onceDate: iso })} />
+              <DateField value={form.onceDate} min={earliest} max={ownRange?.to} ariaLabel="Date of the one-time cut" onChange={(iso) => set({ onceDate: iso })} onValidityChange={dates.track("once")} />
             </div>
             <p className="modal-message-secondary scenario-secondary">A one-time cut counts once, on the date you choose. It can't be earlier than today.</p>
             {problem && (
@@ -320,11 +323,11 @@ export function SpendingScenarioDialog({ screen, onChoices, onConfirm, onChangeT
               <div className="scenario-dates">
                 <div className="modal-field">
                   <span>Start</span>
-                  <DateField value={form.customFrom} min={today} ariaLabel="Schedule start" onChange={(iso) => set({ customFrom: iso, part: null })} />
+                  <DateField value={form.customFrom} min={today} ariaLabel="Schedule start" onChange={(iso) => set({ customFrom: iso, part: null })} onValidityChange={dates.track("from")} />
                 </div>
                 <div className="modal-field">
                   <span>End</span>
-                  <DateField value={form.customTo} min={today} ariaLabel="Schedule end" onChange={(iso) => set({ customTo: iso, part: null })} />
+                  <DateField value={form.customTo} min={today} ariaLabel="Schedule end" onChange={(iso) => set({ customTo: iso, part: null })} onValidityChange={dates.track("to")} />
                 </div>
                 {range && <p className="modal-message-secondary scenario-secondary">{datesText(monthlyIntent(range.from, range.to))}</p>}
                 {problem && (

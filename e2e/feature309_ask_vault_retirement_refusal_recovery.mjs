@@ -31,7 +31,7 @@ function expectedFigures({ monthly = 0, once = 0, n, pct = 7 }) {
 const clickPrimary = async () => { const buttons = await (await h.dialog()).$$(".modal-actions button"); const last = buttons[buttons.length - 1]; await last.waitForEnabled({ timeout: 8000 }); await last.click(); };
 const chooseOption = text => b.execute(t => { const label = [...document.querySelectorAll('[role="dialog"] label.scenario-option')].find(l => l.textContent.trim() === t); if (!label) throw new Error(`no option "${t}"`); label.querySelector("input").click(); }, text);
 const setAmount = async value => { const input = await b.$('//div[@role="dialog"]//label[span[text()="Extra amount (dollars)"]]//input'); await input.click(); await input.setValue(value); };
-const setMonth = value => b.execute(v => { const input = document.querySelector('[role="dialog"] input[type=month]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, v); input.dispatchEvent(new Event("input", { bubbles: true })); }, value);
+const setMonth = value => b.execute(v => { const input = document.querySelector('[role="dialog"] [data-date-field="month"] input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, v); input.dispatchEvent(new Event("input", { bubbles: true })); }, value);
 const nextYearSameMonth = async () => b.execute(() => { const d = new Date(); return `${d.getFullYear() + 1}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
 
 /** Every figure in `expected` must be on the screen: balances as "$N", differences as "$N more" (or "less than $10 more"). */
