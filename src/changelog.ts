@@ -17,7 +17,34 @@ export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSect
 export const CHANGELOG: Record<string, ChangelogEntry> = {
   "1.3.2": {
     "New features": [
-      "Move transactions to another account. If an import went into the wrong account, tick the transactions, choose Move to account, check what will change, and confirm. Dates, amounts, categories, tags, notes and splits stay with them. It moves everything or nothing, and tells you why when a transaction can't move: it was already reconciled, is part of a linked transfer or debt payment, or would duplicate one that is already in the new account. Older transactions can move too: when the saved balances recorded what they counted they are corrected for you, and when they didn't (balances from earlier versions or ones you typed) you confirm each account's balance after the move and it applies from today. Older saved balances keep their values, so past months can show a gap where the move was made. Each move leaves a record in your profile, and a reply that never arrived is checked against it instead of moving twice.",
+      "Move transactions to another account without deleting and importing them again. Select the rows, choose Move to account, review the balance changes and confirm. Dates, amounts, categories, tags, notes and splits stay with the transactions. Reconciled rows, linked transfers, applied debt payments and duplicates keep their safeguards.",
+      "Older transactions can move too. Saved balances are corrected automatically when their records show what they counted; otherwise, you confirm each account's current balance after the move. Confirmed balances apply from today. Older saved balances keep their values, so past charts can still show gaps. Account move history shows completed moves and their before-and-after balances.",
+      "Match your CSV columns when a file's headings aren't recognized. Choose the date, description and amount columns, or separate money-out and money-in columns, with an optional category. Vault Spend can remember the choice for that account, and you can change it before importing.",
+      "Hide accounts you no longer use, and show them again when needed. Hidden accounts stay in balances, totals, reports and forecasts while staying out of choices for new transactions. Hiding never deletes their history.",
+      "Save Reports directly as a PDF on Windows using the app's Save window, including replacing an existing file. Print opens the system print window; other platforms keep Print / Save as PDF where direct saving is unavailable.",
+    ],
+    Enhancements: [
+      "Settings is reorganized into five groups, with search and a Quick settings area for your own shortcuts. Click a shortcut to open and highlight its setting. The extra Go to setting label is gone, and the layout keeps navigation and search in place while the settings scroll.",
+      "Date and month calendars now match Default, Futuristic and Retro in light and dark modes. You can type dates in your regional order or choose them with the calendar, including keyboard navigation and clearer validation.",
+      "Account pages now show transactions a few at a time, like the Transactions screen. Choose 25, 50 or 100, see how many are showing out of the total, and use Show more for the next batch.",
+      "Checkboxes are 20% larger, making them easier to see and click on smaller screens.",
+      "Move up to 10,000 matching transactions with Select all to move. Other bulk changes keep their 250-row limit. After a successful move, keyboard focus returns to the transaction list.",
+      "Rename a savings goal without losing its contributions, target, linked account or other details.",
+      "Help now explains updating the app, remembered statement layouts, statements being read on your computer, re-checking an Ask the Vault answer and reviewing completed account moves.",
+      "Password setup and Settings explain that the original unencrypted file and older backups remain readable until you use the plaintext-copy cleanup. Exports and other external copies may also remain readable.",
+      "Clearer button labels, counts and error messages throughout the app, including Review transactions in place of Review inbox and a readable date for the legal notice revision.",
+    ],
+    "Bug fixes": [
+      "Forecasts and the Dashboard runway now explain when there is not enough history. Everyday spending estimates wait until there are two weeks of transactions; scheduled bills and paychecks can still appear.",
+      "Monthly and yearly recurring items keep their original scheduled day across short months and leap years. Editing a recurring item no longer shows a false out-of-date warning.",
+      "The member filter can show just the person you choose. Household spending also includes an Unassigned line for transactions that have no member.",
+      "The Dashboard's net worth trend no longer adds today's property and valuables values to every past month. Their current value remains included in today's net worth total.",
+      "Printed Reports include all pages, and category headings no longer break in the middle of a word.",
+      "Fixed imports from compact OFX and QFX files, with clearer messages for CSV files that cannot be read.",
+      "Improved keyboard access to scrolling report tables and the daily-spending heatmap. Icon pickers close with Escape, popovers close when focus leaves, and profile and import-selection controls have clearer accessible names.",
+      "Fixed clipped text, uneven alignment and repeated chart labels. Text and controls are easier to read in account and transaction dialogs, the command palette and the update banner.",
+      "Live-price provider error messages no longer expose request links that could contain your API key.",
+      "If the app cannot make a safety copy before upgrading your data, it explains the backup problem and leaves the data unchanged instead of suggesting that the file is damaged.",
     ],
   },
   "1.3.1": {
