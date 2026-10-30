@@ -237,7 +237,6 @@ export function SettingsPage({
                             <span className="settings-path">{pathOf(entry)}</span>
                             <span className="settings-result-label">{entry.label}</span>
                           </button>
-                          <span className="settings-quick-cue" aria-hidden="true">Go to setting →</span>
                           <button type="button" className="settings-quick-remove" aria-label={`Remove ${entry.label} from Quick settings`} title="Remove" onClick={() => quick.remove(entry.id)}>
                             ×
                           </button>

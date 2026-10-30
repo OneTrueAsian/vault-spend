@@ -287,7 +287,7 @@ describe("SettingsPage", () => {
       expect(entries[0].querySelector(".settings-path")?.textContent).toBe("Data");
       expect(entries[1].querySelector(".settings-path")?.textContent).toBe("Profiles & security");
       expect(entries[2].querySelector(".settings-path")?.textContent).toBe("Data");
-      expect(entries[2].textContent).toContain("Go to setting →");
+      expect(quick.textContent).not.toContain("Go to setting →");
     });
 
     it("takes the person to the setting and never runs its action", async () => {

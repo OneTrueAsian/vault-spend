@@ -335,14 +335,6 @@
   border-bottom: none;
 }
 
-.settings-quick-cue {
-  margin-right: 6px;
-  color: var(--accent-soft-text);
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
 .settings-quick-remove {
   border: 0;
   background: none;
