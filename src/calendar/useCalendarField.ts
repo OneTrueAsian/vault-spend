@@ -38,14 +38,11 @@ const DEFAULT_RANGE_MESSAGE = "Choose a date between 1900 and 2100.";
 /** Locale changes mid-session (the browser's language list); a dirty draft keeps its original locale until it ends. */
 function useBrowserLocale(requested: string | undefined): string {
   const [locale, setLocale] = useState(() => resolveLocale(requested));
-  const pending = useRef(locale);
   useEffect(() => {
     const next = resolveLocale(requested);
-    pending.current = next;
     setLocale(next);
     const onChange = () => {
       const changed = resolveLocale(requested);
-      pending.current = changed;
       setLocale(changed);
     };
     window.addEventListener("languagechange", onChange);

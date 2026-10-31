@@ -330,6 +330,22 @@ mod tests {
     }
 
     #[test]
+    fn oversized_lane_counts_are_refused_in_either_key_slot_without_panicking() {
+        let good = create("pw").key_file;
+        let mut password_slot = good.clone();
+        password_slot.password_slot.kdf.p = u32::MAX;
+        let mut recovery_slot = good;
+        recovery_slot.recovery_slot.kdf.p = u32::MAX;
+
+        for file in [password_slot, recovery_slot] {
+            assert!(matches!(
+                KeyFile::from_json(&file.to_json()),
+                Err(ProtectionError::KdfOutOfBounds(_))
+            ));
+        }
+    }
+
+    #[test]
     fn malformed_files_are_refused_with_a_readable_error() {
         let good = create("pw").key_file;
         let mut bad_base64 = good.clone();

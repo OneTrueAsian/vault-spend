@@ -8,8 +8,10 @@ export type DonutSlice = { label: string; amount: string; share: number; color: 
  * slice and the rest share one "Other" slice, and no two slices can look alike. */
 export function donutSlices(categories: [string, string][], maxSlices = CATEGORY_COLORS.length): DonutSlice[] {
   const spent = categories
-    .filter(([, amount]) => units(amount) > 0n)
-    .sort((a, b) => (units(a[1]) > units(b[1]) ? -1 : units(a[1]) < units(b[1]) ? 1 : a[0].localeCompare(b[0])));
+    .map(([label, amount]) => ({ label, amount, value: units(amount) }))
+    .filter(({ value }) => value > 0n)
+    .sort((a, b) => (a.value > b.value ? -1 : a.value < b.value ? 1 : a.label.localeCompare(b.label)))
+    .map(({ label, amount }): [string, string] => [label, amount]);
   const rows: [string, string][] =
     spent.length <= maxSlices ? spent : [...spent.slice(0, maxSlices - 1), ["Other", addMoney(spent.slice(maxSlices - 1).map(([, a]) => a))]];
   const total = rows.reduce((sum, [, amount]) => sum + Number(amount), 0);

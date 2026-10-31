@@ -4,7 +4,8 @@ The desktop app checks release metadata in the backend and offers a fixed offici
 release-page link. Its native signed-update service can verify, download and open
 an installer after explicit confirmation. The legacy arbitrary download command
 and renderer permission to open temporary files remain removed. The public trust
-registry is empty until owner-controlled production setup is completed. See
+registry embeds the `release-2026` public key. Its presence alone does not certify
+key custody, successful release publication or real installation acceptance. See
 [key custody, CI setup and activation](UPDATE-SIGNING.md).
 
 ## Backend transport and staging checkpoint
@@ -93,8 +94,9 @@ renderer opener command without downloading or executing an installer.
 
 ## Production activation remaining
 
-1. Generate and protect a production key outside source, promote only its public
-   registry, and configure the protected signing environment using UPDATE-SIGNING.md.
+1. Verify custody of the production key matching the embedded public registry and
+   the protected signing environment using UPDATE-SIGNING.md. Keep private key
+   material outside source; public-key presence does not establish those controls.
 2. Publish a new approved release with complete metadata for both platforms. Check
    real final-byte signatures and partial-publication recovery. Update signatures
    do not establish Authenticode or notarization.

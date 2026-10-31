@@ -1,3 +1,4 @@
+```mermaid
 flowchart TD
 
 subgraph group_interface["Desktop interface"]
@@ -108,3 +109,4 @@ class node_dashboard,node_ledger,node_budget,node_cashflow,node_recurring,node_i
 class node_commands,node_runtime,node_background,node_price_service toneMint
 class node_profiles,node_protection,node_store,node_importers,node_rules,node_backups toneRose
 class node_github,node_price_provider toneIndigo
+```

@@ -39,7 +39,6 @@ export function DateCalendar({
   const [page, setPage] = useState<MonthRecord>(() => ({ year: (start ?? today).year, month: (start ?? today).month }));
   const [view, setView] = useState<"days" | "months">("days");
   const grid = useRef<HTMLTableElement>(null);
-  const jump = useRef<HTMLButtonElement>(null);
   const wantsFocus = useRef(true);
 
   // Focus follows the keyboard: after a move, the cell for the focused date takes focus (and on opening).
@@ -127,7 +126,7 @@ export function DateCalendar({
           <span aria-hidden="true">{rtl ? "›" : "‹"}</span>
         </button>
         <h2 id={labelId} className="calendar-heading" aria-live="polite">
-          <button ref={jump} type="button" className="calendar-jump" aria-label={`${heading}, choose month and year`} disabled={bounds.empty} onClick={() => setView("months")}>
+          <button type="button" className="calendar-jump" aria-label={`${heading}, choose month and year`} disabled={bounds.empty} onClick={() => setView("months")}>
             {heading} <span aria-hidden="true" className="calendar-caret">▾</span>
           </button>
         </h2>

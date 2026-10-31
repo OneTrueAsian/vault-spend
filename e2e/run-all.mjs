@@ -10,13 +10,9 @@
 //   node e2e/run-all.mjs --spec=smoke      # quick launch check
 //   node e2e/run-all.mjs --list            # show selected specs without launching
 //
-// Default was benchmarked on this machine (16 logical cores) at 4/6/8 with
-// this same runner: 4 ~66.8s avg, 6 ~55.2s avg, 8 ~53.5s avg but with an
-// early sign of resource contention (one spec spiking to 15.3s that
-// normally takes ~4-6s). 6 gets essentially all of 8's wall-time benefit
-// without pushing into that contention zone — see the "reduce E2E testing
-// time" report for the full methodology. Re-benchmark if the spec count or
-// machine changes meaningfully.
+// Six is the pool limit inherited from the historical "reduce E2E testing time"
+// measurements. Current source-bound approvals determine whether any specs can
+// share that pool; without them the classified run is serial regardless of this limit.
 
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -59,9 +55,8 @@ if (!["pool", "classified"].includes(schedule)) {
 
 // A spec hanging (a WebDriver session that never resolves, a blocking
 // native dialog nothing dismisses) used to be able to stall this runner
-// indefinitely — one stuck worker slot, forever. Every current spec finishes
-// in single-digit-to-teens seconds, so 60s is a generous ceiling that only
-// ever fires on a genuine hang, not a slow-but-fine run.
+// indefinitely — one stuck worker slot, forever. The default ceiling and bounded
+// hosted override are defined in specTimeout.mjs; a timeout records a failure.
 const SPEC_TIMEOUT_MS = resolveSpecTimeout();
 
 const allSpecs = ["smoke.mjs", ...fs.readdirSync(e2eDir).filter((f) => /^feature\d+.*\.mjs$/.test(f)).sort(

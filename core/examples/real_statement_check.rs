@@ -186,13 +186,13 @@ fn vocab_line(text: &str) -> String {
     text.split_whitespace()
         .map(|tok| {
             let core: String = tok.chars().filter(|c| c.is_alphabetic() || *c == '-').collect::<String>().to_lowercase();
-            let has_digit = tok.chars().any(|c| c.is_ascii_digit());
+            let has_digit = tok.chars().any(|c| c.is_numeric());
             let has_letter = tok.chars().any(|c| c.is_alphabetic());
             if has_digit {
                 if has_letter {
                     "~9".to_string()
                 } else {
-                    tok.chars().map(|c| if c.is_ascii_digit() { '9' } else { c }).collect()
+                    tok.chars().map(|c| if c.is_numeric() { '9' } else { c }).collect()
                 }
             } else if !has_letter || VOCAB.contains(&core.as_str()) {
                 tok.to_string()
@@ -208,7 +208,7 @@ fn vocab_line(text: &str) -> String {
 fn shape(text: &str) -> String {
     text.chars()
         .map(|c| {
-            if c.is_ascii_digit() {
+            if c.is_numeric() {
                 '9'
             } else if c.is_uppercase() {
                 'A'
@@ -471,4 +471,21 @@ fn main() {
     }
     println!("{failures} section(s) need attention");
     std::process::exit(if failures == 0 { 0 } else { 1 });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{shape, vocab_line};
+
+    #[test]
+    fn diagnostic_masks_hide_unicode_numbers_and_private_words() {
+        assert_eq!(vocab_line("Balance $１２.٣٤ PrivateName ²½"), "Balance $99.99 ~ 99");
+        assert_eq!(shape("Ab １２.٣٤ ²½"), "Aa 99.99 99");
+    }
+
+    #[test]
+    fn diagnostic_masks_preserve_existing_ascii_structure() {
+        assert_eq!(vocab_line("Total $123.45 PrivateName"), "Total $999.99 ~");
+        assert_eq!(shape("Ab 123.45"), "Aa 999.99");
+    }
 }

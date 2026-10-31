@@ -162,8 +162,8 @@ Desktop local runtime code uses Tauri IPC. Its CSP and source graph guard are
 complementary; backend remote update/price requests have their own policies.
 Fonts are bundled. [Network boundaries](RENDERER-NETWORK-BOUNDARIES.md) explain
 what the guard covers and what it cannot prove. [Updater trust](UPDATE-TRUST.md)
-distinguishes fixture-tested verification/staging from deferred production signing
-and installer integration; manual release-page fallback remains the UI path.
+distinguishes fixture-tested verification/staging from production publication
+and real installer acceptance; the manual release-page fallback remains available.
 
 Mobile requests intentionally use approved same-origin routes. Desktop service
 authorization requires approved device/profile access and an active unlocked

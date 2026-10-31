@@ -1,25 +1,15 @@
 # Dependency advisories
 
-Status of `npm audit` findings, so a failing audit can be told apart from a new problem. Reviewed 2026-10-02.
+Use [Dependency security gates](DEPENDENCY-SECURITY.md) and
+`tools/audit-dependencies.mjs` for the current policy and scan procedure.
+Production and development npm findings block the gate; there is no standing
+exception for desktop test tooling. A passing historical scan does not establish
+the status of a later lockfile or advisory database.
 
-## Shipped app
-
-`npm audit --omit=dev` reports **0** advisories. Nothing below is part of the installed app.
-
-## Development tools (accepted)
-
-`npm audit` reports 10 high-severity entries. They all come from one chain in the desktop test tooling:
-
-```
-webdriverio 9 → @wdio/utils → @puppeteer/browsers → extract-zip
-                                                  → proxy-agent → pac-proxy-agent → get-uri → basic-ftp
-```
-
-The 10 entries come from two underlying advisories:
-
-| Package | Advisory | Why it does not reach this project |
-|---|---|---|
-| `extract-zip` | Path traversal and arbitrary file writes through crafted zip files | `@puppeteer/browsers` unzips browsers it downloads. The E2E suite never downloads a browser. It drives the installed WebView2 through `tauri-driver` and the local `msedgedriver` (see `e2e/README.md`). |
-| `basic-ftp` | Slow (quadratic-time) parsing of crafted FTP server replies | It is only used for `ftp://` proxy auto-config URLs. The tests make no FTP or proxy connections. |
-
-`npm audit fix` has applied every non-breaking update. The only remaining fix npm offers is a downgrade to WebdriverIO 8, which would be a step backwards. Revisit when WebdriverIO 9 ships a `@puppeteer/browsers` release without these packages. Rerun the full E2E suite after any WebdriverIO change.
+The October 2, 2026 review recorded ten high-severity development entries through
+WebDriverIO's browser-download dependency chain (`extract-zip` and `basic-ftp`).
+That review is historical, not a current acceptance decision. The maintained
+`@puppeteer/browsers` override in `package.json` subsequently removed that chain.
+The browser-download contract and security policy have their own tests under
+`tools/`; run the documented audits for each release target rather than relying
+on the old count or downgrading WebDriverIO automatically.

@@ -1,11 +1,11 @@
-# Native integration inventory — October 9, 2026
+# Native integration inventory
 
 There are no production `<select>` or `<datalist>` elements. EditableCombobox,
 MenuSelect and the specialized row/icon controls own their popup styling.
-Browser/OS calendar and file/print popups remain native integrations, with no
-promise to recolor them.
+File and print dialogs remain native integrations, with no promise to recolor
+them. Date and month calendars are drawn by the app and use its theme tokens.
 
-Ten DateField call sites retain native date editing/calendar behavior:
+DateField callers include:
 
 | File | Use |
 |---|---|
@@ -17,10 +17,13 @@ Ten DateField call sites retain native date editing/calendar behavior:
 | RecurringView | New bill and existing bill next due date |
 | comparisons/AmountEditor | Date measured |
 
-One MonthField in AccumulationSection retains a native month picker for Withdraw
-month. Both fields share themed resting presentation; their popup remains native.
+MonthField callers include the Withdraw month in AccumulationSection. DateField
+and MonthField share `src/calendar/CalendarField.tsx`: regional text entry and an
+app-drawn calendar popup. Their compiled workflow, theme, keyboard and contrast
+checks are described in `e2e/README.md` (features 370–373). These caller examples
+are not an exhaustive inventory.
 
-Twelve file/folder/save call sites remain:
+The earlier file/folder/save inventory records these call sites:
 
 | File | Integration | Routing |
 |---|---|---|

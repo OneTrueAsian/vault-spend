@@ -1,5 +1,5 @@
 // Measures where launch and data loading spend their time, on a disposable synthetic profile.
-// Run after `npx tauri build --debug --no-bundle`:
+// Run after `npm run build:app`, with an exclusive measurement window:
 //
 //   node tools/startup-perf.mjs [rows=5000] [concentrated|spread] [look-alike|distinct]
 //

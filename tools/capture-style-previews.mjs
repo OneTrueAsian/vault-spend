@@ -6,11 +6,10 @@
 // screenshot into a 480x300 WebP of at most 60 KB. The conversion runs on a canvas inside the app's
 // own WebView (no image library is installed), from the screenshot's bytes, not a URL.
 //
-// Run after `npx tauri build --debug --no-bundle`, from the repository root:
+// Run after `npm run build:app`, from the repository root:
 //   node tools/capture-style-previews.mjs
 // It uses VAULTSPEND_EXE like the e2e suite, when set.
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dismissFirstLaunchDialogs, dismissStatusMessages, launchApp, waitForDataLoaded } from "../e2e/harness.mjs";

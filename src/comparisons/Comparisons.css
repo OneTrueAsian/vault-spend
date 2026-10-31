@@ -311,12 +311,6 @@
 
 /* ---- details dialog ---- */
 
-.cmp-details {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
 .cmp-details-heading {
   margin: 0 0 8px;
   color: var(--text-muted);

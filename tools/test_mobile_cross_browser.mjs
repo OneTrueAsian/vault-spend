@@ -1,7 +1,7 @@
 // Native browser engines with synthetic, ingress-validated snapshots. HTTP loopback only:
 // this tests UI/storage/worker compatibility, not TLS or phone/home-screen trust.
 import assert from "node:assert/strict";
-import { readFile,mkdir,writeFile,mkdtemp } from "node:fs/promises";
+import { readFile,mkdir,writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import os from "node:os";

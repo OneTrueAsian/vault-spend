@@ -4,7 +4,6 @@
 export type Money = string;
 export type ComparisonMode = "household" | "individual";
 export type MetricId = "spending" | "investments" | "income" | "savings" | "debt";
-export const METRIC_ORDER: MetricId[] = ["spending", "investments", "income", "savings", "debt"];
 export type Universe = "all" | "holders";
 
 export type PersonRef = { kind: "owner" } | { kind: "member"; id: number };

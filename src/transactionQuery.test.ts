@@ -22,9 +22,10 @@ function account(overrides: Partial<Account> = {}): Account {
   };
 }
 
+let nextTransactionId = 1;
 function tx(overrides: Partial<Transaction> = {}): Transaction {
   return {
-    id: Math.floor(Math.random() * 1e9),
+    id: nextTransactionId++,
     transfer_counterpart_id: null,
     account_id: 1,
     account_name: "Everyday Checking",
@@ -86,6 +87,13 @@ describe("runQuery — metrics", () => {
 
   it("min is the single smallest matching magnitude", () => {
     expect(runQuery({ metric: "min", sign: "expense", subject }, c).value).toBeCloseTo(20);
+  });
+
+  it("computes extrema for a large history without spreading rows into function arguments", () => {
+    const history = ctx({ transactions: Array.from({ length: 150_000 }, (_, id) =>
+      tx({ id, amount: id % 2 === 0 ? "-12.50" : "-75.25" })) });
+    expect(runQuery({ metric: "max", sign: "expense" }, history).value).toBe(75.25);
+    expect(runQuery({ metric: "min", sign: "expense" }, history).value).toBe(12.5);
   });
 
   it("returns 0, not NaN, for a query with zero matches", () => {
@@ -228,6 +236,21 @@ describe("runQuery — period filtering", () => {
     );
     expect(result.count).toBe(1);
     expect(result.value).toBeCloseTo(20);
+  });
+
+  it("includes both boundary dates and leaves the query and history unchanged", () => {
+    const period = { from: new Date(2026, 6, 1), to: new Date(2026, 6, 31) };
+    const history = ctx({ transactions: [
+      tx({ date: "2026-06-30", amount: "-100.00" }),
+      tx({ date: "2026-07-01", amount: "-10.00" }),
+      tx({ date: "2026-07-31", amount: "-20.00" }),
+      tx({ date: "2026-08-01", amount: "-100.00" }),
+    ] });
+    const before = JSON.stringify({ period, transactions: history.transactions });
+    const result = runQuery({ metric: "sum", sign: "expense", period }, history);
+    expect(result.value).toBe(30);
+    expect(result.matches.map(row => row.date)).toEqual(["2026-07-01", "2026-07-31"]);
+    expect(JSON.stringify({ period, transactions: history.transactions })).toBe(before);
   });
 
   it("with no period, every matching transaction counts regardless of date", () => {

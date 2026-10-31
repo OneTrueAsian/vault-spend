@@ -1,5 +1,5 @@
 // Ad-hoc driver for poking at the real compiled Vault Spend app from the
-// command line, on top of e2e/harness.mjs (the same launcher the 30+
+// command line, on top of e2e/harness.mjs (the same launcher the existing
 // e2e/feature*.mjs specs use). Use this for one-off exploration/screenshots
 // without writing a throwaway spec file; use e2e/harness.mjs directly (see
 // an existing e2e/feature*.mjs for the pattern) for anything that grows past
@@ -95,7 +95,7 @@ async function run() {
         case "fill": {
           const [css, value] = args;
           await browser.$(css).setValue(value);
-          console.log(`fill ${css} = ${JSON.stringify(value)}`);
+          console.log(`fill ${css}`);
           break;
         }
         case "text": {

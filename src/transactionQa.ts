@@ -44,10 +44,6 @@ export const TRANSACTION_QA_EXAMPLES = [
   "compare this month to last month",
 ];
 
-function match(result: RegExpMatchArray | null): RegExpMatchArray | null {
-  return result;
-}
-
 // ---------------------------------------------------------------------------
 // Bucket lookup — the one fuzzy-find consumer not part of the transaction
 // query engine (bucket progress isn't a transaction-aggregate question),
@@ -545,7 +541,7 @@ export function answerTransactionQuestion(question: string, ctx: QaContext): QaR
   const q = question.trim().toLowerCase().replace(/[?.!]+$/, "");
 
   for (const intent of INTENTS) {
-    const m = match(q.match(intent.pattern));
+    const m = q.match(intent.pattern);
     if (m) return { matched: true, answer: intent.handle(m, ctx) };
   }
 

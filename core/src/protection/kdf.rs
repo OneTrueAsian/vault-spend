@@ -31,7 +31,8 @@ impl KdfParams {
     /// Bounds that protect against a modified key file demanding unbounded memory or time.
     /// They do not depend on the computer.
     pub fn validate(&self) -> Result<(), ProtectionError> {
-        let ok = self.t >= 1 && self.p >= 1 && self.m_kib >= 8 * self.p && self.m_kib <= MAX_M_KIB && self.t <= MAX_T && self.p <= MAX_P;
+        // Bound the untrusted lane count before multiplying it for Argon2's minimum memory.
+        let ok = self.t >= 1 && self.p >= 1 && self.p <= MAX_P && self.m_kib >= 8 * self.p && self.m_kib <= MAX_M_KIB && self.t <= MAX_T;
         if ok {
             Ok(())
         } else {
@@ -94,6 +95,8 @@ mod tests {
             KdfParams { m_kib: 262_145, t: 3, p: 1 },
             KdfParams { m_kib: 65_536, t: 11, p: 1 },
             KdfParams { m_kib: 65_536, t: 3, p: 9 },
+            KdfParams { m_kib: 65_536, t: 3, p: u32::MAX },
+            KdfParams { m_kib: 65_536, t: 3, p: u32::MAX / 8 + 1 },
             KdfParams { m_kib: 65_536, t: 0, p: 1 },
             KdfParams { m_kib: 65_536, t: 3, p: 0 },
             KdfParams { m_kib: 7, t: 3, p: 1 },

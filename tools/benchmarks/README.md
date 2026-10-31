@@ -26,11 +26,13 @@ python tools/benchmarks/validate.py core/data/benchmarks
   until a maintainer reviews it and updates the pin.
 * `--offline` never touches the network; tests and release validation use it.
 * `--check` rebuilds in memory and fails if `core/data/benchmarks/` differs. Same inputs give byte-identical output.
-* Writing is validate-then-replace: a failed build leaves the previous package untouched.
+* Writing validates and stages all files before replacing them individually. Validation failure leaves
+  the previous package untouched; an I/O failure during replacement can leave a mixed package, which
+  must pass `validate.py` before use. Replacement is atomic per file, not across all three files.
 * `validate.py` rejects synthetic packages, duplicate ids, overlapping age bands for one definition,
   non-decimal or missing values, unknown sources, and CPI bases that were never published.
 
-## What is in the package (2026.09.1)
+## What is in the package (2026.10.2)
 
 | Metric | Mode | Source | Population | Notes |
 | --- | --- | --- | --- | --- |
@@ -39,16 +41,18 @@ python tools/benchmarks/validate.py core/data/benchmarks
 | savings | household | SIPP 2025 wealth tables (Table 1) | households holding financial-institution assets | median, holders only |
 | investments | household | SIPP wealth tables | holders of retirement accounts / of stocks and mutual funds | median, holders only |
 | debt | household | SIPP debt tables | holders of total / home / credit-card / student-loan debt | median, holders only |
+| spending | household | BLS Consumer Expenditure Surveys 2024 API series | consumer units by age of reference person | mean, all consumer units; no standard errors published by these series |
 
-Not shipped, and documented under `gaps` in the manifest: household spending (BLS CE blocks automated
-downloads), and every individual-mode domain except income (the sources publish households only).
+Not shipped, and documented under `gaps` in the manifest: every individual-mode domain except income
+(the other sources publish households or consumer units only).
 The app shows these as visible "unavailable" cards; nothing is substituted.
 
 ## Decisions a reviewer should know about
 
 * **Finest cohorts only.** Roll-up rows (25-34 over 25-29 and 30-34) are dropped so a definition never has
   overlapping bands. A user who enters the band 25-34 therefore gets a cohort choice (see Task 3).
-* **Medians only.** Means and medians for the same cohort would make one age match two statistics.
+* **One statistic per definition/cohort.** Census references use medians; the BLS CE spending reference
+  uses the published mean and labels that difference. Means and medians are not substituted for one another.
 * **Holders only.** SIPP medians are conditional on owning the asset (the workbook notes say so). The
   all-households statistic is not derivable from a median, so no "all peers" reference is shipped for them.
 * **Income dollar basis.** CPS income is for 2025 in 2025 dollars. The October 2025 CPI was never published,

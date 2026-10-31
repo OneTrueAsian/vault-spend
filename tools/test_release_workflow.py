@@ -61,11 +61,11 @@ class RecoveryWorkflowTests(unittest.TestCase):
         self.assertIn('medium integrity', result.stderr)
         self.assertIsNone(commands)
 
-    def test_desktop_gate_preserves_full_coverage_and_failure_exit(self):
+    def test_desktop_gate_preserves_full_coverage_serial_retry_policy_and_failure_exit(self):
         import json
         result, commands = self.execute_desktop_gate('S-1-16-8192', 'full', 17)
         self.assertEqual(result.returncode, 17, result.stderr)
-        self.assertEqual(json.loads(commands), ['run', 'e2e', '--', '--concurrency=1'])
+        self.assertEqual(json.loads(commands), ['run', 'e2e', '--', '--concurrency=1', '--retry-failed'])
 
     def test_desktop_gate_smoke_success_is_forwarded(self):
         import json

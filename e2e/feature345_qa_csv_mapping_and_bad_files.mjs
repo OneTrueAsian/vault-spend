@@ -1,5 +1,5 @@
 // UAT-068 (separate money-out / money-in columns), UAT-069 (blank and repeated headings, plain-language validation) and UAT-079 (files the importer cannot fully read:
-// rows with a bad date or amount, a file with nothing readable, an empty file, a Latin-1 file, an Excel UTF-8 byte-order-mark file and a large file).
+// rows with a bad date or amount, a file with nothing readable, an empty file, a Latin-1 file, an Excel UTF-8 byte-order-mark file, Unicode QIF field codes and a large file).
 // Driven through the real Import transactions gesture with the stubbed file picker, as feature315. Descriptions start QQXZ so the checks read only this spec's rows.
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -19,6 +19,8 @@ const write = (name, text) => { const f = path.join(dir, name); fs.writeFileSync
 const split = write("split.csv", [`When,What,Out,In,Ref`, `${d(3)},QQXZ SPLIT CAFE,12.50,,r1`, `${d(4)},QQXZ SPLIT PAYROLL,,900.00,r2`, ""].join("\n"));
 const repeated = write("repeated.csv", [`,Memo,,Memo,Amt`, `${d(5)},QQXZ WRONG ONE,x,QQXZ REPEATED SHOP,-5.00`, ""].join("\n"));
 const mixed = write("mixed.csv", ["date,description,amount", `${d(6)},QQXZ GOOD ONE,-1.00`, `not-a-date,QQXZ BAD DATE,-2.00`, `${d(7)},QQXZ BAD AMOUNT,twelve`, `${d(8)},QQXZ GOOD TWO,-3.00`, ""].join("\n"));
+const qifDate = iso => { const [year, month, day] = iso.split("-"); return `${month}/${day}/${year}`; };
+const unicodeQif = write("unicode.qif", `!Type:Bank\nD${qifDate(d(6))}\néUnknown field\nT-7.00\nPQQXZ QIF FIRST\n^\n日本語\n^\nD${qifDate(d(8))}\nT-8.00\nPQQXZ QIF SECOND\n^\n`);
 const unreadable = write("unreadable.csv", ["date,description,amount", `not-a-date,QQXZ NOPE A,-2.00`, `${d(9)},QQXZ NOPE B,abc`, ""].join("\n"));
 const empty = write("empty.csv", "");
 const latin = path.join(dir, "latin1.csv");
@@ -135,6 +137,15 @@ try {
   assert.ok(names.includes("QQXZ GOOD ONE") && names.includes("QQXZ GOOD TWO"));
   assert.ok(!names.includes("QQXZ BAD DATE") && !names.includes("QQXZ BAD AMOUNT"), "bad rows were not imported");
 
+  // Unknown QIF field codes can be Unicode: ignore them safely and report an invalid record normally.
+  await startWith(unicodeQif);
+  await reachReview();
+  assert.equal((await reviewRows()).length, 2, "valid QIF records on both sides of an invalid record are offered");
+  assert.ok((await summary()).includes("1 row couldn't be read"), await summary());
+  await confirmImport();
+  const qifAmounts = Object.fromEntries((await qqxz()).filter(t => t.description.startsWith("QQXZ QIF")).map(t => [t.description, Number(t.amount)]));
+  assert.deepEqual(qifAmounts, { "QQXZ QIF FIRST": -7, "QQXZ QIF SECOND": -8 });
+
   // Nothing readable: a plain notice, nothing to import.
   const before = (await qqxz()).length;
   await startWith(unreadable);
@@ -191,7 +202,7 @@ try {
   assert.equal((await reviewRows()).length, largeRows, "every row of a large file is offered");
   await confirmImport();
   assert.equal((await qqxz()).filter((t) => t.description.startsWith("QQXZ LARGE")).length, largeRows, "every row of a large file is imported");
-  console.log("FEATURE 345 PASSED: split money columns, repeated and blank headings, bad rows, empty/unreadable/BOM/Latin-1 files and a 2,000-row file behave as described.");
+  console.log("FEATURE 345 PASSED: split money columns, repeated and blank headings, bad rows, Unicode QIF fields, empty/unreadable/BOM/Latin-1 files and a 2,000-row file behave as described.");
 } finally {
   await app.close();
   fs.rmSync(dir, { recursive: true, force: true });

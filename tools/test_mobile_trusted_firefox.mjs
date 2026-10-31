@@ -2,7 +2,7 @@
 // scoped to a copied test browser and its disposable profile, never the OS store.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { cp,mkdir,mkdtemp,writeFile,readFile } from "node:fs/promises";
+import { cp,mkdir,writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { firefox } from "playwright";
