@@ -27,11 +27,9 @@ pub struct ImportRow {
     pub description: String,
     pub amount: String,
     pub is_duplicate: bool,
-    /// The row's own Account column, when the source file has one (this
-    /// app's own Transactions CSV export does; a real bank export never does) —
-    /// `commit_import` routes the row there by default (creating that
-    /// account if it doesn't exist yet) unless the user picks a different
-    /// one for it on the review screen.
+    /// The row's own Account column, when the source file has one. A matching existing account
+    /// is preselected; an unfamiliar name uses the selected default account. The user can pick
+    /// another existing account on the review screen. Transaction imports never create accounts.
     pub account_name: Option<String>,
     /// The row's own Category column, when the file has one (a bank's CSV export does) —
     /// what the file calls it, not necessarily a category the person has.
@@ -263,6 +261,19 @@ pub fn preview_import(
     )
 }
 
+/// A file can identify an existing account, but cannot create one. Preview and commit use the
+/// same fallback so duplicate detection and the displayed destination agree with what is saved.
+fn resolve_import_account(state: &AppState, file_name: Option<&str>, default_account_id: i64) -> Result<i64, String> {
+    match file_name {
+        Some(name) => state
+            .store
+            .find_account_by_name(name)
+            .map(|id| id.unwrap_or(default_account_id))
+            .map_err(|e| e.to_string()),
+        None => Ok(default_account_id),
+    }
+}
+
 /// `preview_import` against an already-locked profile. A pure read: nothing is created or remembered.
 fn preview_import_for(
     state: &mut AppState,
@@ -278,10 +289,7 @@ fn preview_import_for(
 
     let mut resolved_accounts = Vec::with_capacity(loaded.transactions.len());
     for index in 0..loaded.transactions.len() {
-        let resolved = match loaded.account_names.get(index).and_then(|o| o.as_deref()) {
-            Some(name) => state.store.find_account_by_name(name).map_err(|e| e.to_string())?.unwrap_or(account_id),
-            None => account_id,
-        };
+        let resolved = resolve_import_account(state, loaded.account_names.get(index).and_then(|o| o.as_deref()), account_id)?;
         resolved_accounts.push(resolved);
     }
 
@@ -351,12 +359,10 @@ fn preview_import_for(
 /// Inserts exactly the rows the user chose to keep on the review screen.
 /// Each row's account is: whatever the user explicitly picked for it on
 /// the review screen, if anything; else the row's own Account column from
-/// the file, resolved by name — case-insensitively, auto-creating a new
-/// account if nothing matches, same as picking a never-before-seen name
-/// when creating one by hand — so a full multi-account Transactions export
-/// re-imports into the right accounts with zero manual setup; else
-/// `default_account_id` (the one picked before the file was chosen), for
-/// a real bank export with no Account column at all. Unlike the old
+/// the file, resolved by name to an existing account, case-insensitively; else
+/// `default_account_id` (the one picked before the file was chosen), including when the file
+/// names an account the person does not have. Transaction imports never create accounts.
+/// Unlike the old
 /// preview-time duplicate check, nothing here re-decides what counts as a
 /// duplicate — the user already made that call by checking or unchecking
 /// each row.
@@ -550,13 +556,11 @@ fn commit_import_for(state: &mut AppState, req: CommitImportRequest) -> Result<I
             (RowCategory::AsFiled, Some(Automatic::File(name))) => Some(name),
             _ => None,
         };
-        let account = if let Some(explicit) = req.account_overrides.get(&index).copied() {
-            ImportAccount::Existing(explicit)
-        } else if let Some(name) = loaded.account_names.get(index).and_then(|o| o.as_deref()) {
-            ImportAccount::Named(name.to_string())
-        } else {
-            ImportAccount::Existing(req.default_account_id)
+        let account_id = match req.account_overrides.get(&index).copied() {
+            Some(explicit) => explicit,
+            None => resolve_import_account(state, loaded.account_names.get(index).and_then(|o| o.as_deref()), req.default_account_id)?,
         };
+        let account = ImportAccount::Existing(account_id);
         batch.rows.push(ImportBatchRow {
             account,
             transaction,

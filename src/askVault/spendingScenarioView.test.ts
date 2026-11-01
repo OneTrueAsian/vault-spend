@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fixtureBaseline, fixtureIntent, fixtureOnce, fixturePartMonth, fixturePreview, noHistoryBaseline, shortHistoryBaseline } from "./spendingScenarioFixtures";
-import { ROUNDING_NOTE, baselineRows, countedMonths, datesText, longDate, monthLabel, partMonthText, reductionText, resultView, usualMonthText } from "./spendingScenarioView";
+import { ROUNDING_NOTE, baselineRows, countedMonths, datesText, longDate, monthLabel, partMonthText, partMonths, reductionText, resultView, usualMonthText, wholeMonthsOnly } from "./spendingScenarioView";
 
 // Expected sentences and figures are the hand-derived anchors in M3/Worked-Examples.md, written out here, not read from the module.
 
@@ -129,5 +129,35 @@ describe("the result as shown", () => {
 
   it("the rounding note does not claim a size for the difference", () => {
     expect(ROUNDING_NOTE).toBe("Each amount is rounded to the cent on its own, so the lines may not add up exactly to the total.");
+  });
+});
+
+// Which months a schedule covers only in part decides whether the app asks "How should I count part months?". Expected values are
+// worked by hand from the calendar; a schedule that starts on the 1st or ends on a month's last day has no part month there.
+describe("part months at the ends of a schedule", () => {
+  it.each([
+    ["from the 1st to a month end: nothing to ask", "2026-11-01", "2026-12-31", []],
+    ["one whole month", "2026-11-01", "2026-11-30", []],
+    ["starts mid-month", "2026-11-15", "2026-12-31", [{ month: "November", days: 16, of: 30, where: "start" }]],
+    ["ends mid-month", "2026-11-01", "2026-12-15", [{ month: "December", days: 15, of: 31, where: "end" }]],
+    ["starts and ends mid-month", "2026-11-15", "2027-01-10", [{ month: "November", days: 16, of: 30, where: "start" }, { month: "January", days: 10, of: 31, where: "end" }]],
+    ["inside one month", "2026-11-15", "2026-11-30", [{ month: "November", days: 16, of: 30, where: "only" }]],
+    ["a single last day", "2026-11-30", "2026-11-30", [{ month: "November", days: 1, of: 30, where: "only" }]],
+    ["the last day of a year into the next", "2026-12-31", "2027-01-31", [{ month: "December", days: 1, of: 31, where: "start" }]],
+    ["February in a year that is not a leap year", "2027-02-10", "2027-02-28", [{ month: "February", days: 19, of: 28, where: "only" }]],
+    ["February in a leap year", "2028-02-10", "2028-02-29", [{ month: "February", days: 20, of: 29, where: "only" }]],
+  ])("%s", (_name, from, to, expected) => {
+    expect(partMonths({ from, to }).map(({ month, days, of, where }) => ({ month, days, of, where }))).toEqual(expected);
+  });
+
+  it.each([
+    ["nothing to drop", "2026-11-01", "2026-12-31", { from: "2026-11-01", to: "2026-12-31" }],
+    ["drops a part month at the start", "2026-11-15", "2026-12-31", { from: "2026-12-01", to: "2026-12-31" }],
+    ["drops a part month at the end", "2026-11-01", "2026-12-15", { from: "2026-11-01", to: "2026-11-30" }],
+    ["drops a December start into January", "2026-12-15", "2027-01-31", { from: "2027-01-01", to: "2027-01-31" }],
+    ["keeps a leap February whole", "2028-01-20", "2028-03-10", { from: "2028-02-01", to: "2028-02-29" }],
+    ["no whole month is left", "2026-11-15", "2026-11-30", null],
+  ])("whole months only: %s", (_name, from, to, expected) => {
+    expect(wholeMonthsOnly({ from, to })).toEqual(expected);
   });
 });

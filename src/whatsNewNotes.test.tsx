@@ -28,6 +28,15 @@ describe("grouped release notes", () => {
     expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);
   });
 
+  it("includes the import account-routing fix in the grouped 1.3.2 release notes", () => {
+    const entry = CHANGELOG["1.3.2"];
+    expect(changelogSections(entry).map((s) => s.heading)).toEqual(["New features", "Enhancements", "Bug fixes"]);
+    const text = changelogNotes(entry).join("\n");
+    expect(text).toMatch(/Transaction imports use existing accounts only/);
+    expect(text).toMatch(/no longer creates a new account/);
+    expect(text).toMatch(/each row keeps the account you choose/);
+  });
+
   it("covers the delivered 1.3.1 scope in plain words", () => {
     const text = changelogNotes(CHANGELOG["1.3.1"]).join("\n");
     for (const part of [/Ask the Vault/, /what-if|cut/i, /savings/i, /retirement/i, /statement/i, /holdings/i, /update/i, /scroll/i]) expect(text).toMatch(part);

@@ -22,9 +22,8 @@ export type ImportRow = {
   amount: string;
   is_duplicate: boolean;
   /** The row's own Account column, when the file has one — this app's own
-   * Transactions CSV export does. `commit_import` routes the row there by
-   * default (creating that account if none matches by name) unless the
-   * row's dropdown is changed. */
+   * Transactions CSV export does. A matching existing account is preselected; an unfamiliar
+   * name uses the selected default account. The row's dropdown can override either. */
   account_name: string | null;
   /** The row's own Category column, when the file has one — the file's name for it, which
    * may not be a category the person has (see `unmatched_categories`). */

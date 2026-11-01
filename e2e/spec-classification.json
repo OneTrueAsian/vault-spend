@@ -119,7 +119,7 @@
     "feature8_goal_projection.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus",
     "feature11_assets.mjs": "drives menus that close when the window loses focus; uses the shared keyboard",
     "feature12_debt_payoff.mjs": "uses the shared keyboard",
-    "feature18_recurring_edit.mjs": "drives menus that close when the window loses focus; uses the shared keyboard",
+    "feature18_recurring_edit.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard",
     "feature20_transactions_sort_and_filter.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus; uses the shared keyboard",
     "feature21_add_to_recurring.mjs": "drives menus that close when the window loses focus",
     "feature23_family_members.mjs": "depends on which window has OS focus; drives menus that close when the window loses focus",
@@ -318,10 +318,10 @@
     "feature371_calendar_visual_retro.mjs": "lib\\calendarVisualMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarHits.mjs: uses the shared keyboard",
     "feature371_calendar_visual_transparent.mjs": "lib\\calendarVisualMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarHits.mjs: uses the shared keyboard",
     "feature372_calendar_forms_and_plans.mjs": "depends on which window has OS focus; uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard",
-    "feature373_calendar_contrast_futuristic.mjs": "uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
-    "feature373_calendar_contrast_futuristic_accents.mjs": "uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
-    "feature373_calendar_contrast_retro.mjs": "uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
-    "feature373_calendar_contrast_transparent.mjs": "uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
+    "feature373_calendar_contrast_futuristic.mjs": "uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: depends on which window has OS focus; lib\\calendarContrastMatrix.mjs: uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
+    "feature373_calendar_contrast_futuristic_accents.mjs": "uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: depends on which window has OS focus; lib\\calendarContrastMatrix.mjs: uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
+    "feature373_calendar_contrast_retro.mjs": "uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: depends on which window has OS focus; lib\\calendarContrastMatrix.mjs: uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
+    "feature373_calendar_contrast_transparent.mjs": "uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: depends on which window has OS focus; lib\\calendarContrastMatrix.mjs: uses the shared pointer (hover); lib\\calendarContrastMatrix.mjs: uses the shared keyboard; lib\\dateFieldInput.mjs: uses the shared keyboard; lib\\calendarContrast.mjs: uses the shared pointer (hover); lib\\calendarContrast.mjs: uses the shared keyboard",
     "feature374_move_transactions_basic.mjs": "uses the shared keyboard",
     "feature375_move_transactions_blockers.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature376_move_transactions_bulk.mjs": "not reviewed for parallel execution; exclusive until approved",
@@ -333,6 +333,7 @@
     "feature380_move_transactions_recorded_balances.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature381_move_transactions_card_balances.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature382_move_transactions_select_all_to_move.mjs": "depends on which window has OS focus",
-    "feature383_budget_category_spacing.mjs": "uses the shared keyboard to close the category dialog"
+    "feature383_budget_category_spacing.mjs": "uses the shared keyboard to close the category dialog",
+    "feature384_transaction_import_existing_accounts.mjs": "uses focus-sensitive account menus and the import file picker stub"
   }
 }

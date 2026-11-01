@@ -178,8 +178,8 @@ export function ImportReviewDialog({
                         options={pickableAccounts(accounts, accountOverrides.get(row.index) ?? pendingImport.defaultAccountId).map((a) => ({ value: String(a.id), label: a.name }))}
                       />
                       {row.account_name && !accounts.some((a) => a.name.toLowerCase() === row.account_name!.toLowerCase()) && (
-                        <div className="account-col" title="No account by that name exists yet — it'll be created on import">
-                          CSV: {row.account_name} (new)
+                        <div className="account-col" title="Account name from the file. Import uses the existing account selected above.">
+                          CSV: {row.account_name}
                         </div>
                       )}
                     </td>

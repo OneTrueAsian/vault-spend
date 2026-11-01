@@ -187,6 +187,14 @@ describe("ImportReviewDialog", () => {
     expect(dialog()!.querySelector("[role='alert']")).toBeNull();
   });
 
+  it("shows an unfamiliar CSV account as metadata without promising to create it", () => {
+    show(review([row(0, { account_name: "Blue Cash Everyday" })]));
+    expect(dialog()!.textContent).toContain("CSV: Blue Cash Everyday");
+    expect(dialog()!.textContent).not.toContain("(new)");
+    expect(dialog()!.querySelector('[title*="created on import"]')).toBeNull();
+    expect(dialog()!.querySelector('[aria-label^="Account for"]')?.textContent).toContain("Joint Checking");
+  });
+
   it("draws no card of its own inside the dialog", () => {
     show(review([row(0)]));
     expect(dialog()!.querySelector(".dup-review")).toBeNull();

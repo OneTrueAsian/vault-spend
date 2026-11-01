@@ -125,4 +125,16 @@ describe("useImportReview column map", () => {
     await act(async () => api().begin("C:/bank.csv", false, 7, null));
     expect(call).toHaveBeenCalledWith("preview_import", expect.objectContaining({ columnMap: null, columnHeaders: null }));
   });
+
+  it("sends an explicit selection of the default account instead of reverting to the CSV account", async () => {
+    const call = vi.fn(async (command: string, _args?: Record<string, unknown>) => command === "commit_import"
+      ? { inserted: 1, inserted_ids: [], auto_linked: 0, row_errors: 0 }
+      : { ...PREVIEW, rows: [{ ...PREVIEW.rows[0], account_name: "CSV Card" }] });
+    const api = mount(call);
+    await act(async () => api().begin("C:/bank.csv", false, 7));
+    act(() => api().setImportRowAccount(0, 8));
+    act(() => api().setImportRowAccount(0, 7));
+    await act(async () => api().confirmPendingImport());
+    expect(call).toHaveBeenCalledWith("commit_import", expect.objectContaining({ accountOverrides: { 0: 7 } }));
+  });
 });

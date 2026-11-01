@@ -20,6 +20,34 @@ import { isoDaysFromNow, monthFromNow } from "./dates.mjs";
 import { ACCENT_SENSITIVE, REST_CATEGORIES, enterState, measureState, stateSteps } from "./calendarContrast.mjs";
 import { makeTempDir } from "./tempDir.mjs";
 
+const ORDINARY_MONTH = ".calendar-popover .calendar-month:not(.is-selected):not(.is-today):not(:disabled)";
+const popoverHas = (b, selector) => b.execute((s) => Boolean(document.querySelector(s)), selector);
+// The calendar closes when focus leaves it, so a state that is "reached" in a closed calendar is no state at all: say which action closed it.
+const requireOpenCalendar = (b, after) => waitUntilOrDiagnose(b, () => popoverHas(b, ".calendar-popover"), { timeout: 3000, timeoutMsg: `the calendar closed after ${after}`, extra: () => b.execute(() => ({ active: document.activeElement?.outerHTML.slice(0, 120), hasFocus: document.hasFocus() })) });
+
+/**
+ * A month calendar shows one year. An ordinary month is an enabled one that is neither selected nor this month, and the Withdraw month's year
+ * can have none: from November, only this month and the selected one are enabled (earlier months are past), so there is nothing ordinary to
+ * hover or focus. Then step to the next year with the calendar's own button, where every month is enabled. Returns whether it moved, so the
+ * caller can step back; if the next year has none either, it steps back at once and the state is reported as not reached.
+ */
+async function showYearWithOrdinaryMonth(b) {
+  if (await popoverHas(b, ORDINARY_MONTH)) return false;
+  await (await b.$('.calendar-popover button[aria-label="Next year"]')).click();
+  await requireOpenCalendar(b, "clicking Next year");
+  // The year changes after the click's re-render, so wait for the ordinary month rather than look once.
+  const arrived = await b.waitUntil(() => popoverHas(b, ORDINARY_MONTH), { timeout: 3000 }).then(() => true, () => false);
+  if (arrived) return true;
+  await showSelectedYear(b);
+  return false;
+}
+
+async function showSelectedYear(b) {
+  await (await b.$('.calendar-popover button[aria-label="Previous year"]')).click();
+  await requireOpenCalendar(b, "clicking Previous year");
+  await waitUntilOrDiagnose(b, () => popoverHas(b, ".calendar-popover .calendar-month.is-selected"), { timeoutMsg: "the calendar should return to the year with the selected month" });
+}
+
 /** `accents`: null for a style with one look, else the data-accent values to measure. `full`: accents that get the whole state list (the rest get the accent-sensitive ones). */
 export async function runCalendarContrast(style, { group = style, accents = null, full = accents ? [accents[0]] : [null] } = {}) {
   const dbDir = await seedFixture(SUMMARY_FIXTURE_PY);
@@ -40,11 +68,19 @@ export async function runCalendarContrast(style, { group = style, accents = null
       for (const a of result.absent) absences.push(`${base} / ${label}: ${a}`);
     };
     if (full.includes(accent)) await take("rest", REST_CATEGORIES[kind], true);
+    // The resting "ordinary month" is absent from a year with none (see showYearWithOrdinaryMonth); measure it in the next year too.
+    if (kind === "month" && full.includes(accent) && (await showYearWithOrdinaryMonth(b))) {
+      await take("rest, next year", REST_CATEGORIES.month.filter(([name]) => name === "ordinary month"), true);
+      await showSelectedYear(b);
+    }
     for (const step of stateSteps(kind)) {
       if (!full.includes(accent) && !ACCENT_SENSITIVE.has(step.name)) continue;
+      const moved = kind === "month" && step.name.includes("ordinary") && (await showYearWithOrdinaryMonth(b));
       const reached = await enterState(b, step);
-      if (!reached) unreached.push(`${base} / ${step.name}`);
-      await take(step.name, step.measure, reached);
+      await requireOpenCalendar(b, `entering "${step.name}"${moved ? " in the next year" : ""}`);
+      if (!reached) unreached.push(`${base} / ${step.name}${moved ? " (next year)" : ""}`);
+      await take(moved ? `${step.name} (next year)` : step.name, step.measure, reached);
+      if (moved) await showSelectedYear(b);
     }
   }
 

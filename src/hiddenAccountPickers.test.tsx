@@ -2,7 +2,7 @@
 //
 // QA-GAP-001 (owner-approved 27 Oct 2026): the pickers that choose where something new goes leave hidden accounts out.
 // A picker that is already set to a hidden account keeps showing it, and import rows that name a hidden account are
-// not told it is new.
+// not told it is new. Unfamiliar file names are metadata and never create accounts either.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -104,11 +104,12 @@ describe("import review", () => {
     expect(choices(byLabel('Account for "SHOP"'))).toEqual(["Checking", "Old Savings", "Card"]);
   });
 
-  it("does not call a row 'new' when its account column names a hidden account", () => {
+  it("does not promise account creation for hidden or unfamiliar file account names", () => {
     show(review({}, "old savings"));
     expect(document.body.textContent).not.toContain("(new)");
     show(review({}, "Brand New Bank"));
-    expect(document.body.textContent).toContain("CSV: Brand New Bank (new)");
+    expect(document.body.textContent).toContain("CSV: Brand New Bank");
+    expect(document.body.textContent).not.toContain("(new)");
   });
 });
 

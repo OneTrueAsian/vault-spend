@@ -35,6 +35,8 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "Clearer button labels, counts and error messages throughout the app, including Review transactions in place of Review inbox and a readable date for the legal notice revision.",
     ],
     "Bug fixes": [
+      "Transaction imports use existing accounts only. A bank account name in a CSV no longer creates a new account. Unrecognized account names use the account selected for the import, and each row keeps the account you choose for it.",
+      "Budget category transaction dialogs keep selection checkboxes clearly separated from dates.",
       "Forecasts and the Dashboard runway now explain when there is not enough history. Everyday spending estimates wait until there are two weeks of transactions; scheduled bills and paychecks can still appear.",
       "Monthly and yearly recurring items keep their original scheduled day across short months and leap years. Editing a recurring item no longer shows a false out-of-date warning.",
       "The member filter can show just the person you choose. Household spending also includes an Unassigned line for transactions that have no member.",

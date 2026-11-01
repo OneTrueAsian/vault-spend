@@ -10,6 +10,7 @@ import { invoke } from "./lib/change-password.mjs";
 import { enableProtectionThroughUI } from "./lib/protection.mjs";
 import { setDateInput } from "./lib/statementUi.mjs";
 import { dateInMonth } from "./lib/dates.mjs";
+import { monthsLeftInYear, scheduleMonths } from "./lib/savingsTargetMonths.mjs";
 
 const history = (coverageBacks, groceries) => `
 import datetime
@@ -32,8 +33,10 @@ const short = await seedFixture(history("[(3,20),(0,1)]", "[(2,'-320.00')]"));
 const usd = n => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const daysIn = d => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 const today = new Date();
-const partDays = daysIn(today) - today.getDate() + 1;
-const wholeMonths = 11 - today.getMonth(); // the months after this one through December
+// "From now until December 31": after the 1st the rest of this month is a part month; on the 1st this month counts whole and the app asks nothing.
+const left = monthsLeftInYear(today);
+const partDays = left.partDays;
+const wholeMonths = left.whole; // the months counted whole: those after this one, plus this one when today is the 1st
 const monthYear = back => new Date(today.getFullYear(), today.getMonth() - back, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" }); // the month `back` months before this one
 const monthName = (d, n = 0) => new Date(d.getFullYear(), d.getMonth() + n, 1).toLocaleDateString("en-US", { month: "long" });
 
@@ -68,14 +71,20 @@ try {
   await setDateInput(b, 'input[aria-label="Schedule end"]', dateInMonth(3, 20));
   await h.waitText("Your schedule starts part-way through", "part months asked");
   assert.ok((await h.text()).includes("(3 months)"), "valid own dates state how many months: " + (await h.text()));
-  // From now: the current month is a part month and the person chooses how to count it.
+  // From now: after the 1st the current month is a part month and the person chooses how to count it; on the 1st there is no part month to ask about.
   await radio("From now until");
-  await h.waitText("Your schedule starts part-way through " + monthName(today), "from now asks about the part month");
-  t = await h.text();
-  assert.ok(t.includes("Count only whole months") && t.includes("Count the part month by the day"), t);
-  assert.ok(t.includes(`${partDays} of ${daysIn(today)} days`), "the by-the-day wording shows the day count: " + t);
-  // Whole months, then by the day: the result differs by exactly the part month.
-  await radio("Count only whole months");
+  if (left.asksPartMonth) {
+    await h.waitText("Your schedule starts part-way through " + monthName(today), "from now asks about the part month");
+    t = await h.text();
+    assert.ok(t.includes("Count only whole months") && t.includes("Count the part month by the day"), t);
+    assert.ok(t.includes(`${partDays} of ${daysIn(today)} days`), "the by-the-day wording shows the day count: " + t);
+    // Whole months, then by the day: the result differs by exactly the part month.
+    await radio("Count only whole months");
+  } else {
+    await waitUntilOrDiagnose(b, async () => (await (await h.dialog()).$("button=Review the details")).isEnabled(), { timeoutMsg: "from the 1st there is no part month, so the details can be reviewed without a question", extra: h.text });
+    t = await h.text();
+    assert.ok(!t.includes("part-way") && !t.includes("How should I count it?") && !t.includes("Count only whole months"), "from the 1st nothing is asked about part months: " + t);
+  }
   await h.clickButton("Review the details"); await h.waitText("Check these details", "review");
   t = await h.text();
   assert.ok(t.includes("Not counted, whole months only"), t);
@@ -98,8 +107,19 @@ try {
   await h.ask("What if I cut Groceries by $80 a month?");
   await h.waitText("Which dates should I use?", "the edited question asks again");
   assert.ok(!(await h.text()).includes("What you would save"), "no result before the new answers are confirmed");
-  await radio("From now until"); await h.waitText("How should I count it?", "part month");
-  await radio("Count the part month by the day");
+  // By the day: "From now" has a part month after the 1st. On the 1st it has none, so the by-the-day choice is exercised with own dates that start part-way through next month and end part-way through a later one.
+  let monthsByDay = wholeMonths + partDays / daysIn(today);
+  if (left.asksPartMonth) {
+    await radio("From now until"); await h.waitText("How should I count it?", "part month");
+  } else {
+    await radio("Dates I choose");
+    await setDateInput(b, 'input[aria-label="Schedule start"]', dateInMonth(1, 5));
+    await setDateInput(b, 'input[aria-label="Schedule end"]', dateInMonth(3, 20));
+    await h.waitText("Your schedule starts part-way through", "own dates start part-way through a month");
+    const own = scheduleMonths(dateInMonth(1, 5), dateInMonth(3, 20));
+    monthsByDay = Number(own.byDay.num) / Number(own.byDay.den);
+  }
+  await radio(left.asksPartMonth ? "Count the part month by the day" : "Count the part months by the day"); // own dates start and end part-way through a month: two part months
   await h.clickButton("Review the details"); await h.waitText("Check these details", "review again");
   t = await h.text();
   assert.ok(t.includes("$80.00 every month") && !t.includes("$50.00 every month"), "the review shows the edited amount: " + t);
@@ -107,7 +127,7 @@ try {
   await h.clickButton("Show what I would save"); await h.waitText("What you would save", "result by the day");
   t = await h.text();
   const byDay = await tableTotal();
-  assert.equal(byDay, usd(Math.round(80 * (wholeMonths + partDays / daysIn(today)) * 100) / 100), "by the day: 80 x (whole months + part month), checked by hand");
+  assert.equal(byDay, usd(Math.round(80 * monthsByDay * 100) / 100), "by the day: 80 x (whole months + part months), checked by hand");
 
   // --- UAT-171: data changed behind an open review is caught when the answer is asked for; nothing is kept as history -----------------------------
   await h.clickButton("Done");

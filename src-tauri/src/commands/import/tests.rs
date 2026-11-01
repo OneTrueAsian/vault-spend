@@ -196,6 +196,38 @@ fn request(
     }
 }
 
+#[test]
+fn an_unmatched_csv_account_uses_the_selected_account_without_creating_one() {
+    let csv = "Date,Description,Amount,Account,Category\n2026-01-05,APPLE.COM/BILL,-2.99,Blue Cash Everyday,Shopping\n";
+    let (mut state, file, dir, account) = review_state("unknown-csv-account", csv);
+    let before = state.store.list_accounts(chrono::Local::now().date_naive()).unwrap().len();
+    let req = request(&mut state, &file, account, &[0], None, picks(&[]));
+    let summary = commit_import_for(&mut state, req).unwrap();
+    assert_eq!(summary.inserted, 1);
+    assert_eq!(state.store.list_accounts(chrono::Local::now().date_naive()).unwrap().len(), before);
+    assert!(state.store.find_account_by_name("Blue Cash Everyday").unwrap().is_none());
+    assert_eq!(state.store.transactions_by_ids(&summary.inserted_ids).unwrap()[0].account_id, account);
+    let preview = preview_import_for(&mut state, file.to_str().unwrap(), false, account, None, None).unwrap();
+    assert!(preview.rows[0].is_duplicate, "preview and commit must use the same destination");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn matching_csv_accounts_and_an_explicit_pick_of_the_default_are_honored() {
+    let csv = "Date,Description,Amount,Account,Category\n2026-01-05,FIRST,-2.99,known card,Shopping\n2026-01-06,SECOND,-3.00,Known Card,Shopping\n";
+    let (mut state, file, dir, account) = review_state("known-csv-account", csv);
+    let card = state.store.get_or_create_account("Known Card", AccountType::Credit).unwrap();
+    let before = state.store.list_accounts(chrono::Local::now().date_naive()).unwrap().len();
+    let mut req = request(&mut state, &file, account, &[0, 1], None, picks(&[]));
+    req.account_overrides.insert(1, account);
+    let summary = commit_import_for(&mut state, req).unwrap();
+    let rows = state.store.transactions_by_ids(&summary.inserted_ids).unwrap();
+    assert_eq!(rows.iter().find(|r| r.transaction.description == "FIRST").unwrap().account_id, card);
+    assert_eq!(rows.iter().find(|r| r.transaction.description == "SECOND").unwrap().account_id, account);
+    assert_eq!(state.store.list_accounts(chrono::Local::now().date_naive()).unwrap().len(), before);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Everything an import could change, so a refusal can be shown to change none of it.
 fn everything(state: &AppState) -> String {
     format!(

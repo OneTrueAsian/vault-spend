@@ -31,6 +31,10 @@ for key,back,day,desc,amt,cat in rows:
     acct=a if key=="a" else c
     d=month(back,day)
     cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,fingerprint) VALUES(?,?,?,?,?,'user',?)",(acct,d,desc,amt,cat,f'{acct}|{d}|{desc}|{amt}'))
+# A purchase dated tomorrow is later than today, so "this month so far" must leave it out. It exists on every day except a month's last (tomorrow is then next month).
+tomorrow=today+datetime.timedelta(days=1)
+if tomorrow.month==today.month:
+    cur.execute("INSERT INTO transactions(account_id,date,description,amount,category,category_source,fingerprint) VALUES(?,?,'Future Market','-7.00','Groceries','user','future-market')",(a,tomorrow.isoformat()))
 `);
 const app = await launchApp({ dbDir });
 const b = app.browser, h = askHelpers(b);
@@ -85,8 +89,10 @@ try {
   assert.ok(!/\$\d/.test(t.split("Try something like")[0]), "an unknown word is never turned into a figure: " + t);
 
   // --- UAT-161: the dates a question can mean --------------------------------------------------------------------------------------------------------------
+  // This month so far runs from the 1st to today. On the 1st that is one day, which the app writes as a single date ("November 1, 2026"); on any later day it is a range ("November 1 to November 9, 2026"). A purchase dated tomorrow (when tomorrow is still this month) is left out, so the total stays $25.00.
   t = await answer("groceries this month", "You spent $25.00 on Groceries");
-  assert.ok(t.includes(`${longName(monthOf(0))} so far.`) && t.includes(`${mName(monthOf(0))} 1 to ${mName(monthOf(0))} ${now.getDate()}, ${now.getFullYear()}`), "this month runs to today: " + t);
+  const thisMonthDates = now.getDate() === 1 ? `${mName(monthOf(0))} 1, ${now.getFullYear()}` : `${mName(monthOf(0))} 1 to ${mName(monthOf(0))} ${now.getDate()}, ${now.getFullYear()}`;
+  assert.ok(t.includes(`${longName(monthOf(0))} so far.`) && t.includes("1 purchase · " + thisMonthDates), "this month runs to today, and a purchase dated after today is not counted: " + t);
   t = await answer(`How much did I spend on Groceries in ${mName(M)}?`, "You spent $100.00 on Groceries");
   assert.ok(t.includes(`${mName(M)} 1 to ${mName(M)} ${lastDay(M)}, ${M.getFullYear()}`), "a named month is that whole month: " + t);
   t = await answer(`How much did I spend on Rent from ${mName(L)} 1 to ${mName(L)} 15?`, "You spent $900.00 on Rent");

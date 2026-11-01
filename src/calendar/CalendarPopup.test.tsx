@@ -86,15 +86,25 @@ describe("date calendar", () => {
     expect(panel()).toBeNull();
   });
 
-  it("replaces unfinished text when a day is chosen, and clears the error", () => {
+  // Unfinished text has no month of its own, so the calendar opens on the month of today's date: the day chosen is the 2nd of that month,
+  // whichever day this runs, including the first and last day of a month and of a year and a leap February.
+  it.each([
+    ["mid-month", new Date(2026, 9, 29, 12), "2026-10-02", "10/02/2026"],
+    ["the first of a month", new Date(2026, 10, 1, 12), "2026-11-02", "11/02/2026"],
+    ["the last day of a month", new Date(2026, 10, 30, 12), "2026-11-02", "11/02/2026"],
+    ["the last day of a year", new Date(2026, 11, 31, 12), "2026-12-02", "12/02/2026"],
+    ["the first day of a year", new Date(2027, 0, 1, 12), "2027-01-02", "01/02/2027"],
+    ["a leap day", new Date(2028, 1, 29, 12), "2028-02-02", "02/02/2028"],
+  ])("replaces unfinished text when a day is chosen, and clears the error (%s)", (_name, now, iso, text) => {
+    vi.useFakeTimers({ toFake: ["Date"], now });
     const onChange = vi.fn();
     field({ onChange });
     focus(input());
     typeInto(input(), "10/0");
     open();
-    click(day("2026-10-02"));
-    expect(onChange).toHaveBeenCalledWith("2026-10-02");
-    expect(input().value).toBe("10/02/2026");
+    click(day(iso));
+    expect(onChange).toHaveBeenCalledWith(iso);
+    expect(input().value).toBe(text);
     expect(q(".date-field-problem")).toBeNull();
   });
 

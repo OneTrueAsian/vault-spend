@@ -1669,6 +1669,49 @@ fn balance_history_repeats_the_balance_through_a_quiet_month() {
     );
 }
 
+// The last history point is the balance as of `today`: a purchase counts from its own date, and one dated later is not in it yet.
+// Worked by hand: 1000.00 to start, six earlier $10 purchases (August to October) leave 940.00 at the end of October, then $90 on 1 November,
+// $30 on 2 November and $5 on 3 November.
+#[test]
+fn balance_history_counts_a_purchase_only_from_its_own_date() {
+    let store = Store::open_in_memory().unwrap();
+    let acct = store.get_or_create_account("History Checking", AccountType::Checking).unwrap();
+    store
+        .conn
+        .execute("UPDATE accounts SET starting_balance = '1000.00' WHERE id = ?1", params![acct])
+        .unwrap();
+    store
+        .save_transactions(
+            acct,
+            &[
+                tx("2026-08-02", "Early A", "-10.00"),
+                tx("2026-08-04", "Early B", "-10.00"),
+                tx("2026-09-02", "Early C", "-10.00"),
+                tx("2026-09-04", "Early D", "-10.00"),
+                tx("2026-10-02", "Early E", "-10.00"),
+                tx("2026-10-04", "Early F", "-10.00"),
+                tx("2026-11-01", "Meal", "-90.00"),
+                tx("2026-11-02", "Regular", "-30.00"),
+                tx("2026-11-03", "Snack", "-5.00"),
+            ],
+        )
+        .unwrap();
+
+    for (today, previous_end, previous, latest) in [
+        ("2026-11-01", "2026-10-31", "940.00", "850.00"), // before the $30 (2nd) and the $5 (3rd)
+        ("2026-11-02", "2026-10-31", "940.00", "820.00"), // on the $30's date
+        ("2026-11-03", "2026-10-31", "940.00", "815.00"), // on the $5's date
+        ("2026-11-30", "2026-10-31", "940.00", "815.00"), // the last day of a 30-day month
+        ("2026-12-01", "2026-11-30", "815.00", "815.00"), // November's end holds all three
+        ("2027-01-01", "2026-12-31", "815.00", "815.00"), // a year rollover
+        ("2027-03-01", "2027-02-28", "815.00", "815.00"), // February is 28 days
+        ("2028-03-01", "2028-02-29", "815.00", "815.00"), // February in a leap year
+    ] {
+        let history = store.account_balance_history(acct, day(today), 2).unwrap();
+        assert_eq!(history, vec![(day(previous_end), dec(previous)), (day(today), dec(latest))], "history as of {today}");
+    }
+}
+
 // QA-GAP-001 (owner-approved 27 Oct 2026): accounts can be hidden and unhidden. Hiding tidies lists; it never
 // removes an account's money, history or links from any total, report or forecast.
 fn hidden_of(store: &Store, id: i64) -> bool {

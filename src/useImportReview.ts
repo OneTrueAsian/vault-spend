@@ -78,8 +78,7 @@ export function useImportReview({
       // when it matches one that already exists, rather than defaulting
       // every row to the account picked before the file was chosen — the
       // user still sees exactly what will happen and can change it.
-      // Unmatched account names (commit_import creates those fresh) are
-      // left showing the default, with a hint below the dropdown instead.
+      // Unmatched file names use the selected default account; imports never create accounts.
       setAccountOverrides(seedAccountOverrides(preview, accounts, accountId));
       setImportCategoryChoices(defaultCategoryChoices(preview.unmatched_categories));
       setImportRowChoices(new Map());
@@ -147,11 +146,8 @@ export function useImportReview({
     if (!pendingImport) return;
     setAccountOverrides((prev) => {
       const next = new Map(prev);
-      if (accountId === pendingImport.defaultAccountId) {
-        next.delete(index); // matches the default again — no override needed
-      } else {
-        next.set(index, accountId);
-      }
+      // Picking the initial default is still explicit: the file may name a different account.
+      next.set(index, accountId);
       return next;
     });
   }

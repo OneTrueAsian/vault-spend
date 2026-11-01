@@ -121,9 +121,10 @@ fn teaching_follows_file_order_across_accounts_so_the_last_choice_wins_the_rule(
 }
 
 #[test]
-fn a_batch_creates_named_accounts_and_attaches_tags_and_notes() {
+fn a_batch_resolves_existing_named_accounts_and_attaches_tags_and_notes() {
     let store = Store::open_in_memory().unwrap();
-    let mut r = row(ImportAccount::Named("Brand New Card".into()), "ZZQX", RowCategory::LeaveUncategorized);
+    let card = store.get_or_create_account("Existing Card", AccountType::Credit).unwrap();
+    let mut r = row(ImportAccount::Named("existing card".into()), "ZZQX", RowCategory::LeaveUncategorized);
     r.tags = vec!["trip".into()];
     r.notes = Some("  paid back  ".into());
     let outcome = store
@@ -133,11 +134,31 @@ fn a_batch_creates_named_accounts_and_attaches_tags_and_notes() {
         })
         .unwrap();
 
-    let card = store.find_account_by_name("brand new card").unwrap().expect("account created");
     let saved = store.transactions_by_ids(&outcome.inserted_ids).unwrap().remove(0);
     assert_eq!(saved.account_id, card);
     assert_eq!(saved.notes.as_deref(), Some("paid back"));
     assert_eq!(saved.tags, vec!["trip".to_string()]);
+}
+
+#[test]
+fn a_transaction_import_cannot_create_an_account_from_a_file_name() {
+    let store = Store::open_in_memory().unwrap();
+    let account = test_account(&store);
+    let before = snapshot(&store);
+    let result = store.commit_import_batch(&ImportBatch {
+        rows: vec![
+            row(ImportAccount::Existing(account), "FIRST ROW", RowCategory::LeaveUncategorized),
+            row(
+                ImportAccount::Named("Brand New Card".into()),
+                "FILE ACCOUNT",
+                RowCategory::LeaveUncategorized,
+            ),
+        ],
+        create_categories: vec!["Pet Care".into()],
+        ..ImportBatch::default()
+    });
+    assert!(result.is_err(), "an unknown account name must not create an account");
+    assert_eq!(snapshot(&store), before, "the refused batch must roll back all writes");
 }
 
 #[test]
@@ -225,11 +246,7 @@ fn a_batch_naming_an_account_that_does_not_exist_writes_nothing() {
     let before = snapshot(&store);
     let result = store.commit_import_batch(&ImportBatch {
         rows: vec![
-            row(
-                ImportAccount::Named("Brand New Card".into()),
-                "OK ROW",
-                RowCategory::Chosen("Shopping".into()),
-            ),
+            row(ImportAccount::Existing(account), "OK ROW", RowCategory::Chosen("Shopping".into())),
             row(ImportAccount::Existing(account + 999), "BAD ROW", RowCategory::LeaveUncategorized),
         ],
         create_categories: vec!["Pet Care".into()],
@@ -261,8 +278,7 @@ fn a_failure_part_way_through_rolls_the_whole_import_back() {
     let store = Store::open_in_memory().unwrap();
     let account = test_account(&store);
     store.create_category("Shopping", None).unwrap();
-    // Reject one row's insert after the earlier rows, a new account, a new category, a learned
-    // rule and a mapping have all been written.
+    // Reject one row's insert after earlier rows, a new category and a learned rule have been written.
     store
         .conn
         .execute_batch(
@@ -273,11 +289,7 @@ fn a_failure_part_way_through_rolls_the_whole_import_back() {
     let before = snapshot(&store);
     let result = store.commit_import_batch(&ImportBatch {
         rows: vec![
-            row(
-                ImportAccount::Named("Brand New Card".into()),
-                "HOMEGOODS 12",
-                RowCategory::Chosen("Shopping".into()),
-            ),
+            row(ImportAccount::Existing(account), "HOMEGOODS 12", RowCategory::Chosen("Shopping".into())),
             row(ImportAccount::Existing(account), "BOOM", RowCategory::LeaveUncategorized),
         ],
         create_categories: vec!["Pet Care".into()],

@@ -6,11 +6,16 @@ import assert from "node:assert/strict";
 import { launchApp, chooseMenuOption, waitUntilOrDiagnose } from "./harness.mjs";
 import { seedFixture } from "./lib/seed.mjs";
 import { askHelpers } from "./lib/askRetirement.mjs";
-import { monthlyEquivalent, monthsLeftInYear } from "./lib/savingsTargetMonths.mjs";
+import { lastDayOfMonth, monthlyEquivalent, monthsLeftInYear, scheduleMonths } from "./lib/savingsTargetMonths.mjs";
+import { setDateInput } from "./lib/statementUi.mjs";
+import { dateInMonth } from "./lib/dates.mjs";
 
-// The part-month scenarios depend on the day this runs: whole months left in the year, and this month's remaining days (today included).
+// "From now until December 31" depends on the day this runs: after the 1st the rest of this month is a part month that is asked about (and in
+// December after the 1st no whole month is left); on the 1st this month counts whole and nothing is asked. The part-month choices are also run on
+// fixed own dates below, so they are covered whichever day this runs.
 const left = monthsLeftInYear(new Date());
-if (left.whole < 1) throw new Error("feature348 needs at least one whole month left in the year (in December the app offers no whole-month choice: 'There is no whole month in this range.'), so this scenario cannot run");
+const own = { from: dateInMonth(1, 15), to: lastDayOfMonth(2) }; // part-way through next month to the end of the month after: one part month, one whole month
+const ownMonths = scheduleMonths(own.from, own.to);
 const usd = c => `$${c / 100n}.${String(c % 100n).padStart(2, "0")}`;
 const split = (months, ...cases) => cases.map(([name, allocated, usual]) => { const e = monthlyEquivalent(allocated, usual, months); return [name, usd(allocated), usd(e.cut), usd(e.limit)]; });
 const CATEGORIES = [["Dining Out", 4000n, 9000n], ["Groceries", 13333n, 30000n], ["Shopping", 2667n, 6000n]];
@@ -100,33 +105,59 @@ try {
   await choose(["Dining Out", "Groceries", "Shopping"]);
   for (const n of ["Dining Out", "Groceries", "Shopping"]) await h.clickButton(`Allow up to 100% with floor $0 for ${n}`);
   await radio("From now until");
-  await h.waitText("How should I count part months?", "part month asked");
-  t = await h.text();
-  
-  await radio("Count only whole months");
-  await h.clickButton("Review the details"); await h.waitText("Check every detail", "review");
-  await h.clickButton("Show the preview"); await h.waitText("Your savings target preview", "result");
-  // Whole months only: the months after this one in the year (computed from the calendar; 2 on 27 October 2026). Room 600 + 180 + 120 = 900 over these dates; target 200 -> 133.33.. / 40.00 / 26.66.. and the spare cent goes to Shopping (largest remainder).
-  assert.deepEqual(await heads(), ["Category", "Allocated over these dates", "Approx. monthly cut", "Approx. monthly limit"]);
-  assert.deepEqual(await rows(), split({ num: BigInt(left.whole), den: 1n }, ...CATEGORIES));
-  t = await h.text();
-  for (const needle of ["Goal: $200.00 over these dates", "Maximum: $900.00 over these dates", "Shortfall: $0.00 over these dates", "$200.00 across the selected dates", `(${left.whole} month`, "Monthly equivalents and limits are rounded to cents. Use the allocated over these dates amounts"]) assert.ok(t.includes(needle), `${needle}: ${t}`);
-  // The history each category's usual month rests on is available in the result.
-  const detail = await b.execute(() => document.querySelector('[role="dialog"]').textContent);
-  for (const needle of ["$300.00", "$90.00", "$60.00"]) assert.ok(detail.includes(needle), `the category details show ${needle}`);
-  await h.clickButton("Change the details"); await h.waitText("Choose up to 20 categories", "edit");
-  assert.equal(await b.$(".cut-preview-results").isExisting(), false, "the old result is retired while the details are edited");
+  const fromNowWhole = !left.asksPartMonth || left.whole >= 1;
+  if (left.asksPartMonth) {
+    await h.waitText("How should I count part months?", "part month asked");
+    if (left.whole >= 1) await radio("Count only whole months");
+    else assert.equal(await (await h.dialog()).$("label*=Count only whole months").$("input").isEnabled(), false, "in December after the 1st no whole month is left, and the whole-months choice says so: " + await h.text());
+  } else {
+    assert.ok(!(await h.text()).includes("How should I count part months?"), "from the 1st this month counts whole and nothing is asked about part months: " + await h.text());
+  }
+  if (fromNowWhole) {
+    await h.clickButton("Review the details"); await h.waitText("Check every detail", "review");
+    await h.clickButton("Show the preview"); await h.waitText("Your savings target preview", "result");
+    // Whole months only: the months after this one in the year (computed from the calendar; 2 on 27 October 2026). Room 600 + 180 + 120 = 900 over these dates; target 200 -> 133.33.. / 40.00 / 26.66.. and the spare cent goes to Shopping (largest remainder).
+    assert.deepEqual(await heads(), ["Category", "Allocated over these dates", "Approx. monthly cut", "Approx. monthly limit"]);
+    assert.deepEqual(await rows(), split({ num: BigInt(left.whole), den: 1n }, ...CATEGORIES));
+    t = await h.text();
+    for (const needle of ["Goal: $200.00 over these dates", "Maximum: $900.00 over these dates", "Shortfall: $0.00 over these dates", "$200.00 across the selected dates", `(${left.whole} month`, "Monthly equivalents and limits are rounded to cents. Use the allocated over these dates amounts"]) assert.ok(t.includes(needle), `${needle}: ${t}`);
+    // The history each category's usual month rests on is available in the result.
+    const detail = await b.execute(() => document.querySelector('[role="dialog"]').textContent);
+    for (const needle of ["$300.00", "$90.00", "$60.00"]) assert.ok(detail.includes(needle), `the category details show ${needle}`);
+    await h.clickButton("Change the details"); await h.waitText("Choose up to 20 categories", "edit");
+    assert.equal(await b.$(".cut-preview-results").isExisting(), false, "the old result is retired while the details are edited");
+  }
   // The same target with the part month counted by the day: whole months + remaining days of this month / days in the month (2 + 5/31 = 67/31 on 27 October 2026); the allocation keeps its ratio, the monthly equivalents shrink.
   await h.closeDialog();
   await h.ask("Save $200 in total this year"); await h.waitText("Choose up to 20 categories", "choices");
   await choose(["Dining Out", "Groceries", "Shopping"]);
   for (const n of ["Dining Out", "Groceries", "Shopping"]) await h.clickButton(`Allow up to 100% with floor $0 for ${n}`);
-  await radio("From now until"); await h.waitText("How should I count part months?", "part month asked again");
-  await radio("Count the part month by the day");
-  await h.clickButton("Review the details"); await h.waitText("Check every detail", "review");
-  await h.clickButton("Show the preview"); await h.waitText("Your savings target preview", "result by the day");
-  assert.deepEqual(await rows(), split({ num: BigInt(left.whole * left.daysInMonth + left.partDays), den: BigInt(left.daysInMonth) }, ...CATEGORIES));
-  await h.closeDialog();
+  // Each way of counting a part month, in turn. "From now" has a part month only after the 1st; own dates that start part-way through next month (and end on the last day of the month after) always have one, so these run whichever day this is.
+  const ownDates = async () => {
+    await radio("Dates I choose");
+    await setDateInput(b, 'input[aria-label="Schedule start"]', own.from);
+    await setDateInput(b, 'input[aria-label="Schedule end"]', own.to);
+    await h.waitText("How should I count part months?", "own dates start part-way through a month");
+  };
+  const fromNow = async () => { await radio("From now until"); await h.waitText("How should I count part months?", "part month asked again"); };
+  const counts = [
+    ...(left.asksPartMonth ? [["from now, by the day", fromNow, "Count the part month by the day", { num: BigInt(left.whole * left.daysInMonth + left.partDays), den: BigInt(left.daysInMonth) }]] : []),
+    ["own dates, by the day", ownDates, "Count the part month by the day", ownMonths.byDay],
+    ["own dates, whole months only", ownDates, "Count only whole months", ownMonths.wholeOnly],
+  ];
+  for (const [index, [name, pick, choice, months]] of counts.entries()) {
+    if (index > 0) {
+      await h.ask("Save $200 in total this year"); await h.waitText("Choose up to 20 categories", "choices");
+      await choose(["Dining Out", "Groceries", "Shopping"]);
+      for (const n of ["Dining Out", "Groceries", "Shopping"]) await h.clickButton(`Allow up to 100% with floor $0 for ${n}`);
+    }
+    await pick();
+    await radio(choice);
+    await h.clickButton("Review the details"); await h.waitText("Check every detail", "review " + name);
+    await h.clickButton("Show the preview"); await h.waitText("Your savings target preview", "result " + name);
+    assert.deepEqual(await rows(), split(months, ...CATEGORIES), name);
+    await h.closeDialog();
+  }
   // The whole year as a what-if counts 12 months: 200 / 12 = 16.67 a month in total.
   await h.ask("Save $200 in total this year"); await h.waitText("Choose up to 20 categories", "choices");
   await choose(["Dining Out", "Groceries", "Shopping"]);
