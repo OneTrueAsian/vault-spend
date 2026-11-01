@@ -1132,7 +1132,7 @@ export function CategoryTransactionsDialog({
             </div>
           )}
           <div className="modal-table-scroll">
-            <table className="ledger">
+            <table className="ledger category-transactions-table">
               <thead>
                 <tr>
                   <th className="select-col">

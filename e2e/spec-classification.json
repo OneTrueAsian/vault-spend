@@ -332,6 +332,7 @@
     "feature379_move_transactions_confirmed_balances.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature380_move_transactions_recorded_balances.mjs": "not reviewed for parallel execution; exclusive until approved",
     "feature381_move_transactions_card_balances.mjs": "not reviewed for parallel execution; exclusive until approved",
-    "feature382_move_transactions_select_all_to_move.mjs": "depends on which window has OS focus"
+    "feature382_move_transactions_select_all_to_move.mjs": "depends on which window has OS focus",
+    "feature383_budget_category_spacing.mjs": "uses the shared keyboard to close the category dialog"
   }
 }
