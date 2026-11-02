@@ -6,6 +6,15 @@ export function changelogSections(entry: ChangelogEntry): { heading: string | nu
   return Object.entries(entry).filter(([, notes]) => notes.length > 0).map(([heading, notes]) => ({ heading, notes }));
 }
 
+/** Every version in `CHANGELOG`, newest first, whatever order the entries are written in the file. */
+export function versionsNewestFirst(): string[] {
+  const parts = (version: string) => version.split(".").map(Number);
+  return Object.keys(CHANGELOG).sort((a, b) => {
+    const [x, y] = [parts(a), parts(b)];
+    return y[0] - x[0] || y[1] - x[1] || y[2] - x[2];
+  });
+}
+
 export const changelogNotes = (entry: ChangelogEntry): string[] => changelogSections(entry).flatMap((section) => section.notes);
 
 /** One entry per released version — shown once via `WhatsNewDialog` when

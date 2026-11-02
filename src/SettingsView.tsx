@@ -7,7 +7,7 @@ import type { AppSettings, Backup, BackgroundSettings, LivePriceProviderId, Live
 import { useAutoCancelDelete } from "./useAutoCancelDelete";
 import { RulesManager } from "./RulesManager";
 import { StatementLayoutsSection } from "./StatementLayoutsSection";
-import { CHANGELOG, changelogSections } from "./changelog";
+import { CHANGELOG, changelogSections, versionsNewestFirst } from "./changelog";
 import { ICON_CREDITS, IconPicker, ProfileIcon, isProfileIconKey, PROFILE_ICON_OPTIONS, useDismissOnEscape, type ProfileIconKey } from "./icons";
 import { ProfileProtectionSection } from "./ProfileProtectionSection";
 import { ProtectionLeftovers } from "./ProtectionLeftovers";
@@ -1239,12 +1239,10 @@ export function ProfilesSection({
  * counterpart to `WhatsNewDialog` (App.tsx), which only ever shows the one
  * version a viewer just updated to, once, then never again. Reuses the
  * same `CHANGELOG` data (`changelog.ts`) rather than a second copy, so
- * cutting a release only ever means adding one entry there. `Object.keys`
- * preserves insertion order for string keys, and `CHANGELOG`'s entries are
- * already written oldest-first, so reversing it is enough — no real
- * version-number parsing needed. */
+ * cutting a release only ever means adding one entry there. The versions
+ * are put newest first by number, not by where the entry sits in the file. */
 function ReleaseNotesSection({ currentVersion }: { currentVersion: string | null }) {
-  const versions = Object.keys(CHANGELOG).reverse();
+  const versions = versionsNewestFirst();
   if (versions.length === 0) return null;
 
   return (
