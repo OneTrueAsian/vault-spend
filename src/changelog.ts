@@ -50,6 +50,7 @@ export const CHANGELOG: Record<string, ChangelogEntry> = {
       "Dismissing suggested transfers skips any pair where one side has since been deleted, instead of recording it as dismissed.",
       "Bills with accented letters in their name, such as Café, are now matched to their charges even when the bank prints the name in capitals, so they no longer show as unpaid.",
       "If the app cannot make a safety copy before upgrading your data, it explains the backup problem and leaves the data unchanged instead of suggesting that the file is damaged.",
+      "Changing your Quick settings shortcuts several times in a row no longer leaves the list showing a change that was not saved when one of the saves fails.",
     ],
   },
   "1.3.1": {

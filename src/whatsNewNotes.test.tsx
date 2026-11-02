@@ -37,6 +37,11 @@ describe("grouped release notes", () => {
     expect(text).toMatch(/each row keeps the account you choose/);
   });
 
+  it("lists the Quick settings save fix among the 1.3.2 bug fixes", () => {
+    const fixes = changelogSections(CHANGELOG["1.3.2"]).find((s) => s.heading === "Bug fixes")!.notes.join("\n");
+    expect(fixes).toMatch(/Quick settings shortcuts/);
+  });
+
   it("covers the delivered 1.3.1 scope in plain words", () => {
     const text = changelogNotes(CHANGELOG["1.3.1"]).join("\n");
     for (const part of [/Ask the Vault/, /what-if|cut/i, /savings/i, /retirement/i, /statement/i, /holdings/i, /update/i, /scroll/i]) expect(text).toMatch(part);
