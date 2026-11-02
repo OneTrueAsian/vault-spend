@@ -11,22 +11,16 @@ import { MenuSelect } from "./MenuSelect";
 import { HelpLink } from "./HelpLink";
 import type { Tab } from "./appTypes";
 
-/** One calendar month forward, clamping the day-of-month into range (Jan
- * 31 + 1 month -> Feb 28/29, not Mar 3) — same reasoning as the backend's
- * `add_one_month` (core/src/store.rs), reimplemented here since cadence
- * projection is deliberately client-side and self-contained (see
- * `projectOccurrencesInMonth`'s doc comment). */
-function addOneMonthClamped(d: Date): Date {
-  const day = d.getDate();
-  const daysInNextMonth = new Date(d.getFullYear(), d.getMonth() + 2, 0).getDate();
-  return new Date(d.getFullYear(), d.getMonth() + 1, Math.min(day, daysInNextMonth));
-}
-
-/** One year forward, clamping Feb 29 -> Feb 28 in a non-leap target year. */
-function addOneYearClamped(d: Date): Date {
-  const targetYear = d.getFullYear() + 1;
-  const daysInTargetMonth = new Date(targetYear, d.getMonth() + 1, 0).getDate();
-  return new Date(targetYear, d.getMonth(), Math.min(d.getDate(), daysInTargetMonth));
+/** The date `months` calendar months after `anchor`, keeping the anchor's own
+ * day-of-month and clamping it into range only for a short month (Jan 31 + 1
+ * month -> Feb 28/29, + 2 months -> Mar 31, not Mar 28). Counting from the anchor
+ * rather than from the previous result is what stops a clamped day from sticking.
+ * Same reasoning as the backend's `add_one_month` (core/src/store.rs),
+ * reimplemented here since cadence projection is deliberately client-side and
+ * self-contained (see `projectOccurrencesInMonth`'s doc comment). */
+function addMonthsClamped(anchor: Date, months: number): Date {
+  const daysInTarget = new Date(anchor.getFullYear(), anchor.getMonth() + months + 1, 0).getDate();
+  return new Date(anchor.getFullYear(), anchor.getMonth() + months, Math.min(anchor.getDate(), daysInTarget));
 }
 
 /** The one-line "did the last one actually happen?" note under a due date. */
@@ -42,21 +36,21 @@ function matchNote(item: Recurring, match: RecurringMatch | undefined): { text: 
   return { state: "missed", text: `No charge for ${formatDisplayDate(match.last_due)}` };
 }
 
-function stepDate(d: Date, cadence: string): Date {
+function nthOccurrence(anchor: Date, cadence: string, n: number): Date {
   switch (cadence) {
     case "weekly":
-      return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7);
+      return new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + 7 * n);
     case "biweekly":
-      return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 14);
+      return new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + 14 * n);
     case "monthly":
-      return addOneMonthClamped(d);
+      return addMonthsClamped(anchor, n);
     case "annual":
-      return addOneYearClamped(d);
+      return addMonthsClamped(anchor, 12 * n);
     default:
       // Unrecognized cadence string (`Recurring.cadence` is plain
       // `string`, not a literal union — see types.ts) — fall back to
       // monthly rather than looping forever or crashing.
-      return addOneMonthClamped(d);
+      return addMonthsClamped(anchor, n);
   }
 }
 
@@ -64,7 +58,7 @@ function stepDate(d: Date, cadence: string): Date {
  * for sorting/display in the Audit table below — mirrors
  * `Store::monthly_multiplier` (core/src/store.rs) exactly, but this one
  * row at a time is a trivial enough calculation that it doesn't need a
- * backend round-trip, same reasoning as `stepDate`'s own cadence math
+ * backend round-trip, same reasoning as `nthOccurrence`'s own cadence math
  * just above. The *aggregate* totals (the numbers that actually need to
  * add up correctly) come from the backend's `recurring_totals` instead —
  * see that method's doc comment for why summing this client-side used to
@@ -86,7 +80,8 @@ function normalizedMonthlyCost(item: { amount: string; cadence: string }): numbe
  * comes close (a 10-year-old weekly item is ~520 steps to "now"). */
 export function projectOccurrencesInMonth(item: { anchor_date: string; cadence: string }, year: number, month: number): string[] {
   const [ay, am, ad] = item.anchor_date.split("-").map(Number);
-  let current = new Date(ay, am - 1, ad);
+  const anchor = new Date(ay, am - 1, ad);
+  let current = anchor;
   const targetStart = new Date(year, month - 1, 1);
   const targetEnd = new Date(year, month, 0);
   if (current > targetEnd) return [];
@@ -95,8 +90,8 @@ export function projectOccurrencesInMonth(item: { anchor_date: string; cadence: 
   let steps = 0;
   while (current <= targetEnd && steps < 2000) {
     if (current >= targetStart) occurrences.push(toLocalIsoDate(current));
-    current = stepDate(current, item.cadence);
     steps++;
+    current = nthOccurrence(anchor, item.cadence, steps);
   }
   return occurrences;
 }

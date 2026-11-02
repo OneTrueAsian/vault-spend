@@ -181,7 +181,7 @@ function periodLabel(phrase: string): string {
 // Recurring/subscription helpers — same monthly-equivalent convention as
 // the backend's own `recurring_totals` (see core/src/store.rs): a small
 // mirrored multiplier table, duplicated client-side deliberately (same
-// precedent as `next_occurrence`/`stepDate` elsewhere in this app) since
+// precedent as `next_occurrence`/`nthOccurrence` elsewhere in this app) since
 // this is a display-only estimate, not the source of truth.
 const CADENCE_MONTHLY_MULTIPLIER: Record<string, number> = {
   weekly: 52 / 12,
