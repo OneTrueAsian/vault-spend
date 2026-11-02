@@ -235,4 +235,74 @@ mod tests {
 
         assert_eq!(source, CategorySource::Rule);
     }
+
+    // ---- a description the classifier has no word for is left uncategorized, never guessed ----
+
+    fn classifier_with_a_big_transfer_category() -> Classifier {
+        let mut examples: Vec<(&str, &str)> = vec![
+            ("Green Leaf Grocers", "Groceries"),
+            ("Fresh Market Grocery", "Groceries"),
+            ("Ferrywood Coffee Shop", "Dining Out"),
+        ];
+        for description in [
+            "Online Transfer To Savings",
+            "Online Transfer From Checking",
+            "Savings Move 1",
+            "Savings Move 2",
+            "Savings Move 3",
+            "Savings Move 4",
+            "Savings Move 5",
+            "Savings Move 6",
+        ] {
+            examples.push((description, "Transfer"));
+        }
+        Classifier::train(&examples)
+    }
+
+    #[test]
+    fn an_unrecognised_description_is_left_uncategorized_even_when_transfer_is_the_biggest_category() {
+        let classifier = classifier_with_a_big_transfer_category();
+        let rules = RuleSet::new(vec![]);
+
+        for description in ["CAFÉ", "Zzz Quux", "#4412"] {
+            assert_eq!(categorize(description, &rules, &[], Some(&classifier)), None, "{description}");
+        }
+    }
+
+    #[test]
+    fn a_recognised_merchant_is_still_categorized_by_the_classifier() {
+        let classifier = classifier_with_a_big_transfer_category();
+        let rules = RuleSet::new(vec![]);
+
+        let (category, source, confidence) = categorize("Sunny Grocery Store", &rules, &[], Some(&classifier)).unwrap();
+
+        assert_eq!(category, "Groceries");
+        assert_eq!(source, CategorySource::Classifier);
+        assert!(confidence.is_some());
+    }
+
+    #[test]
+    fn a_real_transfer_is_still_recognised_by_its_words_and_by_a_rule() {
+        let classifier = classifier_with_a_big_transfer_category();
+
+        let (category, source, _) = categorize("Online Transfer To Savings 77", &RuleSet::new(vec![]), &[], Some(&classifier)).unwrap();
+        assert_eq!((category.as_str(), source), ("Transfer", CategorySource::Classifier));
+
+        let rules = RuleSet::new(vec![Rule::new("mobile payment", "Transfer")]);
+        assert_eq!(
+            categorize("MOBILE PAYMENT THANK YOU", &rules, &[], Some(&classifier)),
+            Some(("Transfer".to_string(), CategorySource::Rule, None))
+        );
+    }
+
+    #[test]
+    fn a_rule_still_decides_a_description_the_classifier_has_never_seen() {
+        let classifier = classifier_with_a_big_transfer_category();
+        let rules = RuleSet::new(vec![Rule::new("cafe", "Dining Out")]);
+
+        assert_eq!(
+            categorize("CAFÉ", &rules, &[], Some(&classifier)),
+            Some(("Dining Out".to_string(), CategorySource::Rule, None))
+        );
+    }
 }

@@ -51,7 +51,7 @@ impl Classifier {
     }
 
     /// Picks the category with the highest posterior probability, or `None`
-    /// if this classifier has no training data at all.
+    /// if this classifier has no training data at all or the description has no word it has seen.
     pub fn predict(&self, description: &str) -> Option<String> {
         self.category_log_scores(description)
             .into_iter()
@@ -78,13 +78,19 @@ impl Classifier {
 
     /// Every trained category's log posterior score for `description` (not
     /// yet normalized into a probability — see `predict_with_confidence`).
-    /// Empty if this classifier has no training data at all.
+    /// Empty if this classifier has no training data at all, or the description has no word it has seen.
     fn category_log_scores(&self, description: &str) -> Vec<(String, f64)> {
         if self.total_docs == 0 {
             return Vec::new();
         }
 
         let tokens = tokenize(description);
+        // With no word the classifier has ever seen, only the category sizes are left to decide, which
+        // is a guess at the biggest category (often Transfer, which leaves a purchase out of spending)
+        // and not a prediction. Better to leave it uncategorized for the person to sort.
+        if !tokens.iter().any(|token| self.vocabulary.contains(token)) {
+            return Vec::new();
+        }
         let vocab_size = self.vocabulary.len() as f64;
         let empty_counts = BTreeMap::new();
 
@@ -181,9 +187,10 @@ mod tests {
     }
 
     #[test]
-    fn falls_back_to_the_more_common_category_when_no_words_overlap() {
+    fn leaves_a_description_with_no_known_word_unpredicted() {
         // 3 Groceries examples vs 1 Dining Out example, and a query with
-        // words in neither vocabulary — only the prior can decide.
+        // words in neither vocabulary — nothing but the category sizes could decide it, and that is
+        // not evidence, so the biggest category is not guessed.
         let examples = vec![
             ("Green Leaf Grocers", "Groceries"),
             ("Fresh Market Grocery", "Groceries"),
@@ -192,7 +199,12 @@ mod tests {
         ];
         let classifier = Classifier::train(&examples);
 
-        assert_eq!(classifier.predict("Xyzzy Quux Foobar"), Some("Groceries".to_string()));
+        assert_eq!(classifier.predict("Xyzzy Quux Foobar"), None);
+        assert_eq!(classifier.predict_with_confidence("Xyzzy Quux Foobar"), None);
+        // Only numbers and punctuation leave nothing to go on either.
+        assert_eq!(classifier.predict("#1001 - 42"), None);
+        // One recognised word is enough to predict again.
+        assert_eq!(classifier.predict("Xyzzy Grocery"), Some("Groceries".to_string()));
     }
 
     #[test]
@@ -223,9 +235,9 @@ mod tests {
         // "Grocery" and "Market" both appear heavily in the Groceries
         // training set with no Dining Out overlap — a clean match.
         let (_, clear_confidence) = classifier.predict_with_confidence("Sunny Grocery Market").unwrap();
-        // A word salad with no vocabulary overlap at all is won only by
-        // the category prior — the weakest possible win.
-        let (_, ambiguous_confidence) = classifier.predict_with_confidence("Xyzzy Quux Foobar").unwrap();
+        // "Downtown" is in both categories' training descriptions, so it cannot tell them apart and
+        // the category sizes decide — the weakest win that still rests on a seen word.
+        let (_, ambiguous_confidence) = classifier.predict_with_confidence("Downtown").unwrap();
 
         assert!(
             clear_confidence > ambiguous_confidence,
@@ -296,11 +308,11 @@ mod tests {
     }
 
     #[test]
-    fn a_clear_match_is_still_more_confident_than_a_prior_only_win_after_calibration() {
+    fn a_clear_match_is_still_more_confident_than_one_on_a_word_both_categories_share_after_calibration() {
         let classifier = Classifier::train(&training_set());
 
         let (_, clear) = classifier.predict_with_confidence("Sunny Grocery Market Grocers").unwrap();
-        let (_, prior_only) = classifier.predict_with_confidence("Xyzzy Quux Foobar").unwrap();
+        let (_, prior_only) = classifier.predict_with_confidence("Downtown").unwrap();
 
         assert!(clear > prior_only);
     }
