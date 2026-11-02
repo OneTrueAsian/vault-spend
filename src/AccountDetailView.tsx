@@ -1,4 +1,4 @@
-import { accountTypeLabel } from "./accountGroups";
+import { accountTypeLabel, groupOf, owedAmount } from "./accountGroups";
 import "./AccountsCards.css";
 import "./Transactions.css";
 import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from "react";
@@ -226,6 +226,10 @@ export function AccountDetailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished]);
 
+  const group = groupOf(account.account_type);
+  const isCredit = group === "credit";
+  const isLoan = group === "loan";
+
   return (
     <div className="account-detail" data-account-detail={account.id}>
       <div className="page-top">
@@ -245,10 +249,25 @@ export function AccountDetailView({
       </div>
 
       <div className="stats">
-        <div className="stat tint-accent">
-          <span className="stat-value">{formatAmount(account.current_balance)}</span>
-          <span className="stat-label">Balance</span>
-        </div>
+        {/* A card's stored balance is the credit still available and a loan's is what is owed, so
+            these are labelled as the Accounts list shows them instead of all being called "Balance". */}
+        {isCredit || isLoan ? (
+          <div className="stat tint-accent">
+            <span className="stat-value">{formatAmount(owedAmount(account))}</span>
+            <span className="stat-label">Amount owed</span>
+          </div>
+        ) : (
+          <div className="stat tint-accent">
+            <span className="stat-value">{formatAmount(account.current_balance)}</span>
+            <span className="stat-label">Balance</span>
+          </div>
+        )}
+        {isCredit && parseFloat(account.starting_balance) > 0 && (
+          <div className="stat tint-teal">
+            <span className="stat-value">{formatAmount(account.current_balance)}</span>
+            <span className="stat-label">Available credit</span>
+          </div>
+        )}
         <div className="stat tint-blue" data-last-reconciled={lastRec ? lastRec.statement_date : ""}>
           <span className={lastRec ? "stat-value" : "stat-value stat-value-muted"}>{lastRec ? formatDisplayDate(lastRec.statement_date) : "Never"}</span>
           <span className="stat-label">Last reconciled</span>

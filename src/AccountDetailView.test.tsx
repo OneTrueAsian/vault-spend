@@ -445,3 +445,35 @@ describe("AccountDetailView statement dates", () => {
     }
   });
 });
+
+describe("AccountDetailView headline figures", () => {
+  const statLabels = () => [...host.querySelectorAll(".stat")].map((s) => [s.querySelector(".stat-label")?.textContent, s.querySelector(".stat-value")?.textContent]);
+  const showAccount = (over: Partial<Account>) =>
+    act(() => root.render(<AccountDetailView account={{ ...account, ...over }} onBack={() => {}} onOpenTransactions={() => {}} onOpenPayment={() => {}} onMessage={() => {}} />));
+
+  it("calls a checking account's figure its balance", () => {
+    showAccount({});
+    expect(statLabels()[0]).toEqual(["Balance", "$123.45"]);
+  });
+
+  it("shows a credit card as the amount owed and the credit still available, as the Accounts list does", () => {
+    showAccount({ account_type: "credit", starting_balance: "9000.00", current_balance: "7849.67" });
+    expect(statLabels().slice(0, 2)).toEqual([
+      ["Amount owed", "$1,150.33"],
+      ["Available credit", "$7,849.67"],
+    ]);
+    expect(host.textContent).not.toContain("Balance$");
+  });
+
+  it("shows only the amount owed on a credit card with no limit set", () => {
+    showAccount({ account_type: "credit", starting_balance: "0", current_balance: "-250.00" });
+    const labels = statLabels().map(([label]) => label);
+    expect(labels).toContain("Amount owed");
+    expect(labels).not.toContain("Available credit");
+  });
+
+  it("shows a loan's balance as the amount owed", () => {
+    showAccount({ account_type: "loan", starting_balance: "0", current_balance: "18250.00" });
+    expect(statLabels()[0]).toEqual(["Amount owed", "$18,250.00"]);
+  });
+});
